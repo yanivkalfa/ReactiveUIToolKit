@@ -20,11 +20,12 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode View(
+        public static VirtualNode VisualElement(
             IReadOnlyDictionary<string, object> properties = null,
             string key = null,
             params VirtualNode[] children)
         {
+            properties = CloneStyleDictionary(properties);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
@@ -44,6 +45,7 @@ namespace ReactiveUITK
             System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
             params VirtualNode[] children) where TComponent : ReactiveComponent
         {
+            props = CloneStyleDictionary(props);
             return new VirtualNode(
                 VirtualNodeType.Component,
                 elementTypeName: null,
@@ -66,6 +68,7 @@ namespace ReactiveUITK
             System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
             params VirtualNode[] children)
         {
+            props = CloneStyleDictionary(props);
             return new VirtualNode(
                 VirtualNodeType.FunctionComponent,
                 elementTypeName: null,
@@ -125,14 +128,22 @@ namespace ReactiveUITK
             );
         }
 
-        private static IReadOnlyDictionary<string, object> EmptyProps()
-        {
-            return new Dictionary<string, object>(0);
-        }
+        private static IReadOnlyDictionary<string, object> EmptyProps() => new Dictionary<string, object>(0);
 
-        private static IReadOnlyList<VirtualNode> EmptyChildren()
+        private static IReadOnlyList<VirtualNode> EmptyChildren() => new List<VirtualNode>(0);
+
+        private static IReadOnlyDictionary<string, object> CloneStyleDictionary(IReadOnlyDictionary<string, object> source)
         {
-            return new List<VirtualNode>(0);
+            if (source == null) return null;
+            if (!source.ContainsKey("style")) return source; // no style entry
+            if (!(source["style"] is IDictionary<string, object> styleMap)) return source;
+            // clone outer props and style map
+            var outer = new Dictionary<string, object>(source.Count);
+            foreach (var kv in source) outer[kv.Key] = kv.Value;
+            var styleClone = new Dictionary<string, object>(styleMap.Count);
+            foreach (var kv in styleMap) styleClone[kv.Key] = kv.Value;
+            outer["style"] = styleClone;
+            return outer;
         }
     }
 }

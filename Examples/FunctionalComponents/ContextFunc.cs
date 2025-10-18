@@ -10,7 +10,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
         {
             var theme = Hooks.UseContext<Color>("themeColor");
             if (theme == default) theme = Color.gray;
-            return V.View(new Dictionary<string, object>{{"style.padding",6f},{"style.backgroundColor",theme}}, null,
+            return V.VisualElement(new Dictionary<string, object>{{"style", new Dictionary<string, object>{{"padding",6f},{"backgroundColor",theme}}}}, null,
                 V.Text("Functional consumer uses theme context"));
         }
     }

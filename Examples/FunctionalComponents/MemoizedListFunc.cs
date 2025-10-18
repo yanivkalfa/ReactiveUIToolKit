@@ -14,14 +14,14 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             var onType = Hooks.UseStableAction<string>(val => setFilter(val));
 
             // Simple input simulation (no real TextField adapter, demonstration only)
-            var filterViewProps = new Dictionary<string, object>{{"style.marginBottom",6f}};
+            var filterViewProps = new Dictionary<string, object>{{"style", new Dictionary<string, object>{{"marginBottom",6f}}}};
             var listChildren = new List<VirtualNode>();
             foreach (var item in filtered)
                 listChildren.Add(V.Text(item));
 
-            return V.View(new Dictionary<string, object>{{"style.padding",10f}}, null,
+            return V.VisualElement(new Dictionary<string, object>{{"style", new Dictionary<string, object>{{"padding",10f}}}}, null,
                 V.Text("Filter (starts with): " + (filter==""?"<empty>":filter)),
-                V.View(filterViewProps, null, V.Text("(Imagine input here)")),
+                V.VisualElement(filterViewProps, null, V.Text("(Imagine input here)")),
                 V.Fragment(null, listChildren.ToArray())
             );
         }

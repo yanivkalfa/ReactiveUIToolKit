@@ -14,18 +14,15 @@ namespace ReactiveUITK.Examples.ClassComponents
         {
             var propsButton = new Dictionary<string, object>
             {
-                {"style.width", 160f},
-                {"style.height", 30f},
-                {"style.marginTop", 8f},
+                {"style", new Dictionary<string, object>{{"width",160f},{"height",30f},{"marginTop",8f}}},
                 {"onClick", (System.Action)(() => SetState(ref count, count + 1)) }
             };
-            return V.View(new Dictionary<string, object>
+            return V.VisualElement(new Dictionary<string, object>
             {
-                {"style.padding", 10f},
-                {"style.backgroundColor", new Color(0.15f,0.15f,0.15f,1f)}
+                {"style", new Dictionary<string, object>{{"padding",10f},{"backgroundColor", new Color(0.15f,0.15f,0.15f,1f)}}}
             }, null,
                 V.Text($"Count: {count}"),
-                V.View(propsButton, null, V.Text("Increment"))
+                V.VisualElement(propsButton, null, V.Text("Increment"))
             );
         }
     }

@@ -13,6 +13,32 @@ namespace ReactiveUITK.Props
         private static int totalEventsRegistered;
         private static int totalEventsRemoved;
 
+        // Algorithmic canonicalization helpers (USS dashed -> camelCase) so user can supply pure USS names.
+        private static string Canonicalize(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return key;
+            if (key.StartsWith("-unity-", StringComparison.OrdinalIgnoreCase))
+            {
+                // Drop prefix and camelCase remainder
+                return ToCamelCase(key.Substring(7));
+            }
+            if (key.IndexOf('-') >= 0) return ToCamelCase(key);
+            return key; // already camel or simple
+        }
+
+        private static string ToCamelCase(string dashed)
+        {
+            var parts = dashed.Split('-', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return dashed;
+            for (int i = 1; i < parts.Length; i++)
+            {
+                var p = parts[i];
+                if (p.Length == 0) continue;
+                parts[i] = char.ToUpperInvariant(p[0]) + p.Substring(1);
+            }
+            return parts[0].ToLowerInvariant() + string.Join(string.Empty, parts, 1, parts.Length - 1);
+        }
+
         public static void Apply(VisualElement element, IReadOnlyDictionary<string, object> properties)
         {
             if (properties == null)
@@ -30,59 +56,66 @@ namespace ReactiveUITK.Props
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
 
-            // Removed props
+            // Removed non-style props
             foreach (var prev in previous)
             {
-                if (next.ContainsKey(prev.Key))
-                {
-                    continue;
-                }
+                if (prev.Key == "style") continue; // handled separately
+                if (next.ContainsKey(prev.Key)) continue;
                 RemoveProp(element, prev.Key, prev.Value);
             }
 
-            // Added / changed props
+            // Added / changed non-style props
             foreach (var current in next)
             {
+                if (current.Key == "style") continue;
                 previous.TryGetValue(current.Key, out object oldValue);
                 if (oldValue != null && ReferenceEquals(oldValue, current.Value)) continue;
                 if (oldValue != null && oldValue.Equals(current.Value)) continue;
                 ApplySingle(element, oldValue, current.Key, current.Value);
             }
+
+            // Nested style diff if present
+            previous.TryGetValue("style", out var prevStyleObj);
+            next.TryGetValue("style", out var nextStyleObj);
+            if (prevStyleObj != null || nextStyleObj != null)
+            {
+                var prevMap = prevStyleObj as IDictionary<string, object> ?? (IDictionary<string, object>)new Dictionary<string, object>();
+                var nextMap = nextStyleObj as IDictionary<string, object> ?? (IDictionary<string, object>)new Dictionary<string, object>();
+                foreach (var kv in prevMap)
+                {
+                    if (!nextMap.ContainsKey(kv.Key)) ResetStyle(element, kv.Key);
+                }
+                foreach (var kv in nextMap)
+                {
+                    prevMap.TryGetValue(kv.Key, out var oldVal);
+                    if (oldVal != null && ReferenceEquals(oldVal, kv.Value)) continue;
+                    if (oldVal != null && oldVal.Equals(kv.Value)) continue;
+                    ApplyStyle(element, kv.Key, kv.Value);
+                }
+            }
         }
 
         private static void ApplySingle(VisualElement element, object oldValue, string propertyName, object propertyValue)
         {
-            if (propertyName == "name")
-            {
-                element.name = propertyValue as string;
-                return;
-            }
+            if (propertyName == "name") { element.name = propertyValue as string; return; }
             if (propertyName == "classes")
             {
                 element.ClearClassList();
                 if (propertyValue is IEnumerable<string> list)
                 {
-                    foreach (string className in list)
-                    {
-                        if (!string.IsNullOrWhiteSpace(className))
-                        {
-                            element.AddToClassList(className);
-                        }
-                    }
+                    foreach (var className in list)
+                        if (!string.IsNullOrWhiteSpace(className)) element.AddToClassList(className);
                 }
                 return;
             }
-
+            if (propertyName == "style" && propertyValue is IDictionary<string, object> styleMap)
+            {
+                foreach (var kv in styleMap) ApplyStyle(element, kv.Key, kv.Value);
+                return;
+            }
             if (propertyName.StartsWith("on") && propertyValue is Delegate d)
             {
                 ApplyEvent(element, propertyName, d, oldValue as Delegate);
-                return;
-            }
-
-            if (propertyName.StartsWith("style."))
-            {
-                string styleKey = propertyName.Substring("style.".Length);
-                ApplyStyle(element, styleKey, propertyValue);
                 return;
             }
         }
@@ -92,21 +125,19 @@ namespace ReactiveUITK.Props
             if (propertyName.StartsWith("on") && oldValue is Delegate oldHandler)
             {
                 var meta = element.userData as Core.NodeMetadata;
-                if (meta != null)
-                {
-                    RemoveEvent(element, propertyName, oldHandler, meta);
-                }
+                if (meta != null) RemoveEvent(element, propertyName, oldHandler, meta);
                 return;
             }
-            if (propertyName.StartsWith("style."))
+            if (propertyName == "style" && oldValue is IDictionary<string, object> oldMap)
             {
-                string styleKey = propertyName.Substring("style.".Length);
-                ResetStyle(element, styleKey);
+                foreach (var kv in oldMap) ResetStyle(element, kv.Key);
+                return;
             }
         }
 
         private static void ApplyStyle(VisualElement element, string styleKey, object value)
         {
+            styleKey = Canonicalize(styleKey);
             if (!previousStyles.TryGetValue(element, out var prevMap))
             {
                 prevMap = new Dictionary<string, object>();
@@ -155,6 +186,8 @@ namespace ReactiveUITK.Props
                 element.style.alignItems = ConvertToAlign(value);
                 return;
             }
+            if (styleKey == "alignSelf") { if (value is string s) { element.style.alignSelf = ConvertToAlign(value); } return; }
+            if (styleKey == "alignContent") { if (value is string s2) { element.style.alignContent = ConvertToAlign(value); } return; }
             if (styleKey == "fontSize") { element.style.fontSize = ConvertToFloat(value); return; }
             if (styleKey == "unityFontStyle") { if (value is string fs && fs == "bold") element.style.unityFontStyleAndWeight = FontStyle.Bold; else element.style.unityFontStyleAndWeight = FontStyle.Normal; return; }
             if (styleKey == "textAlign") { if (value is string ta && ta == "center") element.style.unityTextAlign = TextAnchor.MiddleCenter; else element.style.unityTextAlign = TextAnchor.UpperLeft; return; }
@@ -164,6 +197,17 @@ namespace ReactiveUITK.Props
             if (styleKey == "right") { element.style.right = ConvertToLength(value); return; }
             if (styleKey == "bottom") { element.style.bottom = ConvertToLength(value); return; }
             if (styleKey == "flexWrap") { if (value is string fw && fw == "wrap") element.style.flexWrap = Wrap.Wrap; else element.style.flexWrap = Wrap.NoWrap; return; }
+            if (styleKey == "flexBasis") { element.style.flexBasis = ConvertToLength(value); return; }
+            if (styleKey == "minWidth") { element.style.minWidth = ConvertToLength(value); return; }
+            if (styleKey == "minHeight") { element.style.minHeight = ConvertToLength(value); return; }
+            if (styleKey == "maxWidth") { element.style.maxWidth = ConvertToLength(value); return; }
+            if (styleKey == "maxHeight") { element.style.maxHeight = ConvertToLength(value); return; }
+            if (styleKey == "display") { if (value is string dv && dv == "none") element.style.display = DisplayStyle.None; else element.style.display = DisplayStyle.Flex; return; }
+            if (styleKey == "visibility") { if (value is string vis && vis == "hidden") element.style.visibility = Visibility.Hidden; else element.style.visibility = Visibility.Visible; return; }
+            if (styleKey == "overflow") { if (value is string ov && ov == "hidden") element.style.overflow = Overflow.Hidden; else element.style.overflow = Overflow.Visible; return; }
+            if (styleKey == "whiteSpace") { if (value is string ws && ws == "nowrap") element.style.whiteSpace = WhiteSpace.NoWrap; else element.style.whiteSpace = WhiteSpace.Normal; return; }
+            if (styleKey == "backgroundImage") { if (value is Texture2D tex) element.style.backgroundImage = new StyleBackground(tex); else if (value is Sprite sp) element.style.backgroundImage = new StyleBackground(sp); return; }
+            if (styleKey == "backgroundImageTint" ) { element.style.unityBackgroundImageTintColor = ConvertToColor(value); return; }
             if (styleKey == "borderWidth") { var bw = ConvertToFloat(value); element.style.borderLeftWidth = bw; element.style.borderRightWidth = bw; element.style.borderTopWidth = bw; element.style.borderBottomWidth = bw; return; }
             if (styleKey == "borderColor") { var col = ConvertToColor(value); element.style.borderLeftColor = col; element.style.borderRightColor = col; element.style.borderTopColor = col; element.style.borderBottomColor = col; return; }
             if (styleKey == "borderLeftWidth") { element.style.borderLeftWidth = ConvertToFloat(value); return; }
@@ -184,12 +228,16 @@ namespace ReactiveUITK.Props
                 element.style.backgroundColor = ConvertToColor(value);
                 return;
             }
-            // Modern transform style fields (fallback silently if not supported)
-            if (styleKey == "rotateDeg") { if (value is float deg) { try { element.style.rotate = new Rotate(deg); } catch { element.transform.rotation = Quaternion.Euler(0,0,deg); } } return; }
-            if (styleKey == "scaleX") { if (value is float sx) { element.transform.scale = new Vector3(sx, element.transform.scale.y, 1); } return; }
-            if (styleKey == "scaleY") { if (value is float sy) { element.transform.scale = new Vector3(element.transform.scale.x, sy, 1); } return; }
-            if (styleKey == "translateX") { if (value is float tx) { try { var cur = element.style.translate.value; element.style.translate = new Translate(tx, cur.y, 0); } catch { element.transform.position = new Vector3(tx, element.transform.position.y, 0); } } return; }
-            if (styleKey == "translateY") { if (value is float ty) { try { var cur = element.style.translate.value; element.style.translate = new Translate(cur.x, ty, 0); } catch { element.transform.position = new Vector3(element.transform.position.x, ty, 0); } } return; }
+            // Modern transform style fields (no obsolete VisualElement.transform usage)
+            if (styleKey == "rotate")
+            {
+                // Accept number as degrees
+                if (value != null) {
+                    float deg = ConvertToFloat(value);
+                    try { element.style.rotate = new Rotate(deg); } catch { }
+                }
+                return;
+            }
             if (styleKey == "fontFamily") { if (value is Font font) { element.style.unityFont = font; } return; }
             if (styleKey == "borderRadius")
             {
@@ -199,6 +247,10 @@ namespace ReactiveUITK.Props
                 element.style.borderBottomRightRadius = ConvertToLength(value);
                 return;
             }
+            if (styleKey == "borderTopLeftRadius") { element.style.borderTopLeftRadius = ConvertToLength(value); return; }
+            if (styleKey == "borderTopRightRadius") { element.style.borderTopRightRadius = ConvertToLength(value); return; }
+            if (styleKey == "borderBottomLeftRadius") { element.style.borderBottomLeftRadius = ConvertToLength(value); return; }
+            if (styleKey == "borderBottomRightRadius") { element.style.borderBottomRightRadius = ConvertToLength(value); return; }
             if (styleKey == "margin")
             {
                 var len = ConvertToLength(value);
@@ -225,10 +277,71 @@ namespace ReactiveUITK.Props
             if (styleKey == "paddingRight") { element.style.paddingRight = ConvertToLength(value); return; }
             if (styleKey == "paddingTop") { element.style.paddingTop = ConvertToLength(value); return; }
             if (styleKey == "paddingBottom") { element.style.paddingBottom = ConvertToLength(value); return; }
+            if (styleKey == "scale")
+            {
+                try {
+                    if (value is float uni) element.style.scale = new Scale(new Vector3(uni, uni, 1));
+                    else if (value is IEnumerable<object> seq)
+                    {
+                        float sx=1, sy=1; int i=0; foreach(var v in seq){ if(i==0) sx=ConvertToFloat(v); else if(i==1) sy=ConvertToFloat(v); i++; if(i>1) break; }
+                        element.style.scale = new Scale(new Vector3(sx, sy, 1));
+                    }
+                } catch { }
+                return;
+            }
+            if (styleKey == "translate")
+            {
+                try {
+                    if (value is IEnumerable<object> seqT)
+                    { float tx=0, ty=0; int i=0; foreach(var v in seqT){ if(i==0) tx=ConvertToFloat(v); else if(i==1) ty=ConvertToFloat(v); i++; if(i>1) break; }
+                      element.style.translate = new Translate(new Length(tx, LengthUnit.Pixel), new Length(ty, LengthUnit.Pixel), 0);
+                    }
+                    else { float tx = ConvertToFloat(value); element.style.translate = new Translate(new Length(tx, LengthUnit.Pixel), new Length(0, LengthUnit.Pixel), 0); }
+                } catch { }
+                return;
+            }
+            if (styleKey == "flex")
+            {
+                // Accept "grow shrink basis" tokens
+                if (value is string flexStr)
+                {
+                    var parts = flexStr.Split(new[]{' ','\t'}, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length > 0) { element.style.flexGrow = ConvertToFloat(parts[0]); }
+                    if (parts.Length > 1) { element.style.flexShrink = ConvertToFloat(parts[1]); }
+                    if (parts.Length > 2) { element.style.flexBasis = ConvertToLength(parts[2]); }
+                }
+                return;
+            }
+            if (styleKey == "cursor") { if (value is string cur) { try { var uiCursor = new UnityEngine.UIElements.Cursor(); element.style.cursor = new StyleCursor(uiCursor); } catch { } } return; }
+            if (styleKey == "backgroundRepeat") { /* not directly supported pre-2022; ignore safely */ return; }
+            if (styleKey == "backgroundPosition") { /* not directly supported; potential future */ return; }
+            if (styleKey == "backgroundSize") { /* handled via unityBackgroundScaleMode; ignore */ return; }
+            if (styleKey == "filter") { /* UI Toolkit filter chain not exposed; ignore */ return; }
+            if (styleKey == "transformOrigin") { /* Not exposed; ignore */ return; }
+            if (styleKey == "transition" || styleKey == "transitionDelay" || styleKey == "transitionDuration" || styleKey == "transitionProperty" || styleKey == "transitionTimingFunction") { /* animations not applied via runtime API here */ return; }
+            if (styleKey == "wordSpacing") { try { element.style.wordSpacing = ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unityOverflowClipBox") { if (value is string ocb) { try { element.style.unityOverflowClipBox = ocb == "padding-box" ? OverflowClipBox.PaddingBox : OverflowClipBox.ContentBox; } catch { } } return; }
+            if (styleKey == "unityParagraphSpacing") { try { element.style.unityParagraphSpacing = ConvertToFloat(value); } catch { } return; }
+            // unityBackgroundScaleMode deprecated in Unity 6.2+; ignored.
+            if (styleKey == "unitySliceBottom") { try { element.style.unitySliceBottom = (int)ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unitySliceTop") { try { element.style.unitySliceTop = (int)ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unitySliceLeft") { try { element.style.unitySliceLeft = (int)ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unitySliceRight") { try { element.style.unitySliceRight = (int)ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unitySliceScale") { try { element.style.unitySliceScale = ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unitySliceType") { if (value is string st) { try { element.style.unitySliceType = st == "tiled" ? SliceType.Tiled : SliceType.Sliced; } catch { } } return; }
+            // Extended (optional) text-related styles
+            if (styleKey == "letterSpacing") { try { element.style.letterSpacing = ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "textOverflow") { if (value is string ovf) { try { element.style.textOverflow = ovf == "ellipsis" ? TextOverflow.Ellipsis : TextOverflow.Clip; } catch { } } return; }
+            if (styleKey == "unityTextOutlineColor") { try { element.style.unityTextOutlineColor = ConvertToColor(value); } catch { } return; }
+            if (styleKey == "unityTextOutlineWidth") { try { element.style.unityTextOutlineWidth = ConvertToFloat(value); } catch { } return; }
+            if (styleKey == "unityTextOverflowPosition") { if (value is string pos) { try { element.style.unityTextOverflowPosition = pos switch { "middle" => TextOverflowPosition.Middle, "end" => TextOverflowPosition.End, _ => TextOverflowPosition.Start }; } catch { } } return; }
+            if (styleKey == "unityTextAutoSize") { /* unsupported in current version */ return; }
+            // aspectRatio not supported in current target version
         }
 
         private static void ResetStyle(VisualElement element, string styleKey)
         {
+            styleKey = Canonicalize(styleKey);
             if (previousStyles.TryGetValue(element, out var prevMap))
             {
                 prevMap.Remove(styleKey);
@@ -241,6 +354,8 @@ namespace ReactiveUITK.Props
             if (styleKey == "flexDirection") { element.style.flexDirection = StyleKeyword.Null; return; }
             if (styleKey == "justifyContent") { element.style.justifyContent = StyleKeyword.Null; return; }
             if (styleKey == "alignItems") { element.style.alignItems = StyleKeyword.Null; return; }
+            if (styleKey == "alignSelf") { element.style.alignSelf = StyleKeyword.Null; return; }
+            if (styleKey == "alignContent") { element.style.alignContent = StyleKeyword.Null; return; }
             if (styleKey == "fontSize") { element.style.fontSize = StyleKeyword.Null; return; }
             if (styleKey == "unityFontStyle") { element.style.unityFontStyleAndWeight = StyleKeyword.Null; return; }
             if (styleKey == "textAlign") { element.style.unityTextAlign = StyleKeyword.Null; return; }
@@ -250,6 +365,17 @@ namespace ReactiveUITK.Props
             if (styleKey == "right") { element.style.right = StyleKeyword.Null; return; }
             if (styleKey == "bottom") { element.style.bottom = StyleKeyword.Null; return; }
             if (styleKey == "flexWrap") { element.style.flexWrap = StyleKeyword.Null; return; }
+            if (styleKey == "flexBasis") { element.style.flexBasis = StyleKeyword.Null; return; }
+            if (styleKey == "minWidth") { element.style.minWidth = StyleKeyword.Null; return; }
+            if (styleKey == "minHeight") { element.style.minHeight = StyleKeyword.Null; return; }
+            if (styleKey == "maxWidth") { element.style.maxWidth = StyleKeyword.Null; return; }
+            if (styleKey == "maxHeight") { element.style.maxHeight = StyleKeyword.Null; return; }
+            if (styleKey == "display") { element.style.display = StyleKeyword.Null; return; }
+            if (styleKey == "visibility") { element.style.visibility = StyleKeyword.Null; return; }
+            if (styleKey == "overflow") { element.style.overflow = StyleKeyword.Null; return; }
+            if (styleKey == "whiteSpace") { element.style.whiteSpace = StyleKeyword.Null; return; }
+            if (styleKey == "backgroundImage") { element.style.backgroundImage = StyleKeyword.Null; return; }
+            if (styleKey == "backgroundImageTint") { element.style.unityBackgroundImageTintColor = StyleKeyword.Null; return; }
             // gap not supported in current Unity version
             if (styleKey == "borderWidth") { element.style.borderLeftWidth = StyleKeyword.Null; element.style.borderRightWidth = StyleKeyword.Null; element.style.borderTopWidth = StyleKeyword.Null; element.style.borderBottomWidth = StyleKeyword.Null; return; }
             if (styleKey == "borderColor") { element.style.borderLeftColor = StyleKeyword.Null; element.style.borderRightColor = StyleKeyword.Null; element.style.borderTopColor = StyleKeyword.Null; element.style.borderBottomColor = StyleKeyword.Null; return; }
@@ -262,6 +388,10 @@ namespace ReactiveUITK.Props
                 element.style.borderBottomRightRadius = StyleKeyword.Null;
                 return;
             }
+            if (styleKey == "borderTopLeftRadius") { element.style.borderTopLeftRadius = StyleKeyword.Null; return; }
+            if (styleKey == "borderTopRightRadius") { element.style.borderTopRightRadius = StyleKeyword.Null; return; }
+            if (styleKey == "borderBottomLeftRadius") { element.style.borderBottomLeftRadius = StyleKeyword.Null; return; }
+            if (styleKey == "borderBottomRightRadius") { element.style.borderBottomRightRadius = StyleKeyword.Null; return; }
             if (styleKey == "margin") {
                 element.style.marginLeft = StyleKeyword.Null;
                 element.style.marginRight = StyleKeyword.Null;
@@ -284,6 +414,14 @@ namespace ReactiveUITK.Props
             if (styleKey == "paddingRight") { element.style.paddingRight = StyleKeyword.Null; return; }
             if (styleKey == "paddingTop") { element.style.paddingTop = StyleKeyword.Null; return; }
             if (styleKey == "paddingBottom") { element.style.paddingBottom = StyleKeyword.Null; return; }
+            // Extended resets
+            if (styleKey == "letterSpacing") { try { element.style.letterSpacing = StyleKeyword.Null; } catch { } return; }
+            if (styleKey == "textOverflow") { try { element.style.textOverflow = StyleKeyword.Null; } catch { } return; }
+            if (styleKey == "unityTextOutlineColor") { try { element.style.unityTextOutlineColor = StyleKeyword.Null; } catch { } return; }
+            if (styleKey == "unityTextOutlineWidth") { try { element.style.unityTextOutlineWidth = StyleKeyword.Null; } catch { } return; }
+            if (styleKey == "unityTextOverflowPosition") { try { element.style.unityTextOverflowPosition = StyleKeyword.Null; } catch { } return; }
+            if (styleKey == "unityTextAutoSize") { /* unsupported; nothing to reset */ return; }
+            // aspectRatio reset skipped (not supported)
         }
 
         private static Color ConvertToColor(object value)
@@ -295,6 +433,8 @@ namespace ReactiveUITK.Props
             }
             return Color.white;
         }
+
+        // Note: no alias map needed; Canonicalize handles USS dashed conversion.
 
         private static void ApplyEvent(VisualElement element, string eventPropName, Delegate newHandler, Delegate oldHandler)
         {

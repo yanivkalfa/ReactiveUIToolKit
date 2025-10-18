@@ -11,10 +11,9 @@ namespace ReactiveUITK.Examples.ClassComponents
         protected override VirtualNode Render()
         {
             ProvideContext("themeColor", ThemeColor);
-            return V.View(new Dictionary<string, object>
+            return V.VisualElement(new Dictionary<string, object>
             {
-                {"style.padding", 6f},
-                {"style.backgroundColor", ThemeColor}
+                {"style", new Dictionary<string, object>{{"padding",6f},{"backgroundColor", ThemeColor}}}
             }, null, V.Text("Provided theme context"));
         }
     }

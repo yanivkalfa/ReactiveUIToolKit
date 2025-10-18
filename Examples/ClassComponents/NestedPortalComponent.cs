@@ -12,7 +12,7 @@ namespace ReactiveUITK.Examples.ClassComponents
         public string Message = "Portal Content";
         protected override VirtualNode Render()
         {
-            return V.View(null, null,
+            return V.VisualElement(null, null,
                 V.Text("Regular content"),
                 V.Portal(ExternalTarget, null, V.Text(Message))
             );

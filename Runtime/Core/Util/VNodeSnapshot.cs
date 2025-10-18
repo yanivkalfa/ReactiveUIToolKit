@@ -70,6 +70,19 @@ namespace ReactiveUITK.Core.Util
               .Append(" key=").Append(node.Key ?? "?")
               .Append(" elem=").Append(node.ElementTypeName ?? "?");
             if (!string.IsNullOrEmpty(node.TextContent)) sb.Append(" text=").Append(node.TextContent.Replace('\n', ' '));
+            // Serialize style summary if present
+            if (node.Properties != null && node.Properties.TryGetValue("style", out var styleObj) && styleObj is IDictionary<string, object> styleMap && styleMap.Count > 0)
+            {
+                sb.Append(" styles={");
+                bool first = true;
+                foreach (var kv in styleMap)
+                {
+                    if (!first) sb.Append(",");
+                    first = false;
+                    sb.Append(kv.Key).Append(":").Append(kv.Value);
+                }
+                sb.Append("}");
+            }
             sb.AppendLine();
             if (node.Children != null)
             {
