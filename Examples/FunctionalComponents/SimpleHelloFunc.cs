@@ -8,7 +8,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
     {
         public static VirtualNode Render(Dictionary<string, object> props, System.Collections.Generic.IReadOnlyList<VirtualNode> children)
         {
-            return V.View(null, null, V.Text("Hello ReactiveUITK (Function Component)"));
+            return V.VisualElement(new Dictionary<string, object>{{"style", new Dictionary<string, object>{{"padding",4f}}}}, null, V.Text("Hello ReactiveUITK (Function Component)"));
         }
     }
 }

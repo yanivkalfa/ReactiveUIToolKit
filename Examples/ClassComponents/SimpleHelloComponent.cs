@@ -10,7 +10,7 @@ namespace ReactiveUITK.Examples.ClassComponents
     {
         protected override VirtualNode Render()
         {
-            return V.View(null, null,
+            return V.VisualElement(new Dictionary<string, object>{{"style", new Dictionary<string, object>{{"padding",4f}}}}, null,
                 V.Text("Hello ReactiveUITK (Class Component)"));
         }
     }

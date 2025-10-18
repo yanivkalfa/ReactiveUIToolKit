@@ -472,6 +472,7 @@ namespace ReactiveUITK.Core
                         Action newCleanup = null;
                         try { newCleanup = entry.factory?.Invoke(); } catch { }
                         meta.FunctionLayoutEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                        effectRuns++;
                     }
                 }
             }
@@ -490,6 +491,7 @@ namespace ReactiveUITK.Core
                             Action newCleanup = null;
                             try { newCleanup = entry.factory?.Invoke(); } catch { }
                             meta.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                            effectRuns++;
                         });
                     }
                 }

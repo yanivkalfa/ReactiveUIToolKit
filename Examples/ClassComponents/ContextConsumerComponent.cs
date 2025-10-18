@@ -11,10 +11,9 @@ namespace ReactiveUITK.Examples.ClassComponents
         {
             var col = ConsumeContext<Color>("themeColor");
             if (col == default) col = Color.gray;
-            return V.View(new Dictionary<string, object>
+            return V.VisualElement(new Dictionary<string, object>
             {
-                {"style.padding", 6f},
-                {"style.backgroundColor", col}
+                {"style", new Dictionary<string, object>{{"padding",6f},{"backgroundColor", col}}}
             }, null, V.Text("Consumer uses theme color"));
         }
     }

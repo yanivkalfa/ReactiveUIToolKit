@@ -14,6 +14,19 @@ namespace ReactiveUITK.Core
         private VisualElement root;
         private ReactiveComponent mountedComponent;
 
+        private void EnsureSetup()
+        {
+            if (registry == null)
+            {
+                registry = new ElementRegistry();
+                registry.Register("VisualElement", new VisualElementAdapter());
+            }
+            if (hostContext == null)
+            {
+                hostContext = new HostContext(registry);
+            }
+        }
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -22,18 +35,18 @@ namespace ReactiveUITK.Core
                 return;
             }
             Instance = this;
-            registry = new ElementRegistry();
-            registry.Register("VisualElement", new VisualElementAdapter());
-            hostContext = new HostContext(registry);
+            EnsureSetup();
         }
 
         public void Initialize(VisualElement rootElement)
         {
+            EnsureSetup();
             root = rootElement;
         }
 
         public TComponent Render<TComponent>(Dictionary<string, object> props = null) where TComponent : ReactiveComponent
         {
+            EnsureSetup();
             if (root == null)
             {
                 Debug.LogError("RootRenderer: root not initialized");
