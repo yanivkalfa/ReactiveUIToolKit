@@ -1,94 +1,103 @@
 using System.Text;
 using System.Collections.Generic;
+using System;
 
 namespace ReactiveUITK.Core.Util
 {
     public static class VNodeSnapshot
     {
-        public static string Serialize(VirtualNode root)
+        public static string Serialize(VirtualNode rootNode)
         {
-            var sb = new StringBuilder();
-            SerializeNode(sb, root, 0);
-            return sb.ToString();
+            StringBuilder builder = new();
+            SerializeNode(builder, rootNode, 0);
+            return builder.ToString();
         }
 
-        public static string Diff(VirtualNode a, VirtualNode b)
+        public static string Diff(VirtualNode first, VirtualNode second)
         {
-            var sb = new StringBuilder();
-            DiffNode(sb, a, b, 0);
-            return sb.ToString();
+            StringBuilder builder = new();
+            DiffNode(builder, first, second, 0);
+            return builder.ToString();
         }
 
-        private static void DiffNode(StringBuilder sb, VirtualNode a, VirtualNode b, int depth)
+        private static void DiffNode(StringBuilder builder, VirtualNode first, VirtualNode second, int depth)
         {
             string indent = new string(' ', depth * 2);
-            if (a == null && b == null)
+            if (first == null && second == null)
             {
-                sb.AppendLine(indent + "= <null>");
+                builder.AppendLine(indent + "= <null>");
                 return;
             }
-            if (a == null)
+            if (first == null)
             {
-                sb.AppendLine(indent + "+ " + NodeSummary(b));
+                builder.AppendLine(indent + "+ " + NodeSummary(second));
                 return;
             }
-            if (b == null)
+            if (second == null)
             {
-                sb.AppendLine(indent + "- " + NodeSummary(a));
+                builder.AppendLine(indent + "- " + NodeSummary(first));
                 return;
             }
-            bool same = a.NodeType == b.NodeType && a.ElementTypeName == b.ElementTypeName && a.Key == b.Key && a.TextContent == b.TextContent;
-            sb.Append(indent).Append(same ? "= " : "~ ").Append(NodeSummary(a)).Append(" -> ").Append(NodeSummary(b)).AppendLine();
-            var aChildren = a.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
-            var bChildren = b.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
-            int max = aChildren.Count > bChildren.Count ? aChildren.Count : bChildren.Count;
-            for (int i = 0; i < max; i++)
+            bool sameTypeAndProps = first.NodeType == second.NodeType && first.ElementTypeName == second.ElementTypeName && first.Key == second.Key && first.TextContent == second.TextContent;
+            builder.Append(indent).Append(sameTypeAndProps ? "= " : "~ ").Append(NodeSummary(first)).Append(" -> ").Append(NodeSummary(second)).AppendLine();
+            IReadOnlyList<VirtualNode> firstChildren = first.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
+            IReadOnlyList<VirtualNode> secondChildren = second.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
+            int maxCount = firstChildren.Count > secondChildren.Count ? firstChildren.Count : secondChildren.Count;
+            for (int i = 0; i < maxCount; i++)
             {
-                var ac = i < aChildren.Count ? aChildren[i] : null;
-                var bc = i < bChildren.Count ? bChildren[i] : null;
-                DiffNode(sb, ac, bc, depth + 1);
+                VirtualNode firstChild = i < firstChildren.Count ? firstChildren[i] : null;
+                VirtualNode secondChild = i < secondChildren.Count ? secondChildren[i] : null;
+                DiffNode(builder, firstChild, secondChild, depth + 1);
             }
         }
 
-        private static string NodeSummary(VirtualNode n)
-        {
-            if (n == null) return "<null>";
-            var txt = string.IsNullOrEmpty(n.TextContent) ? "" : (" text=" + n.TextContent.Replace('\n',' '));
-            return $"{n.NodeType} key={n.Key ?? "?"} elem={n.ElementTypeName ?? "?"}{txt}";
-        }
-
-        private static void SerializeNode(StringBuilder sb, VirtualNode node, int depth)
+        private static string NodeSummary(VirtualNode node)
         {
             if (node == null)
             {
-                sb.AppendLine(new string(' ', depth * 2) + "<null>");
+                return "<null>";
+            }
+            string textPart = string.IsNullOrEmpty(node.TextContent) ? string.Empty : (" text=" + node.TextContent.Replace('\n', ' '));
+            return $"{node.NodeType} key={node.Key ?? "?"} elem={node.ElementTypeName ?? "?"}{textPart}";
+        }
+
+        private static void SerializeNode(StringBuilder builder, VirtualNode node, int depth)
+        {
+            if (node == null)
+            {
+                builder.AppendLine(new string(' ', depth * 2) + "<null>");
                 return;
             }
             string indent = new string(' ', depth * 2);
-            sb.Append(indent)
-              .Append(node.NodeType)
-              .Append(" key=").Append(node.Key ?? "?")
-              .Append(" elem=").Append(node.ElementTypeName ?? "?");
-            if (!string.IsNullOrEmpty(node.TextContent)) sb.Append(" text=").Append(node.TextContent.Replace('\n', ' '));
-            // Serialize style summary if present
-            if (node.Properties != null && node.Properties.TryGetValue("style", out var styleObj) && styleObj is IDictionary<string, object> styleMap && styleMap.Count > 0)
+            builder.Append(indent)
+                   .Append(node.NodeType)
+                   .Append(" key=").Append(node.Key ?? "?")
+                   .Append(" elem=").Append(node.ElementTypeName ?? "?");
+            if (!string.IsNullOrEmpty(node.TextContent))
             {
-                sb.Append(" styles={");
-                bool first = true;
-                foreach (var kv in styleMap)
-                {
-                    if (!first) sb.Append(",");
-                    first = false;
-                    sb.Append(kv.Key).Append(":").Append(kv.Value);
-                }
-                sb.Append("}");
+                builder.Append(" text=").Append(node.TextContent.Replace('\n', ' '));
             }
-            sb.AppendLine();
+            if (node.Properties != null && node.Properties.TryGetValue("style", out object styleObj) && styleObj is IDictionary<string, object> styleMap && styleMap.Count > 0)
+            {
+                builder.Append(" styles={");
+                bool firstEntry = true;
+                foreach (KeyValuePair<string, object> styleEntry in styleMap)
+                {
+                    if (!firstEntry)
+                    {
+                        builder.Append(",");
+                    }
+                    firstEntry = false;
+                    builder.Append(styleEntry.Key).Append(":").Append(styleEntry.Value);
+                }
+                builder.Append("}");
+            }
+            builder.AppendLine();
             if (node.Children != null)
             {
-                foreach (var child in node.Children)
+                foreach (VirtualNode child in node.Children)
                 {
-                    SerializeNode(sb, child, depth + 1);
+                    SerializeNode(builder, child, depth + 1);
                 }
             }
         }

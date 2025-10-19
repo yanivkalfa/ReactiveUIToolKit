@@ -22,7 +22,7 @@ namespace ReactiveUITK.Core
         public bool Memoize { get; set; }
         public System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> MemoCompare { get; set; }
         public UnityEngine.UIElements.VisualElement PortalTarget { get; set; }
-        public Core.VirtualNode Fallback { get; set; } // for suspense
+        public VirtualNode Fallback { get; set; }
         public System.Func<bool> SuspenseReady { get; set; }
         public System.Threading.Tasks.Task<bool> SuspenseReadyTask { get; set; }
         public string TextContent { get; set; }

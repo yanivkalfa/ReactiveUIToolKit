@@ -8,19 +8,19 @@ namespace ReactiveUITK
 {
     public abstract class ErrorBoundaryComponent : ReactiveComponent
     {
-        private bool hasError;
-        private Exception captured;
+        private bool errorCapturedFlag;
+        private Exception capturedException;
 
         protected sealed override bool ShouldUpdate(Dictionary<string, object> nextProps)
         {
-            return true; // always allow update; boundary controls rendering
+            return true;
         }
 
         protected override VirtualNode Render()
         {
-            if (hasError)
+            if (errorCapturedFlag)
             {
-                return RenderError(captured);
+                return RenderError(capturedException);
             }
             try
             {
@@ -28,8 +28,8 @@ namespace ReactiveUITK
             }
             catch (Exception ex)
             {
-                hasError = true;
-                captured = ex;
+                errorCapturedFlag = true;
+                capturedException = ex;
                 OnError(ex);
                 return RenderError(ex);
             }
@@ -37,12 +37,15 @@ namespace ReactiveUITK
 
         protected abstract VirtualNode RenderSafe();
         protected abstract VirtualNode RenderError(Exception ex);
-        protected virtual void OnError(Exception ex) { Debug.LogError($"ReactiveUITK ErrorBoundary: {ex}"); }
+        protected virtual void OnError(Exception ex)
+        {
+            Debug.LogError($"ReactiveUITK ErrorBoundary: {ex}");
+        }
 
         public void ResetError()
         {
-            hasError = false;
-            captured = null;
+            errorCapturedFlag = false;
+            capturedException = null;
             ForceUpdate();
         }
     }

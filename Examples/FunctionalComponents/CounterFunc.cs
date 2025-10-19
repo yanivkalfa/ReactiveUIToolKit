@@ -10,10 +10,13 @@ namespace ReactiveUITK.Examples.FunctionalComponents
         {
             var (count, setCount) = Hooks.UseState(0);
             var increment = Hooks.UseStableCallback(() => setCount(count + 1));
-            return V.VisualElement(new Dictionary<string, object>{{"style", new Dictionary<string, object>{{"padding",10f}}}}, null,
+            var outerStyle = new Dictionary<string, object>{{"padding",10f}};
+            var buttonStyle = new Dictionary<string, object>{{"marginTop",8f},{"width",160f},{"height",30f}};
+            var outerProps = new Dictionary<string, object>{{"style", outerStyle}};
+            var buttonProps = new Dictionary<string, object>{{"onClick", (System.Action)increment},{"style", buttonStyle}};
+            return V.VisualElement(outerProps, null,
                 V.Text($"Count: {count}"),
-                V.VisualElement(new Dictionary<string, object>{{"onClick", (System.Action)increment}, {"style", new Dictionary<string, object>{{"marginTop",8f},{"width",160f},{"height",30f}}}}, null,
-                    V.Text("Increment"))
+                V.VisualElement(buttonProps, null, V.Text("Increment"))
             );
         }
     }

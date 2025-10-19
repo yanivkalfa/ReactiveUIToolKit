@@ -8,73 +8,86 @@ namespace ReactiveUITK.Core
     public sealed class HostContext
     {
         public ElementRegistry ElementRegistry { get; }
-        public Dictionary<string, object> Environment { get; } = new Dictionary<string, object>();
-
-        private readonly Dictionary<string, HashSet<ReactiveComponent>> contextSubscribers = new Dictionary<string, HashSet<ReactiveComponent>>();
-		private readonly Stack<Dictionary<string, object>> providerStack = new Stack<Dictionary<string, object>>();
+        public Dictionary<string, object> Environment { get; } = new();
+        private readonly Dictionary<string, HashSet<ReactiveComponent>> contextSubscribersByKey = new();
+        private readonly Stack<Dictionary<string, object>> contextProviderStack = new();
 
         public HostContext(ElementRegistry elementRegistry)
         {
             ElementRegistry = elementRegistry;
         }
 
-        internal void Subscribe(string key, ReactiveComponent component)
+        internal void Subscribe(string key, ReactiveComponent reactiveComponent)
         {
-            if (string.IsNullOrEmpty(key) || component == null) return;
-            if (!contextSubscribers.TryGetValue(key, out var set))
+            if (string.IsNullOrEmpty(key) || reactiveComponent == null)
             {
-                set = new HashSet<ReactiveComponent>();
-                contextSubscribers[key] = set;
+                return;
             }
-            set.Add(component);
+            if (!contextSubscribersByKey.TryGetValue(key, out HashSet<ReactiveComponent> subscribers))
+            {
+                subscribers = new HashSet<ReactiveComponent>();
+                contextSubscribersByKey[key] = subscribers;
+            }
+            subscribers.Add(reactiveComponent);
         }
 
-        internal void UnsubscribeAll(ReactiveComponent component)
+        internal void UnsubscribeAll(ReactiveComponent reactiveComponent)
         {
-            if (component == null) return;
-            foreach (var kv in contextSubscribers)
+            if (reactiveComponent == null)
             {
-                kv.Value.Remove(component);
+                return;
+            }
+            foreach (var entry in contextSubscribersByKey)
+            {
+                entry.Value.Remove(reactiveComponent);
             }
         }
 
         internal void SetContextValue(string key, object value)
         {
-            if (string.IsNullOrEmpty(key)) return;
-			if (providerStack.Count > 0)
-			{
-				providerStack.Peek()[key] = value;
-			}
-			Environment[key] = value; // global fallback
-            if (contextSubscribers.TryGetValue(key, out var set))
+            if (string.IsNullOrEmpty(key))
             {
-                // Copy to avoid modification during enumeration
-                var list = set.ToList();
-                foreach (var comp in list)
+                return;
+            }
+            if (contextProviderStack.Count > 0)
+            {
+                contextProviderStack.Peek()[key] = value;
+            }
+            Environment[key] = value;
+            if (contextSubscribersByKey.TryGetValue(key, out HashSet<ReactiveComponent> subscribers))
+            {
+                List<ReactiveComponent> snapshot = subscribers.ToList();
+                foreach (ReactiveComponent component in snapshot)
                 {
-					comp?.NotifyContextKeyChanged(key);
+                    component?.NotifyContextKeyChanged(key);
                 }
             }
         }
 
-		public void PushProvider(Dictionary<string, object> values)
-		{
-			providerStack.Push(values ?? new Dictionary<string, object>());
-		}
+        public void PushProvider(Dictionary<string, object> values)
+        {
+            contextProviderStack.Push(values ?? new Dictionary<string, object>());
+        }
 
-		public void PopProvider()
-		{
-			if (providerStack.Count > 0) providerStack.Pop();
-		}
+        public void PopProvider()
+        {
+            if (contextProviderStack.Count > 0)
+            {
+                contextProviderStack.Pop();
+            }
+        }
 
-		internal object ResolveContext(string key)
-		{
-			foreach (var dict in providerStack)
-			{
-				if (dict.TryGetValue(key, out var val)) return val;
-			}
-			Environment.TryGetValue(key, out var gval);
-			return gval;
-		}
+        internal object ResolveContext(string key)
+        {
+            foreach (Dictionary<string, object> providerValues in contextProviderStack)
+            {
+                if (providerValues.TryGetValue(key, out object provided))
+                {
+                    return provided;
+                }
+            }
+            Environment.TryGetValue(key, out object globalValue);
+            return globalValue;
+        }
     }
 }

@@ -6,14 +6,14 @@ namespace ReactiveUITK
 {
     public static class V
     {
-        public static VirtualNode Text(string text, string key = null)
+        public static VirtualNode Text(string textContent, string key = null)
         {
             return new VirtualNode(
                 VirtualNodeType.Text,
                 elementTypeName: null,
                 componentType: null,
                 functionRender: null,
-                textContent: text ?? string.Empty,
+                textContent: textContent ?? string.Empty,
                 key: key,
                 properties: EmptyProps(),
                 children: EmptyChildren()
@@ -21,11 +21,11 @@ namespace ReactiveUITK
         }
 
         public static VirtualNode VisualElement(
-            IReadOnlyDictionary<string, object> properties = null,
+            IReadOnlyDictionary<string, object> elementProperties = null,
             string key = null,
             params VirtualNode[] children)
         {
-            properties = CloneStyleDictionary(properties);
+            elementProperties = CloneStyleDictionary(elementProperties);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
@@ -33,19 +33,53 @@ namespace ReactiveUITK
                 functionRender: null,
                 textContent: null,
                 key: key,
-                properties: properties ?? EmptyProps(),
+                properties: elementProperties ?? EmptyProps(),
                 children: children ?? EmptyChildren()
             );
         }
 
+        public static VirtualNode Button(
+            IReadOnlyDictionary<string, object> buttonProperties = null,
+            string key = null)
+        {
+            buttonProperties = CloneStyleDictionary(buttonProperties);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Button",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: buttonProperties ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode TextField(
+            IReadOnlyDictionary<string, object> textFieldProperties = null,
+            string key = null)
+        {
+            textFieldProperties = CloneStyleDictionary(textFieldProperties);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "TextField",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: textFieldProperties ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode Component<TComponent>(
-            IReadOnlyDictionary<string, object> props = null,
+            IReadOnlyDictionary<string, object> componentProps = null,
             string key = null,
-            bool memo = false,
+            bool memoize = false,
             System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
             params VirtualNode[] children) where TComponent : ReactiveComponent
         {
-            props = CloneStyleDictionary(props);
+            componentProps = CloneStyleDictionary(componentProps);
             return new VirtualNode(
                 VirtualNodeType.Component,
                 elementTypeName: null,
@@ -53,32 +87,32 @@ namespace ReactiveUITK
                 functionRender: null,
                 textContent: null,
                 key: key,
-                properties: props ?? EmptyProps(),
+                properties: componentProps ?? EmptyProps(),
                 children: children ?? EmptyChildren(),
-                memoize: memo,
+                memoize: memoize,
                 memoCompare: memoCompare
             );
         }
 
         public static VirtualNode Func(
-            System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderer,
-            IReadOnlyDictionary<string, object> props = null,
+            System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
+            IReadOnlyDictionary<string, object> functionProps = null,
             string key = null,
-            bool memo = false,
+            bool memoize = false,
             System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
             params VirtualNode[] children)
         {
-            props = CloneStyleDictionary(props);
+            functionProps = CloneStyleDictionary(functionProps);
             return new VirtualNode(
                 VirtualNodeType.FunctionComponent,
                 elementTypeName: null,
                 componentType: null,
-                functionRender: renderer,
+                functionRender: renderFunction,
                 textContent: null,
                 key: key,
-                properties: props ?? EmptyProps(),
+                properties: functionProps ?? EmptyProps(),
                 children: children ?? EmptyChildren(),
-                memoize: memo,
+                memoize: memoize,
                 memoCompare: memoCompare
             );
         }
@@ -97,7 +131,7 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Portal(VisualElement target, string key = null, params VirtualNode[] children)
+        public static VirtualNode Portal(VisualElement portalTargetElement, string key = null, params VirtualNode[] children)
         {
             return new VirtualNode(
                 VirtualNodeType.Portal,
@@ -108,11 +142,11 @@ namespace ReactiveUITK
                 key: key,
                 properties: EmptyProps(),
                 children: children ?? EmptyChildren(),
-                portalTarget: target
+                portalTarget: portalTargetElement
             );
         }
 
-        public static VirtualNode Suspense(System.Func<bool> ready, VirtualNode fallback, string key = null, params VirtualNode[] children)
+        public static VirtualNode Suspense(System.Func<bool> isReady, VirtualNode fallbackNode, string key = null, params VirtualNode[] children)
         {
             return new VirtualNode(
                 VirtualNodeType.Suspense,
@@ -123,8 +157,8 @@ namespace ReactiveUITK
                 key: key,
                 properties: EmptyProps(),
                 children: children ?? EmptyChildren(),
-                suspenseReady: ready,
-                fallback: fallback
+                suspenseReady: isReady,
+                fallback: fallbackNode
             );
         }
 

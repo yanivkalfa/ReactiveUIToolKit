@@ -7,7 +7,7 @@ namespace ReactiveUITK.Props
 {
     public static class PropsApplier
     {
-        private static readonly Dictionary<VisualElement, Dictionary<string, object>> previousStyles = new Dictionary<VisualElement, Dictionary<string, object>>();
+        private static readonly Dictionary<VisualElement, Dictionary<string, object>> previousStyles = new();
         private static int totalStyleSets;
         private static int totalStyleResets;
         private static int totalEventsRegistered;
@@ -16,14 +16,19 @@ namespace ReactiveUITK.Props
         // Algorithmic canonicalization helpers (USS dashed -> camelCase) so user can supply pure USS names.
         private static string Canonicalize(string key)
         {
-            if (string.IsNullOrEmpty(key)) return key;
+            if (string.IsNullOrEmpty(key))
+            {
+                return key;
+            }
             if (key.StartsWith("-unity-", StringComparison.OrdinalIgnoreCase))
             {
-                // Drop prefix and camelCase remainder
                 return ToCamelCase(key.Substring(7));
             }
-            if (key.IndexOf('-') >= 0) return ToCamelCase(key);
-            return key; // already camel or simple
+            if (key.IndexOf('-') >= 0)
+            {
+                return ToCamelCase(key);
+            }
+            return key;
         }
 
         private static string ToCamelCase(string dashed)
@@ -45,7 +50,7 @@ namespace ReactiveUITK.Props
             {
                 return;
             }
-            foreach (var entry in properties)
+            foreach (KeyValuePair<string, object> entry in properties)
             {
                 ApplySingle(element, null, entry.Key, entry.Value);
             }
@@ -57,21 +62,36 @@ namespace ReactiveUITK.Props
             next ??= new Dictionary<string, object>();
 
             // Removed non-style props
-            foreach (var prev in previous)
+            foreach (KeyValuePair<string, object> prevEntry in previous)
             {
-                if (prev.Key == "style") continue; // handled separately
-                if (next.ContainsKey(prev.Key)) continue;
-                RemoveProp(element, prev.Key, prev.Value);
+                if (prevEntry.Key == "style")
+                {
+                    continue;
+                }
+                if (next.ContainsKey(prevEntry.Key))
+                {
+                    continue;
+                }
+                RemoveProp(element, prevEntry.Key, prevEntry.Value);
             }
 
             // Added / changed non-style props
-            foreach (var current in next)
+            foreach (KeyValuePair<string, object> currentEntry in next)
             {
-                if (current.Key == "style") continue;
-                previous.TryGetValue(current.Key, out object oldValue);
-                if (oldValue != null && ReferenceEquals(oldValue, current.Value)) continue;
-                if (oldValue != null && oldValue.Equals(current.Value)) continue;
-                ApplySingle(element, oldValue, current.Key, current.Value);
+                if (currentEntry.Key == "style")
+                {
+                    continue;
+                }
+                previous.TryGetValue(currentEntry.Key, out object oldValue);
+                if (oldValue != null && ReferenceEquals(oldValue, currentEntry.Value))
+                {
+                    continue;
+                }
+                if (oldValue != null && oldValue.Equals(currentEntry.Value))
+                {
+                    continue;
+                }
+                ApplySingle(element, oldValue, currentEntry.Key, currentEntry.Value);
             }
 
             // Nested style diff if present
@@ -81,23 +101,36 @@ namespace ReactiveUITK.Props
             {
                 var prevMap = prevStyleObj as IDictionary<string, object> ?? (IDictionary<string, object>)new Dictionary<string, object>();
                 var nextMap = nextStyleObj as IDictionary<string, object> ?? (IDictionary<string, object>)new Dictionary<string, object>();
-                foreach (var kv in prevMap)
+                foreach (KeyValuePair<string, object> previousStyle in prevMap)
                 {
-                    if (!nextMap.ContainsKey(kv.Key)) ResetStyle(element, kv.Key);
+                    if (!nextMap.ContainsKey(previousStyle.Key))
+                    {
+                        ResetStyle(element, previousStyle.Key);
+                    }
                 }
-                foreach (var kv in nextMap)
+                foreach (KeyValuePair<string, object> nextStyle in nextMap)
                 {
-                    prevMap.TryGetValue(kv.Key, out var oldVal);
-                    if (oldVal != null && ReferenceEquals(oldVal, kv.Value)) continue;
-                    if (oldVal != null && oldVal.Equals(kv.Value)) continue;
-                    ApplyStyle(element, kv.Key, kv.Value);
+                    prevMap.TryGetValue(nextStyle.Key, out object previousValue);
+                    if (previousValue != null && ReferenceEquals(previousValue, nextStyle.Value))
+                    {
+                        continue;
+                    }
+                    if (previousValue != null && previousValue.Equals(nextStyle.Value))
+                    {
+                        continue;
+                    }
+                    ApplyStyle(element, nextStyle.Key, nextStyle.Value);
                 }
             }
         }
 
         private static void ApplySingle(VisualElement element, object oldValue, string propertyName, object propertyValue)
         {
-            if (propertyName == "name") { element.name = propertyValue as string; return; }
+            if (propertyName == "name")
+            {
+                element.name = propertyValue as string;
+                return;
+            }
             if (propertyName == "classes")
             {
                 element.ClearClassList();
@@ -110,7 +143,10 @@ namespace ReactiveUITK.Props
             }
             if (propertyName == "style" && propertyValue is IDictionary<string, object> styleMap)
             {
-                foreach (var kv in styleMap) ApplyStyle(element, kv.Key, kv.Value);
+                foreach (KeyValuePair<string, object> styleEntry in styleMap)
+                {
+                    ApplyStyle(element, styleEntry.Key, styleEntry.Value);
+                }
                 return;
             }
             if (propertyName.StartsWith("on") && propertyValue is Delegate d)
@@ -658,7 +694,10 @@ namespace ReactiveUITK.Props
         // Called externally when element is removed to prune cache
         public static void NotifyElementRemoved(VisualElement element)
         {
-            if (element == null) return;
+            if (element == null)
+            {
+                return;
+            }
             previousStyles.Remove(element);
         }
 

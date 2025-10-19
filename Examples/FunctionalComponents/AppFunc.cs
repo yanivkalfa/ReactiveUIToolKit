@@ -2,12 +2,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using ReactiveUITK.Core;
 using ReactiveUITK;
+using ReactiveUITK.Examples.ClassComponents; // for BottomBarComponent
 
 namespace ReactiveUITK.Examples.FunctionalComponents
 {
     public static class AppFunc
     {
-        // Functional root: returns top bar with left/right boxes
         public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
             var topBarStyle = new Dictionary<string, object>
@@ -48,33 +48,52 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                 {"fontSize", 14f}
             };
 
+            var textInputStyle = new Dictionary<string, object>{
+                {"flexGrow", 1f},
+                {"marginLeft", 8f},
+                {"marginRight", 8f},
+                {"paddingLeft", 6f},
+                {"paddingRight", 6f},
+                {"paddingTop", 4f},
+                {"paddingBottom", 4f},
+                {"borderRadius", 4f},
+                {"borderWidth", 1f},
+                {"fontColor", "black"},
+                {"borderColor", new Color(0.8f,0.8f,0.8f,1f)},
+                {"backgroundColor", new Color(1f,1f,1f,1f)}
+            };
+
             var pageStyle = new Dictionary<string, object>
+            {
+                {"flexDirection", "column"},
+                {"flexGrow", 1f},
+                {"justifyContent", "space-between"},
+                {"backgroundColor", new Color(0.95f,0.95f,0.95f,1f)}
+            };
+            return V.VisualElement(new Dictionary<string, object>{{"style", pageStyle}}, null,
+                V.VisualElement(new Dictionary<string, object>{{"style", topBarStyle}}, null,
+                    V.VisualElement(new Dictionary<string, object>{{"style", leftBoxStyle}}, null, V.Text("Left")),
+                    V.TextField(new Dictionary<string, object>{{"style", textInputStyle }, {"placeholder-text", "Search..."}}),
+                    V.VisualElement(new Dictionary<string, object>{{"style", rightBoxStyle}}, null, V.Text("Right"))
+                ),
+                V.Component<BottomBarComponent>()
+            );
+        }
+    }
+
+    public sealed class AppFuncRoot : ReactiveComponent
+    {
+        protected override VirtualNode Render()
+        {
+            var wrapperStyle = new Dictionary<string, object>
             {
                 {"flexDirection", "column"},
                 {"flexGrow", 1f},
                 {"backgroundColor", new Color(0.95f,0.95f,0.95f,1f)}
             };
-
-            return V.VisualElement(new Dictionary<string, object>{{"style", pageStyle}}, null,
-                V.VisualElement(new Dictionary<string, object>{{"style", topBarStyle}}, null,
-                    V.VisualElement(new Dictionary<string, object>{{"style", leftBoxStyle}}, null,
-                        V.Text("Left")
-                    ),
-                    V.VisualElement(new Dictionary<string, object>{{"style", rightBoxStyle}}, null,
-                        V.Text("Right")
-                    )
-                )
+            return V.VisualElement(new Dictionary<string, object>{{"style", wrapperStyle}}, null,
+                V.Func(AppFunc.Render)
             );
-        }
-    }
-
-    // Wrapper class component to mount functional root via RootRenderer.Render<>()
-    public sealed class AppFuncRoot : ReactiveComponent
-    {
-        protected override VirtualNode Render()
-        {
-            // Wrap function root so Reconciler builds it (BuildSubtree only processes children of root node)
-            return V.VisualElement(null, null, V.Func(AppFunc.Render));
         }
     }
 }

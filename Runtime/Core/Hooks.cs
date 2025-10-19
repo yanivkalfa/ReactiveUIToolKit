@@ -12,247 +12,303 @@ namespace ReactiveUITK.Core
     }
     public static class Hooks
     {
-        public static Func<T> UseStableFunc<T>(Func<T> fn)
+        public static Func<T> UseStableFunc<T>(Func<T> function)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return fn;
-            if (meta.HookStates == null) meta.HookStates = new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.HookStates.Add(fn);
+                return function;
             }
-            var stored = (Func<T>)meta.HookStates[meta.HookIndex];
-            meta.HookIndex++;
-            meta.HookStates[meta.HookIndex - 1] = fn; // update with latest closure
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add(function);
+            }
+            Func<T> stored = (Func<T>)metadata.HookStates[metadata.HookIndex];
+            metadata.HookIndex++;
+            metadata.HookStates[metadata.HookIndex - 1] = function;
             return stored;
         }
-        // Stable Action<T> (captures latest closure but preserves identity)
         public static Action<T> UseStableAction<T>(Action<T> action)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return action;
-            meta.HookStates ??= new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count) meta.HookStates.Add(action);
-            var stored = (Action<T>)meta.HookStates[meta.HookIndex];
-            meta.HookIndex++;
-            meta.HookStates[meta.HookIndex - 1] = action; // refresh closure
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
+            {
+                return action;
+            }
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add(action);
+            }
+            Action<T> stored = (Action<T>)metadata.HookStates[metadata.HookIndex];
+            metadata.HookIndex++;
+            metadata.HookStates[metadata.HookIndex - 1] = action;
             return stored;
         }
         public static Action UseStableCallback(Action callback)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return callback;
-            if (meta.HookStates == null) meta.HookStates = new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count) meta.HookStates.Add(callback);
-            var stored = (Action)meta.HookStates[meta.HookIndex];
-            meta.HookIndex++;
-            // Update reference each render to latest closure
-            meta.HookStates[meta.HookIndex - 1] = callback;
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
+            {
+                return callback;
+            }
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add(callback);
+            }
+            Action stored = (Action)metadata.HookStates[metadata.HookIndex];
+            metadata.HookIndex++;
+            metadata.HookStates[metadata.HookIndex - 1] = callback;
             return stored;
         }
 
-        public static void UseLayoutEffect(Func<Action> effectFactory, params object[] deps)
+        public static void UseLayoutEffect(Func<Action> effectFactory, params object[] dependencies)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return;
-            if (meta.FunctionLayoutEffects == null) meta.FunctionLayoutEffects = new List<(Func<Action>, object[], object[], Action)>();
-            if (meta.HookIndex >= meta.FunctionLayoutEffects.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.FunctionLayoutEffects.Add((effectFactory, deps, null, null));
+                return;
+            }
+            metadata.FunctionLayoutEffects ??= new List<(Func<Action>, object[], object[], Action)>();
+            if (metadata.HookIndex >= metadata.FunctionLayoutEffects.Count)
+            {
+                metadata.FunctionLayoutEffects.Add((effectFactory, dependencies, null, null));
             }
             else
             {
-                var entry = meta.FunctionLayoutEffects[meta.HookIndex];
+                var entry = metadata.FunctionLayoutEffects[metadata.HookIndex];
                 entry.factory = effectFactory;
-                entry.deps = deps;
-                meta.FunctionLayoutEffects[meta.HookIndex] = entry;
+                entry.deps = dependencies;
+                metadata.FunctionLayoutEffects[metadata.HookIndex] = entry;
             }
-            meta.HookIndex++;
+            metadata.HookIndex++;
         }
         public static (T value, Action<T> set) UseState<T>(T initial = default)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return (initial, _ => { });
-            if (meta.HookStates == null) meta.HookStates = new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.HookStates.Add(initial);
+                return (initial, _ => { });
             }
-            T current = (T)meta.HookStates[meta.HookIndex];
-            int capturedIndex = meta.HookIndex;
-            meta.HookIndex++;
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add(initial);
+            }
+            T currentValue = (T)metadata.HookStates[metadata.HookIndex];
+            int capturedIndex = metadata.HookIndex;
+            metadata.HookIndex++;
             void Setter(T newValue)
             {
-                meta.HookStates[capturedIndex] = newValue;
-                // Re-render function component
-                if (meta.Reconciler != null)
+                metadata.HookStates[capturedIndex] = newValue;
+                if (metadata.Reconciler != null)
                 {
-                    meta.HookIndex = 0; // reset for next render
-                    meta.Reconciler.ForceFunctionComponentUpdate(meta);
+                    metadata.HookIndex = 0;
+                    metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
                 }
             }
-            return (current, Setter);
+            return (currentValue, Setter);
         }
 
-        // Reducer hook similar to React's useReducer
-        public static (TState state, Action<TAction> dispatch) UseReducer<TState, TAction>(Func<TState, TAction, TState> reducer, TState initial)
+        public static (TState state, Action<TAction> dispatch) UseReducer<TState, TAction>(Func<TState, TAction, TState> reducer, TState initialState)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return (initial, _ => { });
-            meta.HookStates ??= new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count) meta.HookStates.Add(initial);
-            int index = meta.HookIndex;
-            TState current = (TState)meta.HookStates[index];
-            meta.HookIndex++;
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
+            {
+                return (initialState, _ => { });
+            }
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add(initialState);
+            }
+            int index = metadata.HookIndex;
+            TState currentState = (TState)metadata.HookStates[index];
+            metadata.HookIndex++;
             void Dispatch(TAction action)
             {
-                var prev = (TState)meta.HookStates[index];
+                TState previous = (TState)metadata.HookStates[index];
                 TState next;
-                try { next = reducer(prev, action); } catch { next = prev; }
-                if (!Equals(prev, next))
+                try
                 {
-                    meta.HookStates[index] = next;
-                    if (meta.Reconciler != null)
+                    next = reducer(previous, action);
+                }
+                catch
+                {
+                    next = previous;
+                }
+                if (!Equals(previous, next))
+                {
+                    metadata.HookStates[index] = next;
+                    if (metadata.Reconciler != null)
                     {
-                        meta.HookIndex = 0;
-                        meta.Reconciler.ForceFunctionComponentUpdate(meta);
+                        metadata.HookIndex = 0;
+                        metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
                     }
                 }
             }
-            return (current, Dispatch);
+            return (currentState, Dispatch);
         }
 
-        public static T UseMemo<T>(Func<T> factory, params object[] deps)
+        public static T UseMemo<T>(Func<T> factory, params object[] dependencies)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return factory();
-            if (meta.HookStates == null) meta.HookStates = new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.HookStates.Add((factory(), deps));
+                return factory();
             }
-            var tuple = ((T value, object[] d))meta.HookStates[meta.HookIndex];
-            bool changed = DepsChanged(tuple.d, deps);
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add((factory(), dependencies));
+            }
+            var tuple = ((T value, object[] d))metadata.HookStates[metadata.HookIndex];
+            bool changed = DepsChanged(tuple.d, dependencies);
             if (changed)
             {
-                tuple = (factory(), deps);
-                meta.HookStates[meta.HookIndex] = tuple;
+                tuple = (factory(), dependencies);
+                metadata.HookStates[metadata.HookIndex] = tuple;
             }
-            meta.HookIndex++;
+            metadata.HookIndex++;
             return tuple.value;
         }
 
-        // Deferred value: updates only when deps change and after one passive effect tick to avoid jank
-        public static T UseDeferredValue<T>(T value, params object[] deps)
+        public static T UseDeferredValue<T>(T value, params object[] dependencies)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return value;
-            meta.HookStates ??= new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.HookStates.Add((value, deps));
+                return value;
             }
-            var tuple = ((T val, object[] d))meta.HookStates[meta.HookIndex];
-            bool changed = DepsChanged(tuple.d, deps);
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add((value, dependencies));
+            }
+            var tuple = ((T val, object[] d))metadata.HookStates[metadata.HookIndex];
+            bool changed = DepsChanged(tuple.d, dependencies);
             if (changed && !Equals(tuple.val, value))
             {
-                // schedule update after passive effects batch
                 T newVal = value;
-                int index = meta.HookIndex;
+                int index = metadata.HookIndex;
                 RenderScheduler.Instance.EnqueueBatchedEffect(() =>
                 {
-                    meta.HookStates[index] = (newVal, deps);
+                    metadata.HookStates[index] = (newVal, dependencies);
                 });
             }
-            meta.HookIndex++;
-            var latest = ((T val, object[] d))meta.HookStates[meta.HookIndex - 1];
+            metadata.HookIndex++;
+            var latest = ((T val, object[] d))metadata.HookStates[metadata.HookIndex - 1];
             return latest.val;
         }
 
-        public static Func<T> UseCallback<T>(Func<T> callback, params object[] deps)
+        public static Func<T> UseCallback<T>(Func<T> callback, params object[] dependencies)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return callback;
-            if (meta.HookStates == null) meta.HookStates = new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.HookStates.Add((callback, deps));
+                return callback;
             }
-            var tuple = ((Func<T> cb, object[] d))meta.HookStates[meta.HookIndex];
-            bool changed = DepsChanged(tuple.d, deps);
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add((callback, dependencies));
+            }
+            var tuple = ((Func<T> cb, object[] d))metadata.HookStates[metadata.HookIndex];
+            bool changed = DepsChanged(tuple.d, dependencies);
             if (changed)
             {
-                tuple = (callback, deps);
-                meta.HookStates[meta.HookIndex] = tuple;
+                tuple = (callback, dependencies);
+                metadata.HookStates[metadata.HookIndex] = tuple;
             }
-            meta.HookIndex++;
+            metadata.HookIndex++;
             return tuple.cb;
         }
 
-        // Imperative handle: store a handle object (e.g., API) and return stable reference
-        public static THandle UseImperativeHandle<THandle>(Func<THandle> factory, params object[] deps) where THandle : class
+        public static THandle UseImperativeHandle<THandle>(Func<THandle> factory, params object[] dependencies) where THandle : class
         {
-            var meta = HookContext.Current;
-            if (meta == null) return factory();
-            meta.HookStates ??= new List<object>();
-            if (meta.HookIndex >= meta.HookStates.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.HookStates.Add((factory(), deps));
+                return factory();
             }
-            var tuple = ((THandle handle, object[] d))meta.HookStates[meta.HookIndex];
-            if (DepsChanged(tuple.d, deps))
+            metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
             {
-                tuple = (factory(), deps);
-                meta.HookStates[meta.HookIndex] = tuple;
+                metadata.HookStates.Add((factory(), dependencies));
             }
-            meta.HookIndex++;
+            var tuple = ((THandle handle, object[] d))metadata.HookStates[metadata.HookIndex];
+            if (DepsChanged(tuple.d, dependencies))
+            {
+                tuple = (factory(), dependencies);
+                metadata.HookStates[metadata.HookIndex] = tuple;
+            }
+            metadata.HookIndex++;
             return tuple.handle;
         }
 
         public static VisualElement UseRef()
         {
-            var meta = HookContext.Current;
-            return meta?.Container;
+            NodeMetadata metadata = HookContext.Current;
+            return metadata?.Container;
         }
 
-        public static void UseEffect(Func<Action> effectFactory, params object[] deps)
+        public static void UseEffect(Func<Action> effectFactory, params object[] dependencies)
         {
-            var meta = HookContext.Current;
-            if (meta == null) return;
-            if (meta.FunctionEffects == null) meta.FunctionEffects = new List<(Func<Action>, object[], object[], Action)>();
-            // Match existing slot by HookIndex to preserve call order semantics
-            if (meta.HookIndex >= meta.FunctionEffects.Count)
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
             {
-                meta.FunctionEffects.Add((effectFactory, deps, null, null));
+                return;
+            }
+            metadata.FunctionEffects ??= new List<(Func<Action>, object[], object[], Action)>();
+            if (metadata.HookIndex >= metadata.FunctionEffects.Count)
+            {
+                metadata.FunctionEffects.Add((effectFactory, dependencies, null, null));
             }
             else
             {
-                var entry = meta.FunctionEffects[meta.HookIndex];
+                var entry = metadata.FunctionEffects[metadata.HookIndex];
                 entry.factory = effectFactory;
-                entry.deps = deps;
-                meta.FunctionEffects[meta.HookIndex] = entry;
+                entry.deps = dependencies;
+                metadata.FunctionEffects[metadata.HookIndex] = entry;
             }
-            meta.HookIndex++;
+            metadata.HookIndex++;
         }
 
         public static T UseContext<T>(string key)
         {
-            var meta = HookContext.Current;
-            if (meta == null || meta.HostContext == null) return default;
-            meta.SubscribedContextKeys ??= new HashSet<string>();
-            meta.SubscribedContextKeys.Add(key);
-            var resolved = meta.HostContext.ResolveContext(key);
-            if (resolved is T typed) return typed;
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null || metadata.HostContext == null)
+            {
+                return default;
+            }
+            metadata.SubscribedContextKeys ??= new HashSet<string>();
+            metadata.SubscribedContextKeys.Add(key);
+            object resolved = metadata.HostContext.ResolveContext(key);
+            if (resolved is T typed)
+            {
+                return typed;
+            }
             return default;
         }
 
-        private static bool DepsChanged(object[] oldDeps, object[] newDeps)
+        private static bool DepsChanged(object[] previousDependencies, object[] nextDependencies)
         {
-            if (oldDeps == null || newDeps == null) return true;
-            if (oldDeps.Length != newDeps.Length) return true;
-            for (int i = 0; i < oldDeps.Length; i++)
+            if (previousDependencies == null || nextDependencies == null)
             {
-                if (!Equals(oldDeps[i], newDeps[i])) return true;
+                return true;
+            }
+            if (previousDependencies.Length != nextDependencies.Length)
+            {
+                return true;
+            }
+            for (int i = 0; i < previousDependencies.Length; i++)
+            {
+                if (!Equals(previousDependencies[i], nextDependencies[i]))
+                {
+                    return true;
+                }
             }
             return false;
         }

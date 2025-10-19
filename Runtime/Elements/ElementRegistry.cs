@@ -4,7 +4,7 @@ namespace ReactiveUITK.Elements
 {
     public sealed class ElementRegistry
     {
-        private readonly Dictionary<string, IElementAdapter> adaptersByType = new Dictionary<string, IElementAdapter>();
+        private readonly Dictionary<string, IElementAdapter> adaptersByType = new();
 
         public void Register(string elementTypeName, IElementAdapter adapter)
         {
@@ -16,13 +16,11 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-
-            if (adaptersByType.ContainsKey(elementTypeName) == false)
+            if (!adaptersByType.ContainsKey(elementTypeName))
             {
                 adaptersByType.Add(elementTypeName, adapter);
                 return;
             }
-
             adaptersByType[elementTypeName] = adapter;
         }
 
