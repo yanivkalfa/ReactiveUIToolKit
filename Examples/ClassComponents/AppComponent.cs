@@ -5,12 +5,10 @@ using ReactiveUITK;
 
 namespace ReactiveUITK.Examples.ClassComponents
 {
-    // Root page component with a top white bar containing left/right boxes.
     public sealed class AppComponent : ReactiveComponent
     {
         protected override VirtualNode Render()
         {
-            // Styles
             var topBarStyle = new Dictionary<string, object>
             {
                 {"backgroundColor", Color.white},
@@ -56,14 +54,14 @@ namespace ReactiveUITK.Examples.ClassComponents
                 {"backgroundColor", new Color(0.95f,0.95f,0.95f,1f)}
             };
 
-            return V.VisualElement(new Dictionary<string, object>{{"style", pageStyle}}, null,
-                V.VisualElement(new Dictionary<string, object>{{"style", topBarStyle}}, null,
-                    V.VisualElement(new Dictionary<string, object>{{"style", leftBoxStyle}}, null,
-                        V.Text("Left")
-                    ),
-                    V.VisualElement(new Dictionary<string, object>{{"style", rightBoxStyle}}, null,
-                        V.Text("Right")
-                    )
+            var pageProps = new Dictionary<string, object>{{"style", pageStyle}};
+            var barProps = new Dictionary<string, object>{{"style", topBarStyle}};
+            var leftProps = new Dictionary<string, object>{{"style", leftBoxStyle}};
+            var rightProps = new Dictionary<string, object>{{"style", rightBoxStyle}};
+            return V.VisualElement(pageProps, null,
+                V.VisualElement(barProps, null,
+                    V.VisualElement(leftProps, null, V.Text("Left")),
+                    V.VisualElement(rightProps, null, V.Text("Right"))
                 )
             );
         }

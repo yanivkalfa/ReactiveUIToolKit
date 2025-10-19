@@ -9,21 +9,23 @@ namespace ReactiveUITK.Core
     public sealed class RootRenderer : MonoBehaviour
     {
         public static RootRenderer Instance { get; private set; }
-        private HostContext hostContext;
-        private ElementRegistry registry;
-        private VisualElement root;
-        private ReactiveComponent mountedComponent;
+        private HostContext sharedHostContext;
+        private ElementRegistry elementRegistry;
+        private VisualElement rootElement;
+        private ReactiveComponent currentMountedComponent;
 
         private void EnsureSetup()
         {
-            if (registry == null)
+            if (elementRegistry == null)
             {
-                registry = new ElementRegistry();
-                registry.Register("VisualElement", new VisualElementAdapter());
+                elementRegistry = new ElementRegistry();
+                elementRegistry.Register("VisualElement", new VisualElementAdapter());
+				elementRegistry.Register("Button", new ButtonElementAdapter());
+				elementRegistry.Register("TextField", new TextFieldElementAdapter());
             }
-            if (hostContext == null)
+            if (sharedHostContext == null)
             {
-                hostContext = new HostContext(registry);
+                sharedHostContext = new HostContext(elementRegistry);
             }
         }
 
@@ -38,42 +40,46 @@ namespace ReactiveUITK.Core
             EnsureSetup();
         }
 
-        public void Initialize(VisualElement rootElement)
+        public void Initialize(VisualElement uiRootElement)
         {
             EnsureSetup();
-            root = rootElement;
+            rootElement = uiRootElement;
         }
 
-        public TComponent Render<TComponent>(Dictionary<string, object> props = null) where TComponent : ReactiveComponent
+        public TComponent Render<TComponent>(Dictionary<string, object> componentProps = null) where TComponent : ReactiveComponent
         {
             EnsureSetup();
-            if (root == null)
+            if (rootElement == null)
             {
                 Debug.LogError("RootRenderer: root not initialized");
                 return null;
             }
-
-            if (mountedComponent != null)
+            if (currentMountedComponent != null)
             {
-                mountedComponent.Unmount();
-                Destroy(mountedComponent.gameObject);
-                mountedComponent = null;
+                currentMountedComponent.Unmount();
+                Destroy(currentMountedComponent.gameObject);
+                currentMountedComponent = null;
             }
-
-            GameObject go = new GameObject(typeof(TComponent).Name);
-            var comp = go.AddComponent<TComponent>();
-            if (props != null) comp.SetProps(props);
-            comp.Mount(root, hostContext);
-            mountedComponent = comp;
-            return comp;
+            GameObject componentGameObject = new(typeof(TComponent).Name);
+            TComponent componentInstance = componentGameObject.AddComponent<TComponent>();
+            if (componentProps != null)
+            {
+                componentInstance.SetProps(componentProps);
+            }
+            componentInstance.Mount(rootElement, sharedHostContext);
+            currentMountedComponent = componentInstance;
+            return componentInstance;
         }
 
         public void Unmount()
         {
-            if (mountedComponent == null) return;
-            mountedComponent.Unmount();
-            Destroy(mountedComponent.gameObject);
-            mountedComponent = null;
+            if (currentMountedComponent == null)
+            {
+                return;
+            }
+            currentMountedComponent.Unmount();
+            Destroy(currentMountedComponent.gameObject);
+            currentMountedComponent = null;
         }
     }
 }

@@ -4,25 +4,55 @@ namespace ReactiveUITK.Core.Util
 {
     public static class ShallowCompare
     {
-        public static bool PropsEqual(IReadOnlyDictionary<string, object> a, IReadOnlyDictionary<string, object> b)
+        public static bool PropsEqual(IReadOnlyDictionary<string, object> first, IReadOnlyDictionary<string, object> second)
         {
-            if (ReferenceEquals(a, b)) return true;
-            if (a == null || b == null) return false;
-            if (a.Count != b.Count) return false;
-            foreach (var kv in a)
+            if (ReferenceEquals(first, second))
             {
-                if (!b.TryGetValue(kv.Key, out var other)) return false;
-                if (Equals(kv.Value, other) == false) return false;
+                return true;
+            }
+            if (first == null || second == null)
+            {
+                return false;
+            }
+            if (first.Count != second.Count)
+            {
+                return false;
+            }
+            foreach (KeyValuePair<string, object> entry in first)
+            {
+                if (!second.TryGetValue(entry.Key, out object other))
+                {
+                    return false;
+                }
+                if (!Equals(entry.Value, other))
+                {
+                    return false;
+                }
             }
             return true;
         }
-
-        public static bool ShallowEqual<T>(IReadOnlyList<T> a, IReadOnlyList<T> b)
+        public static bool ShallowEqual<T>(IReadOnlyList<T> first, IReadOnlyList<T> second)
         {
-            if (ReferenceEquals(a, b)) return true;
-            if (a == null || b == null) return false;
-            if (a.Count != b.Count) return false;
-            for (int i = 0; i < a.Count; i++) if (!Equals(a[i], b[i])) return false; return true;
+            if (ReferenceEquals(first, second))
+            {
+                return true;
+            }
+            if (first == null || second == null)
+            {
+                return false;
+            }
+            if (first.Count != second.Count)
+            {
+                return false;
+            }
+            for (int i = 0; i < first.Count; i++)
+            {
+                if (!Equals(first[i], second[i]))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 }

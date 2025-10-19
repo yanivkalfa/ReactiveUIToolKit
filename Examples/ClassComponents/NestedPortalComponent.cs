@@ -5,16 +5,15 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Examples.ClassComponents
 {
-    // Demonstrates portal usage: renders a label into an external VisualElement.
     public sealed class NestedPortalComponent : ReactiveComponent
     {
-        public VisualElement ExternalTarget;
-        public string Message = "Portal Content";
+        public VisualElement externalTarget;
+        public string message = "Portal Content";
         protected override VirtualNode Render()
         {
             return V.VisualElement(null, null,
                 V.Text("Regular content"),
-                V.Portal(ExternalTarget, null, V.Text(Message))
+                V.Portal(externalTarget, null, V.Text(message))
             );
         }
     }

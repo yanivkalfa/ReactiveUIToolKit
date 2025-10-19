@@ -15,24 +15,24 @@ namespace ReactiveUITK.Core.Util
 
         public static Result Compare(VirtualNode expectedNode, VirtualNode actualNode)
         {
-            string expected = VNodeSnapshot.Serialize(expectedNode);
-            string actual = VNodeSnapshot.Serialize(actualNode);
-            if (expected == actual)
+            string expectedSerialized = VNodeSnapshot.Serialize(expectedNode);
+            string actualSerialized = VNodeSnapshot.Serialize(actualNode);
+            if (expectedSerialized == actualSerialized)
             {
-                return new Result { Pass = true, Diff = string.Empty, Expected = expected, Actual = actual };
+                return new Result { Pass = true, Diff = string.Empty, Expected = expectedSerialized, Actual = actualSerialized };
             }
-            string diff = VNodeSnapshot.Diff(expectedNode, actualNode);
-            return new Result { Pass = false, Diff = diff, Expected = expected, Actual = actual };
+            string diffSnapshot = VNodeSnapshot.Diff(expectedNode, actualNode);
+            return new Result { Pass = false, Diff = diffSnapshot, Expected = expectedSerialized, Actual = actualSerialized };
         }
 
-        public static void AssertEqual(VirtualNode expected, VirtualNode actual, Action<string> logger = null)
+        public static void AssertEqual(VirtualNode expectedNode, VirtualNode actualNode, Action<string> logAction = null)
         {
-            var res = Compare(expected, actual);
-            if (!res.Pass)
+            Result comparison = Compare(expectedNode, actualNode);
+            if (!comparison.Pass)
             {
-                logger?.Invoke("Snapshot mismatch:\n" + res.Diff);
+                logAction?.Invoke("Snapshot mismatch:\n" + comparison.Diff);
 #if UNITY_EDITOR
-                UnityEngine.Debug.LogError("Snapshot mismatch:\n" + res.Diff);
+                UnityEngine.Debug.LogError("Snapshot mismatch:\n" + comparison.Diff);
 #endif
             }
             else

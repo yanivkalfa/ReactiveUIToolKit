@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ReactiveUITK.Elements;
 using ReactiveUITK.Core.Util;
 using UnityEngine;
@@ -10,557 +11,911 @@ namespace ReactiveUITK.Core
     public sealed class Reconciler
     {
         private readonly HostContext hostContext;
-        // Debug / metrics
-		public static bool EnableDiffTracing = false; // legacy flag
-		public enum DiffTraceLevel { None, Basic, Verbose }
-		public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
-        private int nodesReconciled;
-        private int nodesSkipped;
-        private int effectRuns;
-		private int portalsBuilt;
-		private int portalsUpdated;
-		private System.Diagnostics.Stopwatch diffWatch = new System.Diagnostics.Stopwatch();
-		private long lastDiffMs;
-		private readonly Dictionary<string, VisualElement> elementCache = new Dictionary<string, VisualElement>();
-		private int cacheHits;
-		private int cacheMisses;
-		private readonly Dictionary<VirtualNodeType, int> nodeTypeCounts = new Dictionary<VirtualNodeType, int>();
+        public static bool EnableDiffTracing = false;
+        public enum DiffTraceLevel { None, Basic, Verbose }
+        public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
+        private int reconciledNodeCount;
+        private int skippedNodeCount;
+        private int functionEffectRunCount;
+        private int portalBuildCount;
+        private int portalUpdateCount;
+        private Stopwatch diffStopwatch = new();
+        private long lastDiffDurationMs;
+        private readonly Dictionary<string, VisualElement> elementCache = new();
+        private int cacheHitCount;
+        private int cacheMissCount;
+        private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
 
         public Reconciler(HostContext hostContext)
         {
             this.hostContext = hostContext;
         }
 
-        internal void ForceFunctionComponentUpdate(NodeMetadata meta)
+        internal void ForceFunctionComponentUpdate(NodeMetadata nodeMetadata)
         {
-            if (meta == null || meta.Container == null) return;
-            meta.HookIndex = 0;
-            RenderFunctionComponent(meta, meta.Container);
-        }
-
-        public void BuildSubtree(VisualElement host, VirtualNode node)
-        {
-			BeginDiffTiming();
-            host.Clear();
-            BuildChildren(host, node.Children);
-			EndDiffTiming();
-        }
-
-        public void DiffSubtree(VisualElement host, VirtualNode previous, VirtualNode next)
-        {
-			BeginDiffTiming();
-            DiffChildren(host, previous.Children, next.Children);
-			EndDiffTiming();
-        }
-
-        private void BuildChildren(VisualElement parent, IReadOnlyList<VirtualNode> children)
-        {
-			bool warned = false;
-			var seenKeys = new HashSet<string>();
-			for (int index = 0; index < children.Count; index += 1)
-			{
-				var c = children[index];
-				if (c.NodeType == VirtualNodeType.Fragment && !string.IsNullOrEmpty(c.Key))
-				{
-					if (!seenKeys.Add(c.Key) && !warned)
-					{
-						Debug.LogWarning($"ReactiveUITK: Duplicate fragment key '{c.Key}' under parent {parent.name}");
-						warned = true;
-					}
-				}
-				BuildNode(parent, c);
-			}
-        }
-
-		private void BuildNode(VisualElement parent, VirtualNode node)
-        {
-            switch (node.NodeType)
+            if (nodeMetadata == null || nodeMetadata.Container == null)
             {
-                case VirtualNodeType.Text:
-                    Label label = new Label(node.TextContent ?? string.Empty);
-                    label.userData = new NodeMetadata { Key = node.Key };
-                    parent.Add(label);
-                    return;
-                case VirtualNodeType.Fragment:
-                    BuildChildren(parent, node.Children);
-                    return;
-                case VirtualNodeType.Portal:
-                    // Add placeholder to preserve indexing
-					if (node.PortalTarget == null)
-					{
-						// No target => skip building placeholder to avoid lingering orphan
-						return;
-					}
-					var placeholder = new VisualElement { name = "PortalPlaceholder" };
-					placeholder.userData = new NodeMetadata { Key = node.Key };
-					parent.Add(placeholder);
-					node.PortalTarget.Clear();
-					BuildChildren(node.PortalTarget, node.Children);
-					portalsBuilt++;
-                    return;
-                case VirtualNodeType.Component when node.ComponentType != null:
-                    GameObject go = new GameObject(node.ComponentType.Name);
-                    var component = (ReactiveComponent)go.AddComponent(node.ComponentType);
-                    var container = new VisualElement();
-                    var metaComp = new NodeMetadata { Key = node.Key, ComponentInstance = component };
-                    container.userData = metaComp;
-                    parent.Add(container);
-                    component.SetProps(new Dictionary<string, object>(node.Properties));
-                    component.Mount(container, hostContext);
-                    return;
-                case VirtualNodeType.FunctionComponent when node.FunctionRender != null:
-                    var funcContainer = new VisualElement();
-                    var metaFunc = new NodeMetadata
-                    {
-                        Key = node.Key,
-                        FuncRender = node.FunctionRender,
-                        FuncProps = new Dictionary<string, object>(node.Properties),
-                        FuncChildren = node.Children,
-                        HookStates = new List<object>(),
-                        HookIndex = 0,
-                        Container = funcContainer,
-                        HostContext = hostContext,
-                        Reconciler = this
-                    };
-                    funcContainer.userData = metaFunc;
-                    parent.Add(funcContainer);
-                    RenderFunctionComponent(metaFunc);
-                    return;
-            }
-
-            IElementAdapter adapter = hostContext.ElementRegistry.Resolve(node.ElementTypeName);
-            if (adapter == null)
-            {
-                VisualElement fallback = new VisualElement();
-                fallback.userData = new NodeMetadata { Key = node.Key };
-                parent.Add(fallback);
-                BuildChildren(fallback, node.Children);
                 return;
             }
-            VisualElement element = adapter.Create();
-            element.userData = new NodeMetadata { Key = node.Key };
-            adapter.ApplyProperties(element, node.Properties);
-            parent.Add(element);
-            BuildChildren(element, node.Children);
+            nodeMetadata.HookIndex = 0;
+            RenderFunctionComponent(nodeMetadata, nodeMetadata.Container);
         }
 
-        private void DiffChildren(VisualElement parent, IReadOnlyList<VirtualNode> oldChildren, IReadOnlyList<VirtualNode> newChildren)
+        public void BuildSubtree(VisualElement hostElement, VirtualNode rootNode)
         {
-            bool hasAnyKey = HasAnyKey(oldChildren) || HasAnyKey(newChildren);
-            if (!hasAnyKey)
+            BeginDiffTiming();
+            hostElement.Clear();
+            if (rootNode != null)
             {
-                DiffChildrenByIndex(parent, oldChildren, newChildren);
-                return;
-            }
-            DiffChildrenByKey(parent, oldChildren, newChildren);
-        }
-
-        private void DiffChildrenByIndex(VisualElement parent, IReadOnlyList<VirtualNode> oldChildren, IReadOnlyList<VirtualNode> newChildren)
-        {
-            int oldCount = oldChildren.Count;
-            int newCount = newChildren.Count;
-            int shared = oldCount < newCount ? oldCount : newCount;
-            for (int i = 0; i < shared; i++)
-            {
-                DiffNode(parent.ElementAt(i), oldChildren[i], newChildren[i]);
-            }
-            if (newCount > oldCount)
-            {
-                for (int i = oldCount; i < newCount; i++) BuildNode(parent, newChildren[i]);
-            }
-            else if (oldCount > newCount)
-            {
-                for (int i = oldCount - 1; i >= newCount; i--) parent.ElementAt(i).RemoveFromHierarchy();
-            }
-        }
-
-        private void DiffChildrenByKey(VisualElement parent, IReadOnlyList<VirtualNode> oldChildren, IReadOnlyList<VirtualNode> newChildren)
-        {
-            var oldByKey = new Dictionary<string, (VirtualNode vnode, VisualElement element)>();
-            var reused = new HashSet<string>();
-            var duplicates = new HashSet<string>();
-            for (int i = 0; i < oldChildren.Count; i++)
-            {
-                var oldNode = oldChildren[i];
-                var oldElement = parent.ElementAt(i);
-                var k = oldNode.Key;
-                if (!string.IsNullOrEmpty(k))
+                if (rootNode.NodeType == VirtualNodeType.Element && !string.IsNullOrEmpty(rootNode.ElementTypeName))
                 {
-                    if (!oldByKey.ContainsKey(k)) oldByKey.Add(k, (oldNode, oldElement)); else duplicates.Add(k);
+                    // Apply properties to the existing host element instead of creating a nested wrapper.
+                    IElementAdapter adapter = hostContext.ElementRegistry.Resolve(rootNode.ElementTypeName);
+                    if (adapter != null)
+                    {
+                        adapter.ApplyProperties(hostElement, rootNode.Properties);
+                    }
+                    BuildChildren(hostElement, rootNode.Children ?? Array.Empty<VirtualNode>());
+                }
+                else
+                {
+                    // Non-element root: create as child
+                    BuildNode(hostElement, rootNode);
                 }
             }
-            var newOrder = new List<VisualElement>(newChildren.Count);
-            for (int i = 0; i < newChildren.Count; i++)
+            EndDiffTiming();
+        }
+
+        public void DiffSubtree(VisualElement hostElement, VirtualNode previousRoot, VirtualNode nextRoot)
+        {
+            BeginDiffTiming();
+            if (previousRoot == null)
             {
-                var nextNode = newChildren[i];
-                var k = nextNode.Key;
-                if (!string.IsNullOrEmpty(k) && oldByKey.TryGetValue(k, out var tuple))
+                hostElement.Clear();
+                if (nextRoot != null)
                 {
-                    DiffNode(tuple.element, tuple.vnode, nextNode);
-                    newOrder.Add(tuple.element);
-                    reused.Add(k);
+                    BuildSubtree(hostElement, nextRoot); // reuse build logic
+                }
+                EndDiffTiming();
+                return;
+            }
+            if (nextRoot == null)
+            {
+                hostElement.Clear();
+                EndDiffTiming();
+                return;
+            }
+            if (previousRoot.NodeType == VirtualNodeType.Element && nextRoot.NodeType == VirtualNodeType.Element && previousRoot.ElementTypeName == nextRoot.ElementTypeName)
+            {
+                // Diff applied directly on hostElement
+                IElementAdapter adapter = hostContext.ElementRegistry.Resolve(nextRoot.ElementTypeName);
+                if (adapter != null)
+                {
+                    adapter.ApplyPropertiesDiff(hostElement, previousRoot.Properties, nextRoot.Properties);
+                }
+                DiffChildren(hostElement, previousRoot.Children ?? Array.Empty<VirtualNode>(), nextRoot.Children ?? Array.Empty<VirtualNode>());
+            }
+            else
+            {
+                // Replace whole subtree
+                hostElement.Clear();
+                BuildSubtree(hostElement, nextRoot);
+            }
+            EndDiffTiming();
+        }
+
+        private void BuildChildren(VisualElement parentElement, IReadOnlyList<VirtualNode> childNodes)
+        {
+            bool duplicateFragmentKeyWarned = false;
+            HashSet<string> fragmentKeys = new();
+            for (int index = 0; index < childNodes.Count; index += 1)
+            {
+                VirtualNode currentChild = childNodes[index];
+                if (currentChild.NodeType == VirtualNodeType.Fragment && !string.IsNullOrEmpty(currentChild.Key))
+                {
+                    if (!fragmentKeys.Add(currentChild.Key) && !duplicateFragmentKeyWarned)
+                    {
+                        UnityEngine.Debug.LogWarning($"ReactiveUITK: Duplicate fragment key '{currentChild.Key}' under parent {parentElement.name}");
+                        duplicateFragmentKeyWarned = true;
+                    }
+                }
+                BuildNode(parentElement, currentChild);
+            }
+        }
+
+        private void BuildNode(VisualElement parentElement, VirtualNode virtualNode)
+        {
+            switch (virtualNode.NodeType)
+            {
+                case VirtualNodeType.Text:
+                    Label textLabel = new(virtualNode.TextContent ?? string.Empty) { userData = new NodeMetadata { Key = virtualNode.Key } };
+                    parentElement.Add(textLabel);
+                    return;
+                case VirtualNodeType.Fragment:
+                    // Create a container for fragment to aid styling/debugging.
+                    VisualElement fragmentRoot = new() { name = string.IsNullOrEmpty(virtualNode.Key) ? "FragmentContainer" : ($"Fragment_{virtualNode.Key}") , userData = new NodeMetadata { Key = virtualNode.Key } };
+                    parentElement.Add(fragmentRoot);
+                    BuildChildren(fragmentRoot, virtualNode.Children);
+                    return;
+                case VirtualNodeType.Portal:
+                    if (virtualNode.PortalTarget == null)
+                    {
+                        return;
+                    }
+                    VisualElement portalPlaceholderElement = new() { name = "PortalPlaceholder", userData = new NodeMetadata { Key = virtualNode.Key } };
+                    parentElement.Add(portalPlaceholderElement);
+                    virtualNode.PortalTarget.Clear();
+                    BuildChildren(virtualNode.PortalTarget, virtualNode.Children);
+                    portalBuildCount++;
+                    return;
+                case VirtualNodeType.Component when virtualNode.ComponentType != null:
+                    GameObject componentGameObject = new(virtualNode.ComponentType.Name);
+                    ReactiveComponent reactiveComponentInstance = (ReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
+                    VisualElement componentContainer = new() { name = virtualNode.ComponentType.Name + "Container" };
+                    NodeMetadata componentMetadata = new() { Key = virtualNode.Key, ComponentInstance = reactiveComponentInstance };
+                    componentContainer.userData = componentMetadata;
+                    parentElement.Add(componentContainer);
+                    reactiveComponentInstance.SetProps(new Dictionary<string, object>(virtualNode.Properties));
+                    reactiveComponentInstance.Mount(componentContainer, hostContext);
+                    return;
+                case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
+                    string funcName = virtualNode.FunctionRender.Method.Name;
+                    // Pre-render once to determine if we can flatten (React-like behavior)
+                    VirtualNode initialSubtree = virtualNode.FunctionRender?.Invoke(new Dictionary<string, object>(virtualNode.Properties), virtualNode.Children);
+                    if (initialSubtree != null && initialSubtree.NodeType == VirtualNodeType.Element)
+                    {
+                        // Flatten: build the returned element directly; attach metadata to that element.
+                        IElementAdapter adapter = hostContext.ElementRegistry.Resolve(initialSubtree.ElementTypeName);
+                        VisualElement flattenedElement;
+                        if (adapter != null)
+                        {
+                            flattenedElement = adapter.Create();
+                            adapter.ApplyProperties(flattenedElement, initialSubtree.Properties);
+                        }
+                        else
+                        {
+                            flattenedElement = new VisualElement();
+                        }
+                        flattenedElement.name = string.IsNullOrEmpty(funcName) ? "FunctionComponentRoot" : (funcName + "Root");
+                        NodeMetadata flattenedMetadata = new()
+                        {
+                            Key = virtualNode.Key,
+                            FuncRender = virtualNode.FunctionRender,
+                            FuncProps = new Dictionary<string, object>(virtualNode.Properties),
+                            FuncChildren = virtualNode.Children,
+                            HookStates = new List<object>(),
+                            HookIndex = 0,
+                            Container = flattenedElement,
+                            HostContext = hostContext,
+                            Reconciler = this,
+                            LastRenderedSubtree = initialSubtree,
+                            IsFlattened = true
+                        };
+                        flattenedElement.userData = flattenedMetadata;
+                        parentElement.Add(flattenedElement);
+                        // Build children of the root subtree under the flattened element
+                        BuildChildren(flattenedElement, initialSubtree.Children ?? Array.Empty<VirtualNode>());
+                        // Run effects/layout effects scheduling like post-render path
+                        HookContext.Current = flattenedMetadata;
+                        HookContext.Current = null;
+                        return;
+                    }
+                    // Fallback: create wrapper container (non-element or null root)
+                    VisualElement functionComponentContainer = new() { name = string.IsNullOrEmpty(funcName) ? "FunctionComponent" : (funcName + "Container") };
+                    functionComponentContainer.style.flexGrow = 1f;
+                    NodeMetadata functionComponentMetadata = new()
+                    {
+                        Key = virtualNode.Key,
+                        FuncRender = virtualNode.FunctionRender,
+                        FuncProps = new Dictionary<string, object>(virtualNode.Properties),
+                        FuncChildren = virtualNode.Children,
+                        HookStates = new List<object>(),
+                        HookIndex = 0,
+                        Container = functionComponentContainer,
+                        HostContext = hostContext,
+                        Reconciler = this,
+                        IsFlattened = false
+                    };
+                    functionComponentContainer.userData = functionComponentMetadata;
+                    parentElement.Add(functionComponentContainer);
+                    RenderFunctionComponent(functionComponentMetadata);
+                    return;
+            }
+            IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(virtualNode.ElementTypeName);
+            if (elementAdapter == null)
+            {
+                VisualElement fallbackElement = new() { name = string.IsNullOrEmpty(virtualNode.Key) ? "UnknownElement" : ($"Unknown_{virtualNode.Key}"), userData = new NodeMetadata { Key = virtualNode.Key } };
+                parentElement.Add(fallbackElement);
+                BuildChildren(fallbackElement, virtualNode.Children);
+                return;
+            }
+            VisualElement createdElement = elementAdapter.Create();
+            if (string.IsNullOrEmpty(createdElement.name))
+            {
+                createdElement.name = string.IsNullOrEmpty(virtualNode.Key) ? (virtualNode.ElementTypeName + "Element") : ($"{virtualNode.ElementTypeName}_{virtualNode.Key}");
+            }
+            createdElement.userData = new NodeMetadata { Key = virtualNode.Key };
+            elementAdapter.ApplyProperties(createdElement, virtualNode.Properties);
+            parentElement.Add(createdElement);
+            BuildChildren(createdElement, virtualNode.Children);
+        }
+
+        private void DiffChildren(VisualElement parentElement, IReadOnlyList<VirtualNode> previousChildren, IReadOnlyList<VirtualNode> nextChildren)
+        {
+            bool anyKeyPresent = HasAnyKey(previousChildren) || HasAnyKey(nextChildren);
+            if (!anyKeyPresent)
+            {
+                DiffChildrenByIndex(parentElement, previousChildren, nextChildren);
+                return;
+            }
+            DiffChildrenByKey(parentElement, previousChildren, nextChildren);
+        }
+
+        private void DiffChildrenByIndex(VisualElement parentElement, IReadOnlyList<VirtualNode> previousChildren, IReadOnlyList<VirtualNode> nextChildren)
+        {
+            int previousCount = previousChildren.Count;
+            int nextCount = nextChildren.Count;
+            int sharedCount = previousCount < nextCount ? previousCount : nextCount;
+            for (int i = 0; i < sharedCount; i++)
+            {
+                DiffNode(parentElement.ElementAt(i), previousChildren[i], nextChildren[i]);
+            }
+            if (nextCount > previousCount)
+            {
+                for (int i = previousCount; i < nextCount; i++)
+                {
+                    BuildNode(parentElement, nextChildren[i]);
+                }
+            }
+            else if (previousCount > nextCount)
+            {
+                for (int i = previousCount - 1; i >= nextCount; i--)
+                {
+                    parentElement.ElementAt(i).RemoveFromHierarchy();
+                }
+            }
+        }
+
+        private void DiffChildrenByKey(VisualElement parentElement, IReadOnlyList<VirtualNode> previousChildren, IReadOnlyList<VirtualNode> nextChildren)
+        {
+            Dictionary<string, (VirtualNode vnode, VisualElement element)> previousChildrenByKey = new();
+            HashSet<string> reusedKeys = new();
+            HashSet<string> duplicateKeys = new();
+            for (int i = 0; i < previousChildren.Count; i++)
+            {
+                VirtualNode previousChildNode = previousChildren[i];
+                VisualElement previousChildElement = parentElement.ElementAt(i);
+                string key = previousChildNode.Key;
+                if (!string.IsNullOrEmpty(key))
+                {
+                    if (!previousChildrenByKey.ContainsKey(key))
+                    {
+                        previousChildrenByKey.Add(key, (previousChildNode, previousChildElement));
+                    }
+                    else
+                    {
+                        duplicateKeys.Add(key);
+                    }
+                }
+            }
+            List<VisualElement> orderedElements = new(nextChildren.Count);
+            for (int i = 0; i < nextChildren.Count; i++)
+            {
+                VirtualNode nextChildNode = nextChildren[i];
+                string key = nextChildNode.Key;
+                if (!string.IsNullOrEmpty(key) && previousChildrenByKey.TryGetValue(key, out var tuple))
+                {
+                    DiffNode(tuple.element, tuple.vnode, nextChildNode);
+                    orderedElements.Add(tuple.element);
+                    reusedKeys.Add(key);
                     continue;
                 }
-                newOrder.Add(CreateDetached(nextNode));
+                orderedElements.Add(CreateDetached(nextChildNode));
             }
-            for (int i = 0; i < parent.childCount; i++)
+            for (int i = 0; i < parentElement.childCount; i++)
             {
-                var existing = parent.ElementAt(i);
-                var existingKey = (existing.userData as NodeMetadata)?.Key;
-                if (!string.IsNullOrEmpty(existingKey) && !reused.Contains(existingKey)) existing.RemoveFromHierarchy();
+                VisualElement existingElement = parentElement.ElementAt(i);
+                string existingKey = (existingElement.userData as NodeMetadata)?.Key;
+                if (!string.IsNullOrEmpty(existingKey) && !reusedKeys.Contains(existingKey))
+                {
+                    existingElement.RemoveFromHierarchy();
+                }
             }
-            for (int i = 0; i < newOrder.Count; i++)
+            for (int i = 0; i < orderedElements.Count; i++)
             {
-                var desired = newOrder[i];
-                if (desired.parent != parent) { parent.Insert(i, desired); continue; }
-                if (parent.IndexOf(desired) != i) { desired.RemoveFromHierarchy(); parent.Insert(i, desired); }
+                VisualElement desiredElement = orderedElements[i];
+                if (desiredElement.parent != parentElement)
+                {
+                    parentElement.Insert(i, desiredElement);
+                    continue;
+                }
+                if (parentElement.IndexOf(desiredElement) != i)
+                {
+                    desiredElement.RemoveFromHierarchy();
+                    parentElement.Insert(i, desiredElement);
+                }
             }
-            if (duplicates.Count > 0)
+            if (duplicateKeys.Count > 0)
             {
-                Debug.LogWarning($"ReactiveUITK: Duplicate keys detected: {string.Join(",", duplicates)}");
+                UnityEngine.Debug.LogWarning($"ReactiveUITK: Duplicate keys detected: {string.Join(",", duplicateKeys)}");
             }
         }
 
-		private VisualElement CreateDetached(VirtualNode node)
+        private VisualElement CreateDetached(VirtualNode virtualNode)
         {
-            // Build without adding to parent hierarchy containers
-			if (!string.IsNullOrEmpty(node.Key) && elementCache.TryGetValue(node.Key, out var cached) && cached.parent == null)
-			{
-				cacheHits++;
-				IncrementNodeType(node.NodeType);
-				if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose) Debug.Log($"[Reconciler] Reuse cached element key={node.Key}");
-				return cached;
-			}
-			cacheMisses++;
-			IncrementNodeType(node.NodeType);
-            switch (node.NodeType)
+            if (!string.IsNullOrEmpty(virtualNode.Key) && elementCache.TryGetValue(virtualNode.Key, out VisualElement cachedElement) && cachedElement.parent == null)
+            {
+                cacheHitCount++;
+                IncrementNodeType(virtualNode.NodeType);
+                if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+                {
+                    UnityEngine.Debug.Log($"[Reconciler] Reuse cached element key={virtualNode.Key}");
+                }
+                return cachedElement;
+            }
+            cacheMissCount++;
+            IncrementNodeType(virtualNode.NodeType);
+            switch (virtualNode.NodeType)
             {
                 case VirtualNodeType.Text:
-                    Label label = new Label(node.TextContent ?? string.Empty);
-                    label.userData = new NodeMetadata { Key = node.Key };
-					Cache(node.Key, label);
-					return label;
+                    Label detachedTextLabel = new(virtualNode.TextContent ?? string.Empty) { userData = new NodeMetadata { Key = virtualNode.Key } };
+                    Cache(virtualNode.Key, detachedTextLabel);
+                    return detachedTextLabel;
                 case VirtualNodeType.Fragment:
-                    // Fragment has no root element: create empty container
-					var frag = new VisualElement();
-                    frag.userData = new NodeMetadata { Key = node.Key };
-                    BuildChildren(frag, node.Children);
-					Cache(node.Key, frag);
-                    return frag;
+                    VisualElement fragmentContainer = new() { name = string.IsNullOrEmpty(virtualNode.Key) ? "FragmentContainer" : ($"Fragment_{virtualNode.Key}"), userData = new NodeMetadata { Key = virtualNode.Key } };
+                    BuildChildren(fragmentContainer, virtualNode.Children);
+                    Cache(virtualNode.Key, fragmentContainer);
+                    return fragmentContainer;
                 case VirtualNodeType.Portal:
-					var portalPlaceholder = new VisualElement { name = "PortalPlaceholder" };
-                    portalPlaceholder.userData = new NodeMetadata { Key = node.Key };
-                    if (node.PortalTarget != null)
+                    VisualElement portalPlaceholderElement = new() { name = "PortalPlaceholder", userData = new NodeMetadata { Key = virtualNode.Key } };
+                    if (virtualNode.PortalTarget != null)
                     {
-                        node.PortalTarget.Clear();
-                        BuildChildren(node.PortalTarget, node.Children);
+                        virtualNode.PortalTarget.Clear();
+                        BuildChildren(virtualNode.PortalTarget, virtualNode.Children);
                     }
-					Cache(node.Key, portalPlaceholder);
-                    return portalPlaceholder;
-                case VirtualNodeType.Component when node.ComponentType != null:
-                    GameObject go = new GameObject(node.ComponentType.Name);
-                    var component = (ReactiveComponent)go.AddComponent(node.ComponentType);
-					var container = new VisualElement();
-                    container.userData = new NodeMetadata { Key = node.Key, ComponentInstance = component };
-                    component.SetProps(new Dictionary<string, object>(node.Properties));
-                    component.Mount(container, hostContext);
-					Cache(node.Key, container);
-                    return container;
-                case VirtualNodeType.FunctionComponent when node.FunctionRender != null:
-                    var funcContainer = new VisualElement();
-                    var metaFunc = new NodeMetadata
+                    Cache(virtualNode.Key, portalPlaceholderElement);
+                    return portalPlaceholderElement;
+                case VirtualNodeType.Component when virtualNode.ComponentType != null:
+                    GameObject componentGameObject = new(virtualNode.ComponentType.Name);
+                    ReactiveComponent reactiveComponentInstance = (ReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
+                    VisualElement componentContainer = new() { name = virtualNode.ComponentType.Name + "Container", userData = new NodeMetadata { Key = virtualNode.Key, ComponentInstance = reactiveComponentInstance } };
+                    reactiveComponentInstance.SetProps(new Dictionary<string, object>(virtualNode.Properties));
+                    reactiveComponentInstance.Mount(componentContainer, hostContext);
+                    Cache(virtualNode.Key, componentContainer);
+                    return componentContainer;
+                case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
+                    string funcName = virtualNode.FunctionRender.Method.Name;
+                    VirtualNode initialSubtreeDet = virtualNode.FunctionRender?.Invoke(new Dictionary<string, object>(virtualNode.Properties), virtualNode.Children);
+                    if (initialSubtreeDet != null && initialSubtreeDet.NodeType == VirtualNodeType.Element)
                     {
-                        Key = node.Key,
-                        FuncRender = node.FunctionRender,
-                        FuncProps = new Dictionary<string, object>(node.Properties),
-                        FuncChildren = node.Children,
+                        IElementAdapter adapter = hostContext.ElementRegistry.Resolve(initialSubtreeDet.ElementTypeName);
+                        VisualElement flattenedElement;
+                        if (adapter != null)
+                        {
+                            flattenedElement = adapter.Create();
+                            adapter.ApplyProperties(flattenedElement, initialSubtreeDet.Properties);
+                        }
+                        else
+                        {
+                            flattenedElement = new VisualElement();
+                        }
+                        flattenedElement.name = string.IsNullOrEmpty(funcName) ? "FunctionComponentRoot" : (funcName + "Root");
+                        NodeMetadata flattenedMetadata = new()
+                        {
+                            Key = virtualNode.Key,
+                            FuncRender = virtualNode.FunctionRender,
+                            FuncProps = new Dictionary<string, object>(virtualNode.Properties),
+                            FuncChildren = virtualNode.Children,
+                            HookStates = new List<object>(),
+                            HookIndex = 0,
+                            Container = flattenedElement,
+                            HostContext = hostContext,
+                            Reconciler = this,
+                            LastRenderedSubtree = initialSubtreeDet,
+                            IsFlattened = true
+                        };
+                        flattenedElement.userData = flattenedMetadata;
+                        BuildChildren(flattenedElement, initialSubtreeDet.Children ?? Array.Empty<VirtualNode>());
+                        Cache(virtualNode.Key, flattenedElement);
+                        return flattenedElement;
+                    }
+                    VisualElement functionComponentContainer = new() { name = string.IsNullOrEmpty(funcName) ? "FunctionComponent" : (funcName + "Container") };
+                    functionComponentContainer.style.flexGrow = 1f;
+                    NodeMetadata wrapperMetadata = new()
+                    {
+                        Key = virtualNode.Key,
+                        FuncRender = virtualNode.FunctionRender,
+                        FuncProps = new Dictionary<string, object>(virtualNode.Properties),
+                        FuncChildren = virtualNode.Children,
                         HookStates = new List<object>(),
                         HookIndex = 0,
-                        Container = funcContainer,
+                        Container = functionComponentContainer,
                         HostContext = hostContext,
-                        Reconciler = this
+                        Reconciler = this,
+                        IsFlattened = false
                     };
-                    funcContainer.userData = metaFunc;
-                    RenderFunctionComponent(metaFunc);
-					Cache(node.Key, funcContainer);
-                    return funcContainer;
+                    functionComponentContainer.userData = wrapperMetadata;
+                    RenderFunctionComponent(wrapperMetadata);
+                    Cache(virtualNode.Key, functionComponentContainer);
+                    return functionComponentContainer;
                 case VirtualNodeType.Suspense:
-					var suspenseContainer = new VisualElement();
-                    suspenseContainer.userData = new NodeMetadata { Key = node.Key };
-                    bool ready = node.SuspenseReady?.Invoke() ?? true;
-                    if (ready)
+                    VisualElement suspenseContainerElement = new() { userData = new NodeMetadata { Key = virtualNode.Key } };
+                    bool suspenseReady = virtualNode.SuspenseReady?.Invoke() ?? true;
+                    if (suspenseReady)
                     {
-                        BuildChildren(suspenseContainer, node.Children);
+                        BuildChildren(suspenseContainerElement, virtualNode.Children);
                     }
-                    else if (node.Fallback != null)
+                    else if (virtualNode.Fallback != null)
                     {
-                        BuildChildren(suspenseContainer, new List<VirtualNode> { node.Fallback });
+                        BuildChildren(suspenseContainerElement, new List<VirtualNode> { virtualNode.Fallback });
                     }
-					Cache(node.Key, suspenseContainer);
-                    return suspenseContainer;
+                    Cache(virtualNode.Key, suspenseContainerElement);
+                    return suspenseContainerElement;
             }
-            // Element
-            IElementAdapter adapter = hostContext.ElementRegistry.Resolve(node.ElementTypeName);
-            VisualElement element = adapter != null ? adapter.Create() : new VisualElement();
-            element.userData = new NodeMetadata { Key = node.Key };
-            if (adapter != null) adapter.ApplyProperties(element, node.Properties);
-            BuildChildren(element, node.Children);
-			Cache(node.Key, element);
-            return element;
+            IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(virtualNode.ElementTypeName);
+            VisualElement createdElement = elementAdapter != null ? elementAdapter.Create() : new VisualElement();
+            createdElement.userData = new NodeMetadata { Key = virtualNode.Key };
+            if (string.IsNullOrEmpty(createdElement.name))
+            {
+                createdElement.name = elementAdapter != null ? (virtualNode.ElementTypeName + "Element") : "GenericElement";
+            }
+            if (elementAdapter != null)
+            {
+                elementAdapter.ApplyProperties(createdElement, virtualNode.Properties);
+            }
+            BuildChildren(createdElement, virtualNode.Children);
+            Cache(virtualNode.Key, createdElement);
+            return createdElement;
         }
 
-        private void DiffNode(VisualElement host, VirtualNode oldNode, VirtualNode newNode)
+        private void DiffNode(VisualElement hostElement, VirtualNode previousNode, VirtualNode nextNode)
         {
-            if (oldNode.NodeType != newNode.NodeType)
-            {
-                nodesReconciled++;
-                ReplaceNode(host, newNode);
-                return;
-            }
-            if (newNode.NodeType == VirtualNodeType.Text)
-            {
-                var label = host as Label;
-                if (label == null) { ReplaceNode(host, newNode); return; }
-                var newText = newNode.TextContent ?? string.Empty;
-                if (label.text != newText) label.text = newText;
-                else nodesSkipped++;
-                return;
-            }
-            if (newNode.NodeType == VirtualNodeType.Portal)
-            {
-				var metaPortal = host.userData as NodeMetadata;
-				if (newNode.PortalTarget != null)
+			if (previousNode.NodeType != nextNode.NodeType)
+			{
+				reconciledNodeCount++;
+				ReplaceNode(hostElement, nextNode);
+				return;
+			}
+			if (nextNode.NodeType == VirtualNodeType.Text)
+			{
+				Label labelElement = hostElement as Label;
+				if (labelElement == null)
 				{
-					// Incremental portal diff using stored previous children
-					var prev = metaPortal?.PortalPreviousChildren ?? new List<VirtualNode>();
-					DiffChildren(newNode.PortalTarget, prev, newNode.Children);
-					if (metaPortal != null) metaPortal.PortalPreviousChildren = new List<VirtualNode>(newNode.Children);
-					portalsUpdated++;
-				if (EnableDiffTracing || TraceLevel != DiffTraceLevel.None) Debug.Log($"[PortalDiff] Updated portal key={newNode.Key} children={newNode.Children.Count}");
+					ReplaceNode(hostElement, nextNode);
+					return;
+				}
+				string newTextContent = nextNode.TextContent ?? string.Empty;
+				if (labelElement.text != newTextContent)
+				{
+					labelElement.text = newTextContent;
 				}
 				else
 				{
-					// Target removed: cleanup existing portal contents tracked previously
-					if (metaPortal?.PortalPreviousChildren != null)
-					{
-						foreach (var prevChild in metaPortal.PortalPreviousChildren)
-						{
-							// No direct VisualElement ref; rely on target absence so hierarchy already gone
-						}
-						metaPortal.PortalPreviousChildren.Clear();
-					}
-				if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose) Debug.Log($"[PortalDiff] Portal key={newNode.Key} target removed; placeholder retained.");
+					skippedNodeCount++;
 				}
+				return;
+			}
+			if (nextNode.NodeType == VirtualNodeType.Portal)
+			{
+				NodeMetadata portalMetadata = hostElement.userData as NodeMetadata;
+				if (nextNode.PortalTarget != null)
+				{
+					List<VirtualNode> previousPortalChildren = portalMetadata?.PortalPreviousChildren ?? new List<VirtualNode>();
+					DiffChildren(nextNode.PortalTarget, previousPortalChildren, nextNode.Children);
+					if (portalMetadata != null)
+					{
+						portalMetadata.PortalPreviousChildren = new List<VirtualNode>(nextNode.Children);
+					}
+					portalUpdateCount++;
+				}
+				else
+				{
+					if (portalMetadata?.PortalPreviousChildren != null)
+					{
+						portalMetadata.PortalPreviousChildren.Clear();
+					}
+				}
+				return;
+			}
+			if (nextNode.NodeType == VirtualNodeType.Element && previousNode.ElementTypeName != nextNode.ElementTypeName)
+			{
+				ReplaceNode(hostElement, nextNode);
+				return;
+			}
+			if (nextNode.NodeType == VirtualNodeType.Component)
+			{
+				if (previousNode.ComponentType != nextNode.ComponentType)
+				{
+					ReplaceNode(hostElement, nextNode);
+					return;
+				}
+				NodeMetadata componentMetadata = hostElement.userData as NodeMetadata;
+				ReactiveComponent componentInstance = componentMetadata?.ComponentInstance;
+				if (componentInstance == null)
+				{
+					ReplaceNode(hostElement, nextNode);
+					return;
+				}
+				if (ShouldSkipMemo(previousNode, nextNode, previousNode.Properties, nextNode.Properties))
+				{
+					return;
+				}
+				reconciledNodeCount++;
+				try
+				{
+					componentInstance.SetProps(new Dictionary<string, object>(nextNode.Properties));
+				}
+				catch (Exception ex)
+				{
+					UnityEngine.Debug.LogError($"ReactiveUITK: Component update failed ({nextNode.ComponentType.Name}): {ex}");
+				}
+				return;
+			}
+			if (nextNode.NodeType == VirtualNodeType.FunctionComponent)
+			{
+				NodeMetadata functionMetadata = hostElement.userData as NodeMetadata;
+				if (functionMetadata == null || functionMetadata.FuncRender == null)
+				{
+					ReplaceNode(hostElement, nextNode);
+					return;
+				}
+				if (ShouldSkipMemo(previousNode, nextNode, functionMetadata.FuncProps, nextNode.Properties))
+				{
+					return;
+				}
+				reconciledNodeCount++;
+				functionMetadata.FuncProps = new Dictionary<string, object>(nextNode.Properties);
+				functionMetadata.FuncChildren = nextNode.Children;
+				functionMetadata.HookIndex = 0;
+				RenderFunctionComponent(functionMetadata, hostElement);
+				return;
+			}
+			if (nextNode.NodeType == VirtualNodeType.Element)
+			{
+				IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(nextNode.ElementTypeName);
+				if (elementAdapter != null)
+				{
+					elementAdapter.ApplyPropertiesDiff(hostElement, previousNode.Properties, nextNode.Properties);
+				}
+				DiffChildren(hostElement, previousNode.Children, nextNode.Children);
+				if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+				{
+					UnityEngine.Debug.Log($"[Diff] Element {nextNode.ElementTypeName} key={nextNode.Key} reconciled");
+				}
+			}
+		}
+
+		private bool ShouldSkipMemo(VirtualNode previousNode, VirtualNode nextNode, IReadOnlyDictionary<string, object> previousProps, IReadOnlyDictionary<string, object> nextProps)
+		{
+			if (!nextNode.Memoize)
+			{
+				return false;
+			}
+			bool arePropsEqual = false;
+			if (nextNode.MemoCompare != null)
+			{
+				arePropsEqual = nextNode.MemoCompare(previousProps, nextProps);
+			}
+			else if (ReferenceEquals(previousProps, nextProps))
+			{
+				arePropsEqual = true;
+			}
+			else if (previousProps is IReadOnlyDictionary<string, object> previousPropsDict && nextProps is IReadOnlyDictionary<string, object> nextPropsDict)
+			{
+				arePropsEqual = ShallowCompare.PropsEqual(previousPropsDict, nextPropsDict);
+			}
+			return arePropsEqual;
+		}
+
+        private void ReplaceNode(VisualElement hostElement, VirtualNode nextNode)
+        {
+            VisualElement parentElement = hostElement.parent;
+            if (parentElement == null)
+            {
                 return;
             }
-            if (newNode.NodeType == VirtualNodeType.Element && oldNode.ElementTypeName != newNode.ElementTypeName)
+            int hostIndex = parentElement.IndexOf(hostElement);
+            string existingKey = (hostElement.userData as NodeMetadata)?.Key;
+            InvalidateCache(existingKey);
+            RunRemovalCleanup(hostElement);
+            hostElement.RemoveFromHierarchy();
+            VisualElement buildContainer = new();
+            BuildNode(buildContainer, nextNode);
+            if (buildContainer.childCount > 0)
             {
-                ReplaceNode(host, newNode);
-                return;
+                VisualElement replacementElement = buildContainer.ElementAt(0);
+                parentElement.Insert(hostIndex, replacementElement);
             }
-            if (newNode.NodeType == VirtualNodeType.Component)
+        }
+
+        private bool HasAnyKey(IReadOnlyList<VirtualNode> nodes)
+        {
+            for (int i = 0; i < nodes.Count; i++)
             {
-                if (oldNode.ComponentType != newNode.ComponentType) { ReplaceNode(host, newNode); return; }
-                var meta = host.userData as NodeMetadata;
-                var instance = meta?.ComponentInstance;
-                if (instance == null) { ReplaceNode(host, newNode); return; }
-                if (newNode.Memoize)
+                if (!string.IsNullOrEmpty(nodes[i].Key))
                 {
-                    bool equal = false;
-                    if (newNode.MemoCompare != null) equal = newNode.MemoCompare(oldNode.Properties, newNode.Properties);
-                    else if (ReferenceEquals(oldNode.Properties, newNode.Properties)) equal = true;
-                    else if (oldNode.Properties is IReadOnlyDictionary<string, object> a && newNode.Properties is IReadOnlyDictionary<string, object> b) equal = ShallowCompare.PropsEqual(a, b);
-                    if (equal) return;
+                    return true;
                 }
-                nodesReconciled++;
-                try { instance.SetProps(new Dictionary<string, object>(newNode.Properties)); }
-                catch (System.Exception ex) { Debug.LogError($"ReactiveUITK: Component update failed ({newNode.ComponentType.Name}): {ex}"); }
+            }
+            return false;
+        }
+
+        private void RenderFunctionComponent(NodeMetadata functionComponentMetadata, VisualElement reuseContainer = null)
+        {
+            VisualElement targetContainer = reuseContainer ?? functionComponentMetadata.Container;
+            if (targetContainer == null || functionComponentMetadata.FuncRender == null)
+            {
                 return;
             }
-            if (newNode.NodeType == VirtualNodeType.FunctionComponent)
-            {
-                var meta = host.userData as NodeMetadata;
-                if (meta == null || meta.FuncRender == null) { ReplaceNode(host, newNode); return; }
-                if (newNode.Memoize)
-                {
-                    bool equal = false;
-                    if (newNode.MemoCompare != null) equal = newNode.MemoCompare(meta.FuncProps, newNode.Properties);
-                    else if (ReferenceEquals(meta.FuncProps, newNode.Properties)) equal = true;
-                    else if (meta.FuncProps is IReadOnlyDictionary<string, object> a && newNode.Properties is IReadOnlyDictionary<string, object> b) equal = ShallowCompare.PropsEqual(a, b);
-                    if (equal) return;
-                }
-                nodesReconciled++;
-                meta.FuncProps = new Dictionary<string, object>(newNode.Properties);
-                meta.FuncChildren = newNode.Children;
-                meta.HookIndex = 0;
-                RenderFunctionComponent(meta, host);
-                return;
-            }
-            // Element diff
-            if (newNode.NodeType == VirtualNodeType.Element)
-            {
-                var adapter = hostContext.ElementRegistry.Resolve(newNode.ElementTypeName);
-                if (adapter != null) adapter.ApplyPropertiesDiff(host, oldNode.Properties, newNode.Properties);
-                DiffChildren(host, oldNode.Children, newNode.Children);
-				if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose) Debug.Log($"[Diff] Element {newNode.ElementTypeName} key={newNode.Key} reconciled");
-            }
-        }
-
-        private void ReplaceNode(VisualElement host, VirtualNode newNode)
-        {
-            var parent = host.parent; if (parent == null) return;
-            int index = parent.IndexOf(host);
-			var oldKey = (host.userData as NodeMetadata)?.Key;
-			InvalidateCache(oldKey);
-            RunRemovalCleanup(host);
-            host.RemoveFromHierarchy();
-            var container = new VisualElement();
-            BuildNode(container, newNode);
-            if (container.childCount > 0)
-            {
-                var replacement = container.ElementAt(0);
-                parent.Insert(index, replacement);
-            }
-        }
-
-        private bool HasAnyKey(IReadOnlyList<VirtualNode> list)
-        {
-            for (int i = 0; i < list.Count; i++) if (!string.IsNullOrEmpty(list[i].Key)) return true; return false;
-        }
-
-        private void RenderFunctionComponent(NodeMetadata meta, VisualElement reuseContainer = null)
-        {
-            var target = reuseContainer ?? meta.Container;
-            if (target == null || meta.FuncRender == null) return;
-            HookContext.Current = meta;
+            HookContext.Current = functionComponentMetadata;
             try
             {
-                var next = meta.FuncRender(meta.FuncProps, meta.FuncChildren);
-                if (meta.LastRenderedSubtree == null || target.childCount == 0)
+                VirtualNode nextSubtree = functionComponentMetadata.FuncRender(functionComponentMetadata.FuncProps, functionComponentMetadata.FuncChildren);
+                // Flattened root: diff directly against container (no wrapper child)
+                if (functionComponentMetadata.IsFlattened)
                 {
-                    target.Clear();
-                    meta.LastRenderedSubtree = next;
-                    if (next != null) BuildChildren(target, new List<VirtualNode> { next });
+                    // Initial (edge) case if LastRenderedSubtree was not set during flatten build
+                    if (functionComponentMetadata.LastRenderedSubtree == null)
+                    {
+                        targetContainer.Clear();
+                        if (nextSubtree != null && nextSubtree.NodeType == VirtualNodeType.Element)
+                        {
+                            IElementAdapter initAdapter = hostContext.ElementRegistry.Resolve(nextSubtree.ElementTypeName);
+                            if (initAdapter != null)
+                            {
+                                initAdapter.ApplyProperties(targetContainer, nextSubtree.Properties);
+                            }
+                            BuildChildren(targetContainer, nextSubtree.Children ?? Array.Empty<VirtualNode>());
+                        }
+                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                        return;
+                    }
+                    // Null => clear
+                    if (nextSubtree == null)
+                    {
+                        targetContainer.Clear();
+                        functionComponentMetadata.LastRenderedSubtree = null;
+                        return;
+                    }
+                    // Non-element root now (e.g. fragment/text/portal/component) -> rebuild with wrapper semantics inside container
+                    if (nextSubtree.NodeType != VirtualNodeType.Element)
+                    {
+                        targetContainer.Clear();
+                        BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
+                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                        return;
+                    }
+                    // If element type changed, full rebuild
+                    if (functionComponentMetadata.LastRenderedSubtree.NodeType != VirtualNodeType.Element || functionComponentMetadata.LastRenderedSubtree.ElementTypeName != nextSubtree.ElementTypeName)
+                    {
+                        targetContainer.Clear();
+                        IElementAdapter rebuildAdapter = hostContext.ElementRegistry.Resolve(nextSubtree.ElementTypeName);
+                        if (rebuildAdapter != null)
+                        {
+                            rebuildAdapter.ApplyProperties(targetContainer, nextSubtree.Properties);
+                        }
+                        BuildChildren(targetContainer, nextSubtree.Children ?? Array.Empty<VirtualNode>());
+                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                        return;
+                    }
+                    // Same element type: diff props and children
+                    IElementAdapter diffAdapter = hostContext.ElementRegistry.Resolve(nextSubtree.ElementTypeName);
+                    if (diffAdapter != null)
+                    {
+                        diffAdapter.ApplyPropertiesDiff(targetContainer, functionComponentMetadata.LastRenderedSubtree.Properties, nextSubtree.Properties);
+                    }
+                    DiffChildren(targetContainer, functionComponentMetadata.LastRenderedSubtree.Children ?? Array.Empty<VirtualNode>(), nextSubtree.Children ?? Array.Empty<VirtualNode>());
+                    functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                    return; // flattened path handled
+                }
+                if (functionComponentMetadata.LastRenderedSubtree == null || targetContainer.childCount == 0)
+                {
+                    targetContainer.Clear();
+                    functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                    if (nextSubtree != null)
+                    {
+                        BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
+                    }
                     return;
                 }
-                if (next == null)
+                if (nextSubtree == null)
                 {
-                    target.Clear();
-                    meta.LastRenderedSubtree = null;
+                    targetContainer.Clear();
+                    functionComponentMetadata.LastRenderedSubtree = null;
                     return;
                 }
-                var existingRoot = target.ElementAt(0);
-                DiffNode(existingRoot, meta.LastRenderedSubtree, next);
-                meta.LastRenderedSubtree = next;
+                VisualElement existingRootElement = targetContainer.ElementAt(0);
+                DiffNode(existingRootElement, functionComponentMetadata.LastRenderedSubtree, nextSubtree);
+                functionComponentMetadata.LastRenderedSubtree = nextSubtree;
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                Debug.LogError($"ReactiveUITK: Function component render failed: {ex}");
+                UnityEngine.Debug.LogError($"ReactiveUITK: Function component render failed: {ex}");
             }
-            finally { HookContext.Current = null; }
-
-            // Layout effects first (synchronous)
-            if (meta.FunctionLayoutEffects != null)
+            finally
             {
-                for (int i = 0; i < meta.FunctionLayoutEffects.Count; i++)
+                HookContext.Current = null;
+            }
+            if (functionComponentMetadata.FunctionLayoutEffects != null)
+            {
+                for (int i = 0; i < functionComponentMetadata.FunctionLayoutEffects.Count; i++)
                 {
-                    var entry = meta.FunctionLayoutEffects[i];
+                    var entry = functionComponentMetadata.FunctionLayoutEffects[i];
                     bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                     if (shouldRun)
                     {
-                        try { entry.cleanup?.Invoke(); } catch { }
+                        try
+                        {
+                            entry.cleanup?.Invoke();
+                        }
+                        catch
+                        {
+                        }
                         Action newCleanup = null;
-                        try { newCleanup = entry.factory?.Invoke(); } catch { }
-                        meta.FunctionLayoutEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
-                        effectRuns++;
+                        try
+                        {
+                            newCleanup = entry.factory?.Invoke();
+                        }
+                        catch
+                        {
+                        }
+                        functionComponentMetadata.FunctionLayoutEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                        functionEffectRunCount++;
                     }
                 }
             }
-            // Passive effects batched
-            if (meta.FunctionEffects != null)
+            if (functionComponentMetadata.FunctionEffects != null)
             {
-                for (int i = 0; i < meta.FunctionEffects.Count; i++)
+                for (int i = 0; i < functionComponentMetadata.FunctionEffects.Count; i++)
                 {
-                    var entry = meta.FunctionEffects[i];
+                    var entry = functionComponentMetadata.FunctionEffects[i];
                     bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                     if (shouldRun)
                     {
                         RenderScheduler.Instance.EnqueueBatchedEffect(() =>
                         {
-                            try { entry.cleanup?.Invoke(); } catch { }
+                            try
+                            {
+                                entry.cleanup?.Invoke();
+                            }
+                            catch
+                            {
+                            }
                             Action newCleanup = null;
-                            try { newCleanup = entry.factory?.Invoke(); } catch { }
-                            meta.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
-                            effectRuns++;
+                            try
+                            {
+                                newCleanup = entry.factory?.Invoke();
+                            }
+                            catch
+                            {
+                            }
+                            functionComponentMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                            functionEffectRunCount++;
                         });
                     }
                 }
             }
         }
 
-        private bool DepsChangedInternal(object[] oldDeps, object[] newDeps)
+        private bool DepsChangedInternal(object[] previousDependencies, object[] nextDependencies)
         {
-            if (oldDeps == null || newDeps == null) return true;
-            if (oldDeps.Length != newDeps.Length) return true;
-            for (int i = 0; i < oldDeps.Length; i++) if (!Equals(oldDeps[i], newDeps[i])) return true;
+            if (previousDependencies == null || nextDependencies == null)
+            {
+                return true;
+            }
+            if (previousDependencies.Length != nextDependencies.Length)
+            {
+                return true;
+            }
+            for (int i = 0; i < previousDependencies.Length; i++)
+            {
+                if (!Equals(previousDependencies[i], nextDependencies[i]))
+                {
+                    return true;
+                }
+            }
             return false;
         }
 
-        private void RunRemovalCleanup(VisualElement ve)
+        private void RunRemovalCleanup(VisualElement element)
         {
-            var meta = ve?.userData as NodeMetadata;
-            if (meta == null) return;
-            if (meta.ComponentInstance != null)
+            NodeMetadata metadata = element?.userData as NodeMetadata;
+            if (metadata == null)
             {
-                try { UnityEngine.Object.Destroy(meta.ComponentInstance.gameObject); } catch { }
+                return;
             }
-            if (meta.FunctionEffects != null)
+            if (metadata.ComponentInstance != null)
             {
-                foreach (var eff in meta.FunctionEffects) { try { eff.cleanup?.Invoke(); } catch { } }
-                meta.FunctionEffects.Clear();
+                try
+                {
+                    UnityEngine.Object.Destroy(metadata.ComponentInstance.gameObject);
+                }
+                catch
+                {
+                }
             }
-            if (meta.FunctionLayoutEffects != null)
+            if (metadata.FunctionEffects != null)
             {
-                foreach (var eff in meta.FunctionLayoutEffects) { try { eff.cleanup?.Invoke(); } catch { } }
-                meta.FunctionLayoutEffects.Clear();
+                foreach (var effect in metadata.FunctionEffects)
+                {
+                    try
+                    {
+                        effect.cleanup?.Invoke();
+                    }
+                    catch
+                    {
+                    }
+                }
+                metadata.FunctionEffects.Clear();
+            }
+            if (metadata.FunctionLayoutEffects != null)
+            {
+                foreach (var effect in metadata.FunctionLayoutEffects)
+                {
+                    try
+                    {
+                        effect.cleanup?.Invoke();
+                    }
+                    catch
+                    {
+                    }
+                }
+                metadata.FunctionLayoutEffects.Clear();
             }
         }
 
-		public (int reconciled, int skipped, int effects, int portalsBuilt, int portalsUpdated, long lastDiffMs) GetMetrics() => (nodesReconciled, nodesSkipped, effectRuns, portalsBuilt, portalsUpdated, lastDiffMs);
+        public (int reconciled, int skipped, int effects, int portalsBuilt, int portalsUpdated, long lastDiffMs) GetMetrics() => (reconciledNodeCount, skippedNodeCount, functionEffectRunCount, portalBuildCount, portalUpdateCount, lastDiffDurationMs);
 
-		public (int cacheHits, int cacheMisses, Dictionary<VirtualNodeType,int> counts) GetExtendedMetrics() => (cacheHits, cacheMisses, new Dictionary<VirtualNodeType,int>(nodeTypeCounts));
+        public (int cacheHits, int cacheMisses, Dictionary<VirtualNodeType, int> counts) GetExtendedMetrics() => (cacheHitCount, cacheMissCount, new Dictionary<VirtualNodeType, int>(nodeTypeBuildCounts));
 
-		private void Cache(string key, VisualElement ve)
-		{
-			if (string.IsNullOrEmpty(key)) return;
-			if (!elementCache.ContainsKey(key)) elementCache[key] = ve;
-		}
+        private void Cache(string key, VisualElement element)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return;
+            }
+            if (!elementCache.ContainsKey(key))
+            {
+                elementCache[key] = element;
+            }
+        }
 
-		public void BeginDiffTiming()
-		{
-			diffWatch.Reset();
-			diffWatch.Start();
-		}
+        public void BeginDiffTiming()
+        {
+            diffStopwatch.Reset();
+            diffStopwatch.Start();
+        }
 
-		public void EndDiffTiming()
-		{
-			if (diffWatch.IsRunning)
-			{
-				diffWatch.Stop();
-				lastDiffMs = diffWatch.ElapsedMilliseconds;
-			}
-		}
+        public void EndDiffTiming()
+        {
+            if (diffStopwatch.IsRunning)
+            {
+                diffStopwatch.Stop();
+                lastDiffDurationMs = diffStopwatch.ElapsedMilliseconds;
+            }
+        }
 
-		private void IncrementNodeType(VirtualNodeType type)
-		{
-			if (!nodeTypeCounts.ContainsKey(type)) nodeTypeCounts[type] = 0;
-			nodeTypeCounts[type]++;
-		}
+        private void IncrementNodeType(VirtualNodeType nodeType)
+        {
+            if (!nodeTypeBuildCounts.ContainsKey(nodeType))
+            {
+                nodeTypeBuildCounts[nodeType] = 0;
+            }
+            nodeTypeBuildCounts[nodeType]++;
+        }
 
-		private void InvalidateCache(string key)
-		{
-			if (string.IsNullOrEmpty(key)) return;
-			if (elementCache.ContainsKey(key)) elementCache.Remove(key);
-		}
+        private void InvalidateCache(string key)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return;
+            }
+            if (elementCache.ContainsKey(key))
+            {
+                elementCache.Remove(key);
+            }
+        }
+
+        // (Converters removed – styles no longer applied directly here.)
     }
 }

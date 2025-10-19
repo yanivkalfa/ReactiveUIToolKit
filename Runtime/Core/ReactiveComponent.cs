@@ -1,3 +1,4 @@
+
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Util;
@@ -12,30 +13,33 @@ namespace ReactiveUITK
         public Dictionary<string, object> Props { get; private set; }
         protected HostContext HostContext { get; private set; }
 
-        private VirtualNode previousTree;
-        private bool updateQueued;
-        private Reconciler reconciler;
-        private Dictionary<string, object> previousProps;
-        private readonly List<System.Func<System.Action>> pendingEffects = new List<System.Func<System.Action>>();
-        private readonly List<System.Action> effectCleanups = new List<System.Action>();
-        private readonly List<(System.Func<System.Action> factory, object[] deps, object[] lastDeps, System.Action cleanup)> registeredEffects = new List<(System.Func<System.Action>, object[], object[], System.Action)>();
-        private readonly List<System.Action> pendingStateMutations = new List<System.Action>();
-        private readonly Dictionary<string, object> contextValues = new Dictionary<string, object>();
+        private VirtualNode previousRenderedTree;
+        private bool updateQueuedFlag;
+        private Reconciler componentReconciler;
+        private Dictionary<string, object> previousPropsSnapshot;
+        private readonly List<System.Func<System.Action>> pendingEffectFactories = new();
+        private readonly List<System.Action> effectCleanupActions = new();
+        private readonly List<(System.Func<System.Action> factory, object[] deps, object[] lastDeps, System.Action cleanup)> dependencyAwareEffects = new();
+        private readonly List<System.Action> pendingStateMutations = new();
+        private readonly Dictionary<string, object> providedContextValues = new();
 
         protected abstract VirtualNode Render();
 
         // Lifecycle (React inspired) - prefer overriding the Component* variants.
         protected virtual void OnWillMount() { }
         protected virtual void OnDidMount() { }
-        protected virtual void OnMounted() { } // backward compatibility
+        protected virtual void OnMounted() { }
         protected virtual bool ShouldUpdate(Dictionary<string, object> nextProps)
         {
-            if (previousProps == null) return true;
-            return !ShallowCompare.PropsEqual(previousProps, nextProps);
+            if (previousPropsSnapshot == null)
+            {
+                return true;
+            }
+            return !ShallowCompare.PropsEqual(previousPropsSnapshot, nextProps);
         }
         protected virtual void OnWillUpdate() { }
         protected virtual void OnDidUpdate() { }
-        protected virtual void OnUpdated() { } // backward compatibility
+        protected virtual void OnUpdated() { }
         protected virtual void OnWillUnmount() { }
 
         // React-like naming (aliases). Override these for familiarity; they route to the On* versions.
@@ -46,33 +50,41 @@ namespace ReactiveUITK
         protected virtual void ComponentDidUpdate(Dictionary<string, object> prevProps) { OnDidUpdate(); }
         protected virtual void ComponentWillUnmount() { OnWillUnmount(); }
 
-        public void Mount(VisualElement parent, HostContext hostContext)
+        public void Mount(VisualElement parentElement, HostContext hostContext)
         {
-            if (reconciler == null)
+            if (componentReconciler == null)
             {
-                reconciler = new Reconciler(hostContext);
+                componentReconciler = new Reconciler(hostContext);
             }
             HostContext = hostContext;
-
             if (MountedElement != null)
             {
                 return;
             }
-
-            MountedElement = new VisualElement
-            {
-                name = GetType().Name
-            };
-
-            parent.Add(MountedElement);
+            // Create a temporary container; may be hoisted (flattened) if root is a single element.
+            MountedElement = new VisualElement { name = GetType().Name + "Container" };
+            parentElement.Add(MountedElement);
             OnWillMount();
             ComponentWillMount();
-            VirtualNode nextTree = Render();
-            reconciler.BuildSubtree(MountedElement, nextTree);
-            previousTree = nextTree;
+            VirtualNode nextRenderedTree = Render();
+            componentReconciler.BuildSubtree(MountedElement, nextRenderedTree);
+            previousRenderedTree = nextRenderedTree;
+
+            // Flatten: if root virtual node is a single Element, hoist it (React-style no wrapper).
+            if (nextRenderedTree != null && nextRenderedTree.NodeType == Core.VirtualNodeType.Element && MountedElement.childCount == 1)
+            {
+                var rootChild = MountedElement.ElementAt(0);
+                int insertIndex = parentElement.IndexOf(MountedElement);
+                // Move child before removing wrapper
+                MountedElement.Remove(rootChild);
+                parentElement.Insert(insertIndex, rootChild);
+                // Remove wrapper container
+                MountedElement.RemoveFromHierarchy();
+                MountedElement = rootChild; // MountedElement now points to actual root element
+            }
             OnDidMount();
             ComponentDidMount();
-            OnMounted(); // backward compatibility
+            OnMounted();
         }
 
         public void Unmount()
@@ -81,21 +93,23 @@ namespace ReactiveUITK
             {
                 return;
             }
-
             OnWillUnmount();
             ComponentWillUnmount();
-
-            // Run effect cleanups
-            foreach (var cleanup in effectCleanups)
+            foreach (System.Action cleanup in effectCleanupActions)
             {
-                try { cleanup?.Invoke(); } catch { }
+                try
+                {
+                    cleanup?.Invoke();
+                }
+                catch
+                {
+                }
             }
-            effectCleanups.Clear();
-
+            effectCleanupActions.Clear();
             MountedElement.RemoveFromHierarchy();
             MountedElement = null;
-            previousTree = null;
-            updateQueued = false;
+            previousRenderedTree = null;
+            updateQueuedFlag = false;
         }
 
         protected void SetState(System.Action stateMutation)
@@ -104,38 +118,70 @@ namespace ReactiveUITK
             {
                 pendingStateMutations.Add(stateMutation);
             }
-
-            if (updateQueued == false)
+            if (!updateQueuedFlag)
             {
-                updateQueued = true;
-                RenderScheduler.Instance.Enqueue(() =>
+                updateQueuedFlag = true;
+                var scheduler = RenderScheduler.Instance;
+                if (scheduler == null)
+                {
+                    // Fallback: run update immediately if scheduler not yet available.
+                    try
+                    {
+                        if (MountedElement == null)
+                        {
+                            updateQueuedFlag = false;
+                            return;
+                        }
+                        if (!ShouldUpdate(Props) || !ShouldComponentUpdate(Props))
+                        {
+                            updateQueuedFlag = false;
+                            return;
+                        }
+                        OnWillUpdate();
+                        ComponentWillUpdate(Props);
+                        foreach (System.Action mutation in pendingStateMutations)
+                        {
+                            try { mutation(); } catch { }
+                        }
+                        pendingStateMutations.Clear();
+                        VirtualNode nextRenderedTreeImmediate = Render();
+                        componentReconciler.DiffSubtree(MountedElement, previousRenderedTree, nextRenderedTreeImmediate);
+                        previousRenderedTree = nextRenderedTreeImmediate;
+                        updateQueuedFlag = false;
+                        OnDidUpdate();
+                        ComponentDidUpdate(previousPropsSnapshot);
+                        OnUpdated();
+                        FlushEffects();
+                    }
+                    catch { updateQueuedFlag = false; }
+                    return;
+                }
+                scheduler.Enqueue(() =>
                 {
                     if (MountedElement == null)
                     {
-                        updateQueued = false;
+                        updateQueuedFlag = false;
                         return;
                     }
-
-                    if (ShouldUpdate(Props) == false || ShouldComponentUpdate(Props) == false)
+                    if (!ShouldUpdate(Props) || !ShouldComponentUpdate(Props))
                     {
-                        updateQueued = false;
+                        updateQueuedFlag = false;
                         return;
                     }
-
                     OnWillUpdate();
                     ComponentWillUpdate(Props);
-                    // apply all pending mutations before render
-                    foreach (var mut in pendingStateMutations) { try { mut(); } catch { } }
+                    foreach (System.Action mutation in pendingStateMutations)
+                    {
+                        try { mutation(); } catch { }
+                    }
                     pendingStateMutations.Clear();
-                    VirtualNode nextTree = Render();
-                    reconciler.DiffSubtree(MountedElement, previousTree, nextTree);
-                    previousTree = nextTree;
-
-                    updateQueued = false;
+                    VirtualNode nextRenderedTree = Render();
+                    componentReconciler.DiffSubtree(MountedElement, previousRenderedTree, nextRenderedTree);
+                    previousRenderedTree = nextRenderedTree;
+                    updateQueuedFlag = false;
                     OnDidUpdate();
-                    ComponentDidUpdate(previousProps);
-                    OnUpdated(); // backward compatibility
-
+                    ComponentDidUpdate(previousPropsSnapshot);
+                    OnUpdated();
                     FlushEffects();
                 });
             }
@@ -147,28 +193,61 @@ namespace ReactiveUITK
             {
                 return;
             }
-            if (updateQueued)
+            if (updateQueuedFlag)
             {
-                return; // already queued; avoid duplicate
+                return;
             }
-            updateQueued = true;
-            RenderScheduler.Instance.Enqueue(() =>
+            updateQueuedFlag = true;
+            var scheduler = RenderScheduler.Instance;
+            if (scheduler == null)
+            {
+                // Immediate fallback
+                try
+                {
+                    if (MountedElement == null)
+                    {
+                        updateQueuedFlag = false;
+                        return;
+                    }
+                    OnWillUpdate();
+                    ComponentWillUpdate(Props);
+                    foreach (System.Action mutation in pendingStateMutations)
+                    {
+                        try { mutation(); } catch { }
+                    }
+                    pendingStateMutations.Clear();
+                    VirtualNode nextRenderedTreeImmediate = Render();
+                    componentReconciler.DiffSubtree(MountedElement, previousRenderedTree, nextRenderedTreeImmediate);
+                    previousRenderedTree = nextRenderedTreeImmediate;
+                    updateQueuedFlag = false;
+                    OnDidUpdate();
+                    ComponentDidUpdate(previousPropsSnapshot);
+                    OnUpdated();
+                    FlushEffects();
+                }
+                catch { updateQueuedFlag = false; }
+                return;
+            }
+            scheduler.Enqueue(() =>
             {
                 if (MountedElement == null)
                 {
-                    updateQueued = false;
+                    updateQueuedFlag = false;
                     return;
                 }
                 OnWillUpdate();
                 ComponentWillUpdate(Props);
-                foreach (var mut in pendingStateMutations) { try { mut(); } catch { } }
+                foreach (System.Action mutation in pendingStateMutations)
+                {
+                    try { mutation(); } catch { }
+                }
                 pendingStateMutations.Clear();
-                VirtualNode nextTree = Render();
-                reconciler.DiffSubtree(MountedElement, previousTree, nextTree);
-                previousTree = nextTree;
-                updateQueued = false;
+                VirtualNode nextRenderedTree = Render();
+                componentReconciler.DiffSubtree(MountedElement, previousRenderedTree, nextRenderedTree);
+                previousRenderedTree = nextRenderedTree;
+                updateQueuedFlag = false;
                 OnDidUpdate();
-                ComponentDidUpdate(previousProps);
+                ComponentDidUpdate(previousPropsSnapshot);
                 OnUpdated();
                 FlushEffects();
             });
@@ -176,16 +255,21 @@ namespace ReactiveUITK
 
         public void SetProps(Dictionary<string, object> nextProps)
         {
-            previousProps = Props;
+            previousPropsSnapshot = Props;
             Props = nextProps;
-            SetState(() => { }); // trigger re-render pipeline
+            if (MountedElement != null)
+            {
+                SetState(() => { });
+            }
         }
 
-        // Context API (simple key-value)
         protected void ProvideContext(string key, object value)
         {
-            if (string.IsNullOrEmpty(key)) return;
-            contextValues[key] = value;
+            if (string.IsNullOrEmpty(key))
+            {
+                return;
+            }
+            providedContextValues[key] = value;
             if (HostContext != null)
             {
                 HostContext.Environment[key] = value;
@@ -194,13 +278,22 @@ namespace ReactiveUITK
 
         protected T ConsumeContext<T>(string key)
         {
-            if (string.IsNullOrEmpty(key)) return default;
-            if (contextValues.TryGetValue(key, out object val) && val is T typed) return typed;
+            if (string.IsNullOrEmpty(key))
+            {
+                return default;
+            }
+            if (providedContextValues.TryGetValue(key, out object existing) && existing is T existingTyped)
+            {
+                return existingTyped;
+            }
             if (HostContext != null)
             {
                 HostContext.Subscribe(key, this);
-                var resolved = HostContext.ResolveContext(key);
-                if (resolved is T gTyped) return gTyped;
+                object resolved = HostContext.ResolveContext(key);
+                if (resolved is T resolvedTyped)
+                {
+                    return resolvedTyped;
+                }
             }
             return default;
         }
@@ -211,13 +304,16 @@ namespace ReactiveUITK
         // Effect that returns an optional cleanup action via Func<System.Action>
         protected void UseEffect(System.Func<System.Action> effectFactory, bool immediate = false)
         {
-            if (effectFactory == null) return;
+            if (effectFactory == null)
+            {
+                return;
+            }
             if (immediate)
             {
                 QueueEffect(effectFactory);
                 return;
             }
-            pendingEffects.Add(effectFactory);
+            pendingEffectFactories.Add(effectFactory);
         }
 
         // Dependency-aware effect (runs when deps change). Null deps => run after every commit.
@@ -227,7 +323,7 @@ namespace ReactiveUITK
             {
                 return;
             }
-            registeredEffects.Add((effectFactory, deps, null, null));
+            dependencyAwareEffects.Add((effectFactory, deps, null, null));
         }
 
         protected void SetState<T>(ref T field, T newValue)
@@ -247,71 +343,90 @@ namespace ReactiveUITK
         {
             try
             {
-                var cleanup = effectFactory();
-                if (cleanup != null) effectCleanups.Add(cleanup);
+                System.Action cleanup = effectFactory();
+                if (cleanup != null)
+                {
+                    effectCleanupActions.Add(cleanup);
+                }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private void FlushEffects()
         {
-            if (pendingEffects.Count == 0) return;
-            foreach (var factory in pendingEffects)
+            if (pendingEffectFactories.Count > 0)
             {
-                QueueEffect(factory);
+                foreach (System.Func<System.Action> factory in pendingEffectFactories)
+                {
+                    QueueEffect(factory);
+                }
+                pendingEffectFactories.Clear();
             }
-            pendingEffects.Clear();
-
-            // Registered dependency-aware effects
-            for (int i = 0; i < registeredEffects.Count; i += 1)
+            for (int i = 0; i < dependencyAwareEffects.Count; i++)
             {
-                var tuple = registeredEffects[i];
+                var effect = dependencyAwareEffects[i];
                 bool shouldRun = false;
-                if (tuple.deps == null)
-                {
-                    shouldRun = true; // always run
-                }
-                else if (tuple.lastDeps == null)
-                {
-                    shouldRun = true; // first time
-                }
-                else if (DepsChanged(tuple.lastDeps, tuple.deps))
+                if (effect.deps == null)
                 {
                     shouldRun = true;
                 }
-
+                else if (effect.lastDeps == null)
+                {
+                    shouldRun = true;
+                }
+                else if (DepsChanged(effect.lastDeps, effect.deps))
+                {
+                    shouldRun = true;
+                }
                 if (shouldRun)
                 {
-                    // Cleanup previous specific to this effect
-                    if (tuple.cleanup != null)
+                    if (effect.cleanup != null)
                     {
-                        try { tuple.cleanup(); } catch { }
+                        try
+                        {
+                            effect.cleanup();
+                        }
+                        catch
+                        {
+                        }
                     }
                     System.Action newCleanup = null;
                     try
                     {
-                        newCleanup = tuple.factory();
+                        newCleanup = effect.factory();
                     }
-                    catch { }
-                    registeredEffects[i] = (tuple.factory, tuple.deps, (object[])tuple.deps.Clone(), newCleanup);
+                    catch
+                    {
+                    }
+                    dependencyAwareEffects[i] = (effect.factory, effect.deps, (object[])effect.deps.Clone(), newCleanup);
                 }
             }
         }
 
-        private bool DepsChanged(object[] oldDeps, object[] newDeps)
+        private bool DepsChanged(object[] previousDependencies, object[] nextDependencies)
         {
-            if (oldDeps == null || newDeps == null) return true;
-            if (oldDeps.Length != newDeps.Length) return true;
-            for (int i = 0; i < oldDeps.Length; i += 1)
+            if (previousDependencies == null || nextDependencies == null)
             {
-                if (!Equals(oldDeps[i], newDeps[i])) return true;
+                return true;
+            }
+            if (previousDependencies.Length != nextDependencies.Length)
+            {
+                return true;
+            }
+            for (int i = 0; i < previousDependencies.Length; i++)
+            {
+                if (!Equals(previousDependencies[i], nextDependencies[i]))
+                {
+                    return true;
+                }
             }
             return false;
         }
 
         internal void NotifyContextKeyChanged(string key)
         {
-            // Could add filter if component tracks which keys matter
             ForceUpdate();
         }
     }

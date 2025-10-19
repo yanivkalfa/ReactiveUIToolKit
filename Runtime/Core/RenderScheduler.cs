@@ -6,22 +6,21 @@ namespace ReactiveUITK
 {
     public sealed class RenderScheduler : MonoBehaviour
     {
-		public enum RenderPriority { High = 0, Normal = 1, Low = 2, Idle = 3 }
-
-		private readonly Queue<Action> high = new Queue<Action>();
-		private readonly Queue<Action> normal = new Queue<Action>();
-		private readonly Queue<Action> low = new Queue<Action>();
-		private readonly Queue<Action> idle = new Queue<Action>();
-        [SerializeField] private float frameBudgetMs = 4.0f; // time slice budget
-        private readonly List<Action> batchedEffects = new List<Action>();
-		private readonly List<Action> batchedUpdates = new List<Action>();
-		private bool batching;
-        private int framesRendered;
-        private int actionsExecuted;
-        private float lastFrameStartMs;
-		private int escalations;
-		private int lowCancelled;
-		private int idleExecuted;
+        public enum RenderPriority { High = 0, Normal = 1, Low = 2, Idle = 3 }
+        private readonly Queue<Action> highPriorityQueue = new();
+        private readonly Queue<Action> normalPriorityQueue = new();
+        private readonly Queue<Action> lowPriorityQueue = new();
+        private readonly Queue<Action> idlePriorityQueue = new();
+        [SerializeField] private float frameBudgetMs = 4.0f;
+        private readonly List<Action> batchedEffectActions = new();
+        private readonly List<Action> deferredBatchEnqueueActions = new();
+        private bool batchModeEnabled;
+        private int renderedFrameCount;
+        private int executedActionCount;
+        private float lastFrameStartTimestampMs;
+        private int escalationCount;
+        private int lowPriorityCancelledCount;
+        private int idleExecutedCount;
 
         public static RenderScheduler Instance { get; private set; }
 
@@ -37,88 +36,134 @@ namespace ReactiveUITK
             }
         }
 
-		public void Enqueue(Action action, RenderPriority priority = RenderPriority.Normal)
+        public void Enqueue(Action action, RenderPriority priority = RenderPriority.Normal)
         {
             if (action == null)
             {
                 return;
             }
-			if (batching && priority != RenderPriority.High)
-			{
-				batchedUpdates.Add(() => Enqueue(action, priority));
-				return;
-			}
+            if (batchModeEnabled && priority != RenderPriority.High)
+            {
+                deferredBatchEnqueueActions.Add(() => Enqueue(action, priority));
+                return;
+            }
             switch (priority)
             {
-                case RenderPriority.High: high.Enqueue(action); break;
-                case RenderPriority.Normal: normal.Enqueue(action); break;
-                case RenderPriority.Low: low.Enqueue(action); break;
-				case RenderPriority.Idle: idle.Enqueue(action); break;
+                case RenderPriority.High:
+                    highPriorityQueue.Enqueue(action);
+                    break;
+                case RenderPriority.Normal:
+                    normalPriorityQueue.Enqueue(action);
+                    break;
+                case RenderPriority.Low:
+                    lowPriorityQueue.Enqueue(action);
+                    break;
+                case RenderPriority.Idle:
+                    idlePriorityQueue.Enqueue(action);
+                    break;
             }
         }
 
-		public void BeginBatch() { batching = true; }
-		public void EndBatch()
-		{
-			batching = false;
-			foreach (var up in batchedUpdates) up();
-			batchedUpdates.Clear();
-		}
-
-		private void LateUpdate()
+        public void BeginBatch()
         {
-            float start = Time.realtimeSinceStartup * 1000f;
-            lastFrameStartMs = start;
-			// Escalate if user input (heuristic: any high items present) -> cancel remaining low queue to prioritize responsiveness
-			if (high.Count > 0 && low.Count > 0)
-			{
-				lowCancelled += low.Count;
-				low.Clear();
-			}
-			ExecuteQueue(high, ref start);
-			if (high.Count == 0) ExecuteQueue(normal, ref start); else escalations++;
-			ExecuteQueue(low, ref start);
-			// Idle work only if budget remains (strict)
-			if ((Time.realtimeSinceStartup * 1000f) - start < frameBudgetMs * 0.5f)
-			{
-				idleExecuted += ExecuteQueue(idle, ref start, allowOverBudget:false);
-			}
-            FlushBatchedEffects();
-            framesRendered++;
+            batchModeEnabled = true;
         }
-
-		private int ExecuteQueue(Queue<Action> q, ref float startMs, bool allowOverBudget = true)
+        public void EndBatch()
         {
-			int executed = 0;
-            while (q.Count > 0)
+            batchModeEnabled = false;
+            foreach (Action enqueueAction in deferredBatchEnqueueActions)
             {
-				if (!allowOverBudget && (Time.realtimeSinceStartup * 1000f) - startMs > frameBudgetMs)
-					break;
-				if (allowOverBudget && (Time.realtimeSinceStartup * 1000f) - startMs > frameBudgetMs)
-					break;
-                var a = q.Dequeue();
-                try { a(); } catch (Exception ex) { Debug.LogError("RenderScheduler action exception: " + ex); }
-                actionsExecuted++;
-				executed++;
+                enqueueAction();
             }
-			return executed;
+            deferredBatchEnqueueActions.Clear();
+        }
+
+        private void LateUpdate()
+        {
+            float frameStart = Time.realtimeSinceStartup * 1000f;
+            lastFrameStartTimestampMs = frameStart;
+            if (highPriorityQueue.Count > 0 && lowPriorityQueue.Count > 0)
+            {
+                lowPriorityCancelledCount += lowPriorityQueue.Count;
+                lowPriorityQueue.Clear();
+            }
+            ExecuteQueue(highPriorityQueue, ref frameStart);
+            if (highPriorityQueue.Count == 0)
+            {
+                ExecuteQueue(normalPriorityQueue, ref frameStart);
+            }
+            else
+            {
+                escalationCount++;
+            }
+            ExecuteQueue(lowPriorityQueue, ref frameStart);
+            if ((Time.realtimeSinceStartup * 1000f) - frameStart < frameBudgetMs * 0.5f)
+            {
+                idleExecutedCount += ExecuteQueue(idlePriorityQueue, ref frameStart, allowOverBudget: false);
+            }
+            FlushBatchedEffects();
+            renderedFrameCount++;
+        }
+
+        private int ExecuteQueue(Queue<Action> queue, ref float frameStartTimestampMs, bool allowOverBudget = true)
+        {
+            int executedCount = 0;
+            while (queue.Count > 0)
+            {
+                if ((Time.realtimeSinceStartup * 1000f) - frameStartTimestampMs > frameBudgetMs)
+                {
+                    if (!allowOverBudget)
+                    {
+                        break;
+                    }
+                    if (allowOverBudget)
+                    {
+                        break;
+                    }
+                }
+                Action action = queue.Dequeue();
+                try
+                {
+                    action();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("RenderScheduler action exception: " + ex);
+                }
+                executedActionCount++;
+                executedCount++;
+            }
+            return executedCount;
         }
 
         public void EnqueueBatchedEffect(Action effect)
         {
-            if (effect != null) batchedEffects.Add(effect);
+            if (effect != null)
+            {
+                batchedEffectActions.Add(effect);
+            }
         }
 
         private void FlushBatchedEffects()
         {
-            if (batchedEffects.Count == 0) return;
-            foreach (var e in batchedEffects)
+            if (batchedEffectActions.Count == 0)
             {
-                try { e(); } catch (Exception ex) { Debug.LogError("Effect exception: " + ex); }
+                return;
             }
-            batchedEffects.Clear();
+            foreach (Action effectAction in batchedEffectActions)
+            {
+                try
+                {
+                    effectAction();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("Effect exception: " + ex);
+                }
+            }
+            batchedEffectActions.Clear();
         }
 
-		public (int frames, int actions, int escalations, int lowCancelled, int idleRan) GetMetrics() => (framesRendered, actionsExecuted, escalations, lowCancelled, idleExecuted);
+        public (int frames, int actions, int escalations, int lowCancelled, int idleRan) GetMetrics() => (renderedFrameCount, executedActionCount, escalationCount, lowPriorityCancelledCount, idleExecutedCount);
     }
 }
