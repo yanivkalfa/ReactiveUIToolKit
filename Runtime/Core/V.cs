@@ -168,14 +168,28 @@ namespace ReactiveUITK
 
         private static IReadOnlyDictionary<string, object> CloneStyleDictionary(IReadOnlyDictionary<string, object> source)
         {
-            if (source == null) return null;
-            if (!source.ContainsKey("style")) return source; // no style entry
-            if (!(source["style"] is IDictionary<string, object> styleMap)) return source;
-            // clone outer props and style map
+            if (source == null)
+            {
+                return null;
+            }
+            if (!source.ContainsKey("style"))
+            {
+                return source;
+            }
+            if (source["style"] is not IDictionary<string, object> styleMap)
+            {
+                return source;
+            }
             var outer = new Dictionary<string, object>(source.Count);
-            foreach (var kv in source) outer[kv.Key] = kv.Value;
+            foreach (var kv in source)
+            {
+                outer[kv.Key] = kv.Value;
+            }
             var styleClone = new Dictionary<string, object>(styleMap.Count);
-            foreach (var kv in styleMap) styleClone[kv.Key] = kv.Value;
+            foreach (var kv in styleMap)
+            {
+                styleClone[kv.Key] = kv.Value;
+            }
             outer["style"] = styleClone;
             return outer;
         }
