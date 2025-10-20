@@ -112,14 +112,8 @@ namespace ReactiveUITK
             {
                 if ((Time.realtimeSinceStartup * 1000f) - frameStartTimestampMs > frameBudgetMs)
                 {
-                    if (!allowOverBudget)
-                    {
-                        break;
-                    }
-                    if (allowOverBudget)
-                    {
-                        break;
-                    }
+                    // Respect frame budget (unchanged behavior); parameter currently unused
+                    break;
                 }
                 Action action = queue.Dequeue();
                 try

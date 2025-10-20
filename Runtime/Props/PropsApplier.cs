@@ -34,11 +34,17 @@ namespace ReactiveUITK.Props
         private static string ToCamelCase(string dashed)
         {
             var parts = dashed.Split('-', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0) return dashed;
+            if (parts.Length == 0)
+            {
+                return dashed;
+            }
             for (int i = 1; i < parts.Length; i++)
             {
                 var p = parts[i];
-                if (p.Length == 0) continue;
+                if (p.Length == 0)
+                {
+                    continue;
+                }
                 parts[i] = char.ToUpperInvariant(p[0]) + p.Substring(1);
             }
             return parts[0].ToLowerInvariant() + string.Join(string.Empty, parts, 1, parts.Length - 1);
@@ -131,13 +137,49 @@ namespace ReactiveUITK.Props
                 element.name = propertyValue as string;
                 return;
             }
+            if (propertyName == "className" || propertyName == "class")
+            {
+                string newClasses = propertyValue as string;
+                string oldClasses = oldValue as string;
+                if (oldClasses != null)
+                {
+                    var oldSet = new HashSet<string>((oldClasses ?? string.Empty).Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+                    var newSet = new HashSet<string>((newClasses ?? string.Empty).Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries));
+                    foreach (var cls in oldSet)
+                    {
+                        if (!newSet.Contains(cls)) element.RemoveFromClassList(cls);
+                    }
+                    foreach (var cls in newSet)
+                    {
+                        if (!oldSet.Contains(cls)) element.AddToClassList(cls);
+                    }
+                }
+                else
+                {
+                    element.ClearClassList();
+                    if (!string.IsNullOrEmpty(newClasses))
+                    {
+                        var tokens = newClasses.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var cls in tokens)
+                        {
+                            element.AddToClassList(cls);
+                        }
+                    }
+                }
+                return;
+            }
             if (propertyName == "classes")
             {
                 element.ClearClassList();
                 if (propertyValue is IEnumerable<string> list)
                 {
                     foreach (var className in list)
-                        if (!string.IsNullOrWhiteSpace(className)) element.AddToClassList(className);
+                    {
+                        if (!string.IsNullOrWhiteSpace(className))
+                        {
+                            element.AddToClassList(className);
+                        }
+                    }
                 }
                 return;
             }
@@ -162,6 +204,15 @@ namespace ReactiveUITK.Props
             {
                 var meta = element.userData as Core.NodeMetadata;
                 if (meta != null) RemoveEvent(element, propertyName, oldHandler, meta);
+                return;
+            }
+            if ((propertyName == "className" || propertyName == "class") && oldValue is string oldClasses)
+            {
+                var tokens = oldClasses.Split(new[] { ' ', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                foreach (var cls in tokens)
+                {
+                    element.RemoveFromClassList(cls);
+                }
                 return;
             }
             if (propertyName == "style" && oldValue is IDictionary<string, object> oldMap)
@@ -462,10 +513,16 @@ namespace ReactiveUITK.Props
 
         private static Color ConvertToColor(object value)
         {
-            if (value is Color c) return c;
+            if (value is Color c)
+            {
+                return c;
+            }
             if (value is string s)
             {
-                if (ColorUtility.TryParseHtmlString(s, out Color parsed)) return parsed;
+                if (ColorUtility.TryParseHtmlString(s, out Color parsed))
+                {
+                    return parsed;
+                }
             }
             return Color.white;
         }
@@ -523,30 +580,37 @@ namespace ReactiveUITK.Props
 
         private static void RemoveEvent(VisualElement element, string eventPropName, Delegate handler, Core.NodeMetadata meta)
         {
-            if (handler == null) return;
+            if (handler == null)
+            {
+                return;
+            }
             // Attempt to unregister based on event type
-            if (eventPropName == "onClick" && handler is EventCallback<ClickEvent> clickCb) { element.UnregisterCallback(clickCb); meta.EventHandlers.Remove(eventPropName); return; }
-            if (eventPropName == "onPointerDown" && handler is EventCallback<PointerDownEvent> pd) { element.UnregisterCallback(pd); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onPointerUp" && handler is EventCallback<PointerUpEvent> pu) { element.UnregisterCallback(pu); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onPointerMove" && handler is EventCallback<PointerMoveEvent> pm) { element.UnregisterCallback(pm); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onPointerEnter" && handler is EventCallback<PointerEnterEvent> pe) { element.UnregisterCallback(pe); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onPointerLeave" && handler is EventCallback<PointerLeaveEvent> pl) { element.UnregisterCallback(pl); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onWheel" && handler is EventCallback<WheelEvent> we) { element.UnregisterCallback(we); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onFocus" && handler is EventCallback<FocusEvent> fe) { element.UnregisterCallback(fe); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onBlur" && handler is EventCallback<BlurEvent> be) { element.UnregisterCallback(be); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onKeyDown" && handler is EventCallback<KeyDownEvent> kd) { element.UnregisterCallback(kd); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onKeyUp" && handler is EventCallback<KeyUpEvent> ku) { element.UnregisterCallback(ku); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<string>> ch) { element.UnregisterCallback(ch); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onInput" && handler is EventCallback<InputEvent> ie) { element.UnregisterCallback(ie); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onDragEnter" && handler is EventCallback<DragEnterEvent> de) { element.UnregisterCallback(de); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onDragLeave" && handler is EventCallback<DragLeaveEvent> dle) { element.UnregisterCallback(dle); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
-            if (eventPropName == "onScroll" && handler is EventCallback<WheelEvent> se) { element.UnregisterCallback(se); meta.EventHandlers.Remove(eventPropName); if (handler != null) totalEventsRemoved++; return; }
+            if (eventPropName == "onClick" && handler is EventCallback<ClickEvent> clickCb) { element.UnregisterCallback(clickCb); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onPointerDown" && handler is EventCallback<PointerDownEvent> pd) { element.UnregisterCallback(pd); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onPointerUp" && handler is EventCallback<PointerUpEvent> pu) { element.UnregisterCallback(pu); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onPointerMove" && handler is EventCallback<PointerMoveEvent> pm) { element.UnregisterCallback(pm); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onPointerEnter" && handler is EventCallback<PointerEnterEvent> pe) { element.UnregisterCallback(pe); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onPointerLeave" && handler is EventCallback<PointerLeaveEvent> pl) { element.UnregisterCallback(pl); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onWheel" && handler is EventCallback<WheelEvent> we) { element.UnregisterCallback(we); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onFocus" && handler is EventCallback<FocusEvent> fe) { element.UnregisterCallback(fe); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onBlur" && handler is EventCallback<BlurEvent> be) { element.UnregisterCallback(be); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onKeyDown" && handler is EventCallback<KeyDownEvent> kd) { element.UnregisterCallback(kd); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onKeyUp" && handler is EventCallback<KeyUpEvent> ku) { element.UnregisterCallback(ku); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<string>> ch) { element.UnregisterCallback(ch); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onInput" && handler is EventCallback<InputEvent> ie) { element.UnregisterCallback(ie); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onDragEnter" && handler is EventCallback<DragEnterEvent> de) { element.UnregisterCallback(de); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onDragLeave" && handler is EventCallback<DragLeaveEvent> dle) { element.UnregisterCallback(dle); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onScroll" && handler is EventCallback<WheelEvent> se) { element.UnregisterCallback(se); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
             meta.EventHandlers.Remove(eventPropName);
+            totalEventsRemoved++;
         }
 
         private static void InvokeHandler(Delegate del, EventBase evt)
         {
-            if (del == null) return;
+            if (del == null)
+            {
+                return;
+            }
             try
             {
                 if (del is Action action)

@@ -334,7 +334,10 @@ namespace ReactiveUITK
 
         protected void SetState<T>(ref T field, System.Func<T, T> updater)
         {
-            if (updater == null) return;
+            if (updater == null)
+            {
+                return;
+            }
             field = updater(field);
             SetState(() => { });
         }

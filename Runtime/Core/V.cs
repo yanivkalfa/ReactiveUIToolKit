@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using UnityEngine.UIElements;
+using ReactiveUITK.Props.Typed;
 
 namespace ReactiveUITK
 {
@@ -55,6 +56,22 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode Button(ButtonProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Button",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode TextField(
             IReadOnlyDictionary<string, object> textFieldProperties = null,
             string key = null)
@@ -68,6 +85,55 @@ namespace ReactiveUITK
                 textContent: null,
                 key: key,
                 properties: textFieldProperties ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode TextField(TextFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "TextField",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode ListView(
+            IReadOnlyDictionary<string, object> listViewProperties = null,
+            string key = null)
+        {
+            listViewProperties = CloneStyleDictionary(listViewProperties);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "ListView",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: listViewProperties ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode ListView(ListViewProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "ListView",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
                 children: EmptyChildren()
             );
         }
