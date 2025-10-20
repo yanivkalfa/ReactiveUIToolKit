@@ -12,13 +12,13 @@ namespace ReactiveUITK.Examples.FunctionalComponents
 {
     public static class AppFunc
     {
-        // Static styles reused across renders
         private static readonly Style TopBarStyle = new()
         {
             (BackgroundColor, UColor.white),
             (FlexDirection, "row"),
             (JustifyContent, "space-between"),
             (AlignItems, "center"),
+            (FlexGrow, 1f),
             (PaddingLeft, 12f),
             (PaddingRight, 12f),
             (PaddingTop, 8f),
@@ -84,9 +84,10 @@ namespace ReactiveUITK.Examples.FunctionalComponents
         public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
             var (showList, setShowList) = Hooks.UseState(true);
+            var (textValue, setTextValue) = Hooks.UseState("");
 
 
-            var toggleButtonProps = new ButtonProps
+            ButtonProps toggleButtonProps = new()
             {
                 Text = showList ? "Hide List" : "Show List",
                 OnClick = () => setShowList(!showList),
@@ -96,6 +97,16 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                     (Width, 120f),
                     (Height, 28f)
                 }
+            };
+
+            TextFieldProps TextFieldProps = new()
+            {
+                Style = TextInputStyle,
+                Placeholder = "Type here...",
+                HidePlaceholderOnFocus = false,
+                Value = textValue,
+                LabelText = string.IsNullOrEmpty(textValue) ? "" : ("Value: " + textValue),
+                OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<string>>)(e => setTextValue(e.newValue))
             };
 
             IList listItems = Hooks.UseMemo(() =>
@@ -111,10 +122,11 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             var listViewProps = new ListViewProps
             {
                 Items = listItems,
-                FixedItemHeight = 50f,
+                FixedItemHeight = 10f,
                 MakeItem = () => new UnityEngine.UIElements.Label(),
                 BindItem = (ve, i) => ((UnityEngine.UIElements.Label)ve).text = listItems[i]?.ToString()
             };
+
 
             VirtualNode conditionalList = showList
                 ? V.VisualElement(new Dictionary<string, object> { { "style", ListContainerStyle } }, null,
@@ -125,26 +137,31 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             return V.VisualElement(new Dictionary<string, object> { { "style", PageStyle } }, null,
                 V.VisualElement(new Dictionary<string, object> { { "style", TopBarStyle } }, null,
                     V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
-                    V.TextField(new Dictionary<string, object> { { "style", TextInputStyle }, { "placeholder", "Search..." }, { "hidePlaceholderOnFocus", false } }),
+                    V.TextField(TextFieldProps),
                     V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                 ),
                 V.Button(toggleButtonProps),
                 conditionalList,
-                V.Component<BottomBarComponent>()
+                V.Component<BottomBarComponent>(new Dictionary<string, object>
+                {
+                    { "inputValue", textValue },
+                    { "setTextValue", (System.Action<string>)setTextValue }
+                })
             );
         }
     }
 
     public sealed class AppFuncRoot : ReactiveComponent
     {
+        private static readonly Style wrapperStyle = new()
+        {
+            (FlexDirection, "column"),
+            (FlexGrow, 1f),
+            (BackgroundColor, new Color(0.95f,0.95f,0.95f,1f))
+        };
+
         protected override VirtualNode Render()
         {
-            var wrapperStyle = new Dictionary<string, object>
-            {
-                {"flexDirection", "column"},
-                {"flexGrow", 1f},
-                {"backgroundColor", new Color(0.95f,0.95f,0.95f,1f)}
-            };
             return V.VisualElement(new Dictionary<string, object>{{"style", wrapperStyle}}, null,
                 V.Func(AppFunc.Render)
             );

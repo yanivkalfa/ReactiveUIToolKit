@@ -706,6 +706,7 @@ namespace ReactiveUITK.Core
             int hostIndex = parentElement.IndexOf(hostElement);
             string existingKey = (hostElement.userData as NodeMetadata)?.Key;
             InvalidateCache(existingKey);
+            try { UnityEngine.Debug.Log("[ReplaceNode] parent=" + parentElement.name + ", index=" + hostIndex + ", existingKey=" + existingKey + ", nextType=" + nextNode.NodeType + ", nextKey=" + nextNode.Key); } catch { }
             RunRemovalCleanup(hostElement);
             hostElement.RemoveFromHierarchy();
             VisualElement buildContainer = new();

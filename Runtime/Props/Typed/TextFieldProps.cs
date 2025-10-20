@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
@@ -19,6 +20,11 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> TextElement { get; set; }
+
+        // Optional UI Toolkit change handler
+        public System.Action<ChangeEvent<string>> OnChange { get; set; }
+        // Optional label text (adapter currently does not map this; kept for completeness)
+        public string LabelText { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -58,6 +64,14 @@ namespace ReactiveUITK.Props.Typed
             if (HidePlaceholderOnFocus.HasValue)
             {
                 dict["hidePlaceholderOnFocus"] = HidePlaceholderOnFocus.Value;
+            }
+            if (OnChange != null)
+            {
+                dict["onChange"] = OnChange;
+            }
+            if (!string.IsNullOrEmpty(LabelText))
+            {
+                dict["label"] = LabelText;
             }
             if (Label != null)
             {
