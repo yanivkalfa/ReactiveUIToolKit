@@ -109,24 +109,45 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                 OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<string>>)(e => setTextValue(e.newValue))
             };
 
-            // (Removed test cases that intentionally failed to compile)
-
-            IList listItems = Hooks.UseMemo(() =>
+            // Immutable items list managed via state
+            List<string> initialItems = Hooks.UseMemo(() =>
             {
                 var list = new List<string>();
                 for (int i = 1; i <= 20; i++)
                 {
                     list.Add($"Item {i}");
                 }
-                return (IList)list;
+                return list;
             });
+            var (items, setItems) = Hooks.UseState(initialItems);
 
             ListViewProps listViewProps = new()
             {
-                Items = listItems,
-                FixedItemHeight = 10f,
-                MakeItem = () => new UnityEngine.UIElements.Label(),
-                BindItem = (ve, i) => ((UnityEngine.UIElements.Label)ve).text = listItems[i]?.ToString()
+                Items = items,
+                FixedItemHeight = 18f,
+                Row = (i, item) =>
+                {
+                    string text = item?.ToString() ?? "<null>";
+                    return V.VisualElement(new Style { (FlexDirection, "row") }, null,
+                        V.Text(text)
+                    );
+                }
+            };
+
+            // Button to change the first item immutably to demonstrate row re-render
+            ButtonProps changeFirstProps = new()
+            {
+                Text = "Change First Item",
+                OnClick = () =>
+                {
+                    var copy = new List<string>(items);
+                    if (copy.Count > 0)
+                    {
+                        copy[0] = "UPDATED " + System.DateTime.Now.ToLongTimeString();
+                        setItems(copy);
+                    }
+                },
+                Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) }
             };
 
 
@@ -144,6 +165,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                     V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                 ),
                 V.Button(toggleButtonProps),
+                V.Button(changeFirstProps),
                 conditionalList,
                 V.Component<BottomBarComponent>(new Dictionary<string, object>
                 {

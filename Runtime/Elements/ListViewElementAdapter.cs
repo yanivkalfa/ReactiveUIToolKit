@@ -3,11 +3,24 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 using ReactiveUITK.Props;
+using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Elements
 {
     public sealed class ListViewElementAdapter : BaseElementAdapter
     {
+        private static HostContext sharedHostContext;
+
+        static ListViewElementAdapter()
+        {
+            var registry = new ElementRegistry();
+            registry.Register("VisualElement", new VisualElementAdapter());
+            registry.Register("Button", new ButtonElementAdapter());
+            registry.Register("TextField", new TextFieldElementAdapter());
+            sharedHostContext = new HostContext(registry);
+        }
+
+        // Use the generic VNode host renderer for row content
         public override VisualElement Create()
         {
             return new ListView();
@@ -34,6 +47,36 @@ namespace ReactiveUITK.Elements
             }
             TryApplyProp<int>(properties, "selectedIndex", i => listView.selectedIndex = i);
             TryApplyProp<float>(properties, "fixedItemHeight", h => listView.fixedItemHeight = h);
+
+            // VNode row rendering support: props["row"] = Func<int, object, VirtualNode>
+            if (properties.TryGetValue("row", out var rowObj) && rowObj is Func<int, object, VirtualNode> rowFn)
+            {
+                listView.makeItem = () =>
+                {
+                    var ve = new VisualElement();
+                    ve.userData = new VNodeHostRenderer(sharedHostContext, ve);
+                    return ve;
+                };
+                listView.bindItem = (ve, i) =>
+                {
+                    var rr = ve.userData as IVNodeHostRenderer;
+                    if (rr == null)
+                    {
+                        rr = new VNodeHostRenderer(sharedHostContext, ve);
+                        ve.userData = rr;
+                    }
+                    object item = null;
+                    if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
+                    {
+                        item = il[i];
+                    }
+                    rr.Render(rowFn(i, item));
+                };
+                listView.unbindItem = (ve, i) =>
+                {
+                    (ve.userData as IVNodeHostRenderer)?.Unmount();
+                };
+            }
 
             if (properties.TryGetValue("makeItem", out var mi) && mi is Func<VisualElement> make)
             {
@@ -103,6 +146,38 @@ namespace ReactiveUITK.Elements
             if (!ReferenceEquals(oldUnbindObj, newUnbindObj) && newUnbindObj is Action<VisualElement, int> unbind)
             {
                 listView.unbindItem = unbind;
+            }
+
+            // Row function diff (reference check)
+            previous.TryGetValue("row", out var prevRowObj);
+            next.TryGetValue("row", out var nextRowObj);
+            if (!ReferenceEquals(prevRowObj, nextRowObj) && nextRowObj is Func<int, object, VirtualNode> rowFn)
+            {
+                listView.makeItem = () =>
+                {
+                    var ve = new VisualElement();
+                    ve.userData = new VNodeHostRenderer(sharedHostContext, ve);
+                    return ve;
+                };
+                listView.bindItem = (ve, i) =>
+                {
+                    var rr = ve.userData as IVNodeHostRenderer;
+                    if (rr == null)
+                    {
+                        rr = new VNodeHostRenderer(sharedHostContext, ve);
+                        ve.userData = rr;
+                    }
+                    object item = null;
+                    if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
+                    {
+                        item = il[i];
+                    }
+                    rr.Render(rowFn(i, item));
+                };
+                listView.unbindItem = (ve, i) =>
+                {
+                    (ve.userData as IVNodeHostRenderer)?.Unmount();
+                };
             }
 
             PropsApplier.ApplyDiff(element, previous, next);

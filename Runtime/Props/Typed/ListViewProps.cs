@@ -16,6 +16,8 @@ namespace ReactiveUITK.Props.Typed
         public System.Action<VisualElement, int> BindItem { get; set; }
         public System.Action<VisualElement, int> UnbindItem { get; set; }
         public Style Style { get; set; }
+        // VNode-based row renderer
+        public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -51,6 +53,10 @@ namespace ReactiveUITK.Props.Typed
             if (UnbindItem != null)
             {
                 dict["unbindItem"] = UnbindItem;
+            }
+            if (Row != null)
+            {
+                dict["row"] = Row;
             }
             if (Style != null)
             {

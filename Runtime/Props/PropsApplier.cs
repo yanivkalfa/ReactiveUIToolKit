@@ -360,6 +360,39 @@ namespace ReactiveUITK.Props
                 element.name = propertyValue as string;
                 return;
             }
+            if (propertyName == "focusable")
+            {
+                if (propertyValue is bool fb)
+                {
+                    element.focusable = fb;
+                }
+                return;
+            }
+            if (propertyName == "tabIndex")
+            {
+                if (propertyValue is int ti)
+                {
+                    element.tabIndex = ti;
+                }
+                else if (propertyValue != null && int.TryParse(propertyValue.ToString(), out int parsed))
+                {
+                    element.tabIndex = parsed;
+                }
+                return;
+            }
+            if (propertyName == "pickingMode")
+            {
+                if (propertyValue is string pm)
+                {
+                    pm = pm.ToLowerInvariant();
+                    element.pickingMode = pm == "ignore" ? PickingMode.Ignore : PickingMode.Position;
+                }
+                else if (propertyValue is PickingMode picking)
+                {
+                    element.pickingMode = picking;
+                }
+                return;
+            }
             if (propertyName == "className" || propertyName == "class")
             {
                 string newClasses = propertyValue as string;
@@ -436,6 +469,21 @@ namespace ReactiveUITK.Props
                 {
                     element.RemoveFromClassList(cls);
                 }
+                return;
+            }
+            if (propertyName == "focusable")
+            {
+                element.focusable = false;
+                return;
+            }
+            if (propertyName == "tabIndex")
+            {
+                element.tabIndex = 0;
+                return;
+            }
+            if (propertyName == "pickingMode")
+            {
+                element.pickingMode = PickingMode.Position;
                 return;
             }
             if (propertyName == "style" && oldValue is IDictionary<string, object> oldMap)
