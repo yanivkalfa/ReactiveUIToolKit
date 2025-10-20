@@ -2,6 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using ReactiveUITK.Core;
 using ReactiveUITK;
+using ReactiveUITK.Props.Typed;
+using static ReactiveUITK.Props.Typed.StyleKeys;
+using UColor = UnityEngine.Color;
 
 namespace ReactiveUITK.Examples.ClassComponents
 {
@@ -9,58 +12,86 @@ namespace ReactiveUITK.Examples.ClassComponents
     {
         private int leftClicks;
         private int rightClicks;
+        private string inputValueCache;
+
+        private static readonly Style BarStyle = new()
+        {
+            (BackgroundColor, UColor.white),
+            (FlexDirection, "row"),
+            (JustifyContent, "space-between"),
+            (AlignItems, "center"),
+            (Position, "relative"),
+            (FlexGrow, 1f),
+            (PaddingLeft, 12f),
+            (PaddingRight, 12f),
+            (PaddingTop, 8f),
+            (PaddingBottom, 8f),
+            (BorderTopWidth, 1f),
+            (BorderTopColor, new UColor(0.85f, 0.85f, 0.85f, 1f))
+        };
+
+        private static readonly Style ButtonBaseStyle = new()
+        {
+            (TextColor, UColor.white),
+            (PaddingLeft, 10f),
+            (PaddingRight, 10f),
+            (PaddingTop, 6f),
+            (PaddingBottom, 6f),
+            (BorderRadius, 4f),
+            (FontSize, 14f)
+        };
+
+        private static readonly Style LeftButtonStyle = new(ButtonBaseStyle)
+        {
+            (BackgroundColor, new UColor(0.2f, 0.6f, 0.3f, 1f))
+        };
+
+        private static readonly Style RightButtonStyle = new(ButtonBaseStyle)
+        {
+            (BackgroundColor, new UColor(0.7f, 0.2f, 0.6f, 1f))
+        };
 
         protected override VirtualNode Render()
         {
-            var barStyle = new Dictionary<string, object>
+            string inputValue = string.Empty;
+            if (Props != null && Props.TryGetValue("inputValue", out var v) && v is string s)
             {
-                {"backgroundColor", Color.white},
-                {"flexDirection", "row"},
-                {"justifyContent", "space-between"},
-                {"alignItems", "center"},
-                {"paddingLeft", 12f},
-                {"paddingRight", 12f},
-                {"paddingTop", 8f},
-                {"paddingBottom", 8f},
-                {"borderTopWidth", 1f},
-                {"borderTopColor", new Color(0.85f,0.85f,0.85f,1f)}
+                inputValue = s;
+            }
+            inputValueCache = inputValue;
+
+            System.Action<string> setParentText = null;
+            if (Props != null && Props.TryGetValue("setTextValue", out var setterObj) && setterObj is System.Action<string> setter)
+            {
+                setParentText = setter;
+            }
+
+            var leftButtonProps = new ButtonProps
+            {
+                Style = LeftButtonStyle,
+                OnClick = () =>
+                {
+                    SetState(ref leftClicks, leftClicks + 1);
+                    setParentText?.Invoke("left");
+                },
+                Text = $"Bottom Left ({leftClicks})"
             };
 
-            var buttonBaseStyle = new Dictionary<string, object>
+            var rightButtonProps = new ButtonProps
             {
-                {"color", Color.white},
-                {"paddingLeft", 10f},
-                {"paddingRight", 10f},
-                {"paddingTop", 6f},
-                {"paddingBottom", 6f},
-                {"borderRadius", 4f},
-                {"fontSize", 14f}
+                Style = RightButtonStyle,
+                OnClick = () =>
+                {
+                    SetState(ref rightClicks, rightClicks + 1);
+                    setParentText?.Invoke("right");
+                },
+                Text = $"Bottom Right ({rightClicks})"
             };
 
-            var leftButtonStyle = new Dictionary<string, object>(buttonBaseStyle)
-            {
-                {"backgroundColor", new Color(0.2f,0.6f,0.3f,1f)}
-            };
-            var rightButtonStyle = new Dictionary<string, object>(buttonBaseStyle)
-            {
-                {"backgroundColor", new Color(0.7f,0.2f,0.6f,1f)}
-            };
-
-            var leftButtonProps = new Dictionary<string, object>
-            {
-                {"style", leftButtonStyle},
-                {"onClick", (System.Action)(() => SetState(ref leftClicks, leftClicks + 1))},
-                {"text", $"Bottom Left ({leftClicks})"}
-            };
-            var rightButtonProps = new Dictionary<string, object>
-            {
-                {"style", rightButtonStyle},
-                {"onClick", (System.Action)(() => SetState(ref rightClicks, rightClicks + 1))},
-                {"text", $"Bottom Right ({rightClicks})"}
-            };
-            var barProps = new Dictionary<string, object>{{"style", barStyle}};
+            var barProps = new Dictionary<string, object> { { "style", BarStyle } };
 
             return V.VisualElement(barProps, null,
+                V.Text(string.IsNullOrEmpty(inputValueCache) ? "Type above..." : ("Typed: " + inputValueCache)),
                 V.Button(leftButtonProps),
                 V.Button(rightButtonProps)
             );

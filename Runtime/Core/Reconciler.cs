@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ReactiveUITK.Elements;
@@ -160,44 +160,87 @@ namespace ReactiveUITK.Core
                     return;
                 case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
                     string funcName = virtualNode.FunctionRender.Method.Name;
-                    // Pre-render once to determine if we can flatten (React-like behavior)
-                    VirtualNode initialSubtree = virtualNode.FunctionRender?.Invoke(new Dictionary<string, object>(virtualNode.Properties), virtualNode.Children);
+                    // Prepare metadata and hook context for initial render (needed for Hooks state/effects)
+                    NodeMetadata preMetadata = new()
+                    {
+                        Key = virtualNode.Key,
+                        FuncRender = virtualNode.FunctionRender,
+                        FuncProps = new Dictionary<string, object>(virtualNode.Properties),
+                        FuncChildren = virtualNode.Children,
+                        HookStates = new List<object>(),
+                        HookIndex = 0,
+                        Container = null,
+                        HostContext = hostContext,
+                        Reconciler = this,
+                        IsFlattened = true
+                    };
+                    VirtualNode initialSubtree = null;
+                    HookContext.Current = preMetadata;
+                    try
+                    {
+                        // Pre-render once to determine if we can flatten (React-like behavior)
+                        initialSubtree = virtualNode.FunctionRender?.Invoke(preMetadata.FuncProps, preMetadata.FuncChildren);
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogError($"ReactiveUITK: Function component initial render failed: {ex}");
+                    }
+                    finally
+                    {
+                        HookContext.Current = null;
+                    }
                     if (initialSubtree != null && initialSubtree.NodeType == VirtualNodeType.Element)
                     {
                         // Flatten: build the returned element directly; attach metadata to that element.
                         IElementAdapter adapter = hostContext.ElementRegistry.Resolve(initialSubtree.ElementTypeName);
-                        VisualElement flattenedElement;
+                        VisualElement flattenedElement = adapter != null ? adapter.Create() : new VisualElement();
                         if (adapter != null)
                         {
-                            flattenedElement = adapter.Create();
                             adapter.ApplyProperties(flattenedElement, initialSubtree.Properties);
                         }
-                        else
-                        {
-                            flattenedElement = new VisualElement();
-                        }
                         flattenedElement.name = string.IsNullOrEmpty(funcName) ? "FunctionComponentRoot" : (funcName + "Root");
-                        NodeMetadata flattenedMetadata = new()
-                        {
-                            Key = virtualNode.Key,
-                            FuncRender = virtualNode.FunctionRender,
-                            FuncProps = new Dictionary<string, object>(virtualNode.Properties),
-                            FuncChildren = virtualNode.Children,
-                            HookStates = new List<object>(),
-                            HookIndex = 0,
-                            Container = flattenedElement,
-                            HostContext = hostContext,
-                            Reconciler = this,
-                            LastRenderedSubtree = initialSubtree,
-                            IsFlattened = true
-                        };
-                        flattenedElement.userData = flattenedMetadata;
+                        preMetadata.Container = flattenedElement;
+                        preMetadata.LastRenderedSubtree = initialSubtree;
+                        flattenedElement.userData = preMetadata;
                         parentElement.Add(flattenedElement);
                         // Build children of the root subtree under the flattened element
                         BuildChildren(flattenedElement, initialSubtree.Children ?? Array.Empty<VirtualNode>());
-                        // Run effects/layout effects scheduling like post-render path
-                        HookContext.Current = flattenedMetadata;
-                        HookContext.Current = null;
+                        // Schedule layout effects and passive effects similar to post-render path
+                        if (preMetadata.FunctionLayoutEffects != null)
+                        {
+                            for (int i = 0; i < preMetadata.FunctionLayoutEffects.Count; i++)
+                            {
+                                var entry = preMetadata.FunctionLayoutEffects[i];
+                                bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                                if (shouldRun)
+                                {
+                                    try { entry.cleanup?.Invoke(); } catch { }
+                                    Action newCleanup = null;
+                                    try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                    preMetadata.FunctionLayoutEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                    functionEffectRunCount++;
+                                }
+                            }
+                        }
+                        if (preMetadata.FunctionEffects != null)
+                        {
+                            for (int i = 0; i < preMetadata.FunctionEffects.Count; i++)
+                            {
+                                var entry = preMetadata.FunctionEffects[i];
+                                bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                                if (shouldRun)
+                                {
+                                    RenderScheduler.Instance.EnqueueBatchedEffect(() =>
+                                    {
+                                        try { entry.cleanup?.Invoke(); } catch { }
+                                        Action newCleanup = null;
+                                        try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                        preMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                        functionEffectRunCount++;
+                                    });
+                                }
+                            }
+                        }
                         return;
                     }
                     // Fallback: create wrapper container (non-element or null root)
@@ -385,37 +428,83 @@ namespace ReactiveUITK.Core
                     return componentContainer;
                 case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
                     string funcName = virtualNode.FunctionRender.Method.Name;
-                    VirtualNode initialSubtreeDet = virtualNode.FunctionRender?.Invoke(new Dictionary<string, object>(virtualNode.Properties), virtualNode.Children);
+                    // Prepare metadata and hook context for initial render (detached)
+                    NodeMetadata preMeta = new()
+                    {
+                        Key = virtualNode.Key,
+                        FuncRender = virtualNode.FunctionRender,
+                        FuncProps = new Dictionary<string, object>(virtualNode.Properties),
+                        FuncChildren = virtualNode.Children,
+                        HookStates = new List<object>(),
+                        HookIndex = 0,
+                        Container = null,
+                        HostContext = hostContext,
+                        Reconciler = this,
+                        IsFlattened = true
+                    };
+                    VirtualNode initialSubtreeDet = null;
+                    HookContext.Current = preMeta;
+                    try
+                    {
+                        initialSubtreeDet = virtualNode.FunctionRender?.Invoke(preMeta.FuncProps, preMeta.FuncChildren);
+                    }
+                    catch (Exception ex)
+                    {
+                        UnityEngine.Debug.LogError($"ReactiveUITK: Function component initial render failed: {ex}");
+                    }
+                    finally
+                    {
+                        HookContext.Current = null;
+                    }
                     if (initialSubtreeDet != null && initialSubtreeDet.NodeType == VirtualNodeType.Element)
                     {
                         IElementAdapter adapter = hostContext.ElementRegistry.Resolve(initialSubtreeDet.ElementTypeName);
-                        VisualElement flattenedElement;
+                        VisualElement flattenedElement = adapter != null ? adapter.Create() : new VisualElement();
                         if (adapter != null)
                         {
-                            flattenedElement = adapter.Create();
                             adapter.ApplyProperties(flattenedElement, initialSubtreeDet.Properties);
                         }
-                        else
-                        {
-                            flattenedElement = new VisualElement();
-                        }
                         flattenedElement.name = string.IsNullOrEmpty(funcName) ? "FunctionComponentRoot" : (funcName + "Root");
-                        NodeMetadata flattenedMetadata = new()
-                        {
-                            Key = virtualNode.Key,
-                            FuncRender = virtualNode.FunctionRender,
-                            FuncProps = new Dictionary<string, object>(virtualNode.Properties),
-                            FuncChildren = virtualNode.Children,
-                            HookStates = new List<object>(),
-                            HookIndex = 0,
-                            Container = flattenedElement,
-                            HostContext = hostContext,
-                            Reconciler = this,
-                            LastRenderedSubtree = initialSubtreeDet,
-                            IsFlattened = true
-                        };
-                        flattenedElement.userData = flattenedMetadata;
+                        preMeta.Container = flattenedElement;
+                        preMeta.LastRenderedSubtree = initialSubtreeDet;
+                        flattenedElement.userData = preMeta;
                         BuildChildren(flattenedElement, initialSubtreeDet.Children ?? Array.Empty<VirtualNode>());
+                        // Schedule layout effects and passive effects
+                        if (preMeta.FunctionLayoutEffects != null)
+                        {
+                            for (int i = 0; i < preMeta.FunctionLayoutEffects.Count; i++)
+                            {
+                                var entry = preMeta.FunctionLayoutEffects[i];
+                                bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                                if (shouldRun)
+                                {
+                                    try { entry.cleanup?.Invoke(); } catch { }
+                                    Action newCleanup = null;
+                                    try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                    preMeta.FunctionLayoutEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                    functionEffectRunCount++;
+                                }
+                            }
+                        }
+                        if (preMeta.FunctionEffects != null)
+                        {
+                            for (int i = 0; i < preMeta.FunctionEffects.Count; i++)
+                            {
+                                var entry = preMeta.FunctionEffects[i];
+                                bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                                if (shouldRun)
+                                {
+                                    RenderScheduler.Instance.EnqueueBatchedEffect(() =>
+                                    {
+                                        try { entry.cleanup?.Invoke(); } catch { }
+                                        Action newCleanup = null;
+                                        try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                        preMeta.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                        functionEffectRunCount++;
+                                    });
+                                }
+                            }
+                        }
                         Cache(virtualNode.Key, flattenedElement);
                         return flattenedElement;
                     }
@@ -617,6 +706,7 @@ namespace ReactiveUITK.Core
             int hostIndex = parentElement.IndexOf(hostElement);
             string existingKey = (hostElement.userData as NodeMetadata)?.Key;
             InvalidateCache(existingKey);
+            try { UnityEngine.Debug.Log("[ReplaceNode] parent=" + parentElement.name + ", index=" + hostIndex + ", existingKey=" + existingKey + ", nextType=" + nextNode.NodeType + ", nextKey=" + nextNode.Key); } catch { }
             RunRemovalCleanup(hostElement);
             hostElement.RemoveFromHierarchy();
             VisualElement buildContainer = new();
@@ -916,6 +1006,7 @@ namespace ReactiveUITK.Core
             }
         }
 
-        // (Converters removed � styles no longer applied directly here.)
+        // (Converters removed – styles no longer applied directly here.)
     }
 }
+

@@ -1,187 +1,159 @@
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Reflection;
 using UnityEngine.UIElements;
 using ReactiveUITK.Props;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class TextFieldElementAdapter : IElementAdapter
+    public sealed class TextFieldElementAdapter : BaseElementAdapter
     {
-        public VisualElement Create()
+        private sealed class CachedParts
+        {
+            public VisualElement Label;
+            public VisualElement Input;
+            public TextElement TextElem;
+        }
+
+        private static readonly ConditionalWeakTable<TextField, CachedParts> cache = new();
+
+        public override VisualElement Create()
         {
             return new TextField();
         }
 
-        public void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
         {
-            if (element is TextField textFieldElement && properties != null)
+            if (element is not TextField textFieldElement || properties == null)
             {
-                ApplyValue(textFieldElement, properties);
-                ApplyBoolean(textFieldElement, properties, "multiline", v => textFieldElement.multiline = v);
-                ApplyBoolean(textFieldElement, properties, "password", v => SetPasswordField(textFieldElement, v));
-                ApplyBoolean(textFieldElement, properties, "readOnly", v => textFieldElement.isReadOnly = v);
-                ApplyInt(textFieldElement, properties, "maxLength", v => textFieldElement.maxLength = v);
-                ApplyPlaceholderVariants(textFieldElement, properties);
-                ApplyHidePlaceholderVariants(textFieldElement, properties);
-                ApplySlotVariants(textFieldElement, properties);
+                PropsApplier.Apply(element, properties);
+                return;
             }
+            TryApplyProp<string>(properties, "value", v => { textFieldElement.value = v; });
+            TryApplyProp<bool>(properties, "multiline", v => { textFieldElement.multiline = v; });
+            TryApplyProp<bool>(properties, "password", v => { SetPasswordField(textFieldElement, v); });
+            TryApplyProp<bool>(properties, "readOnly", v => { textFieldElement.isReadOnly = v; });
+            TryApplyProp<int>(properties, "maxLength", v => { textFieldElement.maxLength = v; });
+            ApplyPlaceholder(textFieldElement, properties);
+            ApplyHidePlaceholder(textFieldElement, properties);
+            ApplySlots(textFieldElement, properties);
             PropsApplier.Apply(element, properties);
         }
 
-        public void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
         {
-            if (element is TextField textFieldElement)
+            if (element is not TextField textFieldElement)
             {
-                if (previous == null)
-                {
-                    previous = new Dictionary<string, object>();
-                }
-                if (next == null)
-                {
-                    next = new Dictionary<string, object>();
-                }
-                DiffValue(textFieldElement, previous, next);
-                DiffBoolean(textFieldElement, previous, next, "multiline", v => textFieldElement.multiline = v);
-                DiffBoolean(textFieldElement, previous, next, "password", v => SetPasswordField(textFieldElement, v));
-                DiffBoolean(textFieldElement, previous, next, "readOnly", v => textFieldElement.isReadOnly = v);
-                DiffInt(textFieldElement, previous, next, "maxLength", v => textFieldElement.maxLength = v, textFieldElement.maxLength);
-                DiffPlaceholder(textFieldElement, previous, next);
-                DiffHidePlaceholder(textFieldElement, previous, next);
-                DiffSlot(textFieldElement, previous, next, "label");
-                DiffSlot(textFieldElement, previous, next, "input");
-                DiffSlot(textFieldElement, previous, next, "textElement");
+                PropsApplier.ApplyDiff(element, previous, next);
+                return;
             }
+            previous ??= new Dictionary<string, object>();
+            next ??= new Dictionary<string, object>();
+            TryDiffProp<string>(previous, next, "value", v => { textFieldElement.value = v ?? string.Empty; });
+            TryDiffProp<bool>(previous, next, "multiline", v => { textFieldElement.multiline = v; });
+            TryDiffProp<bool>(previous, next, "password", v => { SetPasswordField(textFieldElement, v); });
+            TryDiffProp<bool>(previous, next, "readOnly", v => { textFieldElement.isReadOnly = v; });
+            TryDiffProp<int>(previous, next, "maxLength", v => { textFieldElement.maxLength = v; });
+            DiffPlaceholder(textFieldElement, previous, next);
+            DiffHidePlaceholder(textFieldElement, previous, next);
+            DiffSlot(textFieldElement, previous, next, "label");
+            DiffSlot(textFieldElement, previous, next, "input");
+            DiffSlot(textFieldElement, previous, next, "textElement");
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void ApplyValue(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplyPlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
         {
-            if (properties.TryGetValue("value", out var valueObject) && valueObject is string valueString)
+            if (properties == null)
             {
-                textFieldElement.value = valueString;
+                return;
             }
-        }
-
-        private static void DiffValue(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
-        {
-            string previousValue = previous.TryGetValue("value", out var p) && p is string ps ? ps : null;
-            string nextValue = next.TryGetValue("value", out var n) && n is string ns ? ns : null;
-            if (previousValue != nextValue)
+            if (properties.TryGetValue("placeholder", out var placeholderObj) && placeholderObj is string placeholder)
             {
-                textFieldElement.value = nextValue ?? string.Empty;
-            }
-        }
-
-        private static void ApplyPlaceholderVariants(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
-        {
-            string placeholder = GetPlaceholderValue(properties);
-            if (!string.IsNullOrEmpty(placeholder))
-            {
-                SetTextEditionPlaceholder(textFieldElement, placeholder);
+                try
+                {
+                    textFieldElement.textEdition.placeholder = placeholder;
+                }
+                catch
+                {
+                    SetTextEditionPlaceholder(textFieldElement, placeholder);
+                }
             }
         }
 
         private static void DiffPlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
         {
-            string previousPlaceholder = GetPlaceholderValue(previous);
-            string nextPlaceholder = GetPlaceholderValue(next);
+            string previousPlaceholder = null;
+            if (previous != null && previous.TryGetValue("placeholder", out var prevObj) && prevObj is string prevPlaceholder)
+            {
+                previousPlaceholder = prevPlaceholder;
+            }
+            string nextPlaceholder = null;
+            if (next != null && next.TryGetValue("placeholder", out var nextObj) && nextObj is string nextPlaceholderStr)
+            {
+                nextPlaceholder = nextPlaceholderStr;
+            }
             if (previousPlaceholder != nextPlaceholder)
             {
-                SetTextEditionPlaceholder(textFieldElement, nextPlaceholder ?? string.Empty);
+                string value = nextPlaceholder ?? string.Empty;
+                try
+                {
+                    textFieldElement.textEdition.placeholder = value;
+                }
+                catch
+                {
+                    SetTextEditionPlaceholder(textFieldElement, value);
+                }
             }
         }
 
-        private static void ApplyHidePlaceholderVariants(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplyHidePlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
         {
-            bool? hide = GetHidePlaceholderValue(properties);
-            if (hide.HasValue)
+            if (properties == null)
             {
-                SetTextEditionHideOnFocus(textFieldElement, hide.Value);
+                return;
+            }
+            if (properties.TryGetValue("hidePlaceholderOnFocus", out var hideObj) && hideObj is bool hide)
+            {
+                try
+                {
+                    textFieldElement.textEdition.hidePlaceholderOnFocus = hide;
+                }
+                catch
+                {
+                    SetTextEditionHideOnFocus(textFieldElement, hide);
+                }
             }
         }
 
         private static void DiffHidePlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
         {
-            bool? previousHide = GetHidePlaceholderValue(previous);
-            bool? nextHide = GetHidePlaceholderValue(next);
+            bool? previousHide = null;
+            if (previous != null && previous.TryGetValue("hidePlaceholderOnFocus", out var prevObj) && prevObj is bool prevHide)
+            {
+                previousHide = prevHide;
+            }
+            bool? nextHide = null;
+            if (next != null && next.TryGetValue("hidePlaceholderOnFocus", out var nextObj) && nextObj is bool nextHideVal)
+            {
+                nextHide = nextHideVal;
+            }
             if (previousHide != nextHide)
             {
-                SetTextEditionHideOnFocus(textFieldElement, nextHide ?? false);
+                bool value = nextHide ?? false;
+                try
+                {
+                    textFieldElement.textEdition.hidePlaceholderOnFocus = value;
+                }
+                catch
+                {
+                    SetTextEditionHideOnFocus(textFieldElement, value);
+                }
             }
         }
 
-        private static string GetPlaceholderValue(IReadOnlyDictionary<string, object> properties)
-        {
-            if (properties == null)
-            {
-                return null;
-            }
-            if (properties.TryGetValue("placeholder", out var direct) && direct is string directString)
-            {
-                return directString;
-            }
-            if (properties.TryGetValue("placeholderText", out var camel) && camel is string camelString)
-            {
-                return camelString;
-            }
-            if (properties.TryGetValue("placeholder-text", out var dashed) && dashed is string dashedString)
-            {
-                return dashedString;
-            }
-            return null;
-        }
+        
 
-        private static bool? GetHidePlaceholderValue(IReadOnlyDictionary<string, object> properties)
-        {
-            if (properties == null)
-            {
-                return null;
-            }
-            if (properties.TryGetValue("hidePlaceholderOnFocus", out var camel) && camel is bool camelBool)
-            {
-                return camelBool;
-            }
-            if (properties.TryGetValue("hide-placeholder-on-focus", out var dashed) && dashed is bool dashedBool)
-            {
-                return dashedBool;
-            }
-            return null;
-        }
-
-        private static void ApplyBoolean(TextField textFieldElement, IReadOnlyDictionary<string, object> properties, string key, System.Action<bool> apply)
-        {
-            if (properties.TryGetValue(key, out var valueObject) && valueObject is bool boolValue)
-            {
-                apply(boolValue);
-            }
-        }
-
-        private static void DiffBoolean(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string key, System.Action<bool> apply)
-        {
-            bool previousValue = previous.TryGetValue(key, out var prevObj) && prevObj is bool prevBool && prevBool;
-            bool nextValue = next.TryGetValue(key, out var nextObj) && nextObj is bool nextBool && nextBool;
-            if (previousValue != nextValue)
-            {
-                apply(nextValue);
-            }
-        }
-
-        private static void ApplyInt(TextField textFieldElement, IReadOnlyDictionary<string, object> properties, string key, System.Action<int> apply)
-        {
-            if (properties.TryGetValue(key, out var valueObject) && valueObject is int intValue)
-            {
-                apply(intValue);
-            }
-        }
-
-        private static void DiffInt(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string key, System.Action<int> apply, int fallbackValue)
-        {
-            int previousValue = previous.TryGetValue(key, out var prevObj) && prevObj is int prevInt ? prevInt : fallbackValue;
-            int nextValue = next.TryGetValue(key, out var nextObj) && nextObj is int nextInt ? nextInt : previousValue;
-            if (previousValue != nextValue)
-            {
-                apply(nextValue);
-            }
-        }
 
         private static void SetPasswordField(TextField textFieldElement, bool enabled)
         {
@@ -192,45 +164,79 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void SetTextEditionPlaceholder(TextField textFieldElement, string placeholderString)
+        private static bool SetTextEditionPlaceholder(TextField textFieldElement, string placeholderString)
         {
-            var editionProperty = typeof(TextField).GetProperty("textEdition");
-            if (editionProperty == null)
+            var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+            object editionInstance = null;
+            var editionProperty = typeof(TextField).GetProperty("textEdition", flags);
+            if (editionProperty != null)
             {
-                return;
+                editionInstance = editionProperty.GetValue(textFieldElement);
             }
-            var editionInstance = editionProperty.GetValue(textFieldElement);
+            else
+            {
+                var editionField = typeof(TextField).GetField("textEdition", flags);
+                if (editionField != null)
+                {
+                    editionInstance = editionField.GetValue(textFieldElement);
+                }
+            }
             if (editionInstance == null)
             {
-                return;
+                return false;
             }
-            var placeholderProperty = editionInstance.GetType().GetProperty("placeholder");
+            var placeholderProperty = editionInstance.GetType().GetProperty("placeholder", flags);
             if (placeholderProperty != null && placeholderProperty.PropertyType == typeof(string) && placeholderProperty.CanWrite)
             {
                 placeholderProperty.SetValue(editionInstance, placeholderString, null);
+                return true;
             }
+            var placeholderField = editionInstance.GetType().GetField("placeholder", flags);
+            if (placeholderField != null && placeholderField.FieldType == typeof(string))
+            {
+                placeholderField.SetValue(editionInstance, placeholderString);
+                return true;
+            }
+            return false;
         }
 
-        private static void SetTextEditionHideOnFocus(TextField textFieldElement, bool hide)
+        private static bool SetTextEditionHideOnFocus(TextField textFieldElement, bool hide)
         {
-            var editionProperty = typeof(TextField).GetProperty("textEdition");
-            if (editionProperty == null)
+            var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+            object editionInstance = null;
+            var editionProperty = typeof(TextField).GetProperty("textEdition", flags);
+            if (editionProperty != null)
             {
-                return;
+                editionInstance = editionProperty.GetValue(textFieldElement);
             }
-            var editionInstance = editionProperty.GetValue(textFieldElement);
+            else
+            {
+                var editionField = typeof(TextField).GetField("textEdition", flags);
+                if (editionField != null)
+                {
+                    editionInstance = editionField.GetValue(textFieldElement);
+                }
+            }
             if (editionInstance == null)
             {
-                return;
+                return false;
             }
-            var hideProperty = editionInstance.GetType().GetProperty("hidePlaceholderOnFocus");
+            var hideProperty = editionInstance.GetType().GetProperty("hidePlaceholderOnFocus", flags);
             if (hideProperty != null && hideProperty.PropertyType == typeof(bool) && hideProperty.CanWrite)
             {
                 hideProperty.SetValue(editionInstance, hide, null);
+                return true;
             }
+            var hideField = editionInstance.GetType().GetField("hidePlaceholderOnFocus", flags);
+            if (hideField != null && hideField.FieldType == typeof(bool))
+            {
+                hideField.SetValue(editionInstance, hide);
+                return true;
+            }
+            return false;
         }
 
-        private static void ApplySlotVariants(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
         {
             ApplySlot(textFieldElement, properties, "label");
             ApplySlot(textFieldElement, properties, "input");
@@ -266,7 +272,7 @@ namespace ReactiveUITK.Elements
             }
             if (slotMap.TryGetValue("style", out var styleObj) && styleObj is IDictionary<string, object> styleMap)
             {
-                PropsApplier.Apply(target, new Dictionary<string, object>{{"style", styleMap}});
+                PropsApplier.Apply(target, new Dictionary<string, object> { { "style", styleMap } });
             }
             foreach (KeyValuePair<string, object> entry in slotMap)
             {
@@ -274,32 +280,51 @@ namespace ReactiveUITK.Elements
                 {
                     continue;
                 }
-                PropsApplier.Apply(target, new Dictionary<string, object>{{entry.Key, entry.Value}});
+                PropsApplier.Apply(target, new Dictionary<string, object> { { entry.Key, entry.Value } });
             }
         }
 
         private static VisualElement ResolveSlotElement(TextField textFieldElement, string slotKey)
         {
+            if (!cache.TryGetValue(textFieldElement, out var parts))
+            {
+                parts = new CachedParts();
+                cache.Add(textFieldElement, parts);
+            }
             if (slotKey == "label")
             {
-                var labelProperty = typeof(TextField).GetProperty("labelElement");
-                if (labelProperty != null)
+                if (parts.Label == null)
                 {
-                    var labelInstance = labelProperty.GetValue(textFieldElement) as VisualElement;
-                    if (labelInstance != null)
+                    var labelProperty = typeof(TextField).GetProperty("labelElement");
+                    if (labelProperty != null)
                     {
-                        return labelInstance;
+                        if (labelProperty.GetValue(textFieldElement) is VisualElement labelInstance)
+                        {
+                            parts.Label = labelInstance;
+                        }
+                    }
+                    if (parts.Label == null)
+                    {
+                        parts.Label = textFieldElement.Q<Label>();
                     }
                 }
-                return textFieldElement.Q<Label>();
+                return parts.Label;
             }
             if (slotKey == "input")
             {
-                return textFieldElement.Q(className: "unity-text-input");
+                if (parts.Input == null)
+                {
+                    parts.Input = textFieldElement.Q(className: "unity-text-input");
+                }
+                return parts.Input;
             }
             if (slotKey == "textElement")
             {
-                return textFieldElement.Q<TextElement>();
+                if (parts.TextElem == null)
+                {
+                    parts.TextElem = textFieldElement.Q<TextElement>();
+                }
+                return parts.TextElem;
             }
             return null;
         }

@@ -61,27 +61,13 @@ namespace ReactiveUITK
             {
                 return;
             }
-            // Create a temporary container; may be hoisted (flattened) if root is a single element.
-            MountedElement = new VisualElement { name = GetType().Name + "Container" };
-            parentElement.Add(MountedElement);
+            // Mount directly into the provided parent element (component container)
+            MountedElement = parentElement;
             OnWillMount();
             ComponentWillMount();
             VirtualNode nextRenderedTree = Render();
             componentReconciler.BuildSubtree(MountedElement, nextRenderedTree);
             previousRenderedTree = nextRenderedTree;
-
-            // Flatten: if root virtual node is a single Element, hoist it (React-style no wrapper).
-            if (nextRenderedTree != null && nextRenderedTree.NodeType == Core.VirtualNodeType.Element && MountedElement.childCount == 1)
-            {
-                var rootChild = MountedElement.ElementAt(0);
-                int insertIndex = parentElement.IndexOf(MountedElement);
-                // Move child before removing wrapper
-                MountedElement.Remove(rootChild);
-                parentElement.Insert(insertIndex, rootChild);
-                // Remove wrapper container
-                MountedElement.RemoveFromHierarchy();
-                MountedElement = rootChild; // MountedElement now points to actual root element
-            }
             OnDidMount();
             ComponentDidMount();
             OnMounted();
@@ -106,7 +92,6 @@ namespace ReactiveUITK
                 }
             }
             effectCleanupActions.Clear();
-            MountedElement.RemoveFromHierarchy();
             MountedElement = null;
             previousRenderedTree = null;
             updateQueuedFlag = false;
@@ -132,11 +117,7 @@ namespace ReactiveUITK
                             updateQueuedFlag = false;
                             return;
                         }
-                        if (!ShouldUpdate(Props) || !ShouldComponentUpdate(Props))
-                        {
-                            updateQueuedFlag = false;
-                            return;
-                        }
+                        // State updates should not be gated by props-based ShouldUpdate checks
                         OnWillUpdate();
                         ComponentWillUpdate(Props);
                         foreach (System.Action mutation in pendingStateMutations)
@@ -163,11 +144,7 @@ namespace ReactiveUITK
                         updateQueuedFlag = false;
                         return;
                     }
-                    if (!ShouldUpdate(Props) || !ShouldComponentUpdate(Props))
-                    {
-                        updateQueuedFlag = false;
-                        return;
-                    }
+                    // State updates should not be gated by props-based ShouldUpdate checks
                     OnWillUpdate();
                     ComponentWillUpdate(Props);
                     foreach (System.Action mutation in pendingStateMutations)
@@ -235,6 +212,7 @@ namespace ReactiveUITK
                     updateQueuedFlag = false;
                     return;
                 }
+                // State updates should not be gated by props-based ShouldUpdate checks
                 OnWillUpdate();
                 ComponentWillUpdate(Props);
                 foreach (System.Action mutation in pendingStateMutations)
@@ -334,7 +312,10 @@ namespace ReactiveUITK
 
         protected void SetState<T>(ref T field, System.Func<T, T> updater)
         {
-            if (updater == null) return;
+            if (updater == null)
+            {
+                return;
+            }
             field = updater(field);
             SetState(() => { });
         }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using UnityEngine.UIElements;
+using ReactiveUITK.Props.Typed;
 
 namespace ReactiveUITK
 {
@@ -38,11 +39,12 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Button(
-            IReadOnlyDictionary<string, object> buttonProperties = null,
-            string key = null)
+        // Raw dictionary overload removed to enforce typed props usage for Button
+
+        public static VirtualNode Button(ButtonProps props, string key = null)
         {
-            buttonProperties = CloneStyleDictionary(buttonProperties);
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Button",
@@ -50,16 +52,31 @@ namespace ReactiveUITK
                 functionRender: null,
                 textContent: null,
                 key: key,
-                properties: buttonProperties ?? EmptyProps(),
+                properties: map ?? EmptyProps(),
                 children: EmptyChildren()
             );
         }
 
-        public static VirtualNode TextField(
-            IReadOnlyDictionary<string, object> textFieldProperties = null,
-            string key = null)
+        // Convenience typed overload for VisualElement styles
+        public static VirtualNode VisualElement(
+            Style style,
+            string key = null,
+            params VirtualNode[] children)
         {
-            textFieldProperties = CloneStyleDictionary(textFieldProperties);
+            var props = new Dictionary<string, object>(1);
+            if (style != null)
+            {
+                props["style"] = style;
+            }
+            return VisualElement(props, key, children);
+        }
+
+        // Raw dictionary overload removed to enforce typed props usage for TextField
+
+        public static VirtualNode TextField(TextFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "TextField",
@@ -67,7 +84,25 @@ namespace ReactiveUITK
                 functionRender: null,
                 textContent: null,
                 key: key,
-                properties: textFieldProperties ?? EmptyProps(),
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        // Raw dictionary overload removed to enforce typed props usage for ListView
+
+        public static VirtualNode ListView(ListViewProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "ListView",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
                 children: EmptyChildren()
             );
         }
@@ -168,14 +203,28 @@ namespace ReactiveUITK
 
         private static IReadOnlyDictionary<string, object> CloneStyleDictionary(IReadOnlyDictionary<string, object> source)
         {
-            if (source == null) return null;
-            if (!source.ContainsKey("style")) return source; // no style entry
-            if (!(source["style"] is IDictionary<string, object> styleMap)) return source;
-            // clone outer props and style map
+            if (source == null)
+            {
+                return null;
+            }
+            if (!source.ContainsKey("style"))
+            {
+                return source;
+            }
+            if (source["style"] is not IDictionary<string, object> styleMap)
+            {
+                return source;
+            }
             var outer = new Dictionary<string, object>(source.Count);
-            foreach (var kv in source) outer[kv.Key] = kv.Value;
+            foreach (var kv in source)
+            {
+                outer[kv.Key] = kv.Value;
+            }
             var styleClone = new Dictionary<string, object>(styleMap.Count);
-            foreach (var kv in styleMap) styleClone[kv.Key] = kv.Value;
+            foreach (var kv in styleMap)
+            {
+                styleClone[kv.Key] = kv.Value;
+            }
             outer["style"] = styleClone;
             return outer;
         }

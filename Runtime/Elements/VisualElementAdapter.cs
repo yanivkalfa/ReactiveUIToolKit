@@ -4,13 +4,13 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class VisualElementAdapter : IElementAdapter
+    public sealed class VisualElementAdapter : BaseElementAdapter
     {
-        public VisualElement Create()
+        public override VisualElement Create()
         {
             return new VisualElement();
         }
-        public void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
         {
             if (properties == null)
             {
@@ -18,7 +18,7 @@ namespace ReactiveUITK.Elements
             }
             PropsApplier.Apply(element, properties);
         }
-        public void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
         {
             PropsApplier.ApplyDiff(element, previous, next);
         }
