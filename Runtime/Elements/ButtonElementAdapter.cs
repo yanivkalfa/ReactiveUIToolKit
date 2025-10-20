@@ -4,14 +4,14 @@ using ReactiveUITK.Props;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class ButtonElementAdapter : IElementAdapter
+    public sealed class ButtonElementAdapter : BaseElementAdapter
     {
-        public VisualElement Create()
+        public override VisualElement Create()
         {
             return new Button();
         }
 
-        public void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
         {
             if (element is Button button && properties != null)
             {
@@ -23,7 +23,7 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
         {
             if (element is Button button)
             {
@@ -38,5 +38,6 @@ namespace ReactiveUITK.Elements
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }
+
     }
 }

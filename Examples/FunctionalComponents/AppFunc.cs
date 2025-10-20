@@ -73,7 +73,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             return V.VisualElement(new Dictionary<string, object>{{"style", pageStyle}}, null,
                 V.VisualElement(new Dictionary<string, object>{{"style", topBarStyle}}, null,
                     V.VisualElement(new Dictionary<string, object>{{"style", leftBoxStyle}}, null, V.Text("Left")),
-                    V.TextField(new Dictionary<string, object>{{"style", textInputStyle }, {"placeholder-text", "Search..."}}),
+                    V.TextField(new Dictionary<string, object>{{"style", textInputStyle }, {"placeholder", "Search..."}}),
                     V.VisualElement(new Dictionary<string, object>{{"style", rightBoxStyle}}, null, V.Text("Right"))
                 ),
                 V.Component<BottomBarComponent>()
