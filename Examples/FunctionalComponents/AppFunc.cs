@@ -109,6 +109,8 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                 OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<string>>)(e => setTextValue(e.newValue))
             };
 
+            // (Removed test cases that intentionally failed to compile)
+
             IList listItems = Hooks.UseMemo(() =>
             {
                 var list = new List<string>();
@@ -119,7 +121,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                 return (IList)list;
             });
 
-            var listViewProps = new ListViewProps
+            ListViewProps listViewProps = new()
             {
                 Items = listItems,
                 FixedItemHeight = 10f,
@@ -138,6 +140,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                 V.VisualElement(new Dictionary<string, object> { { "style", TopBarStyle } }, null,
                     V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
                     V.TextField(TextFieldProps),
+                    
                     V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                 ),
                 V.Button(toggleButtonProps),

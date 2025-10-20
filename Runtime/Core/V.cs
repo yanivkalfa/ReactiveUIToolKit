@@ -39,22 +39,7 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Button(
-            IReadOnlyDictionary<string, object> buttonProperties = null,
-            string key = null)
-        {
-            buttonProperties = CloneStyleDictionary(buttonProperties);
-            return new VirtualNode(
-                VirtualNodeType.Element,
-                elementTypeName: "Button",
-                componentType: null,
-                functionRender: null,
-                textContent: null,
-                key: key,
-                properties: buttonProperties ?? EmptyProps(),
-                children: EmptyChildren()
-            );
-        }
+        // Raw dictionary overload removed to enforce typed props usage for Button
 
         public static VirtualNode Button(ButtonProps props, string key = null)
         {
@@ -72,22 +57,21 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode TextField(
-            IReadOnlyDictionary<string, object> textFieldProperties = null,
-            string key = null)
+        // Convenience typed overload for VisualElement styles
+        public static VirtualNode VisualElement(
+            Style style,
+            string key = null,
+            params VirtualNode[] children)
         {
-            textFieldProperties = CloneStyleDictionary(textFieldProperties);
-            return new VirtualNode(
-                VirtualNodeType.Element,
-                elementTypeName: "TextField",
-                componentType: null,
-                functionRender: null,
-                textContent: null,
-                key: key,
-                properties: textFieldProperties ?? EmptyProps(),
-                children: EmptyChildren()
-            );
+            var props = new Dictionary<string, object>(1);
+            if (style != null)
+            {
+                props["style"] = style;
+            }
+            return VisualElement(props, key, children);
         }
+
+        // Raw dictionary overload removed to enforce typed props usage for TextField
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)
         {
@@ -105,22 +89,7 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode ListView(
-            IReadOnlyDictionary<string, object> listViewProperties = null,
-            string key = null)
-        {
-            listViewProperties = CloneStyleDictionary(listViewProperties);
-            return new VirtualNode(
-                VirtualNodeType.Element,
-                elementTypeName: "ListView",
-                componentType: null,
-                functionRender: null,
-                textContent: null,
-                key: key,
-                properties: listViewProperties ?? EmptyProps(),
-                children: EmptyChildren()
-            );
-        }
+        // Raw dictionary overload removed to enforce typed props usage for ListView
 
         public static VirtualNode ListView(ListViewProps props, string key = null)
         {
