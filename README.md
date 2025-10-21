@@ -169,3 +169,38 @@ Call `RootRenderer.Unmount()` or destroy the `RootRenderer` GameObject to clean 
 5. Your component's `Render()` builds a `VirtualNode` tree using `V.*` helpers (e.g. `V.VisualElement`, `V.Text`, `V.Func`).
 
 Enjoy building reactive UI in Unity.
+
+## 15. Editor Usage
+- Rendering function components inside Editor windows is supported via the editor scheduler and utility.
+- Add an EditorWindow and mount a VNode using `EditorRootRendererUtility`:
+
+```csharp
+using UnityEditor;
+using UnityEngine.UIElements;
+using ReactiveUITK.Core;
+using ReactiveUITK.EditorSupport;
+
+public sealed class ReactiveUITKEditorDemo : EditorWindow
+{
+    [MenuItem("Window/ReactiveUITK/Demo")]
+    public static void Open()
+    {
+        GetWindow<ReactiveUITKEditorDemo>("ReactiveUITK").Show();
+    }
+
+    private void CreateGUI()
+    {
+        var host = rootVisualElement;
+        EditorRootRendererUtility.Mount(host,
+            V.VisualElement(null, null,
+                V.Text("Hello from Editor"))
+        );
+    }
+
+    private void OnDisable()
+    {
+        EditorRootRendererUtility.Unmount(rootVisualElement);
+    }
+}
+```
+- Class components (MonoBehaviours) are runtime-only and are blocked in Editor hosts.

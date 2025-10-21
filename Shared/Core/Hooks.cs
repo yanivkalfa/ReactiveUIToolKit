@@ -193,10 +193,19 @@ namespace ReactiveUITK.Core
             {
                 T newVal = value;
                 int index = metadata.HookIndex;
-                RenderScheduler.Instance.EnqueueBatchedEffect(() =>
+                ReactiveUITK.Core.IScheduler scheduler = null;
+                if (metadata.HostContext != null && metadata.HostContext.Environment != null && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj))
+                {
+                    scheduler = sObj as ReactiveUITK.Core.IScheduler;
+                }
+                if (scheduler != null)
+                {
+                    scheduler.EnqueueBatchedEffect(() => { metadata.HookStates[index] = (newVal, dependencies); });
+                }
+                else
                 {
                     metadata.HookStates[index] = (newVal, dependencies);
-                });
+                }
             }
             metadata.HookIndex++;
             var latest = ((T val, object[] d))metadata.HookStates[metadata.HookIndex - 1];

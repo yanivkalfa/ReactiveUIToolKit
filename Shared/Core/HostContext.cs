@@ -9,7 +9,7 @@ namespace ReactiveUITK.Core
     {
         public ElementRegistry ElementRegistry { get; }
         public Dictionary<string, object> Environment { get; } = new();
-        private readonly Dictionary<string, HashSet<ReactiveComponent>> contextSubscribersByKey = new();
+        private readonly Dictionary<string, HashSet<IReactiveComponent>> contextSubscribersByKey = new();
         private readonly Stack<Dictionary<string, object>> contextProviderStack = new();
 
         public HostContext(ElementRegistry elementRegistry)
@@ -17,21 +17,21 @@ namespace ReactiveUITK.Core
             ElementRegistry = elementRegistry;
         }
 
-        internal void Subscribe(string key, ReactiveComponent reactiveComponent)
+        public void Subscribe(string key, IReactiveComponent reactiveComponent)
         {
             if (string.IsNullOrEmpty(key) || reactiveComponent == null)
             {
                 return;
             }
-            if (!contextSubscribersByKey.TryGetValue(key, out HashSet<ReactiveComponent> subscribers))
+            if (!contextSubscribersByKey.TryGetValue(key, out HashSet<IReactiveComponent> subscribers))
             {
-                subscribers = new HashSet<ReactiveComponent>();
+                subscribers = new HashSet<IReactiveComponent>();
                 contextSubscribersByKey[key] = subscribers;
             }
             subscribers.Add(reactiveComponent);
         }
 
-        internal void UnsubscribeAll(ReactiveComponent reactiveComponent)
+        public void UnsubscribeAll(IReactiveComponent reactiveComponent)
         {
             if (reactiveComponent == null)
             {
@@ -43,7 +43,7 @@ namespace ReactiveUITK.Core
             }
         }
 
-        internal void SetContextValue(string key, object value)
+        public void SetContextValue(string key, object value)
         {
             if (string.IsNullOrEmpty(key))
             {
@@ -54,10 +54,10 @@ namespace ReactiveUITK.Core
                 contextProviderStack.Peek()[key] = value;
             }
             Environment[key] = value;
-            if (contextSubscribersByKey.TryGetValue(key, out HashSet<ReactiveComponent> subscribers))
+            if (contextSubscribersByKey.TryGetValue(key, out HashSet<IReactiveComponent> subscribers))
             {
-                List<ReactiveComponent> snapshot = subscribers.ToList();
-                foreach (ReactiveComponent component in snapshot)
+                List<IReactiveComponent> snapshot = subscribers.ToList();
+                foreach (IReactiveComponent component in snapshot)
                 {
                     component?.NotifyContextKeyChanged(key);
                 }
@@ -77,7 +77,7 @@ namespace ReactiveUITK.Core
             }
         }
 
-        internal object ResolveContext(string key)
+        public object ResolveContext(string key)
         {
             foreach (Dictionary<string, object> providerValues in contextProviderStack)
             {

@@ -11,6 +11,7 @@ namespace ReactiveUITK.Props.Typed
         public int? Index { get; set; }
         public Style Style { get; set; }
         public Dictionary<string, object> ContentContainer { get; set; }
+        public System.Action<UnityEngine.UIElements.ChangeEvent<int>> OnChange { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -34,6 +35,10 @@ namespace ReactiveUITK.Props.Typed
             if (Index.HasValue)
             {
                 map["index"] = Index.Value;
+            }
+            if (OnChange != null)
+            {
+                map["onChange"] = OnChange;
             }
             if (ContentContainer != null)
             {

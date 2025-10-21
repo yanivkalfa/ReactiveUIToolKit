@@ -1,11 +1,10 @@
 {
-  "name": "ReactiveUITK.Editor",
+  "name": "ReactiveUITK.Examples",
   "references": [
     "ReactiveUITK.Shared",
-    "ReactiveUITK.Runtime",
-    "ReactiveUITK.Examples"
+    "ReactiveUITK.Runtime"
   ],
-  "includePlatforms": ["Editor"],
+  "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
   "overrideReferences": false,

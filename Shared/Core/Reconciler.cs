@@ -11,6 +11,18 @@ namespace ReactiveUITK.Core
     public sealed class Reconciler
     {
         private readonly HostContext hostContext;
+        private IScheduler ResolveScheduler()
+        {
+            if (hostContext == null)
+            {
+                return null;
+            }
+            if (hostContext.Environment != null && hostContext.Environment.TryGetValue("scheduler", out var obj))
+            {
+                return obj as IScheduler;
+            }
+            return null;
+        }
         public static bool EnableDiffTracing = false;
         public enum DiffTraceLevel { None, Basic, Verbose }
         public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
@@ -85,6 +97,21 @@ namespace ReactiveUITK.Core
                 EndDiffTiming();
                 return;
             }
+            // Special-case non-element roots (e.g., FunctionComponent, Fragment, Text):
+            // Diff against the first child element instead of clearing the host.
+            if (previousRoot.NodeType == nextRoot.NodeType && previousRoot.NodeType != VirtualNodeType.Element)
+            {
+                if (hostElement.childCount > 0)
+                {
+                    DiffNode(hostElement.ElementAt(0), previousRoot, nextRoot);
+                }
+                else
+                {
+                    BuildSubtree(hostElement, nextRoot);
+                }
+                EndDiffTiming();
+                return;
+            }
             if (previousRoot.NodeType == VirtualNodeType.Element && nextRoot.NodeType == VirtualNodeType.Element && previousRoot.ElementTypeName == nextRoot.ElementTypeName)
             {
                 // Diff applied directly on hostElement
@@ -149,8 +176,13 @@ namespace ReactiveUITK.Core
                     portalBuildCount++;
                     return;
                 case VirtualNodeType.Component when virtualNode.ComponentType != null:
+                    bool isEditorHost = hostContext != null && hostContext.Environment != null && hostContext.Environment.TryGetValue("isEditor", out var isEdVal) && isEdVal is bool bb && bb;
                     GameObject componentGameObject = new(virtualNode.ComponentType.Name);
-                    ReactiveComponent reactiveComponentInstance = (ReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
+                    if (isEditorHost)
+                    {
+                        componentGameObject.hideFlags = HideFlags.HideAndDontSave;
+                    }
+                    IReactiveComponent reactiveComponentInstance = (IReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
                     VisualElement componentContainer = new() { name = virtualNode.ComponentType.Name + "Container" };
                     NodeMetadata componentMetadata = new() { Key = virtualNode.Key, ComponentInstance = reactiveComponentInstance };
                     componentContainer.userData = componentMetadata;
@@ -230,14 +262,26 @@ namespace ReactiveUITK.Core
                                 bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                                 if (shouldRun)
                                 {
-                                    RenderScheduler.Instance.EnqueueBatchedEffect(() =>
+                                    var schedulerA = ResolveScheduler();
+                                    if (schedulerA != null)
+                                    {
+                                        schedulerA.EnqueueBatchedEffect(() =>
+                                        {
+                                            try { entry.cleanup?.Invoke(); } catch { }
+                                            Action newCleanup = null;
+                                            try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                            preMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                            functionEffectRunCount++;
+                                        });
+                                    }
+                                    else
                                     {
                                         try { entry.cleanup?.Invoke(); } catch { }
                                         Action newCleanup = null;
                                         try { newCleanup = entry.factory?.Invoke(); } catch { }
                                         preMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
                                         functionEffectRunCount++;
-                                    });
+                                    }
                                 }
                             }
                         }
@@ -419,8 +463,13 @@ namespace ReactiveUITK.Core
                     Cache(virtualNode.Key, portalPlaceholderElement);
                     return portalPlaceholderElement;
                 case VirtualNodeType.Component when virtualNode.ComponentType != null:
+                    bool isEditorHostDet = hostContext != null && hostContext.Environment != null && hostContext.Environment.TryGetValue("isEditor", out var isEdValDet) && isEdValDet is bool bbb && bbb;
                     GameObject componentGameObject = new(virtualNode.ComponentType.Name);
-                    ReactiveComponent reactiveComponentInstance = (ReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
+                    if (isEditorHostDet)
+                    {
+                        componentGameObject.hideFlags = HideFlags.HideAndDontSave;
+                    }
+                    IReactiveComponent reactiveComponentInstance = (IReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
                     VisualElement componentContainer = new() { name = virtualNode.ComponentType.Name + "Container", userData = new NodeMetadata { Key = virtualNode.Key, ComponentInstance = reactiveComponentInstance } };
                     reactiveComponentInstance.SetProps(new Dictionary<string, object>(virtualNode.Properties));
                     reactiveComponentInstance.Mount(componentContainer, hostContext);
@@ -494,14 +543,26 @@ namespace ReactiveUITK.Core
                                 bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                                 if (shouldRun)
                                 {
-                                    RenderScheduler.Instance.EnqueueBatchedEffect(() =>
+                                    var schedulerB = ResolveScheduler();
+                                    if (schedulerB != null)
+                                    {
+                                        schedulerB.EnqueueBatchedEffect(() =>
+                                        {
+                                            try { entry.cleanup?.Invoke(); } catch { }
+                                            Action newCleanup = null;
+                                            try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                            preMeta.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                            functionEffectRunCount++;
+                                        });
+                                    }
+                                    else
                                     {
                                         try { entry.cleanup?.Invoke(); } catch { }
                                         Action newCleanup = null;
                                         try { newCleanup = entry.factory?.Invoke(); } catch { }
                                         preMeta.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
                                         functionEffectRunCount++;
-                                    });
+                                    }
                                 }
                             }
                         }
@@ -618,13 +679,13 @@ namespace ReactiveUITK.Core
 					ReplaceNode(hostElement, nextNode);
 					return;
 				}
-				NodeMetadata componentMetadata = hostElement.userData as NodeMetadata;
-				ReactiveComponent componentInstance = componentMetadata?.ComponentInstance;
-				if (componentInstance == null)
-				{
-					ReplaceNode(hostElement, nextNode);
-					return;
-				}
+                NodeMetadata componentMetadata = hostElement.userData as NodeMetadata;
+                IReactiveComponent componentInstance = componentMetadata?.ComponentInstance;
+                if (componentInstance == null)
+                {
+                    ReplaceNode(hostElement, nextNode);
+                    return;
+                }
 				if (ShouldSkipMemo(previousNode, nextNode, previousNode.Properties, nextNode.Properties))
 				{
 					return;
@@ -862,26 +923,26 @@ namespace ReactiveUITK.Core
                     bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                     if (shouldRun)
                     {
-                        RenderScheduler.Instance.EnqueueBatchedEffect(() =>
+                        var schedulerC = ResolveScheduler();
+                        if (schedulerC != null)
                         {
-                            try
+                            schedulerC.EnqueueBatchedEffect(() =>
                             {
-                                entry.cleanup?.Invoke();
-                            }
-                            catch
-                            {
-                            }
+                                try { entry.cleanup?.Invoke(); } catch { }
+                                Action newCleanup = null;
+                                try { newCleanup = entry.factory?.Invoke(); } catch { }
+                                functionComponentMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
+                                functionEffectRunCount++;
+                            });
+                        }
+                        else
+                        {
+                            try { entry.cleanup?.Invoke(); } catch { }
                             Action newCleanup = null;
-                            try
-                            {
-                                newCleanup = entry.factory?.Invoke();
-                            }
-                            catch
-                            {
-                            }
+                            try { newCleanup = entry.factory?.Invoke(); } catch { }
                             functionComponentMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
                             functionEffectRunCount++;
-                        });
+                        }
                     }
                 }
             }
@@ -918,7 +979,10 @@ namespace ReactiveUITK.Core
             {
                 try
                 {
-                    UnityEngine.Object.Destroy(metadata.ComponentInstance.gameObject);
+                    if (metadata.ComponentInstance is UnityEngine.MonoBehaviour mb)
+                    {
+                        UnityEngine.Object.Destroy(mb.gameObject);
+                    }
                 }
                 catch
                 {

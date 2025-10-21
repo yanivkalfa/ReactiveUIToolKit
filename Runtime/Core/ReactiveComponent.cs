@@ -7,7 +7,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK
 {
-    public abstract class ReactiveComponent : MonoBehaviour
+public abstract class ReactiveComponent : MonoBehaviour, ReactiveUITK.Core.IReactiveComponent
     {
         public VisualElement MountedElement { get; private set; }
         public Dictionary<string, object> Props { get; private set; }
@@ -410,7 +410,7 @@ namespace ReactiveUITK
             return false;
         }
 
-        internal void NotifyContextKeyChanged(string key)
+        public void NotifyContextKeyChanged(string key)
         {
             ForceUpdate();
         }

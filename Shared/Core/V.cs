@@ -224,7 +224,7 @@ namespace ReactiveUITK
             string key = null,
             bool memoize = false,
             System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
-            params VirtualNode[] children) where TComponent : ReactiveComponent
+            params VirtualNode[] children) where TComponent : UnityEngine.MonoBehaviour, ReactiveUITK.Core.IReactiveComponent
         {
             componentProps = CloneStyleDictionary(componentProps);
             return new VirtualNode(

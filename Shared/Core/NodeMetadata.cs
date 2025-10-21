@@ -7,7 +7,7 @@ namespace ReactiveUITK.Core
     {
         public string Key;
         public Dictionary<string, Delegate> EventHandlers = new();
-        public ReactiveComponent ComponentInstance;
+        public IReactiveComponent ComponentInstance;
         public System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> FuncRender;
         public Dictionary<string, object> FuncProps;
         public IReadOnlyList<VirtualNode> FuncChildren;
