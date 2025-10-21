@@ -81,10 +81,28 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             (MarginTop, 8f)
         };
 
+        private static readonly Style ExtrasContainerStyle = new()
+        {
+            (MarginTop, 12f),
+            (PaddingLeft, 12f),
+            (PaddingRight, 12f),
+            (PaddingTop, 8f),
+            (PaddingBottom, 8f),
+            (BackgroundColor, UColor.white),
+            (BorderTopWidth, 1f),
+            (BorderTopColor, new UColor(0.85f,0.85f,0.85f,1f)),
+            (FlexDirection, "column")
+        };
+
         public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
             var (showList, setShowList) = Hooks.UseState(true);
             var (textValue, setTextValue) = Hooks.UseState("");
+            var (toggleValue, setToggleValue) = Hooks.UseState(false);
+            var (radioChecked, setRadioChecked) = Hooks.UseState(false);
+            List<string> radioChoices = Hooks.UseMemo(() => new List<string>{"One","Two","Three"});
+            var (radioIndex, setRadioIndex) = Hooks.UseState(0);
+            var (repeatClicks, setRepeatClicks) = Hooks.UseState(0);
 
 
             ButtonProps toggleButtonProps = new()
@@ -167,6 +185,33 @@ namespace ReactiveUITK.Examples.FunctionalComponents
                 V.Button(toggleButtonProps),
                 V.Button(changeFirstProps),
                 conditionalList,
+                V.VisualElement(new Dictionary<string, object> { { "style", ExtrasContainerStyle } }, null,
+                    V.Label(new LabelProps { Text = "Extras" }),
+                    V.GroupBox(new GroupBoxProps { Text = "GroupBox", ContentContainer = new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f), (PaddingTop, 4f) } } } }, null,
+                        V.Label(new LabelProps { Text = "Inside group" })
+                    ),
+                    V.Toggle(new ToggleProps
+                    {
+                        Text = "Enable option",
+                        Value = toggleValue,
+                        OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setToggleValue(e.newValue))
+                    }),
+                    V.RadioButton(new RadioButtonProps
+                    {
+                        Text = "Single radio",
+                        Value = radioChecked,
+                        OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setRadioChecked(e.newValue))
+                    }),
+                    V.RadioButtonGroup(new RadioButtonGroupProps
+                    {
+                        Choices = radioChoices,
+                        Index = radioIndex
+                    }, null,
+                        V.Label(new LabelProps { Text = "Pick one" })
+                    ),
+                    V.ProgressBar(new ProgressBarProps { Value = (repeatClicks % 100) / 100f, Title = "Progress" }),
+                    V.RepeatButton(new RepeatButtonProps { Text = $"Repeat ({repeatClicks})", OnClick = () => setRepeatClicks(repeatClicks + 1) })
+                ),
                 V.Component<BottomBarComponent>(new Dictionary<string, object>
                 {
                     { "inputValue", textValue },

@@ -15,6 +15,13 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "Button");
                 RegisterIfAllowed(registry, "TextField");
                 RegisterIfAllowed(registry, "ListView");
+                RegisterIfAllowed(registry, "Label");
+                RegisterIfAllowed(registry, "GroupBox");
+                RegisterIfAllowed(registry, "Toggle");
+                RegisterIfAllowed(registry, "RadioButton");
+                RegisterIfAllowed(registry, "RadioButtonGroup");
+                RegisterIfAllowed(registry, "ProgressBar");
+                RegisterIfAllowed(registry, "RepeatButton");
                 defaultRegistry = registry;
             }
             return defaultRegistry;
@@ -28,6 +35,13 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "Button", allowedSet);
             RegisterIfAllowed(registry, "TextField", allowedSet);
             RegisterIfAllowed(registry, "ListView", allowedSet);
+            RegisterIfAllowed(registry, "Label", allowedSet);
+            RegisterIfAllowed(registry, "GroupBox", allowedSet);
+            RegisterIfAllowed(registry, "Toggle", allowedSet);
+            RegisterIfAllowed(registry, "RadioButton", allowedSet);
+            RegisterIfAllowed(registry, "RadioButtonGroup", allowedSet);
+            RegisterIfAllowed(registry, "ProgressBar", allowedSet);
+            RegisterIfAllowed(registry, "RepeatButton", allowedSet);
             return registry;
         }
 
@@ -49,6 +63,27 @@ namespace ReactiveUITK.Elements
                         break;
                     case "ListView":
                         registry.Register("ListView", new ListViewElementAdapter());
+                        break;
+                    case "Label":
+                        registry.Register("Label", new LabelElementAdapter());
+                        break;
+                    case "GroupBox":
+                        registry.Register("GroupBox", new GroupBoxElementAdapter());
+                        break;
+                    case "Toggle":
+                        registry.Register("Toggle", new ToggleElementAdapter());
+                        break;
+                    case "RadioButton":
+                        registry.Register("RadioButton", new RadioButtonElementAdapter());
+                        break;
+                    case "RadioButtonGroup":
+                        registry.Register("RadioButtonGroup", new RadioButtonGroupElementAdapter());
+                        break;
+                    case "ProgressBar":
+                        registry.Register("ProgressBar", new ProgressBarElementAdapter());
+                        break;
+                    case "RepeatButton":
+                        registry.Register("RepeatButton", new RepeatButtonElementAdapter());
                         break;
                 }
             }
