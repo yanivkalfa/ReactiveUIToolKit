@@ -18,7 +18,7 @@ Thumbs.db
 Packages/com.netagames.reactiveuitoolkit/
 
 # Meta files (omit in source repo for code-only UPM)
-#*.meta
+*.meta
 
 # Rider/JetBrains
 .gradle/
