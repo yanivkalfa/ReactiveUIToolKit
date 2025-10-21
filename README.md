@@ -169,3 +169,12 @@ Call `RootRenderer.Unmount()` or destroy the `RootRenderer` GameObject to clean 
 5. Your component's `Render()` builds a `VirtualNode` tree using `V.*` helpers (e.g. `V.VisualElement`, `V.Text`, `V.Func`).
 
 Enjoy building reactive UI in Unity.
+
+## 15. Install via UPM (Git)
+You can consume this package directly via Git in Unity Package Manager.
+
+- In Unity, open Window -> Package Manager.
+- Click the + button -> "Add package from git URL...".
+- Enter: `https://github.com/your-org/reactive-ui-toolkit.git#main` (replace with your repo URL/branch).
+
+This repository is structured as a UPM package with `Runtime/` sources and a `package.json`. Examples are included in `Examples/` for now; if you import them into a project, they will compile alongside runtime code. If you prefer optional samples, move them to `Samples~` in your own fork.
