@@ -107,6 +107,118 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode Label(LabelProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Label",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode GroupBox(GroupBoxProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "GroupBox",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Toggle(ToggleProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Toggle",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode RadioButton(RadioButtonProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "RadioButton",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode RadioButtonGroup(RadioButtonGroupProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "RadioButtonGroup",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
+        public static VirtualNode ProgressBar(ProgressBarProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "ProgressBar",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode RepeatButton(RepeatButtonProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "RepeatButton",
+                componentType: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode Component<TComponent>(
             IReadOnlyDictionary<string, object> componentProps = null,
             string key = null,
