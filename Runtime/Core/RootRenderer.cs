@@ -18,11 +18,7 @@ namespace ReactiveUITK.Core
         {
             if (elementRegistry == null)
             {
-                elementRegistry = new ElementRegistry();
-                elementRegistry.Register("VisualElement", new VisualElementAdapter());
-				elementRegistry.Register("Button", new ButtonElementAdapter());
-				elementRegistry.Register("TextField", new TextFieldElementAdapter());
-				elementRegistry.Register("ListView", new ListViewElementAdapter());
+                elementRegistry = ElementRegistryProvider.GetDefaultRegistry();
             }
             if (sharedHostContext == null)
             {
