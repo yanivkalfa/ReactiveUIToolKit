@@ -23,6 +23,8 @@ namespace ReactiveUITK.Core
             if (sharedHostContext == null)
             {
                 sharedHostContext = new HostContext(elementRegistry);
+                sharedHostContext.Environment["scheduler"] = RenderScheduler.Instance;
+                sharedHostContext.Environment["isEditor"] = false;
             }
         }
 

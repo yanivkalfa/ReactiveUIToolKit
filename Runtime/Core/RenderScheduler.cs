@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+using ReactiveUITK.Core;
+
 namespace ReactiveUITK
 {
-    public sealed class RenderScheduler : MonoBehaviour
+    public sealed class RenderScheduler : MonoBehaviour, IScheduler
     {
-        public enum RenderPriority { High = 0, Normal = 1, Low = 2, Idle = 3 }
         private readonly Queue<Action> highPriorityQueue = new();
         private readonly Queue<Action> normalPriorityQueue = new();
         private readonly Queue<Action> lowPriorityQueue = new();
@@ -36,29 +37,29 @@ namespace ReactiveUITK
             }
         }
 
-        public void Enqueue(Action action, RenderPriority priority = RenderPriority.Normal)
+        public void Enqueue(Action action, IScheduler.Priority priority = IScheduler.Priority.Normal)
         {
             if (action == null)
             {
                 return;
             }
-            if (batchModeEnabled && priority != RenderPriority.High)
+            if (batchModeEnabled && priority != IScheduler.Priority.High)
             {
                 deferredBatchEnqueueActions.Add(() => Enqueue(action, priority));
                 return;
             }
             switch (priority)
             {
-                case RenderPriority.High:
+                case IScheduler.Priority.High:
                     highPriorityQueue.Enqueue(action);
                     break;
-                case RenderPriority.Normal:
+                case IScheduler.Priority.Normal:
                     normalPriorityQueue.Enqueue(action);
                     break;
-                case RenderPriority.Low:
+                case IScheduler.Priority.Low:
                     lowPriorityQueue.Enqueue(action);
                     break;
-                case RenderPriority.Idle:
+                case IScheduler.Priority.Idle:
                     idlePriorityQueue.Enqueue(action);
                     break;
             }

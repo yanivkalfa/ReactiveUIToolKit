@@ -106,7 +106,9 @@ namespace ReactiveUITK
             if (!updateQueuedFlag)
             {
                 updateQueuedFlag = true;
-                var scheduler = RenderScheduler.Instance;
+                var scheduler = HostContext != null && HostContext.Environment != null && HostContext.Environment.TryGetValue("scheduler", out var sObj)
+                    ? (ReactiveUITK.Core.IScheduler)sObj
+                    : null;
                 if (scheduler == null)
                 {
                     // Fallback: run update immediately if scheduler not yet available.
@@ -175,7 +177,9 @@ namespace ReactiveUITK
                 return;
             }
             updateQueuedFlag = true;
-            var scheduler = RenderScheduler.Instance;
+            var scheduler = HostContext != null && HostContext.Environment != null && HostContext.Environment.TryGetValue("scheduler", out var sObj)
+                ? (ReactiveUITK.Core.IScheduler)sObj
+                : null;
             if (scheduler == null)
             {
                 // Immediate fallback
