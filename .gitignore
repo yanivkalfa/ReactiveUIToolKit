@@ -17,9 +17,6 @@ Thumbs.db
 # PackageCache (created in consuming projects)
 Packages/com.netagames.reactiveuitoolkit/
 
-# Meta files (omit in source repo for code-only UPM)
-*.meta
-
 # Rider/JetBrains
 .gradle/
 .fleet/
