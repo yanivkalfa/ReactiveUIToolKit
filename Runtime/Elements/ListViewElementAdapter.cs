@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using UnityEngine.UIElements;
 using ReactiveUITK.Props;
 using ReactiveUITK.Core;
@@ -10,17 +11,23 @@ namespace ReactiveUITK.Elements
     public sealed class ListViewElementAdapter : BaseElementAdapter
     {
         private static HostContext sharedHostContext;
-
-        static ListViewElementAdapter()
+        private sealed class CachedParts
         {
-            var registry = new ElementRegistry();
-            registry.Register("VisualElement", new VisualElementAdapter());
-            registry.Register("Button", new ButtonElementAdapter());
-            registry.Register("TextField", new TextFieldElementAdapter());
-            sharedHostContext = new HostContext(registry);
+            public VisualElement ContentContainer;
+            public ScrollView ScrollView;
+        }
+        private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList = new();
+
+        private static HostContext GetRowHostContext()
+        {
+            if (sharedHostContext == null)
+            {
+                var registry = ElementRegistryProvider.GetDefaultRegistry();
+                sharedHostContext = new HostContext(registry);
+            }
+            return sharedHostContext;
         }
 
-        // Use the generic VNode host renderer for row content
         public override VisualElement Create()
         {
             return new ListView();
@@ -54,7 +61,7 @@ namespace ReactiveUITK.Elements
                 listView.makeItem = () =>
                 {
                     var ve = new VisualElement();
-                    ve.userData = new VNodeHostRenderer(sharedHostContext, ve);
+                    ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
                     return ve;
                 };
                 listView.bindItem = (ve, i) =>
@@ -62,7 +69,7 @@ namespace ReactiveUITK.Elements
                     var rr = ve.userData as IVNodeHostRenderer;
                     if (rr == null)
                     {
-                        rr = new VNodeHostRenderer(sharedHostContext, ve);
+                        rr = new VNodeHostRenderer(GetRowHostContext(), ve);
                         ve.userData = rr;
                     }
                     object item = null;
@@ -90,6 +97,8 @@ namespace ReactiveUITK.Elements
             {
                 listView.unbindItem = unbind;
             }
+
+            ApplySlots(listView, properties);
 
             PropsApplier.Apply(element, properties);
         }
@@ -156,7 +165,7 @@ namespace ReactiveUITK.Elements
                 listView.makeItem = () =>
                 {
                     var ve = new VisualElement();
-                    ve.userData = new VNodeHostRenderer(sharedHostContext, ve);
+                    ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
                     return ve;
                 };
                 listView.bindItem = (ve, i) =>
@@ -164,7 +173,7 @@ namespace ReactiveUITK.Elements
                     var rr = ve.userData as IVNodeHostRenderer;
                     if (rr == null)
                     {
-                        rr = new VNodeHostRenderer(sharedHostContext, ve);
+                        rr = new VNodeHostRenderer(GetRowHostContext(), ve);
                         ve.userData = rr;
                     }
                     object item = null;
@@ -180,7 +189,87 @@ namespace ReactiveUITK.Elements
                 };
             }
 
+            DiffSlot(listView, previous, next, "contentContainer");
+            DiffSlot(listView, previous, next, "scrollView");
+
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        private static void ApplySlots(ListView listView, IReadOnlyDictionary<string, object> properties)
+        {
+            ApplySlot(listView, properties, "contentContainer");
+            ApplySlot(listView, properties, "scrollView");
+        }
+
+        private static void DiffSlot(ListView listView, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string slotKey)
+        {
+            object previousSlotObject;
+            object nextSlotObject;
+            previous.TryGetValue(slotKey, out previousSlotObject);
+            next.TryGetValue(slotKey, out nextSlotObject);
+            if (!ReferenceEquals(previousSlotObject, nextSlotObject))
+            {
+                ApplySlot(listView, next, slotKey);
+            }
+        }
+
+        private static void ApplySlot(ListView listView, IReadOnlyDictionary<string, object> properties, string slotKey)
+        {
+            if (properties == null)
+            {
+                return;
+            }
+            if (!properties.TryGetValue(slotKey, out object slotObject))
+            {
+                return;
+            }
+            if (slotObject is not Dictionary<string, object> slotMap)
+            {
+                return;
+            }
+            VisualElement target = ResolveSlotElement(listView, slotKey);
+            if (target == null)
+            {
+                return;
+            }
+            if (slotMap.TryGetValue("style", out object styleObject) && styleObject is IDictionary<string, object> styleMap)
+            {
+                PropsApplier.Apply(target, new Dictionary<string, object> { { "style", styleMap } });
+            }
+            foreach (KeyValuePair<string, object> entry in slotMap)
+            {
+                if (entry.Key == "style")
+                {
+                    continue;
+                }
+                PropsApplier.Apply(target, new Dictionary<string, object> { { entry.Key, entry.Value } });
+            }
+        }
+
+        private static VisualElement ResolveSlotElement(ListView listView, string slotKey)
+        {
+            if (!cachedPartsByList.TryGetValue(listView, out CachedParts parts))
+            {
+                parts = new CachedParts();
+                cachedPartsByList.Add(listView, parts);
+            }
+            if (slotKey == "contentContainer")
+            {
+                if (parts.ContentContainer == null)
+                {
+                    parts.ContentContainer = listView.contentContainer;
+                }
+                return parts.ContentContainer;
+            }
+            if (slotKey == "scrollView")
+            {
+                if (parts.ScrollView == null)
+                {
+                    parts.ScrollView = listView.Q<ScrollView>();
+                }
+                return parts.ScrollView;
+            }
+            return null;
         }
     }
 }
