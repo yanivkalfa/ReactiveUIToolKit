@@ -2,7 +2,7 @@
   "name": "com.netagames.reactiveuitoolkit",
   "displayName": "Reactive UI ToolKit",
   "version": "0.0.1",
-  "unity": "2021.2",
+  "unity": "6000.2",
   "description": "Lightweight React-inspired component model for Unity UI Toolkit. Class and function components, hooks, portals, suspense, and diff-based reconciler.",
   "keywords": [
     "ui",
