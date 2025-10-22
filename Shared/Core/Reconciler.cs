@@ -691,6 +691,8 @@ namespace ReactiveUITK.Core
             functionComponentMetadata.EffectIndex = 0;
             functionComponentMetadata.LayoutEffectIndex = 0;
             HookContext.Current = functionComponentMetadata;
+            bool initialMount = functionComponentMetadata.LastRenderedSubtree == null || targetContainer.childCount == 0;
+            VirtualNode nextSubtree = null;
             try
             {
                 functionComponentMetadata.IsRendering = true;
@@ -698,27 +700,35 @@ namespace ReactiveUITK.Core
                 {
                     try { UnityEngine.Debug.Log("[FuncRender:enter] key=" + functionComponentMetadata.Key + ", pending=" + functionComponentMetadata.PendingUpdate); } catch { }
                 }
-                VirtualNode nextSubtree = functionComponentMetadata.FuncRender(functionComponentMetadata.FuncProps, functionComponentMetadata.FuncChildren);
-                // Wrapper-only semantics (no flattened root)
-                if (functionComponentMetadata.LastRenderedSubtree == null || targetContainer.childCount == 0)
+                nextSubtree = functionComponentMetadata.FuncRender(functionComponentMetadata.FuncProps, functionComponentMetadata.FuncChildren);
+                // Unified handling: build/diff then continue to effect phase (no early returns) so first render runs effects.
+                if (nextSubtree == null)
+                {
+                    // Clear any existing child and mark as empty
+                    targetContainer.Clear();
+                    functionComponentMetadata.LastRenderedSubtree = null;
+                }
+                else if (initialMount)
                 {
                     targetContainer.Clear();
                     functionComponentMetadata.LastRenderedSubtree = nextSubtree;
-                    if (nextSubtree != null)
+                    BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
+                }
+                else
+                {
+                    // Diff against previous cached subtree
+                    VisualElement existingRootElement = targetContainer.childCount > 0 ? targetContainer.ElementAt(0) : null;
+                    if (existingRootElement == null)
                     {
+                        targetContainer.Clear();
                         BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
                     }
-                    return;
+                    else
+                    {
+                        DiffNode(existingRootElement, functionComponentMetadata.LastRenderedSubtree, nextSubtree);
+                    }
+                    functionComponentMetadata.LastRenderedSubtree = nextSubtree;
                 }
-                if (nextSubtree == null)
-                {
-                    targetContainer.Clear();
-                    functionComponentMetadata.LastRenderedSubtree = null;
-                    return;
-                }
-                VisualElement existingRootElement = targetContainer.ElementAt(0);
-                DiffNode(existingRootElement, functionComponentMetadata.LastRenderedSubtree, nextSubtree);
-                functionComponentMetadata.LastRenderedSubtree = nextSubtree;
             }
             catch (Exception ex)
             {
@@ -729,6 +739,7 @@ namespace ReactiveUITK.Core
                 functionComponentMetadata.IsRendering = false;
                 HookContext.Current = null;
             }
+            // Layout effects phase
             if (functionComponentMetadata.FunctionLayoutEffects != null)
             {
                 for (int i = 0; i < functionComponentMetadata.FunctionLayoutEffects.Count; i++)
@@ -737,21 +748,9 @@ namespace ReactiveUITK.Core
                     bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                     if (shouldRun)
                     {
-                        try
-                        {
-                            entry.cleanup?.Invoke();
-                        }
-                        catch
-                        {
-                        }
+                        try { entry.cleanup?.Invoke(); } catch { }
                         Action newCleanup = null;
-                        try
-                        {
-                            newCleanup = entry.factory?.Invoke();
-                        }
-                        catch
-                        {
-                        }
+                        try { newCleanup = entry.factory?.Invoke(); } catch { }
                         if (i < functionComponentMetadata.FunctionLayoutEffects.Count)
                         {
                             functionComponentMetadata.FunctionLayoutEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), newCleanup);
@@ -760,6 +759,7 @@ namespace ReactiveUITK.Core
                     }
                 }
             }
+            // Passive effects phase
             if (functionComponentMetadata.FunctionEffects != null)
             {
                 for (int i = 0; i < functionComponentMetadata.FunctionEffects.Count; i++)
@@ -774,7 +774,6 @@ namespace ReactiveUITK.Core
                         var schedulerC = ResolveScheduler();
                         if (!firstRun && schedulerC != null)
                         {
-                            // Subsequent runs: schedule batched
                             schedulerC.EnqueueBatchedEffect(() =>
                             {
                                 try { entry.cleanup?.Invoke(); } catch { }
@@ -789,7 +788,6 @@ namespace ReactiveUITK.Core
                         }
                         else
                         {
-                            // First run or no scheduler: run immediately after commit
                             try { entry.cleanup?.Invoke(); } catch { }
                             Action newCleanup = null;
                             try { newCleanup = entry.factory?.Invoke(); } catch { }
@@ -802,7 +800,7 @@ namespace ReactiveUITK.Core
                     }
                 }
             }
-            // After commit, flush one pending update if requested during render
+            // Flush one pending update if requested during render
             if (functionComponentMetadata.PendingUpdate)
             {
                 functionComponentMetadata.PendingUpdate = false;

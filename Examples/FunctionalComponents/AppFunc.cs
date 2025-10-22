@@ -104,21 +104,12 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             var (radioIndex, setRadioIndex) = Hooks.UseState(0);
             var (repeatClicks, setRepeatClicks) = Hooks.UseState(0);
             var (now, setNow) = Hooks.UseState(System.DateTime.Now);
-            // var root = Hooks.UseRef();
-            // Hooks.UseEffect(() =>
-            // {
-            //     Debug.Log($"thisIsNow: blaaaaaaaaaaaaaaaaa");
-            //     if (root == null) { return null; }
-            //     Debug.Log($"thisIsNow: xxxxxxxxxxxxxxxxxxxxxxx");
-            //     var item = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
-            //     Debug.Log($"thisIsNow: yyyyyyyyyyyyyyyyyyyyyyyyy");
-            //     return () => { try { item?.Pause(); } catch { } };
-            // }, System.Array.Empty<object>());
-
+            var root = Hooks.UseRef();
             Hooks.UseEffect(() =>
             {
-                Debug.Log($"xdxdxdxdxdxdxdxdxdxdxdxdxd");
-                return null;
+                if (root == null) { return null; }
+                var item = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
+                return () => { try { item?.Pause(); } catch { } };
             }, System.Array.Empty<object>());
 
             ButtonProps toggleButtonProps = new()

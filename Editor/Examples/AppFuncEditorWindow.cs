@@ -24,8 +24,8 @@ namespace ReactiveUITK.EditorExamples
         {
             var host = rootVisualElement;
             host.style.flexGrow = 1f;
-            ReactiveUITK.Core.Reconciler.EnableDiffTracing = true;
-            ReactiveUITK.Core.Reconciler.TraceLevel = ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose;
+            //ReactiveUITK.Core.Reconciler.EnableDiffTracing = true;
+            //ReactiveUITK.Core.Reconciler.TraceLevel = ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose;
             EditorRootRendererUtility.Mount(host, V.Func(EditorAppFunc.Render));
         }
 
@@ -129,22 +129,12 @@ namespace ReactiveUITK.EditorExamples
             var (radioIndex, setRadioIndex) = Hooks.UseState(0);
             var (repeatClicks, setRepeatClicks) = Hooks.UseState(0);
             var (now, setNow) = Hooks.UseState(System.DateTime.Now);
-            // var root = Hooks.UseRef();
-            // Hooks.UseEffect(() =>
-            // {
-            //     Debug.Log($"thisIsNow: blaaaaaaaaaaaaaaaaa");
-            //     if (root == null) { return null; }
-            //     Debug.Log($"thisIsNow: xxxxxxxxxxxxxxxxxxxxxxx");
-            //     var item = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
-            //     Debug.Log($"thisIsNow: yyyyyyyyyyyyyyyyyyyyyyyyy");
-            //     return () => { try { item?.Pause(); } catch { } };
-            // }, System.Array.Empty<object>());
-            // Debug.Log($"thisIsNow: {now}");
-
+            var root = Hooks.UseRef();
             Hooks.UseEffect(() =>
             {
-                Debug.Log($"thisIsNow: xdxdxdxdxdxdxdxdxdxdxdxdxd");
-                return null;
+                if (root == null) { return null; }
+                var item = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
+                return () => { try { item?.Pause(); } catch { } };
             }, System.Array.Empty<object>());
 
             
@@ -170,7 +160,7 @@ namespace ReactiveUITK.EditorExamples
             var initialItems = Hooks.UseMemo(() =>
             {
                 var list = new System.Collections.Generic.List<string>();
-                for (int i = 1; i <= 20; i++) list.Add($"Item {i}");
+                for (int i = 1; i <= 5; i++) list.Add($"Item {i}");
                 return list;
             });
             var (items, setItems) = Hooks.UseState(initialItems);
@@ -182,9 +172,9 @@ namespace ReactiveUITK.EditorExamples
                 Selection = UnityEngine.UIElements.SelectionType.None,
                 Row = (i, item) =>
                 {
-                    // Debug.Log($"Debug - before {item.ToString()} ---- {i}");
+                    Debug.Log($"Debug - before {item.ToString()} ---- {i}");
                     string text = item?.ToString() ?? "<null>";
-                    // Debug.Log($"Debug - text: {text} - {item.ToString()} ---- {i}");
+                    Debug.Log($"Debug - text: {text} - {item.ToString()} ---- {i}");
                     string id = text;
                     return V.VisualElement(new Style { (StyleKeys.FlexDirection, "row"), (AlignItems, "center") }, key: $"row-{id}",
                         V.Text(text),
@@ -193,11 +183,11 @@ namespace ReactiveUITK.EditorExamples
                             Text = " X ",
                             OnClick = () =>
                             {
-                                // Debug.Log($"Debug - clicked {item.ToString()} ---- {i}");
+                                Debug.Log($"Debug - clicked {item.ToString()} ---- {i}");
                                 var copy = new System.Collections.Generic.List<string>(items);
                                 int idx = copy.IndexOf(id);
 
-                                // Debug.Log($"Debug - idx {idx} - {item.ToString()} ---- {i}");
+                                Debug.Log($"Debug - idx {idx} - {item.ToString()} ---- {i}");
                                 if (idx >= 0) { copy.RemoveAt(idx); setItems(copy); }
                             },
                             Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) }
