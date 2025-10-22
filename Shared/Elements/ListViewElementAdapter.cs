@@ -90,14 +90,14 @@ namespace ReactiveUITK.Elements
                         parts.Buffer.Capacity = n;
                         for (int i = 0; i < n; i++) parts.Buffer.Add(newList[i]);
                         listView.itemsSource = parts.Buffer;
-                        try { listView.Refresh(); } catch { }
+                        try { listView.Rebuild(); } catch { }
                     }
                 }
                 else
                 {
                     parts.Buffer?.Clear();
                     listView.itemsSource = parts.Buffer;
-                    try { listView.Refresh(); } catch { }
+                    try { listView.Rebuild(); } catch { }
                 }
             }
             TryApplyProp<int>(properties, "selectedIndex", i => listView.selectedIndex = i);
@@ -111,7 +111,7 @@ namespace ReactiveUITK.Elements
             // VNode row rendering support: props["row"] = Func<int, object, VirtualNode>
             if (properties.TryGetValue("row", out var rowObj) && rowObj is Func<int, object, VirtualNode> rowFn)
             {
-                var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
                 parts.RowFn = rowFn; // update latest function reference
                 if (!parts.RowWired)
                 {
@@ -200,7 +200,7 @@ namespace ReactiveUITK.Elements
                     for (int i = 0; i < newListForDiff.Count; i++) parts.Buffer.Add(newListForDiff[i]);
                 }
                 listView.itemsSource = parts.Buffer;
-                try { listView.Refresh(); } catch { }
+                try { listView.Rebuild(); } catch { }
             }
             else if (newListForDiff != null)
             {
@@ -222,7 +222,7 @@ namespace ReactiveUITK.Elements
                     parts.Buffer.Clear();
                     for (int i = 0; i < newListForDiff.Count; i++) parts.Buffer.Add(newListForDiff[i]);
                     listView.itemsSource = parts.Buffer;
-                    try { listView.Refresh(); } catch { }
+                    try { listView.Rebuild(); } catch { }
                 }
             }
 
@@ -263,7 +263,7 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("row", out var nextRowObj);
             if (nextRowObj is Func<int, object, VirtualNode> nextRowFn)
             {
-                var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
                 parts.RowFn = nextRowFn; // always update latest function reference
                 if (!parts.RowWired)
                 {
