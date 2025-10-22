@@ -824,8 +824,13 @@ private static void ResetStyle(VisualElement element, string styleKey)
                 {
                     meta.EventHandlerSignatures[eventPropName] = newSig;
                 }
+                // Only count/log when we actually registered a new wrapper
+                // (Not on every render when only the target delegate changes)
+                if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                {
+                    try { UnityEngine.Debug.Log("[ApplyEvent] register onClick element=" + element.name + ", parent=" + (element.parent!=null?element.parent.name:"<null>") ); } catch { }
+                }
                 totalEventsRegistered++;
-                Debug.Log("[ApplyEvent] register onClick element=" + element.name + ", parent=" + (element.parent!=null?element.parent.name:"<null>") + ", handler=" + newHandler.Method.Name);
                 return;
             }
             if (eventPropName == "onPointerDown") { if (!meta.EventHandlers.ContainsKey(eventPropName)) { EventCallback<PointerDownEvent> w = e => { meta.EventHandlerTargets.TryGetValue(eventPropName, out var t); InvokeHandler(t, e); }; element.RegisterCallback(w); meta.EventHandlers[eventPropName] = w; } meta.EventHandlerSignatures[eventPropName] = newSig; return; }

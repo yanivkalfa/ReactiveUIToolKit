@@ -151,6 +151,7 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             {
                 Items = items,
                 FixedItemHeight = 20f,
+                Selection = UnityEngine.UIElements.SelectionType.None,
                 Row = (i, item) =>
                 {
                     string text = item?.ToString() ?? "<null>";

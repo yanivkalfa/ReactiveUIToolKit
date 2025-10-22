@@ -11,6 +11,26 @@ namespace ReactiveUITK.Elements
             return new Button();
         }
 
+        private static bool IsInsideListView(VisualElement ve)
+        {
+            var p = ve.parent;
+            while (p != null)
+            {
+                if (p is ListView) return true;
+                p = p.parent;
+            }
+            return false;
+        }
+
+        private static void EnsureListViewFriendly(Button button)
+        {
+            if (button == null) return;
+            if (!IsInsideListView(button)) return;
+            // Make button act independent inside ListView rows; rely on selectionType=None
+            button.focusable = false;
+            button.pickingMode = PickingMode.Position;
+        }
+
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
         {
             if (element is Button button && properties != null)
@@ -19,6 +39,7 @@ namespace ReactiveUITK.Elements
                 {
                     button.text = txt;
                 }
+                EnsureListViewFriendly(button);
             }
             PropsApplier.Apply(element, properties);
         }
@@ -35,6 +56,7 @@ namespace ReactiveUITK.Elements
                 {
                     button.text = nextText ?? string.Empty;
                 }
+                EnsureListViewFriendly(button);
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }

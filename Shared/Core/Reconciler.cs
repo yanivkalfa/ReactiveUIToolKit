@@ -764,10 +764,11 @@ namespace ReactiveUITK.Core
                     bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                     if (shouldRun)
                     {
-                        // Pre-emptively stamp lastDeps to avoid re-scheduling this effect on rapid successive renders
+                        // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
                         functionComponentMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), entry.cleanup);
                         var schedulerC = ResolveScheduler();
-                        if (schedulerC != null)
+                        bool isEditorHost = hostContext != null && hostContext.Environment != null && hostContext.Environment.TryGetValue("isEditor", out var isEdObj) && isEdObj is bool bb && bb;
+                        if (schedulerC != null && !isEditorHost)
                         {
                             schedulerC.EnqueueBatchedEffect(() =>
                             {
@@ -783,6 +784,7 @@ namespace ReactiveUITK.Core
                         }
                         else
                         {
+                            // In editor, run passive effects immediately after commit to ensure timers/handlers attach without waiting
                             try { entry.cleanup?.Invoke(); } catch { }
                             Action newCleanup = null;
                             try { newCleanup = entry.factory?.Invoke(); } catch { }

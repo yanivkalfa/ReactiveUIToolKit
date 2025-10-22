@@ -24,8 +24,8 @@ namespace ReactiveUITK.EditorExamples
         {
             var host = rootVisualElement;
             host.style.flexGrow = 1f;
-            ReactiveUITK.Core.Reconciler.EnableDiffTracing = true;
-            ReactiveUITK.Core.Reconciler.TraceLevel = ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose;
+            // ReactiveUITK.Core.Reconciler.EnableDiffTracing = true;
+            // ReactiveUITK.Core.Reconciler.TraceLevel = ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose;
             EditorRootRendererUtility.Mount(host, V.Func(EditorAppFunc.Render));
         }
 
@@ -178,9 +178,12 @@ namespace ReactiveUITK.EditorExamples
             {
                 Items = items,
                 FixedItemHeight = 20f,
+                Selection = UnityEngine.UIElements.SelectionType.None,
                 Row = (i, item) =>
                 {
+                    Debug.Log($"Debug - before {item.ToString()} ---- {i}");
                     string text = item?.ToString() ?? "<null>";
+                    Debug.Log($"Debug - text: {text} - {item.ToString()} ---- {i}");
                     string id = text;
                     return V.VisualElement(new Style { (StyleKeys.FlexDirection, "row"), (AlignItems, "center") }, key: $"row-{id}",
                         V.Text(text),
@@ -189,8 +192,11 @@ namespace ReactiveUITK.EditorExamples
                             Text = " X ",
                             OnClick = () =>
                             {
+                                Debug.Log($"Debug - clicked {item.ToString()} ---- {i}");
                                 var copy = new System.Collections.Generic.List<string>(items);
                                 int idx = copy.IndexOf(id);
+
+                                Debug.Log($"Debug - idx {idx} - {item.ToString()} ---- {i}");
                                 if (idx >= 0) { copy.RemoveAt(idx); setItems(copy); }
                             },
                             Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) }
@@ -204,17 +210,14 @@ namespace ReactiveUITK.EditorExamples
                 Text = "Change First Item",
                 OnClick = () =>
                 {
-                    var copy = new System.Collections.Generic.List<string>(items);
-                    if (copy.Count > 0)
+                    if (items.Count > 0)
                     {
-                        copy[0] = "UPDATED " + System.DateTime.Now.ToLongTimeString();
-                        setItems(copy);
+                        items[0] = "UPDATED " + System.DateTime.Now.ToLongTimeString();
+                        setItems(items);
                     }
                 },
                 Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) }
             };
-
-            Debug.Log($"blaaaa, {repeatClicks}");
 
             var conditionalList = showList
                 ? V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", ListContainerStyle } }, null, V.ListView(listViewProps))

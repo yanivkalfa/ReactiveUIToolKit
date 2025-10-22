@@ -17,6 +17,7 @@ namespace ReactiveUITK.Elements
             public ScrollView ScrollView;
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
+            public List<object> Buffer;
         }
         private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList = new();
 
@@ -43,15 +44,60 @@ namespace ReactiveUITK.Elements
                 return;
             }
 
+            // Initialize or update backing buffer
+            var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
             if (properties.TryGetValue("items", out var itemsObj))
             {
-                if (itemsObj is IList ilist)
+                IList newList = itemsObj as IList;
+                if (newList == null && itemsObj is IEnumerable enumerable)
                 {
-                    listView.itemsSource = ilist;
+                    var tmp = new List<object>();
+                    foreach (var it in enumerable) tmp.Add(it);
+                    newList = tmp;
                 }
-                else if (itemsObj is IEnumerable<object> enumObj)
+                if (parts.Buffer == null)
                 {
-                    listView.itemsSource = new List<object>(enumObj);
+                    parts.Buffer = new List<object>();
+                    if (newList != null)
+                    {
+                        int n = newList.Count;
+                        parts.Buffer.Capacity = n;
+                        for (int i = 0; i < n; i++) parts.Buffer.Add(newList[i]);
+                    }
+                    listView.itemsSource = parts.Buffer;
+                }
+                else if (newList != null)
+                {
+                    if (parts.Buffer.Count == newList.Count)
+                    {
+                        // Overlay differences in-place and refresh changed rows
+                        for (int i = 0; i < parts.Buffer.Count; i++)
+                        {
+                            object cur = parts.Buffer[i];
+                            object nxt = newList[i];
+                            if (!ReferenceEquals(cur, nxt) && !Equals(cur, nxt))
+                            {
+                                parts.Buffer[i] = nxt;
+                                try { listView.RefreshItem(i); } catch { }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Rebuild buffer and assign
+                        parts.Buffer.Clear();
+                        int n = newList.Count;
+                        parts.Buffer.Capacity = n;
+                        for (int i = 0; i < n; i++) parts.Buffer.Add(newList[i]);
+                        listView.itemsSource = parts.Buffer;
+                        try { listView.Refresh(); } catch { }
+                    }
+                }
+                else
+                {
+                    parts.Buffer?.Clear();
+                    listView.itemsSource = parts.Buffer;
+                    try { listView.Refresh(); } catch { }
                 }
             }
             TryApplyProp<int>(properties, "selectedIndex", i => listView.selectedIndex = i);
@@ -135,22 +181,48 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
 
-            // items
-            previous.TryGetValue("items", out var oldItemsObj);
+            // items diff: always compare incoming list with backing buffer and update rows in-place
+            var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
             next.TryGetValue("items", out var newItemsObj);
-            if (!Equals(oldItemsObj, newItemsObj))
+            IList newListForDiff = newItemsObj as IList;
+            if (newListForDiff == null && newItemsObj is IEnumerable enumerableNext)
             {
-                if (newItemsObj is IList ilist)
+                var tmp = new List<object>();
+                foreach (var it in enumerableNext) tmp.Add(it);
+                newListForDiff = tmp;
+            }
+            if (parts.Buffer == null)
+            {
+                // Initialize buffer first time if needed
+                parts.Buffer = new List<object>();
+                if (newListForDiff != null)
                 {
-                    listView.itemsSource = ilist;
+                    for (int i = 0; i < newListForDiff.Count; i++) parts.Buffer.Add(newListForDiff[i]);
                 }
-                else if (newItemsObj is IEnumerable<object> enumObj)
+                listView.itemsSource = parts.Buffer;
+                try { listView.Refresh(); } catch { }
+            }
+            else if (newListForDiff != null)
+            {
+                if (parts.Buffer.Count == newListForDiff.Count)
                 {
-                    listView.itemsSource = new List<object>(enumObj);
+                    for (int i = 0; i < parts.Buffer.Count; i++)
+                    {
+                        object cur = parts.Buffer[i];
+                        object nxt = newListForDiff[i];
+                        if (!ReferenceEquals(cur, nxt) && !Equals(cur, nxt))
+                        {
+                            parts.Buffer[i] = nxt;
+                            try { listView.RefreshItem(i); } catch { }
+                        }
+                    }
                 }
                 else
                 {
-                    listView.itemsSource = null;
+                    parts.Buffer.Clear();
+                    for (int i = 0; i < newListForDiff.Count; i++) parts.Buffer.Add(newListForDiff[i]);
+                    listView.itemsSource = parts.Buffer;
+                    try { listView.Refresh(); } catch { }
                 }
             }
 
