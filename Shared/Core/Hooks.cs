@@ -72,18 +72,19 @@ namespace ReactiveUITK.Core
                 return;
             }
             metadata.FunctionLayoutEffects ??= new List<(Func<Action>, object[], object[], Action)>();
-            if (metadata.HookIndex >= metadata.FunctionLayoutEffects.Count)
+            int index = metadata.LayoutEffectIndex;
+            if (index >= metadata.FunctionLayoutEffects.Count)
             {
                 metadata.FunctionLayoutEffects.Add((effectFactory, dependencies, null, null));
             }
             else
             {
-                var entry = metadata.FunctionLayoutEffects[metadata.HookIndex];
+                var entry = metadata.FunctionLayoutEffects[index];
                 entry.factory = effectFactory;
                 entry.deps = dependencies;
-                metadata.FunctionLayoutEffects[metadata.HookIndex] = entry;
+                metadata.FunctionLayoutEffects[index] = entry;
             }
-            metadata.HookIndex++;
+            metadata.LayoutEffectIndex++;
         }
         public static (T value, Action<T> set) UseState<T>(T initial = default)
         {
@@ -320,18 +321,23 @@ namespace ReactiveUITK.Core
                 return;
             }
             metadata.FunctionEffects ??= new List<(Func<Action>, object[], object[], Action)>();
-            if (metadata.HookIndex >= metadata.FunctionEffects.Count)
+            int index = metadata.EffectIndex;
+            if (index >= metadata.FunctionEffects.Count)
             {
                 metadata.FunctionEffects.Add((effectFactory, dependencies, null, null));
             }
             else
             {
-                var entry = metadata.FunctionEffects[metadata.HookIndex];
+                var entry = metadata.FunctionEffects[index];
                 entry.factory = effectFactory;
                 entry.deps = dependencies;
-                metadata.FunctionEffects[metadata.HookIndex] = entry;
+                metadata.FunctionEffects[index] = entry;
             }
-            metadata.HookIndex++;
+            if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+            {
+                try { Debug.Log("[Hooks] UseEffect captured index=" + index + ", depsLen=" + (dependencies?.Length ?? 0)); } catch { }
+            }
+            metadata.EffectIndex++;
         }
 
         public static T UseContext<T>(string key)

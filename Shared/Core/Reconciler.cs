@@ -686,6 +686,10 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
+            // Reset hook indices before render
+            functionComponentMetadata.HookIndex = 0;
+            functionComponentMetadata.EffectIndex = 0;
+            functionComponentMetadata.LayoutEffectIndex = 0;
             HookContext.Current = functionComponentMetadata;
             try
             {
@@ -764,12 +768,13 @@ namespace ReactiveUITK.Core
                     bool shouldRun = entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
                     if (shouldRun)
                     {
+                        bool firstRun = entry.lastDeps == null;
                         // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
                         functionComponentMetadata.FunctionEffects[i] = (entry.factory, entry.deps, (object[])entry.deps?.Clone(), entry.cleanup);
                         var schedulerC = ResolveScheduler();
-                        bool isEditorHost = hostContext != null && hostContext.Environment != null && hostContext.Environment.TryGetValue("isEditor", out var isEdObj) && isEdObj is bool bb && bb;
-                        if (schedulerC != null && !isEditorHost)
+                        if (!firstRun && schedulerC != null)
                         {
+                            // Subsequent runs: schedule batched
                             schedulerC.EnqueueBatchedEffect(() =>
                             {
                                 try { entry.cleanup?.Invoke(); } catch { }
@@ -784,7 +789,7 @@ namespace ReactiveUITK.Core
                         }
                         else
                         {
-                            // In editor, run passive effects immediately after commit to ensure timers/handlers attach without waiting
+                            // First run or no scheduler: run immediately after commit
                             try { entry.cleanup?.Invoke(); } catch { }
                             Action newCleanup = null;
                             try { newCleanup = entry.factory?.Invoke(); } catch { }

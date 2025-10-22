@@ -23,6 +23,9 @@ namespace ReactiveUITK.Core
         public Reconciler Reconciler;
         public List<(System.Func<System.Action> factory, object[] deps, object[] lastDeps, System.Action cleanup)> FunctionEffects;
         public List<(System.Func<System.Action> factory, object[] deps, object[] lastDeps, System.Action cleanup)> FunctionLayoutEffects;
+        // Independent indices for effect lists to avoid interference with state/reducer hook index
+        public int EffectIndex;
+        public int LayoutEffectIndex;
         public HashSet<string> SubscribedContextKeys;
         public List<VirtualNode> PortalPreviousChildren;
 		public bool IsFlattened; // true when function component root element is directly mounted without wrapper

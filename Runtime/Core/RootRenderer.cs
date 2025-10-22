@@ -22,6 +22,13 @@ namespace ReactiveUITK.Core
             }
             if (sharedHostContext == null)
             {
+                // Ensure a scheduler exists so passive effects and queued updates flush immediately in runtime
+                if (RenderScheduler.Instance == null)
+                {
+                    var go = new GameObject("RenderScheduler");
+                    go.hideFlags = HideFlags.DontSave;
+                    go.AddComponent<RenderScheduler>();
+                }
                 sharedHostContext = new HostContext(elementRegistry);
                 sharedHostContext.Environment["scheduler"] = RenderScheduler.Instance;
                 sharedHostContext.Environment["isEditor"] = false;
