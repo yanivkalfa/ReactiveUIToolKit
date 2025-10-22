@@ -15,6 +15,8 @@ namespace ReactiveUITK.Elements
         {
             public VisualElement ContentContainer;
             public ScrollView ScrollView;
+            public bool RowWired;
+            public Func<int, object, VirtualNode> RowFn;
         }
         private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList = new();
 
@@ -54,35 +56,55 @@ namespace ReactiveUITK.Elements
             }
             TryApplyProp<int>(properties, "selectedIndex", i => listView.selectedIndex = i);
             TryApplyProp<float>(properties, "fixedItemHeight", h => listView.fixedItemHeight = h);
+            // Selection type: default None when row renderer is used (so embedded buttons work on first click)
+            if (properties.TryGetValue("selectionType", out var selObj) && selObj is SelectionType sel)
+            {
+                listView.selectionType = sel;
+            }
 
             // VNode row rendering support: props["row"] = Func<int, object, VirtualNode>
             if (properties.TryGetValue("row", out var rowObj) && rowObj is Func<int, object, VirtualNode> rowFn)
             {
-                listView.makeItem = () =>
+                var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                parts.RowFn = rowFn; // update latest function reference
+                if (!parts.RowWired)
                 {
-                    var ve = new VisualElement();
-                    ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                    return ve;
-                };
-                listView.bindItem = (ve, i) =>
-                {
-                    var rr = ve.userData as IVNodeHostRenderer;
-                    if (rr == null)
+                    parts.RowWired = true;
+                    // If selectionType not explicitly provided, disable selection for better embedded control UX
+                    if (!properties.ContainsKey("selectionType"))
                     {
-                        rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        ve.userData = rr;
+                        listView.selectionType = SelectionType.None;
                     }
-                    object item = null;
-                    if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
+                    listView.makeItem = () =>
                     {
-                        item = il[i];
-                    }
-                    rr.Render(rowFn(i, item));
-                };
-                listView.unbindItem = (ve, i) =>
-                {
-                    (ve.userData as IVNodeHostRenderer)?.Unmount();
-                };
+                        var ve = new VisualElement();
+                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
+                        return ve;
+                    };
+                    listView.bindItem = (ve, i) =>
+                    {
+                        var rr = ve.userData as IVNodeHostRenderer;
+                        if (rr == null)
+                        {
+                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
+                            ve.userData = rr;
+                        }
+                        object item = null;
+                        if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
+                        {
+                            item = il[i];
+                        }
+                        var f = parts.RowFn;
+                        if (f != null)
+                        {
+                            rr.Render(f(i, item));
+                        }
+                    };
+                    listView.unbindItem = (ve, i) =>
+                    {
+                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                    };
+                }
             }
 
             if (properties.TryGetValue("makeItem", out var mi) && mi is Func<VisualElement> make)
@@ -134,6 +156,13 @@ namespace ReactiveUITK.Elements
 
             TryDiffProp<int>(previous, next, "selectedIndex", i => listView.selectedIndex = i);
             TryDiffProp<float>(previous, next, "fixedItemHeight", h => listView.fixedItemHeight = h);
+            if (next.TryGetValue("selectionType", out var selNext) && selNext is SelectionType selType)
+            {
+                if (listView.selectionType != selType)
+                {
+                    listView.selectionType = selType;
+                }
+            }
 
             // Delegates (compare reference)
             previous.TryGetValue("makeItem", out var oldMakeObj);
@@ -160,33 +189,43 @@ namespace ReactiveUITK.Elements
             // Row function diff (reference check)
             previous.TryGetValue("row", out var prevRowObj);
             next.TryGetValue("row", out var nextRowObj);
-            if (!ReferenceEquals(prevRowObj, nextRowObj) && nextRowObj is Func<int, object, VirtualNode> rowFn)
+            if (nextRowObj is Func<int, object, VirtualNode> nextRowFn)
             {
-                listView.makeItem = () =>
+                var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                parts.RowFn = nextRowFn; // always update latest function reference
+                if (!parts.RowWired)
                 {
-                    var ve = new VisualElement();
-                    ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                    return ve;
-                };
-                listView.bindItem = (ve, i) =>
-                {
-                    var rr = ve.userData as IVNodeHostRenderer;
-                    if (rr == null)
+                    parts.RowWired = true;
+                    listView.makeItem = () =>
                     {
-                        rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        ve.userData = rr;
-                    }
-                    object item = null;
-                    if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
+                        var ve = new VisualElement();
+                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
+                        return ve;
+                    };
+                    listView.bindItem = (ve, i) =>
                     {
-                        item = il[i];
-                    }
-                    rr.Render(rowFn(i, item));
-                };
-                listView.unbindItem = (ve, i) =>
-                {
-                    (ve.userData as IVNodeHostRenderer)?.Unmount();
-                };
+                        var rr = ve.userData as IVNodeHostRenderer;
+                        if (rr == null)
+                        {
+                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
+                            ve.userData = rr;
+                        }
+                        object item = null;
+                        if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
+                        {
+                            item = il[i];
+                        }
+                        var f = parts.RowFn;
+                        if (f != null)
+                        {
+                            rr.Render(f(i, item));
+                        }
+                    };
+                    listView.unbindItem = (ve, i) =>
+                    {
+                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                    };
+                }
             }
 
             DiffSlot(listView, previous, next, "contentContainer");

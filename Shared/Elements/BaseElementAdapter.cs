@@ -34,7 +34,13 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
             previous.TryGetValue(key, out var prevRaw);
             next.TryGetValue(key, out var nextRaw);
+            // Fast path: exact same reference
             if (ReferenceEquals(prevRaw, nextRaw))
+            {
+                return false;
+            }
+            // Value equality: avoid reassigning when values are equal (e.g., boxed value types, strings)
+            if (prevRaw != null && nextRaw != null && Equals(prevRaw, nextRaw))
             {
                 return false;
             }

@@ -24,6 +24,8 @@ namespace ReactiveUITK.EditorExamples
         {
             var host = rootVisualElement;
             host.style.flexGrow = 1f;
+            ReactiveUITK.Core.Reconciler.EnableDiffTracing = true;
+            ReactiveUITK.Core.Reconciler.TraceLevel = ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose;
             EditorRootRendererUtility.Mount(host, V.Func(EditorAppFunc.Render));
         }
 
@@ -126,6 +128,25 @@ namespace ReactiveUITK.EditorExamples
             var radioChoices = Hooks.UseMemo(() => new System.Collections.Generic.List<string>{"One","Two","Three"}, 0);
             var (radioIndex, setRadioIndex) = Hooks.UseState(0);
             var (repeatClicks, setRepeatClicks) = Hooks.UseState(0);
+            var (now, setNow) = Hooks.UseState(System.DateTime.Now);
+            var root = Hooks.UseRef();
+            Hooks.UseEffect(() =>
+            {
+                // Editor timer: throttle via EditorApplication.update to 1Hz
+                double last = -1;
+                void Tick()
+                {
+                    double nowSec = UnityEditor.EditorApplication.timeSinceStartup;
+                    double whole = System.Math.Floor(nowSec);
+                    if (whole != last)
+                    {
+                        last = whole;
+                        setNow(System.DateTime.Now);
+                    }
+                }
+                UnityEditor.EditorApplication.update += Tick;
+                return () => { UnityEditor.EditorApplication.update -= Tick; };
+            }, System.Array.Empty<object>());
 
             ButtonProps toggleButtonProps = new()
             {
@@ -156,8 +177,26 @@ namespace ReactiveUITK.EditorExamples
             ListViewProps listViewProps = new()
             {
                 Items = items,
-                FixedItemHeight = 18f,
-                Row = (i, item) => V.VisualElement(new Style { (StyleKeys.FlexDirection, "row") }, null, V.Text(item?.ToString() ?? "<null>"))
+                FixedItemHeight = 20f,
+                Row = (i, item) =>
+                {
+                    string text = item?.ToString() ?? "<null>";
+                    string id = text;
+                    return V.VisualElement(new Style { (StyleKeys.FlexDirection, "row"), (AlignItems, "center") }, key: $"row-{id}",
+                        V.Text(text),
+                        V.Button(new ButtonProps
+                        {
+                            Text = " X ",
+                            OnClick = () =>
+                            {
+                                var copy = new System.Collections.Generic.List<string>(items);
+                                int idx = copy.IndexOf(id);
+                                if (idx >= 0) { copy.RemoveAt(idx); setItems(copy); }
+                            },
+                            Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) }
+                        })
+                    );
+                }
             };
 
             ButtonProps changeFirstProps = new()
@@ -177,54 +216,54 @@ namespace ReactiveUITK.EditorExamples
 
             Debug.Log($"blaaaa, {repeatClicks}");
 
-            var conditionalList = V.Fragment("list-slot",
-                showList
-                    ? V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", ListContainerStyle } }, key: "list-on", V.ListView(listViewProps))
-                    : V.Text("List hidden", key: "list-off")
-            );
+            var conditionalList = showList
+                ? V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", ListContainerStyle } }, null, V.ListView(listViewProps))
+                : V.Text("List hidden");
 
-            return V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", PageStyle } }, null,
-                V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", TopBarStyle } }, key: "topbar",
+            return V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", PageStyle } }, key: "page-root",
+                V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", TopBarStyle } }, null,
                     V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
                     V.TextField(textFieldProps),
                     V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                 ),
-                V.Button(toggleButtonProps, key: "btn-toggle"),
-                V.Button(changeFirstProps, key: "btn-change-first"),
+                V.Label(new LabelProps { Text = "Now: " + now.ToLongTimeString() }),
+                V.Button(toggleButtonProps),
+                V.Button(changeFirstProps),
                 conditionalList,
                 V.VisualElement(new System.Collections.Generic.Dictionary<string, object> { { "style", ExtrasContainerStyle } }, key: "extras",
-                    V.Label(new LabelProps { Text = "Extras" }, key: "extras-label"),
-                    V.GroupBox(new GroupBoxProps { Text = "GroupBox", ContentContainer = new System.Collections.Generic.Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f), (PaddingTop, 4f) } } } }, key: "group-box",
-                        V.Label(new LabelProps { Text = "Inside group" }, key: "group-box-inner-label")
+                    V.Label(new LabelProps { Text = "Extras" }),
+                    V.GroupBox(new GroupBoxProps { Text = "GroupBox", ContentContainer = new System.Collections.Generic.Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f), (PaddingTop, 4f) } } } }, null,
+                        V.Label(new LabelProps { Text = "Inside group" }, key: "inner-one")
                     ),
                     V.Toggle(new ToggleProps
                     {
                         Text = "Enable option",
                         Value = toggleValue,
                         OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setToggleValue(e.newValue))
-                    }, key: "toggle"),
+                    }),
                     V.RadioButton(new RadioButtonProps
                     {
                         Text = "Single radio",
                         Value = radioChecked,
                         OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setRadioChecked(e.newValue))
-                    }, key: "single-radio"),
+                    }),
                     V.RadioButtonGroup(new RadioButtonGroupProps
                     {
                         Choices = radioChoices,
                         Index = radioIndex,
                         OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<int>>)(e => setRadioIndex(e.newValue))
-                    }, key: "radio-group",
+                    }, null,
                         V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                     ),
-                    V.ProgressBar(new ProgressBarProps { Value = repeatClicks % 100, Title = "Progress" }, key: "progress"),
-                    V.RepeatButton(new RepeatButtonProps { Text = $"Repeat ({repeatClicks})", OnClick = () => setRepeatClicks(repeatClicks + 1) }, key: "repeat-btn")
-                ),
+                    V.ProgressBar(new ProgressBarProps { Value = repeatClicks % 100, Title = "Progress" }),
+                    V.RepeatButton(new RepeatButtonProps { Text = $"Repeat ({repeatClicks})", OnClick = () => setRepeatClicks(repeatClicks + 1) })
+                )
+                ,
                 V.Component<BottomBarComponent>(new System.Collections.Generic.Dictionary<string, object>
                 {
                     { "inputValue", textValue },
                     { "setTextValue", (System.Action<string>)setTextValue }
-                }, key: "bottom-bar")
+                })
             );
         }
     }

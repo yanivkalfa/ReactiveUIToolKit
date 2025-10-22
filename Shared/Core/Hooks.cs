@@ -105,8 +105,31 @@ namespace ReactiveUITK.Core
                 metadata.HookStates[capturedIndex] = newValue;
                 if (metadata.Reconciler != null)
                 {
-                    metadata.HookIndex = 0;
-                    metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
+                    // Avoid re-entrancy: if rendering, defer one update
+                    if (metadata.IsRendering)
+                    {
+                        metadata.PendingUpdate = true;
+                        return;
+                    }
+                    // Prefer scheduling via host scheduler to avoid re-entrancy during render loop
+                    ReactiveUITK.Core.IScheduler scheduler = null;
+                    if (metadata.HostContext != null && metadata.HostContext.Environment != null && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj))
+                    {
+                        scheduler = sObj as ReactiveUITK.Core.IScheduler;
+                    }
+                    if (scheduler != null)
+                    {
+                        if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                        {
+                            try { UnityEngine.Debug.Log("[HookSet:state] key=" + metadata.Key + ", renderPending=" + metadata.IsRendering); } catch { }
+                        }
+                        scheduler.Enqueue(() => { metadata.HookIndex = 0; metadata.Reconciler.ForceFunctionComponentUpdate(metadata); });
+                    }
+                    else
+                    {
+                        metadata.HookIndex = 0;
+                        metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
+                    }
                 }
             }
             return (currentValue, Setter);
@@ -144,8 +167,29 @@ namespace ReactiveUITK.Core
                     metadata.HookStates[index] = next;
                     if (metadata.Reconciler != null)
                     {
-                        metadata.HookIndex = 0;
-                        metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
+                        if (metadata.IsRendering)
+                        {
+                            metadata.PendingUpdate = true;
+                            return;
+                        }
+                        ReactiveUITK.Core.IScheduler scheduler = null;
+                        if (metadata.HostContext != null && metadata.HostContext.Environment != null && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj))
+                        {
+                            scheduler = sObj as ReactiveUITK.Core.IScheduler;
+                        }
+                        if (scheduler != null)
+                        {
+                            if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                            {
+                                try { UnityEngine.Debug.Log("[HookSet:reducer] key=" + metadata.Key + ", renderPending=" + metadata.IsRendering); } catch { }
+                            }
+                            scheduler.Enqueue(() => { metadata.HookIndex = 0; metadata.Reconciler.ForceFunctionComponentUpdate(metadata); });
+                        }
+                        else
+                        {
+                            metadata.HookIndex = 0;
+                            metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
+                        }
                     }
                 }
             }
@@ -160,6 +204,11 @@ namespace ReactiveUITK.Core
                 return factory();
             }
             metadata.HookStates ??= new List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add((factory(), dependencies));
+            }
+            // Guard against transient mismatch
             if (metadata.HookIndex >= metadata.HookStates.Count)
             {
                 metadata.HookStates.Add((factory(), dependencies));

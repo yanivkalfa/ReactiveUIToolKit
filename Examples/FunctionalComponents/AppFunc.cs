@@ -103,6 +103,14 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             List<string> radioChoices = Hooks.UseMemo(() => new List<string>{"One","Two","Three"}, 0);
             var (radioIndex, setRadioIndex) = Hooks.UseState(0);
             var (repeatClicks, setRepeatClicks) = Hooks.UseState(0);
+            var (now, setNow) = Hooks.UseState(System.DateTime.Now);
+            var root = Hooks.UseRef();
+            Hooks.UseEffect(() =>
+            {
+                if (root == null) { return null; }
+                var item = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
+                return () => { try { item?.Pause(); } catch { } };
+            }, System.Array.Empty<object>());
 
 
             ButtonProps toggleButtonProps = new()
@@ -142,12 +150,24 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             ListViewProps listViewProps = new()
             {
                 Items = items,
-                FixedItemHeight = 18f,
+                FixedItemHeight = 20f,
                 Row = (i, item) =>
                 {
                     string text = item?.ToString() ?? "<null>";
-                    return V.VisualElement(new Style { (FlexDirection, "row") }, null,
-                        V.Text(text)
+                    string id = text;
+                    return V.VisualElement(new Style { (FlexDirection, "row"), (AlignItems, "center") }, key: $"row-{id}",
+                        V.Text(text),
+                        V.Button(new ButtonProps
+                        {
+                            Text = " X ",
+                            OnClick = () =>
+                            {
+                                var copy = new List<string>(items);
+                                int idx = copy.IndexOf(id);
+                                if (idx >= 0) { copy.RemoveAt(idx); setItems(copy); }
+                            },
+                            Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) }
+                        })
                     );
                 }
             };
@@ -169,57 +189,55 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             };
 
 
-            VirtualNode conditionalList = V.Fragment("list-slot",
-                showList
-                    ? V.VisualElement(new Dictionary<string, object> { { "style", ListContainerStyle } }, key: "list-on",
-                        V.ListView(listViewProps)
-                      )
-                    : V.Text("List hidden", key: "list-off")
-            );
+            VirtualNode conditionalList = showList
+                ? V.VisualElement(new Dictionary<string, object> { { "style", ListContainerStyle } }, null,
+                    V.ListView(listViewProps)
+                  )
+                : V.Text("List hidden");
 
-            return V.VisualElement(new Dictionary<string, object> { { "style", PageStyle } }, null,
-                V.VisualElement(new Dictionary<string, object> { { "style", TopBarStyle } }, key: "topbar",
+            return V.VisualElement(new Dictionary<string, object> { { "style", PageStyle } }, key: "page-root",
+                V.VisualElement(new Dictionary<string, object> { { "style", TopBarStyle } }, null,
                     V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
                     V.TextField(TextFieldProps),
-                    
                     V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                 ),
-                V.Button(toggleButtonProps, key: "btn-toggle"),
-                V.Button(changeFirstProps, key: "btn-change-first"),
+                V.Label(new LabelProps { Text = "Now: " + now.ToLongTimeString() }),
+                V.Button(toggleButtonProps),
+                V.Button(changeFirstProps),
                 conditionalList,
                 V.VisualElement(new Dictionary<string, object> { { "style", ExtrasContainerStyle } }, key: "extras",
-                    V.Label(new LabelProps { Text = "Extras" }, key: "extras-label"),
-                    V.GroupBox(new GroupBoxProps { Text = "GroupBox", ContentContainer = new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f), (PaddingTop, 4f) } } } }, key: "group-box",
-                        V.Label(new LabelProps { Text = "Inside group" }, key: "group-box-inner-label")
+                    V.Label(new LabelProps { Text = "Extras" }),
+                    V.GroupBox(new GroupBoxProps { Text = "GroupBox", ContentContainer = new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f), (PaddingTop, 4f) } } } }, null,
+                        V.Label(new LabelProps { Text = "Inside group" }, key: "inner-one")
                     ),
                     V.Toggle(new ToggleProps
                     {
                         Text = "Enable option",
                         Value = toggleValue,
                         OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setToggleValue(e.newValue))
-                    }, key: "toggle"),
+                    }),
                     V.RadioButton(new RadioButtonProps
                     {
                         Text = "Single radio",
                         Value = radioChecked,
                         OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setRadioChecked(e.newValue))
-                    }, key: "single-radio"),
+                    }),
                     V.RadioButtonGroup(new RadioButtonGroupProps
                     {
                         Choices = radioChoices,
                         Index = radioIndex,
                         OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<int>>)(e => setRadioIndex(e.newValue))
-                    }, key: "radio-group",
+                    }, null,
                         V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                     ),
-                    V.ProgressBar(new ProgressBarProps { Value = repeatClicks % 100, Title = "Progress" }, key: "progress"),
-                    V.RepeatButton(new RepeatButtonProps { Text = $"Repeat ({repeatClicks})", OnClick = () => setRepeatClicks(repeatClicks + 1) }, key: "repeat-btn")
+                    V.ProgressBar(new ProgressBarProps { Value = repeatClicks % 100, Title = "Progress" }),
+                    V.RepeatButton(new RepeatButtonProps { Text = $"Repeat ({repeatClicks})", OnClick = () => setRepeatClicks(repeatClicks + 1) })
                 ),
                 V.Component<BottomBarComponent>(new Dictionary<string, object> 
                 {
                     { "inputValue", textValue },
                     { "setTextValue", (System.Action<string>)setTextValue }
-                }, key: "bottom-bar")
+                })
             );
         }
     }

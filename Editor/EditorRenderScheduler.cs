@@ -82,8 +82,21 @@ namespace ReactiveUITK.EditorSupport
             ExecuteQueue(normalPriorityQueue);
             ExecuteQueue(lowPriorityQueue);
             ExecuteQueue(idlePriorityQueue);
+            if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+            {
+                int h = highPriorityQueue.Count, n = normalPriorityQueue.Count, l = lowPriorityQueue.Count, i = idlePriorityQueue.Count, b = batchedEffectActions.Count;
+                if (h + n + l + i + b > 0)
+                {
+                    try { Debug.Log($"[Pump] qH={h} qN={n} qL={l} qI={i} batched={b}"); } catch { }
+                }
+            }
             if (batchedEffectActions.Count > 0)
             {
+                int count = batchedEffectActions.Count;
+                if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                {
+                    try { Debug.Log("[Pump:flush-effects] count=" + count); } catch { }
+                }
                 foreach (var e in batchedEffectActions)
                 {
                     try { e(); } catch (Exception ex) { Debug.LogError(ex); }

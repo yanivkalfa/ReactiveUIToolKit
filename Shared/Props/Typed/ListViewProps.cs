@@ -18,6 +18,7 @@ namespace ReactiveUITK.Props.Typed
         public Style Style { get; set; }
         // VNode-based row renderer
         public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
+        public SelectionType? Selection { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -57,6 +58,10 @@ namespace ReactiveUITK.Props.Typed
             if (Row != null)
             {
                 dict["row"] = Row;
+            }
+            if (Selection.HasValue)
+            {
+                dict["selectionType"] = Selection.Value;
             }
             if (Style != null)
             {
