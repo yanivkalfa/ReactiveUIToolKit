@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core;
 using ReactiveUITK;
-using ReactiveUITK.Examples.Shared;
+using ReactiveUITK.Samples.Shared;
 
 public class ReactiveUIBootstrap : MonoBehaviour
 {

@@ -3,16 +3,16 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Examples.FunctionalComponents;
+using ReactiveUITK.Samples.FunctionalComponents;
 
-namespace ReactiveUITK.Examples.Editor
+namespace ReactiveUITK.Samples.Editor
 {
-    public sealed class EditorSimpleUseEffectDemoWindow : EditorWindow
+    public sealed class EditorHelloWorldDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Simple UseEffect")]
+        [MenuItem("Window/ReactiveUITK/Demos/Hello World")]
         public static void ShowWindow()
         {
-            EditorSimpleUseEffectDemoWindow window = GetWindow<EditorSimpleUseEffectDemoWindow>("Simple UseEffect Demo");
+            EditorHelloWorldDemoWindow window = GetWindow<EditorHelloWorldDemoWindow>("Hello World Demo");
             window.minSize = new Vector2(420, 320);
             window.Show();
         }
@@ -21,7 +21,7 @@ namespace ReactiveUITK.Examples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(hostElement, V.Func(SimpleUseEffectFunc.Render));
+            EditorRootRendererUtility.Render(hostElement, V.Func(HelloWorldFunc.Render));
         }
 
         private void OnDisable()

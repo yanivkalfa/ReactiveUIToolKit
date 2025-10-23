@@ -1,13 +1,14 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Samples.Shared;
 
-namespace ReactiveUITK.Examples.FunctionalComponents
+namespace ReactiveUITK.Samples.FunctionalComponents
 {
-    public static class HelloWorldFunc
+    public static class RuntimeAppExample
     {
         public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
-            return V.Text("Hello, world! (Functional Component)");
+            return V.Func(SharedDemoPage.Render);
         }
     }
 }

@@ -1,9 +1,9 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core;
-using ReactiveUITK.Examples.FunctionalComponents;
+using ReactiveUITK.Samples.FunctionalComponents;
 
-namespace ReactiveUITK.Examples.Showcase.Runtime
+namespace ReactiveUITK.Samples.Showcase.Runtime
 {
    [RequireComponent(typeof(RootRenderer))]
    public class RuntimeSimpleUseEffectDemo : MonoBehaviour

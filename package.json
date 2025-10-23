@@ -1,0 +1,40 @@
+{
+  "name": "com.reactiveuitoolkit",
+  "displayName": "Reactive UIToolKit",
+  "version": "0.0.1",
+  "unity": "6000.2",
+  "description": "Lightweight React-inspired component model for Unity UI Toolkit. Supports function components (V.Func), hooks (state, reducer, memo, effect, layoutEffect, context, deferred value, imperative handle), portals, suspense, snapshots, and a typed props model.",
+  "author": {
+    "name": "ReactiveUIToolKit"
+  },
+  "keywords": [
+    "ui",
+    "uitoolkit",
+    "react",
+    "hooks",
+    "unity"
+  ],
+  "dependencies": {},
+  "samples": [
+    {
+      "displayName": "Functional Components",
+      "description": "HelloWorld, Counter, TextField, UseEffect examples",
+      "path": "Samples/FunctionalComponents"
+    },
+    {
+      "displayName": "Showcase (Editor)",
+      "description": "Editor demo windows rendering functional components",
+      "path": "Samples/Showcase/Editor"
+    },
+    {
+      "displayName": "Showcase (Runtime + Editor)",
+      "description": "Shared demo page",
+      "path": "Samples/Showcase/Both"
+    },
+    {
+      "displayName": "Showcase (Runtime)",
+      "description": "Runtime bootstrap + simple demos",
+      "path": "Samples/Showcase/Runtime"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 
-namespace ReactiveUITK.Examples.FunctionalComponents
+namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SimpleCounterFunc
     {

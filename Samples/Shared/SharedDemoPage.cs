@@ -6,7 +6,7 @@ using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
 
-namespace ReactiveUITK.Examples.Shared
+namespace ReactiveUITK.Samples.Shared
 {
     public static class SharedDemoPage
     {

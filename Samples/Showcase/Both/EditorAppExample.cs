@@ -3,16 +3,16 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Examples.FunctionalComponents;
+using ReactiveUITK.Samples.Shared;
 
-namespace ReactiveUITK.Examples.Editor
+namespace ReactiveUITK.Samples.Editor
 {
-    public sealed class EditorSimpleTextFieldDemoWindow : EditorWindow
+    public sealed class EditorAppExampleWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Simple TextField")]
+        [MenuItem("Window/ReactiveUITK/Demos/Showcase All")]
         public static void ShowWindow()
         {
-            EditorSimpleTextFieldDemoWindow window = GetWindow<EditorSimpleTextFieldDemoWindow>("Simple TextField Demo");
+            EditorAppExampleWindow window = GetWindow<EditorAppExampleWindow>("ReactiveUITK Showcase Demo");
             window.minSize = new Vector2(420, 320);
             window.Show();
         }
@@ -21,7 +21,7 @@ namespace ReactiveUITK.Examples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(hostElement, V.Func(SimpleTextFieldFunc.Render));
+            EditorRootRendererUtility.Render(hostElement, V.Func(SharedDemoPage.Render));
         }
 
         private void OnDisable()
