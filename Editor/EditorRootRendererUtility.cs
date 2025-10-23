@@ -34,14 +34,7 @@ namespace ReactiveUITK.EditorSupport
             Mount(hostElement, root);
         }
 
-        public static void Render(VisualElement hostElement, System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction)
-        {
-            if (renderFunction == null)
-            {
-                return;
-            }
-            Mount(hostElement, (VirtualNode)renderFunction);
-        }
+        // Note: Only VirtualNode input is supported to enforce explicit V.Func usage.
 
         public static void Unmount(VisualElement hostElement)
         {

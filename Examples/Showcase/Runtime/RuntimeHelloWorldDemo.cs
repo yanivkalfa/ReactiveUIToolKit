@@ -1,25 +1,25 @@
-//using UnityEngine;
-//using UnityEngine.UIElements;
-//using ReactiveUITK.Core;
-//using ReactiveUITK.Examples.FunctionalComponents;
+using UnityEngine;
+using UnityEngine.UIElements;
+using ReactiveUITK.Core;
+using ReactiveUITK.Examples.FunctionalComponents;
 
-//namespace ReactiveUITK.Examples.Showcase.Runtime
-//{
-//    [RequireComponent(typeof(RootRenderer))]
-//    public class RuntimeHelloWorldDemo : MonoBehaviour
-//    {
-//        [SerializeField] private UIDocument uiDocument;
-//        private RootRenderer rootRenderer;
-//        private void Awake()
-//        {
-//            rootRenderer = GetComponent<RootRenderer>();
-//            if (rootRenderer == null || uiDocument == null || uiDocument.rootVisualElement == null)
-//            {
-//                Debug.LogError("RuntimeHelloWorldDemo: Missing RootRenderer or UIDocument");
-//                return;
-//            }
-//            rootRenderer.Initialize(uiDocument.rootVisualElement);
-//            rootRenderer.Render(() => V.Func(HelloWorldFunc.Render));
-//        }
-//    }
-//}
+namespace ReactiveUITK.Examples.Showcase.Runtime
+{
+   [RequireComponent(typeof(RootRenderer))]
+   public class RuntimeHelloWorldDemo : MonoBehaviour
+   {
+       [SerializeField] private UIDocument uiDocument;
+       private RootRenderer rootRenderer;
+       private void Awake()
+       {
+           rootRenderer = GetComponent<RootRenderer>();
+           if (rootRenderer == null || uiDocument == null || uiDocument.rootVisualElement == null)
+           {
+               Debug.LogError("RuntimeHelloWorldDemo: Missing RootRenderer or UIDocument");
+               return;
+           }
+           rootRenderer.Initialize(uiDocument.rootVisualElement);
+           rootRenderer.Render(V.Func(HelloWorldFunc.Render));
+       }
+   }
+}
