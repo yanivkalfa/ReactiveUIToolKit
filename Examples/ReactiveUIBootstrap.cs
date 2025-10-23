@@ -1,7 +1,8 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core;
-using ReactiveUITK.Examples.FunctionalComponents;
+using ReactiveUITK;
+using ReactiveUITK.Examples.Shared;
 
 public class ReactiveUIBootstrap : MonoBehaviour
 {
@@ -21,6 +22,6 @@ public class ReactiveUIBootstrap : MonoBehaviour
             return;
         }
         rootRenderer.Initialize(uiDocument.rootVisualElement);
-        rootRenderer.Render<RuntimeAppExampleRoot>();
+        rootRenderer.Render(V.Func(SharedDemoPage.Render));
     }
 }

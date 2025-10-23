@@ -12,7 +12,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Text,
                 elementTypeName: null,
-                componentType: null,
                 functionRender: null,
                 textContent: textContent ?? string.Empty,
                 key: key,
@@ -30,7 +29,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -48,7 +46,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Button",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -80,7 +77,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "TextField",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -98,7 +94,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "ListView",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -114,7 +109,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Label",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -130,7 +124,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "GroupBox",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -146,7 +139,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Toggle",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -162,7 +154,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "RadioButton",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -178,7 +169,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "RadioButtonGroup",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -194,7 +184,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "ProgressBar",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -210,7 +199,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "RepeatButton",
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -219,27 +207,7 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Component<TComponent>(
-            IReadOnlyDictionary<string, object> componentProps = null,
-            string key = null,
-            bool memoize = false,
-            System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
-            params VirtualNode[] children) where TComponent : UnityEngine.MonoBehaviour, ReactiveUITK.Core.IReactiveComponent
-        {
-            componentProps = CloneStyleDictionary(componentProps);
-            return new VirtualNode(
-                VirtualNodeType.Component,
-                elementTypeName: null,
-                componentType: typeof(TComponent),
-                functionRender: null,
-                textContent: null,
-                key: key,
-                properties: componentProps ?? EmptyProps(),
-                children: children ?? EmptyChildren(),
-                memoize: memoize,
-                memoCompare: memoCompare
-            );
-        }
+        
 
         public static VirtualNode Func(
             System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
@@ -253,7 +221,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.FunctionComponent,
                 elementTypeName: null,
-                componentType: null,
                 functionRender: renderFunction,
                 textContent: null,
                 key: key,
@@ -269,7 +236,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Fragment,
                 elementTypeName: null,
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -283,7 +249,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Portal,
                 elementTypeName: null,
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -298,7 +263,6 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Suspense,
                 elementTypeName: null,
-                componentType: null,
                 functionRender: null,
                 textContent: null,
                 key: key,

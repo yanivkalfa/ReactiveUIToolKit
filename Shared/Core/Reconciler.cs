@@ -179,21 +179,7 @@ namespace ReactiveUITK.Core
                     BuildChildren(virtualNode.PortalTarget, virtualNode.Children);
                     portalBuildCount++;
                     return;
-                case VirtualNodeType.Component when virtualNode.ComponentType != null:
-                    bool isEditorHost = hostContext != null && hostContext.Environment != null && hostContext.Environment.TryGetValue("isEditor", out var isEdVal) && isEdVal is bool bb && bb;
-                    GameObject componentGameObject = new(virtualNode.ComponentType.Name);
-                    if (isEditorHost)
-                    {
-                        componentGameObject.hideFlags = HideFlags.HideAndDontSave;
-                    }
-                    IReactiveComponent reactiveComponentInstance = (IReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
-                    VisualElement componentContainer = new() { name = virtualNode.ComponentType.Name + "Container" };
-                    NodeMetadata componentMetadata = new() { Key = virtualNode.Key, ComponentInstance = reactiveComponentInstance };
-                    componentContainer.userData = componentMetadata;
-                    parentElement.Add(componentContainer);
-                    reactiveComponentInstance.SetProps(new Dictionary<string, object>(virtualNode.Properties));
-                    reactiveComponentInstance.Mount(componentContainer, hostContext);
-                    return;
+                // Class component nodes removed
                 case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
                     string funcName = virtualNode.FunctionRender.Method.Name;
                     // Always use wrapper container; no pre-render flattening
@@ -432,19 +418,6 @@ namespace ReactiveUITK.Core
                     }
                     Cache(virtualNode.Key, portalPlaceholderElement);
                     return portalPlaceholderElement;
-                case VirtualNodeType.Component when virtualNode.ComponentType != null:
-                    bool isEditorHostDet = hostContext != null && hostContext.Environment != null && hostContext.Environment.TryGetValue("isEditor", out var isEdValDet) && isEdValDet is bool bbb && bbb;
-                    GameObject componentGameObject = new(virtualNode.ComponentType.Name);
-                    if (isEditorHostDet)
-                    {
-                        componentGameObject.hideFlags = HideFlags.HideAndDontSave;
-                    }
-                    IReactiveComponent reactiveComponentInstance = (IReactiveComponent)componentGameObject.AddComponent(virtualNode.ComponentType);
-                    VisualElement componentContainer = new() { name = virtualNode.ComponentType.Name + "Container", userData = new NodeMetadata { Key = virtualNode.Key, ComponentInstance = reactiveComponentInstance } };
-                    reactiveComponentInstance.SetProps(new Dictionary<string, object>(virtualNode.Properties));
-                    reactiveComponentInstance.Mount(componentContainer, hostContext);
-                    Cache(virtualNode.Key, componentContainer);
-                    return componentContainer;
                 case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
                     string funcName = virtualNode.FunctionRender.Method.Name;
                     // Wrapper-only semantics: never pre-render/flatten
@@ -557,35 +530,7 @@ namespace ReactiveUITK.Core
 				ReplaceNode(hostElement, nextNode);
 				return;
 			}
-			if (nextNode.NodeType == VirtualNodeType.Component)
-			{
-				if (previousNode.ComponentType != nextNode.ComponentType)
-				{
-					ReplaceNode(hostElement, nextNode);
-					return;
-				}
-                NodeMetadata componentMetadata = hostElement.userData as NodeMetadata;
-                IReactiveComponent componentInstance = componentMetadata?.ComponentInstance;
-                if (componentInstance == null)
-                {
-                    ReplaceNode(hostElement, nextNode);
-                    return;
-                }
-				if (ShouldSkipMemo(previousNode, nextNode, previousNode.Properties, nextNode.Properties))
-				{
-					return;
-				}
-				reconciledNodeCount++;
-				try
-				{
-					componentInstance.SetProps(new Dictionary<string, object>(nextNode.Properties));
-				}
-				catch (Exception ex)
-				{
-					UnityEngine.Debug.LogError($"ReactiveUITK: Component update failed ({nextNode.ComponentType.Name}): {ex}");
-				}
-				return;
-			}
+			// Class component nodes removed
 			if (nextNode.NodeType == VirtualNodeType.FunctionComponent)
 			{
 				NodeMetadata functionMetadata = hostElement.userData as NodeMetadata;
@@ -903,19 +848,7 @@ namespace ReactiveUITK.Core
                 if (metadata.EventHandlerTargets != null) metadata.EventHandlerTargets.Clear();
                 if (metadata.EventHandlerSignatures != null) metadata.EventHandlerSignatures.Clear();
             }
-            if (metadata.ComponentInstance != null)
-            {
-                try
-                {
-                    if (metadata.ComponentInstance is UnityEngine.MonoBehaviour mb)
-                    {
-                        UnityEngine.Object.Destroy(mb.gameObject);
-                    }
-                }
-                catch
-                {
-                }
-            }
+            // No class component cleanup needed
             if (metadata.FunctionEffects != null)
             {
                 foreach (var effect in metadata.FunctionEffects)

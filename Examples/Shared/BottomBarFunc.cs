@@ -1,5 +1,5 @@
+using System;
 using System.Collections.Generic;
-using UnityEngine;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
@@ -7,12 +7,8 @@ using UColor = UnityEngine.Color;
 
 namespace ReactiveUITK.Examples.Shared
 {
-    public sealed class BottomBarComponent : ReactiveComponent
+    public static class BottomBarFunc
     {
-        private int leftClicks;
-        private int rightClicks;
-        private string inputValueCache;
-
         private static readonly Style BarStyle = new()
         {
             (BackgroundColor, UColor.white),
@@ -50,17 +46,18 @@ namespace ReactiveUITK.Examples.Shared
             (BackgroundColor, new UColor(0.7f, 0.2f, 0.6f, 1f))
         };
 
-        protected override VirtualNode Render()
+        public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
+            var (leftClicks, setLeftClicks) = Hooks.UseState(0);
+            var (rightClicks, setRightClicks) = Hooks.UseState(0);
+
             string inputValue = string.Empty;
-            if (Props != null && Props.TryGetValue("inputValue", out var v) && v is string s)
+            if (props != null && props.TryGetValue("inputValue", out var v) && v is string s)
             {
                 inputValue = s;
             }
-            inputValueCache = inputValue;
-
-            System.Action<string> setParentText = null;
-            if (Props != null && Props.TryGetValue("setTextValue", out var setterObj) && setterObj is System.Action<string> setter)
+            Action<string> setParentText = null;
+            if (props != null && props.TryGetValue("setTextValue", out var setterObj) && setterObj is Action<string> setter)
             {
                 setParentText = setter;
             }
@@ -68,32 +65,25 @@ namespace ReactiveUITK.Examples.Shared
             var leftButtonProps = new ButtonProps
             {
                 Style = LeftButtonStyle,
-                OnClick = () =>
-                {
-                    SetState(ref leftClicks, leftClicks + 1);
-                    setParentText?.Invoke("left");
-                },
+                OnClick = () => { setLeftClicks(leftClicks + 1); setParentText?.Invoke("left"); },
                 Text = $"Bottom Left ({leftClicks})"
             };
 
             var rightButtonProps = new ButtonProps
             {
                 Style = RightButtonStyle,
-                OnClick = () =>
-                {
-                    SetState(ref rightClicks, rightClicks + 1);
-                    setParentText?.Invoke("right");
-                },
+                OnClick = () => { setRightClicks(rightClicks + 1); setParentText?.Invoke("right"); },
                 Text = $"Bottom Right ({rightClicks})"
             };
 
             var barProps = new Dictionary<string, object> { { "style", BarStyle } };
 
             return V.VisualElement(barProps, null,
-                V.Text(string.IsNullOrEmpty(inputValueCache) ? "Type above..." : ("Typed: " + inputValueCache)),
+                V.Text(string.IsNullOrEmpty(inputValue) ? "Type above..." : ("Typed: " + inputValue)),
                 V.Button(leftButtonProps),
                 V.Button(rightButtonProps)
             );
         }
     }
 }
+

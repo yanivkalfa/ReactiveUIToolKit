@@ -11,7 +11,6 @@ namespace ReactiveUITK.Core
         // Latest user-provided handlers per event; wrappers read from here at invoke time
         public Dictionary<string, Delegate> EventHandlerTargets = new();
         public Dictionary<string, string> EventHandlerSignatures = new();
-        public IReactiveComponent ComponentInstance;
         // Restored original System.Func signature for compatibility
         public System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> FuncRender;
         public Dictionary<string, object> FuncProps;

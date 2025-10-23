@@ -6,7 +6,6 @@ namespace ReactiveUITK.Core
     {
         Element,
         Text,
-        Component,
         FunctionComponent,
         Fragment,
         Portal,
@@ -17,7 +16,6 @@ namespace ReactiveUITK.Core
     {
         public VirtualNodeType NodeType { get; set; }
         public string ElementTypeName { get; set; }
-        public System.Type ComponentType { get; set; }
         public System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> FunctionRender { get; set; }
         public bool Memoize { get; set; }
         public System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> MemoCompare { get; set; }
@@ -33,7 +31,6 @@ namespace ReactiveUITK.Core
         public VirtualNode(
             VirtualNodeType nodeType,
             string elementTypeName,
-            System.Type componentType,
             System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> functionRender,
             string textContent,
             string key,
@@ -48,7 +45,6 @@ namespace ReactiveUITK.Core
         {
             NodeType = nodeType;
             ElementTypeName = elementTypeName;
-            ComponentType = componentType;
             FunctionRender = functionRender;
             TextContent = textContent;
             Key = key;

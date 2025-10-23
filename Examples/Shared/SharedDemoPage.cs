@@ -147,10 +147,10 @@ namespace ReactiveUITK.Examples.Shared
                     V.ProgressBar(new ProgressBarProps { Value = repeatClickCount % 100, Title = "Progress" }),
                     V.RepeatButton(new RepeatButtonProps { Text = $"Repeat ({repeatClickCount})", OnClick = () => setRepeatClickCount(repeatClickCount + 1) })
                 ),
-                V.Component<BottomBarComponent>(new Dictionary<string, object>
+                V.Func(BottomBarFunc.Render, new Dictionary<string, object>
                 {
                     { "inputValue", inputText },
-                    { "setTextValue",setInputText }
+                    { "setTextValue", setInputText }
                 })
             );
         }

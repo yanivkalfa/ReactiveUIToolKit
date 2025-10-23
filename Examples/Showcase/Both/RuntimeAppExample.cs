@@ -11,12 +11,4 @@ namespace ReactiveUITK.Examples.FunctionalComponents
             return V.Func(SharedDemoPage.Render);
         }
     }
-
-    public sealed class RuntimeAppExampleRoot : ReactiveComponent
-    {
-        protected override VirtualNode Render()
-        {
-            return V.Func(RuntimeAppExample.Render);
-        }
-    }
 }

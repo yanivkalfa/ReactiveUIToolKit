@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Elements;
@@ -12,7 +12,7 @@ namespace ReactiveUITK.Core
         private HostContext sharedHostContext;
         private ElementRegistry elementRegistry;
         private VisualElement rootElement;
-        private ReactiveComponent currentMountedComponent;
+        private VNodeHostRenderer vnodeHostRenderer;
 
         private void EnsureSetup()
         {
@@ -22,7 +22,6 @@ namespace ReactiveUITK.Core
             }
             if (sharedHostContext == null)
             {
-                // Ensure a scheduler exists so passive effects and queued updates flush immediately in runtime
                 if (RenderScheduler.Instance == null)
                 {
                     var go = new GameObject("RenderScheduler");
@@ -52,40 +51,29 @@ namespace ReactiveUITK.Core
             rootElement = uiRootElement;
         }
 
-        public TComponent Render<TComponent>(Dictionary<string, object> componentProps = null) where TComponent : ReactiveComponent
+        // Consistent, explicit API: always pass a VirtualNode (from V.Func, V.Fragment, etc.)
+        public void Render(VirtualNode rootNode)
         {
             EnsureSetup();
             if (rootElement == null)
             {
                 Debug.LogError("RootRenderer: root not initialized");
-                return null;
+                return;
             }
-            if (currentMountedComponent != null)
+            if (vnodeHostRenderer == null)
             {
-                currentMountedComponent.Unmount();
-                Destroy(currentMountedComponent.gameObject);
-                currentMountedComponent = null;
+                vnodeHostRenderer = new VNodeHostRenderer(sharedHostContext, rootElement);
             }
-            GameObject componentGameObject = new(typeof(TComponent).Name);
-            TComponent componentInstance = componentGameObject.AddComponent<TComponent>();
-            if (componentProps != null)
-            {
-                componentInstance.SetProps(componentProps);
-            }
-            componentInstance.Mount(rootElement, sharedHostContext);
-            currentMountedComponent = componentInstance;
-            return componentInstance;
+            vnodeHostRenderer.Render(rootNode);
         }
 
         public void Unmount()
         {
-            if (currentMountedComponent == null)
+            if (vnodeHostRenderer != null)
             {
-                return;
+                vnodeHostRenderer.Unmount();
+                vnodeHostRenderer = null;
             }
-            currentMountedComponent.Unmount();
-            Destroy(currentMountedComponent.gameObject);
-            currentMountedComponent = null;
         }
     }
 }
