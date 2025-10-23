@@ -7,6 +7,9 @@ using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
 using ReactiveUITK.Examples.ClassComponents;
+using System.Collections.Generic; // added for RowItem
+using System; // added for Func<>
+
 
 namespace ReactiveUITK.EditorExamples
 {
@@ -37,6 +40,29 @@ namespace ReactiveUITK.EditorExamples
 
     internal static class EditorAppFunc
     {
+        // Stable row item with immutable Id separate from display text
+        private sealed class RowItem
+        {
+            public string Id; // immutable identity used for VNode key
+            public string Text; // mutable display value
+            public override string ToString() => $"{Text}({Id.Substring(0,6)})";
+        }
+
+        private static string FormatItems(List<RowItem> items)
+        {
+            if (items == null) return "<null-items>";
+            var sb = new System.Text.StringBuilder();
+            sb.Append("[");
+            for (int i = 0; i < items.Count; i++)
+            {
+                if (i > 0) sb.Append(", ");
+                var it = items[i];
+                sb.Append(i).Append(":").Append(it?.Text).Append("#").Append(it?.Id.Substring(0,6));
+            }
+            sb.Append("]");
+            return sb.ToString();
+        }
+
         private static readonly Style TopBarStyle = new()
         {
             (BackgroundColor, new UColor(1f,1f,1f,1f)),
@@ -133,11 +159,52 @@ namespace ReactiveUITK.EditorExamples
             Hooks.UseEffect(() =>
             {
                 if (root == null) { return null; }
-                var item = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
-                return () => { try { item?.Pause(); } catch { } };
+                var itemTimer = root.schedule.Execute(() => setNow(System.DateTime.Now)).Every(1000);
+                return () => { try { itemTimer?.Pause(); } catch { } };
             }, System.Array.Empty<object>());
 
-            
+            var initialItems = Hooks.UseMemo(() =>
+            {
+                var list = new List<RowItem>();
+                for (int i = 1; i <= 5; i++) list.Add(new RowItem { Id = System.Guid.NewGuid().ToString("N"), Text = $"Item {i}" });
+                return list;
+            });
+            var (items, setItems) = Hooks.UseState(initialItems);
+
+            var rowFn = Hooks.UseMemo(() => (Func<int, object, VirtualNode>)((i, itemObj) =>
+            {
+                Debug.Log("[RowFn] rendering index=" + i + " itemObj=" + itemObj);
+                var rowItem = itemObj as RowItem;
+                string display = rowItem?.Text ?? "<null>";
+                string key = rowItem != null ? ($"{rowItem.Id}-{i}") : $"row-missing-{i}";
+                return V.VisualElement(new Style { (StyleKeys.FlexDirection, "row"), (AlignItems, "center") }, key: key,
+                    V.Text(display),
+                    V.Button(new ButtonProps
+                    {
+                        Text = " X ",
+                        OnClick = () =>
+                        {
+                            if (rowItem == null) return;
+                            var copy = new List<RowItem>(items);
+                            int idx = copy.FindIndex(r => r.Id == rowItem.Id);
+                            if (idx >= 0)
+                            {
+                                copy.RemoveAt(idx);
+                                setItems(copy);
+                            }
+                        },
+                        Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) }
+                    })
+                );
+            }), items);
+
+            ListViewProps listViewProps = new()
+            {
+                Items = items,
+                FixedItemHeight = 20f,
+                Selection = UnityEngine.UIElements.SelectionType.None,
+                Row = rowFn
+            };
 
             ButtonProps toggleButtonProps = new()
             {
@@ -156,46 +223,6 @@ namespace ReactiveUITK.EditorExamples
                 OnChange = (System.Action<UnityEngine.UIElements.ChangeEvent<string>>)(e => setTextValue(e.newValue))
             };
 
-            // Items state
-            var initialItems = Hooks.UseMemo(() =>
-            {
-                var list = new System.Collections.Generic.List<string>();
-                for (int i = 1; i <= 5; i++) list.Add($"Item {i}");
-                return list;
-            });
-            var (items, setItems) = Hooks.UseState(initialItems);
-
-            ListViewProps listViewProps = new()
-            {
-                Items = items,
-                FixedItemHeight = 20f,
-                Selection = UnityEngine.UIElements.SelectionType.None,
-                Row = (i, item) =>
-                {
-                    Debug.Log($"Debug - before {item.ToString()} ---- {i}");
-                    string text = item?.ToString() ?? "<null>";
-                    Debug.Log($"Debug - text: {text} - {item.ToString()} ---- {i}");
-                    string id = text;
-                    return V.VisualElement(new Style { (StyleKeys.FlexDirection, "row"), (AlignItems, "center") }, key: $"row-{id}",
-                        V.Text(text),
-                        V.Button(new ButtonProps
-                        {
-                            Text = " X ",
-                            OnClick = () =>
-                            {
-                                Debug.Log($"Debug - clicked {item.ToString()} ---- {i}");
-                                var copy = new System.Collections.Generic.List<string>(items);
-                                int idx = copy.IndexOf(id);
-
-                                Debug.Log($"Debug - idx {idx} - {item.ToString()} ---- {i}");
-                                if (idx >= 0) { copy.RemoveAt(idx); setItems(copy); }
-                            },
-                            Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) }
-                        })
-                    );
-                }
-            };
-
             ButtonProps changeFirstProps = new()
             {
                 Text = "Change First Item",
@@ -203,8 +230,10 @@ namespace ReactiveUITK.EditorExamples
                 {
                     if (items.Count > 0)
                     {
-                        items[0] = "UPDATED " + System.DateTime.Now.ToLongTimeString();
-                        setItems(items);
+                        var copy = new List<RowItem>(items);
+                        copy[0] = new RowItem { Id = copy[0].Id, Text = "UPDATED " + System.DateTime.Now.ToLongTimeString() };
+                        Debug.Log("[ChangeFirst] newItems=" + FormatItems(copy));
+                        setItems(copy);
                     }
                 },
                 Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) }
