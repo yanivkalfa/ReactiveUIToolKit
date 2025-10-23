@@ -3,7 +3,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 
-namespace ReactiveUITK.Examples.FunctionalComponents
+namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SimpleUseEffectFunc
     {

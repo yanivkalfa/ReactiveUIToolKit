@@ -3,16 +3,16 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Examples.FunctionalComponents;
+using ReactiveUITK.Samples.FunctionalComponents;
 
-namespace ReactiveUITK.Examples.Editor
+namespace ReactiveUITK.Samples.Editor
 {
-    public sealed class EditorSimpleCounterDemoWindow : EditorWindow
+    public sealed class EditorSimpleTextFieldDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Simple Counter")]
+        [MenuItem("Window/ReactiveUITK/Demos/Simple TextField")]
         public static void ShowWindow()
         {
-            EditorSimpleCounterDemoWindow window = GetWindow<EditorSimpleCounterDemoWindow>("Simple Counter Demo");
+            EditorSimpleTextFieldDemoWindow window = GetWindow<EditorSimpleTextFieldDemoWindow>("Simple TextField Demo");
             window.minSize = new Vector2(420, 320);
             window.Show();
         }
@@ -21,7 +21,7 @@ namespace ReactiveUITK.Examples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(hostElement, V.Func(SimpleCounterFunc.Render));
+            EditorRootRendererUtility.Render(hostElement, V.Func(SimpleTextFieldFunc.Render));
         }
 
         private void OnDisable()

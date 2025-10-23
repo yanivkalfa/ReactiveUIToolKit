@@ -1,4 +1,4 @@
-namespace ReactiveUITK.Examples.Shared
+namespace ReactiveUITK.Samples.Shared
 {
     public sealed class SharedRowItem
     {

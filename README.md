@@ -16,7 +16,6 @@ You need access to a UI Toolkit `VisualElement` root (usually from a `UIDocument
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core; // for RootRenderer
-using ReactiveUITK.Examples.ClassComponents; // or your own components
 
 public class ReactiveUIBootstrap : MonoBehaviour
 {

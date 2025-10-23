@@ -1,12 +1,12 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core;
-using ReactiveUITK.Examples.FunctionalComponents;
+using ReactiveUITK.Samples.FunctionalComponents;
 
-namespace ReactiveUITK.Examples.Showcase.Runtime
+namespace ReactiveUITK.Samples.Showcase.Runtime
 {
    [RequireComponent(typeof(RootRenderer))]
-   public class RuntimeSimpleTextFieldDemo : MonoBehaviour
+   public class RuntimeSimpleCounterDemo : MonoBehaviour
    {
        [SerializeField] private UIDocument uiDocument;
        private RootRenderer rootRenderer;
@@ -15,11 +15,11 @@ namespace ReactiveUITK.Examples.Showcase.Runtime
            rootRenderer = GetComponent<RootRenderer>();
            if (rootRenderer == null || uiDocument == null || uiDocument.rootVisualElement == null)
            {
-               Debug.LogError("RuntimeSimpleTextFieldDemo: Missing RootRenderer or UIDocument");
+               Debug.LogError("RuntimeSimpleCounterDemo: Missing RootRenderer or UIDocument");
                return;
            }
            rootRenderer.Initialize(uiDocument.rootVisualElement);
-           rootRenderer.Render(V.Func(SimpleTextFieldFunc.Render));
+           rootRenderer.Render(V.Func(SimpleCounterFunc.Render));
        }
    }
 }

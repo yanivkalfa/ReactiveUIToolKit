@@ -5,7 +5,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 
-namespace ReactiveUITK.Examples.Shared
+namespace ReactiveUITK.Samples.Shared
 {
     public static class SharedListViewRow
     {

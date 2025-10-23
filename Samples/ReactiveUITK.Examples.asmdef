@@ -1,5 +1,5 @@
 {
-  "name": "ReactiveUITK.Examples",
+  "name": "ReactiveUITK.Samples",
   "references": [
     "ReactiveUITK.Editor",
     "ReactiveUITK.Shared",
