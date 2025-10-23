@@ -22,6 +22,6 @@ public class ReactiveUIBootstrap : MonoBehaviour
             return;
         }
         rootRenderer.Initialize(uiDocument.rootVisualElement);
-        rootRenderer.Render(V.Func(SharedDemoPage.Render));
+        rootRenderer.Render(SharedDemoPage.Render);
     }
 }

@@ -20,7 +20,7 @@ namespace ReactiveUITK.Examples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Mount(hostElement, V.Func(SimpleCounterFunc.Render));
+            EditorRootRendererUtility.Render(hostElement, SimpleCounterFunc.Render);
         }
 
         private void OnDisable()

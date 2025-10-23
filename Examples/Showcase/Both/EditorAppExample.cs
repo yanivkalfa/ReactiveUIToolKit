@@ -19,7 +19,7 @@ namespace ReactiveUITK.Examples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Mount(hostElement, V.Func(Shared.SharedDemoPage.Render));
+            EditorRootRendererUtility.Render(hostElement, Shared.SharedDemoPage.Render);
         }
 
         private void OnDisable()

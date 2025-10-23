@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Elements;
 using ReactiveUITK.Core;
+using System.Collections.Generic;
 
 namespace ReactiveUITK.Core
 {
@@ -65,6 +66,17 @@ namespace ReactiveUITK.Core
                 vnodeHostRenderer = new VNodeHostRenderer(sharedHostContext, rootElement);
             }
             vnodeHostRenderer.Render(rootNode);
+        }
+
+        // Convenience overload: accept a function component directly
+        public void Render(System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction)
+        {
+            if (renderFunction == null)
+            {
+                Debug.LogError("RootRenderer: render function is null");
+                return;
+            }
+            Render((VirtualNode)renderFunction);
         }
 
         public void Unmount()

@@ -57,5 +57,12 @@ namespace ReactiveUITK.Core
             SuspenseReady = suspenseReady;
             SuspenseReadyTask = suspenseReadyTask;
         }
+
+        // Implicit conversion: function component -> VirtualNode
+        public static implicit operator VirtualNode(System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction)
+        {
+            if (renderFunction == null) { return null; }
+            return ReactiveUITK.V.Func(renderFunction);
+        }
     }
 }

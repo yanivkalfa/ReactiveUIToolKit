@@ -28,6 +28,21 @@ namespace ReactiveUITK.EditorSupport
             renderer.Render(root);
         }
 
+        // Back-compat and convenience: Render overloads redirect to Mount
+        public static void Render(VisualElement hostElement, VirtualNode root)
+        {
+            Mount(hostElement, root);
+        }
+
+        public static void Render(VisualElement hostElement, System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction)
+        {
+            if (renderFunction == null)
+            {
+                return;
+            }
+            Mount(hostElement, (VirtualNode)renderFunction);
+        }
+
         public static void Unmount(VisualElement hostElement)
         {
             if (hostElement == null)
