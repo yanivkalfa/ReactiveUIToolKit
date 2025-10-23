@@ -1,6 +1,7 @@
 {
   "name": "ReactiveUITK.Examples",
   "references": [
+    "ReactiveUITK.Editor",
     "ReactiveUITK.Shared",
     "ReactiveUITK.Runtime"
   ],

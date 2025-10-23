@@ -2,8 +2,7 @@
   "name": "ReactiveUITK.Editor",
   "references": [
     "ReactiveUITK.Shared",
-    "ReactiveUITK.Runtime",
-    "ReactiveUITK.Examples"
+    "ReactiveUITK.Runtime"
   ],
   "includePlatforms": ["Editor"],
   "excludePlatforms": [],
