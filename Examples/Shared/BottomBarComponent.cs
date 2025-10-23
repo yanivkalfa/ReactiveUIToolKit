@@ -1,12 +1,11 @@
 using System.Collections.Generic;
 using UnityEngine;
 using ReactiveUITK.Core;
-using ReactiveUITK;
 using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
 
-namespace ReactiveUITK.Examples.ClassComponents
+namespace ReactiveUITK.Examples.Shared
 {
     public sealed class BottomBarComponent : ReactiveComponent
     {
