@@ -941,7 +941,10 @@ private static void ResetStyle(VisualElement element, string styleKey)
             try
             {
                 var ve = evt?.target as VisualElement;
-                Debug.Log("[InvokeHandler] eventType=" + (evt!=null?evt.GetType().Name:"<null>") + ", target=" + (ve!=null?ve.name:"<null>"));
+                if (Core.Reconciler.EnableDiffTracing && Core.Reconciler.TraceLevel == Core.Reconciler.DiffTraceLevel.Verbose)
+                {
+                    Debug.Log("[InvokeHandler] eventType=" + (evt!=null?evt.GetType().Name:"<null>") + ", target=" + (ve!=null?ve.name:"<null>"));
+                }
             }
             catch { }
             try
