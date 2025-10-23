@@ -6,7 +6,7 @@ using ReactiveUITK.Samples.FunctionalComponents;
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {
    [RequireComponent(typeof(RootRenderer))]
-   public class RuntimeSimpleUseEffectDemo : MonoBehaviour
+   public class RuntimeSimpleUseEffectDemoBootstrap : MonoBehaviour
    {
        [SerializeField] private UIDocument uiDocument;
        private RootRenderer rootRenderer;
@@ -15,7 +15,7 @@ namespace ReactiveUITK.Samples.Showcase.Runtime
            rootRenderer = GetComponent<RootRenderer>();
            if (rootRenderer == null || uiDocument == null || uiDocument.rootVisualElement == null)
            {
-               Debug.LogError("RuntimeSimpleUseEffectDemo: Missing RootRenderer or UIDocument");
+               Debug.LogError("RuntimeSimpleUseEffectDemoBootstrap Missing RootRenderer or UIDocument");
                return;
            }
            rootRenderer.Initialize(uiDocument.rootVisualElement);

@@ -6,7 +6,7 @@ using ReactiveUITK.Samples.FunctionalComponents;
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {
    [RequireComponent(typeof(RootRenderer))]
-   public class RuntimeSimpleCounterDemo : MonoBehaviour
+   public class RuntimeSimpleCounterDemoBootstrap : MonoBehaviour
    {
        [SerializeField] private UIDocument uiDocument;
        private RootRenderer rootRenderer;
@@ -15,7 +15,7 @@ namespace ReactiveUITK.Samples.Showcase.Runtime
            rootRenderer = GetComponent<RootRenderer>();
            if (rootRenderer == null || uiDocument == null || uiDocument.rootVisualElement == null)
            {
-               Debug.LogError("RuntimeSimpleCounterDemo: Missing RootRenderer or UIDocument");
+               Debug.LogError("RuntimeSimpleCounterDemoBootstrap: Missing RootRenderer or UIDocument");
                return;
            }
            rootRenderer.Initialize(uiDocument.rootVisualElement);

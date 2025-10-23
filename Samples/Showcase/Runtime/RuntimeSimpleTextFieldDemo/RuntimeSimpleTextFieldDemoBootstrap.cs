@@ -6,7 +6,7 @@ using ReactiveUITK.Samples.FunctionalComponents;
 namespace ReactiveUITK.Samples.Showcase.Runtime
 {
    [RequireComponent(typeof(RootRenderer))]
-   public class RuntimeHelloWorldDemo : MonoBehaviour
+   public class RuntimeSimpleTextFieldDemoBootstrap : MonoBehaviour
    {
        [SerializeField] private UIDocument uiDocument;
        private RootRenderer rootRenderer;
@@ -15,11 +15,11 @@ namespace ReactiveUITK.Samples.Showcase.Runtime
            rootRenderer = GetComponent<RootRenderer>();
            if (rootRenderer == null || uiDocument == null || uiDocument.rootVisualElement == null)
            {
-               Debug.LogError("RuntimeHelloWorldDemo: Missing RootRenderer or UIDocument");
+               Debug.LogError("RuntimeSimpleTextFieldDemoBootstrap: Missing RootRenderer or UIDocument");
                return;
            }
            rootRenderer.Initialize(uiDocument.rootVisualElement);
-           rootRenderer.Render(V.Func(HelloWorldFunc.Render));
+           rootRenderer.Render(V.Func(SimpleTextFieldFunc.Render));
        }
    }
 }
