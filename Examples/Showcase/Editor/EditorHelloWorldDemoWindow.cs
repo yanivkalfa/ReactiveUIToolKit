@@ -1,0 +1,31 @@
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.UIElements;
+using ReactiveUITK.EditorSupport;
+using ReactiveUITK.Examples.FunctionalComponents;
+
+namespace ReactiveUITK.Examples.Editor
+{
+    public sealed class EditorHelloWorldDemoWindow : EditorWindow
+    {
+        [MenuItem("Window/ReactiveUITK/Demos/Hello World")]
+        public static void ShowWindow()
+        {
+            EditorHelloWorldDemoWindow window = GetWindow<EditorHelloWorldDemoWindow>("Hello World Demo");
+            window.minSize = new Vector2(420, 320);
+            window.Show();
+        }
+
+        private void CreateGUI()
+        {
+            VisualElement hostElement = rootVisualElement;
+            hostElement.style.flexGrow = 1f;
+            EditorRootRendererUtility.Mount(hostElement, V.Func(HelloWorldFunc.Render));
+        }
+
+        private void OnDisable()
+        {
+            EditorRootRendererUtility.Unmount(rootVisualElement);
+        }
+    }
+}

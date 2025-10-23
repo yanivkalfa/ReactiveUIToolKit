@@ -2,15 +2,16 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
+using ReactiveUITK.Examples.FunctionalComponents;
 
 namespace ReactiveUITK.Examples.Editor
 {
-    public sealed class AppFuncEditorWindow : EditorWindow
+    public sealed class EditorSimpleUseEffectDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/AppFunc Demo")]
+        [MenuItem("Window/ReactiveUITK/Demos/Simple UseEffect")]
         public static void ShowWindow()
         {
-            AppFuncEditorWindow window = GetWindow<AppFuncEditorWindow>("ReactiveUITK AppFunc");
+            EditorSimpleUseEffectDemoWindow window = GetWindow<EditorSimpleUseEffectDemoWindow>("Simple UseEffect Demo");
             window.minSize = new Vector2(420, 320);
             window.Show();
         }
@@ -19,7 +20,7 @@ namespace ReactiveUITK.Examples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Mount(hostElement, V.Func(Shared.SharedDemoPage.Render));
+            EditorRootRendererUtility.Mount(hostElement, V.Func(SimpleUseEffectFunc.Render));
         }
 
         private void OnDisable()

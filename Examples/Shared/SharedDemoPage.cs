@@ -5,7 +5,6 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
-using ReactiveUITK.Examples.Shared;
 
 namespace ReactiveUITK.Examples.Shared
 {
@@ -89,7 +88,7 @@ namespace ReactiveUITK.Examples.Shared
             {
                 Style = TextInputStyle, Placeholder = "Type here...", HidePlaceholderOnFocus = false, Value = inputText,
                 LabelText = string.IsNullOrEmpty(inputText) ? string.Empty : ("Value: " + inputText),
-                OnChange = (Action<UnityEngine.UIElements.ChangeEvent<string>>)(e => setInputText(e.newValue))
+                OnChange = e => setInputText(e.newValue)
             };
             ButtonProps updateFirstItemButtonProps = new()
             {
@@ -129,19 +128,19 @@ namespace ReactiveUITK.Examples.Shared
                     {
                         Text = "Enable option",
                         Value = isOptionEnabled,
-                        OnChange = (Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setOptionEnabled(e.newValue))
+                        OnChange = e => setOptionEnabled(e.newValue)
                     }),
                     V.RadioButton(new RadioButtonProps
                     {
                         Text = "Single radio",
                         Value = isRadioSingleSelected,
-                        OnChange = (Action<UnityEngine.UIElements.ChangeEvent<bool>>)(e => setRadioSingleSelected(e.newValue))
+                        OnChange = e => setRadioSingleSelected(e.newValue)
                     }),
                     V.RadioButtonGroup(new RadioButtonGroupProps
                     {
                         Choices = selectionChoices,
                         Index = selectionIndex,
-                        OnChange = (Action<UnityEngine.UIElements.ChangeEvent<int>>)(e => setSelectionIndex(e.newValue))
+                        OnChange = e => setSelectionIndex(e.newValue)
                     }, null,
                         V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                     ),
@@ -151,7 +150,7 @@ namespace ReactiveUITK.Examples.Shared
                 V.Component<BottomBarComponent>(new Dictionary<string, object>
                 {
                     { "inputValue", inputText },
-                    { "setTextValue", (Action<string>)setInputText }
+                    { "setTextValue",setInputText }
                 })
             );
         }
