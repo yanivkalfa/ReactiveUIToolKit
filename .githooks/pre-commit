@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure Samples are committed as Samples~ so UPM shows Import Samples for consumers
-PKG_ROOT="Assets/ReactiveUIToolKit"
-SRC_DIR="$PKG_ROOT/Samples"
-DST_DIR="$PKG_ROOT/Samples~"
-
-if [ -d "$SRC_DIR" ]; then
-  echo "[pre-commit] Staging rename: $SRC_DIR -> $DST_DIR"
-  git mv -f "$SRC_DIR" "$DST_DIR" || true
-fi
-
+# No-op: We commit Samples~ in the repo, and maintain a local dev copy of Samples (ignored by Git).
+# This prevents massive staging diffs on pull/merge.
+echo "[pre-commit] No action: using dev 'Samples' copy pattern (ignored by Git)."
 exit 0
-
