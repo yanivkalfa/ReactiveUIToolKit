@@ -1,19 +1,11 @@
-try {
-  $repoRoot = (git rev-parse --show-toplevel) 2>$null
-} catch {
-  $repoRoot = $null
-}
-if (-not $repoRoot) {
-  Write-Error "Not inside a git repository. Run this from within your repo root or any subfolder."
-  exit 1
-}
+try { $null = git rev-parse --show-toplevel 2>$null } catch { }
+# Derive package root from this script's location (robust regardless of cwd)
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$pkg = Split-Path -Parent $scriptDir
+$hooksAbs = Join-Path $pkg ".githooks"
+Write-Host "Configuring local git hooks path to $hooksAbs ..."
+git config core.hooksPath $hooksAbs | Out-Null
 
-$hooksRel = "Assets/ReactiveUIToolKit/.githooks"
-$hooksAbs = Join-Path $repoRoot $hooksRel
-Write-Host "Configuring local git hooks path to $hooksRel ..."
-git config core.hooksPath $hooksRel | Out-Null
-
-$pkg = "Assets/ReactiveUIToolKit"
 $src = Join-Path $pkg "Samples~"
 $dst = Join-Path $pkg "Samples"
 if (Test-Path $src) {
