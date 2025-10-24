@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,7 +32,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return new ListView();
+            return GlobalVisualElementPool.Get<ListView>();
         }
 
         private static IList NormalizeItems(object itemsObj)

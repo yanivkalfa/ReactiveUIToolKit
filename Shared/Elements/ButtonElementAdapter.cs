@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 using ReactiveUITK.Props;
@@ -8,7 +9,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return new Button();
+            return GlobalVisualElementPool.Get<Button>();
         }
 
         private static bool IsInsideListView(VisualElement ve)

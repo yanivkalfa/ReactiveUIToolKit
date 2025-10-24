@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine.UIElements;
@@ -15,8 +16,7 @@ namespace ReactiveUITK.Elements
         private static readonly ConditionalWeakTable<GroupBox, CachedParts> cache = new();
         public override VisualElement Create()
         {
-            GroupBox groupBox = new();
-            return groupBox;
+            return GlobalVisualElementPool.Get<GroupBox>();
         }
 
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)

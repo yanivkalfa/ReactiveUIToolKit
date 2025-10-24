@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 using ReactiveUITK.Props;
@@ -8,8 +9,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            RepeatButton repeatButton = new();
-            return repeatButton;
+            return GlobalVisualElementPool.Get<RepeatButton>();
         }
 
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)

@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Reflection;
@@ -19,7 +20,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return new TextField();
+            return GlobalVisualElementPool.Get<TextField>();
         }
 
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)

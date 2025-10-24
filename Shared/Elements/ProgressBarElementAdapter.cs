@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine.UIElements;
@@ -15,8 +16,7 @@ namespace ReactiveUITK.Elements
         private static readonly ConditionalWeakTable<ProgressBar, CachedParts> cache = new();
         public override VisualElement Create()
         {
-            ProgressBar progressBar = new();
-            return progressBar;
+            return GlobalVisualElementPool.Get<ProgressBar>();
         }
 
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
