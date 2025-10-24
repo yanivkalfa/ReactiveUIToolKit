@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# After checkout/switch, ensure working copy uses visible Samples for development
+PKG_ROOT="Assets/ReactiveUIToolKit"
+SRC_DIR="$PKG_ROOT/Samples~"
+DST_DIR="$PKG_ROOT/Samples"
+
+if [ -d "$SRC_DIR" ]; then
+  echo "[post-checkout] Restoring working copy: $SRC_DIR -> $DST_DIR"
+  mv -f "$SRC_DIR" "$DST_DIR" || true
+fi
+
+exit 0
+

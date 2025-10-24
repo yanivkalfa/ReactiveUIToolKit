@@ -32,6 +32,10 @@ namespace ReactiveUITK.Core
                 sharedHostContext = new HostContext(elementRegistry);
                 sharedHostContext.Environment["scheduler"] = RenderScheduler.Instance;
                 sharedHostContext.Environment["isEditor"] = false;
+                // Apply build-define derived configuration
+                sharedHostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
+                Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
+                Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
             }
         }
 

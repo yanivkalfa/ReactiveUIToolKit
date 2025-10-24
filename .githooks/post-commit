@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# After commit, keep working copy with visible Samples for development
+PKG_ROOT="Assets/ReactiveUIToolKit"
+SRC_DIR="$PKG_ROOT/Samples~"
+DST_DIR="$PKG_ROOT/Samples"
+
+if [ -d "$SRC_DIR" ]; then
+  echo "[post-commit] Restoring working copy: $SRC_DIR -> $DST_DIR"
+  # filesystem move so it is NOT staged
+  mv -f "$SRC_DIR" "$DST_DIR" || true
+fi
+
+exit 0
+

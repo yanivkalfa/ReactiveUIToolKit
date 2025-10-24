@@ -203,3 +203,18 @@ public sealed class ReactiveUITKEditorDemo : EditorWindow
 }
 ```
 - Class components (MonoBehaviours) are runtime-only and are blocked in Editor hosts.
+
+## 16. Scripting Define Symbols (Flags)
+Set in Project Settings -> Player -> Scripting Define Symbols. These control environment and diagnostics at compile time.
+
+- `ENV_DEV` — Development environment. Enables dev-oriented defaults such as Basic trace level and compiles editor diagnostics helpers.
+- `ENV_STAGING` — Staging environment label (no implicit tracing).
+- `ENV_PROD` — Production environment label (default if none specified).
+- `RUITK_TRACE_VERBOSE` — Force reconciler trace level to Verbose.
+- `RUITK_TRACE_BASIC` — Force reconciler trace level to Basic.
+- `RUITK_DIFF_TRACING` — Force `Reconciler.EnableDiffTracing = true`.
+
+Behavior summary
+- Environment is resolved to `development`/`staging`/`production` via `ENV_*` and is exposed at runtime as `HostContext.Environment["env"]`.
+- Trace level resolution priority: `RUITK_TRACE_VERBOSE` > `RUITK_TRACE_BASIC` > `ENV_DEV` (Basic) > None.
+- Editor diagnostics utilities compile only when `ENV_DEV` is defined.

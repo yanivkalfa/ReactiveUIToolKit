@@ -22,6 +22,10 @@ namespace ReactiveUITK.EditorSupport
                 HostContext hostContext = new(registry);
                 hostContext.Environment["scheduler"] = EditorRenderScheduler.Instance;
                 hostContext.Environment["isEditor"] = true;
+                // Apply build-define derived configuration for editor host
+                hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
+                Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
+                Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
                 renderer = new VNodeHostRenderer(hostContext, hostElement);
                 renderersByHost[hostElement] = renderer;
             }

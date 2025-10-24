@@ -1,3 +1,4 @@
+#if UNITY_EDITOR && (ENV_DEV || ENV_STAGING)
 using System;
 using System.IO;
 using UnityEditor;
@@ -104,3 +105,5 @@ namespace ReactiveUITK.EditorDiagnostics
     }
 }
 
+
+#endif

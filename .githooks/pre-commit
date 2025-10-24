@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure Samples are committed as Samples~ so UPM shows Import Samples for consumers
+PKG_ROOT="Assets/ReactiveUIToolKit"
+SRC_DIR="$PKG_ROOT/Samples"
+DST_DIR="$PKG_ROOT/Samples~"
+
+if [ -d "$SRC_DIR" ]; then
+  echo "[pre-commit] Staging rename: $SRC_DIR -> $DST_DIR"
+  git mv -f "$SRC_DIR" "$DST_DIR" || true
+fi
+
+exit 0
+
