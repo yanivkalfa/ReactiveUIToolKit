@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Core.Util;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -256,6 +257,7 @@ namespace ReactiveUITK.Core
                     var toRemove = parentElement.ElementAt(i);
                     RunRemovalCleanup(toRemove);
                     toRemove.RemoveFromHierarchy();
+                    GlobalVisualElementPool.Release(toRemove);
                 }
             }
         }

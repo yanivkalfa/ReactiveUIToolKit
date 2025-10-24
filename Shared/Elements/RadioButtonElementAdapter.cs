@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine.UIElements;
@@ -14,8 +15,7 @@ namespace ReactiveUITK.Elements
         private static readonly ConditionalWeakTable<RadioButton, CachedParts> cache = new();
         public override VisualElement Create()
         {
-            RadioButton radioButton = new();
-            return radioButton;
+            return GlobalVisualElementPool.Get<RadioButton>();
         }
 
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)

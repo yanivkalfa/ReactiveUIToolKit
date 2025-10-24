@@ -1,3 +1,4 @@
+using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using UnityEngine.UIElements;
@@ -16,8 +17,7 @@ namespace ReactiveUITK.Elements
         private static readonly ConditionalWeakTable<Toggle, CachedParts> cache = new();
         public override VisualElement Create()
         {
-            Toggle toggle = new();
-            return toggle;
+            return GlobalVisualElementPool.Get<Toggle>();
         }
 
         public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
