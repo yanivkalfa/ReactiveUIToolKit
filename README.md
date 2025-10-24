@@ -203,3 +203,43 @@ public sealed class ReactiveUITKEditorDemo : EditorWindow
 }
 ```
 - Class components (MonoBehaviours) are runtime-only and are blocked in Editor hosts.
+
+## 16. Scripting Define Symbols (Flags)
+Set in Project Settings -> Player -> Scripting Define Symbols. These control environment and diagnostics at compile time.
+
+- `ENV_DEV` — Development environment. Enables dev-oriented defaults such as Basic trace level and compiles editor diagnostics helpers.
+- `ENV_STAGING` — Staging environment label (no implicit tracing).
+- `ENV_PROD` — Production environment label (default if none specified).
+- `RUITK_TRACE_VERBOSE` — Force reconciler trace level to Verbose.
+- `RUITK_TRACE_BASIC` — Force reconciler trace level to Basic.
+- `RUITK_DIFF_TRACING` — Force `Reconciler.EnableDiffTracing = true`.
+
+Behavior summary
+- Environment is resolved to `development`/`staging`/`production` via `ENV_*` and is exposed at runtime as `HostContext.Environment["env"]`.
+- Trace level resolution priority: `RUITK_TRACE_VERBOSE` > `RUITK_TRACE_BASIC` > `ENV_DEV` (Basic) > None.
+- Editor diagnostics utilities compile only when `ENV_DEV` is defined.
+
+## 17. Samples Workflow + Git Hooks
+Unity hides `Samples~` in the Project window so consumers can import samples via Package Manager. During development you probably want a visible `Samples` folder. This repo includes optional Git hooks to keep your working copy dev‑friendly while committing a package‑friendly layout.
+
+- Why
+  - Working copy uses `Samples` (visible), easy to open/edit sample scenes.
+  - Commits contain `Samples~` so users see an “Import Samples” button and editor scripts don’t compile automatically.
+
+- Enable hooks (one‑time)
+  - Windows PowerShell: `pwsh scripts/setup-hooks.ps1`
+    - If `pwsh` is unavailable: `powershell -ExecutionPolicy Bypass -File scripts/setup-hooks.ps1`
+  - Bash (Git Bash/macOS/Linux): `bash scripts/setup-hooks.sh`
+
+- What hooks do
+  - `pre-commit`: stages rename `Assets/ReactiveUIToolKit/Samples` → `Samples~` for the commit
+  - `post-commit`: restores working copy `Samples~` → `Samples` (filesystem move, not staged)
+  - `post-checkout`, `post-merge`, `post-rewrite`: restore `Samples~` → `Samples` so your dev view stays visible after branch switches, merges, or rebases
+
+- Verify
+  - `git config core.hooksPath` prints `.githooks`
+  - After a commit: `git show --name-status HEAD` lists paths under `Samples~`, while your working tree shows `Samples`
+
+Notes
+- Hooks are local; teammates must run a setup script once.
+- The package’s `package.json` already references `Samples~/...` so consumers get proper “Import Samples”.

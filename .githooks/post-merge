@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PKG_ROOT="$(cd "$DIR/.." && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PKG_REL="${PKG_ROOT#${REPO_ROOT}/}"
+
+SRC_REL="$PKG_REL/Samples~"
+DST_REL="$PKG_REL/Samples"
+
+cd "$REPO_ROOT"
+if [ -d "$SRC_REL" ] && [ ! -d "$DST_REL" ]; then
+  echo "[post-merge] Exposing dev samples: $SRC_REL -> $DST_REL (copy)"
+  mkdir -p "$DST_REL"
+  cp -r "$SRC_REL"/. "$DST_REL"/
+else
+  echo "[post-merge] Dev samples already present or no Samples~; skipping"
+fi
+
+exit 0

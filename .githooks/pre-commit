@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Sync dev Samples (ignored) into tracked Samples~ and stage all changes
+DIR="$(cd "$(dirname "$0")" && pwd)"
+PKG_ROOT="$(cd "$DIR/.." && pwd)"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PKG_REL="${PKG_ROOT#${REPO_ROOT}/}"
+
+SRC_REL="$PKG_REL/Samples"     # dev copy (ignored by git)
+DST_REL="$PKG_REL/Samples~"    # tracked copy for commits
+
+cd "$REPO_ROOT"
+if [ -d "$SRC_REL" ]; then
+  echo "[pre-commit] Syncing dev samples: $SRC_REL -> $DST_REL"
+  rm -rf "$DST_REL"
+  mkdir -p "$DST_REL"
+  cp -r "$SRC_REL"/. "$DST_REL"/
+  git add -A "$DST_REL"
+else
+  echo "[pre-commit] No '$SRC_REL' directory; skipping sync"
+fi
+
+exit 0
