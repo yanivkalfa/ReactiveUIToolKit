@@ -5,6 +5,8 @@
     "diffTracing": false
   },
   "pathsToOmitFromDist": [
+    "CICD/**",
+    "dist~/**",
     "Diagnostics/**",
     "scripts/**"
   ]
