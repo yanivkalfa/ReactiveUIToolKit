@@ -1,0 +1,135 @@
+{
+    "runId": "2025-10-25_11-33-24",
+    "suite": "ReactiveUITK Bench (Editor)",
+    "env": {
+        "unityVersion": "6000.2.6f2",
+        "productName": "UnityComponents",
+        "platform": "WindowsEditor",
+        "graphicsDevice": "NVIDIA GeForce GTX 1080 Ti",
+        "deviceModel": "MS-7D25 (Micro-Star International Co., Ltd.)",
+        "deviceName": "DESKTOP-CFTHQRQ",
+        "screenWidth": 1920,
+        "screenHeight": 1080,
+        "systemMemoryMB": 130857,
+        "isEditor": true,
+        "isDevelopmentBuild": false
+    },
+    "scenario": {
+        "index": 4,
+        "name": "MountUnmount_50x20",
+        "durationSec": 10.0,
+        "startedAt": 1761381238.110171,
+        "endedAt": 1761381248.1385215
+    },
+    "scenarioSummary": {
+        "fpsAvg": 195.4197235107422,
+        "fpsP95": 224.7696075439453,
+        "fpsMin": 20.618045806884767,
+        "fpsMax": 229.24212646484376,
+        "samplesTotal": 1681,
+        "secondsTotal": 11,
+        "monoUsedMax": 1037910016,
+        "gcCollectionsTotal": 24
+    },
+    "perSecond": [
+        {
+            "sec": 0,
+            "fpsAvg": 190.00192260742188,
+            "fpsMin": 41.69081497192383,
+            "fpsMax": 226.89627075195313,
+            "sampleCount": 157,
+            "monoUsedMax": 998457344,
+            "gcCollections": 3
+        },
+        {
+            "sec": 1,
+            "fpsAvg": 197.63363647460938,
+            "fpsMin": 38.9831657409668,
+            "fpsMax": 227.79563903808595,
+            "sampleCount": 174,
+            "monoUsedMax": 1004425216,
+            "gcCollections": 2
+        },
+        {
+            "sec": 2,
+            "fpsAvg": 181.36146545410157,
+            "fpsMin": 42.3856315612793,
+            "fpsMax": 227.62451171875,
+            "sampleCount": 142,
+            "monoUsedMax": 1037910016,
+            "gcCollections": 2
+        },
+        {
+            "sec": 3,
+            "fpsAvg": 196.56813049316407,
+            "fpsMin": 46.50535202026367,
+            "fpsMax": 226.23924255371095,
+            "sampleCount": 172,
+            "monoUsedMax": 970043392,
+            "gcCollections": 3
+        },
+        {
+            "sec": 4,
+            "fpsAvg": 198.2517547607422,
+            "fpsMin": 36.196998596191409,
+            "fpsMax": 226.68026733398438,
+            "sampleCount": 173,
+            "monoUsedMax": 975962112,
+            "gcCollections": 2
+        },
+        {
+            "sec": 5,
+            "fpsAvg": 194.29771423339845,
+            "fpsMin": 35.09830856323242,
+            "fpsMax": 224.61309814453126,
+            "sampleCount": 171,
+            "monoUsedMax": 980033536,
+            "gcCollections": 2
+        },
+        {
+            "sec": 6,
+            "fpsAvg": 192.43357849121095,
+            "fpsMin": 31.48099136352539,
+            "fpsMax": 224.6887969970703,
+            "sampleCount": 165,
+            "monoUsedMax": 990449664,
+            "gcCollections": 3
+        },
+        {
+            "sec": 7,
+            "fpsAvg": 201.66635131835938,
+            "fpsMin": 40.20908737182617,
+            "fpsMax": 229.18434143066407,
+            "sampleCount": 177,
+            "monoUsedMax": 998866944,
+            "gcCollections": 2
+        },
+        {
+            "sec": 8,
+            "fpsAvg": 197.48568725585938,
+            "fpsMin": 34.26628875732422,
+            "fpsMax": 229.24212646484376,
+            "sampleCount": 169,
+            "monoUsedMax": 1006710784,
+            "gcCollections": 3
+        },
+        {
+            "sec": 9,
+            "fpsAvg": 201.7818603515625,
+            "fpsMin": 20.618045806884767,
+            "fpsMax": 228.70733642578126,
+            "sampleCount": 178,
+            "monoUsedMax": 1012576256,
+            "gcCollections": 2
+        },
+        {
+            "sec": 10,
+            "fpsAvg": 152.58114624023438,
+            "fpsMin": 53.40938949584961,
+            "fpsMax": 222.7667694091797,
+            "sampleCount": 3,
+            "monoUsedMax": 954269696,
+            "gcCollections": 0
+        }
+    ]
+}

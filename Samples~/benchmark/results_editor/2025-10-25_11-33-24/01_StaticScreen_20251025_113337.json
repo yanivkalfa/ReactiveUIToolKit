@@ -1,0 +1,117 @@
+{
+    "runId": "2025-10-25_11-33-24",
+    "suite": "ReactiveUITK Bench (Editor)",
+    "env": {
+        "unityVersion": "6000.2.6f2",
+        "productName": "UnityComponents",
+        "platform": "WindowsEditor",
+        "graphicsDevice": "NVIDIA GeForce GTX 1080 Ti",
+        "deviceModel": "MS-7D25 (Micro-Star International Co., Ltd.)",
+        "deviceName": "DESKTOP-CFTHQRQ",
+        "screenWidth": 1920,
+        "screenHeight": 1080,
+        "systemMemoryMB": 130857,
+        "isEditor": true,
+        "isDevelopmentBuild": false
+    },
+    "scenario": {
+        "index": 1,
+        "name": "StaticScreen",
+        "durationSec": 8.0,
+        "startedAt": 1761381209.8973487,
+        "endedAt": 1761381217.922003
+    },
+    "scenarioSummary": {
+        "fpsAvg": 3251.506103515625,
+        "fpsP95": 3687.315673828125,
+        "fpsMin": 59.999996185302737,
+        "fpsMax": 3787.878662109375,
+        "samplesTotal": 24764,
+        "secondsTotal": 9,
+        "monoUsedMax": 1075744768,
+        "gcCollectionsTotal": 1
+    },
+    "perSecond": [
+        {
+            "sec": 0,
+            "fpsAvg": 3277.997802734375,
+            "fpsMin": 59.999996185302737,
+            "fpsMax": 3787.878662109375,
+            "sampleCount": 3107,
+            "monoUsedMax": 961482752,
+            "gcCollections": 0
+        },
+        {
+            "sec": 1,
+            "fpsAvg": 3311.163330078125,
+            "fpsMin": 1088.1392822265625,
+            "fpsMax": 3832.885986328125,
+            "sampleCount": 3259,
+            "monoUsedMax": 996020224,
+            "gcCollections": 0
+        },
+        {
+            "sec": 2,
+            "fpsAvg": 3144.251708984375,
+            "fpsMin": 1434.72021484375,
+            "fpsMax": 3802.281494140625,
+            "sampleCount": 3104,
+            "monoUsedMax": 1026613248,
+            "gcCollections": 0
+        },
+        {
+            "sec": 3,
+            "fpsAvg": 3081.5927734375,
+            "fpsMin": 276.6328430175781,
+            "fpsMax": 3598.416748046875,
+            "sampleCount": 3026,
+            "monoUsedMax": 1056493568,
+            "gcCollections": 0
+        },
+        {
+            "sec": 4,
+            "fpsAvg": 2944.155029296875,
+            "fpsMin": 58.5682373046875,
+            "fpsMax": 3611.411865234375,
+            "sampleCount": 2833,
+            "monoUsedMax": 1075744768,
+            "gcCollections": 1
+        },
+        {
+            "sec": 5,
+            "fpsAvg": 3042.948974609375,
+            "fpsMin": 1087.31103515625,
+            "fpsMax": 3593.244873046875,
+            "sampleCount": 3003,
+            "monoUsedMax": 965193728,
+            "gcCollections": 0
+        },
+        {
+            "sec": 6,
+            "fpsAvg": 3175.574951171875,
+            "fpsMin": 1310.9595947265625,
+            "fpsMax": 3620.564697265625,
+            "sampleCount": 3137,
+            "monoUsedMax": 998440960,
+            "gcCollections": 0
+        },
+        {
+            "sec": 7,
+            "fpsAvg": 3271.9052734375,
+            "fpsMin": 1068.7186279296875,
+            "fpsMax": 3750.937744140625,
+            "sampleCount": 3234,
+            "monoUsedMax": 1030627328,
+            "gcCollections": 0
+        },
+        {
+            "sec": 8,
+            "fpsAvg": 3051.537353515625,
+            "fpsMin": 1808.3182373046875,
+            "fpsMax": 3417.63525390625,
+            "sampleCount": 61,
+            "monoUsedMax": 1031229440,
+            "gcCollections": 0
+        }
+    ]
+}

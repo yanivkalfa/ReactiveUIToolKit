@@ -35,7 +35,7 @@ namespace ReactiveUITK.Elements
             {
                 TryDiffProp<string>(previous, next, "text", value => { radioButtonElement.text = value ?? string.Empty; });
                 TryDiffProp<bool>(previous, next, "value", value => { radioButtonElement.value = value; });
-                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing || ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
+                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing && ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
                 {
                     UnityEngine.Debug.Log($"[RadioButtonDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={radioButtonElement.value}");
                 }

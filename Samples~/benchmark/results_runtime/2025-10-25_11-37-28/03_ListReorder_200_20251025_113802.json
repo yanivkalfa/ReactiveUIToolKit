@@ -1,0 +1,135 @@
+{
+    "runId": "2025-10-25_11-37-28",
+    "suite": "ReactiveUITK Bench (Runtime)",
+    "env": {
+        "unityVersion": "6000.2.6f2",
+        "productName": "UnityComponents",
+        "platform": "WindowsEditor",
+        "graphicsDevice": "NVIDIA GeForce GTX 1080 Ti",
+        "deviceModel": "MS-7D25 (Micro-Star International Co., Ltd.)",
+        "deviceName": "DESKTOP-CFTHQRQ",
+        "screenWidth": 1920,
+        "screenHeight": 1080,
+        "systemMemoryMB": 130857,
+        "isEditor": true,
+        "isDevelopmentBuild": false
+    },
+    "scenario": {
+        "index": 3,
+        "name": "ListReorder_200",
+        "durationSec": 10.0,
+        "startedAt": 1761381472.105559,
+        "endedAt": 1761381482.1235207
+    },
+    "scenarioSummary": {
+        "fpsAvg": 333.33221435546877,
+        "fpsP95": 363.46453857421877,
+        "fpsMin": 43.252967834472659,
+        "fpsMax": 372.3701171875,
+        "samplesTotal": 3067,
+        "secondsTotal": 11,
+        "monoUsedMax": 1009541120,
+        "gcCollectionsTotal": 20
+    },
+    "perSecond": [
+        {
+            "sec": 0,
+            "fpsAvg": 335.7851867675781,
+            "fpsMin": 43.252967834472659,
+            "fpsMax": 367.6470642089844,
+            "sampleCount": 301,
+            "monoUsedMax": 975921152,
+            "gcCollections": 2
+        },
+        {
+            "sec": 1,
+            "fpsAvg": 335.9202880859375,
+            "fpsMin": 46.21242904663086,
+            "fpsMax": 367.5119323730469,
+            "sampleCount": 314,
+            "monoUsedMax": 980209664,
+            "gcCollections": 2
+        },
+        {
+            "sec": 2,
+            "fpsAvg": 332.0615539550781,
+            "fpsMin": 45.282676696777347,
+            "fpsMax": 369.6720886230469,
+            "sampleCount": 309,
+            "monoUsedMax": 982777856,
+            "gcCollections": 2
+        },
+        {
+            "sec": 3,
+            "fpsAvg": 330.81292724609377,
+            "fpsMin": 58.662384033203128,
+            "fpsMax": 365.0168151855469,
+            "sampleCount": 308,
+            "monoUsedMax": 986468352,
+            "gcCollections": 2
+        },
+        {
+            "sec": 4,
+            "fpsAvg": 326.8723449707031,
+            "fpsMin": 50.89809799194336,
+            "fpsMax": 363.5306091308594,
+            "sampleCount": 289,
+            "monoUsedMax": 995930112,
+            "gcCollections": 1
+        },
+        {
+            "sec": 5,
+            "fpsAvg": 320.83367919921877,
+            "fpsMin": 54.248470306396487,
+            "fpsMax": 363.7024841308594,
+            "sampleCount": 281,
+            "monoUsedMax": 1009541120,
+            "gcCollections": 2
+        },
+        {
+            "sec": 6,
+            "fpsAvg": 328.1225280761719,
+            "fpsMin": 47.332122802734378,
+            "fpsMax": 362.1875915527344,
+            "sampleCount": 308,
+            "monoUsedMax": 937783296,
+            "gcCollections": 2
+        },
+        {
+            "sec": 7,
+            "fpsAvg": 338.215087890625,
+            "fpsMin": 47.10781478881836,
+            "fpsMax": 369.1807861328125,
+            "sampleCount": 319,
+            "monoUsedMax": 940068864,
+            "gcCollections": 2
+        },
+        {
+            "sec": 8,
+            "fpsAvg": 340.7066345214844,
+            "fpsMin": 45.063316345214847,
+            "fpsMax": 369.1944274902344,
+            "sampleCount": 319,
+            "monoUsedMax": 944238592,
+            "gcCollections": 2
+        },
+        {
+            "sec": 9,
+            "fpsAvg": 342.0850524902344,
+            "fpsMin": 48.01044464111328,
+            "fpsMax": 372.3701171875,
+            "sampleCount": 313,
+            "monoUsedMax": 948355072,
+            "gcCollections": 3
+        },
+        {
+            "sec": 10,
+            "fpsAvg": 325.2146301269531,
+            "fpsMin": 319.4683837890625,
+            "fpsMax": 331.3562316894531,
+            "sampleCount": 6,
+            "monoUsedMax": 826208256,
+            "gcCollections": 0
+        }
+    ]
+}
