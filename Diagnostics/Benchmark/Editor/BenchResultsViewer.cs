@@ -11,7 +11,7 @@ namespace ReactiveUITK.Bench.EditorTools
     // uses BenchScenarioFile types from BenchPerSecondLogger.cs
     public class BenchResultsViewer : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Benchmark Results Viewer")]
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Benchmark/Results Viewer")]
         public static void Open()
         {
             var w = GetWindow<BenchResultsViewer>();

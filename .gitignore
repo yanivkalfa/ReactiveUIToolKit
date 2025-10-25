@@ -1,4 +1,4 @@
 #/Samples~/*
 
-/Samples/benchmark/results_editor/*
-/Samples/benchmark/results_runtime/*
+/Diagnostics/Benchmark/Results/*
+/Diagnostics/Logs/Results/*

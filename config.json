@@ -6,8 +6,6 @@
   },
   "pathsToOmitFromDist": [
     "Diagnostics/**",
-    "Editor/Diagnostics/**",
-    "Samples/benchmark/**",
     "scripts/**"
   ]
 }

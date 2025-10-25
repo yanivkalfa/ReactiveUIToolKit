@@ -13,7 +13,7 @@ namespace ReactiveUITK.Bench
         private VisualElement _mount;
         private VisualElement _hostVE;
 
-        [MenuItem("Window/ReactiveUITK/Benchmark")]
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Benchmark/Run Tests")]
         public static void Open()
         {
             var w = GetWindow<BenchEditorHost>();

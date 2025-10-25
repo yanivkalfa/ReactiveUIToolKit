@@ -18,19 +18,19 @@ namespace ReactiveUITK.EditorDiagnostics
             EditorApplication.quitting += StopCapture;
         }
 
-        [MenuItem("Window/ReactiveUITK/Logs/Start Capture")] 
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Start Capture")] 
         public static void StartCaptureMenu()
         {
             StartCapture();
         }
 
-        [MenuItem("Window/ReactiveUITK/Logs/Stop Capture")] 
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Stop Capture")] 
         public static void StopCaptureMenu()
         {
             StopCapture();
         }
 
-        [MenuItem("Window/ReactiveUITK/Logs/Open Log Folder")] 
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Open Log Folder")] 
         public static void OpenLogFolder()
         {
             string folder = EnsureFolder();
@@ -66,8 +66,7 @@ namespace ReactiveUITK.EditorDiagnostics
 
         private static string EnsureFolder()
         {
-            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
-            string folder = Path.Combine(projectRoot, "ReactiveUITK_Logs");
+            string folder = Path.Combine(Application.dataPath, "ReactiveUIToolKit", "Diagnostics", "Logs", "Results");
             if (!Directory.Exists(folder))
             {
                 Directory.CreateDirectory(folder);

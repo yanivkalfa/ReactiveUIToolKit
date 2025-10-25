@@ -262,21 +262,21 @@ namespace ReactiveUITK.Bench
             switch (_forcedOutput)
             {
                 case BenchOutputTarget.Editor:
-                    folderName = "results_editor";
+                    folderName = "Editor";
                     break;
                 case BenchOutputTarget.Runtime:
-                    folderName = "results_runtime";
+                    folderName = "Runtime";
                     break;
                 default:
                     #if UNITY_EDITOR
-                        folderName = "results_editor";
+                        folderName = "Editor";
                     #else
-                        folderName = "results_runtime";
+                        folderName = "Runtime";
                     #endif
                     break;
             }
 
-            string root = Path.Combine(Application.dataPath, "ReactiveUIToolKit", "Samples", "benchmark", folderName, _runId);
+            string root = Path.Combine(Application.dataPath, "ReactiveUIToolKit", "Diagnostics", "Benchmark", "Results", folderName, _runId);
 
             Directory.CreateDirectory(root);
 
