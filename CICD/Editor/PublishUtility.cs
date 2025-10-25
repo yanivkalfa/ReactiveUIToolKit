@@ -48,6 +48,9 @@ namespace ReactiveUITK.CICD
 
                 // Copy everything from packageRoot to dist
                 CopyDirectory(packageRoot, distRoot);
+                // Ensure dist does not contain VCS metadata
+                var distGit = Path.Combine(distRoot, ".git");
+                if (Directory.Exists(distGit)) { DeleteDirectory(distGit); }
 
                 // Load config.json if present
                 string cfgPath = Path.Combine(packageRoot, "config.json");
@@ -132,6 +135,22 @@ namespace ReactiveUITK.CICD
             {
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
                 string distRoot = Path.Combine(packageRoot, "dist~");
+                if (!Directory.Exists(distRoot))
+                {
+                    Debug.LogError("Publish: dist~ not found. Build step did not complete.");
+                    return;
+                }
+
+                // Resolve repo root via git
+                var gitTop = RunGit("rev-parse --show-toplevel", packageRoot, out string repoRoot, out string err1);
+                if (gitTop != 0 || string.IsNullOrWhiteSpace(repoRoot))
+                {
+                    Debug.LogError("Publish: Could not determine git repo root. " + err1);
+                    return;
+                }
+                repoRoot = repoRoot.Trim();
+
+                // Determine tag from package.json (optional)
                 string pkgJsonPath = Path.Combine(distRoot, "package.json");
                 string tag = null;
                 if (File.Exists(pkgJsonPath))
@@ -142,21 +161,85 @@ namespace ReactiveUITK.CICD
                         tag = "v" + pkg.version;
                     }
                 }
-                string script = Path.Combine(Application.dataPath, "ReactiveUIToolKit", "CICD", "release-dist.ps1");
-                if (!File.Exists(script))
+
+                string branch = "dist";
+                string remote = "origin";
+                string worktree = Path.Combine(repoRoot, "_dist_branch");
+
+                // Ensure previous worktree is removed cleanly if it exists
+                if (Directory.Exists(worktree))
                 {
-                    Debug.LogError("Publish: release-dist.ps1 not found at: " + script);
+                    // Try to detach via git first (in case the worktree is registered)
+                    RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _eRm);
+                    RunGit("worktree prune", repoRoot, out var _, out var _ePrune);
+                    try { DeleteDirectory(worktree); } catch { }
+                }
+
+                // Ensure branch exists; if not, create from HEAD
+                bool branchExists = RunGit($"rev-parse --verify --quiet {branch}", repoRoot, out var _, out var _eChk) == 0;
+
+                // git worktree add -B dist <worktree> <commitish>
+                string commitish = branchExists ? branch : "HEAD";
+                if (RunGit($"worktree add -B {branch} \"{worktree}\" {commitish}", repoRoot, out var _, out var e2) != 0)
+                {
+                    Debug.LogError("Publish: git worktree add failed: " + e2);
                     return;
                 }
-                var psi = new System.Diagnostics.ProcessStartInfo
+
+                // Clean worktree (keep .git)
+                DeleteAllExceptGit(worktree);
+
+                // Copy dist~ into worktree
+                CopyDirectory(distRoot, worktree);
+
+                // Commit changes
+                if (RunGit("add -A", worktree, out var _, out var e3) != 0)
                 {
-                    FileName = "powershell",
-                    Arguments = $"-ExecutionPolicy Bypass -File \"{script}\" -Branch dist -Remote origin" + (string.IsNullOrEmpty(tag) ? "" : ($" -Tag {tag}")),
-                    WorkingDirectory = packageRoot,
-                    UseShellExecute = false,
-                };
-                var p = System.Diagnostics.Process.Start(psi);
-                Debug.Log("Publish: invoked release-dist.ps1 (check terminal for prompts/output)");
+                    Debug.LogError("Publish: git add failed: " + e3);
+                    return;
+                }
+                RunGit("status --porcelain", worktree, out var status, out var _);
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    string msg = "dist update" + (string.IsNullOrEmpty(tag) ? string.Empty : (" " + tag));
+                    if (RunGit($"commit -m \"{msg}\"", worktree, out var _, out var e4) != 0)
+                    {
+                        Debug.LogError("Publish: git commit failed: " + e4);
+                        return;
+                    }
+                }
+                else
+                {
+                    Debug.Log("Publish: no changes to commit on dist branch");
+                }
+
+                // Tag (optional)
+                if (!string.IsNullOrEmpty(tag))
+                {
+                    // Create or update lightweight tag
+                    RunGit($"tag -f {tag}", worktree, out var _, out var tagErr);
+                    if (!string.IsNullOrEmpty(tagErr)) { Debug.Log("Publish: tag note: " + tagErr); }
+                }
+
+                // Push branch and tag
+                // First push: set upstream if branch was newly created
+                string pushArgs = branchExists ? $"push {remote} {branch}" : $"push -u {remote} {branch}";
+                if (RunGit(pushArgs, worktree, out var _, out var e5) != 0)
+                {
+                    Debug.LogError("Publish: git push branch failed: " + e5);
+                    return;
+                }
+                if (!string.IsNullOrEmpty(tag))
+                {
+                    RunGit($"push {remote} {tag}", worktree, out var _, out var e6);
+                    if (!string.IsNullOrEmpty(e6)) { Debug.Log("Publish: push tag note: " + e6); }
+                }
+
+                // Cleanup worktree
+                RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _e7);
+
+                Debug.Log($"[Publish] dist pushed to '{remote}/{branch}'" + (string.IsNullOrEmpty(tag) ? string.Empty : $", tag {tag}"));
+                Debug.Log("[Install Hint] UPM Git URL: <repo-url>#dist");
             }
             catch (Exception ex)
             {
@@ -181,11 +264,19 @@ namespace ReactiveUITK.CICD
             foreach (string dir in Directory.GetDirectories(sourceDir, "*", SearchOption.AllDirectories))
             {
                 string rel = dir.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                // Skip any .git directory
+                var relForward = rel.Replace('\\', '/');
+                if (relForward.Length == 0) continue;
+                if (relForward.Equals(".git", StringComparison.OrdinalIgnoreCase)) continue;
+                if (relForward.Contains("/.git/", StringComparison.Ordinal)) continue;
                 Directory.CreateDirectory(Path.Combine(destDir, rel));
             }
             foreach (string file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
                 string rel = file.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                var relForward = rel.Replace('\\', '/');
+                if (relForward.StartsWith(".git/", StringComparison.OrdinalIgnoreCase)) continue;
+                if (relForward.Contains("/.git/", StringComparison.Ordinal)) continue;
                 string target = Path.Combine(destDir, rel);
                 Directory.CreateDirectory(Path.GetDirectoryName(target));
                 File.Copy(file, target, overwrite: true);
@@ -242,6 +333,45 @@ namespace ReactiveUITK.CICD
                 }
             }
             catch { }
+        }
+
+        private static int RunGit(string args, string workingDir, out string stdout, out string stderr)
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "git",
+                Arguments = args,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            var p = new System.Diagnostics.Process { StartInfo = psi };
+            var sbOut = new StringBuilder();
+            var sbErr = new StringBuilder();
+            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
+            p.ErrorDataReceived +=  (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+            p.Start();
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+            p.WaitForExit();
+            stdout = sbOut.ToString();
+            stderr = sbErr.ToString();
+            if (!string.IsNullOrEmpty(stdout)) Debug.Log($"[git] {args}\n{stdout}");
+            if (!string.IsNullOrEmpty(stderr)) Debug.Log($"[git:err] {args}\n{stderr}");
+            return p.ExitCode;
+        }
+
+        private static void DeleteAllExceptGit(string dir)
+        {
+            if (!Directory.Exists(dir)) return;
+            foreach (var entry in Directory.GetFileSystemEntries(dir))
+            {
+                var name = Path.GetFileName(entry)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase)) continue;
+                if (Directory.Exists(entry)) DeleteDirectory(entry); else TryDeleteFile(entry);
+            }
         }
     }
 }
