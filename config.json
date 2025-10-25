@@ -1,0 +1,13 @@
+{
+  "envVariables": {
+    "env": "development",
+    "traceLevel": "Basic",
+    "diffTracing": false
+  },
+  "pathsToOmitFromDist": [
+    "CICD/**",
+    "dist~/**",
+    "Diagnostics/**",
+    "scripts/**"
+  ]
+}

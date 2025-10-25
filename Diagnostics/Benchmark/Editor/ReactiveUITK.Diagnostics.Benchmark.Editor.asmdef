@@ -1,0 +1,19 @@
+{
+  "name": "ReactiveUITK.Diagnostics.Benchmark.Editor",
+  "references": [
+    "ReactiveUITK.Editor",
+    "ReactiveUITK.Shared",
+    "ReactiveUITK.Runtime",
+    "ReactiveUITK.Diagnostics"
+  ],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
+
