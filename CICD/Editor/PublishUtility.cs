@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
@@ -130,10 +131,21 @@ namespace ReactiveUITK.CICD
         [MenuItem("Window/ReactiveUITK/Publish/Build Dist and Push", priority = 1001)]
         public static void BuildDistAndPush()
         {
-            BuildDist();
             try
             {
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
+                // 1) Bump patch version in root package.json so dist picks it up
+                string rootPkg = Path.Combine(packageRoot, "package.json");
+                string bumpedVersion = BumpPatchVersion(rootPkg);
+                if (!string.IsNullOrEmpty(bumpedVersion))
+                {
+                    Debug.Log("[Publish] bumped version to " + bumpedVersion);
+                    AssetDatabase.Refresh();
+                }
+
+                // 2) Build fresh dist~ from source (now with bumped version)
+                BuildDist();
+
                 string distRoot = Path.Combine(packageRoot, "dist~");
                 if (!Directory.Exists(distRoot))
                 {
@@ -150,17 +162,8 @@ namespace ReactiveUITK.CICD
                 }
                 repoRoot = repoRoot.Trim();
 
-                // Determine tag from package.json (optional)
-                string pkgJsonPath = Path.Combine(distRoot, "package.json");
-                string tag = null;
-                if (File.Exists(pkgJsonPath))
-                {
-                    var pkg = JsonUtility.FromJson<PackageJson>(File.ReadAllText(pkgJsonPath));
-                    if (pkg != null && !string.IsNullOrEmpty(pkg.version))
-                    {
-                        tag = "v" + pkg.version;
-                    }
-                }
+                // Determine tag from bumped version (optional)
+                string tag = string.IsNullOrEmpty(bumpedVersion) ? null : ("v" + bumpedVersion);
 
                 string branch = "dist";
                 string remote = "origin";
@@ -333,6 +336,73 @@ namespace ReactiveUITK.CICD
                 }
             }
             catch { }
+        }
+
+        // ===== version bump helpers =====
+        private static string BumpPatchVersion(string packageJsonPath)
+        {
+            try
+            {
+                if (!File.Exists(packageJsonPath))
+                {
+                    Debug.LogWarning("Publish: package.json not found for version bump at " + packageJsonPath);
+                    return null;
+                }
+                string text = File.ReadAllText(packageJsonPath, Encoding.UTF8);
+
+                // Find the version value and replace only the captured value in-place
+                var m = Regex.Match(text, "\"version\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.Multiline);
+                string current = m.Success ? m.Groups[1].Value : "0.0.0";
+                var parts = current.Split('.');
+                int major = parts.Length > 0 && int.TryParse(parts[0], out var a) ? a : 0;
+                int minor = parts.Length > 1 && int.TryParse(parts[1], out var b) ? b : 0;
+                int patch = parts.Length > 2 && int.TryParse(parts[2], out var c) ? c : 0;
+                patch++;
+                string next = $"{major}.{minor}.{patch}";
+
+                if (m.Success)
+                {
+                    // Replace just the value group so formatting is preserved
+                    int valStart = m.Groups[1].Index;
+                    int valLen = m.Groups[1].Length;
+                    var sb = new StringBuilder(text.Length - valLen + next.Length);
+                    sb.Append(text, 0, valStart);
+                    sb.Append(next);
+                    sb.Append(text, valStart + valLen, text.Length - (valStart + valLen));
+                    text = sb.ToString();
+                }
+                else
+                {
+                    // Insert a version field before the closing brace (best-effort)
+                    int insertAt = text.LastIndexOf('}');
+                    if (insertAt < 0)
+                    {
+                        Debug.LogWarning("Publish: package.json appears malformed; cannot insert version.");
+                        return null;
+                    }
+                    string prefix = text.Substring(0, insertAt).TrimEnd();
+                    string suffix = text.Substring(insertAt);
+                    if (!prefix.EndsWith(",")) prefix += ",";
+                    string insert = "\n  \"version\": \"" + next + "\"\n";
+                    text = prefix + insert + suffix;
+                }
+
+                File.WriteAllText(packageJsonPath, text, Encoding.UTF8);
+
+                // Validate the result
+                var vm = Regex.Match(text, "\"version\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.Multiline);
+                if (!vm.Success || vm.Groups[1].Value != next)
+                {
+                    Debug.LogError("Publish: version bump validation failed. Aborting.");
+                    return null;
+                }
+                return next;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("Publish: version bump failed: " + ex.Message);
+                return null;
+            }
         }
 
         private static int RunGit(string args, string workingDir, out string stdout, out string stderr)
