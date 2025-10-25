@@ -1,0 +1,135 @@
+{
+    "runId": "2025-10-25_11-33-24",
+    "suite": "ReactiveUITK Bench (Editor)",
+    "env": {
+        "unityVersion": "6000.2.6f2",
+        "productName": "UnityComponents",
+        "platform": "WindowsEditor",
+        "graphicsDevice": "NVIDIA GeForce GTX 1080 Ti",
+        "deviceModel": "MS-7D25 (Micro-Star International Co., Ltd.)",
+        "deviceName": "DESKTOP-CFTHQRQ",
+        "screenWidth": 1920,
+        "screenHeight": 1080,
+        "systemMemoryMB": 130857,
+        "isEditor": true,
+        "isDevelopmentBuild": false
+    },
+    "scenario": {
+        "index": 6,
+        "name": "SharedDemo",
+        "durationSec": 10.0,
+        "startedAt": 1761381260.2528029,
+        "endedAt": 1761381270.2911187
+    },
+    "scenarioSummary": {
+        "fpsAvg": 2294.26513671875,
+        "fpsP95": 2555.583984375,
+        "fpsMin": 34.519779205322269,
+        "fpsMax": 2616.43115234375,
+        "samplesTotal": 21861,
+        "secondsTotal": 11,
+        "monoUsedMax": 999501824,
+        "gcCollectionsTotal": 6
+    },
+    "perSecond": [
+        {
+            "sec": 0,
+            "fpsAvg": 2295.914794921875,
+            "fpsMin": 34.519779205322269,
+            "fpsMax": 2616.43115234375,
+            "sampleCount": 2002,
+            "monoUsedMax": 983777280,
+            "gcCollections": 0
+        },
+        {
+            "sec": 1,
+            "fpsAvg": 2293.262939453125,
+            "fpsMin": 68.1574935913086,
+            "fpsMax": 2602.81103515625,
+            "sampleCount": 2217,
+            "monoUsedMax": 993964032,
+            "gcCollections": 1
+        },
+        {
+            "sec": 2,
+            "fpsAvg": 2191.24853515625,
+            "fpsMin": 59.77643966674805,
+            "fpsMax": 2594.706787109375,
+            "sampleCount": 2097,
+            "monoUsedMax": 997199872,
+            "gcCollections": 1
+        },
+        {
+            "sec": 3,
+            "fpsAvg": 2234.469482421875,
+            "fpsMin": 1319.26123046875,
+            "fpsMax": 2600.7802734375,
+            "sampleCount": 2221,
+            "monoUsedMax": 957870080,
+            "gcCollections": 0
+        },
+        {
+            "sec": 4,
+            "fpsAvg": 2201.00634765625,
+            "fpsMin": 64.91862487792969,
+            "fpsMax": 2513.825927734375,
+            "sampleCount": 2118,
+            "monoUsedMax": 997978112,
+            "gcCollections": 1
+        },
+        {
+            "sec": 5,
+            "fpsAvg": 2188.095947265625,
+            "fpsMin": 283.2138977050781,
+            "fpsMax": 2501.87646484375,
+            "sampleCount": 2166,
+            "monoUsedMax": 990130176,
+            "gcCollections": 0
+        },
+        {
+            "sec": 6,
+            "fpsAvg": 2196.5986328125,
+            "fpsMin": 61.9816780090332,
+            "fpsMax": 2566.735107421875,
+            "sampleCount": 2120,
+            "monoUsedMax": 998486016,
+            "gcCollections": 1
+        },
+        {
+            "sec": 7,
+            "fpsAvg": 2335.480712890625,
+            "fpsMin": 66.9187240600586,
+            "fpsMax": 2624.671875,
+            "sampleCount": 2255,
+            "monoUsedMax": 998608896,
+            "gcCollections": 1
+        },
+        {
+            "sec": 8,
+            "fpsAvg": 2377.2392578125,
+            "fpsMin": 1313.542724609375,
+            "fpsMax": 2631.578857421875,
+            "sampleCount": 2360,
+            "monoUsedMax": 968187904,
+            "gcCollections": 0
+        },
+        {
+            "sec": 9,
+            "fpsAvg": 2312.30126953125,
+            "fpsMin": 67.85871887207031,
+            "fpsMax": 2605.523681640625,
+            "sampleCount": 2228,
+            "monoUsedMax": 999501824,
+            "gcCollections": 1
+        },
+        {
+            "sec": 10,
+            "fpsAvg": 2253.0859375,
+            "fpsMin": 1552.072021484375,
+            "fpsMax": 2549.719482421875,
+            "sampleCount": 77,
+            "monoUsedMax": 907411456,
+            "gcCollections": 0
+        }
+    ]
+}

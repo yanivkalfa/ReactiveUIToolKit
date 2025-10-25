@@ -72,7 +72,7 @@ namespace ReactiveUITK.Elements
                     int clamped = ClampIndex(groupElement.choices, idx);
                     groupElement.value = clamped;
                 });
-                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing || ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
+                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing && ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
                 {
                     UnityEngine.Debug.Log($"[RadioGroupDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={groupElement.value} choicesRef={(groupElement.choices != null ? groupElement.choices.GetHashCode() : 0)}");
                 }

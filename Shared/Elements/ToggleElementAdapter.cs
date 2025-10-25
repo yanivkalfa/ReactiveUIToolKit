@@ -37,7 +37,7 @@ namespace ReactiveUITK.Elements
             {
                 TryDiffProp<bool>(previous, next, "value", value => { toggleElement.value = value; });
                 TryDiffProp<string>(previous, next, "text", value => { toggleElement.text = value ?? string.Empty; });
-                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing || ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
+                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing && ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
                 {
                     UnityEngine.Debug.Log($"[ToggleDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={toggleElement.value}");
                 }
