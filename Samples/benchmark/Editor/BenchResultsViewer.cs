@@ -1,4 +1,4 @@
-#if UNITY_EDITOR && (ENV_DEV || ENV_STAGING)
+#if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
 using System.IO;
