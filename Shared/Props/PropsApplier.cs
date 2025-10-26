@@ -872,6 +872,24 @@ private static void ResetStyle(VisualElement element, string styleKey)
                     }
                     meta.EventHandlerSignatures[eventPropName] = newSig; return;
                 }
+                if (element is UnityEngine.UIElements.Slider)
+                {
+                    if (!meta.EventHandlers.ContainsKey(eventPropName))
+                    {
+                        EventCallback<ChangeEvent<float>> w = e => { meta.EventHandlerTargets.TryGetValue(eventPropName, out var t); InvokeHandler(t, e); };
+                        element.RegisterCallback(w); meta.EventHandlers[eventPropName] = w;
+                    }
+                    meta.EventHandlerSignatures[eventPropName] = newSig; return;
+                }
+                if (element is UnityEngine.UIElements.Foldout)
+                {
+                    if (!meta.EventHandlers.ContainsKey(eventPropName))
+                    {
+                        EventCallback<ChangeEvent<bool>> w = e => { meta.EventHandlerTargets.TryGetValue(eventPropName, out var t); InvokeHandler(t, e); };
+                        element.RegisterCallback(w); meta.EventHandlers[eventPropName] = w;
+                    }
+                    meta.EventHandlerSignatures[eventPropName] = newSig; return;
+                }
                 // default to string for TextField and others
                 {
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
@@ -910,6 +928,8 @@ private static void ResetStyle(VisualElement element, string styleKey)
             if (eventPropName == "onKeyDown" && handler is EventCallback<KeyDownEvent> kd) { element.UnregisterCallback(kd); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
             if (eventPropName == "onKeyUp" && handler is EventCallback<KeyUpEvent> ku) { element.UnregisterCallback(ku); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
             if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<string>> ch) { element.UnregisterCallback(ch); meta.EventHandlers.Remove(eventPropName); if (meta.EventHandlerSignatures!=null) meta.EventHandlerSignatures.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<bool>> chb) { element.UnregisterCallback(chb); meta.EventHandlers.Remove(eventPropName); if (meta.EventHandlerSignatures!=null) meta.EventHandlerSignatures.Remove(eventPropName); totalEventsRemoved++; return; }
+            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<float>> chf) { element.UnregisterCallback(chf); meta.EventHandlers.Remove(eventPropName); if (meta.EventHandlerSignatures!=null) meta.EventHandlerSignatures.Remove(eventPropName); totalEventsRemoved++; return; }
             if (eventPropName == "onInput" && handler is EventCallback<InputEvent> ie) { element.UnregisterCallback(ie); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
             #if UNITY_EDITOR
             if (eventPropName == "onDragEnter" && handler is EventCallback<DragEnterEvent> de) { element.UnregisterCallback(de); meta.EventHandlers.Remove(eventPropName); totalEventsRemoved++; return; }
@@ -954,20 +974,79 @@ private static void ResetStyle(VisualElement element, string styleKey)
                     action();
                     return;
                 }
-                var parameters = del.Method.GetParameters();
+
+                var method = del.Method;
+                var parameters = method.GetParameters();
+
+                // 0-arg: just call
                 if (parameters.Length == 0)
                 {
                     del.DynamicInvoke();
+                    return;
                 }
-                else if (parameters.Length == 1)
+
+                // Extract newValue for ChangeEvent<T> if present
+                object newValue = null;
+                var evtObj = evt as object;
+                var evtType = evtObj?.GetType();
+                if (evtType != null && evtType.IsGenericType && evtType.Name.StartsWith("ChangeEvent`", StringComparison.Ordinal))
                 {
-                    del.DynamicInvoke(evt);
+                    try { newValue = evtType.GetProperty("newValue")?.GetValue(evtObj); } catch { }
                 }
-                else
+
+                // Single-arg handlers
+                if (parameters.Length == 1)
                 {
-                    // Attempt best effort: pass event as first arg, nulls for rest
+                    var p0 = parameters[0].ParameterType;
+
+                    // If expects EventBase (or derived) and matches, pass event
+                    if (evt != null && p0.IsAssignableFrom(evt.GetType()))
+                    {
+                        del.DynamicInvoke(evt);
+                        return;
+                    }
+
+                    // If expects a value type/string and we have newValue, pass it
+                    if (newValue != null)
+                    {
+                        if (p0.IsInstanceOfType(newValue))
+                        {
+                            del.DynamicInvoke(newValue);
+                            return;
+                        }
+                        try
+                        {
+                            var converted = System.Convert.ChangeType(newValue, p0);
+                            del.DynamicInvoke(converted);
+                            return;
+                        }
+                        catch
+                        {
+                            // fall through
+                        }
+                    }
+
+                    // Fallbacks: object receives newValue or evt
+                    if (p0 == typeof(object))
+                    {
+                        del.DynamicInvoke(newValue ?? (object)evt);
+                        return;
+                    }
+                    // No compatible argument — do not invoke to avoid type exceptions
+                    return;
+                }
+
+                // Multi-arg handlers: pass best-effort in first slot
+                {
                     object[] args = new object[parameters.Length];
-                    args[0] = evt;
+                    var p0 = parameters[0].ParameterType;
+                    if (evt != null && p0.IsAssignableFrom(evt.GetType())) args[0] = evt;
+                    else if (newValue != null && p0.IsInstanceOfType(newValue)) args[0] = newValue;
+                    else
+                    {
+                        // Attempt conversion for value types
+                        try { if (newValue != null) args[0] = System.Convert.ChangeType(newValue, p0); } catch { args[0] = null; }
+                    }
                     del.DynamicInvoke(args);
                 }
             }

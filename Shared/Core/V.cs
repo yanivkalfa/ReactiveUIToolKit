@@ -250,6 +250,81 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode Image(ImageProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Image",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode ScrollView(ScrollViewProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "ScrollView",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Slider(SliderProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Slider",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode DropdownField(DropdownFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "DropdownField",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Foldout(FoldoutProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Foldout",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
         
 
         public static VirtualNode Func(

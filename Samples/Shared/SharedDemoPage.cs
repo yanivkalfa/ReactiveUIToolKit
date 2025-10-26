@@ -52,6 +52,11 @@ namespace ReactiveUITK.Samples.Shared
             var (selectionIndex, setSelectionIndex) = Hooks.UseState(0);
             var (repeatClickCount, setRepeatClickCount) = Hooks.UseState(0);
             var (currentTime, setCurrentTime) = Hooks.UseState(DateTime.Now);
+            // New element demo state
+            var (sliderValue, setSliderValue) = Hooks.UseState(0.5f);
+            var ddChoices = Hooks.UseMemo(() => new List<string> { "Alpha", "Beta", "Gamma" }, 0);
+            var (ddValue, setDdValue) = Hooks.UseState("Beta");
+            var (foldoutOpen, setFoldoutOpen) = Hooks.UseState(true);
             var rootElement = Hooks.UseRef();
             Hooks.UseEffect(() =>
             {
@@ -105,7 +110,10 @@ namespace ReactiveUITK.Samples.Shared
                 Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) }
             };
             var listContent = isListVisible ? V.VisualElement(new Dictionary<string, object> { { "style", ListContainerStyle } }, null, V.ListView(listViewProps)) : V.Text("List hidden");
-            return V.VisualElement(new Dictionary<string, object> { { "style", PageStyle } }, key: "shared-page-root",
+
+            Debug.Log($"blaaaa: {sliderValue}");
+            // Original page content grouped for ScrollView
+            VirtualNode PageBody() => V.VisualElement(new Dictionary<string, object> { { "style", PageStyle } }, key: "shared-page-root",
                 V.VisualElement(new Dictionary<string, object> { { "style", TopBarStyle } }, null,
                     V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
                     V.TextField(inputTextFieldProps),
@@ -151,7 +159,64 @@ namespace ReactiveUITK.Samples.Shared
                 {
                     { "inputValue", inputText },
                     { "setTextValue", setInputText }
-                })
+                }),
+                // New components demo section
+                V.GroupBox(new GroupBoxProps
+                {
+                    Text = "New Components",
+                    ContentContainer = new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 8f), (PaddingRight, 8f), (PaddingTop, 6f), (PaddingBottom, 6f) } } }
+                }, null,
+                    // Foldout first (ensure visibility)
+                    V.Foldout(new FoldoutProps
+                    {
+                        Text = "More settings",
+                        Value = foldoutOpen,
+                        OnChange = e => setFoldoutOpen(e.newValue),
+                        Header = new Dictionary<string, object> { { "style", new Style { (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f) ), (PaddingLeft, 4f), (PaddingTop, 2f), (PaddingBottom, 2f) } } },
+                        ContentContainer = new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f) } } }
+                    }, null,
+                        V.Label(new LabelProps { Text = "Inside foldout" })
+                    ),
+                    // Image demo (uses background color when no sprite/texture)
+                    V.Image(new ImageProps
+                    {
+                        Style = new Style { (Width, 96f), (Height, 96f), (BackgroundColor, new UColor(0.7f, 0.85f, 1f, 1f)), (BorderRadius, 6f) }
+                    }, key: "img-demo"),
+                    // Slider demo
+                    V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
+                    V.Slider(new SliderProps
+                    {
+                        LowValue = 0f,
+                        HighValue = 1f,
+                        Value = sliderValue,
+                        Direction = "horizontal",
+                        OnChange = e => setSliderValue(e.newValue),
+                        Style = new Style { (Width, 200f) }
+                    }),
+                    // Dropdown demo
+                    V.DropdownField(new DropdownFieldProps
+                    {
+                        Choices = ddChoices,
+                        Value = ddValue,
+                        OnChange = e => setDdValue(e.newValue)
+                    })
+                )
+            );
+
+            // Outer wrapper (blue full-screen) -> Safe area wrapper (green) -> ScrollView
+            return V.VisualElement(new Dictionary<string, object>
+            {
+                { "style", new Style { (BackgroundColor, new UColor(0.2f, 0.4f, 0.8f, 1f)), (FlexGrow, 1f) } }
+            }, key: "outer-wrap",
+                V.VisualElementSafe(new Style { (BackgroundColor, new UColor(0.2f, 0.6f, 0.2f, 1f)), (FlexGrow, 1f) }, key: "safe-wrap",
+                    V.ScrollView(new ScrollViewProps
+                    {
+                        Mode = "vertical",
+                        Style = new Style { (FlexGrow, 1f) }
+                    }, null,
+                        PageBody()
+                    )
+                )
             );
         }
     }
