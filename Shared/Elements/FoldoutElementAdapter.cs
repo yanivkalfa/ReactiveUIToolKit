@@ -1,7 +1,7 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -12,21 +12,39 @@ namespace ReactiveUITK.Elements
             return GlobalVisualElementPool.Get<Foldout>();
         }
 
+        public override VisualElement ResolveChildHost(VisualElement element)
+        {
+            var fo = element as Foldout;
+            return fo != null ? fo.contentContainer : element;
+        }
+
         private static void ApplySlots(Foldout fo, IReadOnlyDictionary<string, object> properties)
         {
-            if (properties == null) return;
-            if (properties.TryGetValue("contentContainer", out var ccObj) && ccObj is Dictionary<string, object> ccMap)
+            if (properties == null)
+                return;
+            if (
+                properties.TryGetValue("contentContainer", out var ccObj)
+                && ccObj is Dictionary<string, object> ccMap
+            )
             {
                 PropsApplier.Apply(fo.contentContainer, ccMap);
             }
-            if (properties.TryGetValue("header", out var headerObj) && headerObj is Dictionary<string, object> headerMap)
+            if (
+                properties.TryGetValue("header", out var headerObj)
+                && headerObj is Dictionary<string, object> headerMap
+            )
             {
                 var header = fo.Q<Toggle>();
-                if (header != null) PropsApplier.Apply(header, headerMap);
+                if (header != null)
+                    PropsApplier.Apply(header, headerMap);
             }
         }
 
-        private static void ApplySlotsDiff(Foldout fo, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        private static void ApplySlotsDiff(
+            Foldout fo,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
@@ -38,14 +56,21 @@ namespace ReactiveUITK.Elements
             }
             previous.TryGetValue("header", out var prevHeader);
             next.TryGetValue("header", out var nextHeader);
-            if (!ReferenceEquals(prevHeader, nextHeader) && nextHeader is Dictionary<string, object> headerMap)
+            if (
+                !ReferenceEquals(prevHeader, nextHeader)
+                && nextHeader is Dictionary<string, object> headerMap
+            )
             {
                 var header = fo.Q<Toggle>();
-                if (header != null) PropsApplier.Apply(header, headerMap);
+                if (header != null)
+                    PropsApplier.Apply(header, headerMap);
             }
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (!(element is Foldout fo) || properties == null)
             {
@@ -61,7 +86,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is Foldout fo)
             {

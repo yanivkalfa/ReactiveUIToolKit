@@ -1,8 +1,8 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
+using ReactiveUITK.Elements.Pools;
+using ReactiveUITK.Props;
 using UnityEngine;
 using UnityEngine.UIElements;
-using ReactiveUITK.Props;
 
 namespace ReactiveUITK.Elements
 {
@@ -13,16 +13,27 @@ namespace ReactiveUITK.Elements
             return GlobalVisualElementPool.Get<ScrollView>();
         }
 
-        private static void ApplySlots(ScrollView sv, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            ScrollView sv,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
-            if (properties == null) return;
-            if (properties.TryGetValue("contentContainer", out var ccObj) && ccObj is Dictionary<string, object> ccMap)
+            if (properties == null)
+                return;
+            if (
+                properties.TryGetValue("contentContainer", out var ccObj)
+                && ccObj is Dictionary<string, object> ccMap
+            )
             {
                 PropsApplier.Apply(sv.contentContainer, ccMap);
             }
         }
 
-        private static void ApplySlotsDiff(ScrollView sv, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        private static void ApplySlotsDiff(
+            ScrollView sv,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
@@ -34,7 +45,10 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (!(element is ScrollView sv) || properties == null)
             {
@@ -55,7 +69,7 @@ namespace ReactiveUITK.Elements
                     {
                         "vertical" => ScrollViewMode.Vertical,
                         "horizontal" => ScrollViewMode.Horizontal,
-                        _ => ScrollViewMode.Vertical
+                        _ => ScrollViewMode.Vertical,
                     };
                 }
             }
@@ -73,7 +87,7 @@ namespace ReactiveUITK.Elements
                     {
                         "auto" => ScrollerVisibility.Auto,
                         "hidden" => ScrollerVisibility.Hidden,
-                        _ => ScrollerVisibility.Auto
+                        _ => ScrollerVisibility.Auto,
                     };
                 }
             }
@@ -91,7 +105,7 @@ namespace ReactiveUITK.Elements
                     {
                         "auto" => ScrollerVisibility.Auto,
                         "hidden" => ScrollerVisibility.Hidden,
-                        _ => ScrollerVisibility.Auto
+                        _ => ScrollerVisibility.Auto,
                     };
                 }
             }
@@ -106,7 +120,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ScrollView sv)
             {
@@ -125,18 +143,34 @@ namespace ReactiveUITK.Elements
                         {
                             "vertical" => ScrollViewMode.Vertical,
                             "horizontal" => ScrollViewMode.Horizontal,
-                            _ => ScrollViewMode.Vertical
+                            _ => ScrollViewMode.Vertical,
                         };
                     }
                 }
 
-                TryDiffProp<ScrollerVisibility>(previous, next, "verticalScrollerVisibility", v => sv.verticalScrollerVisibility = v);
-                TryDiffProp<ScrollerVisibility>(previous, next, "horizontalScrollerVisibility", v => sv.horizontalScrollerVisibility = v);
+                TryDiffProp<ScrollerVisibility>(
+                    previous,
+                    next,
+                    "verticalScrollerVisibility",
+                    v => sv.verticalScrollerVisibility = v
+                );
+                TryDiffProp<ScrollerVisibility>(
+                    previous,
+                    next,
+                    "horizontalScrollerVisibility",
+                    v => sv.horizontalScrollerVisibility = v
+                );
                 TryDiffProp<Vector2>(previous, next, "scrollOffset", v => sv.scrollOffset = v);
 
                 ApplySlotsDiff(sv, previous, next);
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override VisualElement ResolveChildHost(VisualElement element)
+        {
+            var sv = element as ScrollView;
+            return sv != null ? sv.contentContainer : element;
         }
     }
 }
