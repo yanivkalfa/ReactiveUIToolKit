@@ -754,11 +754,6 @@ namespace ReactiveUITK.Core
                 bool childrenEq = ShallowChildrenEqual(previousNode.Children, nextNode.Children);
                 bool skip = propsEq && childrenEq;
 
-                // Optional trace (fully qualified to avoid ambiguity)
-                UnityEngine.Debug.Log(
-                    $"[Memo] key={(nextNode.Key ?? "(no-key)")} skip={skip} propsEq={propsEq} childrenEq={childrenEq}"
-                );
-
                 if (skip)
                     return;
 
