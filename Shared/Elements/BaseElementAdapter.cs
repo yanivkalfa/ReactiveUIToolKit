@@ -6,11 +6,39 @@ namespace ReactiveUITK.Elements
 {
     public abstract class BaseElementAdapter : IElementAdapter
     {
-        public abstract VisualElement Create();
-        public virtual void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties) { }
-        public virtual void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next) { }
+        protected const string MountName = "__ru_mount";
 
-        protected bool TryApplyProp<T>(IReadOnlyDictionary<string, object> properties, string key, Action<T> assign)
+        public abstract VisualElement Create();
+
+        public virtual void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        ) { }
+
+        public virtual VisualElement ResolveChildHost(VisualElement element) => element;
+
+        protected virtual VisualElement EnsureMount(VisualElement parent)
+        {
+            var mount = parent.Q<VisualElement>(MountName);
+            if (mount == null)
+            {
+                mount = new VisualElement { name = MountName };
+                parent.Add(mount);
+            }
+            return mount;
+        }
+
+        public virtual void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        ) { }
+
+        protected bool TryApplyProp<T>(
+            IReadOnlyDictionary<string, object> properties,
+            string key,
+            Action<T> assign
+        )
         {
             if (properties == null)
             {
@@ -28,7 +56,12 @@ namespace ReactiveUITK.Elements
             return false;
         }
 
-        protected bool TryDiffProp<T>(IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string key, Action<T> assign)
+        protected bool TryDiffProp<T>(
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            string key,
+            Action<T> assign
+        )
         {
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();

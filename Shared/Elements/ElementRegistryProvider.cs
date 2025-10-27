@@ -22,6 +22,11 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "RadioButtonGroup");
                 RegisterIfAllowed(registry, "ProgressBar");
                 RegisterIfAllowed(registry, "RepeatButton");
+                RegisterIfAllowed(registry, "Image");
+                RegisterIfAllowed(registry, "ScrollView");
+                RegisterIfAllowed(registry, "Slider");
+                RegisterIfAllowed(registry, "DropdownField");
+                RegisterIfAllowed(registry, "Foldout");
                 defaultRegistry = registry;
             }
             return defaultRegistry;
@@ -42,6 +47,11 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "RadioButtonGroup", allowedSet);
             RegisterIfAllowed(registry, "ProgressBar", allowedSet);
             RegisterIfAllowed(registry, "RepeatButton", allowedSet);
+            RegisterIfAllowed(registry, "Image", allowedSet);
+            RegisterIfAllowed(registry, "ScrollView", allowedSet);
+            RegisterIfAllowed(registry, "Slider", allowedSet);
+            RegisterIfAllowed(registry, "DropdownField", allowedSet);
+            RegisterIfAllowed(registry, "Foldout", allowedSet);
             return registry;
         }
 
@@ -84,6 +94,21 @@ namespace ReactiveUITK.Elements
                         break;
                     case "RepeatButton":
                         registry.Register("RepeatButton", new RepeatButtonElementAdapter());
+                        break;
+                    case "Image":
+                        registry.Register("Image", new ImageElementAdapter());
+                        break;
+                    case "ScrollView":
+                        registry.Register("ScrollView", new ScrollViewElementAdapter());
+                        break;
+                    case "Slider":
+                        registry.Register("Slider", new SliderElementAdapter());
+                        break;
+                    case "DropdownField":
+                        registry.Register("DropdownField", new DropdownFieldElementAdapter());
+                        break;
+                    case "Foldout":
+                        registry.Register("Foldout", new FoldoutElementAdapter());
                         break;
                 }
             }

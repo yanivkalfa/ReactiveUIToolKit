@@ -79,5 +79,7 @@ namespace ReactiveUITK.Props.Typed
         public const string Rotate = "rotate";
         public const string Scale = "scale";
         public const string Translate = "translate";
+
+        // Note: No generic gap property in current UI Toolkit stable; use margins/padding per child or custom layout.
     }
 }
