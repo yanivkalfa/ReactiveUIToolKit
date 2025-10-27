@@ -449,10 +449,7 @@ namespace ReactiveUITK.Samples.Shared
                         null,
                         V.Func(
                             ValuesBarFunc.Render,
-                            new Dictionary<string, object>
-                            {
-                                { "items", valuesItems },
-                            }
+                            new Dictionary<string, object> { { "items", valuesItems } }
                         )
                     ),
                     // Main scrollable content

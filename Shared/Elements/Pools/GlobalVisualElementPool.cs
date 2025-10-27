@@ -12,7 +12,8 @@ namespace ReactiveUITK.Elements.Pools
     {
         private static readonly Dictionary<Type, Stack<VisualElement>> _pools = new();
 
-        public static T Get<T>() where T : VisualElement, new()
+        public static T Get<T>()
+            where T : VisualElement, new()
         {
             var t = typeof(T);
             if (_pools.TryGetValue(t, out var stack) && stack.Count > 0)
@@ -25,15 +26,40 @@ namespace ReactiveUITK.Elements.Pools
 
         public static void Release(VisualElement ve)
         {
-            if (ve == null) return;
+            if (ve == null)
+                return;
 
             // Minimal hard reset to avoid state bleed
-            try { ve.Clear(); } catch { }
-            try { ve.ClearClassList(); } catch { }
-            try { ve.tooltip = null; } catch { }
-            try { ve.userData = null; } catch { }
-            try { ve.pickingMode = PickingMode.Position; } catch { }
-            try { ve.name = null; } catch { }
+            try
+            {
+                ve.Clear();
+            }
+            catch { }
+            try
+            {
+                ve.ClearClassList();
+            }
+            catch { }
+            try
+            {
+                ve.tooltip = null;
+            }
+            catch { }
+            try
+            {
+                ve.userData = null;
+            }
+            catch { }
+            try
+            {
+                ve.pickingMode = PickingMode.Position;
+            }
+            catch { }
+            try
+            {
+                ve.name = null;
+            }
+            catch { }
 
             var t = ve.GetType();
             if (!_pools.TryGetValue(t, out var stack))

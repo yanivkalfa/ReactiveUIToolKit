@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
-using UnityEngine.UIElements;
-using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Core.Util;
+using ReactiveUITK.Props.Typed;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK
 {
@@ -25,7 +25,8 @@ namespace ReactiveUITK
         public static VirtualNode VisualElement(
             IReadOnlyDictionary<string, object> elementProperties = null,
             string key = null,
-            params VirtualNode[] children)
+            params VirtualNode[] children
+        )
         {
             elementProperties = CloneStyleDictionary(elementProperties);
             return new VirtualNode(
@@ -60,7 +61,8 @@ namespace ReactiveUITK
         public static VirtualNode VisualElement(
             Style style,
             string key = null,
-            params VirtualNode[] children)
+            params VirtualNode[] children
+        )
         {
             var props = new Dictionary<string, object>(1);
             if (style != null)
@@ -74,33 +76,50 @@ namespace ReactiveUITK
         public static VirtualNode VisualElementSafe(
             Style style = null,
             string key = null,
-            params VirtualNode[] children)
+            params VirtualNode[] children
+        )
         {
             var insets = SafeAreaUtility.GetInsets();
             // Build a style where padding = Max(userPadding, safeInset)
             float GetUser(string k)
             {
-                if (style == null) return 0f;
-                if (style.TryGetValue(k, out var v) && v is float f) return f;
+                if (style == null)
+                    return 0f;
+                if (style.TryGetValue(k, out var v) && v is float f)
+                    return f;
                 return 0f;
             }
 
             var merged = new Style
             {
-                (Props.Typed.StyleKeys.PaddingLeft,  Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingLeft),  insets.Left)),
-                (Props.Typed.StyleKeys.PaddingRight, Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingRight), insets.Right)),
-                (Props.Typed.StyleKeys.PaddingTop,   Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingTop),   insets.Top)),
-                (Props.Typed.StyleKeys.PaddingBottom,Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom),insets.Bottom))
+                (
+                    Props.Typed.StyleKeys.PaddingLeft,
+                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingLeft), insets.Left)
+                ),
+                (
+                    Props.Typed.StyleKeys.PaddingRight,
+                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingRight), insets.Right)
+                ),
+                (
+                    Props.Typed.StyleKeys.PaddingTop,
+                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingTop), insets.Top)
+                ),
+                (
+                    Props.Typed.StyleKeys.PaddingBottom,
+                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom), insets.Bottom)
+                ),
             };
             // Merge any remaining user styles on top (they can override unrelated keys)
             if (style != null)
             {
                 foreach (var kv in style)
                 {
-                    if (kv.Key == Props.Typed.StyleKeys.PaddingLeft ||
-                        kv.Key == Props.Typed.StyleKeys.PaddingRight ||
-                        kv.Key == Props.Typed.StyleKeys.PaddingTop ||
-                        kv.Key == Props.Typed.StyleKeys.PaddingBottom)
+                    if (
+                        kv.Key == Props.Typed.StyleKeys.PaddingLeft
+                        || kv.Key == Props.Typed.StyleKeys.PaddingRight
+                        || kv.Key == Props.Typed.StyleKeys.PaddingTop
+                        || kv.Key == Props.Typed.StyleKeys.PaddingBottom
+                    )
                     {
                         // Keep the max already set
                         continue;
@@ -160,7 +179,11 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode GroupBox(GroupBoxProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode GroupBox(
+            GroupBoxProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -205,7 +228,11 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode RadioButtonGroup(RadioButtonGroupProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode RadioButtonGroup(
+            RadioButtonGroupProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -265,7 +292,11 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode ScrollView(ScrollViewProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode ScrollView(
+            ScrollViewProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -310,7 +341,11 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Foldout(FoldoutProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode Foldout(
+            FoldoutProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -325,15 +360,22 @@ namespace ReactiveUITK
             );
         }
 
-        
-
         public static VirtualNode Func(
-            System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
+            System.Func<
+                Dictionary<string, object>,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > renderFunction,
             IReadOnlyDictionary<string, object> functionProps = null,
             string key = null,
             bool memoize = false,
-            System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
-            params VirtualNode[] children)
+            System.Func<
+                IReadOnlyDictionary<string, object>,
+                IReadOnlyDictionary<string, object>,
+                bool
+            > memoCompare = null,
+            params VirtualNode[] children
+        )
         {
             functionProps = CloneStyleDictionary(functionProps);
             return new VirtualNode(
@@ -362,7 +404,11 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Portal(VisualElement portalTargetElement, string key = null, params VirtualNode[] children)
+        public static VirtualNode Portal(
+            VisualElement portalTargetElement,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             return new VirtualNode(
                 VirtualNodeType.Portal,
@@ -376,7 +422,12 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Suspense(System.Func<bool> isReady, VirtualNode fallbackNode, string key = null, params VirtualNode[] children)
+        public static VirtualNode Suspense(
+            System.Func<bool> isReady,
+            VirtualNode fallbackNode,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             return new VirtualNode(
                 VirtualNodeType.Suspense,
@@ -391,11 +442,14 @@ namespace ReactiveUITK
             );
         }
 
-        private static IReadOnlyDictionary<string, object> EmptyProps() => new Dictionary<string, object>(0);
+        private static IReadOnlyDictionary<string, object> EmptyProps() =>
+            new Dictionary<string, object>(0);
 
         private static IReadOnlyList<VirtualNode> EmptyChildren() => new List<VirtualNode>(0);
 
-        private static IReadOnlyDictionary<string, object> CloneStyleDictionary(IReadOnlyDictionary<string, object> source)
+        private static IReadOnlyDictionary<string, object> CloneStyleDictionary(
+            IReadOnlyDictionary<string, object> source
+        )
         {
             if (source == null)
             {

@@ -4,6 +4,7 @@ namespace ReactiveUITK.Samples.Shared
     {
         public string Id;
         public string Text;
+
         public override string ToString() => Text;
     }
 }

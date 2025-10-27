@@ -1,5 +1,5 @@
-using ReactiveUITK.Elements;
 using System.Collections.Generic;
+using ReactiveUITK.Elements;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core

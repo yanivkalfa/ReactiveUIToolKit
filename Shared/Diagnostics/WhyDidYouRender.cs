@@ -7,12 +7,15 @@ namespace ReactiveUITK.Diagnostics
     {
         public static bool Enabled = false;
 
-        public static void Log(string componentName,
+        public static void Log(
+            string componentName,
             IReadOnlyDictionary<string, object> prev,
             IReadOnlyDictionary<string, object> next,
-            bool forced)
+            bool forced
+        )
         {
-            if (!Enabled) return;
+            if (!Enabled)
+                return;
             if (forced)
             {
                 Debug.Log($"[WDYR] {componentName} forced render");
@@ -20,7 +23,9 @@ namespace ReactiveUITK.Diagnostics
             }
             if (ReferenceEquals(prev, next))
             {
-                Debug.Log($"[WDYR] {componentName} rendered with identical props (reference equal).");
+                Debug.Log(
+                    $"[WDYR] {componentName} rendered with identical props (reference equal)."
+                );
                 return;
             }
             if (prev == null || next == null)
@@ -30,7 +35,9 @@ namespace ReactiveUITK.Diagnostics
             }
             if (prev.Count != next.Count)
             {
-                Debug.Log($"[WDYR] {componentName} rendered; prop count changed {prev.Count} -> {next.Count}.");
+                Debug.Log(
+                    $"[WDYR] {componentName} rendered; prop count changed {prev.Count} -> {next.Count}."
+                );
                 return;
             }
             foreach (var kv in prev)

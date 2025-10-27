@@ -28,7 +28,11 @@ namespace ReactiveUITK.Samples.Shared
 
         private static readonly LabelProps LabelPreset = new()
         {
-            Style = new Style { (TextColor, new UColor(0.35f, 0.35f, 0.35f, 1f)), ("unityFontStyle", "bold") },
+            Style = new Style
+            {
+                (TextColor, new UColor(0.35f, 0.35f, 0.35f, 1f)),
+                ("unityFontStyle", "bold"),
+            },
         };
 
         private static readonly LabelProps ValuePreset = new()

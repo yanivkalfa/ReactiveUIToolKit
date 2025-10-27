@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core.Util;
 using UnityEngine;
 using UnityEngine.UIElements;
-using ReactiveUITK.Core.Util;
 
 namespace ReactiveUITK.Core
 {
@@ -11,6 +11,7 @@ namespace ReactiveUITK.Core
         [ThreadStatic]
         public static NodeMetadata Current;
     }
+
     public static class Hooks
     {
         public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)
@@ -32,6 +33,7 @@ namespace ReactiveUITK.Core
             metadata.HookIndex++;
             return current;
         }
+
         public static Func<T> UseStableFunc<T>(Func<T> function)
         {
             NodeMetadata metadata = HookContext.Current;
@@ -49,6 +51,7 @@ namespace ReactiveUITK.Core
             metadata.HookStates[metadata.HookIndex - 1] = function;
             return stored;
         }
+
         public static Action<T> UseStableAction<T>(Action<T> action)
         {
             NodeMetadata metadata = HookContext.Current;
@@ -66,6 +69,7 @@ namespace ReactiveUITK.Core
             metadata.HookStates[metadata.HookIndex - 1] = action;
             return stored;
         }
+
         public static Action UseStableCallback(Action callback)
         {
             NodeMetadata metadata = HookContext.Current;
@@ -91,7 +95,8 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            metadata.FunctionLayoutEffects ??= new List<(Func<Action>, object[], object[], Action)>();
+            metadata.FunctionLayoutEffects ??=
+                new List<(Func<Action>, object[], object[], Action)>();
             int index = metadata.LayoutEffectIndex;
             if (index >= metadata.FunctionLayoutEffects.Count)
             {
@@ -106,6 +111,7 @@ namespace ReactiveUITK.Core
             }
             metadata.LayoutEffectIndex++;
         }
+
         public static (T value, Action<T> set) UseState<T>(T initial = default)
         {
             NodeMetadata metadata = HookContext.Current;
@@ -134,17 +140,37 @@ namespace ReactiveUITK.Core
                     }
                     // Prefer scheduling via host scheduler to avoid re-entrancy during render loop
                     ReactiveUITK.Core.IScheduler scheduler = null;
-                    if (metadata.HostContext != null && metadata.HostContext.Environment != null && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj))
+                    if (
+                        metadata.HostContext != null
+                        && metadata.HostContext.Environment != null
+                        && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj)
+                    )
                     {
                         scheduler = sObj as ReactiveUITK.Core.IScheduler;
                     }
                     if (scheduler != null)
                     {
-                        if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                        if (
+                            ReactiveUITK.Core.Reconciler.TraceLevel
+                            == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                        )
                         {
-                            try { UnityEngine.Debug.Log("[HookSet:state] key=" + metadata.Key + ", renderPending=" + metadata.IsRendering); } catch { }
+                            try
+                            {
+                                UnityEngine.Debug.Log(
+                                    "[HookSet:state] key="
+                                        + metadata.Key
+                                        + ", renderPending="
+                                        + metadata.IsRendering
+                                );
+                            }
+                            catch { }
                         }
-                        scheduler.Enqueue(() => { metadata.HookIndex = 0; metadata.Reconciler.ForceFunctionComponentUpdate(metadata); });
+                        scheduler.Enqueue(() =>
+                        {
+                            metadata.HookIndex = 0;
+                            metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
+                        });
                     }
                     else
                     {
@@ -156,7 +182,10 @@ namespace ReactiveUITK.Core
             return (currentValue, Setter);
         }
 
-        public static (TState state, Action<TAction> dispatch) UseReducer<TState, TAction>(Func<TState, TAction, TState> reducer, TState initialState)
+        public static (TState state, Action<TAction> dispatch) UseReducer<TState, TAction>(
+            Func<TState, TAction, TState> reducer,
+            TState initialState
+        )
         {
             NodeMetadata metadata = HookContext.Current;
             if (metadata == null)
@@ -194,17 +223,40 @@ namespace ReactiveUITK.Core
                             return;
                         }
                         ReactiveUITK.Core.IScheduler scheduler = null;
-                        if (metadata.HostContext != null && metadata.HostContext.Environment != null && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj))
+                        if (
+                            metadata.HostContext != null
+                            && metadata.HostContext.Environment != null
+                            && metadata.HostContext.Environment.TryGetValue(
+                                "scheduler",
+                                out var sObj
+                            )
+                        )
                         {
                             scheduler = sObj as ReactiveUITK.Core.IScheduler;
                         }
                         if (scheduler != null)
                         {
-                            if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                            if (
+                                ReactiveUITK.Core.Reconciler.TraceLevel
+                                == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                            )
                             {
-                                try { UnityEngine.Debug.Log("[HookSet:reducer] key=" + metadata.Key + ", renderPending=" + metadata.IsRendering); } catch { }
+                                try
+                                {
+                                    UnityEngine.Debug.Log(
+                                        "[HookSet:reducer] key="
+                                            + metadata.Key
+                                            + ", renderPending="
+                                            + metadata.IsRendering
+                                    );
+                                }
+                                catch { }
                             }
-                            scheduler.Enqueue(() => { metadata.HookIndex = 0; metadata.Reconciler.ForceFunctionComponentUpdate(metadata); });
+                            scheduler.Enqueue(() =>
+                            {
+                                metadata.HookIndex = 0;
+                                metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
+                            });
                         }
                         else
                         {
@@ -264,13 +316,20 @@ namespace ReactiveUITK.Core
                 T newVal = value;
                 int index = metadata.HookIndex;
                 ReactiveUITK.Core.IScheduler scheduler = null;
-                if (metadata.HostContext != null && metadata.HostContext.Environment != null && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj))
+                if (
+                    metadata.HostContext != null
+                    && metadata.HostContext.Environment != null
+                    && metadata.HostContext.Environment.TryGetValue("scheduler", out var sObj)
+                )
                 {
                     scheduler = sObj as ReactiveUITK.Core.IScheduler;
                 }
                 if (scheduler != null)
                 {
-                    scheduler.EnqueueBatchedEffect(() => { metadata.HookStates[index] = (newVal, dependencies); });
+                    scheduler.EnqueueBatchedEffect(() =>
+                    {
+                        metadata.HookStates[index] = (newVal, dependencies);
+                    });
                 }
                 else
                 {
@@ -305,7 +364,11 @@ namespace ReactiveUITK.Core
             return tuple.cb;
         }
 
-        public static THandle UseImperativeHandle<THandle>(Func<THandle> factory, params object[] dependencies) where THandle : class
+        public static THandle UseImperativeHandle<THandle>(
+            Func<THandle> factory,
+            params object[] dependencies
+        )
+            where THandle : class
         {
             NodeMetadata metadata = HookContext.Current;
             if (metadata == null)
@@ -353,9 +416,21 @@ namespace ReactiveUITK.Core
                 entry.deps = dependencies;
                 metadata.FunctionEffects[index] = entry;
             }
-            if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+            if (
+                ReactiveUITK.Core.Reconciler.TraceLevel
+                == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+            )
             {
-                try { Debug.Log("[Hooks] UseEffect captured index=" + index + ", depsLen=" + (dependencies?.Length ?? 0)); } catch { }
+                try
+                {
+                    Debug.Log(
+                        "[Hooks] UseEffect captured index="
+                            + index
+                            + ", depsLen="
+                            + (dependencies?.Length ?? 0)
+                    );
+                }
+                catch { }
             }
             metadata.EffectIndex++;
         }

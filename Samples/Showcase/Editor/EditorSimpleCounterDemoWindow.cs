@@ -12,7 +12,9 @@ namespace ReactiveUITK.Samples.Editor
         [MenuItem("Window/ReactiveUITK/Demos/Simple Counter")]
         public static void ShowWindow()
         {
-            EditorSimpleCounterDemoWindow window = GetWindow<EditorSimpleCounterDemoWindow>("Simple Counter Demo");
+            EditorSimpleCounterDemoWindow window = GetWindow<EditorSimpleCounterDemoWindow>(
+                "Simple Counter Demo"
+            );
             window.minSize = new Vector2(420, 320);
             window.Show();
         }

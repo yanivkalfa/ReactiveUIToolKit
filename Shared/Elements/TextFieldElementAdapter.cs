@@ -1,9 +1,9 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using System.Reflection;
-using UnityEngine.UIElements;
+using System.Runtime.CompilerServices;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -23,25 +23,67 @@ namespace ReactiveUITK.Elements
             return GlobalVisualElementPool.Get<TextField>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not TextField textFieldElement || properties == null)
             {
                 PropsApplier.Apply(element, properties);
                 return;
             }
-            TryApplyProp<string>(properties, "value", v => { textFieldElement.value = v; });
-            TryApplyProp<bool>(properties, "multiline", v => { textFieldElement.multiline = v; });
-            TryApplyProp<bool>(properties, "password", v => { SetPasswordField(textFieldElement, v); });
-            TryApplyProp<bool>(properties, "readOnly", v => { textFieldElement.isReadOnly = v; });
-            TryApplyProp<int>(properties, "maxLength", v => { textFieldElement.maxLength = v; });
+            TryApplyProp<string>(
+                properties,
+                "value",
+                v =>
+                {
+                    textFieldElement.value = v;
+                }
+            );
+            TryApplyProp<bool>(
+                properties,
+                "multiline",
+                v =>
+                {
+                    textFieldElement.multiline = v;
+                }
+            );
+            TryApplyProp<bool>(
+                properties,
+                "password",
+                v =>
+                {
+                    SetPasswordField(textFieldElement, v);
+                }
+            );
+            TryApplyProp<bool>(
+                properties,
+                "readOnly",
+                v =>
+                {
+                    textFieldElement.isReadOnly = v;
+                }
+            );
+            TryApplyProp<int>(
+                properties,
+                "maxLength",
+                v =>
+                {
+                    textFieldElement.maxLength = v;
+                }
+            );
             ApplyPlaceholder(textFieldElement, properties);
             ApplyHidePlaceholder(textFieldElement, properties);
             ApplySlots(textFieldElement, properties);
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not TextField textFieldElement)
             {
@@ -50,11 +92,51 @@ namespace ReactiveUITK.Elements
             }
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
-            TryDiffProp<string>(previous, next, "value", v => { textFieldElement.value = v ?? string.Empty; });
-            TryDiffProp<bool>(previous, next, "multiline", v => { textFieldElement.multiline = v; });
-            TryDiffProp<bool>(previous, next, "password", v => { SetPasswordField(textFieldElement, v); });
-            TryDiffProp<bool>(previous, next, "readOnly", v => { textFieldElement.isReadOnly = v; });
-            TryDiffProp<int>(previous, next, "maxLength", v => { textFieldElement.maxLength = v; });
+            TryDiffProp<string>(
+                previous,
+                next,
+                "value",
+                v =>
+                {
+                    textFieldElement.value = v ?? string.Empty;
+                }
+            );
+            TryDiffProp<bool>(
+                previous,
+                next,
+                "multiline",
+                v =>
+                {
+                    textFieldElement.multiline = v;
+                }
+            );
+            TryDiffProp<bool>(
+                previous,
+                next,
+                "password",
+                v =>
+                {
+                    SetPasswordField(textFieldElement, v);
+                }
+            );
+            TryDiffProp<bool>(
+                previous,
+                next,
+                "readOnly",
+                v =>
+                {
+                    textFieldElement.isReadOnly = v;
+                }
+            );
+            TryDiffProp<int>(
+                previous,
+                next,
+                "maxLength",
+                v =>
+                {
+                    textFieldElement.maxLength = v;
+                }
+            );
             DiffPlaceholder(textFieldElement, previous, next);
             DiffHidePlaceholder(textFieldElement, previous, next);
             DiffSlot(textFieldElement, previous, next, "label");
@@ -63,13 +145,19 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void ApplyPlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplyPlaceholder(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (properties == null)
             {
                 return;
             }
-            if (properties.TryGetValue("placeholder", out var placeholderObj) && placeholderObj is string placeholder)
+            if (
+                properties.TryGetValue("placeholder", out var placeholderObj)
+                && placeholderObj is string placeholder
+            )
             {
                 try
                 {
@@ -82,15 +170,27 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void DiffPlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        private static void DiffPlaceholder(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             string previousPlaceholder = null;
-            if (previous != null && previous.TryGetValue("placeholder", out var prevObj) && prevObj is string prevPlaceholder)
+            if (
+                previous != null
+                && previous.TryGetValue("placeholder", out var prevObj)
+                && prevObj is string prevPlaceholder
+            )
             {
                 previousPlaceholder = prevPlaceholder;
             }
             string nextPlaceholder = null;
-            if (next != null && next.TryGetValue("placeholder", out var nextObj) && nextObj is string nextPlaceholderStr)
+            if (
+                next != null
+                && next.TryGetValue("placeholder", out var nextObj)
+                && nextObj is string nextPlaceholderStr
+            )
             {
                 nextPlaceholder = nextPlaceholderStr;
             }
@@ -108,13 +208,19 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void ApplyHidePlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplyHidePlaceholder(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (properties == null)
             {
                 return;
             }
-            if (properties.TryGetValue("hidePlaceholderOnFocus", out var hideObj) && hideObj is bool hide)
+            if (
+                properties.TryGetValue("hidePlaceholderOnFocus", out var hideObj)
+                && hideObj is bool hide
+            )
             {
                 try
                 {
@@ -127,15 +233,27 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void DiffHidePlaceholder(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        private static void DiffHidePlaceholder(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             bool? previousHide = null;
-            if (previous != null && previous.TryGetValue("hidePlaceholderOnFocus", out var prevObj) && prevObj is bool prevHide)
+            if (
+                previous != null
+                && previous.TryGetValue("hidePlaceholderOnFocus", out var prevObj)
+                && prevObj is bool prevHide
+            )
             {
                 previousHide = prevHide;
             }
             bool? nextHide = null;
-            if (next != null && next.TryGetValue("hidePlaceholderOnFocus", out var nextObj) && nextObj is bool nextHideVal)
+            if (
+                next != null
+                && next.TryGetValue("hidePlaceholderOnFocus", out var nextObj)
+                && nextObj is bool nextHideVal
+            )
             {
                 nextHide = nextHideVal;
             }
@@ -153,21 +271,29 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        
-
-
         private static void SetPasswordField(TextField textFieldElement, bool enabled)
         {
             var propertyInfo = typeof(TextField).GetProperty("isPasswordField");
-            if (propertyInfo != null && propertyInfo.PropertyType == typeof(bool) && propertyInfo.CanWrite)
+            if (
+                propertyInfo != null
+                && propertyInfo.PropertyType == typeof(bool)
+                && propertyInfo.CanWrite
+            )
             {
                 propertyInfo.SetValue(textFieldElement, enabled, null);
             }
         }
 
-        private static bool SetTextEditionPlaceholder(TextField textFieldElement, string placeholderString)
+        private static bool SetTextEditionPlaceholder(
+            TextField textFieldElement,
+            string placeholderString
+        )
         {
-            var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+            var flags =
+                BindingFlags.Instance
+                | BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.FlattenHierarchy;
             object editionInstance = null;
             var editionProperty = typeof(TextField).GetProperty("textEdition", flags);
             if (editionProperty != null)
@@ -187,7 +313,11 @@ namespace ReactiveUITK.Elements
                 return false;
             }
             var placeholderProperty = editionInstance.GetType().GetProperty("placeholder", flags);
-            if (placeholderProperty != null && placeholderProperty.PropertyType == typeof(string) && placeholderProperty.CanWrite)
+            if (
+                placeholderProperty != null
+                && placeholderProperty.PropertyType == typeof(string)
+                && placeholderProperty.CanWrite
+            )
             {
                 placeholderProperty.SetValue(editionInstance, placeholderString, null);
                 return true;
@@ -203,7 +333,11 @@ namespace ReactiveUITK.Elements
 
         private static bool SetTextEditionHideOnFocus(TextField textFieldElement, bool hide)
         {
-            var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy;
+            var flags =
+                BindingFlags.Instance
+                | BindingFlags.Public
+                | BindingFlags.NonPublic
+                | BindingFlags.FlattenHierarchy;
             object editionInstance = null;
             var editionProperty = typeof(TextField).GetProperty("textEdition", flags);
             if (editionProperty != null)
@@ -222,8 +356,14 @@ namespace ReactiveUITK.Elements
             {
                 return false;
             }
-            var hideProperty = editionInstance.GetType().GetProperty("hidePlaceholderOnFocus", flags);
-            if (hideProperty != null && hideProperty.PropertyType == typeof(bool) && hideProperty.CanWrite)
+            var hideProperty = editionInstance
+                .GetType()
+                .GetProperty("hidePlaceholderOnFocus", flags);
+            if (
+                hideProperty != null
+                && hideProperty.PropertyType == typeof(bool)
+                && hideProperty.CanWrite
+            )
             {
                 hideProperty.SetValue(editionInstance, hide, null);
                 return true;
@@ -237,14 +377,22 @@ namespace ReactiveUITK.Elements
             return false;
         }
 
-        private static void ApplySlots(TextField textFieldElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             ApplySlot(textFieldElement, properties, "label");
             ApplySlot(textFieldElement, properties, "input");
             ApplySlot(textFieldElement, properties, "textElement");
         }
 
-        private static void DiffSlot(TextField textFieldElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string slotKey)
+        private static void DiffSlot(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            string slotKey
+        )
         {
             object previousSlot;
             object nextSlot;
@@ -256,13 +404,20 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void ApplySlot(TextField textFieldElement, IReadOnlyDictionary<string, object> properties, string slotKey)
+        private static void ApplySlot(
+            TextField textFieldElement,
+            IReadOnlyDictionary<string, object> properties,
+            string slotKey
+        )
         {
             if (properties == null)
             {
                 return;
             }
-            if (!properties.TryGetValue(slotKey, out var slotObject) || slotObject is not Dictionary<string, object> slotMap)
+            if (
+                !properties.TryGetValue(slotKey, out var slotObject)
+                || slotObject is not Dictionary<string, object> slotMap
+            )
             {
                 return;
             }
@@ -271,9 +426,15 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-            if (slotMap.TryGetValue("style", out var styleObj) && styleObj is IDictionary<string, object> styleMap)
+            if (
+                slotMap.TryGetValue("style", out var styleObj)
+                && styleObj is IDictionary<string, object> styleMap
+            )
             {
-                PropsApplier.Apply(target, new Dictionary<string, object> { { "style", styleMap } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { "style", styleMap } }
+                );
             }
             foreach (KeyValuePair<string, object> entry in slotMap)
             {
@@ -281,7 +442,10 @@ namespace ReactiveUITK.Elements
                 {
                     continue;
                 }
-                PropsApplier.Apply(target, new Dictionary<string, object> { { entry.Key, entry.Value } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { entry.Key, entry.Value } }
+                );
             }
         }
 

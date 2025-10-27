@@ -41,4 +41,3 @@ namespace ReactiveUITK.Core
         }
     }
 }
-

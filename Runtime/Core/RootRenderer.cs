@@ -1,9 +1,9 @@
 using System;
+using System.Collections.Generic;
+using ReactiveUITK.Core;
+using ReactiveUITK.Elements;
 using UnityEngine;
 using UnityEngine.UIElements;
-using ReactiveUITK.Elements;
-using ReactiveUITK.Core;
-using System.Collections.Generic;
 
 namespace ReactiveUITK.Core
 {
@@ -71,7 +71,7 @@ namespace ReactiveUITK.Core
             }
             vnodeHostRenderer.Render(rootNode);
         }
-        
+
         public void Unmount()
         {
             if (vnodeHostRenderer != null)

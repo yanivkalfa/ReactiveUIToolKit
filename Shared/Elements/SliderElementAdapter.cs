@@ -1,7 +1,7 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -12,7 +12,10 @@ namespace ReactiveUITK.Elements
             return GlobalVisualElementPool.Get<Slider>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (!(element is Slider slider) || properties == null)
             {
@@ -32,21 +35,33 @@ namespace ReactiveUITK.Elements
                 else if (dirObj is string ds)
                 {
                     ds = ds.ToLowerInvariant();
-                    slider.direction = ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
+                    slider.direction =
+                        ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
                 }
             }
 
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is Slider slider)
             {
                 TryDiffProp<float>(previous, next, "lowValue", v => slider.lowValue = v);
                 TryDiffProp<float>(previous, next, "highValue", v => slider.highValue = v);
                 TryDiffProp<float>(previous, next, "value", v => slider.value = v);
-                if (!TryDiffProp<SliderDirection>(previous, next, "direction", v => slider.direction = v))
+                if (
+                    !TryDiffProp<SliderDirection>(
+                        previous,
+                        next,
+                        "direction",
+                        v => slider.direction = v
+                    )
+                )
                 {
                     previous ??= new Dictionary<string, object>();
                     next ??= new Dictionary<string, object>();
@@ -55,7 +70,10 @@ namespace ReactiveUITK.Elements
                     if (!Equals(pd, nd) && nd is string ds)
                     {
                         ds = ds.ToLowerInvariant();
-                        slider.direction = ds == "vertical" ? SliderDirection.Vertical : SliderDirection.Horizontal;
+                        slider.direction =
+                            ds == "vertical"
+                                ? SliderDirection.Vertical
+                                : SliderDirection.Horizontal;
                     }
                 }
             }
@@ -63,4 +81,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-
