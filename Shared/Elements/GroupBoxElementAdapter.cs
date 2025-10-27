@@ -1,8 +1,8 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using UnityEngine.UIElements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -13,40 +13,72 @@ namespace ReactiveUITK.Elements
             public VisualElement ContentContainer;
             public Label Label;
         }
+
         private static readonly ConditionalWeakTable<GroupBox, CachedParts> cache = new();
+
         public override VisualElement Create()
         {
             return GlobalVisualElementPool.Get<GroupBox>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is GroupBox groupBoxElement && properties != null)
             {
-                TryApplyProp<string>(properties, "text", value => { groupBoxElement.text = value ?? string.Empty; });
+                TryApplyProp<string>(
+                    properties,
+                    "text",
+                    value =>
+                    {
+                        groupBoxElement.text = value ?? string.Empty;
+                    }
+                );
                 ApplySlots(groupBoxElement, properties);
             }
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is GroupBox groupBoxElement)
             {
-                TryDiffProp<string>(previous, next, "text", value => { groupBoxElement.text = value ?? string.Empty; });
+                TryDiffProp<string>(
+                    previous,
+                    next,
+                    "text",
+                    value =>
+                    {
+                        groupBoxElement.text = value ?? string.Empty;
+                    }
+                );
                 DiffSlot(groupBoxElement, previous, next, "contentContainer");
                 DiffSlot(groupBoxElement, previous, next, "label");
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void ApplySlots(GroupBox groupBoxElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            GroupBox groupBoxElement,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             ApplySlot(groupBoxElement, properties, "contentContainer");
             ApplySlot(groupBoxElement, properties, "label");
         }
 
-        private static void DiffSlot(GroupBox groupBoxElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string slotKey)
+        private static void DiffSlot(
+            GroupBox groupBoxElement,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            string slotKey
+        )
         {
             object previousSlot = null;
             object nextSlot = null;
@@ -64,7 +96,11 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void ApplySlot(GroupBox groupBoxElement, IReadOnlyDictionary<string, object> properties, string slotKey)
+        private static void ApplySlot(
+            GroupBox groupBoxElement,
+            IReadOnlyDictionary<string, object> properties,
+            string slotKey
+        )
         {
             if (properties == null)
             {
@@ -83,9 +119,15 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-            if (slotMap.TryGetValue("style", out object styleObject) && styleObject is IDictionary<string, object> styleMap)
+            if (
+                slotMap.TryGetValue("style", out object styleObject)
+                && styleObject is IDictionary<string, object> styleMap
+            )
             {
-                PropsApplier.Apply(target, new Dictionary<string, object> { { "style", styleMap } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { "style", styleMap } }
+                );
             }
             foreach (KeyValuePair<string, object> entry in slotMap)
             {
@@ -93,7 +135,10 @@ namespace ReactiveUITK.Elements
                 {
                     continue;
                 }
-                PropsApplier.Apply(target, new Dictionary<string, object> { { entry.Key, entry.Value } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { entry.Key, entry.Value } }
+                );
             }
         }
 
@@ -121,6 +166,13 @@ namespace ReactiveUITK.Elements
                 return parts.Label;
             }
             return null;
+        }
+
+        public override VisualElement ResolveChildHost(VisualElement element)
+        {
+            var gb = element as GroupBox;
+            var cc = (gb != null) ? gb.contentContainer : element;
+            return EnsureMount(cc);
         }
     }
 }
