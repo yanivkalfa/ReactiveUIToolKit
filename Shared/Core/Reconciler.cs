@@ -435,9 +435,22 @@ namespace ReactiveUITK.Core
                     if (unkeyedQueue.Count > 0)
                     {
                         var (pv, pe) = unkeyedQueue.Dequeue();
+                        int oldIndex = parentElement.IndexOf(pe);
                         DiffNode(pe, pv, nextChildNode);
-                        orderedElements.Add(pe);
-                        reusedElements.Add(pe);
+                        var resolved = pe;
+                        if (resolved.parent != parentElement)
+                        {
+                            // Replaced; best-effort: pick element now at old index
+                            resolved = (oldIndex >= 0 && oldIndex < parentElement.childCount)
+                                ? parentElement.ElementAt(oldIndex)
+                                : null;
+                        }
+                        if (resolved == null)
+                        {
+                            resolved = CreateDetached(nextChildNode);
+                        }
+                        orderedElements.Add(resolved);
+                        reusedElements.Add(resolved);
                     }
                     else
                     {
