@@ -1,9 +1,9 @@
 using System;
+using ReactiveUITK.Core;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
-using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Bench
 {
@@ -51,7 +51,10 @@ namespace ReactiveUITK.Bench
             _renderer = renderer;
             _metrics = new BenchMetrics();
 
-            var title = outputTarget == BenchOutputTarget.Editor ? "ReactiveUITK Bench (Editor)" : "ReactiveUITK Bench (Runtime)";
+            var title =
+                outputTarget == BenchOutputTarget.Editor
+                    ? "ReactiveUITK Bench (Editor)"
+                    : "ReactiveUITK Bench (Runtime)";
             BenchPerSecondLogger.BeginRun(title, overrides, outputTarget);
 
             _scenarioIndex = -1;
@@ -60,7 +63,8 @@ namespace ReactiveUITK.Bench
 
         public static void Tick()
         {
-            if (_currentRender == null) return;
+            if (_currentRender == null)
+                return;
 
             // Render frame
             _currentRender.Invoke();
@@ -68,10 +72,12 @@ namespace ReactiveUITK.Bench
             // Stable delta (Editor) vs runtime time
 #if UNITY_EDITOR
             double now = EditorApplication.timeSinceStartup;
-            if (_lastEditorNow < 0) _lastEditorNow = now;
+            if (_lastEditorNow < 0)
+                _lastEditorNow = now;
             float dt = (float)(now - _lastEditorNow);
             _lastEditorNow = now;
-            if (dt <= 0f || dt > 0.5f) dt = 1f / 60f; // clamp
+            if (dt <= 0f || dt > 0.5f)
+                dt = 1f / 60f; // clamp
 #else
             float dt = Time.unscaledDeltaTime;
 #endif
@@ -96,7 +102,8 @@ namespace ReactiveUITK.Bench
 
         private static void FlushScenario()
         {
-            if (string.IsNullOrEmpty(_currentName)) return;
+            if (string.IsNullOrEmpty(_currentName))
+                return;
 
             try
             {

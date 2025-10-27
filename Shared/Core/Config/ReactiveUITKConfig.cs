@@ -22,8 +22,10 @@ namespace ReactiveUITK.Core.Config
         {
             public EnvVariables envVariables;
         }
+
         public string EnvironmentLabel { get; private set; } = "production";
-        public ReactiveUITK.Core.Reconciler.DiffTraceLevel TraceLevel { get; private set; } = ReactiveUITK.Core.Reconciler.DiffTraceLevel.None;
+        public ReactiveUITK.Core.Reconciler.DiffTraceLevel TraceLevel { get; private set; } =
+            ReactiveUITK.Core.Reconciler.DiffTraceLevel.None;
         public bool EnableDiffTracing { get; private set; } = false;
 
         private static ReactiveUITKConfig instance;
@@ -96,4 +98,3 @@ namespace ReactiveUITK.Core.Config
         }
     }
 }
-

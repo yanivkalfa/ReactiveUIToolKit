@@ -441,9 +441,10 @@ namespace ReactiveUITK.Core
                         if (resolved.parent != parentElement)
                         {
                             // Replaced; best-effort: pick element now at old index
-                            resolved = (oldIndex >= 0 && oldIndex < parentElement.childCount)
-                                ? parentElement.ElementAt(oldIndex)
-                                : null;
+                            resolved =
+                                (oldIndex >= 0 && oldIndex < parentElement.childCount)
+                                    ? parentElement.ElementAt(oldIndex)
+                                    : null;
                         }
                         if (resolved == null)
                         {
@@ -752,11 +753,6 @@ namespace ReactiveUITK.Core
                 bool propsEq = ShallowPropsEqual(functionMetadata.FuncProps, nextNode.Properties);
                 bool childrenEq = ShallowChildrenEqual(previousNode.Children, nextNode.Children);
                 bool skip = propsEq && childrenEq;
-
-                // Optional trace (fully qualified to avoid ambiguity)
-                UnityEngine.Debug.Log(
-                    $"[Memo] key={(nextNode.Key ?? "(no-key)")} skip={skip} propsEq={propsEq} childrenEq={childrenEq}"
-                );
 
                 if (skip)
                     return;

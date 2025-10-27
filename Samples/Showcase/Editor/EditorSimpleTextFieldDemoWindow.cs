@@ -12,7 +12,9 @@ namespace ReactiveUITK.Samples.Editor
         [MenuItem("Window/ReactiveUITK/Demos/Simple TextField")]
         public static void ShowWindow()
         {
-            EditorSimpleTextFieldDemoWindow window = GetWindow<EditorSimpleTextFieldDemoWindow>("Simple TextField Demo");
+            EditorSimpleTextFieldDemoWindow window = GetWindow<EditorSimpleTextFieldDemoWindow>(
+                "Simple TextField Demo"
+            );
             window.minSize = new Vector2(420, 320);
             window.Show();
         }

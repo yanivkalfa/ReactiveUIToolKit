@@ -1,8 +1,8 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using UnityEngine.UIElements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -14,32 +14,77 @@ namespace ReactiveUITK.Elements
             public VisualElement Input;
             public VisualElement Checkmark;
         }
+
         private static readonly ConditionalWeakTable<Toggle, CachedParts> cache = new();
+
         public override VisualElement Create()
         {
             return GlobalVisualElementPool.Get<Toggle>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is Toggle toggleElement && properties != null)
             {
-                TryApplyProp<bool>(properties, "value", value => { toggleElement.value = value; });
-                TryApplyProp<string>(properties, "text", value => { toggleElement.text = value ?? string.Empty; });
+                TryApplyProp<bool>(
+                    properties,
+                    "value",
+                    value =>
+                    {
+                        toggleElement.value = value;
+                    }
+                );
+                TryApplyProp<string>(
+                    properties,
+                    "text",
+                    value =>
+                    {
+                        toggleElement.text = value ?? string.Empty;
+                    }
+                );
                 ApplySlots(toggleElement, properties);
             }
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is Toggle toggleElement)
             {
-                TryDiffProp<bool>(previous, next, "value", value => { toggleElement.value = value; });
-                TryDiffProp<string>(previous, next, "text", value => { toggleElement.text = value ?? string.Empty; });
-                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing && ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
+                TryDiffProp<bool>(
+                    previous,
+                    next,
+                    "value",
+                    value =>
+                    {
+                        toggleElement.value = value;
+                    }
+                );
+                TryDiffProp<string>(
+                    previous,
+                    next,
+                    "text",
+                    value =>
+                    {
+                        toggleElement.text = value ?? string.Empty;
+                    }
+                );
+                if (
+                    ReactiveUITK.Core.Reconciler.EnableDiffTracing
+                    && ReactiveUITK.Core.Reconciler.TraceLevel
+                        != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None
+                )
                 {
-                    UnityEngine.Debug.Log($"[ToggleDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={toggleElement.value}");
+                    UnityEngine.Debug.Log(
+                        $"[ToggleDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={toggleElement.value}"
+                    );
                 }
                 DiffSlot(toggleElement, previous, next, "label");
                 DiffSlot(toggleElement, previous, next, "input");
@@ -48,14 +93,22 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void ApplySlots(Toggle toggleElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            Toggle toggleElement,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             ApplySlot(toggleElement, properties, "label");
             ApplySlot(toggleElement, properties, "input");
             ApplySlot(toggleElement, properties, "checkmark");
         }
 
-        private static void DiffSlot(Toggle toggleElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string slotKey)
+        private static void DiffSlot(
+            Toggle toggleElement,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            string slotKey
+        )
         {
             object previousSlot = null;
             object nextSlot = null;
@@ -73,7 +126,11 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void ApplySlot(Toggle toggleElement, IReadOnlyDictionary<string, object> properties, string slotKey)
+        private static void ApplySlot(
+            Toggle toggleElement,
+            IReadOnlyDictionary<string, object> properties,
+            string slotKey
+        )
         {
             if (properties == null)
             {
@@ -92,9 +149,15 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-            if (slotMap.TryGetValue("style", out object styleObject) && styleObject is IDictionary<string, object> styleMap)
+            if (
+                slotMap.TryGetValue("style", out object styleObject)
+                && styleObject is IDictionary<string, object> styleMap
+            )
             {
-                PropsApplier.Apply(target, new Dictionary<string, object> { { "style", styleMap } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { "style", styleMap } }
+                );
             }
             foreach (KeyValuePair<string, object> entry in slotMap)
             {
@@ -102,7 +165,10 @@ namespace ReactiveUITK.Elements
                 {
                     continue;
                 }
-                PropsApplier.Apply(target, new Dictionary<string, object> { { entry.Key, entry.Value } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { entry.Key, entry.Value } }
+                );
             }
         }
 

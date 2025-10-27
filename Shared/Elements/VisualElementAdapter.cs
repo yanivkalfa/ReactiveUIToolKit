@@ -1,5 +1,5 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -11,7 +11,11 @@ namespace ReactiveUITK.Elements
         {
             return GlobalVisualElementPool.Get<VisualElement>();
         }
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (properties == null)
             {
@@ -19,7 +23,12 @@ namespace ReactiveUITK.Elements
             }
             PropsApplier.Apply(element, properties);
         }
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             PropsApplier.ApplyDiff(element, previous, next);
         }

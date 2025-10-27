@@ -20,16 +20,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name)) dict["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName)) dict["className"] = ClassName;
-            if (!string.IsNullOrEmpty(Mode)) dict["mode"] = Mode;
-            if (VerticalScrollerVisibility.HasValue) dict["verticalScrollerVisibility"] = VerticalScrollerVisibility.Value;
-            if (HorizontalScrollerVisibility.HasValue) dict["horizontalScrollerVisibility"] = HorizontalScrollerVisibility.Value;
-            if (ScrollOffset.HasValue) dict["scrollOffset"] = ScrollOffset.Value;
-            if (ContentContainer != null) dict["contentContainer"] = ContentContainer;
-            if (Style != null) dict["style"] = Style;
+            if (!string.IsNullOrEmpty(Name))
+                dict["name"] = Name;
+            if (!string.IsNullOrEmpty(ClassName))
+                dict["className"] = ClassName;
+            if (!string.IsNullOrEmpty(Mode))
+                dict["mode"] = Mode;
+            if (VerticalScrollerVisibility.HasValue)
+                dict["verticalScrollerVisibility"] = VerticalScrollerVisibility.Value;
+            if (HorizontalScrollerVisibility.HasValue)
+                dict["horizontalScrollerVisibility"] = HorizontalScrollerVisibility.Value;
+            if (ScrollOffset.HasValue)
+                dict["scrollOffset"] = ScrollOffset.Value;
+            if (ContentContainer != null)
+                dict["contentContainer"] = ContentContainer;
+            if (Style != null)
+                dict["style"] = Style;
             return dict;
         }
     }
 }
-

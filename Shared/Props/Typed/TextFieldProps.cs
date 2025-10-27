@@ -23,6 +23,7 @@ namespace ReactiveUITK.Props.Typed
 
         // Optional UI Toolkit change handler
         public System.Action<ChangeEvent<string>> OnChange { get; set; }
+
         // Optional label text (adapter currently does not map this; kept for completeness)
         public string LabelText { get; set; }
 

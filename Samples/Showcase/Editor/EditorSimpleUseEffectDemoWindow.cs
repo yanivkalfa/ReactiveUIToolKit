@@ -12,7 +12,9 @@ namespace ReactiveUITK.Samples.Editor
         [MenuItem("Window/ReactiveUITK/Demos/Simple UseEffect")]
         public static void ShowWindow()
         {
-            EditorSimpleUseEffectDemoWindow window = GetWindow<EditorSimpleUseEffectDemoWindow>("Simple UseEffect Demo");
+            EditorSimpleUseEffectDemoWindow window = GetWindow<EditorSimpleUseEffectDemoWindow>(
+                "Simple UseEffect Demo"
+            );
             window.minSize = new Vector2(420, 320);
             window.Show();
         }

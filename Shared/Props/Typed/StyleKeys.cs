@@ -44,8 +44,10 @@ namespace ReactiveUITK.Props.Typed
         public const string FontSize = "fontSize";
         public const string FontFamily = "fontFamily";
         public const string TextAlign = "textAlign";
+
         // Prefer TextColor over Color to avoid name collisions with UnityEngine.Color when using static imports.
         public const string TextColor = "color";
+
         // Backwards-compatible alias; avoid using directly with static imports
         public const string Color = TextColor;
         public const string BackgroundColor = "backgroundColor";

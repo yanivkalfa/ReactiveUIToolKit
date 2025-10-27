@@ -20,7 +20,7 @@ namespace ReactiveUITK.Props.Typed
             {
                 map["className"] = ClassName;
             }
-            if (!string.IsNullOrEmpty(Text))
+            if (Text != null)
             {
                 map["text"] = Text;
             }
@@ -32,4 +32,3 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 }
-

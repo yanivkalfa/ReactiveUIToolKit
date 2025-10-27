@@ -11,10 +11,10 @@ namespace ReactiveUITK.Core.Util
 
         public bool EqualsApproximately(SafeAreaInsets other, float tolerance = 0.5f)
         {
-            return Mathf.Abs(Left - other.Left) <= tolerance &&
-                   Mathf.Abs(Right - other.Right) <= tolerance &&
-                   Mathf.Abs(Top - other.Top) <= tolerance &&
-                   Mathf.Abs(Bottom - other.Bottom) <= tolerance;
+            return Mathf.Abs(Left - other.Left) <= tolerance
+                && Mathf.Abs(Right - other.Right) <= tolerance
+                && Mathf.Abs(Top - other.Top) <= tolerance
+                && Mathf.Abs(Bottom - other.Bottom) <= tolerance;
         }
     }
 
@@ -29,8 +29,13 @@ namespace ReactiveUITK.Core.Util
             float right = Mathf.Max(0f, Screen.width - sa.xMax);
             float bottom = sa.y;
             float top = Mathf.Max(0f, Screen.height - sa.yMax);
-            return new SafeAreaInsets { Left = left, Right = right, Top = top, Bottom = bottom };
+            return new SafeAreaInsets
+            {
+                Left = left,
+                Right = right,
+                Top = top,
+                Bottom = bottom,
+            };
         }
     }
 }
-

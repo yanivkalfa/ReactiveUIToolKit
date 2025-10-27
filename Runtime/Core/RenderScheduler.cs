@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine;
-
 using ReactiveUITK.Core;
+using UnityEngine;
 
 namespace ReactiveUITK
 {
@@ -12,7 +11,9 @@ namespace ReactiveUITK
         private readonly Queue<Action> normalPriorityQueue = new();
         private readonly Queue<Action> lowPriorityQueue = new();
         private readonly Queue<Action> idlePriorityQueue = new();
-        [SerializeField] private float frameBudgetMs = 4.0f;
+
+        [SerializeField]
+        private float frameBudgetMs = 4.0f;
         private readonly List<Action> batchedEffectActions = new();
         private readonly List<Action> deferredBatchEnqueueActions = new();
         private bool batchModeEnabled;
@@ -37,7 +38,10 @@ namespace ReactiveUITK
             }
         }
 
-        public void Enqueue(Action action, IScheduler.Priority priority = IScheduler.Priority.Normal)
+        public void Enqueue(
+            Action action,
+            IScheduler.Priority priority = IScheduler.Priority.Normal
+        )
         {
             if (action == null)
             {
@@ -69,6 +73,7 @@ namespace ReactiveUITK
         {
             batchModeEnabled = true;
         }
+
         public void EndBatch()
         {
             batchModeEnabled = false;
@@ -100,13 +105,21 @@ namespace ReactiveUITK
             ExecuteQueue(lowPriorityQueue, ref frameStart);
             if ((Time.realtimeSinceStartup * 1000f) - frameStart < frameBudgetMs * 0.5f)
             {
-                idleExecutedCount += ExecuteQueue(idlePriorityQueue, ref frameStart, allowOverBudget: false);
+                idleExecutedCount += ExecuteQueue(
+                    idlePriorityQueue,
+                    ref frameStart,
+                    allowOverBudget: false
+                );
             }
             FlushBatchedEffects();
             renderedFrameCount++;
         }
 
-        private int ExecuteQueue(Queue<Action> queue, ref float frameStartTimestampMs, bool allowOverBudget = true)
+        private int ExecuteQueue(
+            Queue<Action> queue,
+            ref float frameStartTimestampMs,
+            bool allowOverBudget = true
+        )
         {
             int executedCount = 0;
             while (queue.Count > 0)
@@ -159,6 +172,19 @@ namespace ReactiveUITK
             batchedEffectActions.Clear();
         }
 
-        public (int frames, int actions, int escalations, int lowCancelled, int idleRan) GetMetrics() => (renderedFrameCount, executedActionCount, escalationCount, lowPriorityCancelledCount, idleExecutedCount);
+        public (
+            int frames,
+            int actions,
+            int escalations,
+            int lowCancelled,
+            int idleRan
+        ) GetMetrics() =>
+            (
+                renderedFrameCount,
+                executedActionCount,
+                escalationCount,
+                lowPriorityCancelledCount,
+                idleExecutedCount
+            );
     }
 }

@@ -1,8 +1,8 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
+using ReactiveUITK.Elements.Pools;
+using ReactiveUITK.Props;
 using UnityEngine;
 using UnityEngine.UIElements;
-using ReactiveUITK.Props;
 
 namespace ReactiveUITK.Elements
 {
@@ -13,7 +13,10 @@ namespace ReactiveUITK.Elements
             return GlobalVisualElementPool.Get<Image>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is Image img && properties != null)
             {
@@ -50,7 +53,7 @@ namespace ReactiveUITK.Elements
                             "scalefit" or "scaletofit" => ScaleMode.ScaleToFit,
                             "scalefill" or "scaletofill" => ScaleMode.ScaleAndCrop,
                             "crop" or "center" => ScaleMode.ScaleAndCrop,
-                            _ => ScaleMode.StretchToFill
+                            _ => ScaleMode.StretchToFill,
                         };
                     }
                 }
@@ -58,7 +61,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is Image img)
             {
@@ -69,8 +76,10 @@ namespace ReactiveUITK.Elements
                 next.TryGetValue("image", out var nextImage);
                 if (!ReferenceEquals(prevImage, nextImage))
                 {
-                    if (nextImage is Texture2D tex) img.image = tex;
-                    else if (nextImage is Sprite sp) img.sprite = sp;
+                    if (nextImage is Texture2D tex)
+                        img.image = tex;
+                    else if (nextImage is Sprite sp)
+                        img.sprite = sp;
                 }
 
                 previous.TryGetValue("texture", out var prevTex);
@@ -103,7 +112,7 @@ namespace ReactiveUITK.Elements
                             "scalefit" or "scaletofit" => ScaleMode.ScaleToFit,
                             "scalefill" or "scaletofill" => ScaleMode.ScaleAndCrop,
                             "crop" or "center" => ScaleMode.ScaleAndCrop,
-                            _ => ScaleMode.StretchToFill
+                            _ => ScaleMode.StretchToFill,
                         };
                     }
                 }
@@ -112,4 +121,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-

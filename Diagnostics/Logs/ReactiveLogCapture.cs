@@ -18,19 +18,19 @@ namespace ReactiveUITK.EditorDiagnostics
             EditorApplication.quitting += StopCapture;
         }
 
-        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Start Capture")] 
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Start Capture")]
         public static void StartCaptureMenu()
         {
             StartCapture();
         }
 
-        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Stop Capture")] 
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Stop Capture")]
         public static void StopCaptureMenu()
         {
             StopCapture();
         }
 
-        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Open Log Folder")] 
+        [MenuItem("Window/ReactiveUITK/Diagnostics/Logs/Open Log Folder")]
         public static void OpenLogFolder()
         {
             string folder = EnsureFolder();
@@ -56,7 +56,10 @@ namespace ReactiveUITK.EditorDiagnostics
 
         public static void StopCapture()
         {
-            if (!capturing) { return; }
+            if (!capturing)
+            {
+                return;
+            }
             Application.logMessageReceived -= OnLog;
             Application.logMessageReceivedThreaded -= OnLogThreaded;
             capturing = false;
@@ -66,7 +69,13 @@ namespace ReactiveUITK.EditorDiagnostics
 
         private static string EnsureFolder()
         {
-            string folder = Path.Combine(Application.dataPath, "ReactiveUIToolKit", "Diagnostics", "Logs", "Results");
+            string folder = Path.Combine(
+                Application.dataPath,
+                "ReactiveUIToolKit",
+                "Diagnostics",
+                "Logs",
+                "Results"
+            );
             if (!Directory.Exists(folder))
             {
                 Directory.CreateDirectory(folder);
@@ -95,7 +104,10 @@ namespace ReactiveUITK.EditorDiagnostics
             {
                 lock (fileLock)
                 {
-                    if (string.IsNullOrEmpty(logFilePath)) { return; }
+                    if (string.IsNullOrEmpty(logFilePath))
+                    {
+                        return;
+                    }
                     File.AppendAllText(logFilePath, text);
                 }
             }

@@ -37,8 +37,8 @@ namespace ReactiveUITK.Bench
                     marginBottom = 4,
                     backgroundColor = new Color(0.12f, 0.12f, 0.12f, 0.8f),
                     alignItems = Align.Center,
-                    paddingLeft = 6
-                }
+                    paddingLeft = 6,
+                },
             };
             header.Add(new Label("Bench: running  —  Space/→ to skip"));
             _mount.Add(header);
@@ -46,15 +46,11 @@ namespace ReactiveUITK.Bench
             // Content mount
             _hostVE = new VisualElement
             {
-                style =
-                {
-                    flexGrow = 1,
-                    backgroundColor = new Color(0.10f, 0.10f, 0.10f, 1f)
-                },
+                style = { flexGrow = 1, backgroundColor = new Color(0.10f, 0.10f, 0.10f, 1f) },
                 // MUST be focusable to receive keyboard events
                 focusable = true,
                 pickingMode = PickingMode.Position,
-                tabIndex = 0
+                tabIndex = 0,
             };
             _mount.Add(_hostVE);
 
@@ -111,13 +107,15 @@ namespace ReactiveUITK.Bench
         // ===== IVNodeHostRenderer via EditorRootRendererUtility =====
         public void Render(VirtualNode vnode)
         {
-            if (_hostVE == null) return;
+            if (_hostVE == null)
+                return;
             EditorRootRendererUtility.Render(_hostVE, vnode);
         }
 
         public void Unmount()
         {
-            if (_hostVE == null) return;
+            if (_hostVE == null)
+                return;
             EditorRootRendererUtility.Unmount(_hostVE);
         }
 
@@ -128,7 +126,9 @@ namespace ReactiveUITK.Bench
                 BenchSharedHost.SharedDemoRenderer = () => V.Func(SharedDemoPage.Render);
                 Debug.Log("[BenchEditorHost] SharedDemo hook set.");
             }
-            catch { /* best-effort */ }
+            catch
+            { /* best-effort */
+            }
         }
     }
 }

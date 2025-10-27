@@ -1,6 +1,6 @@
-using System.Text;
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace ReactiveUITK.Core.Util
 {
@@ -20,7 +20,12 @@ namespace ReactiveUITK.Core.Util
             return builder.ToString();
         }
 
-        private static void DiffNode(StringBuilder builder, VirtualNode first, VirtualNode second, int depth)
+        private static void DiffNode(
+            StringBuilder builder,
+            VirtualNode first,
+            VirtualNode second,
+            int depth
+        )
         {
             string indent = new string(' ', depth * 2);
             if (first == null && second == null)
@@ -38,11 +43,26 @@ namespace ReactiveUITK.Core.Util
                 builder.AppendLine(indent + "- " + NodeSummary(first));
                 return;
             }
-            bool sameTypeAndProps = first.NodeType == second.NodeType && first.ElementTypeName == second.ElementTypeName && first.Key == second.Key && first.TextContent == second.TextContent;
-            builder.Append(indent).Append(sameTypeAndProps ? "= " : "~ ").Append(NodeSummary(first)).Append(" -> ").Append(NodeSummary(second)).AppendLine();
-            IReadOnlyList<VirtualNode> firstChildren = first.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
-            IReadOnlyList<VirtualNode> secondChildren = second.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
-            int maxCount = firstChildren.Count > secondChildren.Count ? firstChildren.Count : secondChildren.Count;
+            bool sameTypeAndProps =
+                first.NodeType == second.NodeType
+                && first.ElementTypeName == second.ElementTypeName
+                && first.Key == second.Key
+                && first.TextContent == second.TextContent;
+            builder
+                .Append(indent)
+                .Append(sameTypeAndProps ? "= " : "~ ")
+                .Append(NodeSummary(first))
+                .Append(" -> ")
+                .Append(NodeSummary(second))
+                .AppendLine();
+            IReadOnlyList<VirtualNode> firstChildren =
+                first.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
+            IReadOnlyList<VirtualNode> secondChildren =
+                second.Children ?? (IReadOnlyList<VirtualNode>)System.Array.Empty<VirtualNode>();
+            int maxCount =
+                firstChildren.Count > secondChildren.Count
+                    ? firstChildren.Count
+                    : secondChildren.Count;
             for (int i = 0; i < maxCount; i++)
             {
                 VirtualNode firstChild = i < firstChildren.Count ? firstChildren[i] : null;
@@ -57,7 +77,9 @@ namespace ReactiveUITK.Core.Util
             {
                 return "<null>";
             }
-            string textPart = string.IsNullOrEmpty(node.TextContent) ? string.Empty : (" text=" + node.TextContent.Replace('\n', ' '));
+            string textPart = string.IsNullOrEmpty(node.TextContent)
+                ? string.Empty
+                : (" text=" + node.TextContent.Replace('\n', ' '));
             return $"{node.NodeType} key={node.Key ?? "?"} elem={node.ElementTypeName ?? "?"}{textPart}";
         }
 
@@ -69,15 +91,23 @@ namespace ReactiveUITK.Core.Util
                 return;
             }
             string indent = new string(' ', depth * 2);
-            builder.Append(indent)
-                   .Append(node.NodeType)
-                   .Append(" key=").Append(node.Key ?? "?")
-                   .Append(" elem=").Append(node.ElementTypeName ?? "?");
+            builder
+                .Append(indent)
+                .Append(node.NodeType)
+                .Append(" key=")
+                .Append(node.Key ?? "?")
+                .Append(" elem=")
+                .Append(node.ElementTypeName ?? "?");
             if (!string.IsNullOrEmpty(node.TextContent))
             {
                 builder.Append(" text=").Append(node.TextContent.Replace('\n', ' '));
             }
-            if (node.Properties != null && node.Properties.TryGetValue("style", out object styleObj) && styleObj is IDictionary<string, object> styleMap && styleMap.Count > 0)
+            if (
+                node.Properties != null
+                && node.Properties.TryGetValue("style", out object styleObj)
+                && styleObj is IDictionary<string, object> styleMap
+                && styleMap.Count > 0
+            )
             {
                 builder.Append(" styles={");
                 bool firstEntry = true;
