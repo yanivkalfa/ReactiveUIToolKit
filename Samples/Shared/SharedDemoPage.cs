@@ -230,7 +230,147 @@ namespace ReactiveUITK.Samples.Shared
                 )
                 : V.Text("List hidden");
 
-            Debug.Log($"blaaaa: {sliderValue}");
+            // Extracted styles (avoid inline styles/props below)
+            var outerWrapperStyle = new Style
+            {
+                (BackgroundColor, new UColor(0.2f, 0.4f, 0.8f, 1f)),
+                (FlexGrow, 1f),
+            };
+            var safeWrapperStyle = new Style
+            {
+                (BackgroundColor, new UColor(0.2f, 0.6f, 0.2f, 1f)),
+                (FlexGrow, 1f),
+                (FlexDirection, "column"),
+            };
+            var barSlotStyle = new Style { (FlexShrink, 0f), (MinHeight, 110f) };
+            var mainScrollStyle = new Style { (FlexGrow, 1f) };
+
+            var groupBox1ContentStyle = new Style { (PaddingLeft, 6f), (PaddingTop, 4f) };
+
+            var newCompsGroupContentStyle = new Style
+            {
+                (PaddingLeft, 8f),
+                (PaddingRight, 8f),
+                (PaddingTop, 6f),
+                (PaddingBottom, 6f),
+            };
+            var foldoutHeaderStyle = new Style
+            {
+                (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
+                (PaddingLeft, 4f),
+                (PaddingTop, 2f),
+                (PaddingBottom, 2f),
+            };
+            var foldoutContentStyle = new Style { (PaddingLeft, 6f) };
+            var imageDemoStyle = new Style
+            {
+                (Width, 96f),
+                (Height, 96f),
+                (BackgroundColor, new UColor(0.7f, 0.85f, 1f, 1f)),
+                (BorderRadius, 6f),
+            };
+            var sliderWidthStyle = new Style { (Width, 200f) };
+
+            // Extracted props
+            var outerWrapperProps = new Dictionary<string, object>
+            {
+                { "style", outerWrapperStyle },
+            };
+            var groupBox1Props = new GroupBoxProps
+            {
+                Text = "GroupBox",
+                ContentContainer = new Dictionary<string, object>
+                {
+                    { "style", groupBox1ContentStyle },
+                },
+            };
+            var newComponentsGroupProps = new GroupBoxProps
+            {
+                Text = "New Components",
+                ContentContainer = new Dictionary<string, object>
+                {
+                    { "style", newCompsGroupContentStyle },
+                },
+            };
+            var foldoutProps = new FoldoutProps
+            {
+                Text = "More settings",
+                Value = foldoutOpen,
+                OnChange = e => setFoldoutOpen(e.newValue),
+                Header = new Dictionary<string, object> { { "style", foldoutHeaderStyle } },
+                ContentContainer = new Dictionary<string, object>
+                {
+                    { "style", foldoutContentStyle },
+                },
+            };
+            var imageProps = new ImageProps { Style = imageDemoStyle };
+            var sliderProps = new SliderProps
+            {
+                LowValue = 0f,
+                HighValue = 1f,
+                Value = sliderValue,
+                Direction = "horizontal",
+                OnChange = e => setSliderValue(e.newValue),
+                Style = sliderWidthStyle,
+            };
+            var dropdownProps = new DropdownFieldProps
+            {
+                Choices = ddChoices,
+                Value = ddValue,
+                OnChange = e => setDdValue(e.newValue),
+            };
+
+            // Build Values bar items
+            var valuesItems = new List<KeyValuePair<string, string>>
+            {
+                new("TextField", inputText ?? string.Empty),
+                new("Toggle", isOptionEnabled.ToString()),
+                new("RadioSingle", isRadioSingleSelected.ToString()),
+                new("RadioIndex", selectionIndex.ToString()),
+                new("Slider", sliderValue.ToString("F2")),
+                new("Dropdown", ddValue ?? string.Empty),
+                new("Repeat", repeatClickCount.ToString()),
+                new("Time", currentTime.ToLongTimeString()),
+                new("ListCount", listItems?.Count.ToString() ?? "0"),
+            };
+
+            // Props for frequently used controls (avoid inline props)
+            var toggleProps = new ToggleProps
+            {
+                Text = "Enable option",
+                Value = isOptionEnabled,
+                OnChange = e => setOptionEnabled(e.newValue),
+            };
+            var radioSingleProps = new RadioButtonProps
+            {
+                Text = "Single radio",
+                Value = isRadioSingleSelected,
+                OnChange = e => setRadioSingleSelected(e.newValue),
+            };
+            var radioGroupProps = new RadioButtonGroupProps
+            {
+                Choices = selectionChoices,
+                Index = selectionIndex,
+                OnChange = e => setSelectionIndex(e.newValue),
+            };
+            var progressBarProps = new ProgressBarProps
+            {
+                Value = repeatClickCount % 100,
+                Title = "Progress",
+            };
+            var repeatButtonProps = new RepeatButtonProps
+            {
+                Text = $"Repeat ({repeatClickCount})",
+                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
+            };
+            // Button near text field to change its value
+            var setTextButtonProps = new ButtonProps
+            {
+                Text = "Set Text",
+                OnClick = () => setInputText("Updated!"),
+                Style = new Style { (MarginLeft, 6f), (Height, 28f) },
+            };
+
             // Original page content grouped for ScrollView
             VirtualNode PageBody() =>
                 V.VisualElement(
@@ -245,6 +385,7 @@ namespace ReactiveUITK.Samples.Shared
                             V.Text("Left")
                         ),
                         V.TextField(inputTextFieldProps),
+                        V.Button(setTextButtonProps),
                         V.VisualElement(
                             new Dictionary<string, object> { { "style", RightBoxStyle } },
                             null,
@@ -260,186 +401,63 @@ namespace ReactiveUITK.Samples.Shared
                         key: "extras",
                         V.Label(new LabelProps { Text = "Extras" }),
                         V.GroupBox(
-                            new GroupBoxProps
-                            {
-                                Text = "GroupBox",
-                                ContentContainer = new Dictionary<string, object>
-                                {
-                                    {
-                                        "style",
-                                        new Style { (PaddingLeft, 6f), (PaddingTop, 4f) }
-                                    },
-                                },
-                            },
+                            groupBox1Props,
                             null,
                             V.Label(new LabelProps { Text = "Inside group" }, key: "inner-one")
                         ),
-                        V.Toggle(
-                            new ToggleProps
-                            {
-                                Text = "Enable option",
-                                Value = isOptionEnabled,
-                                OnChange = e => setOptionEnabled(e.newValue),
-                            }
-                        ),
-                        V.RadioButton(
-                            new RadioButtonProps
-                            {
-                                Text = "Single radio",
-                                Value = isRadioSingleSelected,
-                                OnChange = e => setRadioSingleSelected(e.newValue),
-                            }
-                        ),
+                        V.Toggle(toggleProps),
+                        V.RadioButton(radioSingleProps),
                         V.RadioButtonGroup(
-                            new RadioButtonGroupProps
-                            {
-                                Choices = selectionChoices,
-                                Index = selectionIndex,
-                                OnChange = e => setSelectionIndex(e.newValue),
-                            },
+                            radioGroupProps,
                             null,
                             V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                         ),
-                        V.ProgressBar(
-                            new ProgressBarProps
-                            {
-                                Value = repeatClickCount % 100,
-                                Title = "Progress",
-                            }
-                        ),
-                        V.RepeatButton(
-                            new RepeatButtonProps
-                            {
-                                Text = $"Repeat ({repeatClickCount})",
-                                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
-                            }
-                        )
-                    ),
-                    V.Func(
-                        BottomBarFunc.Render,
-                        new Dictionary<string, object>
-                        {
-                            { "inputValue", inputText },
-                            { "setTextValue", setInputText },
-                        }
+                        V.ProgressBar(progressBarProps),
+                        V.RepeatButton(repeatButtonProps)
                     ),
                     // New components demo section
                     V.GroupBox(
-                        new GroupBoxProps
-                        {
-                            Text = "New Components",
-                            ContentContainer = new Dictionary<string, object>
-                            {
-                                {
-                                    "style",
-                                    new Style
-                                    {
-                                        (PaddingLeft, 8f),
-                                        (PaddingRight, 8f),
-                                        (PaddingTop, 6f),
-                                        (PaddingBottom, 6f),
-                                    }
-                                },
-                            },
-                        },
+                        newComponentsGroupProps,
                         null,
                         // Foldout first (ensure visibility)
                         V.Foldout(
-                            new FoldoutProps
-                            {
-                                Text = "More settings",
-                                Value = foldoutOpen,
-                                OnChange = e => setFoldoutOpen(e.newValue),
-                                Header = new Dictionary<string, object>
-                                {
-                                    {
-                                        "style",
-                                        new Style
-                                        {
-                                            (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
-                                            (PaddingLeft, 4f),
-                                            (PaddingTop, 2f),
-                                            (PaddingBottom, 2f),
-                                        }
-                                    },
-                                },
-                                ContentContainer = new Dictionary<string, object>
-                                {
-                                    {
-                                        "style",
-                                        new Style { (PaddingLeft, 6f) }
-                                    },
-                                },
-                            },
+                            foldoutProps,
                             null,
                             V.Label(new LabelProps { Text = "Inside foldout" })
                         ),
                         // Image demo (uses background color when no sprite/texture)
-                        V.Image(
-                            new ImageProps
-                            {
-                                Style = new Style
-                                {
-                                    (Width, 96f),
-                                    (Height, 96f),
-                                    (BackgroundColor, new UColor(0.7f, 0.85f, 1f, 1f)),
-                                    (BorderRadius, 6f),
-                                },
-                            },
-                            key: "img-demo"
-                        ),
+                        V.Image(imageProps, key: "img-demo"),
                         // Slider demo
                         V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
-                        V.Slider(
-                            new SliderProps
-                            {
-                                LowValue = 0f,
-                                HighValue = 1f,
-                                Value = sliderValue,
-                                Direction = "horizontal",
-                                OnChange = e => setSliderValue(e.newValue),
-                                Style = new Style { (Width, 200f) },
-                            }
-                        ),
+                        V.Slider(sliderProps),
                         // Dropdown demo
-                        V.DropdownField(
-                            new DropdownFieldProps
-                            {
-                                Choices = ddChoices,
-                                Value = ddValue,
-                                OnChange = e => setDdValue(e.newValue),
-                            }
-                        )
+                        V.DropdownField(dropdownProps)
                     )
                 );
 
-            // Outer wrapper (blue full-screen) -> Safe area wrapper (green) -> ScrollView
+            // Outer wrapper (blue full-screen) -> Safe area wrapper (green)
+            // Inside safe area: Values bar (top, fixed in layout) + ScrollView (body)
             return V.VisualElement(
-                new Dictionary<string, object>
-                {
-                    {
-                        "style",
-                        new Style
-                        {
-                            (BackgroundColor, new UColor(0.2f, 0.4f, 0.8f, 1f)),
-                            (FlexGrow, 1f),
-                        }
-                    },
-                },
+                outerWrapperProps,
                 key: "outer-wrap",
                 V.VisualElementSafe(
-                    new Style
-                    {
-                        (BackgroundColor, new UColor(0.2f, 0.6f, 0.2f, 1f)),
-                        (FlexGrow, 1f),
-                    },
+                    safeWrapperStyle,
                     key: "safe-wrap",
+                    // Values bar docked at top; fixed height via minHeight
+                    V.VisualElement(
+                        new Dictionary<string, object> { { "style", barSlotStyle } },
+                        null,
+                        V.Func(
+                            ValuesBarFunc.Render,
+                            new Dictionary<string, object>
+                            {
+                                { "items", valuesItems },
+                            }
+                        )
+                    ),
+                    // Main scrollable content
                     V.ScrollView(
-                        new ScrollViewProps
-                        {
-                            Mode = "vertical",
-                            Style = new Style { (FlexGrow, 1f) },
-                        },
+                        new ScrollViewProps { Mode = "vertical", Style = mainScrollStyle },
                         null,
                         PageBody()
                     )
