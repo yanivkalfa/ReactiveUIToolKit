@@ -1,7 +1,7 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -12,23 +12,44 @@ namespace ReactiveUITK.Elements
             return GlobalVisualElementPool.Get<Label>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is Label labelElement && properties != null)
             {
-                TryApplyProp<string>(properties, "text", value => { labelElement.text = value ?? string.Empty; });
+                TryApplyProp<string>(
+                    properties,
+                    "text",
+                    value =>
+                    {
+                        labelElement.text = value ?? string.Empty;
+                    }
+                );
             }
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is Label labelElement)
             {
-                TryDiffProp<string>(previous, next, "text", value => { labelElement.text = value ?? string.Empty; });
+                TryDiffProp<string>(
+                    previous,
+                    next,
+                    "text",
+                    value =>
+                    {
+                        labelElement.text = value ?? string.Empty;
+                    }
+                );
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }
     }
 }
-

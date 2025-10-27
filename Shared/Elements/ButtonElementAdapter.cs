@@ -1,7 +1,7 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -17,7 +17,8 @@ namespace ReactiveUITK.Elements
             var p = ve.parent;
             while (p != null)
             {
-                if (p is ListView) return true;
+                if (p is ListView)
+                    return true;
                 p = p.parent;
             }
             return false;
@@ -25,14 +26,19 @@ namespace ReactiveUITK.Elements
 
         private static void EnsureListViewFriendly(Button button)
         {
-            if (button == null) return;
-            if (!IsInsideListView(button)) return;
+            if (button == null)
+                return;
+            if (!IsInsideListView(button))
+                return;
             // Make button act independent inside ListView rows; rely on selectionType=None
             button.focusable = false;
             button.pickingMode = PickingMode.Position;
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is Button button && properties != null)
             {
@@ -45,13 +51,18 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is Button button)
             {
                 previous ??= new Dictionary<string, object>();
                 next ??= new Dictionary<string, object>();
-                string prevText = previous.TryGetValue("text", out var p) && p is string ps ? ps : null;
+                string prevText =
+                    previous.TryGetValue("text", out var p) && p is string ps ? ps : null;
                 string nextText = next.TryGetValue("text", out var n) && n is string ns ? ns : null;
                 if (prevText != nextText)
                 {
@@ -61,6 +72,5 @@ namespace ReactiveUITK.Elements
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }
-
     }
 }

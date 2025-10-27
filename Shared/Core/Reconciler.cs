@@ -441,9 +441,10 @@ namespace ReactiveUITK.Core
                         if (resolved.parent != parentElement)
                         {
                             // Replaced; best-effort: pick element now at old index
-                            resolved = (oldIndex >= 0 && oldIndex < parentElement.childCount)
-                                ? parentElement.ElementAt(oldIndex)
-                                : null;
+                            resolved =
+                                (oldIndex >= 0 && oldIndex < parentElement.childCount)
+                                    ? parentElement.ElementAt(oldIndex)
+                                    : null;
                         }
                         if (resolved == null)
                         {

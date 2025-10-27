@@ -12,7 +12,9 @@ namespace ReactiveUITK.Samples.Editor
         [MenuItem("Window/ReactiveUITK/Demos/Showcase All")]
         public static void ShowWindow()
         {
-            EditorAppExampleWindow window = GetWindow<EditorAppExampleWindow>("ReactiveUITK Showcase Demo");
+            EditorAppExampleWindow window = GetWindow<EditorAppExampleWindow>(
+                "ReactiveUITK Showcase Demo"
+            );
             window.minSize = new Vector2(420, 320);
             window.Show();
         }

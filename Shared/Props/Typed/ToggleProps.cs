@@ -58,4 +58,3 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 }
-

@@ -37,4 +37,3 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 }
-

@@ -55,7 +55,11 @@ namespace ReactiveUITK.Elements
             return registry;
         }
 
-        private static void RegisterIfAllowed(ElementRegistry registry, string elementTypeName, HashSet<string> allowedSet = null)
+        private static void RegisterIfAllowed(
+            ElementRegistry registry,
+            string elementTypeName,
+            HashSet<string> allowedSet = null
+        )
         {
             bool isAllowed = allowedSet == null || allowedSet.Contains(elementTypeName);
             if (isAllowed)
