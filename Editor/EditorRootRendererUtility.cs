@@ -1,14 +1,15 @@
 using System.Collections.Generic;
-using UnityEditor;
-using UnityEngine.UIElements;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using UnityEditor;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.EditorSupport
 {
     public static class EditorRootRendererUtility
     {
-        private static readonly Dictionary<VisualElement, VNodeHostRenderer> renderersByHost = new();
+        private static readonly Dictionary<VisualElement, VNodeHostRenderer> renderersByHost =
+            new();
 
         public static void Mount(VisualElement hostElement, VirtualNode root)
         {
@@ -54,4 +55,3 @@ namespace ReactiveUITK.EditorSupport
         }
     }
 }
-

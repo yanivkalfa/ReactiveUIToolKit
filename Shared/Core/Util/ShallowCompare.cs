@@ -4,7 +4,10 @@ namespace ReactiveUITK.Core.Util
 {
     public static class ShallowCompare
     {
-        public static bool PropsEqual(IReadOnlyDictionary<string, object> first, IReadOnlyDictionary<string, object> second)
+        public static bool PropsEqual(
+            IReadOnlyDictionary<string, object> first,
+            IReadOnlyDictionary<string, object> second
+        )
         {
             if (ReferenceEquals(first, second))
             {
@@ -31,6 +34,7 @@ namespace ReactiveUITK.Core.Util
             }
             return true;
         }
+
         public static bool ShallowEqual<T>(IReadOnlyList<T> first, IReadOnlyList<T> second)
         {
             if (ReferenceEquals(first, second))

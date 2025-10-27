@@ -1,9 +1,9 @@
-using ReactiveUITK.Elements.Pools;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using UnityEngine.UIElements;
-using ReactiveUITK.Props;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using ReactiveUITK.Elements.Pools;
+using ReactiveUITK.Props;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -13,37 +13,67 @@ namespace ReactiveUITK.Elements
         {
             public VisualElement ContentContainer;
         }
+
         private static readonly ConditionalWeakTable<RadioButtonGroup, CachedParts> cache = new();
+
         public override VisualElement Create()
         {
             return GlobalVisualElementPool.Get<RadioButtonGroup>();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is RadioButtonGroup groupElement && properties != null)
             {
-                if (properties.TryGetValue("choices", out object choicesObject) && choicesObject is IEnumerable<string> choices)
+                if (
+                    properties.TryGetValue("choices", out object choicesObject)
+                    && choicesObject is IEnumerable<string> choices
+                )
                 {
                     groupElement.choices = choices;
                 }
-                TryApplyProp<int>(properties, "value", v => { groupElement.value = v; });
-                TryApplyProp<string>(properties, "value", v =>
-                {
-                    int resolved = ResolveIndex(groupElement.choices, v);
-                    if (resolved >= 0) { groupElement.value = resolved; }
-                });
-                TryApplyProp<int>(properties, "index", idx =>
-                {
-                    int clamped = ClampIndex(groupElement.choices, idx);
-                    groupElement.value = clamped;
-                });
+                TryApplyProp<int>(
+                    properties,
+                    "value",
+                    v =>
+                    {
+                        groupElement.value = v;
+                    }
+                );
+                TryApplyProp<string>(
+                    properties,
+                    "value",
+                    v =>
+                    {
+                        int resolved = ResolveIndex(groupElement.choices, v);
+                        if (resolved >= 0)
+                        {
+                            groupElement.value = resolved;
+                        }
+                    }
+                );
+                TryApplyProp<int>(
+                    properties,
+                    "index",
+                    idx =>
+                    {
+                        int clamped = ClampIndex(groupElement.choices, idx);
+                        groupElement.value = clamped;
+                    }
+                );
                 ApplySlots(groupElement, properties);
             }
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is RadioButtonGroup groupElement)
             {
@@ -57,36 +87,74 @@ namespace ReactiveUITK.Elements
                 {
                     next.TryGetValue("choices", out nextChoices);
                 }
-                if (!ReferenceEquals(previousChoices, nextChoices) && nextChoices is IEnumerable<string> choices)
+                if (
+                    !ReferenceEquals(previousChoices, nextChoices)
+                    && nextChoices is IEnumerable<string> choices
+                )
                 {
                     groupElement.choices = choices;
                 }
-                TryDiffProp<int>(previous, next, "value", v => { groupElement.value = v; });
-                TryDiffProp<string>(previous, next, "value", v =>
+                TryDiffProp<int>(
+                    previous,
+                    next,
+                    "value",
+                    v =>
+                    {
+                        groupElement.value = v;
+                    }
+                );
+                TryDiffProp<string>(
+                    previous,
+                    next,
+                    "value",
+                    v =>
+                    {
+                        int resolved = ResolveIndex(groupElement.choices, v);
+                        if (resolved >= 0)
+                        {
+                            groupElement.value = resolved;
+                        }
+                    }
+                );
+                TryDiffProp<int>(
+                    previous,
+                    next,
+                    "index",
+                    idx =>
+                    {
+                        int clamped = ClampIndex(groupElement.choices, idx);
+                        groupElement.value = clamped;
+                    }
+                );
+                if (
+                    ReactiveUITK.Core.Reconciler.EnableDiffTracing
+                    && ReactiveUITK.Core.Reconciler.TraceLevel
+                        != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None
+                )
                 {
-                    int resolved = ResolveIndex(groupElement.choices, v);
-                    if (resolved >= 0) { groupElement.value = resolved; }
-                });
-                TryDiffProp<int>(previous, next, "index", idx =>
-                {
-                    int clamped = ClampIndex(groupElement.choices, idx);
-                    groupElement.value = clamped;
-                });
-                if (ReactiveUITK.Core.Reconciler.EnableDiffTracing && ReactiveUITK.Core.Reconciler.TraceLevel != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None)
-                {
-                    UnityEngine.Debug.Log($"[RadioGroupDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={groupElement.value} choicesRef={(groupElement.choices != null ? groupElement.choices.GetHashCode() : 0)}");
+                    UnityEngine.Debug.Log(
+                        $"[RadioGroupDiff] key={(element.userData as ReactiveUITK.Core.NodeMetadata)?.Key} value={groupElement.value} choicesRef={(groupElement.choices != null ? groupElement.choices.GetHashCode() : 0)}"
+                    );
                 }
                 DiffSlot(groupElement, previous, next, "contentContainer");
             }
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void ApplySlots(RadioButtonGroup groupElement, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            RadioButtonGroup groupElement,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             ApplySlot(groupElement, properties, "contentContainer");
         }
 
-        private static void DiffSlot(RadioButtonGroup groupElement, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next, string slotKey)
+        private static void DiffSlot(
+            RadioButtonGroup groupElement,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            string slotKey
+        )
         {
             object previousSlot = null;
             object nextSlot = null;
@@ -104,7 +172,11 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void ApplySlot(RadioButtonGroup groupElement, IReadOnlyDictionary<string, object> properties, string slotKey)
+        private static void ApplySlot(
+            RadioButtonGroup groupElement,
+            IReadOnlyDictionary<string, object> properties,
+            string slotKey
+        )
         {
             if (properties == null)
             {
@@ -123,9 +195,15 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-            if (slotMap.TryGetValue("style", out object styleObject) && styleObject is IDictionary<string, object> styleMap)
+            if (
+                slotMap.TryGetValue("style", out object styleObject)
+                && styleObject is IDictionary<string, object> styleMap
+            )
             {
-                PropsApplier.Apply(target, new Dictionary<string, object> { { "style", styleMap } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { "style", styleMap } }
+                );
             }
             foreach (KeyValuePair<string, object> entry in slotMap)
             {
@@ -133,11 +211,17 @@ namespace ReactiveUITK.Elements
                 {
                     continue;
                 }
-                PropsApplier.Apply(target, new Dictionary<string, object> { { entry.Key, entry.Value } });
+                PropsApplier.Apply(
+                    target,
+                    new Dictionary<string, object> { { entry.Key, entry.Value } }
+                );
             }
         }
 
-        private static VisualElement ResolveSlotElement(RadioButtonGroup groupElement, string slotKey)
+        private static VisualElement ResolveSlotElement(
+            RadioButtonGroup groupElement,
+            string slotKey
+        )
         {
             if (!cache.TryGetValue(groupElement, out CachedParts parts))
             {
@@ -182,7 +266,10 @@ namespace ReactiveUITK.Elements
             int count = 0;
             using (var e = choices.GetEnumerator())
             {
-                while (e.MoveNext()) { count++; }
+                while (e.MoveNext())
+                {
+                    count++;
+                }
             }
             if (count == 0)
             {

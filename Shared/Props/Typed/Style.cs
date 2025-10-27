@@ -6,8 +6,12 @@ namespace ReactiveUITK.Props.Typed
     public class Style : Dictionary<string, object>
     {
         public Style() { }
-        public Style(int capacity) : base(capacity) { }
-        public Style(IDictionary<string, object> dictionary) : base(dictionary) { }
+
+        public Style(int capacity)
+            : base(capacity) { }
+
+        public Style(IDictionary<string, object> dictionary)
+            : base(dictionary) { }
 
         // Allow collection initializer with tuple entries: new Style { (key, value), ... }
         public void Add((string key, object value) entry)

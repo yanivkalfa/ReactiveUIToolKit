@@ -9,16 +9,24 @@ namespace ReactiveUITK.Core
         FunctionComponent,
         Fragment,
         Portal,
-        Suspense
+        Suspense,
     }
 
     public sealed class VirtualNode
     {
         public VirtualNodeType NodeType { get; set; }
         public string ElementTypeName { get; set; }
-        public System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> FunctionRender { get; set; }
+        public System.Func<
+            Dictionary<string, object>,
+            IReadOnlyList<VirtualNode>,
+            VirtualNode
+        > FunctionRender { get; set; }
         public bool Memoize { get; set; }
-        public System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> MemoCompare { get; set; }
+        public System.Func<
+            IReadOnlyDictionary<string, object>,
+            IReadOnlyDictionary<string, object>,
+            bool
+        > MemoCompare { get; set; }
         public UnityEngine.UIElements.VisualElement PortalTarget { get; set; }
         public VirtualNode Fallback { get; set; }
         public System.Func<bool> SuspenseReady { get; set; }
@@ -31,17 +39,26 @@ namespace ReactiveUITK.Core
         public VirtualNode(
             VirtualNodeType nodeType,
             string elementTypeName,
-            System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> functionRender,
+            System.Func<
+                Dictionary<string, object>,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > functionRender,
             string textContent,
             string key,
             IReadOnlyDictionary<string, object> properties,
             IReadOnlyList<VirtualNode> children,
             bool memoize = false,
-            System.Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
+            System.Func<
+                IReadOnlyDictionary<string, object>,
+                IReadOnlyDictionary<string, object>,
+                bool
+            > memoCompare = null,
             UnityEngine.UIElements.VisualElement portalTarget = null,
             VirtualNode fallback = null,
             System.Func<bool> suspenseReady = null,
-            System.Threading.Tasks.Task<bool> suspenseReadyTask = null)
+            System.Threading.Tasks.Task<bool> suspenseReadyTask = null
+        )
         {
             NodeType = nodeType;
             ElementTypeName = elementTypeName;
@@ -59,9 +76,18 @@ namespace ReactiveUITK.Core
         }
 
         // Implicit conversion: function component -> VirtualNode
-        public static implicit operator VirtualNode(System.Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction)
+        public static implicit operator VirtualNode(
+            System.Func<
+                Dictionary<string, object>,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > renderFunction
+        )
         {
-            if (renderFunction == null) { return null; }
+            if (renderFunction == null)
+            {
+                return null;
+            }
             return ReactiveUITK.V.Func(renderFunction);
         }
     }

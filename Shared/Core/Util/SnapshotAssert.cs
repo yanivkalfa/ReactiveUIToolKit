@@ -19,13 +19,29 @@ namespace ReactiveUITK.Core.Util
             string actualSerialized = VNodeSnapshot.Serialize(actualNode);
             if (expectedSerialized == actualSerialized)
             {
-                return new Result { Pass = true, Diff = string.Empty, Expected = expectedSerialized, Actual = actualSerialized };
+                return new Result
+                {
+                    Pass = true,
+                    Diff = string.Empty,
+                    Expected = expectedSerialized,
+                    Actual = actualSerialized,
+                };
             }
             string diffSnapshot = VNodeSnapshot.Diff(expectedNode, actualNode);
-            return new Result { Pass = false, Diff = diffSnapshot, Expected = expectedSerialized, Actual = actualSerialized };
+            return new Result
+            {
+                Pass = false,
+                Diff = diffSnapshot,
+                Expected = expectedSerialized,
+                Actual = actualSerialized,
+            };
         }
 
-        public static void AssertEqual(VirtualNode expectedNode, VirtualNode actualNode, Action<string> logAction = null)
+        public static void AssertEqual(
+            VirtualNode expectedNode,
+            VirtualNode actualNode,
+            Action<string> logAction = null
+        )
         {
             Result comparison = Compare(expectedNode, actualNode);
             if (!comparison.Pass)

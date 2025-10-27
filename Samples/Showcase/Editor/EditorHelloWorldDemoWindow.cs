@@ -12,7 +12,9 @@ namespace ReactiveUITK.Samples.Editor
         [MenuItem("Window/ReactiveUITK/Demos/Hello World")]
         public static void ShowWindow()
         {
-            EditorHelloWorldDemoWindow window = GetWindow<EditorHelloWorldDemoWindow>("Hello World Demo");
+            EditorHelloWorldDemoWindow window = GetWindow<EditorHelloWorldDemoWindow>(
+                "Hello World Demo"
+            );
             window.minSize = new Vector2(420, 320);
             window.Show();
         }

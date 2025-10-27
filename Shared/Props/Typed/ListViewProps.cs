@@ -16,6 +16,7 @@ namespace ReactiveUITK.Props.Typed
         public System.Action<VisualElement, int> BindItem { get; set; }
         public System.Action<VisualElement, int> UnbindItem { get; set; }
         public Style Style { get; set; }
+
         // VNode-based row renderer
         public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
         public SelectionType? Selection { get; set; }

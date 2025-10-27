@@ -21,15 +21,24 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name)) dict["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName)) dict["className"] = ClassName;
-            if (Choices != null) dict["choices"] = Choices;
-            if (Value != null) dict["value"] = Value;
-            if (SelectedIndex.HasValue) dict["selectedIndex"] = SelectedIndex.Value;
-            if (OnChange != null) dict["onChange"] = OnChange;
-            if (Label != null) dict["label"] = Label;
-            if (VisualInput != null) dict["visualInput"] = VisualInput;
-            if (Style != null) dict["style"] = Style;
+            if (!string.IsNullOrEmpty(Name))
+                dict["name"] = Name;
+            if (!string.IsNullOrEmpty(ClassName))
+                dict["className"] = ClassName;
+            if (Choices != null)
+                dict["choices"] = Choices;
+            if (Value != null)
+                dict["value"] = Value;
+            if (SelectedIndex.HasValue)
+                dict["selectedIndex"] = SelectedIndex.Value;
+            if (OnChange != null)
+                dict["onChange"] = OnChange;
+            if (Label != null)
+                dict["label"] = Label;
+            if (VisualInput != null)
+                dict["visualInput"] = VisualInput;
+            if (Style != null)
+                dict["style"] = Style;
             return dict;
         }
     }

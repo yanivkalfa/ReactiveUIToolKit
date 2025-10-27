@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEditor;
 using UnityEngine;
-using ReactiveUITK.Core;
 
 namespace ReactiveUITK.EditorSupport
 {
@@ -25,7 +25,10 @@ namespace ReactiveUITK.EditorSupport
 
         public static EditorRenderScheduler Instance { get; } = new EditorRenderScheduler();
 
-        public void Enqueue(Action action, IScheduler.Priority priority = IScheduler.Priority.Normal)
+        public void Enqueue(
+            Action action,
+            IScheduler.Priority priority = IScheduler.Priority.Normal
+        )
         {
             if (action == null)
             {
@@ -82,24 +85,49 @@ namespace ReactiveUITK.EditorSupport
             ExecuteQueue(normalPriorityQueue);
             ExecuteQueue(lowPriorityQueue);
             ExecuteQueue(idlePriorityQueue);
-            if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+            if (
+                ReactiveUITK.Core.Reconciler.TraceLevel
+                == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+            )
             {
-                int h = highPriorityQueue.Count, n = normalPriorityQueue.Count, l = lowPriorityQueue.Count, i = idlePriorityQueue.Count, b = batchedEffectActions.Count;
+                int h = highPriorityQueue.Count,
+                    n = normalPriorityQueue.Count,
+                    l = lowPriorityQueue.Count,
+                    i = idlePriorityQueue.Count,
+                    b = batchedEffectActions.Count;
                 if (h + n + l + i + b > 0)
                 {
-                    try { Debug.Log($"[Pump] qH={h} qN={n} qL={l} qI={i} batched={b}"); } catch { }
+                    try
+                    {
+                        Debug.Log($"[Pump] qH={h} qN={n} qL={l} qI={i} batched={b}");
+                    }
+                    catch { }
                 }
             }
             if (batchedEffectActions.Count > 0)
             {
                 int count = batchedEffectActions.Count;
-                if (ReactiveUITK.Core.Reconciler.TraceLevel == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose)
+                if (
+                    ReactiveUITK.Core.Reconciler.TraceLevel
+                    == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                )
                 {
-                    try { Debug.Log("[Pump:flush-effects] count=" + count); } catch { }
+                    try
+                    {
+                        Debug.Log("[Pump:flush-effects] count=" + count);
+                    }
+                    catch { }
                 }
                 foreach (var e in batchedEffectActions)
                 {
-                    try { e(); } catch (Exception ex) { Debug.LogError(ex); }
+                    try
+                    {
+                        e();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError(ex);
+                    }
                 }
                 batchedEffectActions.Clear();
             }
@@ -110,9 +138,15 @@ namespace ReactiveUITK.EditorSupport
             while (q.Count > 0)
             {
                 var a = q.Dequeue();
-                try { a(); } catch (Exception ex) { Debug.LogError(ex); }
+                try
+                {
+                    a();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError(ex);
+                }
             }
         }
     }
 }
-

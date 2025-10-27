@@ -15,14 +15,19 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name)) dict["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName)) dict["className"] = ClassName;
-            if (Texture != null) dict["texture"] = Texture;
-            if (Sprite != null) dict["sprite"] = Sprite;
-            if (!string.IsNullOrEmpty(ScaleMode)) dict["scaleMode"] = ScaleMode;
-            if (Style != null) dict["style"] = Style;
+            if (!string.IsNullOrEmpty(Name))
+                dict["name"] = Name;
+            if (!string.IsNullOrEmpty(ClassName))
+                dict["className"] = ClassName;
+            if (Texture != null)
+                dict["texture"] = Texture;
+            if (Sprite != null)
+                dict["sprite"] = Sprite;
+            if (!string.IsNullOrEmpty(ScaleMode))
+                dict["scaleMode"] = ScaleMode;
+            if (Style != null)
+                dict["style"] = Style;
             return dict;
         }
     }
 }
-
