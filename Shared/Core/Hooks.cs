@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Core.Util;
 
 namespace ReactiveUITK.Core
 {
@@ -12,6 +13,25 @@ namespace ReactiveUITK.Core
     }
     public static class Hooks
     {
+        public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)
+        {
+            // Lightweight read; no re-render trigger. Caller can combine with other state to refresh on orientation/resize.
+            var current = SafeAreaUtility.GetInsets();
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null)
+            {
+                return current;
+            }
+            metadata.HookStates ??= new System.Collections.Generic.List<object>();
+            if (metadata.HookIndex >= metadata.HookStates.Count)
+            {
+                metadata.HookStates.Add(current);
+            }
+            // Keep last value for potential future change detection
+            metadata.HookStates[metadata.HookIndex] = current;
+            metadata.HookIndex++;
+            return current;
+        }
         public static Func<T> UseStableFunc<T>(Func<T> function)
         {
             NodeMetadata metadata = HookContext.Current;

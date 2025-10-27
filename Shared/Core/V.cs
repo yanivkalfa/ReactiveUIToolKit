@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 using ReactiveUITK.Props.Typed;
+using ReactiveUITK.Core.Util;
+using UnityEngine;
 
 namespace ReactiveUITK
 {
@@ -66,6 +68,47 @@ namespace ReactiveUITK
                 props["style"] = style;
             }
             return VisualElement(props, key, children);
+        }
+
+        // VisualElementSafe: applies safe-area padding as a minimum, without overriding larger paddings the user specifies.
+        public static VirtualNode VisualElementSafe(
+            Style style = null,
+            string key = null,
+            params VirtualNode[] children)
+        {
+            var insets = SafeAreaUtility.GetInsets();
+            // Build a style where padding = Max(userPadding, safeInset)
+            float GetUser(string k)
+            {
+                if (style == null) return 0f;
+                if (style.TryGetValue(k, out var v) && v is float f) return f;
+                return 0f;
+            }
+
+            var merged = new Style
+            {
+                (Props.Typed.StyleKeys.PaddingLeft,  Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingLeft),  insets.Left)),
+                (Props.Typed.StyleKeys.PaddingRight, Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingRight), insets.Right)),
+                (Props.Typed.StyleKeys.PaddingTop,   Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingTop),   insets.Top)),
+                (Props.Typed.StyleKeys.PaddingBottom,Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom),insets.Bottom))
+            };
+            // Merge any remaining user styles on top (they can override unrelated keys)
+            if (style != null)
+            {
+                foreach (var kv in style)
+                {
+                    if (kv.Key == Props.Typed.StyleKeys.PaddingLeft ||
+                        kv.Key == Props.Typed.StyleKeys.PaddingRight ||
+                        kv.Key == Props.Typed.StyleKeys.PaddingTop ||
+                        kv.Key == Props.Typed.StyleKeys.PaddingBottom)
+                    {
+                        // Keep the max already set
+                        continue;
+                    }
+                    merged[kv.Key] = kv.Value;
+                }
+            }
+            return VisualElement(merged, key, children);
         }
 
         // Raw dictionary overload removed to enforce typed props usage for TextField
@@ -204,6 +247,81 @@ namespace ReactiveUITK
                 key: key,
                 properties: map ?? EmptyProps(),
                 children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Image(ImageProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Image",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode ScrollView(ScrollViewProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "ScrollView",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Slider(SliderProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Slider",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode DropdownField(DropdownFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "DropdownField",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Foldout(FoldoutProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "Foldout",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
             );
         }
 
