@@ -103,6 +103,7 @@ namespace ReactiveUITK.Samples.Shared
             var (currentTime, setCurrentTime) = Hooks.UseState(DateTime.Now);
             // New element demo state
             var (sliderValue, setSliderValue) = Hooks.UseState(0.5f);
+            var (sliderIntValue, setSliderIntValue) = Hooks.UseState(5);
             var ddChoices = Hooks.UseMemo(() => new List<string> { "Alpha", "Beta", "Gamma" }, 0);
             var (ddValue, setDdValue) = Hooks.UseState("Beta");
             var (foldoutOpen, setFoldoutOpen) = Hooks.UseState(true);
@@ -222,6 +223,22 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) },
             };
+            ButtonProps addListItemButtonProps = new()
+            {
+                Text = "Add Item (ListView)",
+                OnClick = () =>
+                {
+                    var copy = new List<SharedRowItem>(listItems.Count + 1);
+                    copy.Add(new SharedRowItem
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                    });
+                    copy.AddRange(listItems);
+                    setListItems(copy);
+                },
+                Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
+            };
             var listContent = isListVisible
                 ? V.VisualElement(
                     new Dictionary<string, object> { { "style", ListContainerStyle } },
@@ -328,6 +345,7 @@ namespace ReactiveUITK.Samples.Shared
                 new("RadioSingle", isRadioSingleSelected.ToString()),
                 new("RadioIndex", selectionIndex.ToString()),
                 new("Slider", sliderValue.ToString("F2")),
+                new("SliderInt", sliderIntValue.ToString()),
                 new("Dropdown", ddValue ?? string.Empty),
                 new("Repeat", repeatClickCount.ToString()),
                 new("Time", currentTime.ToLongTimeString()),
@@ -395,6 +413,7 @@ namespace ReactiveUITK.Samples.Shared
                     V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
                     V.Button(toggleListButtonProps),
                     V.Button(updateFirstItemButtonProps),
+                    V.Button(addListItemButtonProps),
                     listContent,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
@@ -430,8 +449,105 @@ namespace ReactiveUITK.Samples.Shared
                         // Slider demo
                         V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
                         V.Slider(sliderProps),
+                        // SliderInt demo
+                        V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
+                        V.SliderInt(new SliderIntProps
+                        {
+                            LowValue = 0,
+                            HighValue = 10,
+                            Value = sliderIntValue,
+                            OnChange = e => setSliderIntValue(e.newValue),
+                        }),
+                        // HelpBox demo (Editor-only)
+#if UNITY_EDITOR
+                        V.HelpBox(new HelpBoxProps
+                        {
+                            MessageType = sliderIntValue % 3 == 0 ? "error" : (sliderIntValue % 2 == 0 ? "warning" : "info"),
+                            Text = "This is a HelpBox showing state-driven message type.",
+                        }),
+#endif
                         // Dropdown demo
-                        V.DropdownField(dropdownProps)
+                        V.DropdownField(dropdownProps),
+                        // MultiColumnListView demo
+                        // MultiColumn actions
+                        V.Button(new ButtonProps
+                        {
+                            Text = "Add Item (Table)",
+                            OnClick = () =>
+                            {
+                                var copy = new List<SharedRowItem>(listItems.Count + 1);
+                                copy.Add(new SharedRowItem
+                                {
+                                    Id = Guid.NewGuid().ToString("N"),
+                                    Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                                });
+                                copy.AddRange(listItems);
+                                setListItems(copy);
+                            },
+                            Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
+                        }),
+                        V.Label(new LabelProps { Text = "MultiColumnListView" }),
+                        V.MultiColumnListView(
+                            new MultiColumnListViewProps
+                            {
+                                Items = listItems,
+                                Selection = UnityEngine.UIElements.SelectionType.None,
+                                FixedItemHeight = 20f,
+                                Columns = new List<MultiColumnListViewProps.ColumnDef>
+                                {
+                                    new()
+                                    {
+                                        Title = "ID",
+                                        Width = 140f,
+                                        MinWidth = 100f,
+                                        Resizable = true,
+                                        Stretchable = true,
+                                        Cell = (i, obj) =>
+                                        {
+                                            var it = obj as SharedRowItem;
+                                            var id = it?.Id ?? string.Empty;
+                                            var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
+                                            return V.VisualElement(null, null, V.Label(new LabelProps { Text = shortId }));
+                                        }
+                                    },
+                                    new()
+                                    {
+                                        Title = "Text",
+                                        Width = 260f,
+                                        MinWidth = 140f,
+                                        Resizable = true,
+                                        Stretchable = true,
+                                        Cell = (i, obj) =>
+                                        {
+                                            var it = obj as SharedRowItem;
+                                            // Render a full row-like UI to verify nested components bind per cell
+                                            return V.Func(
+                                                SharedListViewRow.Render,
+                                                new Dictionary<string, object>
+                                                {
+                                                    { "item", it },
+                                                    { "index", i },
+                                                    {
+                                                        "onRemove",
+                                                        (Action<SharedRowItem>)(removeItem =>
+                                                        {
+                                                            if (removeItem == null) return;
+                                                            var copy = new List<SharedRowItem>(listItems);
+                                                            int foundIndex = copy.FindIndex(r => r.Id == removeItem.Id);
+                                                            if (foundIndex >= 0)
+                                                            {
+                                                                copy.RemoveAt(foundIndex);
+                                                                setListItems(copy);
+                                                            }
+                                                        })
+                                                    },
+                                                }
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        )
                     )
                 );
 

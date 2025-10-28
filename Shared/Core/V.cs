@@ -164,6 +164,21 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode MultiColumnListView(MultiColumnListViewProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "MultiColumnListView",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode Label(LabelProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
@@ -292,6 +307,21 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode HelpBox(HelpBoxProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "HelpBox",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode ScrollView(
             ScrollViewProps props,
             string key = null,
@@ -318,6 +348,21 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Slider",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode SliderInt(SliderIntProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "SliderInt",
                 functionRender: null,
                 textContent: null,
                 key: key,
