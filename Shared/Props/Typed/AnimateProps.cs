@@ -13,11 +13,12 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
-            if (Tracks != null) dict["tracks"] = Tracks;
+            if (Tracks != null)
+                dict["tracks"] = Tracks;
             dict["autoplay"] = Autoplay;
-            if (Style != null) dict["style"] = Style;
+            if (Style != null)
+                dict["style"] = Style;
             return dict;
         }
     }
 }
-

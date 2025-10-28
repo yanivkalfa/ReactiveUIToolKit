@@ -437,7 +437,11 @@ namespace ReactiveUITK.Core
 
         // Animate the current function component container using tracks.
         // Imperative per-frame updates; avoids re-rendering for animation frames.
-        public static void UseAnimate(System.Collections.Generic.IReadOnlyList<ReactiveUITK.Core.Animation.AnimateTrack> tracks, bool autoplay = true, params object[] dependencies)
+        public static void UseAnimate(
+            System.Collections.Generic.IReadOnlyList<ReactiveUITK.Core.Animation.AnimateTrack> tracks,
+            bool autoplay = true,
+            params object[] dependencies
+        )
         {
             NodeMetadata metadata = HookContext.Current;
             if (metadata == null)
@@ -453,36 +457,55 @@ namespace ReactiveUITK.Core
             int index = metadata.HookIndex;
             metadata.HookIndex++;
             // Run effect when deps change
-            UseEffect(() =>
-            {
-                // stop previous if any
-                var prev = metadata.HookStates[index] as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
-                if (prev != null)
+            UseEffect(
+                () =>
                 {
-                    foreach (var h in prev)
+                    // stop previous if any
+                    var prev =
+                        metadata.HookStates[index]
+                        as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
+                    if (prev != null)
                     {
-                        try { h?.Stop(); } catch { }
-                    }
-                }
-                System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle> handles = null;
-                if (autoplay && tracks != null && tracks.Count > 0)
-                {
-                    handles = ReactiveUITK.Core.Animation.Animator.PlayTracks(metadata.Container, tracks);
-                }
-                metadata.HookStates[index] = handles;
-                return () =>
-                {
-                    var hs = metadata.HookStates[index] as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
-                    if (hs != null)
-                    {
-                        foreach (var h in hs)
+                        foreach (var h in prev)
                         {
-                            try { h?.Stop(); } catch { }
+                            try
+                            {
+                                h?.Stop();
+                            }
+                            catch { }
                         }
-                        metadata.HookStates[index] = null;
                     }
-                };
-            }, dependencies);
+                    System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle> handles =
+                        null;
+                    if (autoplay && tracks != null && tracks.Count > 0)
+                    {
+                        handles = ReactiveUITK.Core.Animation.Animator.PlayTracks(
+                            metadata.Container,
+                            tracks
+                        );
+                    }
+                    metadata.HookStates[index] = handles;
+                    return () =>
+                    {
+                        var hs =
+                            metadata.HookStates[index]
+                            as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
+                        if (hs != null)
+                        {
+                            foreach (var h in hs)
+                            {
+                                try
+                                {
+                                    h?.Stop();
+                                }
+                                catch { }
+                            }
+                            metadata.HookStates[index] = null;
+                        }
+                    };
+                },
+                dependencies
+            );
         }
 
         // Tween a float value without re-rendering; invokes onUpdate each frame.
@@ -510,47 +533,82 @@ namespace ReactiveUITK.Core
             int index = metadata.HookIndex;
             metadata.HookIndex++;
 
-            UseEffect(() =>
-            {
-                UnityEngine.UIElements.IVisualElementScheduledItem item = null;
-                double start = 0;
-                bool started = false;
-                item = metadata.Container.schedule.Execute(() =>
+            UseEffect(
+                () =>
                 {
-                    if (metadata.Container.panel == null)
-                    {
-                        try { item?.Pause(); } catch { }
-                        item = null;
-                        return;
-                    }
-                    double now;
-                    try { now = UnityEngine.Time.realtimeSinceStartupAsDouble; } catch { now = (double)UnityEngine.Time.realtimeSinceStartup; }
-                    if (!started)
-                    {
-                        start = now + delay;
-                        started = true;
-                    }
-                    if (now < start)
-                    {
-                        return;
-                    }
-                    float t = duration <= 0f ? 1f : UnityEngine.Mathf.Clamp01((float)((now - start) / duration));
-                    float eased = ReactiveUITK.Core.Animation.Easing.Evaluate(ease, t);
-                    float v = UnityEngine.Mathf.Lerp(from, to, eased);
-                    try { onUpdate?.Invoke(v); } catch { }
-                    if (t >= 1f)
-                    {
-                        try { onComplete?.Invoke(); } catch { }
-                        try { item?.Pause(); } catch { }
-                        item = null;
-                    }
-                }).Every(16);
+                    UnityEngine.UIElements.IVisualElementScheduledItem item = null;
+                    double start = 0;
+                    bool started = false;
+                    item = metadata
+                        .Container.schedule.Execute(() =>
+                        {
+                            if (metadata.Container.panel == null)
+                            {
+                                try
+                                {
+                                    item?.Pause();
+                                }
+                                catch { }
+                                item = null;
+                                return;
+                            }
+                            double now;
+                            try
+                            {
+                                now = UnityEngine.Time.realtimeSinceStartupAsDouble;
+                            }
+                            catch
+                            {
+                                now = (double)UnityEngine.Time.realtimeSinceStartup;
+                            }
+                            if (!started)
+                            {
+                                start = now + delay;
+                                started = true;
+                            }
+                            if (now < start)
+                            {
+                                return;
+                            }
+                            float t =
+                                duration <= 0f
+                                    ? 1f
+                                    : UnityEngine.Mathf.Clamp01((float)((now - start) / duration));
+                            float eased = ReactiveUITK.Core.Animation.Easing.Evaluate(ease, t);
+                            float v = UnityEngine.Mathf.Lerp(from, to, eased);
+                            try
+                            {
+                                onUpdate?.Invoke(v);
+                            }
+                            catch { }
+                            if (t >= 1f)
+                            {
+                                try
+                                {
+                                    onComplete?.Invoke();
+                                }
+                                catch { }
+                                try
+                                {
+                                    item?.Pause();
+                                }
+                                catch { }
+                                item = null;
+                            }
+                        })
+                        .Every(16);
 
-                return () =>
-                {
-                    try { item?.Pause(); } catch { }
-                };
-            }, dependencies);
+                    return () =>
+                    {
+                        try
+                        {
+                            item?.Pause();
+                        }
+                        catch { }
+                    };
+                },
+                dependencies
+            );
         }
 
         public static T UseContext<T>(string key)
