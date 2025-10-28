@@ -21,6 +21,10 @@ namespace ReactiveUITK.Props.Typed
         public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
         public SelectionType? Selection { get; set; }
 
+        // Slots
+        public Dictionary<string, object> ContentContainer { get; set; }
+        public Dictionary<string, object> ScrollView { get; set; }
+
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
@@ -63,6 +67,14 @@ namespace ReactiveUITK.Props.Typed
             if (Selection.HasValue)
             {
                 dict["selectionType"] = Selection.Value;
+            }
+            if (ContentContainer != null)
+            {
+                dict["contentContainer"] = ContentContainer;
+            }
+            if (ScrollView != null)
+            {
+                dict["scrollView"] = ScrollView;
             }
             if (Style != null)
             {
