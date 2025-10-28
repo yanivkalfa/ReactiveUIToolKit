@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
-using ReactiveUITK.Core.Util;
 using ReactiveUITK.Core.AnimationComponents;
+using ReactiveUITK.Core.Util;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -165,7 +165,10 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode MultiColumnListView(MultiColumnListViewProps props, string key = null)
+        public static VirtualNode MultiColumnListView(
+            MultiColumnListViewProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -469,7 +472,11 @@ namespace ReactiveUITK
         }
 
         // Animate wrapper component: applies style animations to a wrapper element and renders children inside.
-        public static VirtualNode Animate(AnimateProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode Animate(
+            AnimateProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = CloneStyleDictionary(props?.ToDictionary());
             var enriched = new Dictionary<string, object>();
