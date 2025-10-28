@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using static ReactiveUITK.Props.Typed.StyleKeys;
@@ -103,6 +104,7 @@ namespace ReactiveUITK.Samples.Shared
             var (currentTime, setCurrentTime) = Hooks.UseState(DateTime.Now);
             // New element demo state
             var (sliderValue, setSliderValue) = Hooks.UseState(0.5f);
+            var (sliderIntValue, setSliderIntValue) = Hooks.UseState(5);
             var ddChoices = Hooks.UseMemo(() => new List<string> { "Alpha", "Beta", "Gamma" }, 0);
             var (ddValue, setDdValue) = Hooks.UseState("Beta");
             var (foldoutOpen, setFoldoutOpen) = Hooks.UseState(true);
@@ -138,6 +140,8 @@ namespace ReactiveUITK.Samples.Shared
                 return seededItems;
             });
             var (listItems, setListItems) = Hooks.UseState(initialItems);
+            // Separate state for table view (independent from ListView)
+            var (tableItems, setTableItems) = Hooks.UseState(initialItems);
             var listRowRenderer = Hooks.UseMemo(
                 () =>
                     (Func<int, object, VirtualNode>)(
@@ -222,11 +226,67 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) },
             };
+            ButtonProps addListItemButtonProps = new()
+            {
+                Text = "Add Item (ListView)",
+                OnClick = () =>
+                {
+                    var copy = new List<SharedRowItem>(listItems.Count + 1);
+                    copy.Add(
+                        new SharedRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                        }
+                    );
+                    copy.AddRange(listItems);
+                    setListItems(copy);
+                },
+                Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
+            };
+            ButtonProps addTableItemButtonProps = new()
+            {
+                Text = "Add Item (Table)",
+                OnClick = () =>
+                {
+                    var copy = new List<SharedRowItem>((tableItems?.Count ?? 0) + 1);
+                    copy.Add(
+                        new SharedRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                        }
+                    );
+                    if (tableItems != null)
+                        copy.AddRange(tableItems);
+                    setTableItems(copy);
+                },
+                Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
+            };
+            var listFadeTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 0f,
+                            To = 1f,
+                            Duration = 1.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                    },
+                isListVisible
+            );
             var listContent = isListVisible
-                ? V.VisualElement(
-                    new Dictionary<string, object> { { "style", ListContainerStyle } },
+                ? V.Animate(
+                    new AnimateProps { Tracks = listFadeTracks },
                     null,
-                    V.ListView(listViewProps)
+                    V.VisualElement(
+                        new Dictionary<string, object> { { "style", ListContainerStyle } },
+                        null,
+                        V.ListView(listViewProps)
+                    )
                 )
                 : V.Text("List hidden");
 
@@ -328,6 +388,7 @@ namespace ReactiveUITK.Samples.Shared
                 new("RadioSingle", isRadioSingleSelected.ToString()),
                 new("RadioIndex", selectionIndex.ToString()),
                 new("Slider", sliderValue.ToString("F2")),
+                new("SliderInt", sliderIntValue.ToString()),
                 new("Dropdown", ddValue ?? string.Empty),
                 new("Repeat", repeatClickCount.ToString()),
                 new("Time", currentTime.ToLongTimeString()),
@@ -363,6 +424,122 @@ namespace ReactiveUITK.Samples.Shared
                 Text = $"Repeat ({repeatClickCount})",
                 OnClick = () => setRepeatClickCount(repeatClickCount + 1),
             };
+            var repeatPulseTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        // Stronger visibility on the button
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 1f,
+                            To = 0.4f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        // Gentle bob
+                        new AnimateTrack
+                        {
+                            Property = "translateY",
+                            From = 0f,
+                            To = 6f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        // Subtle size breathing via padding
+                        new AnimateTrack
+                        {
+                            Property = "paddingLeft",
+                            From = 0f,
+                            To = 8f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "paddingRight",
+                            From = 0f,
+                            To = 8f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                    },
+                0
+            );
+            // Multi-attribute animation demo controls
+            var (animNonce, setAnimNonce) = Hooks.UseState(0);
+            var multiTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        // Fade + slide in
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 0f,
+                            To = 1f,
+                            Duration = 0.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "translateY",
+                            From = 12f,
+                            To = 0f,
+                            Duration = 0.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                        // Size breathing
+                        new AnimateTrack
+                        {
+                            Property = "width",
+                            From = 120f,
+                            To = 180f,
+                            Duration = 0.6f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "height",
+                            From = 32f,
+                            To = 44f,
+                            Duration = 0.6f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        // Tint to white
+                        new AnimateTrack
+                        {
+                            Property = "backgroundColor",
+                            From = new UColor(0.75f, 0.85f, 1f, 1f),
+                            To = new UColor(1f, 1f, 1f, 1f),
+                            Duration = 0.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                    },
+                animNonce
+            );
+            var animCardStyle = new Style
+            {
+                (Width, 120f),
+                (Height, 32f),
+                (BackgroundColor, new UColor(0.9f, 0.95f, 1f, 1f)),
+                (BorderRadius, 6f),
+                (MarginTop, 6f),
+                (AlignItems, "center"),
+                (JustifyContent, "center"),
+            };
             // Button near text field to change its value
             var setTextButtonProps = new ButtonProps
             {
@@ -395,6 +572,7 @@ namespace ReactiveUITK.Samples.Shared
                     V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
                     V.Button(toggleListButtonProps),
                     V.Button(updateFirstItemButtonProps),
+                    V.Button(addListItemButtonProps),
                     listContent,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
@@ -413,7 +591,11 @@ namespace ReactiveUITK.Samples.Shared
                             V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                         ),
                         V.ProgressBar(progressBarProps),
-                        V.RepeatButton(repeatButtonProps)
+                        V.Animate(
+                            new AnimateProps { Tracks = repeatPulseTracks },
+                            null,
+                            V.RepeatButton(repeatButtonProps)
+                        )
                     ),
                     // New components demo section
                     V.GroupBox(
@@ -430,8 +612,150 @@ namespace ReactiveUITK.Samples.Shared
                         // Slider demo
                         V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
                         V.Slider(sliderProps),
+                        // SliderInt demo
+                        V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
+                        V.SliderInt(
+                            new SliderIntProps
+                            {
+                                LowValue = 0,
+                                HighValue = 10,
+                                Value = sliderIntValue,
+                                OnChange = e => setSliderIntValue(e.newValue),
+                            }
+                        ),
+                        // HelpBox demo (Editor-only)
+#if UNITY_EDITOR
+                        V.HelpBox(
+                            new HelpBoxProps
+                            {
+                                MessageType =
+                                    sliderIntValue % 3 == 0
+                                        ? "error"
+                                        : (sliderIntValue % 2 == 0 ? "warning" : "info"),
+                                Text = "This is a HelpBox showing state-driven message type.",
+                            }
+                        ),
+#endif
                         // Dropdown demo
-                        V.DropdownField(dropdownProps)
+                        V.DropdownField(dropdownProps),
+                        // Multi-attribute animation example
+                        V.Label(new LabelProps { Text = "Multi-Attr Animation" }),
+                        V.Button(
+                            new ButtonProps
+                            {
+                                Text = "Play Multi-Anim",
+                                OnClick = () => setAnimNonce(animNonce + 1),
+                                Style = new Style { (MarginTop, 4f), (Width, 140f), (Height, 24f) },
+                            }
+                        ),
+                        V.Animate(
+                            new AnimateProps { Tracks = multiTracks },
+                            null,
+                            V.VisualElement(
+                                new Dictionary<string, object> { { "style", animCardStyle } },
+                                null,
+                                V.Label(new LabelProps { Text = "Animated Card" })
+                            )
+                        ),
+                        // MultiColumnListView demo
+                        V.Label(new LabelProps { Text = "MultiColumnListView" }),
+                        V.Button(addTableItemButtonProps),
+                        V.MultiColumnListView(
+                            new MultiColumnListViewProps
+                            {
+                                Items = tableItems,
+                                Selection = UnityEngine.UIElements.SelectionType.None,
+                                FixedItemHeight = 20f,
+                                Columns = Hooks.UseMemo(
+                                    () =>
+                                        new List<MultiColumnListViewProps.ColumnDef>
+                                        {
+                                            new()
+                                            {
+                                                Title = "ID",
+                                                Width = 140f,
+                                                MinWidth = 100f,
+                                                Resizable = true,
+                                                Stretchable = true,
+                                                Cell = (i, obj) =>
+                                                {
+                                                    var it = obj as SharedRowItem;
+                                                    var id = it?.Id ?? string.Empty;
+                                                    var shortId =
+                                                        id.Length > 6 ? id.Substring(0, 6) : id;
+                                                    return V.VisualElement(
+                                                        null,
+                                                        null,
+                                                        V.Label(new LabelProps { Text = shortId })
+                                                    );
+                                                },
+                                            },
+                                            new()
+                                            {
+                                                Title = "Text",
+                                                Width = 260f,
+                                                MinWidth = 140f,
+                                                Resizable = true,
+                                                Stretchable = true,
+                                                Cell = (i, obj) =>
+                                                {
+                                                    var it = obj as SharedRowItem;
+                                                    // Render a full row-like UI to verify nested components bind per cell
+                                                    return V.Func(
+                                                        SharedListViewRow.Render,
+                                                        new Dictionary<string, object>
+                                                        {
+                                                            { "item", it },
+                                                            { "index", i },
+                                                            {
+                                                                "onRemove",
+                                                                (Action<SharedRowItem>)(
+                                                                    removeItem =>
+                                                                    {
+                                                                        if (removeItem == null)
+                                                                            return;
+                                                                        var source =
+                                                                            tableItems
+                                                                            ?? new List<SharedRowItem>();
+                                                                        var copy =
+                                                                            new List<SharedRowItem>(
+                                                                                source
+                                                                            );
+                                                                        int foundIndex =
+                                                                            copy.FindIndex(r =>
+                                                                                r != null
+                                                                                && r.Id
+                                                                                    == removeItem.Id
+                                                                            );
+                                                                        if (foundIndex < 0)
+                                                                        {
+                                                                            foundIndex =
+                                                                                copy.FindIndex(r =>
+                                                                                    ReferenceEquals(
+                                                                                        r,
+                                                                                        removeItem
+                                                                                    )
+                                                                                );
+                                                                        }
+                                                                        if (foundIndex >= 0)
+                                                                        {
+                                                                            copy.RemoveAt(
+                                                                                foundIndex
+                                                                            );
+                                                                            setTableItems(copy);
+                                                                        }
+                                                                    }
+                                                                )
+                                                            },
+                                                        }
+                                                    );
+                                                },
+                                            },
+                                        },
+                                    tableItems
+                                ),
+                            }
+                        )
                     )
                 );
 
