@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using static ReactiveUITK.Props.Typed.StyleKeys;
@@ -262,11 +263,30 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
             };
+            var listFadeTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 0f,
+                            To = 1f,
+                            Duration = 1.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                    },
+                isListVisible
+            );
             var listContent = isListVisible
-                ? V.VisualElement(
-                    new Dictionary<string, object> { { "style", ListContainerStyle } },
+                ? V.Animate(
+                    new AnimateProps { Tracks = listFadeTracks },
                     null,
-                    V.ListView(listViewProps)
+                    V.VisualElement(
+                        new Dictionary<string, object> { { "style", ListContainerStyle } },
+                        null,
+                        V.ListView(listViewProps)
+                    )
                 )
                 : V.Text("List hidden");
 
@@ -404,6 +424,56 @@ namespace ReactiveUITK.Samples.Shared
                 Text = $"Repeat ({repeatClickCount})",
                 OnClick = () => setRepeatClickCount(repeatClickCount + 1),
             };
+            var repeatPulseTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        // Stronger visibility on the button
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 1f,
+                            To = 0.4f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        // Gentle bob
+                        new AnimateTrack
+                        {
+                            Property = "translateY",
+                            From = 0f,
+                            To = 6f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        // Subtle size breathing via padding
+                        new AnimateTrack
+                        {
+                            Property = "paddingLeft",
+                            From = 0f,
+                            To = 8f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "paddingRight",
+                            From = 0f,
+                            To = 8f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                    },
+                0
+            );
             // Button near text field to change its value
             var setTextButtonProps = new ButtonProps
             {
@@ -455,7 +525,11 @@ namespace ReactiveUITK.Samples.Shared
                             V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                         ),
                         V.ProgressBar(progressBarProps),
-                        V.RepeatButton(repeatButtonProps)
+                        V.Animate(
+                            new AnimateProps { Tracks = repeatPulseTracks },
+                            null,
+                            V.RepeatButton(repeatButtonProps)
+                        )
                     ),
                     // New components demo section
                     V.GroupBox(

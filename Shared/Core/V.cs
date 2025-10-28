@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Util;
+using ReactiveUITK.Core.AnimationComponents;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -465,6 +466,24 @@ namespace ReactiveUITK
                 children: children ?? EmptyChildren(),
                 portalTarget: portalTargetElement
             );
+        }
+
+        // Animate wrapper component: applies style animations to a wrapper element and renders children inside.
+        public static VirtualNode Animate(AnimateProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = CloneStyleDictionary(props?.ToDictionary());
+            var enriched = new Dictionary<string, object>();
+            if (map != null)
+            {
+                foreach (var kv in map)
+                {
+                    enriched[kv.Key] = kv.Value;
+                }
+            }
+            // Feed children array by reference into props so function component never shallow-skips
+            // when inner content changes (Reconciler memoizes function components on props+children shape).
+            enriched["__childRef"] = children;
+            return Func(AnimateFunc.Render, enriched, key, false, null, children);
         }
 
         public static VirtualNode Suspense(
