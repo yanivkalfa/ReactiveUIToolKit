@@ -18,9 +18,11 @@ namespace ReactiveUITK.Elements
             public List<Func<int, object, VirtualNode>> CellFns;
         }
 
-        private static readonly ConditionalWeakTable<MultiColumnListView, CachedParts> cache = new();
+        private static readonly ConditionalWeakTable<MultiColumnListView, CachedParts> cache =
+            new();
 
         private static HostContext sharedHostContext;
+
         private static HostContext GetCellHostContext()
         {
             if (sharedHostContext == null)
@@ -92,14 +94,22 @@ namespace ReactiveUITK.Elements
                 {
                     parts.LastItems = incoming;
                     view.itemsSource = incoming as IList;
-                    try { view.Rebuild(); } catch { }
+                    try
+                    {
+                        view.Rebuild();
+                    }
+                    catch { }
                 }
             }
             else if (parts.LastItems != null)
             {
                 parts.LastItems = null;
                 view.itemsSource = null;
-                try { view.Rebuild(); } catch { }
+                try
+                {
+                    view.Rebuild();
+                }
+                catch { }
             }
 
             TryApplyProp<int>(properties, "selectedIndex", i => view.selectedIndex = i);
@@ -124,8 +134,14 @@ namespace ReactiveUITK.Elements
                 }
                 else
                 {
-                    // Update cell delegates without forcing a refresh; avoid unbind/remount
+                    // Update cell delegates and refresh realized rows to pick up new closures
+                    // Preserve state by not unmounting during unbindCell
                     parts.CellFns = newFns;
+                    try
+                    {
+                        view.RefreshItems();
+                    }
+                    catch { }
                 }
             }
 
@@ -157,7 +173,11 @@ namespace ReactiveUITK.Elements
             {
                 parts.LastItems = nextItems;
                 view.itemsSource = nextItems;
-                try { view.Rebuild(); } catch { }
+                try
+                {
+                    view.Rebuild();
+                }
+                catch { }
             }
 
             TryDiffProp<int>(previous, next, "selectedIndex", i => view.selectedIndex = i);
@@ -186,8 +206,13 @@ namespace ReactiveUITK.Elements
                 }
                 else
                 {
-                    // Only update delegate references; do not refresh realized rows
+                    // Update delegate references and refresh realized rows so closures update
                     parts.CellFns = newFns;
+                    try
+                    {
+                        view.RefreshItems();
+                    }
+                    catch { }
                 }
             }
 
@@ -195,7 +220,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void RebuildColumnsPreservingState(MultiColumnListView view, IEnumerable newCols, CachedParts parts)
+        private static void RebuildColumnsPreservingState(
+            MultiColumnListView view,
+            IEnumerable newCols,
+            CachedParts parts
+        )
         {
             // Capture existing columns by name and index
             var existingByName = new Dictionary<string, Column>();
@@ -215,7 +244,11 @@ namespace ReactiveUITK.Elements
             int colIndex = 0;
             foreach (var co in newCols)
             {
-                if (co is not IDictionary<string, object> colMap) { index++; continue; }
+                if (co is not IDictionary<string, object> colMap)
+                {
+                    index++;
+                    continue;
+                }
                 string name = colMap.TryGetValue("name", out var n) ? n as string : null;
                 string title = colMap.TryGetValue("title", out var t) ? t as string : null;
                 Func<int, object, VirtualNode> cellFn = null;
@@ -227,45 +260,86 @@ namespace ReactiveUITK.Elements
                 bool widthProvided = false;
                 if (colMap.TryGetValue("width", out var w))
                 {
-                    try { width = Convert.ToSingle(w); widthProvided = true; } catch { width = 0f; }
+                    try
+                    {
+                        width = Convert.ToSingle(w);
+                        widthProvided = true;
+                    }
+                    catch
+                    {
+                        width = 0f;
+                    }
                 }
                 float minWidth = 0f;
                 bool minWidthProvided = false;
                 if (colMap.TryGetValue("minWidth", out var mw))
                 {
-                    try { minWidth = Convert.ToSingle(mw); minWidthProvided = true; } catch { }
+                    try
+                    {
+                        minWidth = Convert.ToSingle(mw);
+                        minWidthProvided = true;
+                    }
+                    catch { }
                 }
                 float maxWidth = 0f;
                 bool maxWidthProvided = false;
                 if (colMap.TryGetValue("maxWidth", out var xw))
                 {
-                    try { maxWidth = Convert.ToSingle(xw); maxWidthProvided = true; } catch { maxWidth = 0f; }
+                    try
+                    {
+                        maxWidth = Convert.ToSingle(xw);
+                        maxWidthProvided = true;
+                    }
+                    catch
+                    {
+                        maxWidth = 0f;
+                    }
                 }
                 bool resizable = true;
                 bool resizableProvided = false;
                 if (colMap.TryGetValue("resizable", out var rz) && rz is bool rb)
                 {
-                    resizable = rb; resizableProvided = true;
+                    resizable = rb;
+                    resizableProvided = true;
                 }
                 bool stretchable = true;
                 bool stretchableProvided = false;
                 if (colMap.TryGetValue("stretchable", out var st) && st is bool sb)
                 {
-                    stretchable = sb; stretchableProvided = true;
+                    stretchable = sb;
+                    stretchableProvided = true;
                 }
 
                 var column = new Column { title = title };
-                if (!string.IsNullOrEmpty(name)) column.name = name;
+                if (!string.IsNullOrEmpty(name))
+                    column.name = name;
 
                 Column prev = null;
-                if (!string.IsNullOrEmpty(name)) existingByName.TryGetValue(name, out prev);
-                if (prev == null && index < existingByIndex.Count) prev = existingByIndex[index];
+                if (!string.IsNullOrEmpty(name))
+                    existingByName.TryGetValue(name, out prev);
+                if (prev == null && index < existingByIndex.Count)
+                    prev = existingByIndex[index];
 
-                if (widthProvided) column.width = width; else if (prev != null) column.width = prev.width;
-                if (minWidthProvided) column.minWidth = minWidth; else if (prev != null) column.minWidth = prev.minWidth;
-                if (maxWidthProvided) column.maxWidth = maxWidth; else if (prev != null) column.maxWidth = prev.maxWidth;
-                if (resizableProvided) column.resizable = resizable; else if (prev != null) column.resizable = prev.resizable;
-                if (stretchableProvided) column.stretchable = stretchable; else if (prev != null) column.stretchable = prev.stretchable;
+                if (widthProvided)
+                    column.width = width;
+                else if (prev != null)
+                    column.width = prev.width;
+                if (minWidthProvided)
+                    column.minWidth = minWidth;
+                else if (prev != null)
+                    column.minWidth = prev.minWidth;
+                if (maxWidthProvided)
+                    column.maxWidth = maxWidth;
+                else if (prev != null)
+                    column.maxWidth = prev.maxWidth;
+                if (resizableProvided)
+                    column.resizable = resizable;
+                else if (prev != null)
+                    column.resizable = prev.resizable;
+                if (stretchableProvided)
+                    column.stretchable = stretchable;
+                else if (prev != null)
+                    column.stretchable = prev.stretchable;
 
                 column.makeCell = () =>
                 {
@@ -298,13 +372,18 @@ namespace ReactiveUITK.Elements
                         rr.Render(EnsureVisualRoot(vnode));
                     }
                 };
-                column.unbindCell = (ve, i) => { (ve.userData as IVNodeHostRenderer)?.Unmount(); };
+                // Preserve existing VNodeHostRenderer across unbind to avoid remounting stateful subtrees
+                column.unbindCell = (ve, i) => { };
                 view.columns.Add(column);
                 index++;
                 colIndex++;
             }
 
-            try { view.Rebuild(); } catch { }
+            try
+            {
+                view.Rebuild();
+            }
+            catch { }
         }
 
         private sealed class ColSig
@@ -313,7 +392,10 @@ namespace ReactiveUITK.Elements
             public string Title;
         }
 
-        private static (List<ColSig> sig, List<Func<int, object, VirtualNode>> fns) ExtractSignatureAndFns(IEnumerable cols)
+        private static (
+            List<ColSig> sig,
+            List<Func<int, object, VirtualNode>> fns
+        ) ExtractSignatureAndFns(IEnumerable cols)
         {
             var list = new List<ColSig>();
             var fns = new List<Func<int, object, VirtualNode>>();
@@ -326,11 +408,7 @@ namespace ReactiveUITK.Elements
                 Func<int, object, VirtualNode> fn = null;
                 if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
                     fn = cf;
-                list.Add(new ColSig
-                {
-                    Name = n as string,
-                    Title = t as string,
-                });
+                list.Add(new ColSig { Name = n as string, Title = t as string });
                 fns.Add(fn);
             }
             return (list, fns);
@@ -338,15 +416,20 @@ namespace ReactiveUITK.Elements
 
         private static bool SignaturesEqual(List<ColSig> a, List<ColSig> b)
         {
-            if (ReferenceEquals(a, b)) return true;
-            if (a == null || b == null) return false;
-            if (a.Count != b.Count) return false;
+            if (ReferenceEquals(a, b))
+                return true;
+            if (a == null || b == null)
+                return false;
+            if (a.Count != b.Count)
+                return false;
             for (int i = 0; i < a.Count; i++)
             {
                 var x = a[i];
                 var y = b[i];
-                if (!string.Equals(x?.Name, y?.Name, StringComparison.Ordinal)) return false;
-                if (!string.Equals(x?.Title, y?.Title, StringComparison.Ordinal)) return false;
+                if (!string.Equals(x?.Name, y?.Name, StringComparison.Ordinal))
+                    return false;
+                if (!string.Equals(x?.Title, y?.Title, StringComparison.Ordinal))
+                    return false;
             }
             return true;
         }

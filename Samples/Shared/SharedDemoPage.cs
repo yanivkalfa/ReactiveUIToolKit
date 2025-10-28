@@ -231,11 +231,13 @@ namespace ReactiveUITK.Samples.Shared
                 OnClick = () =>
                 {
                     var copy = new List<SharedRowItem>(listItems.Count + 1);
-                    copy.Add(new SharedRowItem
-                    {
-                        Id = Guid.NewGuid().ToString("N"),
-                        Text = "NEW " + DateTime.Now.ToLongTimeString(),
-                    });
+                    copy.Add(
+                        new SharedRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                        }
+                    );
                     copy.AddRange(listItems);
                     setListItems(copy);
                 },
@@ -247,11 +249,13 @@ namespace ReactiveUITK.Samples.Shared
                 OnClick = () =>
                 {
                     var copy = new List<SharedRowItem>((tableItems?.Count ?? 0) + 1);
-                    copy.Add(new SharedRowItem
-                    {
-                        Id = Guid.NewGuid().ToString("N"),
-                        Text = "NEW " + DateTime.Now.ToLongTimeString(),
-                    });
+                    copy.Add(
+                        new SharedRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                        }
+                    );
                     if (tableItems != null)
                         copy.AddRange(tableItems);
                     setTableItems(copy);
@@ -470,20 +474,27 @@ namespace ReactiveUITK.Samples.Shared
                         V.Slider(sliderProps),
                         // SliderInt demo
                         V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
-                        V.SliderInt(new SliderIntProps
-                        {
-                            LowValue = 0,
-                            HighValue = 10,
-                            Value = sliderIntValue,
-                            OnChange = e => setSliderIntValue(e.newValue),
-                        }),
+                        V.SliderInt(
+                            new SliderIntProps
+                            {
+                                LowValue = 0,
+                                HighValue = 10,
+                                Value = sliderIntValue,
+                                OnChange = e => setSliderIntValue(e.newValue),
+                            }
+                        ),
                         // HelpBox demo (Editor-only)
 #if UNITY_EDITOR
-                        V.HelpBox(new HelpBoxProps
-                        {
-                            MessageType = sliderIntValue % 3 == 0 ? "error" : (sliderIntValue % 2 == 0 ? "warning" : "info"),
-                            Text = "This is a HelpBox showing state-driven message type.",
-                        }),
+                        V.HelpBox(
+                            new HelpBoxProps
+                            {
+                                MessageType =
+                                    sliderIntValue % 3 == 0
+                                        ? "error"
+                                        : (sliderIntValue % 2 == 0 ? "warning" : "info"),
+                                Text = "This is a HelpBox showing state-driven message type.",
+                            }
+                        ),
 #endif
                         // Dropdown demo
                         V.DropdownField(dropdownProps),
@@ -496,59 +507,94 @@ namespace ReactiveUITK.Samples.Shared
                                 Items = tableItems,
                                 Selection = UnityEngine.UIElements.SelectionType.None,
                                 FixedItemHeight = 20f,
-                                Columns = Hooks.UseMemo(() => new List<MultiColumnListViewProps.ColumnDef>
-                                {
-                                    new()
-                                    {
-                                        Title = "ID",
-                                        Width = 140f,
-                                        MinWidth = 100f,
-                                        Resizable = true,
-                                        Stretchable = true,
-                                        Cell = (i, obj) =>
+                                Columns = Hooks.UseMemo(
+                                    () =>
+                                        new List<MultiColumnListViewProps.ColumnDef>
                                         {
-                                            var it = obj as SharedRowItem;
-                                            var id = it?.Id ?? string.Empty;
-                                            var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
-                                            return V.VisualElement(null, null, V.Label(new LabelProps { Text = shortId }));
-                                        }
-                                    },
-                                    new()
-                                    {
-                                        Title = "Text",
-                                        Width = 260f,
-                                        MinWidth = 140f,
-                                        Resizable = true,
-                                        Stretchable = true,
-                                        Cell = (i, obj) =>
-                                        {
-                                            var it = obj as SharedRowItem;
-                                            // Render a full row-like UI to verify nested components bind per cell
-                                            return V.Func(
-                                                SharedListViewRow.Render,
-                                                new Dictionary<string, object>
+                                            new()
+                                            {
+                                                Title = "ID",
+                                                Width = 140f,
+                                                MinWidth = 100f,
+                                                Resizable = true,
+                                                Stretchable = true,
+                                                Cell = (i, obj) =>
                                                 {
-                                                    { "item", it },
-                                                    { "index", i },
-                                                    {
-                                                        "onRemove",
-                                                        (Action<SharedRowItem>)(removeItem =>
+                                                    var it = obj as SharedRowItem;
+                                                    var id = it?.Id ?? string.Empty;
+                                                    var shortId =
+                                                        id.Length > 6 ? id.Substring(0, 6) : id;
+                                                    return V.VisualElement(
+                                                        null,
+                                                        null,
+                                                        V.Label(new LabelProps { Text = shortId })
+                                                    );
+                                                },
+                                            },
+                                            new()
+                                            {
+                                                Title = "Text",
+                                                Width = 260f,
+                                                MinWidth = 140f,
+                                                Resizable = true,
+                                                Stretchable = true,
+                                                Cell = (i, obj) =>
+                                                {
+                                                    var it = obj as SharedRowItem;
+                                                    // Render a full row-like UI to verify nested components bind per cell
+                                                    return V.Func(
+                                                        SharedListViewRow.Render,
+                                                        new Dictionary<string, object>
                                                         {
-                                                            if (removeItem == null) return;
-                                                            var copy = new List<SharedRowItem>(tableItems);
-                                                            int foundIndex = copy.FindIndex(r => r.Id == removeItem.Id);
-                                                            if (foundIndex >= 0)
+                                                            { "item", it },
+                                                            { "index", i },
                                                             {
-                                                                copy.RemoveAt(foundIndex);
-                                                                setTableItems(copy);
-                                                            }
-                                                        })
-                                                    },
-                                                }
-                                            );
-                                        }
-                                    }
-                                }, tableItems)
+                                                                "onRemove",
+                                                                (Action<SharedRowItem>)(
+                                                                    removeItem =>
+                                                                    {
+                                                                        if (removeItem == null)
+                                                                            return;
+                                                                        var source =
+                                                                            tableItems
+                                                                            ?? new List<SharedRowItem>();
+                                                                        var copy =
+                                                                            new List<SharedRowItem>(
+                                                                                source
+                                                                            );
+                                                                        int foundIndex =
+                                                                            copy.FindIndex(r =>
+                                                                                r != null
+                                                                                && r.Id
+                                                                                    == removeItem.Id
+                                                                            );
+                                                                        if (foundIndex < 0)
+                                                                        {
+                                                                            foundIndex =
+                                                                                copy.FindIndex(r =>
+                                                                                    ReferenceEquals(
+                                                                                        r,
+                                                                                        removeItem
+                                                                                    )
+                                                                                );
+                                                                        }
+                                                                        if (foundIndex >= 0)
+                                                                        {
+                                                                            copy.RemoveAt(
+                                                                                foundIndex
+                                                                            );
+                                                                            setTableItems(copy);
+                                                                        }
+                                                                    }
+                                                                )
+                                                            },
+                                                        }
+                                                    );
+                                                },
+                                            },
+                                        },
+                                    tableItems
+                                ),
                             }
                         )
                     )
