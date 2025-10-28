@@ -139,6 +139,8 @@ namespace ReactiveUITK.Samples.Shared
                 return seededItems;
             });
             var (listItems, setListItems) = Hooks.UseState(initialItems);
+            // Separate state for table view (independent from ListView)
+            var (tableItems, setTableItems) = Hooks.UseState(initialItems);
             var listRowRenderer = Hooks.UseMemo(
                 () =>
                     (Func<int, object, VirtualNode>)(
@@ -236,6 +238,23 @@ namespace ReactiveUITK.Samples.Shared
                     });
                     copy.AddRange(listItems);
                     setListItems(copy);
+                },
+                Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
+            };
+            ButtonProps addTableItemButtonProps = new()
+            {
+                Text = "Add Item (Table)",
+                OnClick = () =>
+                {
+                    var copy = new List<SharedRowItem>((tableItems?.Count ?? 0) + 1);
+                    copy.Add(new SharedRowItem
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                    });
+                    if (tableItems != null)
+                        copy.AddRange(tableItems);
+                    setTableItems(copy);
                 },
                 Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
             };
@@ -469,31 +488,15 @@ namespace ReactiveUITK.Samples.Shared
                         // Dropdown demo
                         V.DropdownField(dropdownProps),
                         // MultiColumnListView demo
-                        // MultiColumn actions
-                        V.Button(new ButtonProps
-                        {
-                            Text = "Add Item (Table)",
-                            OnClick = () =>
-                            {
-                                var copy = new List<SharedRowItem>(listItems.Count + 1);
-                                copy.Add(new SharedRowItem
-                                {
-                                    Id = Guid.NewGuid().ToString("N"),
-                                    Text = "NEW " + DateTime.Now.ToLongTimeString(),
-                                });
-                                copy.AddRange(listItems);
-                                setListItems(copy);
-                            },
-                            Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
-                        }),
                         V.Label(new LabelProps { Text = "MultiColumnListView" }),
+                        V.Button(addTableItemButtonProps),
                         V.MultiColumnListView(
                             new MultiColumnListViewProps
                             {
-                                Items = listItems,
+                                Items = tableItems,
                                 Selection = UnityEngine.UIElements.SelectionType.None,
                                 FixedItemHeight = 20f,
-                                Columns = new List<MultiColumnListViewProps.ColumnDef>
+                                Columns = Hooks.UseMemo(() => new List<MultiColumnListViewProps.ColumnDef>
                                 {
                                     new()
                                     {
@@ -532,12 +535,12 @@ namespace ReactiveUITK.Samples.Shared
                                                         (Action<SharedRowItem>)(removeItem =>
                                                         {
                                                             if (removeItem == null) return;
-                                                            var copy = new List<SharedRowItem>(listItems);
+                                                            var copy = new List<SharedRowItem>(tableItems);
                                                             int foundIndex = copy.FindIndex(r => r.Id == removeItem.Id);
                                                             if (foundIndex >= 0)
                                                             {
                                                                 copy.RemoveAt(foundIndex);
-                                                                setListItems(copy);
+                                                                setTableItems(copy);
                                                             }
                                                         })
                                                     },
@@ -545,7 +548,7 @@ namespace ReactiveUITK.Samples.Shared
                                             );
                                         }
                                     }
-                                }
+                                }, tableItems)
                             }
                         )
                     )
