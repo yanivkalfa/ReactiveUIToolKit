@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Util;
+using ReactiveUITK.Core.AnimationComponents;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -164,6 +165,21 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode MultiColumnListView(MultiColumnListViewProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "MultiColumnListView",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode Label(LabelProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
@@ -292,6 +308,21 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode HelpBox(HelpBoxProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "HelpBox",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
         public static VirtualNode ScrollView(
             ScrollViewProps props,
             string key = null,
@@ -318,6 +349,21 @@ namespace ReactiveUITK
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Slider",
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: EmptyChildren()
+            );
+        }
+
+        public static VirtualNode SliderInt(SliderIntProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "SliderInt",
                 functionRender: null,
                 textContent: null,
                 key: key,
@@ -420,6 +466,24 @@ namespace ReactiveUITK
                 children: children ?? EmptyChildren(),
                 portalTarget: portalTargetElement
             );
+        }
+
+        // Animate wrapper component: applies style animations to a wrapper element and renders children inside.
+        public static VirtualNode Animate(AnimateProps props, string key = null, params VirtualNode[] children)
+        {
+            IReadOnlyDictionary<string, object> map = CloneStyleDictionary(props?.ToDictionary());
+            var enriched = new Dictionary<string, object>();
+            if (map != null)
+            {
+                foreach (var kv in map)
+                {
+                    enriched[kv.Key] = kv.Value;
+                }
+            }
+            // Feed children array by reference into props so function component never shallow-skips
+            // when inner content changes (Reconciler memoizes function components on props+children shape).
+            enriched["__childRef"] = children;
+            return Func(AnimateFunc.Render, enriched, key, false, null, children);
         }
 
         public static VirtualNode Suspense(

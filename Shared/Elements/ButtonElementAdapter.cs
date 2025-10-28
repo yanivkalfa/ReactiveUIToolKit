@@ -17,7 +17,7 @@ namespace ReactiveUITK.Elements
             var p = ve.parent;
             while (p != null)
             {
-                if (p is ListView)
+                if (p is BaseVerticalCollectionView)
                     return true;
                 p = p.parent;
             }

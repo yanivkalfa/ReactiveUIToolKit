@@ -1716,6 +1716,21 @@ namespace ReactiveUITK.Props
                     meta.EventHandlerSignatures[eventPropName] = newSig;
                     return;
                 }
+                if (element is UnityEngine.UIElements.SliderInt)
+                {
+                    if (!meta.EventHandlers.ContainsKey(eventPropName))
+                    {
+                        EventCallback<ChangeEvent<int>> w = e =>
+                        {
+                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
+                            InvokeHandler(t, e);
+                        };
+                        element.RegisterCallback(w);
+                        meta.EventHandlers[eventPropName] = w;
+                    }
+                    meta.EventHandlerSignatures[eventPropName] = newSig;
+                    return;
+                }
                 if (element is UnityEngine.UIElements.RadioButton)
                 {
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
@@ -1882,6 +1897,15 @@ namespace ReactiveUITK.Props
             {
                 element.UnregisterCallback(clickCb);
                 meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<int>> chi)
+            {
+                element.UnregisterCallback(chi);
+                meta.EventHandlers.Remove(eventPropName);
+                if (meta.EventHandlerSignatures != null)
+                    meta.EventHandlerSignatures.Remove(eventPropName);
                 totalEventsRemoved++;
                 return;
             }
