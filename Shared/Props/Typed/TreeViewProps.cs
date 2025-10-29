@@ -1,0 +1,31 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine.UIElements;
+
+namespace ReactiveUITK.Props.Typed
+{
+    public sealed class TreeViewProps
+    {
+        // Expect IList<TreeViewItemData<object>>; kept as non-generic for flexibility
+        public IList RootItems { get; set; }
+        public float? FixedItemHeight { get; set; }
+        public SelectionType? Selection { get; set; }
+        public int? SelectedIndex { get; set; }
+        public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
+        public Style Style { get; set; }
+
+        public Dictionary<string, object> ToDictionary()
+        {
+            var d = new Dictionary<string, object>();
+            if (RootItems != null) d["rootItems"] = RootItems;
+            if (FixedItemHeight.HasValue) d["fixedItemHeight"] = FixedItemHeight.Value;
+            if (Selection.HasValue) d["selectionType"] = Selection.Value;
+            if (SelectedIndex.HasValue) d["selectedIndex"] = SelectedIndex.Value;
+            if (Row != null) d["row"] = Row;
+            if (Style != null) d["style"] = Style;
+            return d;
+        }
+    }
+}
+

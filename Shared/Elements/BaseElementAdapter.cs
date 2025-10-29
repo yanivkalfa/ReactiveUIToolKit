@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -83,6 +85,29 @@ namespace ReactiveUITK.Elements
                 return true;
             }
             return false;
+        }
+
+        // Helpers shared by adapters
+        protected static VirtualNode EnsureVisualElementRoot(
+            VirtualNode vnode,
+            string contextTag = null
+        )
+        {
+            if (vnode == null)
+            {
+                return null;
+            }
+            bool isRootVE =
+                vnode.NodeType == VirtualNodeType.Element
+                && string.Equals(vnode.ElementTypeName, "VisualElement", StringComparison.Ordinal);
+            if (!isRootVE)
+            {
+                Debug.LogWarning(
+                    $"[ReactiveUITK][{contextTag ?? "Adapter"}] Root was not a 'VisualElement'. Wrapping automatically."
+                );
+                return ReactiveUITK.V.VisualElement(null, null, vnode);
+            }
+            return vnode;
         }
     }
 }
