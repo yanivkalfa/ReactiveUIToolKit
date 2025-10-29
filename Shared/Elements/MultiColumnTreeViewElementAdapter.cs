@@ -20,27 +20,46 @@ namespace ReactiveUITK.Elements
 
         private static readonly ConditionalWeakTable<MultiColumnTreeView, Cached> cache = new();
         private static HostContext host;
-        private static HostContext Host => host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
+        private static HostContext Host =>
+            host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
         public override VisualElement Create() => new MultiColumnTreeView();
 
         private static void SetRootItems(MultiColumnTreeView tv, object root)
         {
-            if (tv == null || root == null) return;
-            var mi = typeof(MultiColumnTreeView).GetMethods().FirstOrDefault(m => m.Name == "SetRootItems" && m.IsGenericMethodDefinition);
+            if (tv == null || root == null)
+                return;
+            var mi = typeof(MultiColumnTreeView)
+                .GetMethods()
+                .FirstOrDefault(m => m.Name == "SetRootItems" && m.IsGenericMethodDefinition);
             if (mi != null)
             {
-                try { mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { root }); return; } catch { }
+                try
+                {
+                    mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { root });
+                    return;
+                }
+                catch { }
             }
-            var any = typeof(MultiColumnTreeView).GetMethods().FirstOrDefault(m => m.Name == "SetRootItems" && m.GetParameters().Length == 1);
-            try { any?.Invoke(tv, new object[] { root }); } catch { }
+            var any = typeof(MultiColumnTreeView)
+                .GetMethods()
+                .FirstOrDefault(m => m.Name == "SetRootItems" && m.GetParameters().Length == 1);
+            try
+            {
+                any?.Invoke(tv, new object[] { root });
+            }
+            catch { }
         }
 
         private static object GetItemForRow(MultiColumnTreeView tv, int index)
         {
             try
             {
-                var mi = typeof(MultiColumnTreeView).GetMethods().FirstOrDefault(m => m.Name == "GetItemDataForIndex" && m.IsGenericMethodDefinition);
+                var mi = typeof(MultiColumnTreeView)
+                    .GetMethods()
+                    .FirstOrDefault(m =>
+                        m.Name == "GetItemDataForIndex" && m.IsGenericMethodDefinition
+                    );
                 if (mi != null)
                 {
                     return mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { index });
@@ -50,7 +69,10 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not MultiColumnTreeView tv)
             {
@@ -62,10 +84,16 @@ namespace ReactiveUITK.Elements
             {
                 if (properties.TryGetValue("rootItems", out var r))
                 {
-                    if (!ReferenceEquals(parts.LastRoot, r as IList))
+                    var nextList = r as IList;
+                    if (!ReferenceEquals(parts.LastRoot, nextList))
                     {
-                        parts.LastRoot = r as IList;
-                        SetRootItems(tv, r);
+                        parts.LastRoot = nextList;
+                        SetRootItems(tv, nextList);
+                        try
+                        {
+                            tv.Rebuild();
+                        }
+                        catch { }
                     }
                 }
                 TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -73,7 +101,10 @@ namespace ReactiveUITK.Elements
                     tv.selectionType = st;
                 TryApplyProp<int>(properties, "selectedIndex", i => tv.selectedIndex = i);
 
-                if (properties.TryGetValue("columns", out var cols) && cols is IEnumerable<Dictionary<string, object>> list)
+                if (
+                    properties.TryGetValue("columns", out var cols)
+                    && cols is IEnumerable<Dictionary<string, object>> list
+                )
                 {
                     var sig = new List<(string, string)>();
                     var fns = new List<Func<int, object, VirtualNode>>();
@@ -88,7 +119,12 @@ namespace ReactiveUITK.Elements
                     bool same = parts.ColSig != null && parts.ColSig.Count == sig.Count;
                     if (same)
                     {
-                        for (int i = 0; i < sig.Count; i++) if (parts.ColSig[i] != sig[i]) { same = false; break; }
+                        for (int i = 0; i < sig.Count; i++)
+                            if (parts.ColSig[i] != sig[i])
+                            {
+                                same = false;
+                                break;
+                            }
                     }
                     parts.ColSig = sig;
                     parts.CellFns = fns;
@@ -102,7 +138,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not MultiColumnTreeView tv)
             {
@@ -115,9 +155,19 @@ namespace ReactiveUITK.Elements
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
-            if (!ReferenceEquals(pr, nr)) { parts.LastRoot = nr as IList; SetRootItems(tv, nr); }
+            if (!ReferenceEquals(pr, nr))
+            {
+                parts.LastRoot = nr as IList;
+                SetRootItems(tv, nr);
+                try
+                {
+                    tv.Rebuild();
+                }
+                catch { }
+            }
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
-            if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st) tv.selectionType = st;
+            if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+                tv.selectionType = st;
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.selectedIndex = i);
 
             previous.TryGetValue("columns", out var pc);
@@ -142,7 +192,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void RebuildColumns(MultiColumnTreeView tv, IEnumerable<Dictionary<string, object>> cols, Cached parts)
+        private static void RebuildColumns(
+            MultiColumnTreeView tv,
+            IEnumerable<Dictionary<string, object>> cols,
+            Cached parts
+        )
         {
             tv.columns.Clear();
             int idx = 0;
@@ -151,17 +205,45 @@ namespace ReactiveUITK.Elements
                 c.TryGetValue("title", out var t);
                 c.TryGetValue("name", out var n);
                 var col = new Column { title = t as string };
-                if (n is string ns && !string.IsNullOrEmpty(ns)) col.name = ns;
-                if (c.TryGetValue("width", out var w)) { try { col.width = Convert.ToSingle(w); } catch { } }
-                if (c.TryGetValue("minWidth", out var mw)) { try { col.minWidth = Convert.ToSingle(mw); } catch { } }
-                if (c.TryGetValue("maxWidth", out var xw)) { try { col.maxWidth = Convert.ToSingle(xw); } catch { } }
-                if (c.TryGetValue("resizable", out var rz) && rz is bool rb) col.resizable = rb;
-                if (c.TryGetValue("stretchable", out var st) && st is bool sb) col.stretchable = sb;
+                if (n is string ns && !string.IsNullOrEmpty(ns))
+                    col.name = ns;
+                if (c.TryGetValue("width", out var w))
+                {
+                    try
+                    {
+                        col.width = Convert.ToSingle(w);
+                    }
+                    catch { }
+                }
+                if (c.TryGetValue("minWidth", out var mw))
+                {
+                    try
+                    {
+                        col.minWidth = Convert.ToSingle(mw);
+                    }
+                    catch { }
+                }
+                if (c.TryGetValue("maxWidth", out var xw))
+                {
+                    try
+                    {
+                        col.maxWidth = Convert.ToSingle(xw);
+                    }
+                    catch { }
+                }
+                if (c.TryGetValue("resizable", out var rz) && rz is bool rb)
+                    col.resizable = rb;
+                if (c.TryGetValue("stretchable", out var st) && st is bool sb)
+                    col.stretchable = sb;
                 col.makeCell = () =>
                 {
                     var ve = new VisualElement();
                     var content = new VisualElement();
-                    try { content.pickingMode = PickingMode.Ignore; } catch { }
+                    try
+                    {
+                        content.pickingMode = PickingMode.Ignore;
+                    }
+                    catch { }
                     ve.Add(content);
                     ve.userData = new VNodeHostRenderer(Host, content);
                     return ve;
@@ -172,14 +254,26 @@ namespace ReactiveUITK.Elements
                     var rr = ve.userData as IVNodeHostRenderer;
                     if (rr == null)
                     {
-                        VisualElement content = ve.childCount > 0 ? ve.ElementAt(0) as VisualElement : null;
-                        if (content == null) { content = new VisualElement(); ve.Add(content); }
-                        try { content.pickingMode = PickingMode.Ignore; } catch { }
+                        VisualElement content =
+                            ve.childCount > 0 ? ve.ElementAt(0) as VisualElement : null;
+                        if (content == null)
+                        {
+                            content = new VisualElement();
+                            ve.Add(content);
+                        }
+                        try
+                        {
+                            content.pickingMode = PickingMode.Ignore;
+                        }
+                        catch { }
                         rr = new VNodeHostRenderer(Host, content);
                         ve.userData = rr;
                     }
                     object item = GetItemForRow(tv, rowIndex);
-                    var fn = parts.CellFns != null && captured < parts.CellFns.Count ? parts.CellFns[captured] : null;
+                    var fn =
+                        parts.CellFns != null && captured < parts.CellFns.Count
+                            ? parts.CellFns[captured]
+                            : null;
                     if (fn != null)
                     {
                         var vnode = fn(rowIndex, item);
@@ -187,38 +281,62 @@ namespace ReactiveUITK.Elements
                         rr.Render(vnode);
                     }
                 };
-                col.unbindCell = (ve, i) => { (ve.userData as IVNodeHostRenderer)?.Unmount(); };
+                col.unbindCell = (ve, i) =>
+                {
+                    (ve.userData as IVNodeHostRenderer)?.Unmount();
+                };
                 tv.columns.Add(col);
                 idx++;
             }
-            try { tv.Rebuild(); } catch { }
+            try
+            {
+                tv.Rebuild();
+            }
+            catch { }
         }
 
-        private static void ApplySlots(MultiColumnTreeView tv, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            MultiColumnTreeView tv,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
-            if (properties == null) return;
-            if (properties.TryGetValue("contentContainer", out var cc) && cc is Dictionary<string, object> ccMap)
+            if (properties == null)
+                return;
+            if (
+                properties.TryGetValue("contentContainer", out var cc)
+                && cc is Dictionary<string, object> ccMap
+            )
                 PropsApplier.Apply(tv.contentContainer, ccMap);
-            if (properties.TryGetValue("scrollView", out var sv) && sv is Dictionary<string, object> svMap)
+            if (
+                properties.TryGetValue("scrollView", out var sv)
+                && sv is Dictionary<string, object> svMap
+            )
             {
                 var scroll = tv.Q<ScrollView>();
-                if (scroll != null) PropsApplier.Apply(scroll, svMap);
+                if (scroll != null)
+                    PropsApplier.Apply(scroll, svMap);
             }
         }
 
-        private static void ApplySlotsDiff(MultiColumnTreeView tv, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        private static void ApplySlotsDiff(
+            MultiColumnTreeView tv,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             previous.TryGetValue("contentContainer", out var pcc);
             next.TryGetValue("contentContainer", out var ncc);
-            if (!ReferenceEquals(pcc, ncc) && ncc is Dictionary<string, object> ccMap) PropsApplier.Apply(tv.contentContainer, ccMap);
+            if (!ReferenceEquals(pcc, ncc) && ncc is Dictionary<string, object> ccMap)
+                PropsApplier.Apply(tv.contentContainer, ccMap);
             previous.TryGetValue("scrollView", out var psv);
             next.TryGetValue("scrollView", out var nsv);
             if (!ReferenceEquals(psv, nsv) && nsv is Dictionary<string, object> svMap)
             {
                 var scroll = tv.Q<ScrollView>();
-                if (scroll != null) PropsApplier.Apply(scroll, svMap);
+                if (scroll != null)
+                    PropsApplier.Apply(scroll, svMap);
             }
         }
     }

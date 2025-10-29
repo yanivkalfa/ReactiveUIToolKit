@@ -527,71 +527,45 @@ namespace ReactiveUITK.Samples.Shared
                     bool childAsFunc
                 )>()
             );
-            List<UnityEngine.UIElements.TreeViewItemData<object>> DebugCombinedRoots()
-            {
-                var combined = new List<UnityEngine.UIElements.TreeViewItemData<object>>(
-                    treeRootItems ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
-                );
-                for (int i = 0; i < treePairs.Count; i++)
-                {
-                    var pair = treePairs[i];
-                    int pid = 1000 + (i * 2);
-                    List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
-                    if (pair.hasChild)
-                    {
-                        object childData = pair.childAsFunc
-                            ? (object)V.Func(Shared.IntroCounterFunc.Render)
-                            : (object)(
-                                pair.childLabel
-                                ?? new SharedRowItem
-                                {
-                                    Id = System.Guid.NewGuid().ToString("N"),
-                                    Text = "Child",
-                                }
-                            );
-                        ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                        {
-                            new UnityEngine.UIElements.TreeViewItemData<object>(
-                                pid + 1,
-                                childData,
-                                null
-                            ),
-                        };
-                    }
-                    combined.Add(
-                        new UnityEngine.UIElements.TreeViewItemData<object>(pid, pair.parent, ch)
-                    );
-                }
-                return combined;
-            }
             var (treeNextIsParent, setTreeNextIsParent) = Hooks.UseState(true);
-            var combinedTreeRoots = Hooks.UseMemo(
-                () =>
-                {
-                    var combined = new List<UnityEngine.UIElements.TreeViewItemData<object>>(
-                        treeRootItems ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
-                    );
-                    for (int i = 0; i < treePairs.Count; i++)
-                    {
-                        var pair = treePairs[i];
-                        int pid = 1000 + (i * 2);
-                        List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
-                        if (pair.hasChild)
-                        {
-                            object childData = pair.childAsFunc
-                                ? (object)V.Func(Shared.IntroCounterFunc.Render)
-                                : (object)(pair.childLabel ?? new SharedRowItem { Id = System.Guid.NewGuid().ToString("N"), Text = "Child" });
-                            ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                            {
-                                new UnityEngine.UIElements.TreeViewItemData<object>(pid + 1, childData, null)
-                            };
-                        }
-                        combined.Add(new UnityEngine.UIElements.TreeViewItemData<object>(pid, pair.parent, ch));
-                    }
-                    return combined;
-                },
-                treePairs
+            var combinedTreeRoots = new List<UnityEngine.UIElements.TreeViewItemData<object>>(
+                treeRootItems ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
             );
+            for (int i = 0; i < treePairs.Count; i++)
+            {
+                var pair = treePairs[i];
+                int pid = 1000 + (i * 2);
+                List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
+                if (pair.hasChild)
+                {
+                    object childData = pair.childAsFunc
+                        ? (object)
+                            ReactiveUITK.V.Func(
+                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render,
+                                null,
+                                $"tv-child-{pid}"
+                            )
+                        : (object)(
+                            pair.childLabel
+                            ?? new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                            }
+                        );
+                    ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
+                    {
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            pid + 1,
+                            childData,
+                            null
+                        ),
+                    };
+                }
+                combinedTreeRoots.Add(
+                    new UnityEngine.UIElements.TreeViewItemData<object>(pid, pair.parent, ch)
+                );
+            }
 
             var tabViewProps = new TabViewProps
             {
@@ -624,7 +598,12 @@ namespace ReactiveUITK.Samples.Shared
                                 if (pair.hasChild)
                                 {
                                     object childData = pair.childAsFunc
-                                        ? (object)V.Func(Shared.IntroCounterFunc.Render)
+                                        ? (object)
+                                            ReactiveUITK.V.Func(
+                                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render,
+                                                null,
+                                                $"tv-child-{pid}"
+                                            )
                                         : (object)(
                                             pair.childLabel
                                             ?? new SharedRowItem
@@ -797,7 +776,7 @@ namespace ReactiveUITK.Samples.Shared
                                 V.TreeView(
                                     new TreeViewProps
                                     {
-                                        RootItems = combined,
+                                        RootItems = combinedTreeRoots,
                                         Selection = UnityEngine.UIElements.SelectionType.None,
                                         FixedItemHeight = 20f,
                                         Row = treeRowRenderer,
@@ -1363,6 +1342,7 @@ namespace ReactiveUITK.Samples.Shared
                                 Selection = UnityEngine.UIElements.SelectionType.None,
                                 FixedItemHeight = 20f,
                                 Row = treeRowRenderer,
+                                Style = new Style { (MarginBottom, 30f) },
                             }
                         )
                     )
