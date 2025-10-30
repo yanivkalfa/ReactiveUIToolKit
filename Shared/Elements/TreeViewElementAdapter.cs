@@ -13,26 +13,7 @@ namespace ReactiveUITK.Elements
 {
     public sealed class TreeViewElementAdapter : BaseElementAdapter
     {
-        private const string LogPrefix = "[ReactiveUITK][TreeViewAdapter] ";
-        private static bool DebugLogs = true; // toggle for debugging
-
-        private static void Log(string msg)
-        {
-            if (DebugLogs)
-                UnityEngine.Debug.Log(LogPrefix + msg);
-        }
-
-        private static void LogWarn(string msg)
-        {
-            if (DebugLogs)
-                UnityEngine.Debug.LogWarning(LogPrefix + msg);
-        }
-
-        private static void LogErr(string msg)
-        {
-            if (DebugLogs)
-                UnityEngine.Debug.LogError(LogPrefix + msg);
-        }
+        // Keep adapter minimal: no internal styles or logging.
 
         private static int? TryGetItemId(object item)
         {
@@ -329,7 +310,7 @@ namespace ReactiveUITK.Elements
                 }
                 var content = scroll.contentContainer ?? scroll;
                 int childCount = content.childCount;
-                Log($"RerenderVisibleRows: visible={childCount}");
+
                 for (int i = 0; i < childCount; i++)
                 {
                     var container = content.ElementAt(i) as VisualElement;
@@ -354,27 +335,22 @@ namespace ReactiveUITK.Elements
                     if (index < 0 && host != null && host.RowIndex >= 0)
                         index = host.RowIndex;
 
-                    Log(
-                        $"Row i={i} virtIndex={index} hostIndex={(host != null ? host.RowIndex : -1)} hostId={(host != null ? host.ItemId : 0)}"
-                    );
-
                     bool refreshed = false;
                     // Prefer refreshing by stable item id when available
                     if (host != null && host.ItemId > 0)
                     {
                         refreshed = TryRefreshById(tv, host.ItemId);
-                        Log($"TryRefreshById({host.ItemId}) => {refreshed}");
+                        // Log($"TryRefreshById({host.ItemId}) => {refreshed}");
                     }
                     // Fallback: refresh by current index
                     if (!refreshed && index >= 0)
                     {
                         refreshed = TryRefreshByIndex(tv, index);
-                        Log($"TryRefreshByIndex({index}) => {refreshed}");
+                        // Log($"TryRefreshByIndex({index}) => {refreshed}");
                     }
 
                     if (!refreshed)
                     {
-                        Log("Fallback manual Render vnode");
                         if (host == null)
                             continue;
                         var rr =
@@ -396,7 +372,6 @@ namespace ReactiveUITK.Elements
                     }
                 }
                 // expansion state might have changed via user interaction
-                MaybeNotifyExpandedChanged(tv, parts);
             }
             catch
             {
@@ -595,21 +570,7 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        private static void MaybeNotifyExpandedChanged(TreeView tv, Cached parts)
-        {
-            try
-            {
-                var now = GetExpandedIds(tv);
-                bool changed =
-                    parts.LastExpanded == null || !SequenceEqual(parts.LastExpanded, now);
-                if (changed)
-                {
-                    parts.LastExpanded = now.ToList();
-                    parts.OnExpandedChanged?.Invoke(now);
-                }
-            }
-            catch { }
-        }
+        // removed MaybeNotifyExpandedChanged
 
         private static bool SequenceEqual(List<int> a, List<int> b)
         {
@@ -776,7 +737,7 @@ namespace ReactiveUITK.Elements
                 if (m != null)
                 {
                     m.Invoke(tv, new object[] { index });
-                    Log($"RefreshItem(index:{index}) via TreeView");
+                    // Log($"RefreshItem(index:{index}) via TreeView");
                     return true;
                 }
                 var baseM = tv.GetType()
@@ -790,7 +751,7 @@ namespace ReactiveUITK.Elements
                 if (baseM != null)
                 {
                     baseM.Invoke(tv, new object[] { index });
-                    Log($"RefreshItem(index:{index}) via BaseType");
+                    // Log($"RefreshItem(index:{index}) via BaseType");
                     return true;
                 }
                 var vc = GetViewController(tv);
@@ -807,7 +768,7 @@ namespace ReactiveUITK.Elements
                     if (vm != null)
                     {
                         vm.Invoke(vc, new object[] { index });
-                        Log($"RefreshItem(index:{index}) via ViewController");
+                        // Log($"RefreshItem(index:{index}) via ViewController");
                         return true;
                     }
                 }
@@ -834,11 +795,11 @@ namespace ReactiveUITK.Elements
                     if (im != null)
                     {
                         im.Invoke(vc, new object[] { id });
-                        Log($"RefreshItem(id:{id}) via ViewController");
+                        // Log($"RefreshItem(id:{id}) via ViewController");
                         return true;
                     }
                     var idx = GetIndexForId(tv, id);
-                    Log($"Map id->{id} to index {idx}");
+
                     if (idx.HasValue && idx.Value >= 0)
                     {
                         return TryRefreshByIndex(tv, idx.Value);
@@ -859,7 +820,7 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
-            Log("ApplyProperties");
+
             var parts = cache.GetValue(tv, _ => new Cached());
             if (properties != null)
             {
@@ -871,9 +832,7 @@ namespace ReactiveUITK.Elements
                     var prevList = parts.LastRoot;
                     bool structureChanged = !RootsStructurallyEqual(prevList, nextList);
                     bool anyChanged = structureChanged || !string.Equals(prevSig, nextSig);
-                    Log(
-                        $"rootItems anyChanged={anyChanged} structureChanged={structureChanged} count={(nextList != null ? nextList.Count : -1)}"
-                    );
+
                     if (anyChanged)
                     {
                         if (structureChanged)
@@ -897,13 +856,6 @@ namespace ReactiveUITK.Elements
                         parts.LastSig = nextSig;
                     }
                 }
-                if (
-                    properties.TryGetValue("onExpandedIdsChanged", out var onexp)
-                    && onexp is Action<List<int>> cb
-                )
-                {
-                    parts.OnExpandedChanged = cb;
-                }
                 TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
                 if (properties.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                     tv.selectionType = st;
@@ -921,11 +873,6 @@ namespace ReactiveUITK.Elements
                         {
                             var row = new VisualElement();
                             var content = new VisualElement();
-                            try
-                            {
-                                content.pickingMode = PickingMode.Ignore;
-                            }
-                            catch { }
                             row.Add(content);
                             row.userData = new RowHost
                             {
@@ -949,10 +896,7 @@ namespace ReactiveUITK.Elements
                                     content = new VisualElement();
                                     ve.Add(content);
                                 }
-                                try
-                                {
-                                    content.pickingMode = PickingMode.Ignore;
-                                }
+                                try { }
                                 catch { }
                                 var newHost = new RowHost
                                 {
@@ -977,7 +921,6 @@ namespace ReactiveUITK.Elements
                                 vnode = EnsureVisualElementRoot(vnode, "TreeViewRow");
                                 rr.Render(vnode);
                             }
-                            MaybeNotifyExpandedChanged(tv, parts);
                         };
                         tv.unbindItem = (ve, i) =>
                         {
@@ -1023,7 +966,7 @@ namespace ReactiveUITK.Elements
                 PropsApplier.ApplyDiff(element, previous, next);
                 return;
             }
-            Log("ApplyPropertiesDiff");
+
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = cache.GetValue(tv, _ => new Cached());
@@ -1038,7 +981,7 @@ namespace ReactiveUITK.Elements
                 string prevSig = parts.LastSig ?? ComputeShallowSignature(prevList);
                 bool structureChanged = !RootsStructurallyEqual(prevList, nextList);
                 bool anyChanged = structureChanged || !string.Equals(prevSig, nextSig);
-                Log($"Diff rootItems anyChanged={anyChanged} structureChanged={structureChanged}");
+
                 if (anyChanged)
                 {
                     if (structureChanged)
@@ -1073,9 +1016,7 @@ namespace ReactiveUITK.Elements
                         if (!string.Equals(parts.LastSig ?? string.Empty, sig))
                         {
                             parts.LastSig = sig;
-                            Log(
-                                "Stable root ref: shallow signature changed; refreshing visible rows"
-                            );
+
                             try
                             {
                                 tv.RefreshItems();
