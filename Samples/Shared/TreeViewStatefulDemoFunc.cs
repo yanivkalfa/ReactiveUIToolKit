@@ -86,10 +86,6 @@ namespace ReactiveUITK.Samples.Shared
                             var prefix = (row.IsChild == true) ? "child" : "parent";
                             var key = $"tv-{prefix}-{id}";
 
-                            Debug.Log($"Row {i}: {JsonUtility.ToJson(row, true)}");
-
-                            Debug.Log($"ShouldOverrideElement - {row.ShouldOverrideElement}");
-
                             var children = row.ShouldOverrideElement
                                 ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, key)
                                 : V.Func(IntroCounterFunc.Render, null, key);
