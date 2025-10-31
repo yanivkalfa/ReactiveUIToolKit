@@ -16,6 +16,13 @@ namespace ReactiveUITK.Elements
             public IList LastRoot;
             public List<(string name, string title)> ColSig;
             public List<Func<int, object, VirtualNode>> CellFns;
+
+            // Expansion tracking
+            public HashSet<int> DesiredExpanded = new();
+            public Dictionary<int, bool> ExpandAllById = new();
+            public bool OurHandlerAttached;
+            public Delegate UserExpandedHandler;
+            public bool TrackUserExpansion = true;
         }
 
         private static readonly ConditionalWeakTable<MultiColumnTreeView, Cached> cache = new();
@@ -94,12 +101,19 @@ namespace ReactiveUITK.Elements
                             tv.Rebuild();
                         }
                         catch { }
+                        ReapplyDesired(tv, parts);
                     }
                 }
                 TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
                 if (properties.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                     tv.selectionType = st;
                 TryApplyProp<int>(properties, "selectedIndex", i => tv.selectedIndex = i);
+
+                // stopTrackingUserChange option
+                if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
+                {
+                    parts.TrackUserExpansion = !(stopObj is bool b && b);
+                }
 
                 if (
                     properties.TryGetValue("columns", out var cols)
@@ -133,6 +147,47 @@ namespace ReactiveUITK.Elements
                         RebuildColumns(tv, list, parts);
                     }
                 }
+
+                // User-provided expansion changed handler
+                if (properties.TryGetValue("itemExpandedChanged", out var userHandler))
+                {
+                    if (!ReferenceEquals(parts.UserExpandedHandler, userHandler))
+                    {
+                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                        {
+                            try
+                            {
+                                tv.itemExpandedChanged -= prev;
+                            }
+                            catch { }
+                        }
+                        parts.UserExpandedHandler = userHandler as Delegate;
+                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
+                        {
+                            try
+                            {
+                                tv.itemExpandedChanged += nextH;
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                EnsureOurExpansionHandler(tv, parts);
+
+                // expandedItemIds override
+                if (properties.TryGetValue("expandedItemIds", out var expObj))
+                {
+                    var ids = CoerceIds(expObj);
+                    parts.DesiredExpanded.Clear();
+                    parts.ExpandAllById.Clear();
+                    if (ids != null)
+                    {
+                        foreach (var id in ids)
+                            parts.DesiredExpanded.Add(id);
+                    }
+                    ReapplyDesired(tv, parts);
+                }
             }
             ApplySlots(tv, properties);
             PropsApplier.Apply(element, properties);
@@ -164,6 +219,7 @@ namespace ReactiveUITK.Elements
                     tv.Rebuild();
                 }
                 catch { }
+                ReapplyDesired(tv, parts);
             }
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
@@ -189,6 +245,51 @@ namespace ReactiveUITK.Elements
                 RebuildColumns(tv, list, parts);
             }
             ApplySlotsDiff(tv, previous, next);
+
+            // stopTrackingUserChange diff
+            if (next.TryGetValue("stopTrackingUserChange", out var stopObj))
+                parts.TrackUserExpansion = !(stopObj is bool b && b);
+
+            // user handler diff
+            previous.TryGetValue("itemExpandedChanged", out var prevUser);
+            next.TryGetValue("itemExpandedChanged", out var nextUser);
+            if (!ReferenceEquals(prevUser, nextUser))
+            {
+                if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                {
+                    try
+                    {
+                        tv.itemExpandedChanged -= prev;
+                    }
+                    catch { }
+                }
+                parts.UserExpandedHandler = nextUser as Delegate;
+                if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
+                {
+                    try
+                    {
+                        tv.itemExpandedChanged += nextH;
+                    }
+                    catch { }
+                }
+            }
+
+            EnsureOurExpansionHandler(tv, parts);
+
+            // expandedItemIds diff
+            if (next.TryGetValue("expandedItemIds", out var nextExp))
+            {
+                var ids = CoerceIds(nextExp);
+                parts.DesiredExpanded.Clear();
+                parts.ExpandAllById.Clear();
+                if (ids != null)
+                {
+                    foreach (var id in ids)
+                        parts.DesiredExpanded.Add(id);
+                }
+                ReapplyDesired(tv, parts);
+            }
+
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
@@ -338,6 +439,84 @@ namespace ReactiveUITK.Elements
                 if (scroll != null)
                     PropsApplier.Apply(scroll, svMap);
             }
+        }
+
+        private static List<int> CoerceIds(object value)
+        {
+            if (value == null)
+                return null;
+            try
+            {
+                var list = new List<int>();
+                if (value is IEnumerable<int> gen)
+                {
+                    foreach (var v in gen)
+                        list.Add(v);
+                    return list;
+                }
+                if (value is System.Collections.IEnumerable any)
+                {
+                    foreach (var o in any)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToInt32(o));
+                        }
+                        catch { }
+                    }
+                    return list;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private static void EnsureOurExpansionHandler(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null)
+                return;
+            bool shouldAttach = parts.TrackUserExpansion && parts.UserExpandedHandler == null;
+            if (shouldAttach && !parts.OurHandlerAttached)
+            {
+                Action<TreeViewExpansionChangedArgs> h = e =>
+                {
+                    try
+                    {
+                        if (e.isExpanded)
+                            parts.DesiredExpanded.Add(e.id);
+                        else
+                            parts.DesiredExpanded.Remove(e.id);
+                        parts.ExpandAllById[e.id] = e.isAppliedToAllChildren;
+                    }
+                    catch { }
+                };
+                try
+                {
+                    tv.itemExpandedChanged += h;
+                    parts.OurHandlerAttached = true;
+                }
+                catch { }
+            }
+        }
+
+        private static void ReapplyDesired(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null)
+                return;
+            foreach (var id in parts.DesiredExpanded)
+            {
+                bool all = parts.ExpandAllById.TryGetValue(id, out var v) && v;
+                try
+                {
+                    tv.ExpandItem(id, all, false);
+                }
+                catch { }
+            }
+            try
+            {
+                tv.RefreshItems();
+            }
+            catch { }
         }
     }
 }

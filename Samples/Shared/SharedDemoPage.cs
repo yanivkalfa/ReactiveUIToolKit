@@ -752,56 +752,10 @@ namespace ReactiveUITK.Samples.Shared
                                 },
                             };
 
-                            return V.VisualElement(
-                                null,
-                                null,
-                                V.VisualElement(
-                                    new Dictionary<string, object>
-                                    {
-                                        {
-                                            "style",
-                                            new Style
-                                            {
-                                                (FlexDirection, "row"),
-                                                (AlignItems, "center"),
-                                                (MarginBottom, 4f),
-                                            }
-                                        },
-                                    },
-                                    null,
-                                    V.Button(addBtn),
-                                    V.Button(delBtn),
-                                    V.Button(setBtn)
-                                ),
-                                V.TreeView(
-                                    new TreeViewProps
-                                    {
-                                        RootItems = combinedTreeRoots,
-                                        Selection = UnityEngine.UIElements.SelectionType.None,
-                                        FixedItemHeight = 20f,
-                                        Row = treeRowRenderer,
-                                    }
-                                )
-                            );
+                            return V.Func(TreeViewStatefulDemoFunc.Render);
                         },
                     },
-                    new() { Title = "Columns", Content = () => V.MultiColumnTreeView(mctvProps) },
-                    new()
-                    {
-                        Title = "SimpleOne",
-                        Content = () =>
-                            V.VisualElement(
-                                new Dictionary<string, object>
-                                {
-                                    {
-                                        "style",
-                                        new Style { (TextColor, "red") }
-                                    },
-                                },
-                                null,
-                                V.Label(new LabelProps { Text = "aaaaaaaaaaaaaaaaaaaaaaaaaaa" })
-                            ),
-                    },
+                    new() { Title = "Columns", Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render) },
                 },
                 // Reserve space for the TabView body so content is visible
                 Style = new Style { (Height, 240f) },
@@ -1024,8 +978,7 @@ namespace ReactiveUITK.Samples.Shared
                             V.RepeatButton(repeatButtonProps)
                         )
                     ),
-                    // Standalone TreeView demo (isolated state)
-                    V.Func(ReactiveUITK.Samples.Shared.TreeViewStatefulDemoFunc.Render),
+                    
                     // New components demo section
                     V.GroupBox(
                         newComponentsGroupProps,
@@ -1186,8 +1139,7 @@ namespace ReactiveUITK.Samples.Shared
                         )
                     ),
                     V.Label(new LabelProps { Text = "TabView + TreeView" }),
-                    V.TabView(tabViewProps),
-                    V.Func(TreeViewStatefulDemoFunc.Render)
+                    V.TabView(tabViewProps)
                 );
 
             // Outer wrapper (blue full-screen) -> Safe area wrapper (green)

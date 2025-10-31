@@ -13,19 +13,30 @@ namespace ReactiveUITK.Props.Typed
         public SelectionType? Selection { get; set; }
         public int? SelectedIndex { get; set; }
         public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
+        public IList<int> ExpandedItemIds { get; set; }
+        public bool? StopTrackingUserChange { get; set; }
         public Style Style { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
             var d = new Dictionary<string, object>();
-            if (RootItems != null) d["rootItems"] = RootItems;
-            if (FixedItemHeight.HasValue) d["fixedItemHeight"] = FixedItemHeight.Value;
-            if (Selection.HasValue) d["selectionType"] = Selection.Value;
-            if (SelectedIndex.HasValue) d["selectedIndex"] = SelectedIndex.Value;
-            if (Row != null) d["row"] = Row;
-            if (Style != null) d["style"] = Style;
+            if (RootItems != null)
+                d["rootItems"] = RootItems;
+            if (FixedItemHeight.HasValue)
+                d["fixedItemHeight"] = FixedItemHeight.Value;
+            if (Selection.HasValue)
+                d["selectionType"] = Selection.Value;
+            if (SelectedIndex.HasValue)
+                d["selectedIndex"] = SelectedIndex.Value;
+            if (Row != null)
+                d["row"] = Row;
+            if (ExpandedItemIds != null)
+                d["expandedItemIds"] = ExpandedItemIds;
+            if (StopTrackingUserChange.HasValue)
+                d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
+            if (Style != null)
+                d["style"] = Style;
             return d;
         }
     }
 }
-

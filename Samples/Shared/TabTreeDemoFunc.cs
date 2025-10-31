@@ -16,136 +16,6 @@ namespace ReactiveUITK.Samples.Shared
         {
             var (tabIndex, setTabIndex) = Hooks.UseState(0);
 
-            // Build sample tree data
-            var treeData = Hooks.UseMemo(
-                () =>
-                {
-                    var r1Children = new List<TreeViewItemData<object>>
-                    {
-                        new TreeViewItemData<object>(
-                            11,
-                            new SharedRowItem
-                            {
-                                Id = Guid.NewGuid().ToString("N"),
-                                Text = "Child 1",
-                            },
-                            null
-                        ),
-                        new TreeViewItemData<object>(
-                            12,
-                            new SharedRowItem
-                            {
-                                Id = Guid.NewGuid().ToString("N"),
-                                Text = "Child 2",
-                            },
-                            null
-                        ),
-                    };
-                    var r2Children = new List<TreeViewItemData<object>>
-                    {
-                        new TreeViewItemData<object>(
-                            21,
-                            new SharedRowItem
-                            {
-                                Id = Guid.NewGuid().ToString("N"),
-                                Text = "Child A",
-                            },
-                            null
-                        ),
-                        new TreeViewItemData<object>(
-                            22,
-                            new SharedRowItem
-                            {
-                                Id = Guid.NewGuid().ToString("N"),
-                                Text = "Child B",
-                            },
-                            null
-                        ),
-                    };
-                    var roots = new List<TreeViewItemData<object>>
-                    {
-                        new TreeViewItemData<object>(
-                            1,
-                            new SharedRowItem
-                            {
-                                Id = Guid.NewGuid().ToString("N"),
-                                Text = "Root 1",
-                            },
-                            r1Children
-                        ),
-                        new TreeViewItemData<object>(
-                            2,
-                            new SharedRowItem
-                            {
-                                Id = Guid.NewGuid().ToString("N"),
-                                Text = "Root 2",
-                            },
-                            r2Children
-                        ),
-                    };
-                    return roots;
-                },
-                0
-            );
-
-            var treeRow = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (i, obj) =>
-                        {
-                            var it = obj as SharedRowItem;
-                            return V.Label(new LabelProps { Text = it?.Text ?? "<null>" });
-                        }
-                    ),
-                0
-            );
-
-            var treeProps = new TreeViewProps
-            {
-                RootItems = treeData,
-                Selection = SelectionType.None,
-                FixedItemHeight = 20f,
-                Row = treeRow,
-            };
-
-            var mctvCols = Hooks.UseMemo(
-                () =>
-                    new List<MultiColumnTreeViewProps.ColumnDef>
-                    {
-                        new()
-                        {
-                            Title = "Name",
-                            Width = 180f,
-                            Cell = (i, obj) =>
-                            {
-                                var it = obj as SharedRowItem;
-                                return V.Label(new LabelProps { Text = it?.Text ?? string.Empty });
-                            },
-                        },
-                        new()
-                        {
-                            Title = "ID",
-                            Width = 160f,
-                            Cell = (i, obj) =>
-                            {
-                                var it = obj as SharedRowItem;
-                                var id = it?.Id ?? string.Empty;
-                                var s = id.Length > 6 ? id.Substring(0, 6) : id;
-                                return V.Label(new LabelProps { Text = s });
-                            },
-                        },
-                    },
-                treeData?.Count ?? 0
-            );
-
-            var mctvProps = new MultiColumnTreeViewProps
-            {
-                RootItems = treeData,
-                Selection = SelectionType.None,
-                FixedItemHeight = 20f,
-                Columns = mctvCols,
-            };
-
             var tabViewProps = new TabViewProps
             {
                 SelectedIndex = tabIndex,
@@ -157,11 +27,15 @@ namespace ReactiveUITK.Samples.Shared
                         Content = () =>
                             V.Label(new LabelProps { Text = "This is a TabView + TreeView demo." }),
                     },
-                    new() { Title = "Tree", Content = () => V.TreeView(treeProps) },
+                    new()
+                    {
+                        Title = "Tree",
+                        Content = () => V.Func(TreeViewStatefulDemoFunc.Render),
+                    },
                     new()
                     {
                         Title = "Tree (Columns)",
-                        Content = () => V.MultiColumnTreeView(mctvProps),
+                        Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render),
                     },
                 },
                 // Give the TabView a visible content area

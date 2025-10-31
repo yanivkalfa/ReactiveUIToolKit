@@ -12,6 +12,8 @@ namespace ReactiveUITK.Props.Typed
         public SelectionType? Selection { get; set; }
         public int? SelectedIndex { get; set; }
         public List<ColumnDef> Columns { get; set; }
+        public IList<int> ExpandedItemIds { get; set; }
+        public bool? StopTrackingUserChange { get; set; }
         public Style Style { get; set; }
 
         public sealed class ColumnDef
@@ -28,14 +30,22 @@ namespace ReactiveUITK.Props.Typed
             public Dictionary<string, object> ToDictionary()
             {
                 var d = new Dictionary<string, object>();
-                if (!string.IsNullOrEmpty(Name)) d["name"] = Name;
-                if (!string.IsNullOrEmpty(Title)) d["title"] = Title;
-                if (Width.HasValue) d["width"] = Width.Value;
-                if (MinWidth.HasValue) d["minWidth"] = MinWidth.Value;
-                if (MaxWidth.HasValue) d["maxWidth"] = MaxWidth.Value;
-                if (Resizable.HasValue) d["resizable"] = Resizable.Value;
-                if (Stretchable.HasValue) d["stretchable"] = Stretchable.Value;
-                if (Cell != null) d["cell"] = Cell;
+                if (!string.IsNullOrEmpty(Name))
+                    d["name"] = Name;
+                if (!string.IsNullOrEmpty(Title))
+                    d["title"] = Title;
+                if (Width.HasValue)
+                    d["width"] = Width.Value;
+                if (MinWidth.HasValue)
+                    d["minWidth"] = MinWidth.Value;
+                if (MaxWidth.HasValue)
+                    d["maxWidth"] = MaxWidth.Value;
+                if (Resizable.HasValue)
+                    d["resizable"] = Resizable.Value;
+                if (Stretchable.HasValue)
+                    d["stretchable"] = Stretchable.Value;
+                if (Cell != null)
+                    d["cell"] = Cell;
                 return d;
             }
         }
@@ -43,19 +53,28 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var d = new Dictionary<string, object>();
-            if (RootItems != null) d["rootItems"] = RootItems;
-            if (FixedItemHeight.HasValue) d["fixedItemHeight"] = FixedItemHeight.Value;
-            if (Selection.HasValue) d["selectionType"] = Selection.Value;
-            if (SelectedIndex.HasValue) d["selectedIndex"] = SelectedIndex.Value;
+            if (RootItems != null)
+                d["rootItems"] = RootItems;
+            if (FixedItemHeight.HasValue)
+                d["fixedItemHeight"] = FixedItemHeight.Value;
+            if (Selection.HasValue)
+                d["selectionType"] = Selection.Value;
+            if (SelectedIndex.HasValue)
+                d["selectedIndex"] = SelectedIndex.Value;
             if (Columns != null)
             {
                 var cols = new List<Dictionary<string, object>>(Columns.Count);
-                foreach (var c in Columns) cols.Add(c?.ToDictionary());
+                foreach (var c in Columns)
+                    cols.Add(c?.ToDictionary());
                 d["columns"] = cols;
             }
-            if (Style != null) d["style"] = Style;
+            if (ExpandedItemIds != null)
+                d["expandedItemIds"] = ExpandedItemIds;
+            if (StopTrackingUserChange.HasValue)
+                d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
+            if (Style != null)
+                d["style"] = Style;
             return d;
         }
     }
 }
-

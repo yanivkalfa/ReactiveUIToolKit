@@ -2,13 +2,12 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using UnityEngine;
 using UnityEngine.UIElements;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 
 namespace ReactiveUITK.Samples.Shared
 {
-    public static class TreeViewStatefulDemoFunc
+    public static class MultiColumnTreeViewStatefulDemoFunc
     {
         private sealed class RowData
         {
@@ -18,19 +17,19 @@ namespace ReactiveUITK.Samples.Shared
         }
 
         public static VirtualNode Render(
-            Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children
+            System.Collections.Generic.Dictionary<string, object> props,
+            System.Collections.Generic.IReadOnlyList<VirtualNode> children
         )
         {
             var (rows, setRows) = Hooks.UseState(new List<RowData>());
 
             Func<List<TreeViewItemData<object>>> buildRoots = () =>
             {
-                var combined = new List<TreeViewItemData<object>>();
+                var list = new List<TreeViewItemData<object>>();
                 for (int i = 0; i < rows.Count; i++)
                 {
+                    int pid = 2000 + (i * 2);
                     var row = rows[i];
-                    int pid = 1000 + (i * 2);
                     List<TreeViewItemData<object>> ch = null;
                     if (row.HasChild)
                     {
@@ -41,7 +40,7 @@ namespace ReactiveUITK.Samples.Shared
                                 row.Child
                                     ?? new SharedTreeRowItem
                                     {
-                                        Id = Guid.NewGuid().ToString("N"),
+                                        Id = System.Guid.NewGuid().ToString("N"),
                                         Text = "Child",
                                         IsChild = true,
                                     },
@@ -49,47 +48,21 @@ namespace ReactiveUITK.Samples.Shared
                             ),
                         };
                     }
-                    combined.Add(
+                    list.Add(
                         new TreeViewItemData<object>(
                             pid,
                             row.Parent
                                 ?? new SharedTreeRowItem
                                 {
-                                    Id = Guid.NewGuid().ToString("N"),
+                                    Id = System.Guid.NewGuid().ToString("N"),
                                     Text = "Parent",
                                 },
                             ch
                         )
                     );
                 }
-                return combined;
+                return list;
             };
-
-            var rowRenderer = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (i, obj) =>
-                        {
-                            var row = obj as SharedTreeRowItem;
-                            if (row == null)
-                                return V.Label(
-                                    new LabelProps { Text = "<invalid row payload>" },
-                                    $"row-{i}"
-                                );
-
-                            var id = !string.IsNullOrEmpty(row.Id) ? $"{row.Id}" : $"{i}";
-                            var prefix = (row.IsChild == true) ? "child" : "parent";
-                            var funcKey = $"tv-{prefix}-{id}";
-
-                            var children = row.ShouldOverrideElement
-                                ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
-                                : V.Func(IntroCounterFunc.Render, null, funcKey);
-
-                            return V.VisualElement(null, null, children);
-                        }
-                    ),
-                rows
-            );
 
             void AddParent()
             {
@@ -99,7 +72,7 @@ namespace ReactiveUITK.Samples.Shared
                     {
                         Parent = new SharedTreeRowItem
                         {
-                            Id = Guid.NewGuid().ToString("N"),
+                            Id = System.Guid.NewGuid().ToString("N"),
                             Text = "Parent",
                         },
                         HasChild = false,
@@ -110,56 +83,46 @@ namespace ReactiveUITK.Samples.Shared
 
             void AddChild()
             {
-                if (rows.Count == 0)
-                    return;
+                if (rows.Count == 0) return;
                 var copy = new List<RowData>(rows);
                 var last = copy[copy.Count - 1];
                 last.HasChild = true;
-                if (last.Child == null)
+                last.Child ??= new SharedTreeRowItem
                 {
-                    last.Child = new SharedTreeRowItem
-                    {
-                        Id = Guid.NewGuid().ToString("N"),
-                        Text = "Child",
-                        IsChild = true,
-                    };
-                }
+                    Id = System.Guid.NewGuid().ToString("N"),
+                    Text = "Child",
+                    IsChild = true,
+                };
                 copy[copy.Count - 1] = last;
                 setRows(copy);
             }
 
             void SetParentValue()
             {
-                if (rows.Count == 0)
-                    return;
+                if (rows.Count == 0) return;
                 var copy = new List<RowData>(rows);
                 var last = copy[copy.Count - 1];
-                last.Parent ??= new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                last.Parent ??= new SharedTreeRowItem { Id = System.Guid.NewGuid().ToString("N") };
                 last.Parent.Text = $"{last.Parent.Id} {DateTime.Now:HH:mm:ss}";
-                last.Parent.ShouldOverrideElement = true;
                 copy[copy.Count - 1] = last;
                 setRows(copy);
             }
 
             void SetChildValue()
             {
-                if (rows.Count == 0)
-                    return;
+                if (rows.Count == 0) return;
                 var copy = new List<RowData>(rows);
                 var last = copy[copy.Count - 1];
-                if (!last.HasChild)
-                    return;
+                if (!last.HasChild) return;
                 last.Child ??= new SharedTreeRowItem { Id = System.Guid.NewGuid().ToString("N") };
                 last.Child.Text = $"{last.Child.Id} {DateTime.Now:HH:mm:ss}";
-                last.Child.ShouldOverrideElement = true;
                 copy[copy.Count - 1] = last;
                 setRows(copy);
             }
 
             void DeleteLast()
             {
-                if (rows.Count == 0)
-                    return;
+                if (rows.Count == 0) return;
                 var copy = new List<RowData>(rows);
                 copy.RemoveAt(copy.Count - 1);
                 setRows(copy);
@@ -175,15 +138,55 @@ namespace ReactiveUITK.Samples.Shared
                 V.Button(new ButtonProps { Text = "Delete Last", OnClick = DeleteLast })
             );
 
-            var tvProps = new TreeViewProps
+            var rootsNow = buildRoots();
+
+            var columns = Hooks.UseMemo(
+                () =>
+                    new List<MultiColumnTreeViewProps.ColumnDef>
+                    {
+                        new()
+                        {
+                            Title = "Name",
+                            Width = 200f,
+                            Cell = (i, obj) =>
+                            {
+                                var row = obj as SharedTreeRowItem;
+                                if (row == null)
+                                    return V.Label(new LabelProps { Text = "<invalid>" });
+                                var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
+                                var funcKey = $"mctv-row-{id}";
+                                var children = row.ShouldOverrideElement
+                                    ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
+                                    : V.Func(IntroCounterFunc.Render, null, funcKey);
+                                return V.VisualElement(null, null, children);
+                            },
+                        },
+                        new()
+                        {
+                            Title = "ID",
+                            Width = 180f,
+                            Cell = (i, obj) =>
+                            {
+                                var it = obj as SharedRowItem;
+                                var id = it?.Id ?? string.Empty;
+                                var s = id.Length > 6 ? id.Substring(0, 6) : id;
+                                return V.Label(new LabelProps { Text = s });
+                            },
+                        },
+                    },
+                rootsNow?.Count ?? 0
+            );
+
+            var propsMap = new MultiColumnTreeViewProps
             {
-                RootItems = buildRoots(),
+                RootItems = rootsNow,
                 Selection = SelectionType.None,
                 FixedItemHeight = 20f,
-                Row = rowRenderer,
+                Columns = columns,
                 Style = new Style { (MarginBottom, 30f) },
             };
-            return V.VisualElement(null, null, btnRow, V.TreeView(tvProps));
+
+            return V.VisualElement(null, null, btnRow, V.MultiColumnTreeView(propsMap));
         }
     }
 }
