@@ -11,9 +11,10 @@ using UnityEngine.UIElements;
 namespace ReactiveUITK.Elements
 {
     // Minimal, opinion-free adapter: create TreeView, wire row lifecycle, apply props, refresh items.
-    public sealed class TreeViewElementAdapter : BaseElementAdapter
+    public sealed class TreeViewElementAdapter
+        : StatefulElementAdapter<TreeView, TreeViewElementAdapter.Cached>
     {
-        private sealed class Cached
+        public sealed class Cached
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
@@ -28,9 +29,10 @@ namespace ReactiveUITK.Elements
             public bool OurHandlerAttached;
             public Delegate UserExpandedHandler;
             public bool TrackUserExpansion = true; // default to tracking on
+            public IElementStateTracker<TreeView, Cached> ExpansionTracker =
+                new TreeViewExpansionTracker();
         }
 
-        private static readonly ConditionalWeakTable<TreeView, Cached> Cache = new();
         private static HostContext sharedHost;
         private static HostContext Host =>
             sharedHost ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
@@ -47,7 +49,7 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
-            var parts = Cache.GetValue(tv, _ => new Cached());
+            var parts = GetState(tv);
             if (properties == null)
             {
                 PropsApplier.Apply(element, properties);
@@ -62,8 +64,8 @@ namespace ReactiveUITK.Elements
                     tv.RefreshItems();
                 }
                 catch { }
-                // Reapply desired expansions after a root rebuild
-                ReapplyDesired(tv, parts);
+                // Reapply expansions via tracker
+                parts.ExpansionTracker.Reapply(tv, parts, null, properties);
             }
 
             TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -71,53 +73,9 @@ namespace ReactiveUITK.Elements
                 tv.selectionType = st;
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            // Option: stop tracking user-driven expansion changes
-            if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
-            {
-                parts.TrackUserExpansion = !(stopObj is bool b && b);
-            }
-
-            // User-provided expansion changed handler (direct pass-through)
-            if (properties.TryGetValue("itemExpandedChanged", out var userHandler))
-            {
-                if (!ReferenceEquals(parts.UserExpandedHandler, userHandler))
-                {
-                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
-                    {
-                        try
-                        {
-                            tv.itemExpandedChanged -= prev;
-                        }
-                        catch { }
-                    }
-                    parts.UserExpandedHandler = userHandler as Delegate;
-                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
-                    {
-                        try
-                        {
-                            tv.itemExpandedChanged += nextH;
-                        }
-                        catch { }
-                    }
-                }
-            }
-
-            // Our internal expansion tracker (only attaches if tracking enabled and no user handler is set)
-            EnsureOurExpansionHandler(tv, parts);
-
-            // ExpandedItemIds: override cache and apply immediately via ExpandItem
-            if (properties.TryGetValue("expandedItemIds", out var expObj))
-            {
-                var ids = CoerceIds(expObj);
-                parts.DesiredExpanded.Clear();
-                parts.ExpandAllById.Clear();
-                if (ids != null)
-                {
-                    foreach (var id in ids)
-                        parts.DesiredExpanded.Add(id);
-                }
-                ReapplyDesired(tv, parts);
-            }
+            // Delegate wiring and overrides to the tracker
+            parts.ExpansionTracker.Attach(tv, parts, properties);
+            parts.ExpansionTracker.Reapply(tv, parts, null, properties);
 
             if (
                 properties.TryGetValue("row", out var rowFn)
@@ -207,7 +165,7 @@ namespace ReactiveUITK.Elements
             }
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
-            var parts = Cache.GetValue(tv, _ => new Cached());
+            var parts = GetState(tv);
 
             previous.TryGetValue("rootItems", out var prevRoots);
             next.TryGetValue("rootItems", out var nextRoots);
@@ -219,7 +177,7 @@ namespace ReactiveUITK.Elements
                     tv.RefreshItems();
                 }
                 catch { }
-                ReapplyDesired(tv, parts);
+                parts.ExpansionTracker.Reapply(tv, parts, previous, next);
             }
 
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -227,21 +185,9 @@ namespace ReactiveUITK.Elements
                 tv.selectionType = st;
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.SetSelection(i));
 
-            // ExpandedItemIds diff: override cache and reapply
-            previous.TryGetValue("expandedItemIds", out var prevExp);
-            next.TryGetValue("expandedItemIds", out var nextExp);
-            if (!ReferenceEquals(prevExp, nextExp) && nextExp != null)
-            {
-                var ids = CoerceIds(nextExp);
-                parts.DesiredExpanded.Clear();
-                parts.ExpandAllById.Clear();
-                if (ids != null)
-                {
-                    foreach (var id in ids)
-                        parts.DesiredExpanded.Add(id);
-                }
-                ReapplyDesired(tv, parts);
-            }
+            // Delegate diff handling to tracker
+            parts.ExpansionTracker.Attach(tv, parts, next);
+            parts.ExpansionTracker.Reapply(tv, parts, previous, next);
 
             previous.TryGetValue("row", out var prevRow);
             next.TryGetValue("row", out var nextRow);
@@ -315,83 +261,7 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
-        private static List<int> CoerceIds(object value)
-        {
-            if (value == null)
-                return null;
-            try
-            {
-                var list = new List<int>();
-                if (value is IEnumerable<int> gen)
-                {
-                    foreach (var v in gen)
-                        list.Add(v);
-                    return list;
-                }
-                if (value is System.Collections.IEnumerable any)
-                {
-                    foreach (var o in any)
-                    {
-                        try
-                        {
-                            list.Add(Convert.ToInt32(o));
-                        }
-                        catch { }
-                    }
-                    return list;
-                }
-            }
-            catch { }
-            return null;
-        }
-
-        private static void EnsureOurExpansionHandler(TreeView tv, Cached parts)
-        {
-            if (tv == null || parts == null)
-                return;
-            bool shouldAttach = parts.TrackUserExpansion && parts.UserExpandedHandler == null;
-            if (shouldAttach && !parts.OurHandlerAttached)
-            {
-                Action<TreeViewExpansionChangedArgs> h = e =>
-                {
-                    try
-                    {
-                        if (e.isExpanded)
-                            parts.DesiredExpanded.Add(e.id);
-                        else
-                            parts.DesiredExpanded.Remove(e.id);
-                        parts.ExpandAllById[e.id] = e.isAppliedToAllChildren;
-                    }
-                    catch { }
-                };
-                try
-                {
-                    tv.itemExpandedChanged += h;
-                    parts.OurHandlerAttached = true;
-                }
-                catch { }
-            }
-        }
-
-        private static void ReapplyDesired(TreeView tv, Cached parts)
-        {
-            if (tv == null || parts == null)
-                return;
-            foreach (var id in parts.DesiredExpanded)
-            {
-                bool all = parts.ExpandAllById.TryGetValue(id, out var v) && v;
-                try
-                {
-                    tv.ExpandItem(id, all, false);
-                }
-                catch { }
-            }
-            try
-            {
-                tv.RefreshItems();
-            }
-            catch { }
-        }
+        // Expansion handling delegated to TreeViewExpansionTracker
 
         private static string DeriveRowKey(TreeView tv, int index, object item)
         {

@@ -109,5 +109,37 @@ namespace ReactiveUITK.Elements
             }
             return vnode;
         }
+
+        // Coerce various enumerable/object inputs into a List<int> of ids
+        // Public for reuse by trackers that don't inherit from BaseElementAdapter
+        public static List<int> CoerceIds(object value)
+        {
+            if (value == null)
+                return null;
+            try
+            {
+                var list = new List<int>();
+                if (value is IEnumerable<int> gen)
+                {
+                    foreach (var v in gen)
+                        list.Add(v);
+                    return list;
+                }
+                if (value is System.Collections.IEnumerable any)
+                {
+                    foreach (var o in any)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToInt32(o));
+                        }
+                        catch { }
+                    }
+                    return list;
+                }
+            }
+            catch { }
+            return null;
+        }
     }
 }

@@ -9,9 +9,10 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class MultiColumnTreeViewElementAdapter : BaseElementAdapter
+    public sealed class MultiColumnTreeViewElementAdapter
+        : StatefulElementAdapter<MultiColumnTreeView, MultiColumnTreeViewElementAdapter.Cached>
     {
-        private sealed class Cached
+        public sealed class Cached
         {
             public IList LastRoot;
             public List<(string name, string title)> ColSig;
@@ -27,9 +28,13 @@ namespace ReactiveUITK.Elements
             // Stable renderer pool for cells: key = rowKey|c=colIndex
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
+
+            // Column layout persistence (by column name)
+            public Dictionary<string, float> ColumnWidths = new();
+            public IElementStateTracker<MultiColumnTreeView, Cached> LayoutTracker =
+                new MultiColumnLayoutTracker();
         }
 
-        private static readonly ConditionalWeakTable<MultiColumnTreeView, Cached> cache = new();
         private static HostContext host;
         private static HostContext Host =>
             host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
@@ -141,7 +146,7 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
-            var parts = cache.GetValue(tv, _ => new Cached());
+            var parts = GetState(tv);
             if (properties != null)
             {
                 if (properties.TryGetValue("rootItems", out var r))
@@ -157,6 +162,7 @@ namespace ReactiveUITK.Elements
                         }
                         catch { }
                         ReapplyDesired(tv, parts);
+                        parts.LayoutTracker.Reapply(tv, parts, null, properties);
                     }
                 }
                 TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -245,6 +251,8 @@ namespace ReactiveUITK.Elements
                 }
             }
             ApplySlots(tv, properties);
+            parts.LayoutTracker.Attach(tv, parts, properties);
+            parts.LayoutTracker.Reapply(tv, parts, null, properties);
             PropsApplier.Apply(element, properties);
         }
 
@@ -261,7 +269,7 @@ namespace ReactiveUITK.Elements
             }
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
-            var parts = cache.GetValue(tv, _ => new Cached());
+            var parts = GetState(tv);
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
@@ -275,8 +283,9 @@ namespace ReactiveUITK.Elements
                 }
                 catch { }
                 ReapplyDesired(tv, parts);
+                parts.LayoutTracker.Reapply(tv, parts, previous, next);
+                TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             }
-            TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                 tv.selectionType = st;
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.selectedIndex = i);
@@ -363,6 +372,8 @@ namespace ReactiveUITK.Elements
                 var col = new Column { title = t as string };
                 if (n is string ns && !string.IsNullOrEmpty(ns))
                     col.name = ns;
+                else if (string.IsNullOrEmpty(col.name))
+                    col.name = $"col{idx}";
                 if (c.TryGetValue("width", out var w))
                 {
                     try
@@ -444,6 +455,19 @@ namespace ReactiveUITK.Elements
                         }
                     }
                 };
+                // Apply persisted width (by name) if present
+                if (
+                    !string.IsNullOrEmpty(col.name)
+                    && parts.ColumnWidths != null
+                    && parts.ColumnWidths.TryGetValue(col.name, out var savedW)
+                )
+                {
+                    try
+                    {
+                        col.width = savedW;
+                    }
+                    catch { }
+                }
                 tv.columns.Add(col);
                 idx++;
             }
@@ -497,36 +521,6 @@ namespace ReactiveUITK.Elements
                 if (scroll != null)
                     PropsApplier.Apply(scroll, svMap);
             }
-        }
-
-        private static List<int> CoerceIds(object value)
-        {
-            if (value == null)
-                return null;
-            try
-            {
-                var list = new List<int>();
-                if (value is IEnumerable<int> gen)
-                {
-                    foreach (var v in gen)
-                        list.Add(v);
-                    return list;
-                }
-                if (value is System.Collections.IEnumerable any)
-                {
-                    foreach (var o in any)
-                    {
-                        try
-                        {
-                            list.Add(Convert.ToInt32(o));
-                        }
-                        catch { }
-                    }
-                    return list;
-                }
-            }
-            catch { }
-            return null;
         }
 
         private static void EnsureOurExpansionHandler(MultiColumnTreeView tv, Cached parts)

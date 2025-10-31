@@ -14,6 +14,7 @@ namespace ReactiveUITK.Props.Typed
         public List<ColumnDef> Columns { get; set; }
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
+        public Dictionary<string, float> ColumnWidths { get; set; }
         public Style Style { get; set; }
 
         public sealed class ColumnDef
@@ -72,6 +73,8 @@ namespace ReactiveUITK.Props.Typed
                 d["expandedItemIds"] = ExpandedItemIds;
             if (StopTrackingUserChange.HasValue)
                 d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
+            if (ColumnWidths != null)
+                d["columnWidths"] = ColumnWidths;
             if (Style != null)
                 d["style"] = Style;
             return d;
