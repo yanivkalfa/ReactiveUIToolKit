@@ -23,6 +23,10 @@ namespace ReactiveUITK.Elements
             public bool OurHandlerAttached;
             public Delegate UserExpandedHandler;
             public bool TrackUserExpansion = true;
+
+            // Stable renderer pool for cells: key = rowKey|c=colIndex
+            public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
+                new();
         }
 
         private static readonly ConditionalWeakTable<MultiColumnTreeView, Cached> cache = new();
@@ -74,6 +78,57 @@ namespace ReactiveUITK.Elements
             }
             catch { }
             return null;
+        }
+
+        private static string DeriveRowKey(MultiColumnTreeView tv, int index, object item)
+        {
+            try
+            {
+                if (item != null)
+                {
+                    var t = item.GetType();
+                    var f = t.GetField(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (f?.FieldType == typeof(string))
+                    {
+                        var s = f.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                    var p = t.GetProperty(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (p?.PropertyType == typeof(string))
+                    {
+                        var s = p.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                }
+            }
+            catch { }
+            try
+            {
+                var mi = typeof(MultiColumnTreeView).GetMethod(
+                    "GetIdForIndex",
+                    System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(int) },
+                    null
+                );
+                var idObj = mi?.Invoke(tv, new object[] { index });
+                if (idObj != null)
+                    return idObj.ToString();
+            }
+            catch { }
+            return $"row-{index}";
         }
 
         public override void ApplyProperties(
@@ -336,41 +391,33 @@ namespace ReactiveUITK.Elements
                     col.resizable = rb;
                 if (c.TryGetValue("stretchable", out var st) && st is bool sb)
                     col.stretchable = sb;
-                col.makeCell = () =>
-                {
-                    var ve = new VisualElement();
-                    var content = new VisualElement();
-                    try
-                    {
-                        content.pickingMode = PickingMode.Ignore;
-                    }
-                    catch { }
-                    ve.Add(content);
-                    ve.userData = new VNodeHostRenderer(Host, content);
-                    return ve;
-                };
+                col.makeCell = () => new VisualElement();
                 int captured = idx;
                 col.bindCell = (ve, rowIndex) =>
                 {
-                    var rr = ve.userData as IVNodeHostRenderer;
-                    if (rr == null)
+                    object item = GetItemForRow(tv, rowIndex);
+                    var key = DeriveRowKey(tv, rowIndex, item) + "|c=" + captured;
+                    if (!parts.Pool.TryGetValue(key, out var entry))
                     {
-                        VisualElement content =
-                            ve.childCount > 0 ? ve.ElementAt(0) as VisualElement : null;
-                        if (content == null)
-                        {
-                            content = new VisualElement();
-                            ve.Add(content);
-                        }
+                        var mount = new VisualElement();
                         try
                         {
-                            content.pickingMode = PickingMode.Ignore;
+                            mount.pickingMode = PickingMode.Ignore;
                         }
                         catch { }
-                        rr = new VNodeHostRenderer(Host, content);
-                        ve.userData = rr;
+                        var rrNew = new VNodeHostRenderer(Host, mount);
+                        entry = (rrNew, mount);
+                        parts.Pool[key] = entry;
                     }
-                    object item = GetItemForRow(tv, rowIndex);
+                    if (entry.mount.parent != ve)
+                    {
+                        try
+                        {
+                            entry.mount.RemoveFromHierarchy();
+                        }
+                        catch { }
+                        ve.Add(entry.mount);
+                    }
                     var fn =
                         parts.CellFns != null && captured < parts.CellFns.Count
                             ? parts.CellFns[captured]
@@ -379,12 +426,23 @@ namespace ReactiveUITK.Elements
                     {
                         var vnode = fn(rowIndex, item);
                         vnode = EnsureVisualElementRoot(vnode, "MultiColumnTreeViewCell");
-                        rr.Render(vnode);
+                        entry.renderer.Render(vnode);
                     }
                 };
                 col.unbindCell = (ve, i) =>
                 {
-                    (ve.userData as IVNodeHostRenderer)?.Unmount();
+                    foreach (var kv in parts.Pool)
+                    {
+                        var mount = kv.Value.mount;
+                        if (mount != null && mount.parent == ve)
+                        {
+                            try
+                            {
+                                mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                        }
+                    }
                 };
                 tv.columns.Add(col);
                 idx++;

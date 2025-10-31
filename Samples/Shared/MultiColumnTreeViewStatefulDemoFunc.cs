@@ -83,7 +83,8 @@ namespace ReactiveUITK.Samples.Shared
 
             void AddChild()
             {
-                if (rows.Count == 0) return;
+                if (rows.Count == 0)
+                    return;
                 var copy = new List<RowData>(rows);
                 var last = copy[copy.Count - 1];
                 last.HasChild = true;
@@ -99,30 +100,36 @@ namespace ReactiveUITK.Samples.Shared
 
             void SetParentValue()
             {
-                if (rows.Count == 0) return;
+                if (rows.Count == 0)
+                    return;
                 var copy = new List<RowData>(rows);
                 var last = copy[copy.Count - 1];
                 last.Parent ??= new SharedTreeRowItem { Id = System.Guid.NewGuid().ToString("N") };
                 last.Parent.Text = $"{last.Parent.Id} {DateTime.Now:HH:mm:ss}";
+                last.Parent.ShouldOverrideElement = true;
                 copy[copy.Count - 1] = last;
                 setRows(copy);
             }
 
             void SetChildValue()
             {
-                if (rows.Count == 0) return;
+                if (rows.Count == 0)
+                    return;
                 var copy = new List<RowData>(rows);
                 var last = copy[copy.Count - 1];
-                if (!last.HasChild) return;
+                if (!last.HasChild)
+                    return;
                 last.Child ??= new SharedTreeRowItem { Id = System.Guid.NewGuid().ToString("N") };
                 last.Child.Text = $"{last.Child.Id} {DateTime.Now:HH:mm:ss}";
+                last.Child.ShouldOverrideElement = true;
                 copy[copy.Count - 1] = last;
                 setRows(copy);
             }
 
             void DeleteLast()
             {
-                if (rows.Count == 0) return;
+                if (rows.Count == 0)
+                    return;
                 var copy = new List<RowData>(rows);
                 copy.RemoveAt(copy.Count - 1);
                 setRows(copy);
@@ -156,7 +163,10 @@ namespace ReactiveUITK.Samples.Shared
                                 var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
                                 var funcKey = $"mctv-row-{id}";
                                 var children = row.ShouldOverrideElement
-                                    ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
+                                    ? V.Label(
+                                        new LabelProps { Text = row.Text ?? "<null>" },
+                                        funcKey
+                                    )
                                     : V.Func(IntroCounterFunc.Render, null, funcKey);
                                 return V.VisualElement(null, null, children);
                             },
