@@ -17,6 +17,10 @@ namespace ReactiveUITK.Elements
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
+
+            // Stable renderer pool by row key
+            public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
+                new();
         }
 
         private static readonly ConditionalWeakTable<TreeView, Cached> Cache = new();
@@ -45,12 +49,14 @@ namespace ReactiveUITK.Elements
 
             if (properties.TryGetValue("rootItems", out var roots))
             {
+                var expandedBefore = TryGetExpanded(tv);
                 SetRootItems(tv, roots);
                 try
                 {
                     tv.RefreshItems();
                 }
                 catch { }
+                TryRestoreExpanded(tv, expandedBefore);
             }
 
             TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -67,31 +73,48 @@ namespace ReactiveUITK.Elements
                 if (!parts.RowWired)
                 {
                     parts.RowWired = true;
-                    tv.makeItem = () =>
-                    {
-                        var mount = new VisualElement();
-                        mount.userData = new VNodeHostRenderer(Host, mount);
-                        return mount;
-                    };
+                    tv.makeItem = () => new VisualElement();
                     tv.bindItem = (ve, index) =>
                     {
-                        var rr = ve.userData as IVNodeHostRenderer;
-                        if (rr == null)
-                        {
-                            rr = new VNodeHostRenderer(Host, ve);
-                            ve.userData = rr;
-                        }
                         object item = GetItemForIndex(tv, index);
+                        var key = DeriveRowKey(tv, index, item) ?? $"row-{index}";
+                        if (!parts.Pool.TryGetValue(key, out var entry))
+                        {
+                            var mount = new VisualElement();
+                            var rrNew = new VNodeHostRenderer(Host, mount);
+                            entry = (rrNew, mount);
+                            parts.Pool[key] = entry;
+                        }
+                        if (entry.mount.parent != ve)
+                        {
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                            ve.Add(entry.mount);
+                        }
                         var f = parts.RowFn;
                         if (f != null)
                         {
                             var vnode = EnsureVisualElementRoot(f(index, item), "TreeViewRow");
-                            rr.Render(vnode);
+                            entry.renderer.Render(vnode);
                         }
                     };
                     tv.unbindItem = (ve, i) =>
                     {
-                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                        foreach (var kv in parts.Pool)
+                        {
+                            var mount = kv.Value.mount;
+                            if (mount != null && mount.parent == ve)
+                            {
+                                try
+                                {
+                                    mount.RemoveFromHierarchy();
+                                }
+                                catch { }
+                            }
+                        }
                     };
                 }
             }
@@ -135,12 +158,14 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("rootItems", out var nextRoots);
             if (!ReferenceEquals(prevRoots, nextRoots) && nextRoots != null)
             {
+                var expandedBefore = TryGetExpanded(tv);
                 SetRootItems(tv, nextRoots);
                 try
                 {
                     tv.RefreshItems();
                 }
                 catch { }
+                TryRestoreExpanded(tv, expandedBefore);
             }
 
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -218,6 +243,104 @@ namespace ReactiveUITK.Elements
             }
             catch { }
             return null;
+        }
+
+        private static string DeriveRowKey(TreeView tv, int index, object item)
+        {
+            // Prefer string Id on payload; fallback to controller id; last resort index
+            try
+            {
+                if (item != null)
+                {
+                    var t = item.GetType();
+                    var f = t.GetField("Id", BindingFlags.Instance | BindingFlags.Public);
+                    if (f?.FieldType == typeof(string))
+                    {
+                        var s = f.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                    var p = t.GetProperty("Id", BindingFlags.Instance | BindingFlags.Public);
+                    if (p?.PropertyType == typeof(string))
+                    {
+                        var s = p.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                }
+            }
+            catch { }
+            try
+            {
+                var mi = typeof(TreeView).GetMethod(
+                    "GetIdForIndex",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(int) },
+                    null
+                );
+                var idObj = mi?.Invoke(tv, new object[] { index });
+                if (idObj != null)
+                    return idObj.ToString();
+            }
+            catch { }
+            return $"row-{index}";
+        }
+
+        private static List<int> TryGetExpanded(TreeView tv)
+        {
+            try
+            {
+                var mi = typeof(TreeView).GetMethod(
+                    "GetExpandedIds",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    Type.EmptyTypes,
+                    null
+                );
+                var result = mi?.Invoke(tv, null) as System.Collections.IEnumerable;
+                if (result == null)
+                    return new List<int>();
+                var list = new List<int>();
+                foreach (var o in result)
+                {
+                    try
+                    {
+                        list.Add(Convert.ToInt32(o));
+                    }
+                    catch { }
+                }
+                return list;
+            }
+            catch { }
+            return new List<int>();
+        }
+
+        private static void TryRestoreExpanded(TreeView tv, List<int> ids)
+        {
+            if (ids == null || ids.Count == 0)
+                return;
+            try
+            {
+                var mi = typeof(TreeView).GetMethod(
+                    "SetExpanded",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(int), typeof(bool) },
+                    null
+                );
+                if (mi == null)
+                    return;
+                foreach (var id in ids)
+                {
+                    try
+                    {
+                        mi.Invoke(tv, new object[] { id, true });
+                    }
+                    catch { }
+                }
+            }
+            catch { }
         }
     }
 }

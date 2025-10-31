@@ -84,13 +84,14 @@ namespace ReactiveUITK.Samples.Shared
 
                             var id = !string.IsNullOrEmpty(row.Id) ? $"{row.Id}" : $"{i}";
                             var prefix = (row.IsChild == true) ? "child" : "parent";
-                            var key = $"tv-{prefix}-{id}";
+                            var funcKey = $"tv-{prefix}-{id}";
 
                             var children = row.ShouldOverrideElement
-                                ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, key)
-                                : V.Func(IntroCounterFunc.Render, null, key);
+                                ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
+                                : V.Func(IntroCounterFunc.Render, null, funcKey);
 
-                            return V.VisualElement(null, key, children);
+                            // Keep parent wrapper unkeyed to avoid unnecessary remounts
+                            return V.VisualElement(null, null, children);
                         }
                     ),
                 rows
