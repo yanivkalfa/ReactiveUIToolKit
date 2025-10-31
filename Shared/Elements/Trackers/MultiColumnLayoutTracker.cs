@@ -6,6 +6,31 @@ namespace ReactiveUITK.Elements
     internal sealed class MultiColumnLayoutTracker
         : IElementStateTracker<MultiColumnTreeView, MultiColumnTreeViewElementAdapter.Cached>
     {
+        private static Dictionary<string, float> CaptureCurrentWidths(MultiColumnTreeView tv)
+        {
+            var map = new Dictionary<string, float>();
+            if (tv == null)
+                return map;
+            try
+            {
+                foreach (var col in tv.columns)
+                {
+                    if (col == null)
+                        continue;
+                    var name = string.IsNullOrEmpty(col.name) ? null : col.name;
+                    if (name == null)
+                        continue;
+                    try
+                    {
+                        map[name] = col.width.value;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return map;
+        }
+
         public void Attach(
             MultiColumnTreeView tv,
             MultiColumnTreeViewElementAdapter.Cached state,
@@ -32,6 +57,12 @@ namespace ReactiveUITK.Elements
                     state.ColumnWidths = new Dictionary<string, float>(fMap);
                 }
             }
+
+            // Seed from current UI if nothing provided
+            if (state.ColumnWidths == null || state.ColumnWidths.Count == 0)
+            {
+                state.ColumnWidths = CaptureCurrentWidths(tv);
+            }
         }
 
         public void Detach(MultiColumnTreeView tv, MultiColumnTreeViewElementAdapter.Cached state)
@@ -48,6 +79,21 @@ namespace ReactiveUITK.Elements
         {
             if (tv == null || state == null)
                 return;
+
+            // Capture current widths whenever we reapply (persist user changes across rebuilds)
+            try
+            {
+                var current = CaptureCurrentWidths(tv);
+                if (current != null && current.Count > 0)
+                {
+                    foreach (var kv in current)
+                    {
+                        state.ColumnWidths[kv.Key] = kv.Value;
+                    }
+                }
+            }
+            catch { }
+
             if (state.ColumnWidths == null || state.ColumnWidths.Count == 0)
                 return;
             foreach (var col in tv.columns)
