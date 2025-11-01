@@ -15,6 +15,10 @@ namespace ReactiveUITK.Props.Typed
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
         public Dictionary<string, float> ColumnWidths { get; set; }
+        public Dictionary<string, bool> ColumnVisibility { get; set; }
+        public List<SortedColumnDef> SortedColumns { get; set; }
+        public object SortingMode { get; set; }
+        public Action<VisualElement, List<SortedColumnDef>> ColumnSortingChanged { get; set; }
         public Style Style { get; set; }
 
         public sealed class ColumnDef
@@ -26,6 +30,7 @@ namespace ReactiveUITK.Props.Typed
             public float? MaxWidth { get; set; }
             public bool? Resizable { get; set; }
             public bool? Stretchable { get; set; }
+            public bool? Sortable { get; set; }
             public Func<int, object, ReactiveUITK.Core.VirtualNode> Cell { get; set; }
 
             public Dictionary<string, object> ToDictionary()
@@ -45,8 +50,29 @@ namespace ReactiveUITK.Props.Typed
                     d["resizable"] = Resizable.Value;
                 if (Stretchable.HasValue)
                     d["stretchable"] = Stretchable.Value;
+                if (Sortable.HasValue)
+                    d["sortable"] = Sortable.Value;
                 if (Cell != null)
                     d["cell"] = Cell;
+                return d;
+            }
+        }
+
+        public sealed class SortedColumnDef
+        {
+            public string Name { get; set; }
+            public SortDirection? Direction { get; set; }
+            public int? Index { get; set; }
+
+            public Dictionary<string, object> ToDictionary()
+            {
+                var d = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(Name))
+                    d["name"] = Name;
+                if (Direction.HasValue)
+                    d["direction"] = Direction.Value;
+                if (Index.HasValue)
+                    d["index"] = Index.Value;
                 return d;
             }
         }
@@ -75,6 +101,19 @@ namespace ReactiveUITK.Props.Typed
                 d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
             if (ColumnWidths != null)
                 d["columnWidths"] = ColumnWidths;
+            if (ColumnVisibility != null)
+                d["columnVisibility"] = ColumnVisibility;
+            if (SortedColumns != null)
+            {
+                var arr = new List<Dictionary<string, object>>(SortedColumns.Count);
+                foreach (var s in SortedColumns)
+                    arr.Add(s?.ToDictionary());
+                d["sortedColumns"] = arr;
+            }
+            if (SortingMode != null)
+                d["sortingMode"] = SortingMode;
+            if (ColumnSortingChanged != null)
+                d["columnSortingChanged"] = ColumnSortingChanged;
             if (Style != null)
                 d["style"] = Style;
             return d;

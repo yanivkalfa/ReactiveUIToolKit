@@ -31,6 +31,31 @@ namespace ReactiveUITK.Elements
             return map;
         }
 
+        private static Dictionary<string, bool> CaptureCurrentVisibility(MultiColumnTreeView tv)
+        {
+            var map = new Dictionary<string, bool>();
+            if (tv == null)
+                return map;
+            try
+            {
+                foreach (var col in tv.columns)
+                {
+                    if (col == null)
+                        continue;
+                    var name = string.IsNullOrEmpty(col.name) ? null : col.name;
+                    if (name == null)
+                        continue;
+                    try
+                    {
+                        map[name] = col.visible;
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+            return map;
+        }
+
         public void Attach(
             MultiColumnTreeView tv,
             MultiColumnTreeViewElementAdapter.Cached state,
@@ -63,6 +88,10 @@ namespace ReactiveUITK.Elements
             {
                 state.ColumnWidths = CaptureCurrentWidths(tv);
             }
+            if (state.ColumnVisibility == null || state.ColumnVisibility.Count == 0)
+            {
+                state.ColumnVisibility = CaptureCurrentVisibility(tv);
+            }
         }
 
         public void Detach(MultiColumnTreeView tv, MultiColumnTreeViewElementAdapter.Cached state)
@@ -80,7 +109,7 @@ namespace ReactiveUITK.Elements
             if (tv == null || state == null)
                 return;
 
-            // Capture current widths whenever we reapply (persist user changes across rebuilds)
+            // Capture current widths/visibility whenever we reapply (persist user changes across rebuilds)
             try
             {
                 var current = CaptureCurrentWidths(tv);
@@ -91,21 +120,44 @@ namespace ReactiveUITK.Elements
                         state.ColumnWidths[kv.Key] = kv.Value;
                     }
                 }
+                var vis = CaptureCurrentVisibility(tv);
+                if (vis != null && vis.Count > 0)
+                {
+                    foreach (var kv in vis)
+                    {
+                        state.ColumnVisibility[kv.Key] = kv.Value;
+                    }
+                }
             }
             catch { }
 
-            if (state.ColumnWidths == null || state.ColumnWidths.Count == 0)
-                return;
+            // Apply saved layout
             foreach (var col in tv.columns)
             {
                 if (col == null)
                     continue;
                 var name = col.name;
-                if (!string.IsNullOrEmpty(name) && state.ColumnWidths.TryGetValue(name, out var w))
+                if (
+                    !string.IsNullOrEmpty(name)
+                    && state.ColumnWidths != null
+                    && state.ColumnWidths.TryGetValue(name, out var w)
+                )
                 {
                     try
                     {
                         col.width = w;
+                    }
+                    catch { }
+                }
+                if (
+                    !string.IsNullOrEmpty(name)
+                    && state.ColumnVisibility != null
+                    && state.ColumnVisibility.TryGetValue(name, out var vis)
+                )
+                {
+                    try
+                    {
+                        col.visible = vis;
                     }
                     catch { }
                 }

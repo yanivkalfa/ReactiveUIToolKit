@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
@@ -31,8 +30,16 @@ namespace ReactiveUITK.Elements
 
             // Column layout persistence (by column name)
             public Dictionary<string, float> ColumnWidths = new();
+            public Dictionary<string, bool> ColumnVisibility = new();
             public IElementStateTracker<MultiColumnTreeView, Cached> LayoutTracker =
                 new MultiColumnLayoutTracker();
+
+            // Sorting persistence
+            public List<(string name, SortDirection direction, int index)> SortedColumns = new();
+            public IElementStateTracker<MultiColumnTreeView, Cached> SortTracker =
+                new MultiColumnSortTracker();
+            public Delegate UserSortNotify;
+            public Action InternalSortHandler;
         }
 
         private static HostContext host;
@@ -85,6 +92,46 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
+        private static void ApplySortingMode(MultiColumnTreeView tv, object mode)
+        {
+            if (tv == null || mode == null)
+                return;
+            try
+            {
+                var pi = typeof(MultiColumnTreeView).GetProperty(
+                    "sortingMode",
+                    System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.NonPublic
+                );
+                if (pi == null)
+                    return;
+                var enumType = pi.PropertyType;
+                object val = null;
+                if (mode.GetType().IsEnum && mode.GetType().Name == enumType.Name)
+                    val = mode;
+                else if (mode is string s)
+                {
+                    try
+                    {
+                        val = Enum.Parse(enumType, s, true);
+                    }
+                    catch { }
+                }
+                else if (mode is int i)
+                {
+                    try
+                    {
+                        val = Enum.ToObject(enumType, i);
+                    }
+                    catch { }
+                }
+                if (val != null)
+                    pi.SetValue(tv, val);
+            }
+            catch { }
+        }
+
         private static string DeriveRowKey(MultiColumnTreeView tv, int index, object item)
         {
             try
@@ -128,9 +175,12 @@ namespace ReactiveUITK.Elements
                     new[] { typeof(int) },
                     null
                 );
-                var idObj = mi?.Invoke(tv, new object[] { index });
-                if (idObj != null)
-                    return idObj.ToString();
+                if (mi != null)
+                {
+                    var id = mi.Invoke(tv, new object[] { index });
+                    if (id != null)
+                        return id.ToString();
+                }
             }
             catch { }
             return $"row-{index}";
@@ -169,6 +219,7 @@ namespace ReactiveUITK.Elements
                 if (properties.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                     tv.selectionType = st;
                 TryApplyProp<int>(properties, "selectedIndex", i => tv.selectedIndex = i);
+                TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(tv, m));
 
                 // stopTrackingUserChange option
                 if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
@@ -239,7 +290,7 @@ namespace ReactiveUITK.Elements
                 // expandedItemIds override
                 if (properties.TryGetValue("expandedItemIds", out var expObj))
                 {
-                    var ids = CoerceIds(expObj);
+                    var ids = BaseElementAdapter.CoerceIds(expObj);
                     parts.DesiredExpanded.Clear();
                     parts.ExpandAllById.Clear();
                     if (ids != null)
@@ -253,6 +304,8 @@ namespace ReactiveUITK.Elements
             ApplySlots(tv, properties);
             parts.LayoutTracker.Attach(tv, parts, properties);
             parts.LayoutTracker.Reapply(tv, parts, null, properties);
+            parts.SortTracker.Attach(tv, parts, properties);
+            parts.SortTracker.Reapply(tv, parts, null, properties);
             PropsApplier.Apply(element, properties);
         }
 
@@ -289,6 +342,7 @@ namespace ReactiveUITK.Elements
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                 tv.selectionType = st;
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.selectedIndex = i);
+            TryDiffProp<object>(previous, next, "sortingMode", m => ApplySortingMode(tv, m));
 
             previous.TryGetValue("columns", out var pc);
             next.TryGetValue("columns", out var nc);
@@ -343,7 +397,7 @@ namespace ReactiveUITK.Elements
             // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
-                var ids = CoerceIds(nextExp);
+                var ids = BaseElementAdapter.CoerceIds(nextExp);
                 parts.DesiredExpanded.Clear();
                 parts.ExpandAllById.Clear();
                 if (ids != null)
@@ -354,6 +408,7 @@ namespace ReactiveUITK.Elements
                 ReapplyDesired(tv, parts);
             }
 
+            parts.SortTracker.Reapply(tv, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
@@ -402,6 +457,9 @@ namespace ReactiveUITK.Elements
                     col.resizable = rb;
                 if (c.TryGetValue("stretchable", out var st) && st is bool sb)
                     col.stretchable = sb;
+                if (c.TryGetValue("sortable", out var so) && so is bool srt)
+                    col.sortable = srt;
+
                 col.makeCell = () => new VisualElement();
                 int captured = idx;
                 col.bindCell = (ve, rowIndex) =>
@@ -465,6 +523,19 @@ namespace ReactiveUITK.Elements
                     try
                     {
                         col.width = savedW;
+                    }
+                    catch { }
+                }
+                // Apply persisted visibility (by name) if present
+                if (
+                    !string.IsNullOrEmpty(col.name)
+                    && parts.ColumnVisibility != null
+                    && parts.ColumnVisibility.TryGetValue(col.name, out var isVisible)
+                )
+                {
+                    try
+                    {
+                        col.visible = isVisible;
                     }
                     catch { }
                 }

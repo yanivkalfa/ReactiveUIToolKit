@@ -16,6 +16,7 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             GetWindow<EditorTreeViewExpandedIdsTestWindow>("TV ExpandedIds Test");
 
         private TreeView tv;
+        private MultiColumnTreeView mctv;
         private readonly HashSet<int> desiredExpanded = new HashSet<int>();
         private readonly Dictionary<int, bool> desiredExpandAll = new Dictionary<int, bool>();
 
@@ -49,6 +50,92 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             };
 
             rootVisualElement.Add(tv);
+
+            // Native MultiColumnTreeView sorting test
+            var header = new Label("MultiColumnTreeView Sorting Test")
+            {
+                style =
+                {
+                    unityFontStyleAndWeight = FontStyle.Bold,
+                    marginTop = 8,
+                    marginBottom = 4,
+                },
+            };
+            rootVisualElement.Add(header);
+
+            mctv = new MultiColumnTreeView();
+            mctv.style.flexGrow = 1f;
+            try
+            {
+                mctv.sortingMode = ColumnSortingMode.Default;
+                //mctv.Sort((a, b) => {
+                //    Debug.Log("aa");
+                //    return -1;
+                //});
+            }
+            catch { }
+
+            // Columns: Name and ID
+            var colName = new Column
+            {
+                name = "name",
+                title = "Name",
+                sortable = true,
+            };
+            colName.makeCell = () => new Label();
+            colName.bindCell = (ve, rowIndex) =>
+            {
+                var lbl = ve as Label;
+                lbl.text = GetRowField(mctv, rowIndex, "Name");
+            };
+            var colId = new Column
+            {
+                name = "id",
+                title = "ID",
+                sortable = true,
+            };
+            colId.makeCell = () => new Label();
+            colId.bindCell = (ve, rowIndex) =>
+            {
+                var lbl = ve as Label;
+                lbl.text = GetRowField(mctv, rowIndex, "Id");
+            };
+            mctv.columns.Add(colName);
+            mctv.columns.Add(colId);
+
+            // Data
+            mctv.SetRootItems(BuildMultiRoots());
+            mctv.fixedItemHeight = 20f;
+            mctv.selectionType = SelectionType.None;
+
+            // Seed sort descriptors to show priority badges (1/2) immediately
+            try
+            {
+                var scd = mctv.sortColumnDescriptions;
+                scd.Clear();
+                scd.Add(new SortColumnDescription("name", SortDirection.Ascending));
+                scd.Add(new SortColumnDescription("id", SortDirection.Ascending));
+            }
+            catch { }
+
+            mctv.columnSortingChanged += () =>
+            {
+                try
+                {
+                    var sorted = mctv.sortedColumns;
+                    var desc = string.Join(
+                        ", ",
+                        sorted.Select(s => $"{s.columnName}:{s.direction}")
+                    );
+                    Debug.Log($"[MCTV] columnSortingChanged: {desc}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[MCTV] columnSortingChanged error: {ex}");
+                }
+            };
+
+            rootVisualElement.Add(mctv);
         }
 
         private List<TreeViewItemData<object>> BuildRoots()
@@ -94,6 +181,70 @@ namespace ReactiveUITK.Samples.Showcase.Editor
                 tv.ExpandItem(id, all, false);
             }
             tv.RefreshItems();
+        }
+
+        private sealed class RowData
+        {
+            public string Name;
+            public string Id;
+        }
+
+        private List<TreeViewItemData<object>> BuildMultiRoots()
+        {
+            var list = new List<TreeViewItemData<object>>();
+            list.Add(
+                new TreeViewItemData<object>(
+                    1000,
+                    new RowData { Name = "Banana", Id = "B001" },
+                    null
+                )
+            );
+            list.Add(
+                new TreeViewItemData<object>(
+                    1002,
+                    new RowData { Name = "Apple", Id = "A100" },
+                    null
+                )
+            );
+            list.Add(
+                new TreeViewItemData<object>(
+                    1004,
+                    new RowData { Name = "Cherry", Id = "C010" },
+                    null
+                )
+            );
+            return list;
+        }
+
+        private static string GetRowField(MultiColumnTreeView tv, int index, string field)
+        {
+            try
+            {
+                var mi = typeof(MultiColumnTreeView)
+                    .GetMethods()
+                    .FirstOrDefault(m =>
+                        m.Name == "GetItemDataForIndex" && m.IsGenericMethodDefinition
+                    );
+                if (mi != null)
+                {
+                    var obj = mi.MakeGenericMethod(typeof(object))
+                        .Invoke(tv, new object[] { index });
+                    if (obj != null)
+                    {
+                        var pi = obj.GetType()
+                            .GetField(field, BindingFlags.Public | BindingFlags.Instance);
+                        if (pi != null)
+                            return pi.GetValue(obj)?.ToString();
+                        var pp = obj.GetType()
+                            .GetProperty(field, BindingFlags.Public | BindingFlags.Instance);
+                        if (pp != null)
+                            return pp.GetValue(obj)?.ToString();
+                        return obj.ToString();
+                    }
+                }
+            }
+            catch { }
+            return string.Empty;
         }
 
         private static string DumpObject(object obj)
