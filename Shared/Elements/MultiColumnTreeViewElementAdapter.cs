@@ -42,9 +42,7 @@ namespace ReactiveUITK.Elements
             public Delegate UserSortNotify;
             public Action InternalSortHandler;
 
-            // Layout/order polling handle
-            public IVisualElementScheduledItem OrderPoll;
-            public bool HeaderOrderHookAttached;
+            // (removed) unused layout/order polling fields
         }
 
         private static HostContext host;
