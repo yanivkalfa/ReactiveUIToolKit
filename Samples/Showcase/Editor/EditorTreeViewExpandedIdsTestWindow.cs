@@ -15,43 +15,15 @@ namespace ReactiveUITK.Samples.Showcase.Editor
         public static void ShowWindow() =>
             GetWindow<EditorTreeViewExpandedIdsTestWindow>("TV ExpandedIds Test");
 
-        private TreeView tv;
         private MultiColumnTreeView mctv;
-        private readonly HashSet<int> desiredExpanded = new HashSet<int>();
-        private readonly Dictionary<int, bool> desiredExpandAll = new Dictionary<int, bool>();
+        private readonly List<RowData> mctvRows = new List<RowData>();
+        private int mctvNextPid = 1000;
+        private MultiColumnTreeView mctvDefault;
+        private readonly List<DefaultRowData> mctvDefaultRows = new List<DefaultRowData>();
+        private int mctvDefaultNextPid = 3000;
 
         public void CreateGUI()
         {
-            tv = new TreeView();
-            tv.style.flexGrow = 1f;
-            tv.SetRootItems(BuildRoots());
-            tv.fixedItemHeight = 20f;
-            tv.selectionType = SelectionType.None;
-
-            // Seed desired set with middle parent
-            desiredExpanded.Add(200);
-            desiredExpandAll[200] = false;
-
-            // Toolbar with a rebuild button to simulate a diff cycle
-            var toolbar = new VisualElement();
-            toolbar.style.flexDirection = FlexDirection.Row;
-            var rebuild = new Button(() => RebuildAndReapply()) { text = "Rebuild" };
-            toolbar.Add(rebuild);
-            rootVisualElement.Add(toolbar);
-
-            tv.itemExpandedChanged += (a) =>
-            {
-                // Update desired set; store last expandAll flag seen for this id
-                if (a.isExpanded)
-                    desiredExpanded.Add(a.id);
-                else
-                    desiredExpanded.Remove(a.id);
-                desiredExpandAll[a.id] = a.isAppliedToAllChildren;
-            };
-
-            rootVisualElement.Add(tv);
-
-            // Native MultiColumnTreeView sorting test
             var header = new Label("MultiColumnTreeView Sorting Test")
             {
                 style =
@@ -67,15 +39,10 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             mctv.style.flexGrow = 1f;
             try
             {
-                mctv.sortingMode = ColumnSortingMode.Default;
-                //mctv.Sort((a, b) => {
-                //    Debug.Log("aa");
-                //    return -1;
-                //});
+                mctv.sortingMode = ColumnSortingMode.Custom;
             }
             catch { }
 
-            // Columns: Name and ID
             var colName = new Column
             {
                 name = "name",
@@ -103,116 +70,223 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             mctv.columns.Add(colName);
             mctv.columns.Add(colId);
 
-            // Data
+            if (mctvRows.Count == 0)
+            {
+                mctvRows.Add(new RowData { Name = "Banana", Id = "B001" });
+                mctvRows.Add(new RowData { Name = "Apple", Id = "A100" });
+                mctvRows.Add(new RowData { Name = "Cherry", Id = "C010" });
+                int pid = mctvNextPid;
+                foreach (var r in mctvRows)
+                {
+                    if (r.Pid == 0)
+                    {
+                        r.Pid = pid;
+                        pid += 2;
+                    }
+                }
+                mctvNextPid = pid;
+            }
             mctv.SetRootItems(BuildMultiRoots());
             mctv.fixedItemHeight = 20f;
             mctv.selectionType = SelectionType.None;
 
-            // Seed sort descriptors to show priority badges (1/2) immediately
-            try
-            {
-                var scd = mctv.sortColumnDescriptions;
-                scd.Clear();
-                scd.Add(new SortColumnDescription("name", SortDirection.Ascending));
-                scd.Add(new SortColumnDescription("id", SortDirection.Ascending));
-            }
-            catch { }
-
             mctv.columnSortingChanged += () =>
             {
-                try
+                var sorted = mctv.sortedColumns;
+                var sortedList = (sorted as IList<SortColumnDescription>) ?? sorted?.ToList();
+                if (sortedList != null && sortedList.Count > 0)
                 {
-                    var sorted = mctv.sortedColumns;
-                    var desc = string.Join(
-                        ", ",
-                        sorted.Select(s => $"{s.columnName}:{s.direction}")
-                    );
-                    Debug.Log($"[MCTV] columnSortingChanged: {desc}");
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"[MCTV] columnSortingChanged error: {ex}");
+                    var first = sortedList[0];
+                    Comparison<RowData> cmp = null;
+                    if (string.Equals(first.columnName, "name", StringComparison.Ordinal))
+                        cmp = (a, b) =>
+                            string.Compare(a?.Name, b?.Name, StringComparison.OrdinalIgnoreCase);
+                    else if (string.Equals(first.columnName, "id", StringComparison.Ordinal))
+                        cmp = (a, b) =>
+                            string.Compare(a?.Id, b?.Id, StringComparison.OrdinalIgnoreCase);
+                    if (cmp != null)
+                    {
+                        mctvRows.Sort(cmp);
+                        if (first.direction == SortDirection.Descending)
+                            mctvRows.Reverse();
+                        mctv.SetRootItems(BuildMultiRoots());
+                        mctv.RefreshItems();
+                    }
                 }
             };
 
             rootVisualElement.Add(mctv);
-        }
-
-        private List<TreeViewItemData<object>> BuildRoots()
-        {
-            return new List<TreeViewItemData<object>>
+            var header2 = new Label("MultiColumnTreeView Default Sorting Test")
             {
-                new TreeViewItemData<object>(
-                    100,
-                    "Parent A",
-                    new List<TreeViewItemData<object>>
-                    {
-                        new TreeViewItemData<object>(101, "Child A1", null),
-                    }
-                ),
-                new TreeViewItemData<object>(
-                    200,
-                    "Parent B",
-                    new List<TreeViewItemData<object>>
-                    {
-                        new TreeViewItemData<object>(201, "Child B1", null),
-                    }
-                ),
-                new TreeViewItemData<object>(
-                    300,
-                    "Parent C",
-                    new List<TreeViewItemData<object>>
-                    {
-                        new TreeViewItemData<object>(301, "Child C1", null),
-                    }
-                ),
+                style =
+                {
+                    unityFontStyleAndWeight = FontStyle.Bold,
+                    marginTop = 12,
+                    marginBottom = 4,
+                },
             };
+            rootVisualElement.Add(header2);
+
+            mctvDefault = new MultiColumnTreeView();
+            mctvDefault.style.flexGrow = 1f;
+            try
+            {
+                mctvDefault.sortingMode = ColumnSortingMode.Default;
+            }
+            catch { }
+
+            var defColName = new Column
+            {
+                name = "name",
+                title = "Name",
+                sortable = true,
+            };
+            defColName.makeCell = () => new Label();
+            defColName.bindCell = (ve, rowIndex) =>
+            {
+                var lbl = ve as Label;
+                lbl.text = GetRowField(mctvDefault, rowIndex, "RenderedName");
+            };
+
+            var defColId = new Column
+            {
+                name = "id",
+                title = "ID",
+                sortable = true,
+            };
+            defColId.makeCell = () => new Label();
+            defColId.bindCell = (ve, rowIndex) =>
+            {
+                var lbl = ve as Label;
+                lbl.text = GetRowField(mctvDefault, rowIndex, "Id");
+            };
+            mctvDefault.columns.Add(defColName);
+            mctvDefault.columns.Add(defColId);
+
+            if (mctvDefaultRows.Count == 0)
+            {
+                mctvDefaultRows.Add(
+                    new DefaultRowData
+                    {
+                        Name = "Alpha",
+                        RenderedName = "Zeta",
+                        Id = "ID-3",
+                    }
+                );
+                mctvDefaultRows.Add(
+                    new DefaultRowData
+                    {
+                        Name = "Beta",
+                        RenderedName = "Alpha",
+                        Id = "ID-2",
+                    }
+                );
+                mctvDefaultRows.Add(
+                    new DefaultRowData
+                    {
+                        Name = "Gamma",
+                        RenderedName = "Mu",
+                        Id = "ID-1",
+                    }
+                );
+                int pid = mctvDefaultNextPid;
+                foreach (var r in mctvDefaultRows)
+                {
+                    if (r.Pid == 0)
+                    {
+                        r.Pid = pid;
+                        pid += 2;
+                    }
+                }
+                mctvDefaultNextPid = pid;
+            }
+            mctvDefault.SetRootItems(BuildDefaultRoots());
+            mctvDefault.fixedItemHeight = 20f;
+            mctvDefault.selectionType = SelectionType.None;
+
+            mctvDefault.columnSortingChanged += () =>
+            {
+                var sorted = mctvDefault.sortedColumns;
+                var list = (sorted as IList<SortColumnDescription>) ?? sorted?.ToList();
+                if (list != null && list.Count > 0)
+                {
+                    var first = list[0];
+                    List<DefaultRowData> ordered = null;
+                    if (string.Equals(first.columnName, "name", StringComparison.Ordinal))
+                    {
+                        ordered =
+                            (first.direction == SortDirection.Descending)
+                                ? mctvDefaultRows
+                                    .OrderByDescending(
+                                        r => r.Name,
+                                        StringComparer.OrdinalIgnoreCase
+                                    )
+                                    .ToList()
+                                : mctvDefaultRows
+                                    .OrderBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                                    .ToList();
+                    }
+                    else if (string.Equals(first.columnName, "id", StringComparison.Ordinal))
+                    {
+                        ordered =
+                            (first.direction == SortDirection.Descending)
+                                ? mctvDefaultRows
+                                    .OrderByDescending(r => r.Id, StringComparer.OrdinalIgnoreCase)
+                                    .ToList()
+                                : mctvDefaultRows
+                                    .OrderBy(r => r.Id, StringComparer.OrdinalIgnoreCase)
+                                    .ToList();
+                    }
+                    if (ordered != null)
+                    {
+                        mctvDefaultRows.Clear();
+                        mctvDefaultRows.AddRange(ordered);
+                        mctvDefault.SetRootItems(BuildDefaultRoots());
+                        try
+                        {
+                            mctvDefault.RefreshItems();
+                        }
+                        catch { }
+                    }
+                }
+            };
+
+            rootVisualElement.Add(mctvDefault);
         }
 
-        private void RebuildAndReapply()
-        {
-            if (tv == null)
-                return;
-            tv.SetRootItems(BuildRoots());
-            foreach (var id in desiredExpanded)
-            {
-                bool all = desiredExpandAll.TryGetValue(id, out var val) && val;
-                // Do not refresh per call; we will refresh once after all operations
-                tv.ExpandItem(id, all, false);
-            }
-            tv.RefreshItems();
-        }
 
         private sealed class RowData
         {
             public string Name;
             public string Id;
+            public int Pid;
+        }
+
+        private sealed class DefaultRowData
+        {
+            public string Name;
+            public string RenderedName;
+            public string Id;
+            public int Pid;
         }
 
         private List<TreeViewItemData<object>> BuildMultiRoots()
         {
             var list = new List<TreeViewItemData<object>>();
-            list.Add(
-                new TreeViewItemData<object>(
-                    1000,
-                    new RowData { Name = "Banana", Id = "B001" },
-                    null
-                )
-            );
-            list.Add(
-                new TreeViewItemData<object>(
-                    1002,
-                    new RowData { Name = "Apple", Id = "A100" },
-                    null
-                )
-            );
-            list.Add(
-                new TreeViewItemData<object>(
-                    1004,
-                    new RowData { Name = "Cherry", Id = "C010" },
-                    null
-                )
-            );
+            foreach (var r in mctvRows)
+            {
+                list.Add(new TreeViewItemData<object>(r.Pid, r, null));
+            }
+            return list;
+        }
+
+        private List<TreeViewItemData<object>> BuildDefaultRoots()
+        {
+            var list = new List<TreeViewItemData<object>>();
+            foreach (var r in mctvDefaultRows)
+            {
+                list.Add(new TreeViewItemData<object>(r.Pid, r, null));
+            }
             return list;
         }
 
@@ -259,7 +333,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             var t = obj.GetType();
             sb.AppendLine($"Object Type: {t.FullName}");
 
-            // If enumerable (but not string), enumerate contents
             if (obj is System.Collections.IEnumerable en && !(obj is string))
             {
                 sb.AppendLine("Enumerable contents:");
@@ -278,7 +351,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
                     sb.AppendLine(" (empty)");
             }
 
-            // Properties
             try
             {
                 var props = t.GetProperties(
@@ -304,7 +376,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             }
             catch { }
 
-            // Fields
             try
             {
                 var fields = t.GetFields(
@@ -330,7 +401,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             }
             catch { }
 
-            // Methods (declared on type)
             try
             {
                 var methods = t.GetMethods(

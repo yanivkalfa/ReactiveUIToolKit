@@ -36,36 +36,54 @@ namespace ReactiveUITK.Elements
             {
                 state.InternalSortHandler = () =>
                 {
+                    List<(string name, SortDirection direction, int index)> snap = null;
                     try
                     {
-                        state.SortedColumns = SnapshotSorted(tv);
+                        snap = SnapshotSorted(tv);
                     }
                     catch { }
+                    snap ??= new List<(string, SortDirection, int)>();
+                    var prev = state.SortedColumns ?? new List<(string, SortDirection, int)>();
+                    bool changed = !SortedEqual(prev, snap);
+                    state.SortedColumns = snap;
+                    if (!changed)
+                        return; // avoid notifying user when nothing actually changed
                     try
                     {
                         if (state.UserSortNotify != null)
                         {
                             var defs = ToSortedDefs(state.SortedColumns);
-                            // Preferred signature: (VisualElement, List<SortedColumnDef>)
-                            if (
-                                state.UserSortNotify
-                                is Action<
-                                    UnityEngine.UIElements.VisualElement,
-                                    List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef>
-                                > a2
-                            )
-                                a2.Invoke(tv, defs);
-                            else if (
-                                state.UserSortNotify
-                                is Action<
-                                    List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef>
-                                > a
-                            )
-                                a.Invoke(defs);
-                            else if (state.UserSortNotify is Action<object> ao)
-                                ao.Invoke(defs);
-                            else if (state.UserSortNotify is Action g)
-                                g.Invoke();
+#if UNITY_EDITOR
+                            UnityEditor.EditorApplication.delayCall += () =>
+                            {
+                                try
+                                {
+                                    DispatchUserNotify(state.UserSortNotify, tv, defs);
+                                }
+                                catch { }
+                            };
+#else
+                            try
+                            {
+                                tv?.schedule?.Execute(() =>
+                                    {
+                                        try
+                                        {
+                                            DispatchUserNotify(state.UserSortNotify, tv, defs);
+                                        }
+                                        catch { }
+                                    })
+                                    ?.ExecuteLater(0);
+                            }
+                            catch
+                            {
+                                try
+                                {
+                                    DispatchUserNotify(state.UserSortNotify, tv, defs);
+                                }
+                                catch { }
+                            }
+#endif
                         }
                     }
                     catch { }
@@ -103,12 +121,20 @@ namespace ReactiveUITK.Elements
                 }
             }
 
+            // Also refresh the user-provided notification delegate if it changed
+            if (nextProps != null && nextProps.TryGetValue("columnSortingChanged", out var user))
+            {
+                state.UserSortNotify = user as Delegate;
+            }
+
             // Apply desired sort via sortColumnDescriptions
             try
             {
                 var desired = state.SortedColumns ?? new List<(string, SortDirection, int)>();
+                var current = SnapshotSorted(tv);
+                bool differs = !SortedEqual(current, desired);
                 var scd = tv.sortColumnDescriptions; // SortColumnDescriptions collection
-                if (scd != null)
+                if (differs && scd != null)
                 {
                     scd.Clear();
                     foreach (var item in desired.OrderBy(x => x.index))
@@ -227,6 +253,67 @@ namespace ReactiveUITK.Elements
                 );
             }
             return list;
+        }
+
+        private static void DispatchUserNotify(
+            Delegate notify,
+            UnityEngine.UIElements.VisualElement tv,
+            List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef> defs
+        )
+        {
+            if (notify == null)
+                return;
+            if (
+                notify
+                is Action<
+                    UnityEngine.UIElements.VisualElement,
+                    List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef>
+                > a2
+            )
+            {
+                a2.Invoke(tv, defs);
+                return;
+            }
+            if (
+                notify
+                is Action<List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef>> a
+            )
+            {
+                a.Invoke(defs);
+                return;
+            }
+            if (notify is Action<object> ao)
+            {
+                ao.Invoke(defs);
+                return;
+            }
+            if (notify is Action g)
+            {
+                g.Invoke();
+            }
+        }
+
+        private static bool SortedEqual(
+            List<(string name, SortDirection direction, int index)> a,
+            List<(string name, SortDirection direction, int index)> b
+        )
+        {
+            if (ReferenceEquals(a, b))
+                return true;
+            if (a == null || b == null)
+                return false;
+            if (a.Count != b.Count)
+                return false;
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (!string.Equals(a[i].name, b[i].name, StringComparison.Ordinal))
+                    return false;
+                if (a[i].direction != b[i].direction)
+                    return false;
+                if (a[i].index != b[i].index)
+                    return false;
+            }
+            return true;
         }
     }
 }

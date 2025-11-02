@@ -18,7 +18,7 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, bool> ColumnVisibility { get; set; }
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
-        public Action<VisualElement, List<SortedColumnDef>> ColumnSortingChanged { get; set; }
+        public Action<List<SortedColumnDef>> ColumnSortingChanged { get; set; }
         public Style Style { get; set; }
 
         public sealed class ColumnDef
