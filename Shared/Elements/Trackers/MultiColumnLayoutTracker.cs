@@ -1,4 +1,7 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -56,13 +59,67 @@ namespace ReactiveUITK.Elements
             return map;
         }
 
+        private static PropertyInfo FindIndexProperty(Column col, bool requireWritable)
+        {
+            if (col == null)
+                return null;
+            var t = col.GetType();
+            var props = new[] { "visibleIndex", "displayIndex", "logicalIndex", "index" };
+            foreach (var name in props)
+            {
+                var p = t.GetProperty(
+                    name,
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                );
+                if (p == null)
+                    continue;
+                if (requireWritable && !p.CanWrite)
+                    continue;
+                return p;
+            }
+            return null;
+        }
+
+        private static Dictionary<string, int> CaptureCurrentIndices(MultiColumnTreeView tv)
+        {
+            var map = new Dictionary<string, int>();
+            if (tv == null)
+                return map;
+            foreach (var col in tv.columns)
+            {
+                if (col == null)
+                    continue;
+                var name = string.IsNullOrEmpty(col.name) ? null : col.name;
+                if (name == null)
+                    continue;
+                int ord = -1;
+                try
+                {
+                    var pi = FindIndexProperty(col, requireWritable: false);
+                    if (pi != null)
+                    {
+                        var v = pi.GetValue(col);
+                        if (v is int iv)
+                            ord = iv;
+                    }
+                }
+                catch { }
+                map[name] = ord;
+            }
+            return map;
+        }
+
+        private static void ApplySavedIndices(MultiColumnTreeView tv, Dictionary<string, int> saved)
+        {
+            // No-op: Column order is applied during column rebuild in the adapter.
+        }
+
         public void Attach(
             MultiColumnTreeView tv,
             MultiColumnTreeViewElementAdapter.Cached state,
             IReadOnlyDictionary<string, object> props
         )
         {
-            // Read overrides from props if provided
             if (props != null && props.TryGetValue("columnWidths", out var widthsObj))
             {
                 if (widthsObj is IDictionary<string, object> map)
@@ -72,7 +129,7 @@ namespace ReactiveUITK.Elements
                     {
                         try
                         {
-                            state.ColumnWidths[kv.Key] = System.Convert.ToSingle(kv.Value);
+                            state.ColumnWidths[kv.Key] = Convert.ToSingle(kv.Value);
                         }
                         catch { }
                     }
@@ -83,20 +140,17 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Seed from current UI if nothing provided
             if (state.ColumnWidths == null || state.ColumnWidths.Count == 0)
-            {
                 state.ColumnWidths = CaptureCurrentWidths(tv);
-            }
             if (state.ColumnVisibility == null || state.ColumnVisibility.Count == 0)
-            {
                 state.ColumnVisibility = CaptureCurrentVisibility(tv);
-            }
+            if (state.ColumnDisplayIndex == null || state.ColumnDisplayIndex.Count == 0)
+                state.ColumnDisplayIndex = CaptureCurrentIndices(tv);
         }
 
         public void Detach(MultiColumnTreeView tv, MultiColumnTreeViewElementAdapter.Cached state)
         {
-            // Placeholder for cleanup if needed
+            // No-op
         }
 
         public void Reapply(
@@ -109,59 +163,63 @@ namespace ReactiveUITK.Elements
             if (tv == null || state == null)
                 return;
 
-            // Capture current widths/visibility whenever we reapply (persist user changes across rebuilds)
+            // Order application is handled inside adapter RebuildColumns; skip applying here.
+
             try
             {
-                var current = CaptureCurrentWidths(tv);
-                if (current != null && current.Count > 0)
-                {
-                    foreach (var kv in current)
-                    {
+                var widths = CaptureCurrentWidths(tv);
+                if (widths != null && widths.Count > 0)
+                    foreach (var kv in widths)
                         state.ColumnWidths[kv.Key] = kv.Value;
-                    }
-                }
                 var vis = CaptureCurrentVisibility(tv);
                 if (vis != null && vis.Count > 0)
-                {
                     foreach (var kv in vis)
-                    {
                         state.ColumnVisibility[kv.Key] = kv.Value;
-                    }
-                }
             }
             catch { }
 
-            // Apply saved layout
             foreach (var col in tv.columns)
             {
                 if (col == null)
                     continue;
                 var name = col.name;
-                if (
-                    !string.IsNullOrEmpty(name)
-                    && state.ColumnWidths != null
-                    && state.ColumnWidths.TryGetValue(name, out var w)
-                )
+                if (!string.IsNullOrEmpty(name))
                 {
-                    try
+                    if (
+                        state.ColumnWidths != null
+                        && state.ColumnWidths.TryGetValue(name, out var w)
+                    )
                     {
-                        col.width = w;
+                        try
+                        {
+                            col.width = w;
+                        }
+                        catch { }
                     }
-                    catch { }
-                }
-                if (
-                    !string.IsNullOrEmpty(name)
-                    && state.ColumnVisibility != null
-                    && state.ColumnVisibility.TryGetValue(name, out var vis)
-                )
-                {
-                    try
+                    if (
+                        state.ColumnVisibility != null
+                        && state.ColumnVisibility.TryGetValue(name, out var vv)
+                    )
                     {
-                        col.visible = vis;
+                        try
+                        {
+                            col.visible = vv;
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
             }
+
+            var indicesNow = CaptureCurrentIndices(tv);
+            bool differ =
+                (state.ColumnDisplayIndex?.Count ?? 0) != (indicesNow?.Count ?? 0)
+                || (state.ColumnDisplayIndex ?? new Dictionary<string, int>()).Any(kv =>
+                    !indicesNow.TryGetValue(kv.Key, out var v) || v != kv.Value
+                );
+            if (differ)
+                state.ColumnDisplayIndex = indicesNow;
         }
+
+        // no helpers needed beyond capture/apply in adapter
     }
 }

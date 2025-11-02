@@ -31,6 +31,7 @@ namespace ReactiveUITK.Elements
             // Column layout persistence (by column name)
             public Dictionary<string, float> ColumnWidths = new();
             public Dictionary<string, bool> ColumnVisibility = new();
+            public Dictionary<string, int> ColumnDisplayIndex = new();
             public IElementStateTracker<MultiColumnTreeView, Cached> LayoutTracker =
                 new MultiColumnLayoutTracker();
 
@@ -40,6 +41,10 @@ namespace ReactiveUITK.Elements
                 new MultiColumnSortTracker();
             public Delegate UserSortNotify;
             public Action InternalSortHandler;
+
+            // Layout/order polling handle
+            public IVisualElementScheduledItem OrderPoll;
+            public bool HeaderOrderHookAttached;
         }
 
         private static HostContext host;
@@ -257,6 +262,8 @@ namespace ReactiveUITK.Elements
                     if (!same)
                     {
                         RebuildColumns(tv, list, parts);
+                        // Reapply layout after columns are rebuilt so order/width/visibility persist
+                        parts.LayoutTracker.Reapply(tv, parts, null, properties);
                     }
                 }
 
@@ -361,6 +368,8 @@ namespace ReactiveUITK.Elements
                 parts.ColSig = sig;
                 parts.CellFns = fns;
                 RebuildColumns(tv, list, parts);
+                // Reapply layout after columns are rebuilt so order/width/visibility persist
+                parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             ApplySlotsDiff(tv, previous, next);
 
@@ -419,9 +428,74 @@ namespace ReactiveUITK.Elements
         )
         {
             tv.columns.Clear();
-            int idx = 0;
-            foreach (var c in cols)
+
+            // Materialize and sort incoming column descriptors by saved display index (if any)
+            var colList = cols?.ToList() ?? new List<Dictionary<string, object>>();
+            var withKey = new List<(Dictionary<string, object> c, string name, int orig)>();
+            for (int i = 0; i < colList.Count; i++)
             {
+                var c = colList[i];
+                object nObj = null;
+                if (c != null)
+                    c.TryGetValue("name", out nObj);
+                var name = nObj as string;
+                withKey.Add((c, string.IsNullOrEmpty(name) ? null : name, i));
+            }
+
+            if (parts?.ColumnDisplayIndex != null && parts.ColumnDisplayIndex.Count > 0)
+            {
+                withKey.Sort(
+                    (a, b) =>
+                    {
+                        bool ah =
+                            a.name != null
+                            && parts.ColumnDisplayIndex.TryGetValue(a.name, out var ai);
+                        bool bh =
+                            b.name != null
+                            && parts.ColumnDisplayIndex.TryGetValue(b.name, out var bi);
+                        if (ah && bh)
+                        {
+                            var aiVal = parts.ColumnDisplayIndex[a.name];
+                            var biVal = parts.ColumnDisplayIndex[b.name];
+                            int cmp = aiVal.CompareTo(biVal);
+                            if (cmp != 0)
+                                return cmp;
+                            return a.orig.CompareTo(b.orig);
+                        }
+                        if (ah && !bh)
+                            return -1;
+                        if (!ah && bh)
+                            return 1;
+                        return a.orig.CompareTo(b.orig);
+                    }
+                );
+            }
+
+            // Build a name -> cell function map to keep cell rendering bound to column name,
+            // regardless of visual reordering.
+            var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
+            if (
+                parts?.ColSig != null
+                && parts?.CellFns != null
+                && parts.ColSig.Count == parts.CellFns.Count
+            )
+            {
+                for (int i = 0; i < parts.ColSig.Count; i++)
+                {
+                    var keyName = parts.ColSig[i].Item1;
+                    if (!string.IsNullOrEmpty(keyName))
+                    {
+                        var fn = parts.CellFns[i];
+                        if (fn != null)
+                            cellFnByName[keyName] = fn;
+                    }
+                }
+            }
+
+            int idx = 0;
+            foreach (var entry in withKey)
+            {
+                var c = entry.c;
                 c.TryGetValue("title", out var t);
                 c.TryGetValue("name", out var n);
                 var col = new Column { title = t as string };
@@ -487,10 +561,19 @@ namespace ReactiveUITK.Elements
                         catch { }
                         ve.Add(entry.mount);
                     }
-                    var fn =
-                        parts.CellFns != null && captured < parts.CellFns.Count
-                            ? parts.CellFns[captured]
-                            : null;
+                    Func<int, object, VirtualNode> fn = null;
+                    // Prefer binding by column name to keep stable after reordering
+                    if (
+                        !string.IsNullOrEmpty(col.name)
+                        && cellFnByName.TryGetValue(col.name, out var byName)
+                    )
+                    {
+                        fn = byName;
+                    }
+                    else if (parts.CellFns != null && captured < parts.CellFns.Count)
+                    {
+                        fn = parts.CellFns[captured];
+                    }
                     if (fn != null)
                     {
                         var vnode = fn(rowIndex, item);

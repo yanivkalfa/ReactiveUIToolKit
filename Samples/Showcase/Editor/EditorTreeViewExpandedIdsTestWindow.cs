@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -69,6 +68,8 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             };
             mctv.columns.Add(colName);
             mctv.columns.Add(colId);
+
+            // No diagnostic logging; keep the example minimal
 
             if (mctvRows.Count == 0)
             {
@@ -163,6 +164,8 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             mctvDefault.columns.Add(defColName);
             mctvDefault.columns.Add(defColId);
 
+            // Hook column order logging for default-sorting view
+
             if (mctvDefaultRows.Count == 0)
             {
                 mctvDefaultRows.Add(
@@ -252,8 +255,11 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             };
 
             rootVisualElement.Add(mctvDefault);
-        }
 
+            // Add a manual dump button
+            var dumpBtn = new Button(() => { }) { text = "Dump Column Orders" };
+            rootVisualElement.Add(dumpBtn);
+        }
 
         private sealed class RowData
         {
@@ -321,123 +327,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             return string.Empty;
         }
 
-        private static string DumpObject(object obj)
-        {
-            var sb = new StringBuilder();
-            if (obj == null)
-            {
-                sb.AppendLine("<null>");
-                return sb.ToString();
-            }
-
-            var t = obj.GetType();
-            sb.AppendLine($"Object Type: {t.FullName}");
-
-            if (obj is System.Collections.IEnumerable en && !(obj is string))
-            {
-                sb.AppendLine("Enumerable contents:");
-                int idx = 0;
-                foreach (var it in en)
-                {
-                    sb.AppendLine($" [{idx}] {FormatValue(it)}");
-                    idx++;
-                    if (idx >= 200)
-                    {
-                        sb.AppendLine(" ...truncated...");
-                        break;
-                    }
-                }
-                if (idx == 0)
-                    sb.AppendLine(" (empty)");
-            }
-
-            try
-            {
-                var props = t.GetProperties(
-                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                if (props.Length > 0)
-                {
-                    sb.AppendLine("Properties:");
-                    foreach (var p in props.OrderBy(p => p.Name))
-                    {
-                        object val = null;
-                        try
-                        {
-                            val = p.GetValue(obj);
-                        }
-                        catch (Exception ex)
-                        {
-                            val = $"<err: {ex.Message}>";
-                        }
-                        sb.AppendLine($" {p.PropertyType.Name} {p.Name} = {FormatValue(val)}");
-                    }
-                }
-            }
-            catch { }
-
-            try
-            {
-                var fields = t.GetFields(
-                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic
-                );
-                if (fields.Length > 0)
-                {
-                    sb.AppendLine("Fields:");
-                    foreach (var f in fields.OrderBy(f => f.Name))
-                    {
-                        object val = null;
-                        try
-                        {
-                            val = f.GetValue(obj);
-                        }
-                        catch (Exception ex)
-                        {
-                            val = $"<err: {ex.Message}>";
-                        }
-                        sb.AppendLine($" {f.FieldType.Name} {f.Name} = {FormatValue(val)}");
-                    }
-                }
-            }
-            catch { }
-
-            try
-            {
-                var methods = t.GetMethods(
-                    BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly
-                );
-                if (methods.Length > 0)
-                {
-                    sb.AppendLine("Methods:");
-                    foreach (var m in methods.OrderBy(m => m.Name))
-                    {
-                        var parameters = string.Join(
-                            ", ",
-                            m.GetParameters().Select(p => p.ParameterType.Name + " " + p.Name)
-                        );
-                        sb.AppendLine($" {m.ReturnType.Name} {m.Name}({parameters})");
-                    }
-                }
-            }
-            catch { }
-
-            return sb.ToString();
-        }
-
-        private static string FormatValue(object v)
-        {
-            if (v == null)
-                return "<null>";
-            try
-            {
-                if (v is string)
-                    return '"' + v.ToString() + '"';
-                return v.ToString();
-            }
-            catch
-            {
-                return "<err>";
-            }
-        }
+        // Diagnostics helpers removed
     }
 }
