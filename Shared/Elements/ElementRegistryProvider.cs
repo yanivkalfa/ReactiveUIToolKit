@@ -16,6 +16,8 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "TextField");
                 RegisterIfAllowed(registry, "ListView");
                 RegisterIfAllowed(registry, "MultiColumnListView");
+                RegisterIfAllowed(registry, "TreeView");
+                RegisterIfAllowed(registry, "MultiColumnTreeView");
                 RegisterIfAllowed(registry, "Label");
                 RegisterIfAllowed(registry, "GroupBox");
                 RegisterIfAllowed(registry, "Toggle");
@@ -29,6 +31,8 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "SliderInt");
                 RegisterIfAllowed(registry, "DropdownField");
                 RegisterIfAllowed(registry, "Foldout");
+                RegisterIfAllowed(registry, "Tab");
+                RegisterIfAllowed(registry, "TabView");
 #if UNITY_EDITOR
                 RegisterIfAllowed(registry, "HelpBox");
 #endif
@@ -46,6 +50,8 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "TextField", allowedSet);
             RegisterIfAllowed(registry, "ListView", allowedSet);
             RegisterIfAllowed(registry, "MultiColumnListView", allowedSet);
+            RegisterIfAllowed(registry, "TreeView", allowedSet);
+            RegisterIfAllowed(registry, "MultiColumnTreeView", allowedSet);
             RegisterIfAllowed(registry, "Label", allowedSet);
             RegisterIfAllowed(registry, "GroupBox", allowedSet);
             RegisterIfAllowed(registry, "Toggle", allowedSet);
@@ -59,6 +65,8 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "SliderInt", allowedSet);
             RegisterIfAllowed(registry, "DropdownField", allowedSet);
             RegisterIfAllowed(registry, "Foldout", allowedSet);
+            RegisterIfAllowed(registry, "Tab", allowedSet);
+            RegisterIfAllowed(registry, "TabView", allowedSet);
 #if UNITY_EDITOR
             RegisterIfAllowed(registry, "HelpBox", allowedSet);
 #endif
@@ -89,7 +97,19 @@ namespace ReactiveUITK.Elements
                         registry.Register("ListView", new ListViewElementAdapter());
                         break;
                     case "MultiColumnListView":
-                        registry.Register("MultiColumnListView", new MultiColumnListViewElementAdapter());
+                        registry.Register(
+                            "MultiColumnListView",
+                            new MultiColumnListViewElementAdapter()
+                        );
+                        break;
+                    case "TreeView":
+                        registry.Register("TreeView", new TreeViewElementAdapter());
+                        break;
+                    case "MultiColumnTreeView":
+                        registry.Register(
+                            "MultiColumnTreeView",
+                            new MultiColumnTreeViewElementAdapter()
+                        );
                         break;
                     case "Label":
                         registry.Register("Label", new LabelElementAdapter());
@@ -129,6 +149,12 @@ namespace ReactiveUITK.Elements
                         break;
                     case "Foldout":
                         registry.Register("Foldout", new FoldoutElementAdapter());
+                        break;
+                    case "Tab":
+                        registry.Register("Tab", new TabElementAdapter());
+                        break;
+                    case "TabView":
+                        registry.Register("TabView", new TabViewElementAdapter());
                         break;
 #if UNITY_EDITOR
                     case "HelpBox":

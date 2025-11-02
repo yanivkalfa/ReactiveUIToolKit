@@ -303,7 +303,7 @@ namespace ReactiveUITK.Samples.Shared
                 (FlexDirection, "column"),
             };
             var barSlotStyle = new Style { (FlexShrink, 0f), (MinHeight, 110f) };
-            var mainScrollStyle = new Style { (FlexGrow, 1f) };
+            var mainScrollStyle = new Style { (FlexGrow, 1f), (PaddingBottom, 20f) };
 
             var groupBox1ContentStyle = new Style { (PaddingLeft, 6f), (PaddingTop, 4f) };
 
@@ -378,6 +378,387 @@ namespace ReactiveUITK.Samples.Shared
                 Choices = ddChoices,
                 Value = ddValue,
                 OnChange = e => setDdValue(e.newValue),
+            };
+
+            var treeRootItems = Hooks.UseMemo(
+                () =>
+                {
+                    var c1 = new List<UnityEngine.UIElements.TreeViewItemData<object>>
+                    {
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            11,
+                            new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Child 1",
+                            },
+                            null
+                        ),
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            12,
+                            new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Child 2",
+                            },
+                            null
+                        ),
+                    };
+                    var c2 = new List<UnityEngine.UIElements.TreeViewItemData<object>>
+                    {
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            21,
+                            new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Child A",
+                            },
+                            null
+                        ),
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            22,
+                            new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Child B",
+                            },
+                            null
+                        ),
+                    };
+                    var roots = new List<UnityEngine.UIElements.TreeViewItemData<object>>
+                    {
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            1,
+                            new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Root 1",
+                            },
+                            c1
+                        ),
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            2,
+                            new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Root 2",
+                            },
+                            c2
+                        ),
+                    };
+                    return roots;
+                },
+                0
+            );
+            var treeRowRenderer = Hooks.UseMemo(
+                () =>
+                    (Func<int, object, VirtualNode>)(
+                        (i, obj) =>
+                        {
+                            if (obj is VirtualNode vn)
+                            {
+                                return vn;
+                            }
+                            var it = obj as SharedRowItem;
+                            return V.Label(new LabelProps { Text = it?.Text ?? "<null>" });
+                        }
+                    ),
+                0
+            );
+            var treeViewProps = new TreeViewProps
+            {
+                RootItems = treeRootItems,
+                Selection = UnityEngine.UIElements.SelectionType.None,
+                FixedItemHeight = 20f,
+                Row = treeRowRenderer,
+            };
+            var mctvColumns = Hooks.UseMemo(
+                () =>
+                    new List<MultiColumnTreeViewProps.ColumnDef>
+                    {
+                        new()
+                        {
+                            Title = "Name",
+                            Width = 180f,
+                            Cell = (i, obj) =>
+                            {
+                                var it = obj as SharedRowItem;
+                                return V.Label(new LabelProps { Text = it?.Text ?? string.Empty });
+                            },
+                        },
+                        new()
+                        {
+                            Title = "ID",
+                            Width = 160f,
+                            Cell = (i, obj) =>
+                            {
+                                var it = obj as SharedRowItem;
+                                var id = it?.Id ?? string.Empty;
+                                var s = id.Length > 6 ? id.Substring(0, 6) : id;
+                                return V.VisualElement(
+                                    new Dictionary<string, object>
+                                    {
+                                        {
+                                            "style",
+                                            new Style { (TextColor, "red") }
+                                        },
+                                    },
+                                    null,
+                                    V.Label(new LabelProps { Text = s })
+                                );
+                            },
+                        },
+                    },
+                treeRootItems?.Count ?? 0
+            );
+            var mctvProps = new MultiColumnTreeViewProps
+            {
+                RootItems = treeRootItems,
+                Selection = UnityEngine.UIElements.SelectionType.None,
+                FixedItemHeight = 20f,
+                Columns = mctvColumns,
+            };
+            // Dynamic Tree tab state for add/delete/set
+            var (treePairs, setTreePairs) = Hooks.UseState(
+                new List<(
+                    SharedRowItem parent,
+                    SharedRowItem childLabel,
+                    bool hasChild,
+                    bool childAsFunc
+                )>()
+            );
+            var (treeNextIsParent, setTreeNextIsParent) = Hooks.UseState(true);
+            var combinedTreeRoots = new List<UnityEngine.UIElements.TreeViewItemData<object>>(
+                treeRootItems ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
+            );
+            for (int i = 0; i < treePairs.Count; i++)
+            {
+                var pair = treePairs[i];
+                int pid = 1000 + (i * 2);
+                List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
+                if (pair.hasChild)
+                {
+                    object childData = pair.childAsFunc
+                        ? (object)
+                            ReactiveUITK.V.Func(
+                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render,
+                                null,
+                                $"tv-child-{pid}"
+                            )
+                        : (object)(
+                            pair.childLabel
+                            ?? new SharedRowItem
+                            {
+                                Id = System.Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                            }
+                        );
+                    ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
+                    {
+                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                            pid + 1,
+                            childData,
+                            null
+                        ),
+                    };
+                }
+                combinedTreeRoots.Add(
+                    new UnityEngine.UIElements.TreeViewItemData<object>(pid, pair.parent, ch)
+                );
+            }
+
+            var tabViewProps = new TabViewProps
+            {
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                    new()
+                    {
+                        Title = "Intro",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render
+                            ),
+                    },
+                    new()
+                    {
+                        Title = "Tree",
+                        Content = () =>
+                        {
+                            // Compose combined roots: initial + dynamic
+                            var combined =
+                                new List<UnityEngine.UIElements.TreeViewItemData<object>>(
+                                    treeRootItems
+                                        ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
+                                );
+                            for (int i = 0; i < treePairs.Count; i++)
+                            {
+                                var pair = treePairs[i];
+                                int pid = 1000 + (i * 2);
+                                List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
+                                if (pair.hasChild)
+                                {
+                                    object childData = pair.childAsFunc
+                                        ? (object)
+                                            ReactiveUITK.V.Func(
+                                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render,
+                                                null,
+                                                $"tv-child-{pid}"
+                                            )
+                                        : (object)(
+                                            pair.childLabel
+                                            ?? new SharedRowItem
+                                            {
+                                                Id = System.Guid.NewGuid().ToString("N"),
+                                                Text = "Child",
+                                            }
+                                        );
+                                    ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
+                                    {
+                                        new UnityEngine.UIElements.TreeViewItemData<object>(
+                                            pid + 1,
+                                            childData,
+                                            null
+                                        ),
+                                    };
+                                }
+                                combined.Add(
+                                    new UnityEngine.UIElements.TreeViewItemData<object>(
+                                        pid,
+                                        pair.parent,
+                                        ch
+                                    )
+                                );
+                            }
+
+                            var addBtn = new ButtonProps
+                            {
+                                Text = "Add",
+                                OnClick = () =>
+                                {
+                                    var copy = new List<(
+                                        SharedRowItem parent,
+                                        SharedRowItem childLabel,
+                                        bool hasChild,
+                                        bool childAsFunc
+                                    )>(treePairs);
+                                    if (treeNextIsParent)
+                                    {
+                                        copy.Add(
+                                            (
+                                                new SharedRowItem
+                                                {
+                                                    Id = System.Guid.NewGuid().ToString("N"),
+                                                    Text = $"Parent {copy.Count + 1}",
+                                                },
+                                                null,
+                                                false,
+                                                false
+                                            )
+                                        );
+                                        setTreePairs(copy);
+                                        setTreeNextIsParent(false);
+                                    }
+                                    else if (copy.Count > 0)
+                                    {
+                                        var last = copy[copy.Count - 1];
+                                        last.hasChild = true;
+                                        last.childAsFunc = true;
+                                        if (last.childLabel == null)
+                                            last.childLabel = new SharedRowItem
+                                            {
+                                                Id = System.Guid.NewGuid().ToString("N"),
+                                                Text = "Child",
+                                            };
+                                        copy[copy.Count - 1] = last;
+                                        setTreePairs(copy);
+                                        setTreeNextIsParent(true);
+                                    }
+                                },
+                            };
+                            var delBtn = new ButtonProps
+                            {
+                                Text = "Delete",
+                                OnClick = () =>
+                                {
+                                    var copy = new List<(
+                                        SharedRowItem parent,
+                                        SharedRowItem childLabel,
+                                        bool hasChild,
+                                        bool childAsFunc
+                                    )>(treePairs);
+                                    if (copy.Count == 0)
+                                        return;
+                                    if (treeNextIsParent)
+                                    {
+                                        var last = copy[copy.Count - 1];
+                                        if (last.hasChild)
+                                        {
+                                            last.hasChild = false;
+                                            last.childAsFunc = false;
+                                            copy[copy.Count - 1] = last;
+                                            setTreePairs(copy);
+                                            setTreeNextIsParent(false);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        copy.RemoveAt(copy.Count - 1);
+                                        setTreePairs(copy);
+                                        setTreeNextIsParent(true);
+                                    }
+                                },
+                            };
+                            var setBtn = new ButtonProps
+                            {
+                                Text = "SetValue",
+                                OnClick = () =>
+                                {
+                                    var copy = new List<(
+                                        SharedRowItem parent,
+                                        SharedRowItem childLabel,
+                                        bool hasChild,
+                                        bool childAsFunc
+                                    )>(treePairs);
+                                    if (copy.Count == 0)
+                                        return;
+                                    var last = copy[copy.Count - 1];
+                                    string stamp = System.DateTime.Now.ToString("HH:mm:ss");
+                                    if (treeNextIsParent)
+                                    {
+                                        if (last.hasChild)
+                                        {
+                                            last.childAsFunc = false;
+                                            if (last.childLabel == null)
+                                                last.childLabel = new SharedRowItem
+                                                {
+                                                    Id = System.Guid.NewGuid().ToString("N"),
+                                                };
+                                            last.childLabel.Text = $"{last.childLabel.Id} {stamp}";
+                                            copy[copy.Count - 1] = last;
+                                            setTreePairs(copy);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        if (last.parent == null)
+                                            last.parent = new SharedRowItem
+                                            {
+                                                Id = System.Guid.NewGuid().ToString("N"),
+                                            };
+                                        last.parent.Text = $"{last.parent.Id} {stamp}";
+                                        copy[copy.Count - 1] = last;
+                                        setTreePairs(copy);
+                                    }
+                                },
+                            };
+
+                            return V.Func(TreeViewStatefulDemoFunc.Render);
+                        },
+                    },
+                    new() { Title = "Columns", Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render) },
+                },
+                // Reserve space for the TabView body so content is visible
+                Style = new Style { (Height, 240f) },
             };
 
             // Build Values bar items
@@ -597,6 +978,7 @@ namespace ReactiveUITK.Samples.Shared
                             V.RepeatButton(repeatButtonProps)
                         )
                     ),
+                    
                     // New components demo section
                     V.GroupBox(
                         newComponentsGroupProps,
@@ -648,16 +1030,15 @@ namespace ReactiveUITK.Samples.Shared
                                 Style = new Style { (MarginTop, 4f), (Width, 140f), (Height, 24f) },
                             }
                         ),
-                        V.Animate(
-                            new AnimateProps { Tracks = multiTracks },
-                            null,
-                            V.VisualElement(
-                                new Dictionary<string, object> { { "style", animCardStyle } },
-                                null,
-                                V.Label(new LabelProps { Text = "Animated Card" })
-                            )
-                        ),
-                        // MultiColumnListView demo
+                        // V.Animate(
+                        //     new AnimateProps { Tracks = multiTracks },
+                        //     null,
+                        //     V.VisualElement(
+                        //         new Dictionary<string, object> { { "style", animCardStyle } },
+                        //         null,
+                        //         V.Label(new LabelProps { Text = "Animated Card" })
+                        //     )
+                        // ),
                         V.Label(new LabelProps { Text = "MultiColumnListView" }),
                         V.Button(addTableItemButtonProps),
                         V.MultiColumnListView(
@@ -756,7 +1137,9 @@ namespace ReactiveUITK.Samples.Shared
                                 ),
                             }
                         )
-                    )
+                    ),
+                    V.Label(new LabelProps { Text = "TabView + TreeView" }),
+                    V.TabView(tabViewProps)
                 );
 
             // Outer wrapper (blue full-screen) -> Safe area wrapper (green)
