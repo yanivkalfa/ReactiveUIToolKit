@@ -24,6 +24,30 @@ namespace ReactiveUITK.Samples.Shared
         {
             var (rows, setRows) = Hooks.UseState(new List<RowData>());
 
+            // Notify parent of current displayed row count (roots + children) if requested
+            try
+            {
+                int countValue = 0;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    countValue += 1;
+                    if (rows[i]?.HasChild == true) countValue += 1;
+                }
+                if (props != null && props.TryGetValue("onCountChanged", out var oc) && oc is Action<int> cb)
+                {
+                    // Fire only when count changes
+                    Hooks.UseEffect(
+                        () =>
+                        {
+                            try { cb(countValue); } catch { }
+                            return null;
+                        },
+                        new object[] { countValue }
+                    );
+                }
+            }
+            catch { }
+
             Func<List<TreeViewItemData<object>>> buildRoots = () =>
             {
                 var combined = new List<TreeViewItemData<object>>();

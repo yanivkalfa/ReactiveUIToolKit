@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
@@ -130,73 +131,7 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 Array.Empty<object>()
             );
-            var initialItems = Hooks.UseMemo(() =>
-            {
-                var seededItems = new List<SharedRowItem>();
-                for (int i = 1; i <= 5; i++)
-                    seededItems.Add(
-                        new SharedRowItem { Id = Guid.NewGuid().ToString("N"), Text = $"Item {i}" }
-                    );
-                return seededItems;
-            });
-            var (listItems, setListItems) = Hooks.UseState(initialItems);
-            // Separate state for table view (independent from ListView)
-            var (tableItems, setTableItems) = Hooks.UseState(initialItems);
-            var listRowRenderer = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (index, itemObj) =>
-                        {
-                            var typedItem = itemObj as SharedRowItem;
-                            return V.Func(
-                                SharedListViewRow.Render,
-                                new Dictionary<string, object>
-                                {
-                                    { "item", typedItem },
-                                    { "index", index },
-                                    {
-                                        "onRemove",
-                                        (Action<SharedRowItem>)(
-                                            removeItem =>
-                                            {
-                                                if (removeItem == null)
-                                                {
-                                                    return;
-                                                }
-                                                var copy = new List<SharedRowItem>(listItems);
-                                                int foundIndex = copy.FindIndex(r =>
-                                                    r.Id == removeItem.Id
-                                                );
-                                                if (foundIndex >= 0)
-                                                {
-                                                    copy.RemoveAt(foundIndex);
-                                                    setListItems(copy);
-                                                }
-                                            }
-                                        )
-                                    },
-                                },
-                                key: typedItem != null
-                                    ? $"{typedItem.Id}-{index}"
-                                    : $"row-missing-{index}"
-                            );
-                        }
-                    ),
-                listItems
-            );
-            ListViewProps listViewProps = new()
-            {
-                Items = listItems,
-                FixedItemHeight = 20f,
-                Selection = UnityEngine.UIElements.SelectionType.None,
-                Row = listRowRenderer,
-            };
-            ButtonProps toggleListButtonProps = new()
-            {
-                Text = isListVisible ? "Hide List" : "Show List",
-                OnClick = () => setListVisible(!isListVisible),
-                Style = new Style { (MarginTop, 8f), (Width, 120f), (Height, 28f) },
-            };
+            // Inline ListView demo removed; keep input and other controls
             TextFieldProps inputTextFieldProps = new()
             {
                 Style = TextInputStyle,
@@ -208,61 +143,8 @@ namespace ReactiveUITK.Samples.Shared
                     : ("Value: " + inputText),
                 OnChange = e => setInputText(e.newValue),
             };
-            ButtonProps updateFirstItemButtonProps = new()
-            {
-                Text = "Change First Item",
-                OnClick = () =>
-                {
-                    if (listItems.Count > 0)
-                    {
-                        var copy = new List<SharedRowItem>(listItems);
-                        copy[0] = new SharedRowItem
-                        {
-                            Id = copy[0].Id,
-                            Text = "UPDATED " + DateTime.Now.ToLongTimeString(),
-                        };
-                        setListItems(copy);
-                    }
-                },
-                Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) },
-            };
-            ButtonProps addListItemButtonProps = new()
-            {
-                Text = "Add Item (ListView)",
-                OnClick = () =>
-                {
-                    var copy = new List<SharedRowItem>(listItems.Count + 1);
-                    copy.Add(
-                        new SharedRowItem
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
-                        }
-                    );
-                    copy.AddRange(listItems);
-                    setListItems(copy);
-                },
-                Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
-            };
-            ButtonProps addTableItemButtonProps = new()
-            {
-                Text = "Add Item (Table)",
-                OnClick = () =>
-                {
-                    var copy = new List<SharedRowItem>((tableItems?.Count ?? 0) + 1);
-                    copy.Add(
-                        new SharedRowItem
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
-                        }
-                    );
-                    if (tableItems != null)
-                        copy.AddRange(tableItems);
-                    setTableItems(copy);
-                },
-                Style = new Style { (MarginTop, 8f), (Width, 180f), (Height, 28f) },
-            };
+            // Removed inline ListView change/add buttons
+            // removed inline table add button (handled in MultiColumnListViewStatefulDemoFunc)
             var listFadeTracks = Hooks.UseMemo(
                 () =>
                     new List<AnimateTrack>
@@ -278,17 +160,7 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 isListVisible
             );
-            var listContent = isListVisible
-                ? V.Animate(
-                    new AnimateProps { Tracks = listFadeTracks },
-                    null,
-                    V.VisualElement(
-                        new Dictionary<string, object> { { "style", ListContainerStyle } },
-                        null,
-                        V.ListView(listViewProps)
-                    )
-                )
-                : V.Text("List hidden");
+            // Removed inline ListView content rendering
 
             // Extracted styles (avoid inline styles/props below)
             var outerWrapperStyle = new Style
@@ -567,6 +439,15 @@ namespace ReactiveUITK.Samples.Shared
                 );
             }
 
+            // Removed tab content animations
+            // Track TreeView displayed row count for Values bar
+            var (treeDisplayCount, setTreeDisplayCount) = Hooks.UseState(0);
+
+            // Track MultiColumnTreeView displayed row count for Values bar
+            var (mctvDisplayCount, setMctvDisplayCount) = Hooks.UseState(0);
+            // Track MultiColumnListView displayed row count for Values bar
+            var (mclvDisplayCount, setMclvDisplayCount) = Hooks.UseState(0);
+
             var tabViewProps = new TabViewProps
             {
                 Tabs = new List<TabViewProps.TabDef>
@@ -752,16 +633,136 @@ namespace ReactiveUITK.Samples.Shared
                                 },
                             };
 
-                            return V.Func(TreeViewStatefulDemoFunc.Render);
+                            return V.Func(
+                                TreeViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(
+                                            c =>
+                                            {
+                                                if (c != treeDisplayCount)
+                                                    setTreeDisplayCount(c);
+                                            }
+                                        )
+                                    },
+                                }
+                            );
                         },
                     },
-                    new() { Title = "Columns", Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render) },
+                    new()
+                    {
+                        Title = "Columns",
+                        Content = () =>
+                            V.Func(
+                                MultiColumnTreeViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(
+                                            c =>
+                                            {
+                                                if (c != mctvDisplayCount)
+                                                    setMctvDisplayCount(c);
+                                            }
+                                        )
+                                    },
+                                }
+                            ),
+                    },
                 },
                 // Reserve space for the TabView body so content is visible
                 Style = new Style { (Height, 240f) },
             };
 
+            // List TabView
+            // Receive simple ListView count from child component
+            var (simpleListCount, setSimpleListCount) = Hooks.UseState(0);
+
+            var listTabViewProps = new TabViewProps
+            {
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                    new()
+                    {
+                        Title = "Intro",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render
+                            ),
+                    },
+                    new()
+                    {
+                        Title = "List",
+                        Content = () =>
+                        {
+                            return ReactiveUITK.V.Func(
+                                ReactiveUITK.Samples.Shared.ListViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(
+                                            c =>
+                                            {
+                                                if (c != simpleListCount)
+                                                    setSimpleListCount(c);
+                                            }
+                                        )
+                                    },
+                                }
+                            );
+                        },
+                    },
+                    new()
+                    {
+                        Title = "Columns",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                ReactiveUITK
+                                    .Samples
+                                    .Shared
+                                    .MultiColumnListViewStatefulDemoFunc
+                                    .Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(
+                                            c =>
+                                            {
+                                                if (c != mclvDisplayCount)
+                                                    setMclvDisplayCount(c);
+                                            }
+                                        )
+                                    },
+                                }
+                            ),
+                    },
+                },
+                Style = new Style { (Height, 240f) },
+            };
+
+            // Toggle visibility of each TabView (state on main component)
+            var (showTreeTabs, setShowTreeTabs) = Hooks.UseState(true);
+            var (showListTabs, setShowListTabs) = Hooks.UseState(true);
+            var toggleTreeTabsBtn = new ButtonProps
+            {
+                Text = showTreeTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
+                OnClick = () => setShowTreeTabs(!showTreeTabs),
+            };
+            var toggleListTabsBtn = new ButtonProps
+            {
+                Text = showListTabs ? "Hide List Tabs" : "Show List Tabs",
+                OnClick = () => setShowListTabs(!showListTabs),
+            };
+
             // Build Values bar items
+            // ListCount shows sum of: TreeView + MultiColumnTreeView + ListView + MultiColumnListView
+            int totalListCount =
+                treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
             var valuesItems = new List<KeyValuePair<string, string>>
             {
                 new("TextField", inputText ?? string.Empty),
@@ -773,7 +774,7 @@ namespace ReactiveUITK.Samples.Shared
                 new("Dropdown", ddValue ?? string.Empty),
                 new("Repeat", repeatClickCount.ToString()),
                 new("Time", currentTime.ToLongTimeString()),
-                new("ListCount", listItems?.Count.ToString() ?? "0"),
+                new("ListCount", totalListCount.ToString()),
             };
 
             // Props for frequently used controls (avoid inline props)
@@ -951,10 +952,6 @@ namespace ReactiveUITK.Samples.Shared
                         )
                     ),
                     V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
-                    V.Button(toggleListButtonProps),
-                    V.Button(updateFirstItemButtonProps),
-                    V.Button(addListItemButtonProps),
-                    listContent,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
                         key: "extras",
@@ -978,7 +975,6 @@ namespace ReactiveUITK.Samples.Shared
                             V.RepeatButton(repeatButtonProps)
                         )
                     ),
-                    
                     // New components demo section
                     V.GroupBox(
                         newComponentsGroupProps,
@@ -1019,127 +1015,120 @@ namespace ReactiveUITK.Samples.Shared
                         ),
 #endif
                         // Dropdown demo
-                        V.DropdownField(dropdownProps),
-                        // Multi-attribute animation example
-                        V.Label(new LabelProps { Text = "Multi-Attr Animation" }),
-                        V.Button(
-                            new ButtonProps
+                        V.DropdownField(dropdownProps)
+                    ),
+                    // Toggle buttons to show/hide each TabView (grouped separately)
+                    V.VisualElement(
+                        null,
+                        null,
+                        V.Button(toggleTreeTabsBtn),
+                        V.Label(
+                            new LabelProps
                             {
-                                Text = "Play Multi-Anim",
-                                OnClick = () => setAnimNonce(animNonce + 1),
-                                Style = new Style { (MarginTop, 4f), (Width, 140f), (Height, 24f) },
+                                Text = "TabView + TreeView",
+                                Style = new Style
+                                {
+                                    (FontSize, 16f),
+                                    (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
+                                },
                             }
                         ),
-                        // V.Animate(
-                        //     new AnimateProps { Tracks = multiTracks },
-                        //     null,
-                        //     V.VisualElement(
-                        //         new Dictionary<string, object> { { "style", animCardStyle } },
-                        //         null,
-                        //         V.Label(new LabelProps { Text = "Animated Card" })
-                        //     )
-                        // ),
-                        V.Label(new LabelProps { Text = "MultiColumnListView" }),
-                        V.Button(addTableItemButtonProps),
-                        V.MultiColumnListView(
-                            new MultiColumnListViewProps
+                        (showTreeTabs ? V.TabView(tabViewProps) : V.Text("Tree tabs hidden"))
+                    ),
+                    V.VisualElement(
+                        null,
+                        null,
+                        V.Button(toggleListTabsBtn),
+                        V.Label(
+                            new LabelProps
                             {
-                                Items = tableItems,
-                                Selection = UnityEngine.UIElements.SelectionType.None,
-                                FixedItemHeight = 20f,
-                                Columns = Hooks.UseMemo(
-                                    () =>
-                                        new List<MultiColumnListViewProps.ColumnDef>
-                                        {
-                                            new()
-                                            {
-                                                Title = "ID",
-                                                Width = 140f,
-                                                MinWidth = 100f,
-                                                Resizable = true,
-                                                Stretchable = true,
-                                                Cell = (i, obj) =>
-                                                {
-                                                    var it = obj as SharedRowItem;
-                                                    var id = it?.Id ?? string.Empty;
-                                                    var shortId =
-                                                        id.Length > 6 ? id.Substring(0, 6) : id;
-                                                    return V.VisualElement(
-                                                        null,
-                                                        null,
-                                                        V.Label(new LabelProps { Text = shortId })
-                                                    );
-                                                },
-                                            },
-                                            new()
-                                            {
-                                                Title = "Text",
-                                                Width = 260f,
-                                                MinWidth = 140f,
-                                                Resizable = true,
-                                                Stretchable = true,
-                                                Cell = (i, obj) =>
-                                                {
-                                                    var it = obj as SharedRowItem;
-                                                    // Render a full row-like UI to verify nested components bind per cell
-                                                    return V.Func(
-                                                        SharedListViewRow.Render,
-                                                        new Dictionary<string, object>
-                                                        {
-                                                            { "item", it },
-                                                            { "index", i },
-                                                            {
-                                                                "onRemove",
-                                                                (Action<SharedRowItem>)(
-                                                                    removeItem =>
-                                                                    {
-                                                                        if (removeItem == null)
-                                                                            return;
-                                                                        var source =
-                                                                            tableItems
-                                                                            ?? new List<SharedRowItem>();
-                                                                        var copy =
-                                                                            new List<SharedRowItem>(
-                                                                                source
-                                                                            );
-                                                                        int foundIndex =
-                                                                            copy.FindIndex(r =>
-                                                                                r != null
-                                                                                && r.Id
-                                                                                    == removeItem.Id
-                                                                            );
-                                                                        if (foundIndex < 0)
-                                                                        {
-                                                                            foundIndex =
-                                                                                copy.FindIndex(r =>
-                                                                                    ReferenceEquals(
-                                                                                        r,
-                                                                                        removeItem
-                                                                                    )
-                                                                                );
-                                                                        }
-                                                                        if (foundIndex >= 0)
-                                                                        {
-                                                                            copy.RemoveAt(
-                                                                                foundIndex
-                                                                            );
-                                                                            setTableItems(copy);
-                                                                        }
-                                                                    }
-                                                                )
-                                                            },
-                                                        }
-                                                    );
-                                                },
-                                            },
-                                        },
-                                    tableItems
-                                ),
+                                Text = "TabView + ListViews",
+                                Style = new Style
+                                {
+                                    (FontSize, 16f),
+                                    (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
+                                },
                             }
+                        ),
+                        (showListTabs ? V.TabView(listTabViewProps) : V.Text("List tabs hidden"))
+                    ),
+                    // Animations section (moved to bottom)
+                    V.Label(new LabelProps { Text = "Animations" }),
+                    // Simple flashing box
+                    V.Animate(
+                        new AnimateProps
+                        {
+                            Tracks = Hooks.UseMemo(
+                                () =>
+                                    new List<AnimateTrack>
+                                    {
+                                        new AnimateTrack
+                                        {
+                                            Property = "opacity",
+                                            From = 1f,
+                                            To = 0.3f,
+                                            Duration = 0.8f,
+                                            Ease = Ease.EaseInOutSine,
+                                            Yoyo = true,
+                                            Loop = true,
+                                        },
+                                    },
+                                0
+                            ),
+                        },
+                        null,
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (Width, 160f),
+                                        (Height, 60f),
+                                        (BackgroundColor, new UColor(0.3f, 0.6f, 0.9f, 1f)),
+                                        (BorderRadius, 6f),
+                                        (JustifyContent, "center"),
+                                        (AlignItems, "center"),
+                                        (MarginTop, 6f),
+                                    }
+                                },
+                            },
+                            null,
+                            V.Label(
+                                new LabelProps
+                                {
+                                    Text = "Flashing Box",
+                                    Style = new Style { (TextColor, UColor.white) },
+                                }
+                            )
                         )
                     ),
-                    V.Label(new LabelProps { Text = "TabView + TreeView" }),
-                    V.TabView(tabViewProps)
+                    // Animated card using existing multiTracks
+                    V.Animate(
+                        new AnimateProps { Tracks = multiTracks },
+                        null,
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (Width, 200f),
+                                        (Height, 120f),
+                                        (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
+                                        (BorderRadius, 8f),
+                                        (JustifyContent, "center"),
+                                        (AlignItems, "center"),
+                                        (MarginTop, 8f),
+                                    }
+                                },
+                            },
+                            null,
+                            V.Label(new LabelProps { Text = "Animated Card" })
+                        )
+                    )
                 );
 
             // Outer wrapper (blue full-screen) -> Safe area wrapper (green)
