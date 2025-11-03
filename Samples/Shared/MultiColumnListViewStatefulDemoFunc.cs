@@ -190,6 +190,7 @@ namespace ReactiveUITK.Samples.Shared
                 SortingMode = ColumnSortingMode.Custom,
                 SortedColumns = sortDefs,
                 ColumnSortingChanged = setSortDefs,
+                Style = new Style { (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 30f) },
             };
 
             var controls = V.VisualElement(
@@ -201,6 +202,7 @@ namespace ReactiveUITK.Samples.Shared
                         {
                             (ReactiveUITK.Props.Typed.StyleKeys.FlexDirection, "row"),
                             (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 6f),
+                            (ReactiveUITK.Props.Typed.StyleKeys.FlexShrink, 0f),
                         }
                     },
                 },

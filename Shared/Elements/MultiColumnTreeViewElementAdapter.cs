@@ -15,7 +15,8 @@ namespace ReactiveUITK.Elements
             : ISortState,
                 IColumnLayoutState,
                 IExpansionState,
-                IAdjustmentSuspendState
+                IAdjustmentSuspendState,
+                IScrollState
         {
             public IList LastRoot;
             internal List<ColumnSignature> ColSig;
@@ -65,6 +66,18 @@ namespace ReactiveUITK.Elements
                     ApplyAdjustmentFlush
                 );
             public bool DetachWired { get; set; }
+
+            // Scroll tracking/persist
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+            public IElementStateTracker<MultiColumnTreeView, Cached> ScrollTracker =
+                new MultiColumnScrollTracker<MultiColumnTreeView, Cached>(
+                    new MultiColumnScrollOps<MultiColumnTreeView>(),
+                    ApplyAdjustmentFlush
+                );
         }
 
         private static HostContext host;
@@ -224,9 +237,11 @@ namespace ReactiveUITK.Elements
             var parts = GetState(tv);
             EnsureDetachHook(tv, parts);
             parts.AdjustmentTracker.Attach(tv, parts, properties);
-            if (parts.IsAdjusting)
+            parts.ScrollTracker.Attach(tv, parts, properties);
+            if (parts.IsAdjusting || parts.IsScrolling)
             {
                 parts.AdjustmentTracker.Reapply(tv, parts, null, properties);
+                parts.ScrollTracker.Reapply(tv, parts, null, properties);
                 return;
             }
             if (properties != null)
@@ -337,9 +352,11 @@ namespace ReactiveUITK.Elements
             var parts = GetState(tv);
             EnsureDetachHook(tv, parts);
             parts.AdjustmentTracker.Attach(tv, parts, next);
-            if (parts.IsAdjusting)
+            parts.ScrollTracker.Attach(tv, parts, next);
+            if (parts.IsAdjusting || parts.IsScrolling)
             {
                 parts.AdjustmentTracker.Reapply(tv, parts, previous, next);
+                parts.ScrollTracker.Reapply(tv, parts, previous, next);
                 return;
             }
             // Ensure cooperative tracker is attached with latest props
@@ -409,6 +426,7 @@ namespace ReactiveUITK.Elements
             }
 
             parts.SortTracker.Reapply(tv, parts, previous, next);
+            parts.ScrollTracker.Reapply(tv, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
             try
             {

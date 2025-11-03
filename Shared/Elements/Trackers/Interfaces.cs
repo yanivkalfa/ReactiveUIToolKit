@@ -69,4 +69,23 @@ namespace ReactiveUITK.Elements
     {
         bool IsHeaderElement(VisualElement e);
     }
+
+    // Scroll state persistence + suspend flags during active scroll interactions
+    internal interface IScrollState
+    {
+        bool IsScrolling { get; set; }
+        bool ScrollWired { get; set; }
+        IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+        IReadOnlyDictionary<string, object> PendingNext { get; set; }
+        float ScrollX { get; set; }
+        float ScrollY { get; set; }
+        int ScrollActivityId { get; set; }
+    }
+
+    // Ops to get the underlying ScrollView for a view
+    public interface IScrollOps<TView>
+        where TView : VisualElement
+    {
+        ScrollView GetScrollView(TView view);
+    }
 }

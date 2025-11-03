@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -12,11 +12,19 @@ namespace ReactiveUITK.Elements
     public sealed class MultiColumnListViewElementAdapter
         : StatefulElementAdapter<MultiColumnListView, MultiColumnListViewElementAdapter.Cached>
     {
-        public sealed class Cached : ISortState, IColumnLayoutState, IAdjustmentSuspendState
+        public sealed class Cached
+            : ISortState,
+                IColumnLayoutState,
+                IAdjustmentSuspendState,
+                IScrollState
         {
             public IList LastItems;
             internal List<ColumnSignature> LastColSignature;
             public List<Func<int, object, VirtualNode>> CellFns;
+
+            // Stable renderer pool for cells: key = rowKey|c=colIndex
+            internal Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
+                new();
 
             public List<(
                 string name,
@@ -45,6 +53,18 @@ namespace ReactiveUITK.Elements
                     ApplyAdjustmentFlush
                 );
             public bool DetachWired { get; set; }
+
+            // Scroll tracking/persist
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+            public IElementStateTracker<MultiColumnListView, Cached> ScrollTracker =
+                new MultiColumnScrollTracker<MultiColumnListView, Cached>(
+                    new MultiColumnScrollOps<MultiColumnListView>(),
+                    ApplyAdjustmentFlush
+                );
         }
 
         private static HostContext sharedHostContext;
@@ -111,9 +131,11 @@ namespace ReactiveUITK.Elements
             var parts = GetState(view);
             EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, properties);
-            if (parts.IsAdjusting)
+            parts.ScrollTracker.Attach(view, parts, properties);
+            if (parts.IsAdjusting || parts.IsScrolling)
             {
                 parts.AdjustmentTracker.Reapply(view, parts, null, properties);
+                parts.ScrollTracker.Reapply(view, parts, null, properties);
                 return;
             }
 
@@ -162,8 +184,8 @@ namespace ReactiveUITK.Elements
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
+                    parts.LastColSignature = newSig; // update before rebuild so name-based binding is correct
                     RebuildColumnsPreservingState(view, cols, parts);
-                    parts.LastColSignature = newSig;
                 }
                 else
                 {
@@ -205,9 +227,11 @@ namespace ReactiveUITK.Elements
             var parts = GetState(view);
             EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, next);
-            if (parts.IsAdjusting)
+            parts.ScrollTracker.Attach(view, parts, next);
+            if (parts.IsAdjusting || parts.IsScrolling)
             {
                 parts.AdjustmentTracker.Reapply(view, parts, previous, next);
+                parts.ScrollTracker.Reapply(view, parts, previous, next);
                 return;
             }
 
@@ -249,8 +273,8 @@ namespace ReactiveUITK.Elements
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
+                    parts.LastColSignature = newSig; // update before rebuild
                     RebuildColumnsPreservingState(view, ncols, parts);
-                    parts.LastColSignature = newSig;
                 }
                 else
                 {
@@ -269,6 +293,7 @@ namespace ReactiveUITK.Elements
             // trackers
             parts.LayoutTracker.Reapply(view, parts, previous, next);
             parts.SortTracker.Reapply(view, parts, previous, next);
+            parts.ScrollTracker.Reapply(view, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
@@ -332,6 +357,27 @@ namespace ReactiveUITK.Elements
             }
 
             view.columns.Clear();
+
+            // Build a name -> cell function map to keep cell rendering bound to column name,
+            // regardless of visual reordering.
+            var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
+            if (
+                parts?.LastColSignature != null
+                && parts?.CellFns != null
+                && parts.LastColSignature.Count == parts.CellFns.Count
+            )
+            {
+                for (int i = 0; i < parts.LastColSignature.Count; i++)
+                {
+                    var keyName = parts.LastColSignature[i].Name;
+                    if (!string.IsNullOrEmpty(keyName))
+                    {
+                        var fn = parts.CellFns[i];
+                        if (fn != null)
+                            cellFnByName[keyName] = fn;
+                    }
+                }
+            }
             int index = 0;
             int colIndex = 0;
             foreach (var co in newCols)
@@ -437,35 +483,75 @@ namespace ReactiveUITK.Elements
                 {
                     var ve = new VisualElement();
                     ve.style.flexGrow = 1;
-                    ve.userData = new VNodeHostRenderer(GetCellHostContext(), ve);
                     return ve;
                 };
                 int capturedIndex = colIndex;
                 column.bindCell = (ve, rowIndex) =>
                 {
-                    var rr = ve.userData as IVNodeHostRenderer;
-                    if (rr == null)
-                    {
-                        rr = new VNodeHostRenderer(GetCellHostContext(), ve);
-                        ve.userData = rr;
-                    }
                     object item = null;
                     if (view.itemsSource is IList il && rowIndex >= 0 && rowIndex < il.Count)
                     {
                         item = il[rowIndex];
                     }
-                    var fnList = parts.CellFns;
+                    // Stable pool entry per (row, columnIndex)
+                    var rowKey = DeriveRowKeyList(view, rowIndex, item);
+                    var key = rowKey + "|c=" + capturedIndex;
+                    if (!parts.Pool.TryGetValue(key, out var entry))
+                    {
+                        var mount = new VisualElement();
+                        try
+                        {
+                            mount.pickingMode = PickingMode.Ignore;
+                        }
+                        catch { }
+                        var rrNew = new VNodeHostRenderer(GetCellHostContext(), mount);
+                        entry = (rrNew, mount);
+                        parts.Pool[key] = entry;
+                    }
+                    if (entry.mount.parent != ve)
+                    {
+                        try
+                        {
+                            entry.mount.RemoveFromHierarchy();
+                        }
+                        catch { }
+                        ve.Add(entry.mount);
+                    }
+                    // Resolve cell function (prefer by column name)
                     Func<int, object, VirtualNode> activeFn = null;
-                    if (fnList != null && capturedIndex >= 0 && capturedIndex < fnList.Count)
-                        activeFn = fnList[capturedIndex];
+                    if (
+                        !string.IsNullOrEmpty(column.name)
+                        && cellFnByName.TryGetValue(column.name, out var byName)
+                    )
+                        activeFn = byName;
+                    else
+                    {
+                        var fnList = parts.CellFns;
+                        if (fnList != null && capturedIndex >= 0 && capturedIndex < fnList.Count)
+                            activeFn = fnList[capturedIndex];
+                    }
                     if (activeFn != null)
                     {
-                        var vnode = activeFn(rowIndex, item);
-                        rr.Render(EnsureVisualRoot(vnode));
+                        var vnode = EnsureVisualRoot(activeFn(rowIndex, item));
+                        entry.renderer.Render(vnode);
                     }
                 };
-                // Preserve existing VNodeHostRenderer across unbind to avoid remounting stateful subtrees
-                column.unbindCell = (ve, i) => { };
+                // Preserve renderers; only detach pooled mounts from recycled VE
+                column.unbindCell = (ve, i) =>
+                {
+                    foreach (var kv in parts.Pool)
+                    {
+                        var mount = kv.Value.mount;
+                        if (mount != null && mount.parent == ve)
+                        {
+                            try
+                            {
+                                mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                        }
+                    }
+                };
                 view.columns.Add(column);
                 index++;
                 colIndex++;
@@ -604,6 +690,41 @@ namespace ReactiveUITK.Elements
                     ?.ExecuteLater(0);
             }
             catch { }
+        }
+
+        private static string DeriveRowKeyList(MultiColumnListView view, int index, object item)
+        {
+            try
+            {
+                if (item != null)
+                {
+                    var t = item.GetType();
+                    var f = t.GetField(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (f?.FieldType == typeof(string))
+                    {
+                        var s = f.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                    var p = t.GetProperty(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (p?.PropertyType == typeof(string))
+                    {
+                        var s = p.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                }
+            }
+            catch { }
+            return $"row-{index}";
         }
 
         private static void EnsureDetachHook(MultiColumnListView view, Cached parts)
