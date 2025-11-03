@@ -479,12 +479,7 @@ namespace ReactiveUITK.Elements
                 else if (prev != null)
                     column.stretchable = prev.stretchable;
 
-                column.makeCell = () =>
-                {
-                    var ve = new VisualElement();
-                    ve.style.flexGrow = 1;
-                    return ve;
-                };
+                column.makeCell = () => new VisualElement();
                 int capturedIndex = colIndex;
                 column.bindCell = (ve, rowIndex) =>
                 {
