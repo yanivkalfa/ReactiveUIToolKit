@@ -156,7 +156,7 @@ namespace ReactiveUITK.Elements
             // Columns: rebuild only if semantic signature changes
             if (properties.TryGetValue("columns", out var colsObj) && colsObj is IEnumerable cols)
             {
-                var (newSig, newFns) = ExtractSignatureAndFns(cols);
+                var (newSig, newFns) = ColumnSignatureUtil.Extract(cols);
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
@@ -242,7 +242,7 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("columns", out var nextCols);
             if (nextCols is IEnumerable ncols)
             {
-                var (newSig, newFns) = ExtractSignatureAndFns(ncols);
+                var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
@@ -475,46 +475,9 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        private static (
-            List<ColumnSignature> sig,
-            List<Func<int, object, VirtualNode>> fns
-        ) ExtractSignatureAndFns(IEnumerable cols)
-        {
-            var list = new List<ColumnSignature>();
-            var fns = new List<Func<int, object, VirtualNode>>();
-            foreach (var co in cols)
-            {
-                if (co is not IDictionary<string, object> colMap)
-                    continue;
-                colMap.TryGetValue("name", out var n);
-                colMap.TryGetValue("title", out var t);
-                Func<int, object, VirtualNode> fn = null;
-                if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
-                    fn = cf;
-                list.Add(new ColumnSignature { Name = n as string, Title = t as string });
-                fns.Add(fn);
-            }
-            return (list, fns);
-        }
-
         private static bool SignaturesEqual(List<ColumnSignature> a, List<ColumnSignature> b)
         {
-            if (ReferenceEquals(a, b))
-                return true;
-            if (a == null || b == null)
-                return false;
-            if (a.Count != b.Count)
-                return false;
-            for (int i = 0; i < a.Count; i++)
-            {
-                var x = a[i];
-                var y = b[i];
-                if (!string.Equals(x.Name, y.Name, StringComparison.Ordinal))
-                    return false;
-                if (!string.Equals(x.Title, y.Title, StringComparison.Ordinal))
-                    return false;
-            }
-            return true;
+            return ColumnSignatureUtil.Equal(a, b);
         }
 
         private static void ApplySlots(
@@ -605,7 +568,7 @@ namespace ReactiveUITK.Elements
                             n.TryGetValue("columns", out var nextCols);
                             if (nextCols is IEnumerable ncols)
                             {
-                                var (newSig, newFns) = ExtractSignatureAndFns(ncols);
+                                var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
                                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                                 {
                                     parts.CellFns = newFns;

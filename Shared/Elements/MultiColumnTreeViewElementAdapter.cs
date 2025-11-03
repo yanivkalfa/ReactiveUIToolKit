@@ -375,16 +375,7 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("columns", out var nc);
             if (!ReferenceEquals(pc, nc) && nc is IEnumerable<Dictionary<string, object>> list)
             {
-                var sig = new List<ColumnSignature>();
-                var fns = new List<Func<int, object, VirtualNode>>();
-                foreach (var c in list)
-                {
-                    c.TryGetValue("name", out var n);
-                    c.TryGetValue("title", out var t);
-                    c.TryGetValue("cell", out var cell);
-                    sig.Add(new ColumnSignature { Name = n as string, Title = t as string });
-                    fns.Add(cell as Func<int, object, VirtualNode>);
-                }
+                var (sig, fns) = ColumnSignatureUtil.Extract(list);
                 parts.ColSig = sig;
                 parts.CellFns = fns;
                 RebuildColumnsPreservingState(tv, list, parts);
