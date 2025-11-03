@@ -12,7 +12,7 @@ namespace ReactiveUITK.Elements
     public sealed class MultiColumnListViewElementAdapter
         : StatefulElementAdapter<MultiColumnListView, MultiColumnListViewElementAdapter.Cached>
     {
-        public sealed class Cached : ISortState, IColumnLayoutState
+        public sealed class Cached : ISortState, IColumnLayoutState, IAdjustmentSuspendState
         {
             public IList LastItems;
             internal List<ColSig> LastColSignature;
@@ -33,6 +33,17 @@ namespace ReactiveUITK.Elements
             public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
             public IElementStateTracker<MultiColumnListView, Cached> LayoutTracker =
                 new MultiColumnLayoutTracker<MultiColumnListView, Cached>();
+
+            // Suspend heavy updates during header interactions
+            public bool IsAdjusting { get; set; }
+            public bool HeaderWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public IElementStateTracker<MultiColumnListView, Cached> AdjustmentTracker =
+                new MultiColumnAdjustmentTracker<MultiColumnListView, Cached>(
+                    new MultiColumnHeaderOps<MultiColumnListView>(),
+                    ApplyAdjustmentFlush
+                );
         }
 
         private static HostContext sharedHostContext;
@@ -97,6 +108,12 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(view);
+            parts.AdjustmentTracker.Attach(view, parts, properties);
+            if (parts.IsAdjusting)
+            {
+                parts.AdjustmentTracker.Reapply(view, parts, null, properties);
+                return;
+            }
 
             if (properties.TryGetValue("items", out var itemsObj))
             {
@@ -184,6 +201,12 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
 
             var parts = GetState(view);
+            parts.AdjustmentTracker.Attach(view, parts, next);
+            if (parts.IsAdjusting)
+            {
+                parts.AdjustmentTracker.Reapply(view, parts, previous, next);
+                return;
+            }
 
             previous.TryGetValue("items", out var prevItemsObj);
             next.TryGetValue("items", out var nextItemsObj);
@@ -547,6 +570,80 @@ namespace ReactiveUITK.Elements
                 if (scroll != null)
                     PropsApplier.Apply(scroll, svMap);
             }
+        }
+
+        private static void ApplyAdjustmentFlush(
+            MultiColumnListView view,
+            Cached parts,
+            IReadOnlyDictionary<string, object> prev,
+            IReadOnlyDictionary<string, object> next
+        )
+        {
+            if (view == null || parts == null)
+                return;
+            try
+            {
+                view.schedule?.Execute(() =>
+                    {
+                        try
+                        {
+                            var p = prev ?? new Dictionary<string, object>();
+                            var n = next ?? new Dictionary<string, object>();
+
+                            // items diff
+                            p.TryGetValue("items", out var prevItemsObj);
+                            n.TryGetValue("items", out var nextItemsObj);
+                            var prevItems = NormalizeItems(prevItemsObj);
+                            var nextItems = NormalizeItems(nextItemsObj);
+                            if (!ReferenceEquals(prevItems, nextItems))
+                            {
+                                parts.LastItems = nextItems;
+                                view.itemsSource = nextItems;
+                                try
+                                {
+                                    view.Rebuild();
+                                }
+                                catch { }
+                            }
+
+                            // columns diff
+                            p.TryGetValue("columns", out var prevCols);
+                            n.TryGetValue("columns", out var nextCols);
+                            if (nextCols is IEnumerable ncols)
+                            {
+                                var (newSig, newFns) = ExtractSignatureAndFns(ncols);
+                                if (!SignaturesEqual(parts.LastColSignature, newSig))
+                                {
+                                    parts.CellFns = newFns;
+                                    RebuildColumnsPreservingState(view, ncols, parts);
+                                    parts.LastColSignature = newSig;
+                                }
+                                else
+                                {
+                                    parts.CellFns = newFns;
+                                    try
+                                    {
+                                        view.RefreshItems();
+                                    }
+                                    catch { }
+                                }
+                            }
+
+                            // trackers + slots + props
+                            parts.LayoutTracker.Reapply(view, parts, p, n);
+                            parts.SortTracker.Reapply(view, parts, p, n);
+                            ApplySlotsDiff(view, p, n);
+                            try
+                            {
+                                PropsApplier.ApplyDiff(view, p, n);
+                            }
+                            catch { }
+                        }
+                        catch { }
+                    })
+                    ?.ExecuteLater(0);
+            }
+            catch { }
         }
     }
 }

@@ -53,4 +53,20 @@ namespace ReactiveUITK.Elements
         void ExpandItem(TView view, int id, bool expandAllChildren);
         void Refresh(TView view);
     }
+
+    // Suspension state used to pause heavy updates during user adjustments (e.g., header drag)
+    internal interface IAdjustmentSuspendState
+    {
+        bool IsAdjusting { get; set; }
+        bool HeaderWired { get; set; }
+        IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+        IReadOnlyDictionary<string, object> PendingNext { get; set; }
+    }
+
+    // Ops to detect header involvement without binding to concrete header types
+    public interface IHeaderOps<TView>
+        where TView : VisualElement
+    {
+        bool IsHeaderElement(VisualElement e);
+    }
 }
