@@ -44,6 +44,7 @@ namespace ReactiveUITK.Elements
                     new MultiColumnHeaderOps<MultiColumnListView>(),
                     ApplyAdjustmentFlush
                 );
+            public bool DetachWired { get; set; }
         }
 
         private static HostContext sharedHostContext;
@@ -108,6 +109,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(view);
+            EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, properties);
             if (parts.IsAdjusting)
             {
@@ -201,6 +203,7 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
 
             var parts = GetState(view);
+            EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, next);
             if (parts.IsAdjusting)
             {
@@ -601,6 +604,31 @@ namespace ReactiveUITK.Elements
                     ?.ExecuteLater(0);
             }
             catch { }
+        }
+
+        private static void EnsureDetachHook(MultiColumnListView view, Cached parts)
+        {
+            if (view == null || parts == null || parts.DetachWired)
+                return;
+            parts.DetachWired = true;
+            view.RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                try
+                {
+                    parts.AdjustmentTracker.Detach(view, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.SortTracker.Detach(view, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.LayoutTracker.Detach(view, parts);
+                }
+                catch { }
+            });
         }
     }
 }

@@ -64,6 +64,7 @@ namespace ReactiveUITK.Elements
                     new MultiColumnHeaderOps<MultiColumnTreeView>(),
                     ApplyAdjustmentFlush
                 );
+            public bool DetachWired { get; set; }
         }
 
         private static HostContext host;
@@ -221,6 +222,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(tv);
+            EnsureDetachHook(tv, parts);
             parts.AdjustmentTracker.Attach(tv, parts, properties);
             if (parts.IsAdjusting)
             {
@@ -333,6 +335,7 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+            EnsureDetachHook(tv, parts);
             parts.AdjustmentTracker.Attach(tv, parts, next);
             if (parts.IsAdjusting)
             {
@@ -734,6 +737,31 @@ namespace ReactiveUITK.Elements
                     ?.ExecuteLater(0);
             }
             catch { }
+        }
+
+        private static void EnsureDetachHook(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null || parts.DetachWired)
+                return;
+            parts.DetachWired = true;
+            tv.RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                try
+                {
+                    parts.AdjustmentTracker.Detach(tv, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.SortTracker.Detach(tv, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.LayoutTracker.Detach(tv, parts);
+                }
+                catch { }
+            });
         }
     }
 }
