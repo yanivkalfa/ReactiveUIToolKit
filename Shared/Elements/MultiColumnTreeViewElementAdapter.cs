@@ -303,8 +303,13 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
-
-            // Cooperative tracker handles user expansion handler wiring
+            // Ensure cooperative tracker is attached with latest props
+            try
+            {
+                var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Attach(tv, parts, next, ops);
+            }
+            catch { }
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
