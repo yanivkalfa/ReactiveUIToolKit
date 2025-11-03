@@ -63,7 +63,7 @@ namespace ReactiveUITK.Elements
                     parts.ExpansionTracker.Attach(tv, parts, properties, ops);
                 }
                 catch { }
-            parts.TrackUserExpansion = !(stopObj is bool b && b);
+            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
             // User expansion handler wiring is handled by the cooperative tracker
             // Inline expansion handler removed; cooperative tracker handles subscriptions
 
@@ -197,8 +197,7 @@ namespace ReactiveUITK.Elements
             var parts = GetState(tv);
 
             // Expansion wiring diff
-            if (next.TryGetValue("stopTrackingUserChange", out var stopObj))
-                parts.TrackUserExpansion = !(stopObj is bool b && b);
+            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
             // Cooperative tracker handles user expansion handler wiring
             try
             {

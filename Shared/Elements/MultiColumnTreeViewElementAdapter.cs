@@ -357,9 +357,7 @@ namespace ReactiveUITK.Elements
             }
             ApplySlotsDiff(tv, previous, next);
 
-            // stopTrackingUserChange diff
-            if (next.TryGetValue("stopTrackingUserChange", out var stopObj))
-                parts.TrackUserExpansion = !(stopObj is bool b && b);
+            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
 
             // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
