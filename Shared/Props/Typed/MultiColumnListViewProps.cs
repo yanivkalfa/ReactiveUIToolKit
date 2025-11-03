@@ -18,6 +18,10 @@ namespace ReactiveUITK.Props.Typed
         // Column definitions
         public List<ColumnDef> Columns { get; set; }
 
+        public List<SortedColumnDef> SortedColumns { get; set; }
+        public object SortingMode { get; set; }
+        public Action<List<SortedColumnDef>> ColumnSortingChanged { get; set; }
+
         public sealed class ColumnDef
         {
             public string Name { get; set; }
@@ -27,39 +31,88 @@ namespace ReactiveUITK.Props.Typed
             public float? MaxWidth { get; set; }
             public bool? Resizable { get; set; }
             public bool? Stretchable { get; set; }
+            public bool? Sortable { get; set; }
             public Func<int, object, ReactiveUITK.Core.VirtualNode> Cell { get; set; }
 
             public Dictionary<string, object> ToDictionary()
             {
                 var dict = new Dictionary<string, object>();
-                if (!string.IsNullOrEmpty(Name)) dict["name"] = Name;
-                if (!string.IsNullOrEmpty(Title)) dict["title"] = Title;
-                if (Width.HasValue) dict["width"] = Width.Value;
-                if (MinWidth.HasValue) dict["minWidth"] = MinWidth.Value;
-                if (MaxWidth.HasValue) dict["maxWidth"] = MaxWidth.Value;
-                if (Resizable.HasValue) dict["resizable"] = Resizable.Value;
-                if (Stretchable.HasValue) dict["stretchable"] = Stretchable.Value;
-                if (Cell != null) dict["cell"] = Cell;
+                if (!string.IsNullOrEmpty(Name))
+                    dict["name"] = Name;
+                if (!string.IsNullOrEmpty(Title))
+                    dict["title"] = Title;
+                if (Width.HasValue)
+                    dict["width"] = Width.Value;
+                if (MinWidth.HasValue)
+                    dict["minWidth"] = MinWidth.Value;
+                if (MaxWidth.HasValue)
+                    dict["maxWidth"] = MaxWidth.Value;
+                if (Resizable.HasValue)
+                    dict["resizable"] = Resizable.Value;
+                if (Stretchable.HasValue)
+                    dict["stretchable"] = Stretchable.Value;
+                if (Sortable.HasValue)
+                    dict["sortable"] = Sortable.Value;
+                if (Cell != null)
+                    dict["cell"] = Cell;
                 return dict;
+            }
+        }
+
+        public sealed class SortedColumnDef
+        {
+            public string Name { get; set; }
+            public SortDirection? Direction { get; set; }
+            public int? Index { get; set; }
+
+            public Dictionary<string, object> ToDictionary()
+            {
+                var d = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(Name))
+                    d["name"] = Name;
+                if (Direction.HasValue)
+                    d["direction"] = Direction.Value;
+                if (Index.HasValue)
+                    d["index"] = Index.Value;
+                return d;
             }
         }
 
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name)) dict["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName)) dict["className"] = ClassName;
-            if (Items != null) dict["items"] = Items;
-            if (SelectedIndex.HasValue) dict["selectedIndex"] = SelectedIndex.Value;
-            if (FixedItemHeight.HasValue) dict["fixedItemHeight"] = FixedItemHeight.Value;
-            if (Selection.HasValue) dict["selectionType"] = Selection.Value;
+            if (!string.IsNullOrEmpty(Name))
+                dict["name"] = Name;
+            if (!string.IsNullOrEmpty(ClassName))
+                dict["className"] = ClassName;
+            if (Items != null)
+                dict["items"] = Items;
+            if (SelectedIndex.HasValue)
+                dict["selectedIndex"] = SelectedIndex.Value;
+            if (FixedItemHeight.HasValue)
+                dict["fixedItemHeight"] = FixedItemHeight.Value;
+            if (Selection.HasValue)
+                dict["selectionType"] = Selection.Value;
             if (Columns != null)
             {
                 var cols = new List<Dictionary<string, object>>(Columns.Count);
-                foreach (var c in Columns) cols.Add(c?.ToDictionary());
+                foreach (var c in Columns)
+                    cols.Add(c?.ToDictionary());
                 dict["columns"] = cols;
             }
-            if (Style != null) dict["style"] = Style;
+            if (SortedColumns != null)
+            {
+                var arr = new List<Dictionary<string, object>>(SortedColumns.Count);
+                foreach (var s in SortedColumns)
+                    arr.Add(s?.ToDictionary());
+                dict["sortedColumns"] = arr;
+            }
+            if (SortingMode != null)
+                dict["sortingMode"] = SortingMode;
+            if (ColumnSortingChanged != null)
+                dict["columnSortingChanged"] = ColumnSortingChanged;
+            if (Style != null)
+                dict["style"] = Style;
             return dict;
         }
     }

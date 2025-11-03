@@ -11,36 +11,40 @@ namespace ReactiveUITK.Elements
     public sealed class MultiColumnTreeViewElementAdapter
         : StatefulElementAdapter<MultiColumnTreeView, MultiColumnTreeViewElementAdapter.Cached>
     {
-        public sealed class Cached
+        public sealed class Cached : ISortState, IColumnLayoutState, IExpansionState
         {
             public IList LastRoot;
             public List<(string name, string title)> ColSig;
             public List<Func<int, object, VirtualNode>> CellFns;
 
             // Expansion tracking
-            public HashSet<int> DesiredExpanded = new();
-            public Dictionary<int, bool> ExpandAllById = new();
-            public bool OurHandlerAttached;
-            public Delegate UserExpandedHandler;
-            public bool TrackUserExpansion = true;
+            public HashSet<int> DesiredExpanded { get; set; } = new();
+            public Dictionary<int, bool> ExpandAllById { get; set; } = new();
+            public bool OurHandlerAttached { get; set; }
+            public Delegate UserExpandedHandler { get; set; }
+            public bool TrackUserExpansion { get; set; } = true;
 
             // Stable renderer pool for cells: key = rowKey|c=colIndex
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
             // Column layout persistence (by column name)
-            public Dictionary<string, float> ColumnWidths = new();
-            public Dictionary<string, bool> ColumnVisibility = new();
-            public Dictionary<string, int> ColumnDisplayIndex = new();
+            public Dictionary<string, float> ColumnWidths { get; set; } = new();
+            public Dictionary<string, bool> ColumnVisibility { get; set; } = new();
+            public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
             public IElementStateTracker<MultiColumnTreeView, Cached> LayoutTracker =
-                new MultiColumnLayoutTracker();
+                new MultiColumnLayoutTracker<MultiColumnTreeView, Cached>();
 
             // Sorting persistence
-            public List<(string name, SortDirection direction, int index)> SortedColumns = new();
+            public List<(
+                string name,
+                SortDirection direction,
+                int index
+            )> SortedColumns { get; set; } = new();
             public IElementStateTracker<MultiColumnTreeView, Cached> SortTracker =
-                new MultiColumnSortTracker();
-            public Delegate UserSortNotify;
-            public Action InternalSortHandler;
+                new MultiColumnSortTracker<MultiColumnTreeView, Cached>();
+            public Delegate UserSortNotify { get; set; }
+            public Action InternalSortHandler { get; set; }
 
             // (removed) unused layout/order polling fields
         }
@@ -202,6 +206,7 @@ namespace ReactiveUITK.Elements
             var parts = GetState(tv);
             if (properties != null)
             {
+                // Expansion wiring is handled inline below
                 if (properties.TryGetValue("rootItems", out var r))
                 {
                     var nextList = r as IList;
@@ -228,6 +233,37 @@ namespace ReactiveUITK.Elements
                 if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
                 {
                     parts.TrackUserExpansion = !(stopObj is bool b && b);
+                }
+
+                // User-provided expansion changed handler
+                if (properties.TryGetValue("itemExpandedChanged", out var userHandler))
+                {
+                    if (!ReferenceEquals(parts.UserExpandedHandler, userHandler))
+                    {
+                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                        {
+                            try { tv.itemExpandedChanged -= prev; } catch { }
+                        }
+                        parts.UserExpandedHandler = userHandler as Delegate;
+                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
+                        {
+                            try { tv.itemExpandedChanged += nextH; } catch { }
+                        }
+                    }
+                }
+                EnsureOurExpansionHandler(tv, parts);
+                // expandedItemIds override
+                if (properties.TryGetValue("expandedItemIds", out var expObj))
+                {
+                    var ids = BaseElementAdapter.CoerceIds(expObj);
+                    parts.DesiredExpanded.Clear();
+                    parts.ExpandAllById.Clear();
+                    if (ids != null)
+                    {
+                        foreach (var id in ids)
+                            parts.DesiredExpanded.Add(id);
+                    }
+                    ReapplyDesired(tv, parts);
                 }
 
                 if (
@@ -265,46 +301,6 @@ namespace ReactiveUITK.Elements
                     }
                 }
 
-                // User-provided expansion changed handler
-                if (properties.TryGetValue("itemExpandedChanged", out var userHandler))
-                {
-                    if (!ReferenceEquals(parts.UserExpandedHandler, userHandler))
-                    {
-                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
-                        {
-                            try
-                            {
-                                tv.itemExpandedChanged -= prev;
-                            }
-                            catch { }
-                        }
-                        parts.UserExpandedHandler = userHandler as Delegate;
-                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
-                        {
-                            try
-                            {
-                                tv.itemExpandedChanged += nextH;
-                            }
-                            catch { }
-                        }
-                    }
-                }
-
-                EnsureOurExpansionHandler(tv, parts);
-
-                // expandedItemIds override
-                if (properties.TryGetValue("expandedItemIds", out var expObj))
-                {
-                    var ids = BaseElementAdapter.CoerceIds(expObj);
-                    parts.DesiredExpanded.Clear();
-                    parts.ExpandAllById.Clear();
-                    if (ids != null)
-                    {
-                        foreach (var id in ids)
-                            parts.DesiredExpanded.Add(id);
-                    }
-                    ReapplyDesired(tv, parts);
-                }
             }
             ApplySlots(tv, properties);
             parts.LayoutTracker.Attach(tv, parts, properties);
@@ -328,6 +324,24 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+
+            // Ensure expansion handler is wired before diffs apply
+            if (next.TryGetValue("itemExpandedChanged", out var nextUser))
+            {
+                if (!ReferenceEquals(parts.UserExpandedHandler, nextUser))
+                {
+                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                    {
+                        try { tv.itemExpandedChanged -= prev; } catch { }
+                    }
+                    parts.UserExpandedHandler = nextUser as Delegate;
+                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nh)
+                    {
+                        try { tv.itemExpandedChanged += nh; } catch { }
+                    }
+                }
+            }
+            EnsureOurExpansionHandler(tv, parts);
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
@@ -374,32 +388,6 @@ namespace ReactiveUITK.Elements
             // stopTrackingUserChange diff
             if (next.TryGetValue("stopTrackingUserChange", out var stopObj))
                 parts.TrackUserExpansion = !(stopObj is bool b && b);
-
-            // user handler diff
-            previous.TryGetValue("itemExpandedChanged", out var prevUser);
-            next.TryGetValue("itemExpandedChanged", out var nextUser);
-            if (!ReferenceEquals(prevUser, nextUser))
-            {
-                if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
-                {
-                    try
-                    {
-                        tv.itemExpandedChanged -= prev;
-                    }
-                    catch { }
-                }
-                parts.UserExpandedHandler = nextUser as Delegate;
-                if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
-                {
-                    try
-                    {
-                        tv.itemExpandedChanged += nextH;
-                    }
-                    catch { }
-                }
-            }
-
-            EnsureOurExpansionHandler(tv, parts);
 
             // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
@@ -628,6 +616,8 @@ namespace ReactiveUITK.Elements
                 tv.Rebuild();
             }
             catch { }
+            // Restore expansion state after column rebuilds
+            try { ReapplyDesired(tv, parts); } catch { }
         }
 
         private static void ApplySlots(

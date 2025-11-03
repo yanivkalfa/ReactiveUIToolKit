@@ -131,6 +131,59 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 Array.Empty<object>()
             );
+            var initialItems = Hooks.UseMemo(() =>
+            {
+                var seededItems = new List<SharedRowItem>();
+                for (int i = 1; i <= 5; i++)
+                    seededItems.Add(
+                        new SharedRowItem { Id = Guid.NewGuid().ToString("N"), Text = $"Item {i}" }
+                    );
+                return seededItems;
+            });
+            var (listItems, setListItems) = Hooks.UseState(initialItems);
+            // removed inline table view state (moved to dedicated tab component)
+            var listRowRenderer = Hooks.UseMemo(
+                () =>
+                    (Func<int, object, VirtualNode>)(
+                        (index, itemObj) =>
+                        {
+                            var typedItem = itemObj as SharedRowItem;
+                            return V.Func(
+                                SharedListViewRow.Render,
+                                new Dictionary<string, object>
+                                {
+                                    { "item", typedItem },
+                                    { "index", index },
+                                    {
+                                        "onRemove",
+                                        (Action<SharedRowItem>)(
+                                            removeItem =>
+                                            {
+                                                if (removeItem == null)
+                                                {
+                                                    return;
+                                                }
+                                                var copy = new List<SharedRowItem>(listItems);
+                                                int foundIndex = copy.FindIndex(r =>
+                                                    r.Id == removeItem.Id
+                                                );
+                                                if (foundIndex >= 0)
+                                                {
+                                                    copy.RemoveAt(foundIndex);
+                                                    setListItems(copy);
+                                                }
+                                            }
+                                        )
+                                    },
+                                },
+                                key: typedItem != null
+                                    ? $"{typedItem.Id}-{index}"
+                                    : $"row-missing-{index}"
+                            );
+                        }
+                    ),
+                listItems
+            );
             // Inline ListView demo removed; keep input and other controls
             TextFieldProps inputTextFieldProps = new()
             {
@@ -1015,7 +1068,19 @@ namespace ReactiveUITK.Samples.Shared
                         ),
 #endif
                         // Dropdown demo
-                        V.DropdownField(dropdownProps)
+                        V.DropdownField(dropdownProps),
+                        // Multi-attribute animation example (control removed to avoid parse issues)
+                        V.Label(new LabelProps { Text = "Multi-Attr Animation" })
+                    // V.Animate(
+                    //     new AnimateProps { Tracks = multiTracks },
+                    //     null,
+                    //     V.VisualElement(
+                    //         new Dictionary<string, object> { { "style", animCardStyle } },
+                    //         null,
+                    //         V.Label(new LabelProps { Text = "Animated Card" })
+                    //     )
+                    // ),
+
                     ),
                     // Toggle buttons to show/hide each TabView (grouped separately)
                     V.VisualElement(

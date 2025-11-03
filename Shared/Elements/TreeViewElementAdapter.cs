@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
@@ -10,11 +9,11 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    // Minimal, opinion-free adapter: create TreeView, wire row lifecycle, apply props, refresh items.
+    // Minimal, opinion-free adapter for UI Toolkit TreeView
     public sealed class TreeViewElementAdapter
         : StatefulElementAdapter<TreeView, TreeViewElementAdapter.Cached>
     {
-        public sealed class Cached
+        public sealed class Cached : IExpansionState
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
@@ -24,13 +23,11 @@ namespace ReactiveUITK.Elements
                 new();
 
             // Expansion tracking/cache
-            public HashSet<int> DesiredExpanded = new();
-            public Dictionary<int, bool> ExpandAllById = new();
-            public bool OurHandlerAttached;
-            public Delegate UserExpandedHandler;
-            public bool TrackUserExpansion = true; // default to tracking on
-            public IElementStateTracker<TreeView, Cached> ExpansionTracker =
-                new TreeViewExpansionTracker();
+            public HashSet<int> DesiredExpanded { get; set; } = new();
+            public Dictionary<int, bool> ExpandAllById { get; set; } = new();
+            public bool OurHandlerAttached { get; set; }
+            public Delegate UserExpandedHandler { get; set; }
+            public bool TrackUserExpansion { get; set; } = true;
         }
 
         private static HostContext sharedHost;
@@ -56,16 +53,44 @@ namespace ReactiveUITK.Elements
                 return;
             }
 
+            // Expansion wiring
+            if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
+                parts.TrackUserExpansion = !(stopObj is bool b && b);
+            if (properties.TryGetValue("itemExpandedChanged", out var userHandler))
+            {
+                if (!ReferenceEquals(parts.UserExpandedHandler, userHandler))
+                {
+                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                    {
+                        try { tv.itemExpandedChanged -= prev; } catch { }
+                    }
+                    parts.UserExpandedHandler = userHandler as Delegate;
+                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
+                    {
+                        try { tv.itemExpandedChanged += nextH; } catch { }
+                    }
+                }
+            }
+            EnsureOurExpansionHandler(tv, parts);
+
+            if (properties.TryGetValue("expandedItemIds", out var expObj))
+            {
+                var ids = BaseElementAdapter.CoerceIds(expObj);
+                parts.DesiredExpanded.Clear();
+                parts.ExpandAllById.Clear();
+                if (ids != null)
+                {
+                    foreach (var id in ids)
+                        parts.DesiredExpanded.Add(id);
+                }
+                ReapplyDesired(tv, parts);
+            }
+
             if (properties.TryGetValue("rootItems", out var roots))
             {
                 SetRootItems(tv, roots);
-                try
-                {
-                    tv.RefreshItems();
-                }
-                catch { }
-                // Reapply expansions via tracker
-                parts.ExpansionTracker.Reapply(tv, parts, null, properties);
+                try { tv.RefreshItems(); } catch { }
+                ReapplyDesired(tv, parts);
             }
 
             TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -73,10 +98,7 @@ namespace ReactiveUITK.Elements
                 tv.selectionType = st;
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            // Delegate wiring and overrides to the tracker
-            parts.ExpansionTracker.Attach(tv, parts, properties);
-            parts.ExpansionTracker.Reapply(tv, parts, null, properties);
-
+            // Row rendering
             if (
                 properties.TryGetValue("row", out var rowFn)
                 && rowFn is Func<int, object, VirtualNode> rf
@@ -100,11 +122,7 @@ namespace ReactiveUITK.Elements
                         }
                         if (entry.mount.parent != ve)
                         {
-                            try
-                            {
-                                entry.mount.RemoveFromHierarchy();
-                            }
-                            catch { }
+                            try { entry.mount.RemoveFromHierarchy(); } catch { }
                             ve.Add(entry.mount);
                         }
                         var f = parts.RowFn;
@@ -121,11 +139,7 @@ namespace ReactiveUITK.Elements
                             var mount = kv.Value.mount;
                             if (mount != null && mount.parent == ve)
                             {
-                                try
-                                {
-                                    mount.RemoveFromHierarchy();
-                                }
-                                catch { }
+                                try { mount.RemoveFromHierarchy(); } catch { }
                             }
                         }
                     };
@@ -138,7 +152,6 @@ namespace ReactiveUITK.Elements
                 && cc is Dictionary<string, object> ccMap
             )
                 PropsApplier.Apply(tv.contentContainer, ccMap);
-
             if (
                 properties.TryGetValue("scrollView", out var sv)
                 && sv is Dictionary<string, object> svMap
@@ -167,67 +180,68 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
 
-            previous.TryGetValue("rootItems", out var prevRoots);
-            next.TryGetValue("rootItems", out var nextRoots);
-            if (!ReferenceEquals(prevRoots, nextRoots) && nextRoots != null)
+            // Expansion wiring diff
+            if (next.TryGetValue("stopTrackingUserChange", out var stopObj))
+                parts.TrackUserExpansion = !(stopObj is bool b && b);
+            if (next.TryGetValue("itemExpandedChanged", out var nextUser))
             {
-                SetRootItems(tv, nextRoots);
-                try
+                if (!ReferenceEquals(parts.UserExpandedHandler, nextUser))
                 {
-                    tv.RefreshItems();
+                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                    {
+                        try { tv.itemExpandedChanged -= prev; } catch { }
+                    }
+                    parts.UserExpandedHandler = nextUser as Delegate;
+                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nh)
+                    {
+                        try { tv.itemExpandedChanged += nh; } catch { }
+                    }
                 }
-                catch { }
-                parts.ExpansionTracker.Reapply(tv, parts, previous, next);
             }
+            EnsureOurExpansionHandler(tv, parts);
 
-            TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
+            previous.TryGetValue("rootItems", out var pr);
+            next.TryGetValue("rootItems", out var nr);
+            if (!ReferenceEquals(pr, nr))
+            {
+                SetRootItems(tv, nr);
+                try { tv.RefreshItems(); } catch { }
+                ReapplyDesired(tv, parts);
+                TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
+            }
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                 tv.selectionType = st;
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.SetSelection(i));
 
-            // Delegate diff handling to tracker
-            parts.ExpansionTracker.Attach(tv, parts, next);
-            parts.ExpansionTracker.Reapply(tv, parts, previous, next);
-
-            previous.TryGetValue("row", out var prevRow);
-            next.TryGetValue("row", out var nextRow);
-            if (!ReferenceEquals(prevRow, nextRow) && nextRow is Func<int, object, VirtualNode> rf)
+            // expandedItemIds diff
+            if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
-                parts.RowFn = rf;
-                try
+                var ids = BaseElementAdapter.CoerceIds(nextExp);
+                parts.DesiredExpanded.Clear();
+                parts.ExpandAllById.Clear();
+                if (ids != null)
                 {
-                    tv.RefreshItems();
+                    foreach (var id in ids)
+                        parts.DesiredExpanded.Add(id);
                 }
-                catch { }
+                ReapplyDesired(tv, parts);
             }
 
-            previous.TryGetValue("contentContainer", out var pcc);
-            next.TryGetValue("contentContainer", out var ncc);
-            if (!ReferenceEquals(pcc, ncc) && ncc is Dictionary<string, object> ccMap)
-                PropsApplier.Apply(tv.contentContainer, ccMap);
-            previous.TryGetValue("scrollView", out var psv);
-            next.TryGetValue("scrollView", out var nsv);
-            if (!ReferenceEquals(psv, nsv) && nsv is Dictionary<string, object> svMap)
-            {
-                var scroll = tv.Q<ScrollView>();
-                if (scroll != null)
-                    PropsApplier.Apply(scroll, svMap);
-            }
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void SetRootItems(TreeView tv, object rootItems)
+        private static void SetRootItems(TreeView tv, object root)
         {
-            if (tv == null || rootItems == null)
+            if (tv == null)
                 return;
             try
             {
                 var mi = typeof(TreeView)
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                    .GetMethods()
                     .FirstOrDefault(m => m.Name == "SetRootItems" && m.IsGenericMethodDefinition);
                 if (mi != null)
                 {
-                    mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { rootItems });
+                    mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { root });
                     return;
                 }
             }
@@ -235,9 +249,9 @@ namespace ReactiveUITK.Elements
             try
             {
                 var any = typeof(TreeView)
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                    .GetMethods()
                     .FirstOrDefault(m => m.Name == "SetRootItems" && m.GetParameters().Length == 1);
-                any?.Invoke(tv, new object[] { rootItems });
+                any?.Invoke(tv, new object[] { root });
             }
             catch { }
         }
@@ -246,26 +260,23 @@ namespace ReactiveUITK.Elements
         {
             try
             {
-                var mi = typeof(TreeView)
-                    .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                    .FirstOrDefault(m =>
-                        m.Name == "GetItemDataForIndex" && m.IsGenericMethodDefinition
-                    );
-                if (mi != null)
+                var methods = typeof(TreeView).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                var gen = methods.FirstOrDefault(m => m.Name == "GetItemDataForIndex" && m.IsGenericMethodDefinition);
+                if (gen != null)
                 {
-                    var generic = mi.MakeGenericMethod(typeof(object));
-                    return generic.Invoke(tv, new object[] { index });
+                    try { return gen.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { index }); } catch { }
+                }
+                var nonGen = methods.FirstOrDefault(m => m.Name == "GetItemDataForIndex" && !m.IsGenericMethod);
+                if (nonGen != null)
+                {
+                    try { return nonGen.Invoke(tv, new object[] { index }); } catch { }
                 }
             }
             catch { }
             return null;
         }
-
-        // Expansion handling delegated to TreeViewExpansionTracker
-
         private static string DeriveRowKey(TreeView tv, int index, object item)
         {
-            // Prefer string Id on payload; fallback to controller id; last resort index
             try
             {
                 if (item != null)
@@ -305,60 +316,45 @@ namespace ReactiveUITK.Elements
             return $"row-{index}";
         }
 
-        private static List<int> TryGetExpanded(TreeView tv)
+        private static void EnsureOurExpansionHandler(TreeView tv, Cached parts)
         {
-            try
+            if (tv == null || parts == null)
+                return;
+            bool shouldAttach = parts.TrackUserExpansion && parts.UserExpandedHandler == null;
+            if (shouldAttach && !parts.OurHandlerAttached)
             {
-                var mi = typeof(TreeView).GetMethod(
-                    "GetExpandedIds",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    Type.EmptyTypes,
-                    null
-                );
-                var result = mi?.Invoke(tv, null) as System.Collections.IEnumerable;
-                if (result == null)
-                    return new List<int>();
-                var list = new List<int>();
-                foreach (var o in result)
+                Action<TreeViewExpansionChangedArgs> h = e =>
                 {
                     try
                     {
-                        list.Add(Convert.ToInt32(o));
+                        if (e.isExpanded)
+                            parts.DesiredExpanded.Add(e.id);
+                        else
+                            parts.DesiredExpanded.Remove(e.id);
+                        parts.ExpandAllById[e.id] = e.isAppliedToAllChildren;
                     }
                     catch { }
+                };
+                try
+                {
+                    tv.itemExpandedChanged += h;
+                    parts.OurHandlerAttached = true;
                 }
-                return list;
+                catch { }
             }
-            catch { }
-            return new List<int>();
         }
 
-        private static void TryRestoreExpanded(TreeView tv, List<int> ids)
+        private static void ReapplyDesired(TreeView tv, Cached parts)
         {
-            if (ids == null || ids.Count == 0)
+            if (tv == null || parts == null)
                 return;
-            try
+            foreach (var id in parts.DesiredExpanded)
             {
-                var mi = typeof(TreeView).GetMethod(
-                    "SetExpanded",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
-                    null,
-                    new[] { typeof(int), typeof(bool) },
-                    null
-                );
-                if (mi == null)
-                    return;
-                foreach (var id in ids)
-                {
-                    try
-                    {
-                        mi.Invoke(tv, new object[] { id, true });
-                    }
-                    catch { }
-                }
+                bool all = parts.ExpandAllById.TryGetValue(id, out var v) && v;
+                try { tv.ExpandItem(id, all); } catch { }
             }
-            catch { }
+            try { tv.RefreshItems(); } catch { }
         }
     }
 }
+

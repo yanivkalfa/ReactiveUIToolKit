@@ -26,6 +26,9 @@ namespace ReactiveUITK.Samples.Shared
                 return new List<Row>();
             });
             var (items, setItems) = Hooks.UseState(initial);
+            var (sortDefs, setSortDefs) = Hooks.UseState<
+                List<MultiColumnListViewProps.SortedColumnDef>
+            >(null);
 
             // Notify parent of count when it changes
             Hooks.UseEffect(
@@ -69,7 +72,8 @@ namespace ReactiveUITK.Samples.Shared
                 Text = "Set Value",
                 OnClick = () =>
                 {
-                    if (items == null || items.Count == 0) return;
+                    if (items == null || items.Count == 0)
+                        return;
                     var copy = new List<Row>(items);
                     var top = copy[0];
                     top.Text = $"{top.Id} {System.DateTime.Now:HH:mm:ss}";
@@ -97,11 +101,13 @@ namespace ReactiveUITK.Samples.Shared
                     {
                         new()
                         {
+                            Name = "ID",
                             Title = "ID",
                             Width = 140f,
                             MinWidth = 100f,
                             Resizable = true,
                             Stretchable = true,
+                            Sortable = true,
                             Cell = (i, obj) =>
                             {
                                 var it = obj as Row;
@@ -112,11 +118,13 @@ namespace ReactiveUITK.Samples.Shared
                         },
                         new()
                         {
+                            Name = "Text",
                             Title = "Text",
                             Width = 260f,
                             MinWidth = 140f,
                             Resizable = true,
                             Stretchable = true,
+                            Sortable = true,
                             Cell = (i, obj) =>
                             {
                                 var it = obj as Row;
@@ -138,12 +146,50 @@ namespace ReactiveUITK.Samples.Shared
                 items
             );
 
+            // Build displayed list respecting current multi-sort definitions
+            var displayed = Hooks.UseMemo(
+                () =>
+                {
+                    var defsTree =
+                        sortDefs == null
+                            ? null
+                            : new List<MultiColumnTreeViewProps.SortedColumnDef>(sortDefs.Count);
+                    if (sortDefs != null)
+                    {
+                        foreach (var d in sortDefs)
+                        {
+                            defsTree.Add(
+                                new MultiColumnTreeViewProps.SortedColumnDef
+                                {
+                                    Name = d?.Name,
+                                    Direction = d?.Direction,
+                                    Index = d?.Index,
+                                }
+                            );
+                        }
+                    }
+                    return ReactiveUITK.Shared.Util.SortUtils.MultiSort(
+                        defsTree,
+                        items ?? new List<Row>(),
+                        (r, col) =>
+                            string.Equals(col, "ID", StringComparison.OrdinalIgnoreCase) ? r?.Id
+                            : string.Equals(col, "Text", StringComparison.OrdinalIgnoreCase)
+                                ? r?.Text
+                            : null
+                    );
+                },
+                new object[] { items, sortDefs }
+            );
+
             var propsMap = new MultiColumnListViewProps
             {
-                Items = items,
+                Items = displayed,
                 Selection = SelectionType.None,
                 FixedItemHeight = 20f,
                 Columns = columns,
+                SortingMode = ColumnSortingMode.Custom,
+                SortedColumns = sortDefs,
+                ColumnSortingChanged = setSortDefs,
             };
 
             var controls = V.VisualElement(

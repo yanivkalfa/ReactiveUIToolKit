@@ -9,17 +9,31 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class MultiColumnListViewElementAdapter : BaseElementAdapter
+    public sealed class MultiColumnListViewElementAdapter
+        : StatefulElementAdapter<MultiColumnListView, MultiColumnListViewElementAdapter.Cached>
     {
-        private sealed class CachedParts
+        public sealed class Cached : ISortState, IColumnLayoutState
         {
             public IList LastItems;
-            public List<ColSig> LastColSignature;
+            internal List<ColSig> LastColSignature;
             public List<Func<int, object, VirtualNode>> CellFns;
-        }
 
-        private static readonly ConditionalWeakTable<MultiColumnListView, CachedParts> cache =
-            new();
+            public List<(
+                string name,
+                SortDirection direction,
+                int index
+            )> SortedColumns { get; set; } = new();
+            public Delegate UserSortNotify { get; set; }
+            public Action InternalSortHandler { get; set; }
+            public IElementStateTracker<MultiColumnListView, Cached> SortTracker =
+                new MultiColumnSortTracker<MultiColumnListView, Cached>();
+
+            public Dictionary<string, float> ColumnWidths { get; set; } = new();
+            public Dictionary<string, bool> ColumnVisibility { get; set; } = new();
+            public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
+            public IElementStateTracker<MultiColumnListView, Cached> LayoutTracker =
+                new MultiColumnLayoutTracker<MultiColumnListView, Cached>();
+        }
 
         private static HostContext sharedHostContext;
 
@@ -69,10 +83,8 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
-        public override VisualElement Create()
-        {
-            return GlobalVisualElementPool.Get<MultiColumnListView>();
-        }
+        public override VisualElement Create() =>
+            GlobalVisualElementPool.Get<MultiColumnListView>();
 
         public override void ApplyProperties(
             VisualElement element,
@@ -84,8 +96,7 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
-
-            var parts = cache.GetValue(view, _ => new CachedParts());
+            var parts = GetState(view);
 
             if (properties.TryGetValue("items", out var itemsObj))
             {
@@ -122,6 +133,9 @@ namespace ReactiveUITK.Elements
                 view.selectionType = sel;
             }
 
+            // sortingMode (optional)
+            TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(view, m));
+
             // Columns: rebuild only if semantic signature changes
             if (properties.TryGetValue("columns", out var colsObj) && colsObj is IEnumerable cols)
             {
@@ -146,6 +160,12 @@ namespace ReactiveUITK.Elements
             }
 
             ApplySlots(view, properties);
+
+            // trackers
+            parts.LayoutTracker.Attach(view, parts, properties);
+            parts.LayoutTracker.Reapply(view, parts, null, properties);
+            parts.SortTracker.Attach(view, parts, properties);
+            parts.SortTracker.Reapply(view, parts, null, properties);
             PropsApplier.Apply(element, properties);
         }
 
@@ -163,7 +183,7 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
 
-            var parts = cache.GetValue(view, _ => new CachedParts());
+            var parts = GetState(view);
 
             previous.TryGetValue("items", out var prevItemsObj);
             next.TryGetValue("items", out var nextItemsObj);
@@ -193,6 +213,8 @@ namespace ReactiveUITK.Elements
                 }
             }
 
+            TryDiffProp<object>(previous, next, "sortingMode", m => ApplySortingMode(view, m));
+
             previous.TryGetValue("columns", out var prevCols);
             next.TryGetValue("columns", out var nextCols);
             if (nextCols is IEnumerable ncols)
@@ -217,13 +239,57 @@ namespace ReactiveUITK.Elements
             }
 
             ApplySlotsDiff(view, previous, next);
+
+            // trackers
+            parts.LayoutTracker.Reapply(view, parts, previous, next);
+            parts.SortTracker.Reapply(view, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        private static void ApplySortingMode(MultiColumnListView view, object mode)
+        {
+            if (view == null || mode == null)
+                return;
+            try
+            {
+                var pi = typeof(MultiColumnListView).GetProperty(
+                    "sortingMode",
+                    System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.NonPublic
+                );
+                if (pi == null)
+                    return;
+                var enumType = pi.PropertyType;
+                object val = null;
+                if (mode.GetType().IsEnum && mode.GetType().Name == enumType.Name)
+                    val = mode;
+                else if (mode is string s)
+                {
+                    try
+                    {
+                        val = Enum.Parse(enumType, s, true);
+                    }
+                    catch { }
+                }
+                else if (mode is int i)
+                {
+                    try
+                    {
+                        val = Enum.ToObject(enumType, i);
+                    }
+                    catch { }
+                }
+                if (val != null)
+                    pi.SetValue(view, val);
+            }
+            catch { }
         }
 
         private static void RebuildColumnsPreservingState(
             MultiColumnListView view,
             IEnumerable newCols,
-            CachedParts parts
+            Cached parts
         )
         {
             // Capture existing columns by name and index
@@ -386,7 +452,7 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        private sealed class ColSig
+        internal sealed class ColSig
         {
             public string Name;
             public string Title;
