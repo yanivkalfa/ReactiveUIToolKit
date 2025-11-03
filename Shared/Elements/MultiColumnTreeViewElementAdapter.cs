@@ -49,6 +49,12 @@ namespace ReactiveUITK.Elements
             public Action InternalSortHandler { get; set; }
 
             // (removed) unused layout/order polling fields
+
+            // Interaction guard: suspend heavy updates during user adjustments (resize/reorder)
+            public bool IsAdjusting { get; set; }
+            public bool HeaderWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
         }
 
         private static HostContext host;
@@ -206,6 +212,13 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(tv);
+            EnsureHeaderGestureHooks(tv, parts);
+            if (parts.IsAdjusting)
+            {
+                parts.PendingPrev = null;
+                parts.PendingNext = properties;
+                return;
+            }
             if (properties != null)
             {
                 try
@@ -303,6 +316,13 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+            EnsureHeaderGestureHooks(tv, parts);
+            if (parts.IsAdjusting)
+            {
+                parts.PendingPrev = previous;
+                parts.PendingNext = next;
+                return;
+            }
             // Ensure cooperative tracker is attached with latest props
             try
             {
@@ -652,5 +672,93 @@ namespace ReactiveUITK.Elements
         }
 
         // Inline expansion helpers removed in favor of cooperative tracker
+
+        private static void EnsureHeaderGestureHooks(
+            MultiColumnTreeView tv,
+            Cached parts
+        )
+        {
+            if (tv == null || parts == null || parts.HeaderWired)
+                return;
+
+            parts.HeaderWired = true;
+
+            bool IsInHeader(VisualElement ve)
+            {
+                while (ve != null)
+                {
+                    if (ve.ClassListContains("unity-multi-column-header"))
+                        return true;
+                    ve = ve.parent as VisualElement;
+                }
+                return false;
+            }
+
+            tv.RegisterCallback<PointerDownEvent>(e =>
+            {
+                var ve = e?.target as VisualElement;
+                if (ve != null && IsInHeader(ve))
+                {
+                    parts.IsAdjusting = true;
+                }
+            }, TrickleDown.TrickleDown);
+
+            void End()
+            {
+                EndAdjustAndFlush(tv, parts);
+            }
+
+            tv.RegisterCallback<PointerUpEvent>(_ => End(), TrickleDown.TrickleDown);
+            tv.RegisterCallback<PointerCancelEvent>(_ => End(), TrickleDown.TrickleDown);
+            tv.RegisterCallback<MouseCaptureOutEvent>(_ => End());
+        }
+
+        private static void EndAdjustAndFlush(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null)
+                return;
+            parts.IsAdjusting = false;
+            var prev = parts.PendingPrev;
+            var next = parts.PendingNext;
+            parts.PendingPrev = null;
+            parts.PendingNext = null;
+            if (prev == null && next == null)
+                return;
+
+            try
+            {
+                tv.schedule?.Execute(() =>
+                {
+                    try
+                    {
+                        var p = prev ?? new Dictionary<string, object>();
+                        var n = next ?? new Dictionary<string, object>();
+
+                        p.TryGetValue("rootItems", out var pr);
+                        n.TryGetValue("rootItems", out var nr);
+                        if (!ReferenceEquals(pr, nr))
+                        {
+                            parts.LastRoot = nr as IList;
+                            SetRootItems(tv, nr);
+                            try { tv.Rebuild(); } catch { }
+                        }
+
+                        // Reapply trackers and props
+                        parts.LayoutTracker.Reapply(tv, parts, p, n);
+                        parts.SortTracker.Reapply(tv, parts, p, n);
+                        ApplySlotsDiff(tv, p, n);
+                        try
+                        {
+                            var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                            parts.ExpansionTracker.Reapply(tv, parts, p, n, ops);
+                        }
+                        catch { }
+                        try { PropsApplier.ApplyDiff(tv, p, n); } catch { }
+                    }
+                    catch { }
+                })?.ExecuteLater(0);
+            }
+            catch { }
+        }
     }
 }
