@@ -18,7 +18,7 @@ namespace ReactiveUITK.Elements
                 IAdjustmentSuspendState
         {
             public IList LastRoot;
-            public List<(string name, string title)> ColSig;
+            internal List<ColumnSignature> ColSig;
             public List<Func<int, object, VirtualNode>> CellFns;
 
             // Expansion tracking
@@ -272,31 +272,40 @@ namespace ReactiveUITK.Elements
                 && cols is IEnumerable<Dictionary<string, object>> list
             )
             {
-                var sig = new List<(string, string)>();
+                var sig = new List<ColumnSignature>();
                 var fns = new List<Func<int, object, VirtualNode>>();
                 foreach (var c in list)
                 {
                     c.TryGetValue("name", out var n);
                     c.TryGetValue("title", out var t);
                     c.TryGetValue("cell", out var cell);
-                    sig.Add((n as string, t as string));
+                    sig.Add(new ColumnSignature { Name = n as string, Title = t as string });
                     fns.Add(cell as Func<int, object, VirtualNode>);
                 }
                 bool same = parts.ColSig != null && parts.ColSig.Count == sig.Count;
                 if (same)
                 {
                     for (int i = 0; i < sig.Count; i++)
-                        if (parts.ColSig[i] != sig[i])
+                    {
+                        var a = parts.ColSig[i];
+                        var b = sig[i];
+                        if (!string.Equals(a.Name, b.Name))
                         {
                             same = false;
                             break;
                         }
+                        if (!string.Equals(a.Title, b.Title))
+                        {
+                            same = false;
+                            break;
+                        }
+                    }
                 }
                 parts.ColSig = sig;
                 parts.CellFns = fns;
                 if (!same)
                 {
-                    RebuildColumns(tv, list, parts);
+                    RebuildColumnsPreservingState(tv, list, parts);
                     // Reapply layout after columns are rebuilt so order/width/visibility persist
                     parts.LayoutTracker.Reapply(tv, parts, null, properties);
                 }
@@ -366,19 +375,19 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("columns", out var nc);
             if (!ReferenceEquals(pc, nc) && nc is IEnumerable<Dictionary<string, object>> list)
             {
-                var sig = new List<(string, string)>();
+                var sig = new List<ColumnSignature>();
                 var fns = new List<Func<int, object, VirtualNode>>();
                 foreach (var c in list)
                 {
                     c.TryGetValue("name", out var n);
                     c.TryGetValue("title", out var t);
                     c.TryGetValue("cell", out var cell);
-                    sig.Add((n as string, t as string));
+                    sig.Add(new ColumnSignature { Name = n as string, Title = t as string });
                     fns.Add(cell as Func<int, object, VirtualNode>);
                 }
                 parts.ColSig = sig;
                 parts.CellFns = fns;
-                RebuildColumns(tv, list, parts);
+                RebuildColumnsPreservingState(tv, list, parts);
                 // Reapply layout after columns are rebuilt so order/width/visibility persist
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
@@ -415,7 +424,7 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        private static void RebuildColumns(
+        private static void RebuildColumnsPreservingState(
             MultiColumnTreeView tv,
             IEnumerable<Dictionary<string, object>> cols,
             Cached parts
@@ -476,7 +485,7 @@ namespace ReactiveUITK.Elements
             {
                 for (int i = 0; i < parts.ColSig.Count; i++)
                 {
-                    var keyName = parts.ColSig[i].Item1;
+                    var keyName = parts.ColSig[i].Name;
                     if (!string.IsNullOrEmpty(keyName))
                     {
                         var fn = parts.CellFns[i];

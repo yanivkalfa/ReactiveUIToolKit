@@ -15,7 +15,7 @@ namespace ReactiveUITK.Elements
         public sealed class Cached : ISortState, IColumnLayoutState, IAdjustmentSuspendState
         {
             public IList LastItems;
-            internal List<ColSig> LastColSignature;
+            internal List<ColumnSignature> LastColSignature;
             public List<Func<int, object, VirtualNode>> CellFns;
 
             public List<(
@@ -475,18 +475,12 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        internal sealed class ColSig
-        {
-            public string Name;
-            public string Title;
-        }
-
         private static (
-            List<ColSig> sig,
+            List<ColumnSignature> sig,
             List<Func<int, object, VirtualNode>> fns
         ) ExtractSignatureAndFns(IEnumerable cols)
         {
-            var list = new List<ColSig>();
+            var list = new List<ColumnSignature>();
             var fns = new List<Func<int, object, VirtualNode>>();
             foreach (var co in cols)
             {
@@ -497,13 +491,13 @@ namespace ReactiveUITK.Elements
                 Func<int, object, VirtualNode> fn = null;
                 if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
                     fn = cf;
-                list.Add(new ColSig { Name = n as string, Title = t as string });
+                list.Add(new ColumnSignature { Name = n as string, Title = t as string });
                 fns.Add(fn);
             }
             return (list, fns);
         }
 
-        private static bool SignaturesEqual(List<ColSig> a, List<ColSig> b)
+        private static bool SignaturesEqual(List<ColumnSignature> a, List<ColumnSignature> b)
         {
             if (ReferenceEquals(a, b))
                 return true;
@@ -515,9 +509,9 @@ namespace ReactiveUITK.Elements
             {
                 var x = a[i];
                 var y = b[i];
-                if (!string.Equals(x?.Name, y?.Name, StringComparison.Ordinal))
+                if (!string.Equals(x.Name, y.Name, StringComparison.Ordinal))
                     return false;
-                if (!string.Equals(x?.Title, y?.Title, StringComparison.Ordinal))
+                if (!string.Equals(x.Title, y.Title, StringComparison.Ordinal))
                     return false;
             }
             return true;
