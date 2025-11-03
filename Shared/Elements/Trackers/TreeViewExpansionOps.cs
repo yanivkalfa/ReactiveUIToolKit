@@ -3,9 +3,9 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    internal sealed class TreeViewExpansionHooks : IExpansionHooks<TreeView>
+    internal sealed class TreeViewExpansionOps : IExpansionViewOps<TreeView>
     {
-        public static readonly TreeViewExpansionHooks Instance = new TreeViewExpansionHooks();
+        public static readonly TreeViewExpansionOps Instance = new TreeViewExpansionOps();
 
         public void Subscribe(TreeView view, Action<TreeViewExpansionChangedArgs> handler)
         {

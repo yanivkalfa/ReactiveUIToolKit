@@ -44,8 +44,8 @@ namespace ReactiveUITK.Elements
         bool TrackUserExpansion { get; set; }
     }
 
-    // Cooperative hooks so a generic expansion tracker can operate without reflection
-    public interface IExpansionHooks<TView>
+    // Adapter-provided operations so a generic expansion tracker can operate without reflection
+    public interface IExpansionViewOps<TView>
         where TView : VisualElement
     {
         void Subscribe(TView view, Action<TreeViewExpansionChangedArgs> handler);

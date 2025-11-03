@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 namespace ReactiveUITK.Elements
 {
     // Cooperative generic tracker: adapters call Attach/Reapply at exact lifecycle points
-    internal sealed class TreeExpansionTrackerCoop<TView, TState>
+    internal sealed class ExpansionStateTracker<TView, TState>
         where TView : VisualElement
         where TState : IExpansionState
     {
@@ -13,7 +13,7 @@ namespace ReactiveUITK.Elements
             TView view,
             TState state,
             IReadOnlyDictionary<string, object> props,
-            IExpansionHooks<TView> hooks
+            IExpansionViewOps<TView> hooks
         )
         {
             if (view == null || state == null || hooks == null)
@@ -78,7 +78,7 @@ namespace ReactiveUITK.Elements
             TState state,
             IReadOnlyDictionary<string, object> previous,
             IReadOnlyDictionary<string, object> next,
-            IExpansionHooks<TView> hooks
+            IExpansionViewOps<TView> hooks
         )
         {
             if (view == null || state == null || hooks == null)

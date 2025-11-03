@@ -3,9 +3,9 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    internal sealed class MultiColumnTreeViewExpansionHooks : IExpansionHooks<MultiColumnTreeView>
+    internal sealed class MultiColumnTreeViewExpansionOps : IExpansionViewOps<MultiColumnTreeView>
     {
-        public static readonly MultiColumnTreeViewExpansionHooks Instance = new();
+        public static readonly MultiColumnTreeViewExpansionOps Instance = new();
 
         public void Subscribe(
             MultiColumnTreeView view,
