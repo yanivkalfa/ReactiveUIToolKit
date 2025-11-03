@@ -304,30 +304,7 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
 
-            // Ensure expansion handler is wired before diffs apply
-            if (next.TryGetValue("itemExpandedChanged", out var nextUser))
-            {
-                if (!ReferenceEquals(parts.UserExpandedHandler, nextUser))
-                {
-                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
-                    {
-                        try
-                        {
-                            tv.itemExpandedChanged -= prev;
-                        }
-                        catch { }
-                    }
-                    parts.UserExpandedHandler = nextUser as Delegate;
-                    if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nh)
-                    {
-                        try
-                        {
-                            tv.itemExpandedChanged += nh;
-                        }
-                        catch { }
-                    }
-                }
-            }
+            // Cooperative tracker handles user expansion handler wiring
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
@@ -340,7 +317,12 @@ namespace ReactiveUITK.Elements
                     tv.Rebuild();
                 }
                 catch { }
-                ReapplyDesired(tv, parts);
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
+                }
+                catch { }
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
@@ -385,7 +367,12 @@ namespace ReactiveUITK.Elements
                     foreach (var id in ids)
                         parts.DesiredExpanded.Add(id);
                 }
-                ReapplyDesired(tv, parts);
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
+                }
+                catch { }
             }
 
             parts.SortTracker.Reapply(tv, parts, previous, next);
@@ -613,12 +600,7 @@ namespace ReactiveUITK.Elements
                 parts.ExpansionTracker.Reapply(tv, parts, null, null, ops);
             }
             catch { }
-            // Restore expansion state after column rebuilds
-            try
-            {
-                ReapplyDesired(tv, parts);
-            }
-            catch { }
+            // Expansion state applied via cooperative tracker above
         }
 
         private static void ApplySlots(
@@ -666,24 +648,6 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void ReapplyDesired(MultiColumnTreeView tv, Cached parts)
-        {
-            if (tv == null || parts == null)
-                return;
-            foreach (var id in parts.DesiredExpanded)
-            {
-                bool all = parts.ExpandAllById.TryGetValue(id, out var v) && v;
-                try
-                {
-                    tv.ExpandItem(id, all, false);
-                }
-                catch { }
-            }
-            try
-            {
-                tv.RefreshItems();
-            }
-            catch { }
-        }
+        // Inline expansion helpers removed in favor of cooperative tracker
     }
 }
