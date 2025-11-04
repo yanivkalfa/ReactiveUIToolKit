@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -83,6 +85,61 @@ namespace ReactiveUITK.Elements
                 return true;
             }
             return false;
+        }
+
+        // Helpers shared by adapters
+        protected static VirtualNode EnsureVisualElementRoot(
+            VirtualNode vnode,
+            string contextTag = null
+        )
+        {
+            if (vnode == null)
+            {
+                return null;
+            }
+            bool isRootVE =
+                vnode.NodeType == VirtualNodeType.Element
+                && string.Equals(vnode.ElementTypeName, "VisualElement", StringComparison.Ordinal);
+            if (!isRootVE)
+            {
+                Debug.LogWarning(
+                    $"[ReactiveUITK][{contextTag ?? "Adapter"}] Root was not a 'VisualElement'. Wrapping automatically."
+                );
+                return ReactiveUITK.V.VisualElement(null, null, vnode);
+            }
+            return vnode;
+        }
+
+        // Coerce various enumerable/object inputs into a List<int> of ids
+        // Public for reuse by trackers that don't inherit from BaseElementAdapter
+        public static List<int> CoerceIds(object value)
+        {
+            if (value == null)
+                return null;
+            try
+            {
+                var list = new List<int>();
+                if (value is IEnumerable<int> gen)
+                {
+                    foreach (var v in gen)
+                        list.Add(v);
+                    return list;
+                }
+                if (value is System.Collections.IEnumerable any)
+                {
+                    foreach (var o in any)
+                    {
+                        try
+                        {
+                            list.Add(Convert.ToInt32(o));
+                        }
+                        catch { }
+                    }
+                    return list;
+                }
+            }
+            catch { }
+            return null;
         }
     }
 }
