@@ -18,6 +18,8 @@ namespace ReactiveUITK.Elements
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
             public IList LastItems; // track previous items reference
+            public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
+                new();
         }
 
         private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList =
@@ -116,34 +118,59 @@ namespace ReactiveUITK.Elements
                     {
                         listView.selectionType = SelectionType.None;
                     }
-                    listView.makeItem = () =>
-                    {
-                        var ve = new VisualElement();
-                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        return ve;
-                    };
+                    listView.makeItem = () => new VisualElement();
                     listView.bindItem = (ve, i) =>
                     {
-                        var rr = ve.userData as IVNodeHostRenderer;
-                        if (rr == null)
-                        {
-                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                            ve.userData = rr;
-                        }
                         object item = null;
                         if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
                         {
                             item = il[i];
                         }
+                        var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        if (!parts.Pool.TryGetValue(key, out var entry))
+                        {
+                            var mount = new VisualElement();
+                            try
+                            {
+                                mount.pickingMode = PickingMode.Ignore;
+                            }
+                            catch { }
+                            var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
+                            entry = (rrNew, mount);
+                            parts.Pool[key] = entry;
+                        }
+                        if (entry.mount.parent != ve)
+                        {
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                            ve.Add(entry.mount);
+                        }
                         var f = parts.RowFn;
                         if (f != null)
                         {
-                            rr.Render(f(i, item));
+                            var vnode = EnsureVisualElementRoot(f(i, item), "ListViewRow");
+                            entry.renderer.Render(vnode);
                         }
                     };
                     listView.unbindItem = (ve, i) =>
                     {
-                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        foreach (var kv in parts.Pool)
+                        {
+                            var mount = kv.Value.mount;
+                            if (mount != null && mount.parent == ve)
+                            {
+                                try
+                                {
+                                    mount.RemoveFromHierarchy();
+                                }
+                                catch { }
+                            }
+                        }
                     };
                 }
             }
@@ -234,34 +261,59 @@ namespace ReactiveUITK.Elements
                     {
                         listView.selectionType = SelectionType.None;
                     }
-                    listView.makeItem = () =>
-                    {
-                        var ve = new VisualElement();
-                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        return ve;
-                    };
+                    listView.makeItem = () => new VisualElement();
                     listView.bindItem = (ve, i) =>
                     {
-                        var rr = ve.userData as IVNodeHostRenderer;
-                        if (rr == null)
-                        {
-                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                            ve.userData = rr;
-                        }
                         object item = null;
                         if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
                         {
                             item = il[i];
                         }
+                        var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        if (!parts.Pool.TryGetValue(key, out var entry))
+                        {
+                            var mount = new VisualElement();
+                            try
+                            {
+                                mount.pickingMode = PickingMode.Ignore;
+                            }
+                            catch { }
+                            var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
+                            entry = (rrNew, mount);
+                            parts.Pool[key] = entry;
+                        }
+                        if (entry.mount.parent != ve)
+                        {
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                            ve.Add(entry.mount);
+                        }
                         var f = parts.RowFn;
                         if (f != null)
                         {
-                            rr.Render(f(i, item));
+                            var vnode = EnsureVisualElementRoot(f(i, item), "ListViewRow");
+                            entry.renderer.Render(vnode);
                         }
                     };
                     listView.unbindItem = (ve, i) =>
                     {
-                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        foreach (var kv in parts.Pool)
+                        {
+                            var mount = kv.Value.mount;
+                            if (mount != null && mount.parent == ve)
+                            {
+                                try
+                                {
+                                    mount.RemoveFromHierarchy();
+                                }
+                                catch { }
+                            }
+                        }
                     };
                 }
                 else if (changed && parts.LastItems != null)
@@ -355,6 +407,41 @@ namespace ReactiveUITK.Elements
                 if (scroll != null)
                     PropsApplier.Apply(scroll, svMap);
             }
+        }
+
+        private static string DeriveRowKey(ListView listView, int index, object item)
+        {
+            try
+            {
+                if (item != null)
+                {
+                    var t = item.GetType();
+                    var f = t.GetField(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (f?.FieldType == typeof(string))
+                    {
+                        var s = f.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                    var p = t.GetProperty(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (p?.PropertyType == typeof(string))
+                    {
+                        var s = p.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                }
+            }
+            catch { }
+            return $"row-{index}";
         }
     }
 }

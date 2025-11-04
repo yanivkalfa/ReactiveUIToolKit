@@ -5,22 +5,21 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class MultiColumnListViewProps
+    public sealed class MultiColumnTreeViewProps
     {
-        public string Name { get; set; }
-        public string ClassName { get; set; }
-        public IList Items { get; set; }
-        public int? SelectedIndex { get; set; }
+        public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }
-        public Style Style { get; set; }
-
-        // Column definitions
+        public int? SelectedIndex { get; set; }
         public List<ColumnDef> Columns { get; set; }
-
+        public IList<int> ExpandedItemIds { get; set; }
+        public bool? StopTrackingUserChange { get; set; }
+        public Dictionary<string, float> ColumnWidths { get; set; }
+        public Dictionary<string, bool> ColumnVisibility { get; set; }
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
         public Action<List<SortedColumnDef>> ColumnSortingChanged { get; set; }
+        public Style Style { get; set; }
 
         public sealed class ColumnDef
         {
@@ -36,26 +35,26 @@ namespace ReactiveUITK.Props.Typed
 
             public Dictionary<string, object> ToDictionary()
             {
-                var dict = new Dictionary<string, object>();
+                var d = new Dictionary<string, object>();
                 if (!string.IsNullOrEmpty(Name))
-                    dict["name"] = Name;
+                    d["name"] = Name;
                 if (!string.IsNullOrEmpty(Title))
-                    dict["title"] = Title;
+                    d["title"] = Title;
                 if (Width.HasValue)
-                    dict["width"] = Width.Value;
+                    d["width"] = Width.Value;
                 if (MinWidth.HasValue)
-                    dict["minWidth"] = MinWidth.Value;
+                    d["minWidth"] = MinWidth.Value;
                 if (MaxWidth.HasValue)
-                    dict["maxWidth"] = MaxWidth.Value;
+                    d["maxWidth"] = MaxWidth.Value;
                 if (Resizable.HasValue)
-                    dict["resizable"] = Resizable.Value;
+                    d["resizable"] = Resizable.Value;
                 if (Stretchable.HasValue)
-                    dict["stretchable"] = Stretchable.Value;
+                    d["stretchable"] = Stretchable.Value;
                 if (Sortable.HasValue)
-                    dict["sortable"] = Sortable.Value;
+                    d["sortable"] = Sortable.Value;
                 if (Cell != null)
-                    dict["cell"] = Cell;
-                return dict;
+                    d["cell"] = Cell;
+                return d;
             }
         }
 
@@ -80,40 +79,44 @@ namespace ReactiveUITK.Props.Typed
 
         public Dictionary<string, object> ToDictionary()
         {
-            var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name))
-                dict["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName))
-                dict["className"] = ClassName;
-            if (Items != null)
-                dict["items"] = Items;
-            if (SelectedIndex.HasValue)
-                dict["selectedIndex"] = SelectedIndex.Value;
+            var d = new Dictionary<string, object>();
+            if (RootItems != null)
+                d["rootItems"] = RootItems;
             if (FixedItemHeight.HasValue)
-                dict["fixedItemHeight"] = FixedItemHeight.Value;
+                d["fixedItemHeight"] = FixedItemHeight.Value;
             if (Selection.HasValue)
-                dict["selectionType"] = Selection.Value;
+                d["selectionType"] = Selection.Value;
+            if (SelectedIndex.HasValue)
+                d["selectedIndex"] = SelectedIndex.Value;
             if (Columns != null)
             {
                 var cols = new List<Dictionary<string, object>>(Columns.Count);
                 foreach (var c in Columns)
                     cols.Add(c?.ToDictionary());
-                dict["columns"] = cols;
+                d["columns"] = cols;
             }
+            if (ExpandedItemIds != null)
+                d["expandedItemIds"] = ExpandedItemIds;
+            if (StopTrackingUserChange.HasValue)
+                d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
+            if (ColumnWidths != null)
+                d["columnWidths"] = ColumnWidths;
+            if (ColumnVisibility != null)
+                d["columnVisibility"] = ColumnVisibility;
             if (SortedColumns != null)
             {
                 var arr = new List<Dictionary<string, object>>(SortedColumns.Count);
                 foreach (var s in SortedColumns)
                     arr.Add(s?.ToDictionary());
-                dict["sortedColumns"] = arr;
+                d["sortedColumns"] = arr;
             }
             if (SortingMode != null)
-                dict["sortingMode"] = SortingMode;
+                d["sortingMode"] = SortingMode;
             if (ColumnSortingChanged != null)
-                dict["columnSortingChanged"] = ColumnSortingChanged;
+                d["columnSortingChanged"] = ColumnSortingChanged;
             if (Style != null)
-                dict["style"] = Style;
-            return dict;
+                d["style"] = Style;
+            return d;
         }
     }
 }
