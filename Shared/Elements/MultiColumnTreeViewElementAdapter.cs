@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using ReactiveUITK.Core;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -12,44 +13,85 @@ namespace ReactiveUITK.Elements
         : StatefulElementAdapter<MultiColumnTreeView, MultiColumnTreeViewElementAdapter.Cached>
     {
         public sealed class Cached
+            : ISortState,
+                IColumnLayoutState,
+                IExpansionState,
+                IAdjustmentSuspendState,
+                IScrollState
         {
             public IList LastRoot;
-            public List<(string name, string title)> ColSig;
+            internal List<ColumnSignature> ColSig;
             public List<Func<int, object, VirtualNode>> CellFns;
 
             // Expansion tracking
-            public HashSet<int> DesiredExpanded = new();
-            public Dictionary<int, bool> ExpandAllById = new();
-            public bool OurHandlerAttached;
-            public Delegate UserExpandedHandler;
-            public bool TrackUserExpansion = true;
+            public HashSet<int> DesiredExpanded { get; set; } = new();
+            public Dictionary<int, bool> ExpandAllById { get; set; } = new();
+            public bool OurHandlerAttached { get; set; }
+            public Delegate UserExpandedHandler { get; set; }
+            public bool TrackUserExpansion { get; set; } = true;
+            internal ExpansionStateTracker<MultiColumnTreeView, Cached> ExpansionTracker =
+                new ExpansionStateTracker<MultiColumnTreeView, Cached>();
 
             // Stable renderer pool for cells: key = rowKey|c=colIndex
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
             // Column layout persistence (by column name)
-            public Dictionary<string, float> ColumnWidths = new();
-            public Dictionary<string, bool> ColumnVisibility = new();
-            public Dictionary<string, int> ColumnDisplayIndex = new();
+            public Dictionary<string, float> ColumnWidths { get; set; } = new();
+            public Dictionary<string, bool> ColumnVisibility { get; set; } = new();
+            public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
             public IElementStateTracker<MultiColumnTreeView, Cached> LayoutTracker =
-                new MultiColumnLayoutTracker();
+                new MultiColumnLayoutTracker<MultiColumnTreeView, Cached>();
 
             // Sorting persistence
-            public List<(string name, SortDirection direction, int index)> SortedColumns = new();
+            public List<(
+                string name,
+                SortDirection direction,
+                int index
+            )> SortedColumns { get; set; } = new();
             public IElementStateTracker<MultiColumnTreeView, Cached> SortTracker =
-                new MultiColumnSortTracker();
-            public Delegate UserSortNotify;
-            public Action InternalSortHandler;
+                new MultiColumnSortTracker<MultiColumnTreeView, Cached>();
+            public Delegate UserSortNotify { get; set; }
+            public Action InternalSortHandler { get; set; }
 
             // (removed) unused layout/order polling fields
+
+            // Interaction guard: suspend heavy updates during user adjustments (resize/reorder)
+            public bool IsAdjusting { get; set; }
+            public bool HeaderWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public IElementStateTracker<MultiColumnTreeView, Cached> AdjustmentTracker =
+                new MultiColumnAdjustmentTracker<MultiColumnTreeView, Cached>(
+                    new MultiColumnHeaderOps<MultiColumnTreeView>(),
+                    ApplyAdjustmentFlush
+                );
+            public bool DetachWired { get; set; }
+
+            // Scroll tracking/persist
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+            public IElementStateTracker<MultiColumnTreeView, Cached> ScrollTracker =
+                new MultiColumnScrollTracker<MultiColumnTreeView, Cached>(
+                    new MultiColumnScrollOps<MultiColumnTreeView>(),
+                    ApplyAdjustmentFlush
+                );
+
+            // Commit coordination for snapshot -> apply -> restore
+            public bool CommitQueued { get; set; }
+            public bool IsCommitting { get; set; }
+            public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
         }
 
         private static HostContext host;
         private static HostContext Host =>
             host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
-        public override VisualElement Create() => new MultiColumnTreeView();
+        public override VisualElement Create() =>
+            GlobalVisualElementPool.Get<MultiColumnTreeView>();
 
         private static void SetRootItems(MultiColumnTreeView tv, object root)
         {
@@ -200,8 +242,25 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(tv);
+            EnsureDetachHook(tv, parts);
+            parts.AdjustmentTracker.Attach(tv, parts, properties);
+            parts.ScrollTracker.Attach(tv, parts, properties);
+            if (parts.IsAdjusting || parts.IsScrolling)
+            {
+                // During active adjust/scroll, just let trackers handle buffering; do not queue commit here
+                parts.AdjustmentTracker.Reapply(tv, parts, null, properties);
+                parts.ScrollTracker.Reapply(tv, parts, null, properties);
+                return;
+            }
             if (properties != null)
             {
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Attach(tv, parts, properties, ops);
+                }
+                catch { }
+                // Expansion wiring is handled inline below
                 if (properties.TryGetValue("rootItems", out var r))
                 {
                     var nextList = r as IList;
@@ -214,7 +273,15 @@ namespace ReactiveUITK.Elements
                             tv.Rebuild();
                         }
                         catch { }
-                        ReapplyDesired(tv, parts);
+                        try
+                        {
+                            var ops = ReactiveUITK
+                                .Elements
+                                .MultiColumnTreeViewExpansionOps
+                                .Instance;
+                            parts.ExpansionTracker.Reapply(tv, parts, null, properties, ops);
+                        }
+                        catch { }
                         parts.LayoutTracker.Reapply(tv, parts, null, properties);
                     }
                 }
@@ -223,89 +290,52 @@ namespace ReactiveUITK.Elements
                     tv.selectionType = st;
                 TryApplyProp<int>(properties, "selectedIndex", i => tv.selectedIndex = i);
                 TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(tv, m));
+            }
 
-                // stopTrackingUserChange option
-                if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
+            if (
+                properties.TryGetValue("columns", out var cols)
+                && cols is IEnumerable<Dictionary<string, object>> list
+            )
+            {
+                var sig = new List<ColumnSignature>();
+                var fns = new List<Func<int, object, VirtualNode>>();
+                foreach (var c in list)
                 {
-                    parts.TrackUserExpansion = !(stopObj is bool b && b);
+                    c.TryGetValue("name", out var n);
+                    c.TryGetValue("title", out var t);
+                    c.TryGetValue("cell", out var cell);
+                    sig.Add(new ColumnSignature { Name = n as string, Title = t as string });
+                    fns.Add(cell as Func<int, object, VirtualNode>);
                 }
-
-                if (
-                    properties.TryGetValue("columns", out var cols)
-                    && cols is IEnumerable<Dictionary<string, object>> list
-                )
+                bool same = parts.ColSig != null && parts.ColSig.Count == sig.Count;
+                if (same)
                 {
-                    var sig = new List<(string, string)>();
-                    var fns = new List<Func<int, object, VirtualNode>>();
-                    foreach (var c in list)
+                    for (int i = 0; i < sig.Count; i++)
                     {
-                        c.TryGetValue("name", out var n);
-                        c.TryGetValue("title", out var t);
-                        c.TryGetValue("cell", out var cell);
-                        sig.Add((n as string, t as string));
-                        fns.Add(cell as Func<int, object, VirtualNode>);
-                    }
-                    bool same = parts.ColSig != null && parts.ColSig.Count == sig.Count;
-                    if (same)
-                    {
-                        for (int i = 0; i < sig.Count; i++)
-                            if (parts.ColSig[i] != sig[i])
-                            {
-                                same = false;
-                                break;
-                            }
-                    }
-                    parts.ColSig = sig;
-                    parts.CellFns = fns;
-                    if (!same)
-                    {
-                        RebuildColumns(tv, list, parts);
-                        // Reapply layout after columns are rebuilt so order/width/visibility persist
-                        parts.LayoutTracker.Reapply(tv, parts, null, properties);
-                    }
-                }
-
-                // User-provided expansion changed handler
-                if (properties.TryGetValue("itemExpandedChanged", out var userHandler))
-                {
-                    if (!ReferenceEquals(parts.UserExpandedHandler, userHandler))
-                    {
-                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                        var a = parts.ColSig[i];
+                        var b = sig[i];
+                        if (!string.Equals(a.Name, b.Name))
                         {
-                            try
-                            {
-                                tv.itemExpandedChanged -= prev;
-                            }
-                            catch { }
+                            same = false;
+                            break;
                         }
-                        parts.UserExpandedHandler = userHandler as Delegate;
-                        if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
+                        if (!string.Equals(a.Title, b.Title))
                         {
-                            try
-                            {
-                                tv.itemExpandedChanged += nextH;
-                            }
-                            catch { }
+                            same = false;
+                            break;
                         }
                     }
                 }
-
-                EnsureOurExpansionHandler(tv, parts);
-
-                // expandedItemIds override
-                if (properties.TryGetValue("expandedItemIds", out var expObj))
+                parts.ColSig = sig;
+                parts.CellFns = fns;
+                if (!same)
                 {
-                    var ids = BaseElementAdapter.CoerceIds(expObj);
-                    parts.DesiredExpanded.Clear();
-                    parts.ExpandAllById.Clear();
-                    if (ids != null)
-                    {
-                        foreach (var id in ids)
-                            parts.DesiredExpanded.Add(id);
-                    }
-                    ReapplyDesired(tv, parts);
+                    RebuildColumnsPreservingState(tv, list, parts);
+                    // Reapply layout after columns are rebuilt so order/width/visibility persist
+                    parts.LayoutTracker.Reapply(tv, parts, null, properties);
                 }
             }
+
             ApplySlots(tv, properties);
             parts.LayoutTracker.Attach(tv, parts, properties);
             parts.LayoutTracker.Reapply(tv, parts, null, properties);
@@ -328,6 +358,23 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+            EnsureDetachHook(tv, parts);
+            parts.AdjustmentTracker.Attach(tv, parts, next);
+            parts.ScrollTracker.Attach(tv, parts, next);
+            if (parts.IsAdjusting || parts.IsScrolling)
+            {
+                // During active adjust/scroll, just let trackers handle buffering; do not queue commit here
+                parts.AdjustmentTracker.Reapply(tv, parts, previous, next);
+                parts.ScrollTracker.Reapply(tv, parts, previous, next);
+                return;
+            }
+            // Ensure cooperative tracker is attached with latest props
+            try
+            {
+                var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Attach(tv, parts, next, ops);
+            }
+            catch { }
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
@@ -340,9 +387,13 @@ namespace ReactiveUITK.Elements
                     tv.Rebuild();
                 }
                 catch { }
-                ReapplyDesired(tv, parts);
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
+                }
+                catch { }
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
-                TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             }
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                 tv.selectionType = st;
@@ -353,53 +404,16 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("columns", out var nc);
             if (!ReferenceEquals(pc, nc) && nc is IEnumerable<Dictionary<string, object>> list)
             {
-                var sig = new List<(string, string)>();
-                var fns = new List<Func<int, object, VirtualNode>>();
-                foreach (var c in list)
-                {
-                    c.TryGetValue("name", out var n);
-                    c.TryGetValue("title", out var t);
-                    c.TryGetValue("cell", out var cell);
-                    sig.Add((n as string, t as string));
-                    fns.Add(cell as Func<int, object, VirtualNode>);
-                }
+                var (sig, fns) = ColumnSignatureUtil.Extract(list);
                 parts.ColSig = sig;
                 parts.CellFns = fns;
-                RebuildColumns(tv, list, parts);
+                RebuildColumnsPreservingState(tv, list, parts);
                 // Reapply layout after columns are rebuilt so order/width/visibility persist
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             ApplySlotsDiff(tv, previous, next);
 
-            // stopTrackingUserChange diff
-            if (next.TryGetValue("stopTrackingUserChange", out var stopObj))
-                parts.TrackUserExpansion = !(stopObj is bool b && b);
-
-            // user handler diff
-            previous.TryGetValue("itemExpandedChanged", out var prevUser);
-            next.TryGetValue("itemExpandedChanged", out var nextUser);
-            if (!ReferenceEquals(prevUser, nextUser))
-            {
-                if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
-                {
-                    try
-                    {
-                        tv.itemExpandedChanged -= prev;
-                    }
-                    catch { }
-                }
-                parts.UserExpandedHandler = nextUser as Delegate;
-                if (parts.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
-                {
-                    try
-                    {
-                        tv.itemExpandedChanged += nextH;
-                    }
-                    catch { }
-                }
-            }
-
-            EnsureOurExpansionHandler(tv, parts);
+            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
 
             // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
@@ -412,14 +426,26 @@ namespace ReactiveUITK.Elements
                     foreach (var id in ids)
                         parts.DesiredExpanded.Add(id);
                 }
-                ReapplyDesired(tv, parts);
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
+                }
+                catch { }
             }
 
             parts.SortTracker.Reapply(tv, parts, previous, next);
+            parts.ScrollTracker.Reapply(tv, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
+            try
+            {
+                var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
+            }
+            catch { }
         }
 
-        private static void RebuildColumns(
+        private static void RebuildColumnsPreservingState(
             MultiColumnTreeView tv,
             IEnumerable<Dictionary<string, object>> cols,
             Cached parts
@@ -480,7 +506,7 @@ namespace ReactiveUITK.Elements
             {
                 for (int i = 0; i < parts.ColSig.Count; i++)
                 {
-                    var keyName = parts.ColSig[i].Item1;
+                    var keyName = parts.ColSig[i].Name;
                     if (!string.IsNullOrEmpty(keyName))
                     {
                         var fn = parts.CellFns[i];
@@ -628,6 +654,13 @@ namespace ReactiveUITK.Elements
                 tv.Rebuild();
             }
             catch { }
+            try
+            {
+                var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Reapply(tv, parts, null, null, ops);
+            }
+            catch { }
+            // Expansion state applied via cooperative tracker above
         }
 
         private static void ApplySlots(
@@ -675,52 +708,149 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void EnsureOurExpansionHandler(MultiColumnTreeView tv, Cached parts)
+        // Inline expansion helpers removed in favor of cooperative tracker
+
+        private static void ApplyAdjustmentFlush(
+            MultiColumnTreeView tv,
+            Cached parts,
+            IReadOnlyDictionary<string, object> prev,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (tv == null || parts == null)
                 return;
-            bool shouldAttach = parts.TrackUserExpansion && parts.UserExpandedHandler == null;
-            if (shouldAttach && !parts.OurHandlerAttached)
+            // Defer full state application to a single commit after idle
+            parts.PendingCommit = next ?? parts.PendingCommit;
+            ScheduleCommit(tv, parts);
+        }
+
+        private static void ScheduleCommit(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null)
+                return;
+            if (parts.CommitQueued)
+                return;
+            parts.CommitQueued = true;
+            try
             {
-                Action<TreeViewExpansionChangedArgs> h = e =>
-                {
-                    try
-                    {
-                        if (e.isExpanded)
-                            parts.DesiredExpanded.Add(e.id);
-                        else
-                            parts.DesiredExpanded.Remove(e.id);
-                        parts.ExpandAllById[e.id] = e.isAppliedToAllChildren;
-                    }
-                    catch { }
-                };
+                tv.schedule?.Execute(() => RunCommit(tv, parts))?.ExecuteLater(0);
+            }
+            catch
+            {
                 try
                 {
-                    tv.itemExpandedChanged += h;
-                    parts.OurHandlerAttached = true;
+                    RunCommit(tv, parts);
                 }
                 catch { }
             }
         }
 
-        private static void ReapplyDesired(MultiColumnTreeView tv, Cached parts)
+        private static void RunCommit(MultiColumnTreeView tv, Cached parts)
         {
+            parts.CommitQueued = false;
             if (tv == null || parts == null)
                 return;
-            foreach (var id in parts.DesiredExpanded)
-            {
-                bool all = parts.ExpandAllById.TryGetValue(id, out var v) && v;
-                try
-                {
-                    tv.ExpandItem(id, all, false);
-                }
-                catch { }
-            }
+            if (parts.IsCommitting)
+                return;
+            var n = parts.PendingCommit;
+            parts.PendingCommit = null;
+            if (n == null)
+                return;
+            parts.IsCommitting = true;
             try
             {
-                tv.RefreshItems();
+                // Root items
+                if (n.TryGetValue("rootItems", out var nr))
+                {
+                    var nextList = nr as IList;
+                    if (!ReferenceEquals(parts.LastRoot, nextList))
+                    {
+                        parts.LastRoot = nextList;
+                        SetRootItems(tv, nextList);
+                        try
+                        {
+                            tv.Rebuild();
+                        }
+                        catch { }
+                    }
+                }
+
+                // Columns
+                if (
+                    n.TryGetValue("columns", out var colsObj)
+                    && colsObj is IEnumerable<Dictionary<string, object>> list
+                )
+                {
+                    var (sig, fns) = ColumnSignatureUtil.Extract(list);
+                    bool changed =
+                        parts.ColSig == null || !ColumnSignatureUtil.Equal(parts.ColSig, sig);
+                    parts.ColSig = sig;
+                    parts.CellFns = fns;
+                    if (changed)
+                    {
+                        RebuildColumnsPreservingState(tv, list, parts);
+                    }
+                }
+
+                // Layout persistence (width/visibility)
+                parts.LayoutTracker.Reapply(tv, parts, null, n);
+
+                // Scalars
+                if (n.TryGetValue("fixedItemHeight", out var fih) && fih is float fh)
+                    tv.fixedItemHeight = fh;
+                if (n.TryGetValue("selectionType", out var st) && st is SelectionType sel)
+                    tv.selectionType = sel;
+                if (n.TryGetValue("selectedIndex", out var si) && si is int idx)
+                    tv.selectedIndex = idx;
+                if (n.TryGetValue("sortingMode", out var sm))
+                    ApplySortingMode(tv, sm);
+
+                // Slots
+                ApplySlotsDiff(tv, new Dictionary<string, object>(), n);
+
+                // Expansion (once): always reapply DesiredExpanded; if expandedItemIds present in 'n',
+                // the tracker will override DesiredExpanded from it.
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Reapply(tv, parts, null, n, ops);
+                }
+                catch { }
+
+                // Sort + Scroll restore
+                parts.SortTracker.Reapply(tv, parts, null, n);
+                parts.ScrollTracker.Reapply(tv, parts, null, n);
             }
             catch { }
+            finally
+            {
+                parts.IsCommitting = false;
+            }
+        }
+
+        private static void EnsureDetachHook(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null || parts.DetachWired)
+                return;
+            parts.DetachWired = true;
+            tv.RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                try
+                {
+                    parts.AdjustmentTracker.Detach(tv, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.SortTracker.Detach(tv, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.LayoutTracker.Detach(tv, parts);
+                }
+                catch { }
+            });
         }
     }
 }

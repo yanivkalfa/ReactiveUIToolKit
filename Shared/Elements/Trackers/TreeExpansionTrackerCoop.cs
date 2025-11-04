@@ -4,32 +4,26 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public interface IElementStateTracker<TElement, TState>
-        where TElement : VisualElement
-    {
-        void Attach(TElement element, TState state, IReadOnlyDictionary<string, object> props);
-        void Detach(TElement element, TState state);
-        void Reapply(
-            TElement element,
-            TState state,
-            IReadOnlyDictionary<string, object> previousProps,
-            IReadOnlyDictionary<string, object> nextProps
-        );
-    }
-
-    internal sealed class TreeViewExpansionTracker
-        : IElementStateTracker<TreeView, TreeViewElementAdapter.Cached>
+    // Cooperative generic tracker: adapters call Attach/Reapply at exact lifecycle points
+    internal sealed class ExpansionStateTracker<TView, TState>
+        where TView : VisualElement
+        where TState : IExpansionState
     {
         public void Attach(
-            TreeView tv,
-            TreeViewElementAdapter.Cached state,
-            IReadOnlyDictionary<string, object> props
+            TView view,
+            TState state,
+            IReadOnlyDictionary<string, object> props,
+            IExpansionViewOps<TView> hooks
         )
         {
+            if (view == null || state == null || hooks == null)
+                return;
+
+            // stopTrackingUserChange
             if (props != null && props.TryGetValue("stopTrackingUserChange", out var stopObj))
                 state.TrackUserExpansion = !(stopObj is bool b && b);
 
-            // User handler wiring (pass-through)
+            // User-provided handler
             if (props != null && props.TryGetValue("itemExpandedChanged", out var userHandler))
             {
                 if (!ReferenceEquals(state.UserExpandedHandler, userHandler))
@@ -38,7 +32,7 @@ namespace ReactiveUITK.Elements
                     {
                         try
                         {
-                            tv.itemExpandedChanged -= prev;
+                            hooks.Unsubscribe(view, prev);
                         }
                         catch { }
                     }
@@ -47,14 +41,14 @@ namespace ReactiveUITK.Elements
                     {
                         try
                         {
-                            tv.itemExpandedChanged += nextH;
+                            hooks.Subscribe(view, nextH);
                         }
                         catch { }
                     }
                 }
             }
 
-            // Internal tracker (only if enabled and no user handler)
+            // Our internal tracker only when no user handler
             bool shouldAttach = state.TrackUserExpansion && state.UserExpandedHandler == null;
             if (shouldAttach && !state.OurHandlerAttached)
             {
@@ -72,54 +66,56 @@ namespace ReactiveUITK.Elements
                 };
                 try
                 {
-                    tv.itemExpandedChanged += h;
+                    hooks.Subscribe(view, h);
                     state.OurHandlerAttached = true;
                 }
                 catch { }
             }
         }
 
-        public void Detach(TreeView tv, TreeViewElementAdapter.Cached state)
-        {
-            // No-op for now (safe to leave internal handler attached across adapter lifetime)
-        }
-
         public void Reapply(
-            TreeView tv,
-            TreeViewElementAdapter.Cached state,
-            IReadOnlyDictionary<string, object> previousProps,
-            IReadOnlyDictionary<string, object> nextProps
+            TView view,
+            TState state,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            IExpansionViewOps<TView> hooks
         )
         {
-            // Override via prop if provided
-            if (nextProps != null && nextProps.TryGetValue("expandedItemIds", out var expObj))
-            {
-                var ids = BaseElementAdapter.CoerceIds(expObj);
-                state.DesiredExpanded.Clear();
-                state.ExpandAllById.Clear();
-                if (ids != null)
-                {
-                    foreach (var id in ids)
-                        state.DesiredExpanded.Add(id);
-                }
-            }
+            if (view == null || state == null || hooks == null)
+                return;
 
-            foreach (var id in state.DesiredExpanded)
+            // expandedItemIds override
+            if (next != null && next.TryGetValue("expandedItemIds", out var expObj))
             {
-                bool all = state.ExpandAllById.TryGetValue(id, out var v) && v;
                 try
                 {
-                    tv.ExpandItem(id, all, false);
+                    var ids = BaseElementAdapter.CoerceIds(expObj);
+                    state.DesiredExpanded.Clear();
+                    state.ExpandAllById.Clear();
+                    if (ids != null)
+                    {
+                        foreach (var id in ids)
+                            state.DesiredExpanded.Add(id);
+                    }
                 }
                 catch { }
             }
+
+            // Apply desired expansion
             try
             {
-                tv.RefreshItems();
+                foreach (var id in state.DesiredExpanded)
+                {
+                    bool all = state.ExpandAllById.TryGetValue(id, out var v) && v;
+                    try
+                    {
+                        hooks.ExpandItem(view, id, all);
+                    }
+                    catch { }
+                }
+                hooks.Refresh(view);
             }
             catch { }
         }
-
-        // Coercion now centralized in BaseElementAdapter.CoerceIds
     }
 }

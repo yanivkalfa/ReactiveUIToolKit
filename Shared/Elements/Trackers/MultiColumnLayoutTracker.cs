@@ -6,17 +6,43 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    internal sealed class MultiColumnLayoutTracker
-        : IElementStateTracker<MultiColumnTreeView, MultiColumnTreeViewElementAdapter.Cached>
+    internal sealed class MultiColumnLayoutTracker<TView, TState>
+        : IElementStateTracker<TView, TState>
+        where TView : UnityEngine.UIElements.VisualElement
+        where TState : IColumnLayoutState
     {
-        private static Dictionary<string, float> CaptureCurrentWidths(MultiColumnTreeView tv)
+        private static System.Collections.Generic.IEnumerable<Column> GetColumns(TView tv)
+        {
+            var list = new System.Collections.Generic.List<Column>();
+            try
+            {
+                var prop = tv.GetType()
+                    .GetProperty(
+                        "columns",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                    );
+                var val = prop?.GetValue(tv);
+                if (val is System.Collections.IEnumerable en)
+                {
+                    foreach (var it in en)
+                    {
+                        if (it is Column c)
+                            list.Add(c);
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        private static Dictionary<string, float> CaptureCurrentWidths(TView tv)
         {
             var map = new Dictionary<string, float>();
             if (tv == null)
                 return map;
             try
             {
-                foreach (var col in tv.columns)
+                foreach (var col in GetColumns(tv))
                 {
                     if (col == null)
                         continue;
@@ -34,14 +60,14 @@ namespace ReactiveUITK.Elements
             return map;
         }
 
-        private static Dictionary<string, bool> CaptureCurrentVisibility(MultiColumnTreeView tv)
+        private static Dictionary<string, bool> CaptureCurrentVisibility(TView tv)
         {
             var map = new Dictionary<string, bool>();
             if (tv == null)
                 return map;
             try
             {
-                foreach (var col in tv.columns)
+                foreach (var col in GetColumns(tv))
                 {
                     if (col == null)
                         continue;
@@ -80,12 +106,12 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
-        private static Dictionary<string, int> CaptureCurrentIndices(MultiColumnTreeView tv)
+        private static Dictionary<string, int> CaptureCurrentIndices(TView tv)
         {
             var map = new Dictionary<string, int>();
             if (tv == null)
                 return map;
-            foreach (var col in tv.columns)
+            foreach (var col in GetColumns(tv))
             {
                 if (col == null)
                     continue;
@@ -109,16 +135,12 @@ namespace ReactiveUITK.Elements
             return map;
         }
 
-        private static void ApplySavedIndices(MultiColumnTreeView tv, Dictionary<string, int> saved)
+        private static void ApplySavedIndices(TView tv, Dictionary<string, int> saved)
         {
             // No-op: Column order is applied during column rebuild in the adapter.
         }
 
-        public void Attach(
-            MultiColumnTreeView tv,
-            MultiColumnTreeViewElementAdapter.Cached state,
-            IReadOnlyDictionary<string, object> props
-        )
+        public void Attach(TView tv, TState state, IReadOnlyDictionary<string, object> props)
         {
             if (props != null && props.TryGetValue("columnWidths", out var widthsObj))
             {
@@ -148,14 +170,14 @@ namespace ReactiveUITK.Elements
                 state.ColumnDisplayIndex = CaptureCurrentIndices(tv);
         }
 
-        public void Detach(MultiColumnTreeView tv, MultiColumnTreeViewElementAdapter.Cached state)
+        public void Detach(TView tv, TState state)
         {
             // No-op
         }
 
         public void Reapply(
-            MultiColumnTreeView tv,
-            MultiColumnTreeViewElementAdapter.Cached state,
+            TView tv,
+            TState state,
             IReadOnlyDictionary<string, object> previousProps,
             IReadOnlyDictionary<string, object> nextProps
         )
@@ -178,7 +200,7 @@ namespace ReactiveUITK.Elements
             }
             catch { }
 
-            foreach (var col in tv.columns)
+            foreach (var col in GetColumns(tv))
             {
                 if (col == null)
                     continue;

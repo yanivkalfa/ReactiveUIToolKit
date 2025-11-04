@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -9,17 +9,68 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class MultiColumnListViewElementAdapter : BaseElementAdapter
+    public sealed class MultiColumnListViewElementAdapter
+        : StatefulElementAdapter<MultiColumnListView, MultiColumnListViewElementAdapter.Cached>
     {
-        private sealed class CachedParts
+        public sealed class Cached
+            : ISortState,
+                IColumnLayoutState,
+                IAdjustmentSuspendState,
+                IScrollState
         {
             public IList LastItems;
-            public List<ColSig> LastColSignature;
+            internal List<ColumnSignature> LastColSignature;
             public List<Func<int, object, VirtualNode>> CellFns;
-        }
 
-        private static readonly ConditionalWeakTable<MultiColumnListView, CachedParts> cache =
-            new();
+            // Stable renderer pool for cells: key = rowKey|c=colIndex
+            internal Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
+                new();
+
+            public List<(
+                string name,
+                SortDirection direction,
+                int index
+            )> SortedColumns { get; set; } = new();
+            public Delegate UserSortNotify { get; set; }
+            public Action InternalSortHandler { get; set; }
+            public IElementStateTracker<MultiColumnListView, Cached> SortTracker =
+                new MultiColumnSortTracker<MultiColumnListView, Cached>();
+
+            public Dictionary<string, float> ColumnWidths { get; set; } = new();
+            public Dictionary<string, bool> ColumnVisibility { get; set; } = new();
+            public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
+            public IElementStateTracker<MultiColumnListView, Cached> LayoutTracker =
+                new MultiColumnLayoutTracker<MultiColumnListView, Cached>();
+
+            // Suspend heavy updates during header interactions
+            public bool IsAdjusting { get; set; }
+            public bool HeaderWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public IElementStateTracker<MultiColumnListView, Cached> AdjustmentTracker =
+                new MultiColumnAdjustmentTracker<MultiColumnListView, Cached>(
+                    new MultiColumnHeaderOps<MultiColumnListView>(),
+                    ApplyAdjustmentFlush
+                );
+            public bool DetachWired { get; set; }
+
+            // Scroll tracking/persist
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+            public IElementStateTracker<MultiColumnListView, Cached> ScrollTracker =
+                new MultiColumnScrollTracker<MultiColumnListView, Cached>(
+                    new MultiColumnScrollOps<MultiColumnListView>(),
+                    ApplyAdjustmentFlush
+                );
+
+            // Commit coordination for snapshot -> apply -> restore
+            public bool CommitQueued { get; set; }
+            public bool IsCommitting { get; set; }
+            public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
+        }
 
         private static HostContext sharedHostContext;
 
@@ -69,10 +120,8 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
-        public override VisualElement Create()
-        {
-            return GlobalVisualElementPool.Get<MultiColumnListView>();
-        }
+        public override VisualElement Create() =>
+            GlobalVisualElementPool.Get<MultiColumnListView>();
 
         public override void ApplyProperties(
             VisualElement element,
@@ -84,8 +133,18 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
-
-            var parts = cache.GetValue(view, _ => new CachedParts());
+            var parts = GetState(view);
+            EnsureDetachHook(view, parts);
+            parts.AdjustmentTracker.Attach(view, parts, properties);
+            parts.ScrollTracker.Attach(view, parts, properties);
+            if (parts.IsAdjusting || parts.IsScrolling)
+            {
+                parts.AdjustmentTracker.Reapply(view, parts, null, properties);
+                parts.ScrollTracker.Reapply(view, parts, null, properties);
+                parts.PendingCommit = properties;
+                ScheduleCommit(view, parts);
+                return;
+            }
 
             if (properties.TryGetValue("items", out var itemsObj))
             {
@@ -122,15 +181,18 @@ namespace ReactiveUITK.Elements
                 view.selectionType = sel;
             }
 
+            // sortingMode (optional)
+            TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(view, m));
+
             // Columns: rebuild only if semantic signature changes
             if (properties.TryGetValue("columns", out var colsObj) && colsObj is IEnumerable cols)
             {
-                var (newSig, newFns) = ExtractSignatureAndFns(cols);
+                var (newSig, newFns) = ColumnSignatureUtil.Extract(cols);
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
+                    parts.LastColSignature = newSig; // update before rebuild so name-based binding is correct
                     RebuildColumnsPreservingState(view, cols, parts);
-                    parts.LastColSignature = newSig;
                 }
                 else
                 {
@@ -146,6 +208,12 @@ namespace ReactiveUITK.Elements
             }
 
             ApplySlots(view, properties);
+
+            // trackers
+            parts.LayoutTracker.Attach(view, parts, properties);
+            parts.LayoutTracker.Reapply(view, parts, null, properties);
+            parts.SortTracker.Attach(view, parts, properties);
+            parts.SortTracker.Reapply(view, parts, null, properties);
             PropsApplier.Apply(element, properties);
         }
 
@@ -163,7 +231,18 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
 
-            var parts = cache.GetValue(view, _ => new CachedParts());
+            var parts = GetState(view);
+            EnsureDetachHook(view, parts);
+            parts.AdjustmentTracker.Attach(view, parts, next);
+            parts.ScrollTracker.Attach(view, parts, next);
+            if (parts.IsAdjusting || parts.IsScrolling)
+            {
+                parts.AdjustmentTracker.Reapply(view, parts, previous, next);
+                parts.ScrollTracker.Reapply(view, parts, previous, next);
+                parts.PendingCommit = next;
+                ScheduleCommit(view, parts);
+                return;
+            }
 
             previous.TryGetValue("items", out var prevItemsObj);
             next.TryGetValue("items", out var nextItemsObj);
@@ -193,16 +272,18 @@ namespace ReactiveUITK.Elements
                 }
             }
 
+            TryDiffProp<object>(previous, next, "sortingMode", m => ApplySortingMode(view, m));
+
             previous.TryGetValue("columns", out var prevCols);
             next.TryGetValue("columns", out var nextCols);
             if (nextCols is IEnumerable ncols)
             {
-                var (newSig, newFns) = ExtractSignatureAndFns(ncols);
+                var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
+                    parts.LastColSignature = newSig; // update before rebuild
                     RebuildColumnsPreservingState(view, ncols, parts);
-                    parts.LastColSignature = newSig;
                 }
                 else
                 {
@@ -217,13 +298,58 @@ namespace ReactiveUITK.Elements
             }
 
             ApplySlotsDiff(view, previous, next);
+
+            // trackers
+            parts.LayoutTracker.Reapply(view, parts, previous, next);
+            parts.SortTracker.Reapply(view, parts, previous, next);
+            parts.ScrollTracker.Reapply(view, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        private static void ApplySortingMode(MultiColumnListView view, object mode)
+        {
+            if (view == null || mode == null)
+                return;
+            try
+            {
+                var pi = typeof(MultiColumnListView).GetProperty(
+                    "sortingMode",
+                    System.Reflection.BindingFlags.Instance
+                        | System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.NonPublic
+                );
+                if (pi == null)
+                    return;
+                var enumType = pi.PropertyType;
+                object val = null;
+                if (mode.GetType().IsEnum && mode.GetType().Name == enumType.Name)
+                    val = mode;
+                else if (mode is string s)
+                {
+                    try
+                    {
+                        val = Enum.Parse(enumType, s, true);
+                    }
+                    catch { }
+                }
+                else if (mode is int i)
+                {
+                    try
+                    {
+                        val = Enum.ToObject(enumType, i);
+                    }
+                    catch { }
+                }
+                if (val != null)
+                    pi.SetValue(view, val);
+            }
+            catch { }
         }
 
         private static void RebuildColumnsPreservingState(
             MultiColumnListView view,
             IEnumerable newCols,
-            CachedParts parts
+            Cached parts
         )
         {
             // Capture existing columns by name and index
@@ -240,6 +366,27 @@ namespace ReactiveUITK.Elements
             }
 
             view.columns.Clear();
+
+            // Build a name -> cell function map to keep cell rendering bound to column name,
+            // regardless of visual reordering.
+            var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
+            if (
+                parts?.LastColSignature != null
+                && parts?.CellFns != null
+                && parts.LastColSignature.Count == parts.CellFns.Count
+            )
+            {
+                for (int i = 0; i < parts.LastColSignature.Count; i++)
+                {
+                    var keyName = parts.LastColSignature[i].Name;
+                    if (!string.IsNullOrEmpty(keyName))
+                    {
+                        var fn = parts.CellFns[i];
+                        if (fn != null)
+                            cellFnByName[keyName] = fn;
+                    }
+                }
+            }
             int index = 0;
             int colIndex = 0;
             foreach (var co in newCols)
@@ -340,40 +487,104 @@ namespace ReactiveUITK.Elements
                     column.stretchable = stretchable;
                 else if (prev != null)
                     column.stretchable = prev.stretchable;
+                if (colMap.TryGetValue("sortable", out var so) && so is bool srt)
+                    column.sortable = srt;
 
-                column.makeCell = () =>
-                {
-                    var ve = new VisualElement();
-                    ve.style.flexGrow = 1;
-                    ve.userData = new VNodeHostRenderer(GetCellHostContext(), ve);
-                    return ve;
-                };
+                column.makeCell = () => new VisualElement();
                 int capturedIndex = colIndex;
                 column.bindCell = (ve, rowIndex) =>
                 {
-                    var rr = ve.userData as IVNodeHostRenderer;
-                    if (rr == null)
-                    {
-                        rr = new VNodeHostRenderer(GetCellHostContext(), ve);
-                        ve.userData = rr;
-                    }
                     object item = null;
                     if (view.itemsSource is IList il && rowIndex >= 0 && rowIndex < il.Count)
                     {
                         item = il[rowIndex];
                     }
-                    var fnList = parts.CellFns;
+                    // Stable pool entry per (row, columnIndex)
+                    var rowKey = DeriveRowKeyList(view, rowIndex, item);
+                    var key = rowKey + "|c=" + capturedIndex;
+                    if (!parts.Pool.TryGetValue(key, out var entry))
+                    {
+                        var mount = new VisualElement();
+                        try
+                        {
+                            mount.pickingMode = PickingMode.Ignore;
+                        }
+                        catch { }
+                        var rrNew = new VNodeHostRenderer(GetCellHostContext(), mount);
+                        entry = (rrNew, mount);
+                        parts.Pool[key] = entry;
+                    }
+                    if (entry.mount.parent != ve)
+                    {
+                        try
+                        {
+                            entry.mount.RemoveFromHierarchy();
+                        }
+                        catch { }
+                        ve.Add(entry.mount);
+                    }
+                    // Resolve cell function (prefer by column name)
                     Func<int, object, VirtualNode> activeFn = null;
-                    if (fnList != null && capturedIndex >= 0 && capturedIndex < fnList.Count)
-                        activeFn = fnList[capturedIndex];
+                    if (
+                        !string.IsNullOrEmpty(column.name)
+                        && cellFnByName.TryGetValue(column.name, out var byName)
+                    )
+                        activeFn = byName;
+                    else
+                    {
+                        var fnList = parts.CellFns;
+                        if (fnList != null && capturedIndex >= 0 && capturedIndex < fnList.Count)
+                            activeFn = fnList[capturedIndex];
+                    }
                     if (activeFn != null)
                     {
-                        var vnode = activeFn(rowIndex, item);
-                        rr.Render(EnsureVisualRoot(vnode));
+                        var vnode = EnsureVisualRoot(activeFn(rowIndex, item));
+                        entry.renderer.Render(vnode);
                     }
                 };
-                // Preserve existing VNodeHostRenderer across unbind to avoid remounting stateful subtrees
-                column.unbindCell = (ve, i) => { };
+                // Preserve renderers; only detach pooled mounts from recycled VE
+                column.unbindCell = (ve, i) =>
+                {
+                    foreach (var kv in parts.Pool)
+                    {
+                        var mount = kv.Value.mount;
+                        if (mount != null && mount.parent == ve)
+                        {
+                            try
+                            {
+                                mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                        }
+                    }
+                };
+                // Apply persisted width (by name) if present
+                if (
+                    !string.IsNullOrEmpty(column.name)
+                    && parts.ColumnWidths != null
+                    && parts.ColumnWidths.TryGetValue(column.name, out var savedW)
+                )
+                {
+                    try
+                    {
+                        column.width = savedW;
+                    }
+                    catch { }
+                }
+                // Apply persisted visibility (by name) if present
+                if (
+                    !string.IsNullOrEmpty(column.name)
+                    && parts.ColumnVisibility != null
+                    && parts.ColumnVisibility.TryGetValue(column.name, out var isVisible)
+                )
+                {
+                    try
+                    {
+                        column.visible = isVisible;
+                    }
+                    catch { }
+                }
+
                 view.columns.Add(column);
                 index++;
                 colIndex++;
@@ -386,52 +597,9 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        private sealed class ColSig
+        private static bool SignaturesEqual(List<ColumnSignature> a, List<ColumnSignature> b)
         {
-            public string Name;
-            public string Title;
-        }
-
-        private static (
-            List<ColSig> sig,
-            List<Func<int, object, VirtualNode>> fns
-        ) ExtractSignatureAndFns(IEnumerable cols)
-        {
-            var list = new List<ColSig>();
-            var fns = new List<Func<int, object, VirtualNode>>();
-            foreach (var co in cols)
-            {
-                if (co is not IDictionary<string, object> colMap)
-                    continue;
-                colMap.TryGetValue("name", out var n);
-                colMap.TryGetValue("title", out var t);
-                Func<int, object, VirtualNode> fn = null;
-                if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
-                    fn = cf;
-                list.Add(new ColSig { Name = n as string, Title = t as string });
-                fns.Add(fn);
-            }
-            return (list, fns);
-        }
-
-        private static bool SignaturesEqual(List<ColSig> a, List<ColSig> b)
-        {
-            if (ReferenceEquals(a, b))
-                return true;
-            if (a == null || b == null)
-                return false;
-            if (a.Count != b.Count)
-                return false;
-            for (int i = 0; i < a.Count; i++)
-            {
-                var x = a[i];
-                var y = b[i];
-                if (!string.Equals(x?.Name, y?.Name, StringComparison.Ordinal))
-                    return false;
-                if (!string.Equals(x?.Title, y?.Title, StringComparison.Ordinal))
-                    return false;
-            }
-            return true;
+            return ColumnSignatureUtil.Equal(a, b);
         }
 
         private static void ApplySlots(
@@ -481,6 +649,183 @@ namespace ReactiveUITK.Elements
                 if (scroll != null)
                     PropsApplier.Apply(scroll, svMap);
             }
+        }
+
+        private static void ApplyAdjustmentFlush(
+            MultiColumnListView view,
+            Cached parts,
+            IReadOnlyDictionary<string, object> prev,
+            IReadOnlyDictionary<string, object> next
+        )
+        {
+            if (view == null || parts == null)
+                return;
+            parts.PendingCommit = next ?? parts.PendingCommit;
+            ScheduleCommit(view, parts);
+        }
+
+        private static void ScheduleCommit(MultiColumnListView view, Cached parts)
+        {
+            if (view == null || parts == null)
+                return;
+            if (parts.CommitQueued)
+                return;
+            parts.CommitQueued = true;
+            try
+            {
+                view.schedule?.Execute(() => RunCommit(view, parts))?.ExecuteLater(0);
+            }
+            catch
+            {
+                try
+                {
+                    RunCommit(view, parts);
+                }
+                catch { }
+            }
+        }
+
+        private static void RunCommit(MultiColumnListView view, Cached parts)
+        {
+            parts.CommitQueued = false;
+            if (view == null || parts == null)
+                return;
+            if (parts.IsCommitting)
+                return;
+            var n = parts.PendingCommit;
+            parts.PendingCommit = null;
+            if (n == null)
+                return;
+            parts.IsCommitting = true;
+            try
+            {
+                // Items
+                if (n.TryGetValue("items", out var nextItemsObj))
+                {
+                    var nextItems = NormalizeItems(nextItemsObj);
+                    if (!ReferenceEquals(parts.LastItems, nextItems))
+                    {
+                        parts.LastItems = nextItems;
+                        view.itemsSource = nextItems as IList;
+                        try
+                        {
+                            view.Rebuild();
+                        }
+                        catch { }
+                    }
+                }
+
+                // Columns
+                if (n.TryGetValue("columns", out var nextCols) && nextCols is IEnumerable ncols)
+                {
+                    var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
+                    bool changed = !SignaturesEqual(parts.LastColSignature, newSig);
+                    parts.CellFns = newFns;
+                    parts.LastColSignature = newSig;
+                    if (changed)
+                    {
+                        RebuildColumnsPreservingState(view, ncols, parts);
+                    }
+                    else
+                    {
+                        try
+                        {
+                            view.RefreshItems();
+                        }
+                        catch { }
+                    }
+                }
+
+                // Layout persistence
+                parts.LayoutTracker.Reapply(view, parts, null, n);
+
+                // Scalars
+                if (n.TryGetValue("fixedItemHeight", out var fv) && fv is float ff)
+                    view.fixedItemHeight = ff;
+                if (n.TryGetValue("selectionType", out var selObj) && selObj is SelectionType sel)
+                    view.selectionType = sel;
+                if (n.TryGetValue("selectedIndex", out var si) && si is int idx)
+                    view.selectedIndex = idx;
+                if (n.TryGetValue("sortingMode", out var sm))
+                    ApplySortingMode(view, sm);
+
+                // Slots
+                ApplySlotsDiff(view, new Dictionary<string, object>(), n);
+
+                // Sort + Scroll restore
+                parts.SortTracker.Reapply(view, parts, null, n);
+                parts.ScrollTracker.Reapply(view, parts, null, n);
+            }
+            catch { }
+            finally
+            {
+                parts.IsCommitting = false;
+            }
+        }
+
+        private static string DeriveRowKeyList(MultiColumnListView view, int index, object item)
+        {
+            try
+            {
+                if (item != null)
+                {
+                    var t = item.GetType();
+                    var f = t.GetField(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (f?.FieldType == typeof(string))
+                    {
+                        var s = f.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                    var p = t.GetProperty(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (p?.PropertyType == typeof(string))
+                    {
+                        var s = p.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                }
+            }
+            catch { }
+            return $"row-{index}";
+        }
+
+        private static void EnsureDetachHook(MultiColumnListView view, Cached parts)
+        {
+            if (view == null || parts == null || parts.DetachWired)
+                return;
+            parts.DetachWired = true;
+            view.RegisterCallback<DetachFromPanelEvent>(_ =>
+            {
+                try
+                {
+                    parts.AdjustmentTracker.Detach(view, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.SortTracker.Detach(view, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.LayoutTracker.Detach(view, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.ScrollTracker.Detach(view, parts);
+                }
+                catch { }
+            });
         }
     }
 }
