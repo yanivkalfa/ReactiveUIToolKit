@@ -222,8 +222,9 @@ namespace ReactiveUITK.Elements
                     parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
                 }
                 catch { }
-                TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             }
+            // Apply fixedItemHeight diff regardless of root change
+            TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
                 tv.selectionType = st;
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.SetSelection(i));

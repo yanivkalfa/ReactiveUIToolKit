@@ -261,34 +261,59 @@ namespace ReactiveUITK.Elements
                     {
                         listView.selectionType = SelectionType.None;
                     }
-                    listView.makeItem = () =>
-                    {
-                        var ve = new VisualElement();
-                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        return ve;
-                    };
+                    listView.makeItem = () => new VisualElement();
                     listView.bindItem = (ve, i) =>
                     {
-                        var rr = ve.userData as IVNodeHostRenderer;
-                        if (rr == null)
-                        {
-                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                            ve.userData = rr;
-                        }
                         object item = null;
                         if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
                         {
                             item = il[i];
                         }
+                        var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        if (!parts.Pool.TryGetValue(key, out var entry))
+                        {
+                            var mount = new VisualElement();
+                            try
+                            {
+                                mount.pickingMode = PickingMode.Ignore;
+                            }
+                            catch { }
+                            var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
+                            entry = (rrNew, mount);
+                            parts.Pool[key] = entry;
+                        }
+                        if (entry.mount.parent != ve)
+                        {
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                            ve.Add(entry.mount);
+                        }
                         var f = parts.RowFn;
                         if (f != null)
                         {
-                            rr.Render(f(i, item));
+                            var vnode = EnsureVisualElementRoot(f(i, item), "ListViewRow");
+                            entry.renderer.Render(vnode);
                         }
                     };
                     listView.unbindItem = (ve, i) =>
                     {
-                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        foreach (var kv in parts.Pool)
+                        {
+                            var mount = kv.Value.mount;
+                            if (mount != null && mount.parent == ve)
+                            {
+                                try
+                                {
+                                    mount.RemoveFromHierarchy();
+                                }
+                                catch { }
+                            }
+                        }
                     };
                 }
                 else if (changed && parts.LastItems != null)

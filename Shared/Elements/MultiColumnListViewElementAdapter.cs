@@ -478,6 +478,8 @@ namespace ReactiveUITK.Elements
                     column.stretchable = stretchable;
                 else if (prev != null)
                     column.stretchable = prev.stretchable;
+                if (colMap.TryGetValue("sortable", out var so) && so is bool srt)
+                    column.sortable = srt;
 
                 column.makeCell = () => new VisualElement();
                 int capturedIndex = colIndex;
@@ -547,6 +549,33 @@ namespace ReactiveUITK.Elements
                         }
                     }
                 };
+                // Apply persisted width (by name) if present
+                if (
+                    !string.IsNullOrEmpty(column.name)
+                    && parts.ColumnWidths != null
+                    && parts.ColumnWidths.TryGetValue(column.name, out var savedW)
+                )
+                {
+                    try
+                    {
+                        column.width = savedW;
+                    }
+                    catch { }
+                }
+                // Apply persisted visibility (by name) if present
+                if (
+                    !string.IsNullOrEmpty(column.name)
+                    && parts.ColumnVisibility != null
+                    && parts.ColumnVisibility.TryGetValue(column.name, out var isVisible)
+                )
+                {
+                    try
+                    {
+                        column.visible = isVisible;
+                    }
+                    catch { }
+                }
+
                 view.columns.Add(column);
                 index++;
                 colIndex++;
@@ -656,8 +685,8 @@ namespace ReactiveUITK.Elements
                                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                                 {
                                     parts.CellFns = newFns;
-                                    RebuildColumnsPreservingState(view, ncols, parts);
                                     parts.LastColSignature = newSig;
+                                    RebuildColumnsPreservingState(view, ncols, parts);
                                 }
                                 else
                                 {
@@ -742,6 +771,11 @@ namespace ReactiveUITK.Elements
                 try
                 {
                     parts.LayoutTracker.Detach(view, parts);
+                }
+                catch { }
+                try
+                {
+                    parts.ScrollTracker.Detach(view, parts);
                 }
                 catch { }
             });

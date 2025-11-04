@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using ReactiveUITK.Core;
+using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -84,7 +85,8 @@ namespace ReactiveUITK.Elements
         private static HostContext Host =>
             host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
-        public override VisualElement Create() => new MultiColumnTreeView();
+        public override VisualElement Create() =>
+            GlobalVisualElementPool.Get<MultiColumnTreeView>();
 
         private static void SetRootItems(MultiColumnTreeView tv, object root)
         {
