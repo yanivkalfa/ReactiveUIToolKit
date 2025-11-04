@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -79,6 +79,11 @@ namespace ReactiveUITK.Elements
                     new MultiColumnScrollOps<MultiColumnTreeView>(),
                     ApplyAdjustmentFlush
                 );
+
+            // Commit coordination for snapshot -> apply -> restore
+            public bool CommitQueued { get; set; }
+            public bool IsCommitting { get; set; }
+            public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
         }
 
         private static HostContext host;
@@ -242,6 +247,7 @@ namespace ReactiveUITK.Elements
             parts.ScrollTracker.Attach(tv, parts, properties);
             if (parts.IsAdjusting || parts.IsScrolling)
             {
+                // During active adjust/scroll, just let trackers handle buffering; do not queue commit here
                 parts.AdjustmentTracker.Reapply(tv, parts, null, properties);
                 parts.ScrollTracker.Reapply(tv, parts, null, properties);
                 return;
@@ -357,6 +363,7 @@ namespace ReactiveUITK.Elements
             parts.ScrollTracker.Attach(tv, parts, next);
             if (parts.IsAdjusting || parts.IsScrolling)
             {
+                // During active adjust/scroll, just let trackers handle buffering; do not queue commit here
                 parts.AdjustmentTracker.Reapply(tv, parts, previous, next);
                 parts.ScrollTracker.Reapply(tv, parts, previous, next);
                 return;
@@ -712,51 +719,113 @@ namespace ReactiveUITK.Elements
         {
             if (tv == null || parts == null)
                 return;
+            // Defer full state application to a single commit after idle
+            parts.PendingCommit = next ?? parts.PendingCommit;
+            ScheduleCommit(tv, parts);
+        }
+
+        private static void ScheduleCommit(MultiColumnTreeView tv, Cached parts)
+        {
+            if (tv == null || parts == null)
+                return;
+            if (parts.CommitQueued)
+                return;
+            parts.CommitQueued = true;
             try
             {
-                tv.schedule?.Execute(() =>
+                tv.schedule?.Execute(() => RunCommit(tv, parts))?.ExecuteLater(0);
+            }
+            catch
+            {
+                try
+                {
+                    RunCommit(tv, parts);
+                }
+                catch { }
+            }
+        }
+
+        private static void RunCommit(MultiColumnTreeView tv, Cached parts)
+        {
+            parts.CommitQueued = false;
+            if (tv == null || parts == null)
+                return;
+            if (parts.IsCommitting)
+                return;
+            var n = parts.PendingCommit;
+            parts.PendingCommit = null;
+            if (n == null)
+                return;
+            parts.IsCommitting = true;
+            try
+            {
+                // Root items
+                if (n.TryGetValue("rootItems", out var nr))
+                {
+                    var nextList = nr as IList;
+                    if (!ReferenceEquals(parts.LastRoot, nextList))
                     {
+                        parts.LastRoot = nextList;
+                        SetRootItems(tv, nextList);
                         try
                         {
-                            var p = prev ?? new Dictionary<string, object>();
-                            var n = next ?? new Dictionary<string, object>();
-
-                            p.TryGetValue("rootItems", out var pr);
-                            n.TryGetValue("rootItems", out var nr);
-                            if (!ReferenceEquals(pr, nr))
-                            {
-                                parts.LastRoot = nr as IList;
-                                SetRootItems(tv, nr);
-                                try
-                                {
-                                    tv.Rebuild();
-                                }
-                                catch { }
-                            }
-
-                            parts.LayoutTracker.Reapply(tv, parts, p, n);
-                            parts.SortTracker.Reapply(tv, parts, p, n);
-                            ApplySlotsDiff(tv, p, n);
-                            try
-                            {
-                                var ops = ReactiveUITK
-                                    .Elements
-                                    .MultiColumnTreeViewExpansionOps
-                                    .Instance;
-                                parts.ExpansionTracker.Reapply(tv, parts, p, n, ops);
-                            }
-                            catch { }
-                            try
-                            {
-                                PropsApplier.ApplyDiff(tv, p, n);
-                            }
-                            catch { }
+                            tv.Rebuild();
                         }
                         catch { }
-                    })
-                    ?.ExecuteLater(0);
+                    }
+                }
+
+                // Columns
+                if (
+                    n.TryGetValue("columns", out var colsObj)
+                    && colsObj is IEnumerable<Dictionary<string, object>> list
+                )
+                {
+                    var (sig, fns) = ColumnSignatureUtil.Extract(list);
+                    bool changed =
+                        parts.ColSig == null || !ColumnSignatureUtil.Equal(parts.ColSig, sig);
+                    parts.ColSig = sig;
+                    parts.CellFns = fns;
+                    if (changed)
+                    {
+                        RebuildColumnsPreservingState(tv, list, parts);
+                    }
+                }
+
+                // Layout persistence (width/visibility)
+                parts.LayoutTracker.Reapply(tv, parts, null, n);
+
+                // Scalars
+                if (n.TryGetValue("fixedItemHeight", out var fih) && fih is float fh)
+                    tv.fixedItemHeight = fh;
+                if (n.TryGetValue("selectionType", out var st) && st is SelectionType sel)
+                    tv.selectionType = sel;
+                if (n.TryGetValue("selectedIndex", out var si) && si is int idx)
+                    tv.selectedIndex = idx;
+                if (n.TryGetValue("sortingMode", out var sm))
+                    ApplySortingMode(tv, sm);
+
+                // Slots
+                ApplySlotsDiff(tv, new Dictionary<string, object>(), n);
+
+                // Expansion (once): always reapply DesiredExpanded; if expandedItemIds present in 'n',
+                // the tracker will override DesiredExpanded from it.
+                try
+                {
+                    var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
+                    parts.ExpansionTracker.Reapply(tv, parts, null, n, ops);
+                }
+                catch { }
+
+                // Sort + Scroll restore
+                parts.SortTracker.Reapply(tv, parts, null, n);
+                parts.ScrollTracker.Reapply(tv, parts, null, n);
             }
             catch { }
+            finally
+            {
+                parts.IsCommitting = false;
+            }
         }
 
         private static void EnsureDetachHook(MultiColumnTreeView tv, Cached parts)
