@@ -65,6 +65,11 @@ namespace ReactiveUITK.Elements
                     new MultiColumnScrollOps<MultiColumnListView>(),
                     ApplyAdjustmentFlush
                 );
+
+            // Commit coordination for snapshot -> apply -> restore
+            public bool CommitQueued { get; set; }
+            public bool IsCommitting { get; set; }
+            public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
         }
 
         private static HostContext sharedHostContext;
@@ -136,6 +141,8 @@ namespace ReactiveUITK.Elements
             {
                 parts.AdjustmentTracker.Reapply(view, parts, null, properties);
                 parts.ScrollTracker.Reapply(view, parts, null, properties);
+                parts.PendingCommit = properties;
+                ScheduleCommit(view, parts);
                 return;
             }
 
@@ -232,6 +239,8 @@ namespace ReactiveUITK.Elements
             {
                 parts.AdjustmentTracker.Reapply(view, parts, previous, next);
                 parts.ScrollTracker.Reapply(view, parts, previous, next);
+                parts.PendingCommit = next;
+                ScheduleCommit(view, parts);
                 return;
             }
 
@@ -651,69 +660,107 @@ namespace ReactiveUITK.Elements
         {
             if (view == null || parts == null)
                 return;
+            parts.PendingCommit = next ?? parts.PendingCommit;
+            ScheduleCommit(view, parts);
+        }
+
+        private static void ScheduleCommit(MultiColumnListView view, Cached parts)
+        {
+            if (view == null || parts == null)
+                return;
+            if (parts.CommitQueued)
+                return;
+            parts.CommitQueued = true;
             try
             {
-                view.schedule?.Execute(() =>
+                view.schedule?.Execute(() => RunCommit(view, parts))?.ExecuteLater(0);
+            }
+            catch
+            {
+                try
+                {
+                    RunCommit(view, parts);
+                }
+                catch { }
+            }
+        }
+
+        private static void RunCommit(MultiColumnListView view, Cached parts)
+        {
+            parts.CommitQueued = false;
+            if (view == null || parts == null)
+                return;
+            if (parts.IsCommitting)
+                return;
+            var n = parts.PendingCommit;
+            parts.PendingCommit = null;
+            if (n == null)
+                return;
+            parts.IsCommitting = true;
+            try
+            {
+                // Items
+                if (n.TryGetValue("items", out var nextItemsObj))
+                {
+                    var nextItems = NormalizeItems(nextItemsObj);
+                    if (!ReferenceEquals(parts.LastItems, nextItems))
+                    {
+                        parts.LastItems = nextItems;
+                        view.itemsSource = nextItems as IList;
+                        try
+                        {
+                            view.Rebuild();
+                        }
+                        catch { }
+                    }
+                }
+
+                // Columns
+                if (n.TryGetValue("columns", out var nextCols) && nextCols is IEnumerable ncols)
+                {
+                    var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
+                    bool changed = !SignaturesEqual(parts.LastColSignature, newSig);
+                    parts.CellFns = newFns;
+                    parts.LastColSignature = newSig;
+                    if (changed)
+                    {
+                        RebuildColumnsPreservingState(view, ncols, parts);
+                    }
+                    else
                     {
                         try
                         {
-                            var p = prev ?? new Dictionary<string, object>();
-                            var n = next ?? new Dictionary<string, object>();
-
-                            // items diff
-                            p.TryGetValue("items", out var prevItemsObj);
-                            n.TryGetValue("items", out var nextItemsObj);
-                            var prevItems = NormalizeItems(prevItemsObj);
-                            var nextItems = NormalizeItems(nextItemsObj);
-                            if (!ReferenceEquals(prevItems, nextItems))
-                            {
-                                parts.LastItems = nextItems;
-                                view.itemsSource = nextItems;
-                                try
-                                {
-                                    view.Rebuild();
-                                }
-                                catch { }
-                            }
-
-                            // columns diff
-                            p.TryGetValue("columns", out var prevCols);
-                            n.TryGetValue("columns", out var nextCols);
-                            if (nextCols is IEnumerable ncols)
-                            {
-                                var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
-                                if (!SignaturesEqual(parts.LastColSignature, newSig))
-                                {
-                                    parts.CellFns = newFns;
-                                    parts.LastColSignature = newSig;
-                                    RebuildColumnsPreservingState(view, ncols, parts);
-                                }
-                                else
-                                {
-                                    parts.CellFns = newFns;
-                                    try
-                                    {
-                                        view.RefreshItems();
-                                    }
-                                    catch { }
-                                }
-                            }
-
-                            // trackers + slots + props
-                            parts.LayoutTracker.Reapply(view, parts, p, n);
-                            parts.SortTracker.Reapply(view, parts, p, n);
-                            ApplySlotsDiff(view, p, n);
-                            try
-                            {
-                                PropsApplier.ApplyDiff(view, p, n);
-                            }
-                            catch { }
+                            view.RefreshItems();
                         }
                         catch { }
-                    })
-                    ?.ExecuteLater(0);
+                    }
+                }
+
+                // Layout persistence
+                parts.LayoutTracker.Reapply(view, parts, null, n);
+
+                // Scalars
+                if (n.TryGetValue("fixedItemHeight", out var fv) && fv is float ff)
+                    view.fixedItemHeight = ff;
+                if (n.TryGetValue("selectionType", out var selObj) && selObj is SelectionType sel)
+                    view.selectionType = sel;
+                if (n.TryGetValue("selectedIndex", out var si) && si is int idx)
+                    view.selectedIndex = idx;
+                if (n.TryGetValue("sortingMode", out var sm))
+                    ApplySortingMode(view, sm);
+
+                // Slots
+                ApplySlotsDiff(view, new Dictionary<string, object>(), n);
+
+                // Sort + Scroll restore
+                parts.SortTracker.Reapply(view, parts, null, n);
+                parts.ScrollTracker.Reapply(view, parts, null, n);
             }
             catch { }
+            finally
+            {
+                parts.IsCommitting = false;
+            }
         }
 
         private static string DeriveRowKeyList(MultiColumnListView view, int index, object item)
