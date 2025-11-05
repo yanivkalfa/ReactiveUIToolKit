@@ -19,7 +19,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new TextFieldProps
                     {
                         Value = text,
-                        OnChange = e => setText(e.newValue),
+                        OnChange = e => setText.Set(e.newValue),
                         Placeholder = "Type here...",
                     }
                 ),

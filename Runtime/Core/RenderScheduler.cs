@@ -16,7 +16,7 @@ namespace ReactiveUITK
         private float frameBudgetMs = 4.0f;
         private readonly List<Action> batchedEffectActions = new();
         private readonly List<Action> deferredBatchEnqueueActions = new();
-        private bool batchModeEnabled;
+    private int batchDepth;
         private int renderedFrameCount;
         private int executedActionCount;
         private float lastFrameStartTimestampMs;
@@ -47,7 +47,7 @@ namespace ReactiveUITK
             {
                 return;
             }
-            if (batchModeEnabled && priority != IScheduler.Priority.High)
+            if (batchDepth > 0 && priority != IScheduler.Priority.High)
             {
                 deferredBatchEnqueueActions.Add(() => Enqueue(action, priority));
                 return;
@@ -71,17 +71,30 @@ namespace ReactiveUITK
 
         public void BeginBatch()
         {
-            batchModeEnabled = true;
+            batchDepth++;
         }
 
         public void EndBatch()
         {
-            batchModeEnabled = false;
-            foreach (Action enqueueAction in deferredBatchEnqueueActions)
+            if (batchDepth == 0)
+            {
+                return;
+            }
+            batchDepth--;
+            if (batchDepth > 0)
+            {
+                return;
+            }
+            if (deferredBatchEnqueueActions.Count == 0)
+            {
+                return;
+            }
+            var snapshot = deferredBatchEnqueueActions.ToArray();
+            deferredBatchEnqueueActions.Clear();
+            foreach (Action enqueueAction in snapshot)
             {
                 enqueueAction();
             }
-            deferredBatchEnqueueActions.Clear();
         }
 
         private void LateUpdate()

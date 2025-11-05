@@ -118,7 +118,7 @@ namespace ReactiveUITK.Samples.Shared
                         return null;
                     }
                     var timerHandle = rootElement
-                        .schedule.Execute(() => setCurrentTime(DateTime.Now))
+                        .schedule.Execute(() => setCurrentTime.Set(DateTime.Now))
                         .Every(1000);
                     return () =>
                     {
@@ -170,7 +170,7 @@ namespace ReactiveUITK.Samples.Shared
                                                 if (foundIndex >= 0)
                                                 {
                                                     copy.RemoveAt(foundIndex);
-                                                    setListItems(copy);
+                                                    setListItems.Set(copy);
                                                 }
                                             }
                                         )
@@ -194,7 +194,7 @@ namespace ReactiveUITK.Samples.Shared
                 LabelText = string.IsNullOrEmpty(inputText)
                     ? string.Empty
                     : ("Value: " + inputText),
-                OnChange = e => setInputText(e.newValue),
+                OnChange = e => setInputText.Set(e.newValue),
             };
             // Removed inline ListView change/add buttons
             // removed inline table add button (handled in MultiColumnListViewStatefulDemoFunc)
@@ -281,7 +281,7 @@ namespace ReactiveUITK.Samples.Shared
             {
                 Text = "More settings",
                 Value = foldoutOpen,
-                OnChange = e => setFoldoutOpen(e.newValue),
+                OnChange = e => setFoldoutOpen.Set(e.newValue),
                 Header = new Dictionary<string, object> { { "style", foldoutHeaderStyle } },
                 ContentContainer = new Dictionary<string, object>
                 {
@@ -295,14 +295,14 @@ namespace ReactiveUITK.Samples.Shared
                 HighValue = 1f,
                 Value = sliderValue,
                 Direction = "horizontal",
-                OnChange = e => setSliderValue(e.newValue),
+                OnChange = e => setSliderValue.Set(e.newValue),
                 Style = sliderWidthStyle,
             };
             var dropdownProps = new DropdownFieldProps
             {
                 Choices = ddChoices,
                 Value = ddValue,
-                OnChange = e => setDdValue(e.newValue),
+                OnChange = e => setDdValue.Set(e.newValue),
             };
 
             var treeRootItems = Hooks.UseMemo(
@@ -589,8 +589,8 @@ namespace ReactiveUITK.Samples.Shared
                                                 false
                                             )
                                         );
-                                        setTreePairs(copy);
-                                        setTreeNextIsParent(false);
+                                        setTreePairs.Set(copy);
+                                        setTreeNextIsParent.Set(false);
                                     }
                                     else if (copy.Count > 0)
                                     {
@@ -604,8 +604,8 @@ namespace ReactiveUITK.Samples.Shared
                                                 Text = "Child",
                                             };
                                         copy[copy.Count - 1] = last;
-                                        setTreePairs(copy);
-                                        setTreeNextIsParent(true);
+                                        setTreePairs.Set(copy);
+                                        setTreeNextIsParent.Set(true);
                                     }
                                 },
                             };
@@ -630,15 +630,15 @@ namespace ReactiveUITK.Samples.Shared
                                             last.hasChild = false;
                                             last.childAsFunc = false;
                                             copy[copy.Count - 1] = last;
-                                            setTreePairs(copy);
-                                            setTreeNextIsParent(false);
+                                            setTreePairs.Set(copy);
+                                            setTreeNextIsParent.Set(false);
                                         }
                                     }
                                     else
                                     {
                                         copy.RemoveAt(copy.Count - 1);
-                                        setTreePairs(copy);
-                                        setTreeNextIsParent(true);
+                                        setTreePairs.Set(copy);
+                                        setTreeNextIsParent.Set(true);
                                     }
                                 },
                             };
@@ -669,7 +669,7 @@ namespace ReactiveUITK.Samples.Shared
                                                 };
                                             last.childLabel.Text = $"{last.childLabel.Id} {stamp}";
                                             copy[copy.Count - 1] = last;
-                                            setTreePairs(copy);
+                                            setTreePairs.Set(copy);
                                         }
                                     }
                                     else
@@ -681,7 +681,7 @@ namespace ReactiveUITK.Samples.Shared
                                             };
                                         last.parent.Text = $"{last.parent.Id} {stamp}";
                                         copy[copy.Count - 1] = last;
-                                        setTreePairs(copy);
+                                        setTreePairs.Set(copy);
                                     }
                                 },
                             };
@@ -696,7 +696,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != treeDisplayCount)
-                                                    setTreeDisplayCount(c);
+                                                    setTreeDisplayCount.Set(c);
                                             }
                                         )
                                     },
@@ -718,7 +718,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != mctvDisplayCount)
-                                                    setMctvDisplayCount(c);
+                                                    setMctvDisplayCount.Set(c);
                                             }
                                         )
                                     },
@@ -761,7 +761,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != simpleListCount)
-                                                    setSimpleListCount(c);
+                                                    setSimpleListCount.Set(c);
                                             }
                                         )
                                     },
@@ -787,7 +787,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != mclvDisplayCount)
-                                                    setMclvDisplayCount(c);
+                                                    setMclvDisplayCount.Set(c);
                                             }
                                         )
                                     },
@@ -804,12 +804,12 @@ namespace ReactiveUITK.Samples.Shared
             var toggleTreeTabsBtn = new ButtonProps
             {
                 Text = showTreeTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
-                OnClick = () => setShowTreeTabs(!showTreeTabs),
+                OnClick = () => setShowTreeTabs.Set(!showTreeTabs),
             };
             var toggleListTabsBtn = new ButtonProps
             {
                 Text = showListTabs ? "Hide List Tabs" : "Show List Tabs",
-                OnClick = () => setShowListTabs(!showListTabs),
+                OnClick = () => setShowListTabs.Set(!showListTabs),
             };
 
             // Build Values bar items
@@ -835,19 +835,19 @@ namespace ReactiveUITK.Samples.Shared
             {
                 Text = "Enable option",
                 Value = isOptionEnabled,
-                OnChange = e => setOptionEnabled(e.newValue),
+                OnChange = e => setOptionEnabled.Set(e.newValue),
             };
             var radioSingleProps = new RadioButtonProps
             {
                 Text = "Single radio",
                 Value = isRadioSingleSelected,
-                OnChange = e => setRadioSingleSelected(e.newValue),
+                OnChange = e => setRadioSingleSelected.Set(e.newValue),
             };
             var radioGroupProps = new RadioButtonGroupProps
             {
                 Choices = selectionChoices,
                 Index = selectionIndex,
-                OnChange = e => setSelectionIndex(e.newValue),
+                OnChange = e => setSelectionIndex.Set(e.newValue),
             };
             var progressBarProps = new ProgressBarProps
             {
@@ -857,7 +857,7 @@ namespace ReactiveUITK.Samples.Shared
             var repeatButtonProps = new RepeatButtonProps
             {
                 Text = $"Repeat ({repeatClickCount})",
-                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
+                OnClick = () => setRepeatClickCount.Set(repeatClickCount + 1),
             };
             var repeatPulseTracks = Hooks.UseMemo(
                 () =>
@@ -979,7 +979,7 @@ namespace ReactiveUITK.Samples.Shared
             var setTextButtonProps = new ButtonProps
             {
                 Text = "Set Text",
-                OnClick = () => setInputText("Updated!"),
+                OnClick = () => setInputText.Set("Updated!"),
                 Style = new Style { (MarginLeft, 6f), (Height, 28f) },
             };
 
@@ -1051,7 +1051,7 @@ namespace ReactiveUITK.Samples.Shared
                                 LowValue = 0,
                                 HighValue = 10,
                                 Value = sliderIntValue,
-                                OnChange = e => setSliderIntValue(e.newValue),
+                                OnChange = e => setSliderIntValue.Set(e.newValue),
                             }
                         ),
                         // HelpBox demo (Editor-only)

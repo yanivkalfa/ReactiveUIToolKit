@@ -129,7 +129,7 @@ namespace ReactiveUITK.Samples.Shared
                         HasChild = false,
                     }
                 );
-                setRows(copy);
+                setRows.Set(copy);
             }
 
             void AddChild()
@@ -149,7 +149,7 @@ namespace ReactiveUITK.Samples.Shared
                     };
                 }
                 copy[copy.Count - 1] = last;
-                setRows(copy);
+                setRows.Set(copy);
             }
 
             void SetParentValue()
@@ -162,7 +162,7 @@ namespace ReactiveUITK.Samples.Shared
                 last.Parent.Text = $"{last.Parent.Id} {DateTime.Now:HH:mm:ss}";
                 last.Parent.ShouldOverrideElement = true;
                 copy[copy.Count - 1] = last;
-                setRows(copy);
+                setRows.Set(copy);
             }
 
             void SetChildValue()
@@ -177,7 +177,7 @@ namespace ReactiveUITK.Samples.Shared
                 last.Child.Text = $"{last.Child.Id} {DateTime.Now:HH:mm:ss}";
                 last.Child.ShouldOverrideElement = true;
                 copy[copy.Count - 1] = last;
-                setRows(copy);
+                setRows.Set(copy);
             }
 
             void DeleteLast()
@@ -186,7 +186,7 @@ namespace ReactiveUITK.Samples.Shared
                     return;
                 var copy = new List<RowData>(rows);
                 copy.RemoveAt(copy.Count - 1);
-                setRows(copy);
+                setRows.Set(copy);
             }
 
             var btnRow = V.VisualElement(

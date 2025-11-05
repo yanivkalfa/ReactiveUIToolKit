@@ -573,6 +573,45 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode ErrorBoundary(
+            ErrorBoundaryProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            return new VirtualNode(
+                VirtualNodeType.ErrorBoundary,
+                elementTypeName: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: EmptyProps(),
+                children: children ?? EmptyChildren(),
+                errorFallback: props?.Fallback,
+                errorHandler: props?.OnError,
+                errorResetToken: props?.ResetKey
+            );
+        }
+
+        public static VirtualNode Memo(
+            System.Func<
+                Dictionary<string, object>,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > renderFunction,
+            IReadOnlyDictionary<string, object> functionProps = null,
+            string key = null,
+            System.Func<
+                IReadOnlyDictionary<string, object>,
+                IReadOnlyDictionary<string, object>,
+                bool
+            > memoCompare = null,
+            params VirtualNode[] children
+        )
+        {
+            return Func(renderFunction, functionProps, key, true, memoCompare, children);
+        }
+
         private static IReadOnlyDictionary<string, object> EmptyProps() =>
             new Dictionary<string, object>(0);
 

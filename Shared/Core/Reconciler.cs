@@ -4,8 +4,10 @@ using System.Diagnostics;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Elements;
 using ReactiveUITK.Elements.Pools;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Debug = UnityEngine.Debug;
 
 namespace ReactiveUITK.Core
 {
@@ -62,6 +64,11 @@ namespace ReactiveUITK.Core
         private int cacheHitCount;
         private int cacheMissCount;
         private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
+    private int schedulerBatchDepth;
+        private static readonly ProfilerMarker RenderFunctionComponentMarker =
+            new("ReactiveUITK.RenderFunctionComponent");
+        private static readonly ProfilerMarker DiffNodeMarker =
+            new("ReactiveUITK.DiffNode");
 
         public Reconciler(HostContext hostContext)
         {
@@ -74,16 +81,48 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+            IScheduler scheduler = ResolveScheduler();
+            bool batchEntered = false;
+            try
             {
-                try
+                if (scheduler != null)
                 {
-                    UnityEngine.Debug.Log("[ForceUpdate] key=" + nodeMetadata.Key);
+                    if (schedulerBatchDepth == 0)
+                    {
+                        scheduler.BeginBatch();
+                    }
+                    schedulerBatchDepth++;
+                    batchEntered = true;
                 }
-                catch { }
+                if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+                {
+                    try
+                    {
+                        UnityEngine.Debug.Log("[ForceUpdate] key=" + nodeMetadata.Key);
+                    }
+                    catch { }
+                }
+                nodeMetadata.HookIndex = 0;
+                RenderFunctionComponent(nodeMetadata, nodeMetadata.Container);
             }
-            nodeMetadata.HookIndex = 0;
-            RenderFunctionComponent(nodeMetadata, nodeMetadata.Container);
+            finally
+            {
+                if (batchEntered && scheduler != null)
+                {
+                    if (schedulerBatchDepth > 0)
+                    {
+                        schedulerBatchDepth--;
+                    }
+                    if (schedulerBatchDepth == 0)
+                    {
+                        try
+                        {
+                            scheduler.EndBatch();
+                        }
+                        catch { }
+                    }
+                }
+            }
         }
 
         public void BuildSubtree(VisualElement hostElement, VirtualNode rootNode)
@@ -196,10 +235,23 @@ namespace ReactiveUITK.Core
         )
         {
             bool duplicateFragmentKeyWarned = false;
+            bool missingKeyWarned = false;
             HashSet<string> fragmentKeys = new();
             for (int index = 0; index < childNodes.Count; index += 1)
             {
                 VirtualNode currentChild = childNodes[index];
+                if (
+                    !missingKeyWarned
+                    && childNodes.Count > 1
+                    && string.IsNullOrEmpty(currentChild?.Key)
+                    && ShouldWarnForMissingKey(currentChild)
+                )
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"ReactiveUITK: Child at index {index} under parent {parentElement.name} is missing a stable key."
+                    );
+                    missingKeyWarned = true;
+                }
                 if (
                     currentChild.NodeType == VirtualNodeType.Fragment
                     && !string.IsNullOrEmpty(currentChild.Key)
@@ -214,6 +266,21 @@ namespace ReactiveUITK.Core
                     }
                 }
                 BuildNode(parentElement, currentChild);
+            }
+        }
+
+        private static bool ShouldWarnForMissingKey(VirtualNode node)
+        {
+            if (node == null)
+            {
+                return false;
+            }
+            switch (node.NodeType)
+            {
+                case VirtualNodeType.Text:
+                    return false;
+                default:
+                    return true;
             }
         }
 
@@ -282,6 +349,10 @@ namespace ReactiveUITK.Core
                     functionComponentContainer.userData = functionComponentMetadata;
                     parentElement.Add(functionComponentContainer);
                     RenderFunctionComponent(functionComponentMetadata);
+                    return;
+                case VirtualNodeType.ErrorBoundary:
+                    VisualElement errorBoundaryElement = CreateErrorBoundaryElement(virtualNode);
+                    parentElement.Add(errorBoundaryElement);
                     return;
             }
             IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(
@@ -619,6 +690,13 @@ namespace ReactiveUITK.Core
                     return functionComponentContainer;
                 }
 
+                case VirtualNodeType.ErrorBoundary:
+                {
+                    var errorBoundaryElement = CreateErrorBoundaryElement(virtualNode);
+                    Cache(virtualNode.Key, errorBoundaryElement);
+                    return errorBoundaryElement;
+                }
+
                 case VirtualNodeType.Suspense:
                 {
                     var suspenseContainerElement = new VisualElement
@@ -670,12 +748,235 @@ namespace ReactiveUITK.Core
             return createdElement;
         }
 
+        private VisualElement CreateErrorBoundaryElement(VirtualNode virtualNode)
+        {
+            var boundaryElement = new VisualElement
+            {
+                name = string.IsNullOrEmpty(virtualNode.Key)
+                    ? "ErrorBoundary"
+                    : ($"ErrorBoundary_{virtualNode.Key}"),
+            };
+
+            var metadata = new NodeMetadata
+            {
+                Key = virtualNode.Key,
+                Container = boundaryElement,
+                HostContext = hostContext,
+                Reconciler = this,
+                ErrorBoundaryResetKey = virtualNode.ErrorResetToken,
+            };
+            boundaryElement.userData = metadata;
+            TryRenderErrorBoundaryInitial(boundaryElement, metadata, virtualNode);
+            return boundaryElement;
+        }
+
+        private void TryRenderErrorBoundaryInitial(
+            VisualElement boundaryElement,
+            NodeMetadata metadata,
+            VirtualNode boundaryNode
+        )
+        {
+            ClearHostElement(boundaryElement);
+            metadata.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
+            metadata.ErrorBoundaryActive = false;
+            metadata.ErrorBoundaryShowingFallback = false;
+            metadata.ErrorBoundaryLastException = null;
+
+            var children = boundaryNode.Children ?? Array.Empty<VirtualNode>();
+            if (children.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                BuildChildren(boundaryElement, children);
+            }
+            catch (Exception ex)
+            {
+                ActivateErrorBoundary(
+                    boundaryElement,
+                    metadata,
+                    boundaryNode,
+                    ex,
+                    notifyHandler: true,
+                    logException: true
+                );
+            }
+        }
+
+        private void DiffErrorBoundary(
+            VisualElement hostElement,
+            NodeMetadata metadata,
+            VirtualNode previousNode,
+            VirtualNode nextNode
+        )
+        {
+            bool resetRequested =
+                !string.Equals(
+                    metadata.ErrorBoundaryResetKey,
+                    nextNode.ErrorResetToken,
+                    StringComparison.Ordinal
+                );
+
+            if (resetRequested)
+            {
+                metadata.ErrorBoundaryActive = false;
+                metadata.ErrorBoundaryShowingFallback = false;
+                metadata.ErrorBoundaryLastException = null;
+            }
+
+            if (metadata.ErrorBoundaryActive && !resetRequested)
+            {
+                metadata.ErrorBoundaryResetKey = nextNode.ErrorResetToken;
+                ActivateErrorBoundary(
+                    hostElement,
+                    metadata,
+                    nextNode,
+                    metadata.ErrorBoundaryLastException,
+                    notifyHandler: false,
+                    logException: false
+                );
+                return;
+            }
+
+            var previousChildren =
+                previousNode.Children ?? Array.Empty<VirtualNode>();
+            var nextChildren = nextNode.Children ?? Array.Empty<VirtualNode>();
+
+            bool shouldRebuild =
+                resetRequested
+                || metadata.ErrorBoundaryShowingFallback
+                || hostElement.childCount == 0
+                || previousChildren.Count == 0;
+
+            try
+            {
+                if (shouldRebuild)
+                {
+                    ClearHostElement(hostElement);
+                    if (nextChildren.Count > 0)
+                    {
+                        BuildChildren(hostElement, nextChildren);
+                    }
+                }
+                else
+                {
+                    DiffChildren(hostElement, previousChildren, nextChildren);
+                }
+
+                metadata.ErrorBoundaryActive = false;
+                metadata.ErrorBoundaryShowingFallback = false;
+                metadata.ErrorBoundaryLastException = null;
+                metadata.ErrorBoundaryResetKey = nextNode.ErrorResetToken;
+            }
+            catch (Exception ex)
+            {
+                ActivateErrorBoundary(
+                    hostElement,
+                    metadata,
+                    nextNode,
+                    ex,
+                    notifyHandler: true,
+                    logException: true
+                );
+            }
+        }
+
+        private void ActivateErrorBoundary(
+            VisualElement hostElement,
+            NodeMetadata metadata,
+            VirtualNode boundaryNode,
+            Exception exception,
+            bool notifyHandler,
+            bool logException
+        )
+        {
+            metadata.ErrorBoundaryActive = true;
+            metadata.ErrorBoundaryShowingFallback = true;
+            metadata.ErrorBoundaryLastException = exception;
+            metadata.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
+
+            if (logException && exception != null)
+            {
+                try
+                {
+                    Debug.LogError(
+                        $"ReactiveUITK: Error boundary captured exception: {exception}"
+                    );
+                }
+                catch { }
+            }
+
+            ClearHostElement(hostElement);
+
+            if (boundaryNode.ErrorFallback != null)
+            {
+                try
+                {
+                    BuildChildren(
+                        hostElement,
+                        new List<VirtualNode> { boundaryNode.ErrorFallback }
+                    );
+                }
+                catch (Exception fallbackEx)
+                {
+                    try
+                    {
+                        Debug.LogError(
+                            $"ReactiveUITK: Error boundary fallback render failed: {fallbackEx}"
+                        );
+                    }
+                    catch { }
+                }
+            }
+
+            if (notifyHandler && boundaryNode.ErrorHandler != null)
+            {
+                try
+                {
+                    boundaryNode.ErrorHandler(exception);
+                }
+                catch (Exception handlerEx)
+                {
+                    try
+                    {
+                        Debug.LogError(
+                            $"ReactiveUITK: Error boundary handler threw: {handlerEx}"
+                        );
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        private void ClearHostElement(VisualElement hostElement)
+        {
+            if (hostElement == null)
+            {
+                return;
+            }
+
+            for (int i = hostElement.childCount - 1; i >= 0; i--)
+            {
+                var child = hostElement.ElementAt(i);
+                bool managed = child.userData is NodeMetadata;
+                RunRemovalCleanup(child);
+                child.RemoveFromHierarchy();
+                if (managed)
+                {
+                    GlobalVisualElementPool.Release(child);
+                }
+            }
+        }
+
         private void DiffNode(
             VisualElement hostElement,
             VirtualNode previousNode,
             VirtualNode nextNode
         )
         {
+            using var diffScope = DiffNodeMarker.Auto();
             if (previousNode.NodeType != nextNode.NodeType)
             {
                 reconciledNodeCount++;
@@ -750,9 +1051,38 @@ namespace ReactiveUITK.Core
                 }
 
                 // React-style memo: shallow props AND shallow children
-                bool propsEq = ShallowPropsEqual(functionMetadata.FuncProps, nextNode.Properties);
-                bool childrenEq = ShallowChildrenEqual(previousNode.Children, nextNode.Children);
-                bool skip = propsEq && childrenEq;
+                bool childrenEq = ShallowChildrenEqual(
+                    previousNode.Children,
+                    nextNode.Children
+                );
+                bool skip;
+                if (nextNode.MemoCompare != null)
+                {
+                    bool compareResult = false;
+                    try
+                    {
+                        compareResult = nextNode.MemoCompare(
+                            functionMetadata.FuncProps,
+                            nextNode.Properties
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning(
+                            $"ReactiveUITK: MemoCompare threw for component key={nextNode.Key}: {ex}"
+                        );
+                        compareResult = false;
+                    }
+                    skip = compareResult && childrenEq;
+                }
+                else
+                {
+                    bool propsEq = ShallowPropsEqual(
+                        functionMetadata.FuncProps,
+                        nextNode.Properties
+                    );
+                    skip = propsEq && childrenEq;
+                }
 
                 if (skip)
                     return;
@@ -762,6 +1092,18 @@ namespace ReactiveUITK.Core
                 functionMetadata.FuncChildren = nextNode.Children;
                 functionMetadata.HookIndex = 0;
                 RenderFunctionComponent(functionMetadata, hostElement);
+                return;
+            }
+
+            if (nextNode.NodeType == VirtualNodeType.ErrorBoundary)
+            {
+                NodeMetadata errorBoundaryMetadata = hostElement.userData as NodeMetadata;
+                if (errorBoundaryMetadata == null)
+                {
+                    ReplaceNode(hostElement, nextNode);
+                    return;
+                }
+                DiffErrorBoundary(hostElement, errorBoundaryMetadata, previousNode, nextNode);
                 return;
             }
 
@@ -980,164 +1322,115 @@ namespace ReactiveUITK.Core
             VisualElement reuseContainer = null
         )
         {
-            VisualElement targetContainer = reuseContainer ?? functionComponentMetadata.Container;
-            if (targetContainer == null || functionComponentMetadata.FuncRender == null)
+            using (RenderFunctionComponentMarker.Auto())
             {
-                return;
-            }
-            // Reset hook indices before render
-            functionComponentMetadata.HookIndex = 0;
-            functionComponentMetadata.EffectIndex = 0;
-            functionComponentMetadata.LayoutEffectIndex = 0;
-            HookContext.Current = functionComponentMetadata;
-            bool initialMount =
-                functionComponentMetadata.LastRenderedSubtree == null
-                || targetContainer.childCount == 0;
-            VirtualNode nextSubtree = null;
-            try
-            {
-                functionComponentMetadata.IsRendering = true;
-                if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+                VisualElement targetContainer = reuseContainer ?? functionComponentMetadata.Container;
+                if (targetContainer == null || functionComponentMetadata.FuncRender == null)
                 {
-                    try
+                    return;
+                }
+                // Reset hook indices before render
+                functionComponentMetadata.HookIndex = 0;
+                functionComponentMetadata.EffectIndex = 0;
+                functionComponentMetadata.LayoutEffectIndex = 0;
+                functionComponentMetadata.HookOrderPrimed =
+                    Hooks.EnableHookValidation
+                    && functionComponentMetadata.HookOrderSignatures != null
+                    && functionComponentMetadata.HookOrderSignatures.Count > 0;
+                HookContext.Current = functionComponentMetadata;
+                bool initialMount =
+                    functionComponentMetadata.LastRenderedSubtree == null
+                    || targetContainer.childCount == 0;
+                VirtualNode nextSubtree = null;
+                bool renderCompleted = false;
+                try
+                {
+                    functionComponentMetadata.IsRendering = true;
+                    if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
                     {
-                        UnityEngine.Debug.Log(
-                            "[FuncRender:enter] key="
-                                + functionComponentMetadata.Key
-                                + ", pending="
-                                + functionComponentMetadata.PendingUpdate
-                        );
+                        try
+                        {
+                            UnityEngine.Debug.Log(
+                                "[FuncRender:enter] key="
+                                    + functionComponentMetadata.Key
+                                    + ", pending="
+                                    + functionComponentMetadata.PendingUpdate
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
-                }
-                nextSubtree = functionComponentMetadata.FuncRender(
-                    functionComponentMetadata.FuncProps,
-                    functionComponentMetadata.FuncChildren
-                );
-                // Unified handling: build/diff then continue to effect phase (no early returns) so first render runs effects.
-                if (nextSubtree == null)
-                {
-                    // Clear any existing child and mark as empty
-                    targetContainer.Clear();
-                    functionComponentMetadata.LastRenderedSubtree = null;
-                }
-                else if (initialMount)
-                {
-                    targetContainer.Clear();
-                    functionComponentMetadata.LastRenderedSubtree = nextSubtree;
-                    BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
-                }
-                else
-                {
-                    // Diff against previous cached subtree
-                    VisualElement existingRootElement =
-                        targetContainer.childCount > 0 ? targetContainer.ElementAt(0) : null;
-                    if (existingRootElement == null)
+                    nextSubtree = functionComponentMetadata.FuncRender(
+                        functionComponentMetadata.FuncProps,
+                        functionComponentMetadata.FuncChildren
+                    );
+                    // Unified handling: build/diff then continue to effect phase (no early returns) so first render runs effects.
+                    if (nextSubtree == null)
+                    {
+                        // Clear any existing child and mark as empty
+                        targetContainer.Clear();
+                        functionComponentMetadata.LastRenderedSubtree = null;
+                    }
+                    else if (initialMount)
                     {
                         targetContainer.Clear();
+                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
                         BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
                     }
                     else
                     {
-                        DiffNode(
-                            existingRootElement,
-                            functionComponentMetadata.LastRenderedSubtree,
-                            nextSubtree
-                        );
-                    }
-                    functionComponentMetadata.LastRenderedSubtree = nextSubtree;
-                }
-            }
-            catch (Exception ex)
-            {
-                UnityEngine.Debug.LogError($"ReactiveUITK: Function component render failed: {ex}");
-            }
-            finally
-            {
-                functionComponentMetadata.IsRendering = false;
-                HookContext.Current = null;
-            }
-            // Layout effects phase
-            if (functionComponentMetadata.FunctionLayoutEffects != null)
-            {
-                for (int i = 0; i < functionComponentMetadata.FunctionLayoutEffects.Count; i++)
-                {
-                    var entry = functionComponentMetadata.FunctionLayoutEffects[i];
-                    bool shouldRun =
-                        entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
-                    if (shouldRun)
-                    {
-                        try
+                        // Diff against previous cached subtree
+                        VisualElement existingRootElement =
+                            targetContainer.childCount > 0 ? targetContainer.ElementAt(0) : null;
+                        if (existingRootElement == null)
                         {
-                            entry.cleanup?.Invoke();
-                        }
-                        catch { }
-                        Action newCleanup = null;
-                        try
-                        {
-                            newCleanup = entry.factory?.Invoke();
-                        }
-                        catch { }
-                        if (i < functionComponentMetadata.FunctionLayoutEffects.Count)
-                        {
-                            functionComponentMetadata.FunctionLayoutEffects[i] = (
-                                entry.factory,
-                                entry.deps,
-                                (object[])entry.deps?.Clone(),
-                                newCleanup
-                            );
-                        }
-                        functionEffectRunCount++;
-                    }
-                }
-            }
-            // Passive effects phase
-            if (functionComponentMetadata.FunctionEffects != null)
-            {
-                for (int i = 0; i < functionComponentMetadata.FunctionEffects.Count; i++)
-                {
-                    var entry = functionComponentMetadata.FunctionEffects[i];
-                    bool shouldRun =
-                        entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
-                    if (shouldRun)
-                    {
-                        bool firstRun = entry.lastDeps == null;
-                        // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
-                        functionComponentMetadata.FunctionEffects[i] = (
-                            entry.factory,
-                            entry.deps,
-                            (object[])entry.deps?.Clone(),
-                            entry.cleanup
-                        );
-                        var schedulerC = ResolveScheduler();
-                        if (!firstRun && schedulerC != null)
-                        {
-                            schedulerC.EnqueueBatchedEffect(() =>
-                            {
-                                try
-                                {
-                                    entry.cleanup?.Invoke();
-                                }
-                                catch { }
-                                Action newCleanup = null;
-                                try
-                                {
-                                    newCleanup = entry.factory?.Invoke();
-                                }
-                                catch { }
-                                if (i < functionComponentMetadata.FunctionEffects.Count)
-                                {
-                                    functionComponentMetadata.FunctionEffects[i] = (
-                                        entry.factory,
-                                        entry.deps,
-                                        (object[])entry.deps?.Clone(),
-                                        newCleanup
-                                    );
-                                }
-                                functionEffectRunCount++;
-                            });
+                            targetContainer.Clear();
+                            BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
                         }
                         else
+                        {
+                            DiffNode(
+                                existingRootElement,
+                                functionComponentMetadata.LastRenderedSubtree,
+                                nextSubtree
+                            );
+                        }
+                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                    }
+                    renderCompleted = true;
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"ReactiveUITK: Function component render failed: {ex}"
+                    );
+                    throw;
+                }
+                finally
+                {
+                    functionComponentMetadata.IsRendering = false;
+                    HookContext.Current = null;
+                    if (renderCompleted && Hooks.EnableHookValidation)
+                    {
+                        functionComponentMetadata.HookOrderPrimed = true;
+                    }
+                    else if (!renderCompleted)
+                    {
+                        functionComponentMetadata.HookOrderPrimed = false;
+                    }
+                }
+                if (!renderCompleted)
+                {
+                    return;
+                }
+                // Layout effects phase
+                if (functionComponentMetadata.FunctionLayoutEffects != null)
+                {
+                    for (int i = 0; i < functionComponentMetadata.FunctionLayoutEffects.Count; i++)
+                    {
+                        var entry = functionComponentMetadata.FunctionLayoutEffects[i];
+                        bool shouldRun =
+                            entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                        if (shouldRun)
                         {
                             try
                             {
@@ -1150,9 +1443,9 @@ namespace ReactiveUITK.Core
                                 newCleanup = entry.factory?.Invoke();
                             }
                             catch { }
-                            if (i < functionComponentMetadata.FunctionEffects.Count)
+                            if (i < functionComponentMetadata.FunctionLayoutEffects.Count)
                             {
-                                functionComponentMetadata.FunctionEffects[i] = (
+                                functionComponentMetadata.FunctionLayoutEffects[i] = (
                                     entry.factory,
                                     entry.deps,
                                     (object[])entry.deps?.Clone(),
@@ -1163,43 +1456,114 @@ namespace ReactiveUITK.Core
                         }
                     }
                 }
-            }
-            // Flush one pending update if requested during render
-            if (functionComponentMetadata.PendingUpdate)
-            {
-                functionComponentMetadata.PendingUpdate = false;
-                var sched = ResolveScheduler();
-                if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+                // Passive effects phase
+                if (functionComponentMetadata.FunctionEffects != null)
+                {
+                    for (int i = 0; i < functionComponentMetadata.FunctionEffects.Count; i++)
+                    {
+                        var entry = functionComponentMetadata.FunctionEffects[i];
+                        bool shouldRun =
+                            entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                        if (shouldRun)
+                        {
+                            // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
+                            functionComponentMetadata.FunctionEffects[i] = (
+                                entry.factory,
+                                entry.deps,
+                                (object[])entry.deps?.Clone(),
+                                entry.cleanup
+                            );
+                            var schedulerC = ResolveScheduler();
+                            int capturedIndex = i;
+                            var capturedEntry = entry;
+                            void RunEffect()
+                            {
+                                try
+                                {
+                                    capturedEntry.cleanup?.Invoke();
+                                }
+                                catch { }
+                                Action newCleanup = null;
+                                try
+                                {
+                                    newCleanup = capturedEntry.factory?.Invoke();
+                                }
+                                catch { }
+                                if (capturedIndex < functionComponentMetadata.FunctionEffects.Count)
+                                {
+                                    functionComponentMetadata.FunctionEffects[capturedIndex] = (
+                                        capturedEntry.factory,
+                                        capturedEntry.deps,
+                                        (object[])capturedEntry.deps?.Clone(),
+                                        newCleanup
+                                    );
+                                }
+                                functionEffectRunCount++;
+                            }
+
+                            if (schedulerC != null)
+                            {
+                                schedulerC.EnqueueBatchedEffect(RunEffect);
+                            }
+                            else
+                            {
+                                RunEffect();
+                            }
+                        }
+                    }
+                }
+                // Flush one pending update if requested during render
+                if (functionComponentMetadata.PendingUpdate)
+                {
+                    functionComponentMetadata.PendingUpdate = false;
+                    if (functionComponentMetadata.UpdateQueued)
+                    {
+                        return;
+                    }
+                    functionComponentMetadata.UpdateQueued = true;
+                    var sched = ResolveScheduler();
+                    void FlushPending()
+                    {
+                        try
+                        {
+                            functionComponentMetadata.HookIndex = 0;
+                            ForceFunctionComponentUpdate(functionComponentMetadata);
+                        }
+                        finally
+                        {
+                            functionComponentMetadata.UpdateQueued = false;
+                        }
+                    }
+                    if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
+                    {
+                        try
+                        {
+                            UnityEngine.Debug.Log(
+                                "[FuncRender:flush-pending] key="
+                                    + functionComponentMetadata.Key
+                            );
+                        }
+                        catch { }
+                    }
+                    if (sched != null)
+                    {
+                        sched.Enqueue(FlushPending);
+                    }
+                    else
+                    {
+                        FlushPending();
+                    }
+                }
+                else if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
                 {
                     try
                     {
                         UnityEngine.Debug.Log(
-                            "[FuncRender:flush-pending] key=" + functionComponentMetadata.Key
+                            "[FuncRender:exit] key=" + functionComponentMetadata.Key
                         );
                     }
                     catch { }
                 }
-                if (sched != null)
-                {
-                    sched.Enqueue(() =>
-                    {
-                        functionComponentMetadata.HookIndex = 0;
-                        ForceFunctionComponentUpdate(functionComponentMetadata);
-                    });
-                }
-                else
-                {
-                    functionComponentMetadata.HookIndex = 0;
-                    ForceFunctionComponentUpdate(functionComponentMetadata);
-                }
-            }
-            else if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
-            {
-                try
-                {
-                    UnityEngine.Debug.Log("[FuncRender:exit] key=" + functionComponentMetadata.Key);
-                }
-                catch { }
             }
         }
 

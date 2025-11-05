@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace ReactiveUITK.Core
@@ -10,6 +11,7 @@ namespace ReactiveUITK.Core
         Fragment,
         Portal,
         Suspense,
+        ErrorBoundary,
     }
 
     public sealed class VirtualNode
@@ -35,6 +37,9 @@ namespace ReactiveUITK.Core
         public string Key { get; set; }
         public IReadOnlyDictionary<string, object> Properties { get; set; }
         public IReadOnlyList<VirtualNode> Children { get; set; }
+        public VirtualNode ErrorFallback { get; set; }
+        public Action<Exception> ErrorHandler { get; set; }
+        public string ErrorResetToken { get; set; }
 
         public VirtualNode(
             VirtualNodeType nodeType,
@@ -57,7 +62,10 @@ namespace ReactiveUITK.Core
             UnityEngine.UIElements.VisualElement portalTarget = null,
             VirtualNode fallback = null,
             System.Func<bool> suspenseReady = null,
-            System.Threading.Tasks.Task<bool> suspenseReadyTask = null
+            System.Threading.Tasks.Task<bool> suspenseReadyTask = null,
+            VirtualNode errorFallback = null,
+            Action<Exception> errorHandler = null,
+            string errorResetToken = null
         )
         {
             NodeType = nodeType;
@@ -73,6 +81,9 @@ namespace ReactiveUITK.Core
             Fallback = fallback;
             SuspenseReady = suspenseReady;
             SuspenseReadyTask = suspenseReadyTask;
+            ErrorFallback = errorFallback;
+            ErrorHandler = errorHandler;
+            ErrorResetToken = errorResetToken;
         }
 
         // Implicit conversion: function component -> VirtualNode

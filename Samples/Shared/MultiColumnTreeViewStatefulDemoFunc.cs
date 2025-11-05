@@ -184,8 +184,8 @@ namespace ReactiveUITK.Samples.Shared
                 rootsNow?.Count ?? 0
             );
 
-            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> onSort = defs =>
-                setSortDefs(defs);
+            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> onSort =
+                defs => setSortDefs(defs);
 
             var propsMap = new MultiColumnTreeViewProps
             {

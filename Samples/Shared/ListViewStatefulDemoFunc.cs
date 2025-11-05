@@ -93,7 +93,7 @@ namespace ReactiveUITK.Samples.Shared
                     var copy = new List<Row>(items.Count + 1);
                     copy.Add(new Row { Id = System.Guid.NewGuid().ToString("N"), Text = "Parent" });
                     copy.AddRange(items);
-                    setItems(copy);
+                    setItems.Set(copy);
                 },
             };
             var btnSetLast = new ButtonProps
@@ -109,7 +109,7 @@ namespace ReactiveUITK.Samples.Shared
                     top.Text = $"{top.Id} {System.DateTime.Now:HH:mm:ss}";
                     top.ShouldOverrideElement = true;
                     copy[0] = top;
-                    setItems(copy);
+                    setItems.Set(copy);
                 },
             };
             var btnDeleteLast = new ButtonProps
@@ -121,7 +121,7 @@ namespace ReactiveUITK.Samples.Shared
                         return;
                     var copy = new List<Row>(items);
                     copy.RemoveAt(copy.Count - 1);
-                    setItems(copy);
+                    setItems.Set(copy);
                 },
             };
 

@@ -59,7 +59,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Intro",
-                        OnClick = () => setTabIndex(0),
+                        OnClick = () => setTabIndex.Set(0),
                         Style = new Style { (Props.Typed.StyleKeys.Width, 80f) },
                     }
                 ),
@@ -67,7 +67,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Tree",
-                        OnClick = () => setTabIndex(1),
+                        OnClick = () => setTabIndex.Set(1),
                         Style = new Style
                         {
                             (Props.Typed.StyleKeys.MarginLeft, 6f),
@@ -79,7 +79,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Columns",
-                        OnClick = () => setTabIndex(2),
+                        OnClick = () => setTabIndex.Set(2),
                         Style = new Style
                         {
                             (Props.Typed.StyleKeys.MarginLeft, 6f),

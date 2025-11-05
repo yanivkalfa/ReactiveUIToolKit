@@ -49,6 +49,14 @@ namespace ReactiveUITK.Core
         public bool IsFlattened; // true when function component root element is directly mounted without wrapper
         public bool IsRendering; // re-entrancy guard for function components
         public bool PendingUpdate; // schedule one update after commit
-        public bool UpdateQueued; // legacy field retained for compatibility with prior code paths
+        public bool UpdateQueued; // reused to guard against duplicate scheduled updates
+        public List<string> HookOrderSignatures;
+        public bool HookOrderPrimed;
+        public bool ErrorBoundaryActive;
+        public bool ErrorBoundaryShowingFallback;
+        public Exception ErrorBoundaryLastException;
+        public string ErrorBoundaryResetKey;
+        public HashSet<string> StrictDiagnosticsKeys;
+        public Dictionary<(int slot, byte kind), Delegate> StateSetterDelegateCache;
     }
 }

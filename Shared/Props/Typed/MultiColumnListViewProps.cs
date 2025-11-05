@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -20,7 +21,7 @@ namespace ReactiveUITK.Props.Typed
 
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
-        public Action<List<SortedColumnDef>> ColumnSortingChanged { get; set; }
+        public Delegate ColumnSortingChanged { get; set; }
 
         public sealed class ColumnDef
         {
@@ -109,8 +110,14 @@ namespace ReactiveUITK.Props.Typed
             }
             if (SortingMode != null)
                 dict["sortingMode"] = SortingMode;
-            if (ColumnSortingChanged != null)
-                dict["columnSortingChanged"] = ColumnSortingChanged;
+            if (ColumnSortingChanged is Hooks.StateSetter<List<SortedColumnDef>> setter)
+            {
+                dict["columnSortingChanged"] = setter.ToValueAction();
+            }
+            else if (ColumnSortingChanged is Action<List<SortedColumnDef>> action)
+            {
+                dict["columnSortingChanged"] = action;
+            }
             if (Style != null)
                 dict["style"] = Style;
             return dict;

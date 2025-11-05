@@ -125,7 +125,7 @@ Use `onClick`, `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`
 Delegates may be `Action` or handlers with one parameter (UI Toolkit event).
 
 ## 7. Hooks (Function Components)
-- State: `Hooks.UseState<T>(initial)`
+- State: `Hooks.UseState<T>(initial)` — call the returned setter like React (`set(value)` / `set(prev => next)`); both forms are supported via implicit conversions.
 - Reducer: `Hooks.UseReducer<TState,TAction>(reducer, initial)`
 - Memo: `Hooks.UseMemo(() => value, deps...)`
 - Callback: `Hooks.UseCallback(fn, deps...)`
@@ -150,7 +150,7 @@ Metrics: `Reconciler.GetMetrics()` / `PropsApplier.GetStyleMetrics()` for perfor
 
 ## 11. Updating State
 Class: `SetState(() => { /* mutate fields */ });` or `SetState(ref field, newValue);` / functional updater.
-Function: capture setters from `Hooks.UseState` / dispatch from `Hooks.UseReducer`.
+Function: capture setters from `Hooks.UseState` / dispatch from `Hooks.UseReducer`; invoke setters directly (`set(next)` / `set(prev => next)`).
 
 ## 12. Unmount
 Call `RootRenderer.Unmount()` or destroy the `RootRenderer` GameObject to clean up.
