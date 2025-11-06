@@ -16,16 +16,16 @@ namespace ReactiveUITK.Samples.Shared
         // One-time metrics subscription so the Batch Test button visibly demonstrates batching.
         private static bool metricsHooked;
 
-        private static void EnsureMetricsHook()
-        {
-            if (metricsHooked)
-                return; // compact form acceptable
-            metricsHooked = true;
-            Reconciler.MetricsEmitted += m =>
-                Debug.Log(
-                    $"[ReactiveUITK Metrics] diff={m.LastDiffMs}ms reconciled={m.Reconciled} skipped={m.Skipped} effects={m.EffectsRan} portals={m.PortalsBuilt}/{m.PortalsUpdated} batchedComponents={m.BatchedComponentUpdates}"
-                );
-        }
+        //private static void EnsureMetricsHook()
+        //{
+        //    if (metricsHooked)
+        //        return; // compact form acceptable
+        //    metricsHooked = true;
+        //    Reconciler.MetricsEmitted += m =>
+        //        Debug.Log(
+        //            $"[ReactiveUITK Metrics] diff={m.LastDiffMs}ms reconciled={m.Reconciled} skipped={m.Skipped} effects={m.EffectsRan} portals={m.PortalsBuilt}/{m.PortalsUpdated} batchedComponents={m.BatchedComponentUpdates}"
+        //        );
+        //}
 
         private static readonly Style TopBarStyle = new()
         {
@@ -108,7 +108,7 @@ namespace ReactiveUITK.Samples.Shared
         )
         {
             // Ensure metrics logging is active (safe to call every render)
-            EnsureMetricsHook();
+            //EnsureMetricsHook();
             var (isListVisible, setListVisible) = Hooks.UseState(true);
             var (inputText, setInputText) = Hooks.UseState(string.Empty);
             var (isOptionEnabled, setOptionEnabled) = Hooks.UseState(false);
