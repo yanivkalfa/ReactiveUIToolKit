@@ -227,11 +227,6 @@ namespace ReactiveUITK.Elements
                         ? parts.StaticNodes[i]
                         : null;
                 var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
-                // Auto-key tab content root if missing to suppress missing key warnings for sibling tab pages
-                if (vnode != null && string.IsNullOrEmpty(vnode.Key))
-                {
-                    vnode = ReactiveUITK.V.VisualElement(null, key: $"tab-{i}", vnode);
-                }
                 if (vnode != null)
                     rr.Render(vnode);
                 try
@@ -294,10 +289,6 @@ namespace ReactiveUITK.Elements
                         ? parts.StaticNodes[i]
                         : null;
                 var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
-                if (vnode != null && string.IsNullOrEmpty(vnode.Key))
-                {
-                    vnode = ReactiveUITK.V.VisualElement(null, key: $"tab-{i}", vnode);
-                }
                 if (vnode != null)
                     rr.Render(vnode);
             }
