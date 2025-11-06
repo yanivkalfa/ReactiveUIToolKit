@@ -45,7 +45,7 @@ namespace ReactiveUITK.Samples.Shared
                     };
                     if (items != null)
                         copy.AddRange(items);
-                    setItems.Set(copy);
+                    setItems(copy);
                 },
             };
             var btnSetLast = new ButtonProps
@@ -60,7 +60,7 @@ namespace ReactiveUITK.Samples.Shared
                     top.Text = $"{top.Id} {System.DateTime.Now:HH:mm:ss}";
                     top.ShouldOverrideElement = true;
                     copy[0] = top;
-                    setItems.Set(copy);
+                    setItems(copy);
                 },
             };
             var btnDeleteLast = new ButtonProps
@@ -72,7 +72,7 @@ namespace ReactiveUITK.Samples.Shared
                         return;
                     var copy = new List<Row>(items);
                     copy.RemoveAt(copy.Count - 1);
-                    setItems.Set(copy);
+                    setItems(copy);
                 },
             };
 

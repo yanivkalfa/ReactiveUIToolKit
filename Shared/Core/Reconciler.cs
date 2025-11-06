@@ -69,6 +69,39 @@ namespace ReactiveUITK.Core
         private int cacheMissCount;
         private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
 
+        // Profiling metric stubs
+        public readonly struct ReconcilerMetrics
+        {
+            public readonly long LastDiffMs;
+            public readonly int Reconciled;
+            public readonly int Skipped;
+            public readonly int EffectsRan;
+            public readonly int PortalsBuilt;
+            public readonly int PortalsUpdated;
+            public readonly int BatchedComponentUpdates;
+
+            public ReconcilerMetrics(
+                long lastDiffMs,
+                int reconciled,
+                int skipped,
+                int effectsRan,
+                int portalsBuilt,
+                int portalsUpdated,
+                int batchedComponentUpdates
+            )
+            {
+                LastDiffMs = lastDiffMs;
+                Reconciled = reconciled;
+                Skipped = skipped;
+                EffectsRan = effectsRan;
+                PortalsBuilt = portalsBuilt;
+                PortalsUpdated = portalsUpdated;
+                BatchedComponentUpdates = batchedComponentUpdates;
+            }
+        }
+
+        public static event Action<ReconcilerMetrics> MetricsEmitted;
+
         // Profiler markers (used in DiffNode & RenderFunctionComponent)
         private static readonly ProfilerMarker DiffNodeMarker = new ProfilerMarker(
             "ReactiveUITK.DiffNode"
@@ -1822,6 +1855,22 @@ namespace ReactiveUITK.Core
             {
                 diffStopwatch.Stop();
                 lastDiffDurationMs = diffStopwatch.ElapsedMilliseconds;
+                // Emit profiling metrics (stub)
+                try
+                {
+                    MetricsEmitted?.Invoke(
+                        new ReconcilerMetrics(
+                            lastDiffDurationMs,
+                            reconciledNodeCount,
+                            skippedNodeCount,
+                            functionEffectRunCount,
+                            portalBuildCount,
+                            portalUpdateCount,
+                            FrameBatcher.LastFlushComponentCount
+                        )
+                    );
+                }
+                catch { }
             }
         }
 

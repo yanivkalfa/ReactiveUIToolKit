@@ -13,6 +13,20 @@ namespace ReactiveUITK.Samples.Shared
 {
     public static class SharedDemoPage
     {
+        // One-time metrics subscription so the Batch Test button visibly demonstrates batching.
+        private static bool metricsHooked;
+
+        private static void EnsureMetricsHook()
+        {
+            if (metricsHooked)
+                return; // compact form acceptable
+            metricsHooked = true;
+            Reconciler.MetricsEmitted += m =>
+                Debug.Log(
+                    $"[ReactiveUITK Metrics] diff={m.LastDiffMs}ms reconciled={m.Reconciled} skipped={m.Skipped} effects={m.EffectsRan} portals={m.PortalsBuilt}/{m.PortalsUpdated} batchedComponents={m.BatchedComponentUpdates}"
+                );
+        }
+
         private static readonly Style TopBarStyle = new()
         {
             (StyleKeys.FlexDirection, "row"),
@@ -93,6 +107,8 @@ namespace ReactiveUITK.Samples.Shared
             IReadOnlyList<VirtualNode> children
         )
         {
+            // Ensure metrics logging is active (safe to call every render)
+            EnsureMetricsHook();
             var (isListVisible, setListVisible) = Hooks.UseState(true);
             var (inputText, setInputText) = Hooks.UseState(string.Empty);
             var (isOptionEnabled, setOptionEnabled) = Hooks.UseState(false);
@@ -151,7 +167,8 @@ namespace ReactiveUITK.Samples.Shared
                                                 if (foundIndex >= 0)
                                                 {
                                                     copy.RemoveAt(foundIndex);
-                                                    setListItems.Set(copy);
+                                                    // Direct value assignment uses invocation, reserve .Set for functional updates
+                                                    setListItems(copy);
                                                 }
                                             }
                                         )
@@ -175,7 +192,7 @@ namespace ReactiveUITK.Samples.Shared
                 LabelText = string.IsNullOrEmpty(inputText)
                     ? string.Empty
                     : ("Value: " + inputText),
-                OnChange = e => setInputText.Set(e.newValue),
+                OnChange = e => setInputText(e.newValue),
             };
             // Removed inline ListView change/add buttons
             // removed inline table add button (handled in MultiColumnListViewStatefulDemoFunc)
@@ -262,7 +279,7 @@ namespace ReactiveUITK.Samples.Shared
             {
                 Text = "More settings",
                 Value = foldoutOpen,
-                OnChange = e => setFoldoutOpen.Set(e.newValue),
+                OnChange = e => setFoldoutOpen(e.newValue),
                 Header = new Dictionary<string, object> { { "style", foldoutHeaderStyle } },
                 ContentContainer = new Dictionary<string, object>
                 {
@@ -276,14 +293,14 @@ namespace ReactiveUITK.Samples.Shared
                 HighValue = 1f,
                 Value = sliderValue,
                 Direction = "horizontal",
-                OnChange = e => setSliderValue.Set(e.newValue),
+                OnChange = e => setSliderValue(e.newValue),
                 Style = sliderWidthStyle,
             };
             var dropdownProps = new DropdownFieldProps
             {
                 Choices = ddChoices,
                 Value = ddValue,
-                OnChange = e => setDdValue.Set(e.newValue),
+                OnChange = e => setDdValue(e.newValue),
             };
 
             var treeRootItems = Hooks.UseMemo(
@@ -570,8 +587,8 @@ namespace ReactiveUITK.Samples.Shared
                                                 false
                                             )
                                         );
-                                        setTreePairs.Set(copy);
-                                        setTreeNextIsParent.Set(false);
+                                        setTreePairs(copy);
+                                        setTreeNextIsParent(false);
                                     }
                                     else if (copy.Count > 0)
                                     {
@@ -585,8 +602,8 @@ namespace ReactiveUITK.Samples.Shared
                                                 Text = "Child",
                                             };
                                         copy[copy.Count - 1] = last;
-                                        setTreePairs.Set(copy);
-                                        setTreeNextIsParent.Set(true);
+                                        setTreePairs(copy);
+                                        setTreeNextIsParent(true);
                                     }
                                 },
                             };
@@ -611,15 +628,15 @@ namespace ReactiveUITK.Samples.Shared
                                             last.hasChild = false;
                                             last.childAsFunc = false;
                                             copy[copy.Count - 1] = last;
-                                            setTreePairs.Set(copy);
-                                            setTreeNextIsParent.Set(false);
+                                            setTreePairs(copy);
+                                            setTreeNextIsParent(false);
                                         }
                                     }
                                     else
                                     {
                                         copy.RemoveAt(copy.Count - 1);
-                                        setTreePairs.Set(copy);
-                                        setTreeNextIsParent.Set(true);
+                                        setTreePairs(copy);
+                                        setTreeNextIsParent(true);
                                     }
                                 },
                             };
@@ -650,7 +667,7 @@ namespace ReactiveUITK.Samples.Shared
                                                 };
                                             last.childLabel.Text = $"{last.childLabel.Id} {stamp}";
                                             copy[copy.Count - 1] = last;
-                                            setTreePairs.Set(copy);
+                                            setTreePairs(copy);
                                         }
                                     }
                                     else
@@ -662,7 +679,7 @@ namespace ReactiveUITK.Samples.Shared
                                             };
                                         last.parent.Text = $"{last.parent.Id} {stamp}";
                                         copy[copy.Count - 1] = last;
-                                        setTreePairs.Set(copy);
+                                        setTreePairs(copy);
                                     }
                                 },
                             };
@@ -677,7 +694,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != treeDisplayCount)
-                                                    setTreeDisplayCount.Set(c);
+                                                    setTreeDisplayCount(c);
                                             }
                                         )
                                     },
@@ -699,7 +716,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != mctvDisplayCount)
-                                                    setMctvDisplayCount.Set(c);
+                                                    setMctvDisplayCount(c);
                                             }
                                         )
                                     },
@@ -742,7 +759,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != simpleListCount)
-                                                    setSimpleListCount.Set(c);
+                                                    setSimpleListCount(c);
                                             }
                                         )
                                     },
@@ -768,7 +785,7 @@ namespace ReactiveUITK.Samples.Shared
                                             c =>
                                             {
                                                 if (c != mclvDisplayCount)
-                                                    setMclvDisplayCount.Set(c);
+                                                    setMclvDisplayCount(c);
                                             }
                                         )
                                     },
@@ -785,12 +802,12 @@ namespace ReactiveUITK.Samples.Shared
             var toggleTreeTabsBtn = new ButtonProps
             {
                 Text = showTreeTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
-                OnClick = () => setShowTreeTabs.Set(!showTreeTabs),
+                OnClick = () => setShowTreeTabs(!showTreeTabs),
             };
             var toggleListTabsBtn = new ButtonProps
             {
                 Text = showListTabs ? "Hide List Tabs" : "Show List Tabs",
-                OnClick = () => setShowListTabs.Set(!showListTabs),
+                OnClick = () => setShowListTabs(!showListTabs),
             };
 
             // Build Values bar items
@@ -816,19 +833,19 @@ namespace ReactiveUITK.Samples.Shared
             {
                 Text = "Enable option",
                 Value = isOptionEnabled,
-                OnChange = e => setOptionEnabled.Set(e.newValue),
+                OnChange = e => setOptionEnabled(e.newValue),
             };
             var radioSingleProps = new RadioButtonProps
             {
                 Text = "Single radio",
                 Value = isRadioSingleSelected,
-                OnChange = e => setRadioSingleSelected.Set(e.newValue),
+                OnChange = e => setRadioSingleSelected(e.newValue),
             };
             var radioGroupProps = new RadioButtonGroupProps
             {
                 Choices = selectionChoices,
                 Index = selectionIndex,
-                OnChange = e => setSelectionIndex.Set(e.newValue),
+                OnChange = e => setSelectionIndex(e.newValue),
             };
             var progressBarProps = new ProgressBarProps
             {
@@ -838,8 +855,11 @@ namespace ReactiveUITK.Samples.Shared
             var repeatButtonProps = new RepeatButtonProps
             {
                 Text = $"Repeat ({repeatClickCount})",
-                OnClick = () => setRepeatClickCount.Set(repeatClickCount + 1),
+                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
             };
+            // Batch test button: triggers multiple state updates in a single click (animNonce defined first for clarity).
+            var (animNonce, setAnimNonce) = Hooks.UseState(0);
+            var (batchClicks, setBatchClicks) = Hooks.UseState(0);
             var repeatPulseTracks = Hooks.UseMemo(
                 () =>
                     new List<AnimateTrack>
@@ -891,7 +911,23 @@ namespace ReactiveUITK.Samples.Shared
                 0
             );
             // Multi-attribute animation demo controls
-            var (animNonce, setAnimNonce) = Hooks.UseState(0);
+            var batchTestButtonProps = new ButtonProps
+            {
+                Text = $"Batch Test ({batchClicks})",
+                OnClick = () =>
+                {
+                    // Value update (direct)
+                    setBatchClicks(batchClicks + 1);
+                    // Functional updates via extension .Set (language limitation prevents lambda direct to struct parameter)
+                    setRepeatClickCount.Set(c => c + 1);
+                    setRepeatClickCount.Set(c => c + 1); // second increment
+                    setSliderValue.Set(v => Mathf.Clamp01(v + 0.05f));
+                    setSliderIntValue.Set(v => (v + 1) % 11);
+                    setOptionEnabled(!isOptionEnabled);
+                    setAnimNonce.Set(n => n + 1);
+                },
+                Style = new Style { (MarginLeft, 6f) },
+            };
             var multiTracks = Hooks.UseMemo(
                 () =>
                     new List<AnimateTrack>
@@ -1046,6 +1082,7 @@ namespace ReactiveUITK.Samples.Shared
                             V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                         ),
                         V.ProgressBar(progressBarProps, key: "progress"),
+                        V.Button(batchTestButtonProps, key: "batch-test-btn"),
                         V.Animate(
                             new AnimateProps { Tracks = repeatPulseTracks },
                             key: "repeat-anim",

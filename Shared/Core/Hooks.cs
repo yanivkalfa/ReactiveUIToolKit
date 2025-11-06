@@ -32,9 +32,30 @@ namespace ReactiveUITK.Core
             }
         }
 
-        // React-style setter delegate: accepts either a direct value or functional updater and returns the committed value.
+        /// <summary>
+        /// React-style state setter delegate. Accepts a <see cref="StateUpdate{T}"/> wrapper which can be implicitly
+        /// constructed from either a direct value of <typeparamref name="T"/> or a functional updater <c>Func&lt;T,T&gt;</c>.
+        ///
+        /// Usage patterns (finalized API):
+        /// <code>
+        /// var (count, setCount) = Hooks.UseState(0);
+        /// setCount(5);                // direct value update
+        /// setCount.Set(c => c + 1);    // functional updater via extension method (lambda cannot target struct param directly)
+        /// </code>
+        ///
+        /// C# Limitation (CS1660): A lambda expression cannot directly convert to a user-defined struct parameter type even when
+        /// that struct declares an implicit conversion from the corresponding delegate type. Because this delegate's parameter
+        /// type is <see cref="StateUpdate{T}"/> (a struct) the form <c>setCount(c => c + 1)</c> will NOT compile.
+        /// We intentionally keep the extension method <c>StateSetterExtensions.Set(Func&lt;T,T&gt;)</c> to enable functional updates.
+        ///
+        /// Do NOT attempt further unification; this is the settled design to avoid recurring churn.
+        /// </summary>
         public delegate T StateSetter<T>(StateUpdate<T> update);
 
+        /// <summary>
+        /// Wrapper representing either a direct value assignment or a functional updater for state of type <typeparamref name="T"/>.
+        /// Instances are produced implicitly from <typeparamref name="T"/> or <c>Func&lt;T,T&gt;</c> when passed to <see cref="StateSetter{T}"/>.
+        /// </summary>
         public readonly struct StateUpdate<T>
         {
             internal readonly T Value;
@@ -61,9 +82,11 @@ namespace ReactiveUITK.Core
                 return Updater(previous);
             }
 
+            /// <summary>Create a value update.</summary>
             public static implicit operator StateUpdate<T>(T value) =>
                 new StateUpdate<T>(value, null, false);
 
+            /// <summary>Create a functional update. Note: lambdas only bind here when the receiver is an extension method expecting Func&lt;T,T&gt;.</summary>
             public static implicit operator StateUpdate<T>(Func<T, T> updater) =>
                 new StateUpdate<T>(default, updater, true);
         }
@@ -401,33 +424,8 @@ namespace ReactiveUITK.Core
                 );
                 return;
             }
-            if (metadata.UpdateQueued)
-            {
-                return;
-            }
-            metadata.UpdateQueued = true;
-            void Flush()
-            {
-                try
-                {
-                    metadata.HookIndex = 0;
-                    metadata.Reconciler.ForceFunctionComponentUpdate(metadata);
-                }
-                finally
-                {
-                    metadata.UpdateQueued = false;
-                }
-            }
-
-            var scheduler = ResolveScheduler(metadata);
-            if (scheduler != null)
-            {
-                scheduler.Enqueue(Flush);
-            }
-            else
-            {
-                Flush();
-            }
+            // Frame batching: enqueue component for end-of-frame flush instead of immediate render
+            ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
         }
 
         public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)

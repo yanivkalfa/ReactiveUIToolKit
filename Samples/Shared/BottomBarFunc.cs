@@ -74,7 +74,7 @@ namespace ReactiveUITK.Samples.Shared
                 Style = LeftButtonStyle,
                 OnClick = () =>
                 {
-                    setLeftClicks.Set(leftClicks + 1);
+                    setLeftClicks(leftClicks + 1);
                     setParentText?.Invoke("left");
                 },
                 Text = $"Bottom Left ({leftClicks})",
@@ -85,7 +85,7 @@ namespace ReactiveUITK.Samples.Shared
                 Style = RightButtonStyle,
                 OnClick = () =>
                 {
-                    setRightClicks.Set(rightClicks + 1);
+                    setRightClicks(rightClicks + 1);
                     setParentText?.Invoke("right");
                 },
                 Text = $"Bottom Right ({rightClicks})",

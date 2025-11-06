@@ -19,7 +19,7 @@ namespace ReactiveUITK.Samples.Shared
             var buttonProps = new ButtonProps
             {
                 Text = "+1",
-                OnClick = () => setCount.Set(count + 1),
+                OnClick = () => setCount(count + 1),
                 Style = new Style { (MarginLeft, 8f) },
             };
 
