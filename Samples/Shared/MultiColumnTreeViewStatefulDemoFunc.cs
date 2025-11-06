@@ -117,34 +117,12 @@ namespace ReactiveUITK.Samples.Shared
 
             var rootsNow = BuildRoots(rows, sortDefs);
 
-            // Notify parent of current displayed row count (roots + children) if requested
-            try
-            {
-                int countValue = 0;
-                for (int i = 0; i < rows.Count; i++)
-                {
-                    countValue += 1;
-                    if (rows[i]?.HasChild == true) countValue += 1;
-                }
-                if (props != null && props.TryGetValue("onCountChanged", out var oc) && oc is Action<int> cb)
-                {
-                    Hooks.UseEffect(
-                        () =>
-                        {
-                            try { cb(countValue); } catch { }
-                            return null;
-                        },
-                        new object[] { countValue }
-                    );
-                }
-            }
-            catch { }
-
             var columns = Hooks.UseMemo(
                 () =>
-                    new List<MultiColumnTreeViewProps.ColumnDef>
-                    {
-                        new()
+                {
+                    var list = new List<MultiColumnTreeViewProps.ColumnDef>();
+                    list.Add(
+                        new MultiColumnTreeViewProps.ColumnDef
                         {
                             Name = "Name",
                             Title = "Name",
@@ -154,7 +132,10 @@ namespace ReactiveUITK.Samples.Shared
                             {
                                 var row = obj as SharedTreeRowItem;
                                 if (row == null)
-                                    return V.Label(new LabelProps { Text = "<invalid>" });
+                                    return V.Label(
+                                        new LabelProps { Text = "<invalid>" },
+                                        key: $"mctv-invalid-{i}"
+                                    );
                                 var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
                                 var funcKey = $"mctv-row-{id}";
                                 var childrenNode = row.ShouldOverrideElement
@@ -163,10 +144,16 @@ namespace ReactiveUITK.Samples.Shared
                                         funcKey
                                     )
                                     : V.Func(IntroCounterFunc.Render, null, funcKey);
-                                return childrenNode;
+                                return V.VisualElement(
+                                    null,
+                                    key: $"mctv-name-wrap-{id}",
+                                    childrenNode
+                                );
                             },
-                        },
-                        new()
+                        }
+                    );
+                    list.Add(
+                        new MultiColumnTreeViewProps.ColumnDef
                         {
                             Name = "ID",
                             Title = "ID",
@@ -175,17 +162,56 @@ namespace ReactiveUITK.Samples.Shared
                             Cell = (i, obj) =>
                             {
                                 var row = obj as SharedTreeRowItem;
-                                var id = row?.Id ?? string.Empty;
-                                var s = id.Length > 6 ? id.Substring(0, 6) : id;
-                                return V.Label(new LabelProps { Text = s });
+                                var id = row?.Id ?? i.ToString();
+                                var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
+                                return V.Label(
+                                    new LabelProps { Text = shortId },
+                                    key: $"mctv-id-cell-{id}"
+                                );
                             },
-                        },
-                    },
+                        }
+                    );
+                    return list;
+                },
                 rootsNow?.Count ?? 0
             );
 
-            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> onSort =
-                defs => setSortDefs(defs);
+            // Notify parent of current displayed row count (roots + children) if requested (moved below columns memo)
+            try
+            {
+                int countValue = 0;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    countValue += 1;
+                    if (rows[i]?.HasChild == true)
+                        countValue += 1;
+                }
+                Hooks.UseEffect(
+                    () =>
+                    {
+                        try
+                        {
+                            if (
+                                props != null
+                                && props.TryGetValue("onCountChanged", out var oc)
+                                && oc is Action<int> cb
+                            )
+                            {
+                                cb(countValue);
+                            }
+                        }
+                        catch { }
+                        return null;
+                    },
+                    new object[] { countValue }
+                );
+            }
+            catch { }
+
+            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> onSort = (defs) =>
+            {
+                setSortDefs(defs);
+            };
 
             var propsMap = new MultiColumnTreeViewProps
             {

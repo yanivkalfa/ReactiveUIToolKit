@@ -28,7 +28,29 @@ namespace ReactiveUITK.Samples.Shared
 
             var (items, setItems) = Hooks.UseState(initial);
 
-            // Notify parent only when count changes to avoid render loops
+            var rowRenderer = Hooks.UseMemo(
+                () =>
+                    (Func<int, object, VirtualNode>)(
+                        (index, obj) =>
+                        {
+                            var r = obj as Row;
+                            if (r == null)
+                                return V.Label(
+                                    new LabelProps { Text = "<invalid>" },
+                                    key: $"lv-invalid-{index}"
+                                );
+                            var id = !string.IsNullOrEmpty(r.Id) ? r.Id : index.ToString();
+                            var funcKey = $"lv-row-{id}";
+                            var childrenNode = r.ShouldOverrideElement
+                                ? V.Label(new LabelProps { Text = r.Text ?? "<null>" }, funcKey)
+                                : V.Func(IntroCounterFunc.Render, null, funcKey);
+                            return V.VisualElement(null, key: $"lv-wrap-{id}", childrenNode);
+                        }
+                    ),
+                items
+            );
+
+            // Notify parent only when count changes to avoid render loops (moved below memo to preserve original hook order signature)
             Hooks.UseEffect(
                 () =>
                 {
@@ -47,26 +69,6 @@ namespace ReactiveUITK.Samples.Shared
                     return null;
                 },
                 new object[] { items?.Count ?? 0 }
-            );
-
-            var rowRenderer = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (index, obj) =>
-                        {
-                            var r = obj as Row;
-                            if (r == null)
-                                return V.Label(new LabelProps { Text = "<invalid>" });
-                            var id = !string.IsNullOrEmpty(r.Id) ? r.Id : index.ToString();
-                            var funcKey = $"lv-row-{id}";
-                            var childrenNode = r.ShouldOverrideElement
-                                ? V.Label(new LabelProps { Text = r.Text ?? "<null>" }, funcKey)
-                                : V.Func(IntroCounterFunc.Render, null, funcKey);
-                            // Always wrap in a VisualElement (matches TreeView usage and stabilizes row root)
-                            return V.VisualElement(null, null, childrenNode);
-                        }
-                    ),
-                items
             );
 
             var listProps = new ListViewProps

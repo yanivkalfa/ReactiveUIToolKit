@@ -13,27 +13,51 @@ namespace ReactiveUITK.Elements
     {
         private static void SetTabTitle(Tab tab, string title)
         {
-            if (tab == null) return;
-            if (string.IsNullOrEmpty(title)) title = string.Empty;
+            if (tab == null)
+                return;
+            if (string.IsNullOrEmpty(title))
+                title = string.Empty;
             try
             {
-                var p = typeof(Tab).GetProperty("title", BindingFlags.Instance | BindingFlags.Public);
-                if (p != null && p.CanWrite) { p.SetValue(tab, title); return; }
+                var p = typeof(Tab).GetProperty(
+                    "title",
+                    BindingFlags.Instance | BindingFlags.Public
+                );
+                if (p != null && p.CanWrite)
+                {
+                    p.SetValue(tab, title);
+                    return;
+                }
             }
             catch { }
             try
             {
-                var p = typeof(Tab).GetProperty("text", BindingFlags.Instance | BindingFlags.Public);
-                if (p != null && p.CanWrite) { p.SetValue(tab, title); return; }
+                var p = typeof(Tab).GetProperty(
+                    "text",
+                    BindingFlags.Instance | BindingFlags.Public
+                );
+                if (p != null && p.CanWrite)
+                {
+                    p.SetValue(tab, title);
+                    return;
+                }
             }
             catch { }
             try
             {
                 var label = tab.Q<Label>("title") ?? tab.Q<Label>();
-                if (label != null) { label.text = title; return; }
+                if (label != null)
+                {
+                    label.text = title;
+                    return;
+                }
             }
             catch { }
-            try { tab.name = string.IsNullOrEmpty(tab.name) ? ("Tab_" + title) : tab.name; } catch { }
+            try
+            {
+                tab.name = string.IsNullOrEmpty(tab.name) ? ("Tab_" + title) : tab.name;
+            }
+            catch { }
         }
 
         private sealed class Cached
@@ -46,6 +70,7 @@ namespace ReactiveUITK.Elements
         private static readonly ConditionalWeakTable<TabView, Cached> cache = new();
 
         private static HostContext sharedHost;
+
         private static HostContext GetHost()
         {
             if (sharedHost == null)
@@ -60,7 +85,10 @@ namespace ReactiveUITK.Elements
             return new TabView();
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not TabView tv)
             {
@@ -72,7 +100,10 @@ namespace ReactiveUITK.Elements
 
             if (properties != null)
             {
-                if (properties.TryGetValue("tabs", out var tabsObj) && tabsObj is IEnumerable<Dictionary<string, object>> tabs)
+                if (
+                    properties.TryGetValue("tabs", out var tabsObj)
+                    && tabsObj is IEnumerable<Dictionary<string, object>> tabs
+                )
                 {
                     var titles = new List<string>();
                     var fns = new List<Func<VirtualNode>>();
@@ -91,20 +122,31 @@ namespace ReactiveUITK.Elements
                     {
                         for (int i = 0; i < titles.Count; i++)
                         {
-                            if (!string.Equals(parts.Titles[i], titles[i])) { same = false; break; }
+                            if (!string.Equals(parts.Titles[i], titles[i]))
+                            {
+                                same = false;
+                                break;
+                            }
                         }
                     }
                     parts.Titles = titles;
                     parts.ContentFns = fns;
                     parts.StaticNodes = nodes;
-                    if (!same) RebuildTabs(tv, parts); else RebindAll(tv, parts);
+                    if (!same)
+                        RebuildTabs(tv, parts);
+                    else
+                        RebindAll(tv, parts);
                 }
             }
 
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not TabView tv)
             {
@@ -117,7 +159,10 @@ namespace ReactiveUITK.Elements
 
             previous.TryGetValue("tabs", out var prevTabs);
             next.TryGetValue("tabs", out var nextTabs);
-            if (!ReferenceEquals(prevTabs, nextTabs) && nextTabs is IEnumerable<Dictionary<string, object>> tabs)
+            if (
+                !ReferenceEquals(prevTabs, nextTabs)
+                && nextTabs is IEnumerable<Dictionary<string, object>> tabs
+            )
             {
                 var titles = new List<string>();
                 var fns = new List<Func<VirtualNode>>();
@@ -136,13 +181,20 @@ namespace ReactiveUITK.Elements
                 {
                     for (int i = 0; i < titles.Count; i++)
                     {
-                        if (!string.Equals(parts.Titles[i], titles[i])) { same = false; break; }
+                        if (!string.Equals(parts.Titles[i], titles[i]))
+                        {
+                            same = false;
+                            break;
+                        }
                     }
                 }
                 parts.Titles = titles;
                 parts.ContentFns = fns;
                 parts.StaticNodes = nodes;
-                if (!same) RebuildTabs(tv, parts); else RebindAll(tv, parts);
+                if (!same)
+                    RebuildTabs(tv, parts);
+                else
+                    RebindAll(tv, parts);
             }
 
             PropsApplier.ApplyDiff(element, previous, next);
@@ -153,48 +205,101 @@ namespace ReactiveUITK.Elements
         private static void RebuildTabs(TabView tv, Cached parts)
         {
             tv.Clear();
-            if (parts.Titles == null) return;
+            if (parts.Titles == null)
+                return;
             for (int i = 0; i < parts.Titles.Count; i++)
             {
                 var tab = new Tab();
                 SetTabTitle(tab, parts.Titles[i] ?? string.Empty);
                 var content = new VisualElement();
                 var rr = new VNodeHostRenderer(GetHost(), content);
-                try { content.userData = rr; } catch { }
-                var fn = parts.ContentFns != null && i < parts.ContentFns.Count ? parts.ContentFns[i] : null;
-                var node = parts.StaticNodes != null && i < parts.StaticNodes.Count ? parts.StaticNodes[i] : null;
+                try
+                {
+                    content.userData = rr;
+                }
+                catch { }
+                var fn =
+                    parts.ContentFns != null && i < parts.ContentFns.Count
+                        ? parts.ContentFns[i]
+                        : null;
+                var node =
+                    parts.StaticNodes != null && i < parts.StaticNodes.Count
+                        ? parts.StaticNodes[i]
+                        : null;
                 var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
-                if (vnode != null) rr.Render(vnode);
-                try { tab.contentContainer.Add(content); } catch { tab.Add(content); }
+                // Auto-key tab content root if missing to suppress missing key warnings for sibling tab pages
+                if (vnode != null && string.IsNullOrEmpty(vnode.Key))
+                {
+                    vnode = ReactiveUITK.V.VisualElement(null, key: $"tab-{i}", vnode);
+                }
+                if (vnode != null)
+                    rr.Render(vnode);
+                try
+                {
+                    tab.contentContainer.Add(content);
+                }
+                catch
+                {
+                    tab.Add(content);
+                }
                 tv.Add(tab);
             }
         }
 
         private static void RebindAll(TabView tv, Cached parts)
         {
-            if (parts?.Titles == null) return;
+            if (parts?.Titles == null)
+                return;
             int count = Math.Min(parts.Titles.Count, tv.childCount);
             for (int i = 0; i < count; i++)
             {
                 var tab = tv[i] as Tab;
-                if (tab == null) continue;
+                if (tab == null)
+                    continue;
                 VisualElement content = null;
-                try { if (tab.contentContainer != null && tab.contentContainer.childCount > 0) content = tab.contentContainer.ElementAt(0) as VisualElement; } catch { }
+                try
+                {
+                    if (tab.contentContainer != null && tab.contentContainer.childCount > 0)
+                        content = tab.contentContainer.ElementAt(0) as VisualElement;
+                }
+                catch { }
                 if (content == null)
                 {
                     content = new VisualElement();
-                    try { tab.contentContainer.Add(content); } catch { tab.Add(content); }
+                    try
+                    {
+                        tab.contentContainer.Add(content);
+                    }
+                    catch
+                    {
+                        tab.Add(content);
+                    }
                 }
                 var rr = content.userData as IVNodeHostRenderer;
                 if (rr == null)
                 {
                     rr = new VNodeHostRenderer(GetHost(), content);
-                    try { content.userData = rr; } catch { }
+                    try
+                    {
+                        content.userData = rr;
+                    }
+                    catch { }
                 }
-                var fn = parts.ContentFns != null && i < parts.ContentFns.Count ? parts.ContentFns[i] : null;
-                var node = parts.StaticNodes != null && i < parts.StaticNodes.Count ? parts.StaticNodes[i] : null;
+                var fn =
+                    parts.ContentFns != null && i < parts.ContentFns.Count
+                        ? parts.ContentFns[i]
+                        : null;
+                var node =
+                    parts.StaticNodes != null && i < parts.StaticNodes.Count
+                        ? parts.StaticNodes[i]
+                        : null;
                 var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
-                if (vnode != null) rr.Render(vnode);
+                if (vnode != null && string.IsNullOrEmpty(vnode.Key))
+                {
+                    vnode = ReactiveUITK.V.VisualElement(null, key: $"tab-{i}", vnode);
+                }
+                if (vnode != null)
+                    rr.Render(vnode);
             }
         }
     }

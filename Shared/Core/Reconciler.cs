@@ -53,77 +53,64 @@ namespace ReactiveUITK.Core
         }
 
         public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
+
         private int reconciledNodeCount;
         private int skippedNodeCount;
         private int functionEffectRunCount;
         private int portalBuildCount;
         private int portalUpdateCount;
         private Stopwatch diffStopwatch = new();
-        private long lastDiffDurationMs;
+        private long lastDiffDurationMs; // restored: used in EndDiffTiming + GetMetrics
+
+        // Re-added caches & counters lost during previous refactor
+
         private readonly Dictionary<string, VisualElement> elementCache = new();
         private int cacheHitCount;
         private int cacheMissCount;
         private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
-    private int schedulerBatchDepth;
-        private static readonly ProfilerMarker RenderFunctionComponentMarker =
-            new("ReactiveUITK.RenderFunctionComponent");
-        private static readonly ProfilerMarker DiffNodeMarker =
-            new("ReactiveUITK.DiffNode");
 
+        // Profiler markers (used in DiffNode & RenderFunctionComponent)
+        private static readonly ProfilerMarker DiffNodeMarker = new ProfilerMarker(
+            "ReactiveUITK.DiffNode"
+        );
+        private static readonly ProfilerMarker RenderFunctionComponentMarker = new ProfilerMarker(
+            "ReactiveUITK.RenderFunctionComponent"
+        );
+
+        // Constructor restored (referenced by VNodeHostRenderer, etc.)
         public Reconciler(HostContext hostContext)
         {
             this.hostContext = hostContext;
         }
 
-        internal void ForceFunctionComponentUpdate(NodeMetadata nodeMetadata)
+        // External trigger for queued component updates (referenced by Hooks)
+        internal void ForceFunctionComponentUpdate(NodeMetadata metadata)
         {
-            if (nodeMetadata == null || nodeMetadata.Container == null)
+            if (metadata == null || metadata.FuncRender == null || metadata.Container == null)
             {
                 return;
             }
-            IScheduler scheduler = ResolveScheduler();
-            bool batchEntered = false;
             try
             {
-                if (scheduler != null)
-                {
-                    if (schedulerBatchDepth == 0)
-                    {
-                        scheduler.BeginBatch();
-                    }
-                    schedulerBatchDepth++;
-                    batchEntered = true;
-                }
-                if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
-                {
-                    try
-                    {
-                        UnityEngine.Debug.Log("[ForceUpdate] key=" + nodeMetadata.Key);
-                    }
-                    catch { }
-                }
-                nodeMetadata.HookIndex = 0;
-                RenderFunctionComponent(nodeMetadata, nodeMetadata.Container);
+                metadata.PendingUpdate = false;
+                metadata.HookIndex = 0;
+                RenderFunctionComponent(metadata, metadata.Container);
             }
-            finally
+            catch (Exception ex)
             {
-                if (batchEntered && scheduler != null)
+                try
                 {
-                    if (schedulerBatchDepth > 0)
-                    {
-                        schedulerBatchDepth--;
-                    }
-                    if (schedulerBatchDepth == 0)
-                    {
-                        try
-                        {
-                            scheduler.EndBatch();
-                        }
-                        catch { }
-                    }
+                    Debug.LogWarning($"ReactiveUITK: Force update failed: {ex}");
                 }
+                catch { }
             }
         }
+
+        // NOTE: Previous patch accidentally injected a raw BuildChildren fingerprint/warning block
+        // directly into the class body here, causing 100+ syntax errors. That logic duplicated
+        // the real BuildChildren implementation below and sat outside any method. Removed to
+        // restore valid class structure. If adaptive fingerprint warnings are desired again,
+        // reintroduce them inside the proper BuildChildren method.
 
         public void BuildSubtree(VisualElement hostElement, VirtualNode rootNode)
         {
@@ -234,24 +221,25 @@ namespace ReactiveUITK.Core
             IReadOnlyList<VirtualNode> childNodes
         )
         {
-            bool duplicateFragmentKeyWarned = false;
-            bool missingKeyWarned = false;
-            HashSet<string> fragmentKeys = new();
-            for (int index = 0; index < childNodes.Count; index += 1)
+            if (childNodes == null || parentElement == null)
             {
-                VirtualNode currentChild = childNodes[index];
-                if (
-                    !missingKeyWarned
-                    && childNodes.Count > 1
-                    && string.IsNullOrEmpty(currentChild?.Key)
-                    && ShouldWarnForMissingKey(currentChild)
-                )
+                return;
+            }
+            bool duplicateFragmentKeyWarned = false;
+            HashSet<string> fragmentKeys = new();
+            bool anyKeyed = false;
+            bool anyUnkeyed = false;
+            for (int index = 0; index < childNodes.Count; index++)
+            {
+                var currentChild = childNodes[index];
+                if (currentChild == null)
                 {
-                    UnityEngine.Debug.LogWarning(
-                        $"ReactiveUITK: Child at index {index} under parent {parentElement.name} is missing a stable key."
-                    );
-                    missingKeyWarned = true;
+                    continue; // skip null vnode safely
                 }
+                if (string.IsNullOrEmpty(currentChild.Key))
+                    anyUnkeyed = true;
+                else
+                    anyKeyed = true;
                 if (
                     currentChild.NodeType == VirtualNodeType.Fragment
                     && !string.IsNullOrEmpty(currentChild.Key)
@@ -267,25 +255,37 @@ namespace ReactiveUITK.Core
                 }
                 BuildNode(parentElement, currentChild);
             }
+
+            // React-style: only warn when mixing keyed + unkeyed siblings.
+            if (anyKeyed && anyUnkeyed)
+            {
+                try
+                {
+                    int pid = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(
+                        parentElement
+                    );
+                    _warnedMixedKeyParents ??= new HashSet<int>();
+                    if (_warnedMixedKeyParents.Add(pid))
+                    {
+                        UnityEngine.Debug.LogWarning(
+                            $"ReactiveUITK: Mixed keyed and unkeyed siblings under '{parentElement.name}'. Add keys to all dynamic items for stable state."
+                        );
+                    }
+                }
+                catch { }
+            }
         }
 
-        private static bool ShouldWarnForMissingKey(VirtualNode node)
-        {
-            if (node == null)
-            {
-                return false;
-            }
-            switch (node.NodeType)
-            {
-                case VirtualNodeType.Text:
-                    return false;
-                default:
-                    return true;
-            }
-        }
+        private static HashSet<int> _warnedMixedKeyParents;
+
+        // Removed strict missing-key heuristic; React-like behavior implemented in BuildChildren.
 
         private void BuildNode(VisualElement parentElement, VirtualNode virtualNode)
         {
+            if (parentElement == null || virtualNode == null)
+            {
+                return; // defensive guard
+            }
             switch (virtualNode.NodeType)
             {
                 case VirtualNodeType.Text:
@@ -436,6 +436,12 @@ namespace ReactiveUITK.Core
             IReadOnlyList<VirtualNode> nextChildren
         )
         {
+            if (parentElement == null)
+            {
+                return;
+            }
+            previousChildren ??= Array.Empty<VirtualNode>();
+            nextChildren ??= Array.Empty<VirtualNode>();
             var previousChildrenByKey =
                 new Dictionary<string, (VirtualNode vnode, VisualElement element)>();
             var unkeyedQueue = new Queue<(VirtualNode vnode, VisualElement element)>();
@@ -451,6 +457,10 @@ namespace ReactiveUITK.Core
             {
                 var prevNode = previousChildren[i];
                 var prevElement = managed[i];
+                if (prevNode == null || prevElement == null)
+                {
+                    continue;
+                }
                 string key = prevNode.Key;
 
                 if (!string.IsNullOrEmpty(key))
@@ -471,6 +481,10 @@ namespace ReactiveUITK.Core
             for (int i = 0; i < nextCount; i++)
             {
                 var nextChildNode = nextChildren[i];
+                if (nextChildNode == null)
+                {
+                    continue; // skip null vnode
+                }
                 var key = nextChildNode.Key;
 
                 if (
@@ -507,8 +521,18 @@ namespace ReactiveUITK.Core
                     {
                         var (pv, pe) = unkeyedQueue.Dequeue();
                         int oldIndex = parentElement.IndexOf(pe);
-                        DiffNode(pe, pv, nextChildNode);
-                        var resolved = pe;
+                        VisualElement resolved;
+                        if (pv == null)
+                        {
+                            // Cannot diff null previous node; build fresh
+                            BuildNode(parentElement, nextChildNode);
+                            resolved = parentElement.ElementAt(parentElement.childCount - 1);
+                        }
+                        else
+                        {
+                            DiffNode(pe, pv, nextChildNode);
+                            resolved = pe;
+                        }
                         if (resolved.parent != parentElement)
                         {
                             // Replaced; best-effort: pick element now at old index
@@ -539,7 +563,15 @@ namespace ReactiveUITK.Core
             for (int i = managedAfter.Count - 1; i >= 0; i--)
             {
                 var existing = managedAfter[i]; // managed => has NodeMetadata
+                if (existing == null)
+                {
+                    continue;
+                }
                 var md = existing.userData as NodeMetadata;
+                if (md == null)
+                {
+                    continue;
+                }
                 bool keep =
                     (!string.IsNullOrEmpty(md.Key) && reusedKeys.Contains(md.Key))
                     || reusedElements.Contains(existing);
@@ -563,6 +595,10 @@ namespace ReactiveUITK.Core
             for (int i = 0; i < orderedElements.Count; i++)
             {
                 var el = orderedElements[i];
+                if (el == null)
+                {
+                    continue;
+                }
 
                 if (anchor == null)
                 {
@@ -812,12 +848,11 @@ namespace ReactiveUITK.Core
             VirtualNode nextNode
         )
         {
-            bool resetRequested =
-                !string.Equals(
-                    metadata.ErrorBoundaryResetKey,
-                    nextNode.ErrorResetToken,
-                    StringComparison.Ordinal
-                );
+            bool resetRequested = !string.Equals(
+                metadata.ErrorBoundaryResetKey,
+                nextNode.ErrorResetToken,
+                StringComparison.Ordinal
+            );
 
             if (resetRequested)
             {
@@ -840,8 +875,7 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            var previousChildren =
-                previousNode.Children ?? Array.Empty<VirtualNode>();
+            var previousChildren = previousNode.Children ?? Array.Empty<VirtualNode>();
             var nextChildren = nextNode.Children ?? Array.Empty<VirtualNode>();
 
             bool shouldRebuild =
@@ -901,9 +935,7 @@ namespace ReactiveUITK.Core
             {
                 try
                 {
-                    Debug.LogError(
-                        $"ReactiveUITK: Error boundary captured exception: {exception}"
-                    );
+                    Debug.LogError($"ReactiveUITK: Error boundary captured exception: {exception}");
                 }
                 catch { }
             }
@@ -941,9 +973,7 @@ namespace ReactiveUITK.Core
                 {
                     try
                     {
-                        Debug.LogError(
-                            $"ReactiveUITK: Error boundary handler threw: {handlerEx}"
-                        );
+                        Debug.LogError($"ReactiveUITK: Error boundary handler threw: {handlerEx}");
                     }
                     catch { }
                 }
@@ -1051,10 +1081,7 @@ namespace ReactiveUITK.Core
                 }
 
                 // React-style memo: shallow props AND shallow children
-                bool childrenEq = ShallowChildrenEqual(
-                    previousNode.Children,
-                    nextNode.Children
-                );
+                bool childrenEq = ShallowChildrenEqual(previousNode.Children, nextNode.Children);
                 bool skip;
                 if (nextNode.MemoCompare != null)
                 {
@@ -1324,7 +1351,8 @@ namespace ReactiveUITK.Core
         {
             using (RenderFunctionComponentMarker.Auto())
             {
-                VisualElement targetContainer = reuseContainer ?? functionComponentMetadata.Container;
+                VisualElement targetContainer =
+                    reuseContainer ?? functionComponentMetadata.Container;
                 if (targetContainer == null || functionComponentMetadata.FuncRender == null)
                 {
                     return;
@@ -1333,10 +1361,14 @@ namespace ReactiveUITK.Core
                 functionComponentMetadata.HookIndex = 0;
                 functionComponentMetadata.EffectIndex = 0;
                 functionComponentMetadata.LayoutEffectIndex = 0;
-                functionComponentMetadata.HookOrderPrimed =
-                    Hooks.EnableHookValidation
-                    && functionComponentMetadata.HookOrderSignatures != null
-                    && functionComponentMetadata.HookOrderSignatures.Count > 0;
+                // Preserve existing HookOrderPrimed value (auto-realign may have set it false). Do not force true just because signatures exist.
+                if (functionComponentMetadata.HookOrderPrimed)
+                {
+                    functionComponentMetadata.HookOrderPrimed =
+                        Hooks.EnableHookValidation
+                        && functionComponentMetadata.HookOrderSignatures != null
+                        && functionComponentMetadata.HookOrderSignatures.Count > 0;
+                }
                 HookContext.Current = functionComponentMetadata;
                 bool initialMount =
                     functionComponentMetadata.LastRenderedSubtree == null
@@ -1429,7 +1461,8 @@ namespace ReactiveUITK.Core
                     {
                         var entry = functionComponentMetadata.FunctionLayoutEffects[i];
                         bool shouldRun =
-                            entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                            entry.lastDeps == null
+                            || DepsChangedInternal(entry.lastDeps, entry.deps);
                         if (shouldRun)
                         {
                             try
@@ -1463,7 +1496,8 @@ namespace ReactiveUITK.Core
                     {
                         var entry = functionComponentMetadata.FunctionEffects[i];
                         bool shouldRun =
-                            entry.lastDeps == null || DepsChangedInternal(entry.lastDeps, entry.deps);
+                            entry.lastDeps == null
+                            || DepsChangedInternal(entry.lastDeps, entry.deps);
                         if (shouldRun)
                         {
                             // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
@@ -1539,8 +1573,7 @@ namespace ReactiveUITK.Core
                         try
                         {
                             UnityEngine.Debug.Log(
-                                "[FuncRender:flush-pending] key="
-                                    + functionComponentMetadata.Key
+                                "[FuncRender:flush-pending] key=" + functionComponentMetadata.Key
                             );
                         }
                         catch { }

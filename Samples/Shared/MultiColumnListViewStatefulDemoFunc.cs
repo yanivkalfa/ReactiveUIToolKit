@@ -30,25 +30,6 @@ namespace ReactiveUITK.Samples.Shared
                 List<MultiColumnListViewProps.SortedColumnDef>
             >(null);
 
-            // Notify parent of count when it changes
-            Hooks.UseEffect(
-                () =>
-                {
-                    try
-                    {
-                        if (
-                            props != null
-                            && props.TryGetValue("onCountChanged", out var oc)
-                            && oc is Action<int> cb
-                        )
-                            cb(items?.Count ?? 0);
-                    }
-                    catch { }
-                    return null;
-                },
-                new object[] { items?.Count ?? 0 }
-            );
-
             var btnAdd = new ButtonProps
             {
                 Text = "Add Parent",
@@ -111,9 +92,12 @@ namespace ReactiveUITK.Samples.Shared
                             Cell = (i, obj) =>
                             {
                                 var it = obj as Row;
-                                var id = it?.Id ?? string.Empty;
+                                var id = it?.Id ?? i.ToString();
                                 var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
-                                return V.Label(new LabelProps { Text = shortId });
+                                return V.Label(
+                                    new LabelProps { Text = shortId },
+                                    key: $"id-cell-{id}"
+                                );
                             },
                         },
                         new()
@@ -129,7 +113,10 @@ namespace ReactiveUITK.Samples.Shared
                             {
                                 var it = obj as Row;
                                 if (it == null)
-                                    return V.Label(new LabelProps { Text = "<invalid>" });
+                                    return V.Label(
+                                        new LabelProps { Text = "<invalid>" },
+                                        key: $"invalid-{i}"
+                                    );
                                 var id = it.Id ?? i.ToString();
                                 var funcKey = $"mclv-row-{id}";
                                 var childrenNode = it.ShouldOverrideElement
@@ -139,14 +126,14 @@ namespace ReactiveUITK.Samples.Shared
                                     )
                                     : V.Func(IntroCounterFunc.Render, null, funcKey);
                                 // Wrap to ensure stable VisualElement root
-                                return V.VisualElement(null, null, childrenNode);
+                                return V.VisualElement(null, key: $"row-wrap-{id}", childrenNode);
                             },
                         },
                     },
                 items
             );
 
-            // Build displayed list respecting current multi-sort definitions
+            // Build displayed list respecting current multi-sort definitions (memo BEFORE effect)
             var displayed = Hooks.UseMemo(
                 () =>
                 {
@@ -181,6 +168,27 @@ namespace ReactiveUITK.Samples.Shared
                 new object[] { items, sortDefs }
             );
 
+            // Notify parent of count when it changes (effect AFTER all memos)
+            Hooks.UseEffect(
+                () =>
+                {
+                    try
+                    {
+                        if (
+                            props != null
+                            && props.TryGetValue("onCountChanged", out var oc)
+                            && oc is Action<int> cb
+                        )
+                        {
+                            cb(items?.Count ?? 0);
+                        }
+                    }
+                    catch { }
+                    return null;
+                },
+                new object[] { items?.Count ?? 0 }
+            );
+
             var propsMap = new MultiColumnListViewProps
             {
                 Items = displayed,
@@ -206,13 +214,18 @@ namespace ReactiveUITK.Samples.Shared
                         }
                     },
                 },
-                null,
-                V.Button(btnAdd),
-                V.Button(btnSetLast),
-                V.Button(btnDeleteLast)
+                key: "controls",
+                V.Button(btnAdd, key: "btn-add"),
+                V.Button(btnSetLast, key: "btn-set"),
+                V.Button(btnDeleteLast, key: "btn-delete")
             );
 
-            return V.VisualElement(null, null, controls, V.MultiColumnListView(propsMap));
+            return V.VisualElement(
+                null,
+                key: "mclv-root",
+                controls,
+                V.MultiColumnListView(propsMap, key: "mclv-list")
+            );
         }
     }
 }

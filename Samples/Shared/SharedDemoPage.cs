@@ -5,7 +5,8 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
-using static ReactiveUITK.Props.Typed.StyleKeys;
+using UnityEngine.UIElements;
+using static ReactiveUITK.Props.Typed.StyleKeys; // style key static import
 using UColor = UnityEngine.Color;
 
 namespace ReactiveUITK.Samples.Shared
@@ -14,7 +15,7 @@ namespace ReactiveUITK.Samples.Shared
     {
         private static readonly Style TopBarStyle = new()
         {
-            (FlexDirection, "row"),
+            (StyleKeys.FlexDirection, "row"),
             (JustifyContent, "space-between"),
             (AlignItems, "center"),
             (FlexGrow, 1f),
@@ -64,7 +65,7 @@ namespace ReactiveUITK.Samples.Shared
         };
         private static readonly Style PageStyle = new()
         {
-            (FlexDirection, "column"),
+            (StyleKeys.FlexDirection, "column"),
             (FlexGrow, 1f),
             (JustifyContent, "space-between"),
             (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
@@ -84,7 +85,7 @@ namespace ReactiveUITK.Samples.Shared
             (BackgroundColor, UColor.white),
             (BorderTopWidth, 1f),
             (BorderTopColor, new UColor(0.85f, 0.85f, 0.85f, 1f)),
-            (FlexDirection, "column"),
+            (StyleKeys.FlexDirection, "column"),
         };
 
         public static VirtualNode Render(
@@ -109,28 +110,8 @@ namespace ReactiveUITK.Samples.Shared
             var ddChoices = Hooks.UseMemo(() => new List<string> { "Alpha", "Beta", "Gamma" }, 0);
             var (ddValue, setDdValue) = Hooks.UseState("Beta");
             var (foldoutOpen, setFoldoutOpen) = Hooks.UseState(true);
-            var rootElement = Hooks.UseRef();
-            Hooks.UseEffect(
-                () =>
-                {
-                    if (rootElement == null)
-                    {
-                        return null;
-                    }
-                    var timerHandle = rootElement
-                        .schedule.Execute(() => setCurrentTime.Set(DateTime.Now))
-                        .Every(1000);
-                    return () =>
-                    {
-                        try
-                        {
-                            timerHandle?.Pause();
-                        }
-                        catch { }
-                    };
-                },
-                Array.Empty<object>()
-            );
+            var rootElement = Hooks.UseRef(); // returns current component container VisualElement
+            // Scroll persistence temporarily disabled to restore stable hook ordering.
             var initialItems = Hooks.UseMemo(() =>
             {
                 var seededItems = new List<SharedRowItem>();
@@ -225,7 +206,7 @@ namespace ReactiveUITK.Samples.Shared
             {
                 (BackgroundColor, new UColor(0.2f, 0.6f, 0.2f, 1f)),
                 (FlexGrow, 1f),
-                (FlexDirection, "column"),
+                (StyleKeys.FlexDirection, "column"),
             };
             var barSlotStyle = new Style { (FlexShrink, 0f), (MinHeight, 110f) };
             var mainScrollStyle = new Style { (FlexGrow, 1f), (PaddingBottom, 20f) };
@@ -965,6 +946,46 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 animNonce
             );
+            // Former inline memo for flashing box tracks moved here to keep hook order stable.
+            var flashAnimTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 1f,
+                            To = 0.3f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                    },
+                0
+            );
+            // Timer effect placed AFTER all state/memo hooks to avoid order mismatches.
+            Hooks.UseEffect(
+                () =>
+                {
+                    if (rootElement == null)
+                    {
+                        return null;
+                    }
+                    var timerHandle = rootElement
+                        .schedule.Execute(() => setCurrentTime.Set(DateTime.Now))
+                        .Every(1000);
+                    return () =>
+                    {
+                        try
+                        {
+                            timerHandle?.Pause();
+                        }
+                        catch { }
+                    };
+                },
+                Array.Empty<object>()
+            );
             var animCardStyle = new Style
             {
                 (Width, 120f),
@@ -990,61 +1011,73 @@ namespace ReactiveUITK.Samples.Shared
                     key: "shared-page-root",
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", TopBarStyle } },
-                        null,
+                        key: "top-bar",
                         V.VisualElement(
                             new Dictionary<string, object> { { "style", LeftBoxStyle } },
-                            null,
+                            key: "left-box",
                             V.Text("Left")
                         ),
-                        V.TextField(inputTextFieldProps),
-                        V.Button(setTextButtonProps),
+                        V.TextField(inputTextFieldProps, key: "input-field"),
+                        V.Button(setTextButtonProps, key: "set-text-btn"),
                         V.VisualElement(
                             new Dictionary<string, object> { { "style", RightBoxStyle } },
-                            null,
+                            key: "right-box",
                             V.Text("Right")
                         )
                     ),
-                    V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
+                    V.Label(
+                        new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() },
+                        key: "time-label"
+                    ),
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
                         key: "extras",
-                        V.Label(new LabelProps { Text = "Extras" }),
+                        V.Label(new LabelProps { Text = "Extras" }, key: "extras-label"),
                         V.GroupBox(
                             groupBox1Props,
-                            null,
+                            key: "group-box-1",
                             V.Label(new LabelProps { Text = "Inside group" }, key: "inner-one")
                         ),
-                        V.Toggle(toggleProps),
-                        V.RadioButton(radioSingleProps),
+                        V.Toggle(toggleProps, key: "toggle"),
+                        V.RadioButton(radioSingleProps, key: "single-radio"),
                         V.RadioButtonGroup(
                             radioGroupProps,
-                            null,
+                            key: "radio-group",
                             V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
                         ),
-                        V.ProgressBar(progressBarProps),
+                        V.ProgressBar(progressBarProps, key: "progress"),
                         V.Animate(
                             new AnimateProps { Tracks = repeatPulseTracks },
-                            null,
-                            V.RepeatButton(repeatButtonProps)
+                            key: "repeat-anim",
+                            V.RepeatButton(repeatButtonProps, key: "repeat-btn")
                         )
                     ),
                     // New components demo section
                     V.GroupBox(
                         newComponentsGroupProps,
-                        null,
+                        key: "new-components",
                         // Foldout first (ensure visibility)
                         V.Foldout(
                             foldoutProps,
-                            null,
-                            V.Label(new LabelProps { Text = "Inside foldout" })
+                            key: "foldout-demo",
+                            V.Label(
+                                new LabelProps { Text = "Inside foldout" },
+                                key: "foldout-label"
+                            )
                         ),
                         // Image demo (uses background color when no sprite/texture)
                         V.Image(imageProps, key: "img-demo"),
                         // Slider demo
-                        V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
-                        V.Slider(sliderProps),
+                        V.Label(
+                            new LabelProps { Text = $"Slider: {sliderValue:F2}" },
+                            key: "slider-label"
+                        ),
+                        V.Slider(sliderProps, key: "slider"),
                         // SliderInt demo
-                        V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
+                        V.Label(
+                            new LabelProps { Text = $"SliderInt: {sliderIntValue}" },
+                            key: "slider-int-label"
+                        ),
                         V.SliderInt(
                             new SliderIntProps
                             {
@@ -1052,7 +1085,8 @@ namespace ReactiveUITK.Samples.Shared
                                 HighValue = 10,
                                 Value = sliderIntValue,
                                 OnChange = e => setSliderIntValue.Set(e.newValue),
-                            }
+                            },
+                            key: "slider-int"
                         ),
                         // HelpBox demo (Editor-only)
 #if UNITY_EDITOR
@@ -1064,13 +1098,17 @@ namespace ReactiveUITK.Samples.Shared
                                         ? "error"
                                         : (sliderIntValue % 2 == 0 ? "warning" : "info"),
                                 Text = "This is a HelpBox showing state-driven message type.",
-                            }
+                            },
+                            key: "help-box"
                         ),
 #endif
                         // Dropdown demo
-                        V.DropdownField(dropdownProps),
+                        V.DropdownField(dropdownProps, key: "dropdown"),
                         // Multi-attribute animation example (control removed to avoid parse issues)
-                        V.Label(new LabelProps { Text = "Multi-Attr Animation" })
+                        V.Label(
+                            new LabelProps { Text = "Multi-Attr Animation" },
+                            key: "multi-anim-label"
+                        )
                     // V.Animate(
                     //     new AnimateProps { Tracks = multiTracks },
                     //     null,
@@ -1083,10 +1121,11 @@ namespace ReactiveUITK.Samples.Shared
 
                     ),
                     // Toggle buttons to show/hide each TabView (grouped separately)
+                    // Toggle block for Tree TabView with persistent container to avoid layout expansion on re-mount
                     V.VisualElement(
                         null,
-                        null,
-                        V.Button(toggleTreeTabsBtn),
+                        key: "tree-tabs-toggle",
+                        V.Button(toggleTreeTabsBtn, key: "tree-tabs-btn"),
                         V.Label(
                             new LabelProps
                             {
@@ -1096,14 +1135,39 @@ namespace ReactiveUITK.Samples.Shared
                                     (FontSize, 16f),
                                     (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
                                 },
-                            }
+                            },
+                            key: "tree-tabs-label"
                         ),
-                        (showTreeTabs ? V.TabView(tabViewProps) : V.Text("Tree tabs hidden"))
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        // Allow natural height but cap it; remove hard height to improve page scroll
+                                        (MaxHeight, 500f),
+                                        (FlexGrow, 0f),
+                                        (StyleKeys.Display, showTreeTabs ? "flex" : "none"),
+                                        (StyleKeys.FlexDirection, "column"),
+                                        // Visible overflow so internal TabView scroll areas can contribute to outer ScrollView
+                                        (StyleKeys.Overflow, "visible"),
+                                    }
+                                },
+                            },
+                            key: "tree-tabview-container",
+                            // Always keep TabView mounted so internal layout/state is stable
+                            V.TabView(tabViewProps, key: "tree-tabview")
+                        ),
+                        !showTreeTabs
+                            ? V.Text("Tree tabs hidden", key: "tree-tabs-hidden-msg")
+                            : null
                     ),
+                    // Toggle block for List TabView with persistent container
                     V.VisualElement(
                         null,
-                        null,
-                        V.Button(toggleListTabsBtn),
+                        key: "list-tabs-toggle",
+                        V.Button(toggleListTabsBtn, key: "list-tabs-btn"),
                         V.Label(
                             new LabelProps
                             {
@@ -1113,35 +1177,37 @@ namespace ReactiveUITK.Samples.Shared
                                     (FontSize, 16f),
                                     (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
                                 },
-                            }
+                            },
+                            key: "list-tabs-label"
                         ),
-                        (showListTabs ? V.TabView(listTabViewProps) : V.Text("List tabs hidden"))
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (MaxHeight, 500f),
+                                        (FlexGrow, 0f),
+                                        (StyleKeys.Display, showListTabs ? "flex" : "none"),
+                                        (StyleKeys.FlexDirection, "column"),
+                                        (StyleKeys.Overflow, "visible"),
+                                    }
+                                },
+                            },
+                            key: "list-tabview-container",
+                            V.TabView(listTabViewProps, key: "list-tabview")
+                        ),
+                        !showListTabs
+                            ? V.Text("List tabs hidden", key: "list-tabs-hidden-msg")
+                            : null
                     ),
                     // Animations section (moved to bottom)
-                    V.Label(new LabelProps { Text = "Animations" }),
+                    V.Label(new LabelProps { Text = "Animations" }, key: "animations-label"),
                     // Simple flashing box
                     V.Animate(
-                        new AnimateProps
-                        {
-                            Tracks = Hooks.UseMemo(
-                                () =>
-                                    new List<AnimateTrack>
-                                    {
-                                        new AnimateTrack
-                                        {
-                                            Property = "opacity",
-                                            From = 1f,
-                                            To = 0.3f,
-                                            Duration = 0.8f,
-                                            Ease = Ease.EaseInOutSine,
-                                            Yoyo = true,
-                                            Loop = true,
-                                        },
-                                    },
-                                0
-                            ),
-                        },
-                        null,
+                        new AnimateProps { Tracks = flashAnimTracks },
+                        key: "flash-anim",
                         V.VisualElement(
                             new Dictionary<string, object>
                             {
@@ -1159,20 +1225,21 @@ namespace ReactiveUITK.Samples.Shared
                                     }
                                 },
                             },
-                            null,
+                            key: "flash-anim-box",
                             V.Label(
                                 new LabelProps
                                 {
                                     Text = "Flashing Box",
                                     Style = new Style { (TextColor, UColor.white) },
-                                }
+                                },
+                                key: "flash-anim-label"
                             )
                         )
                     ),
                     // Animated card using existing multiTracks
                     V.Animate(
                         new AnimateProps { Tracks = multiTracks },
-                        null,
+                        key: "multi-anim",
                         V.VisualElement(
                             new Dictionary<string, object>
                             {
@@ -1190,8 +1257,11 @@ namespace ReactiveUITK.Samples.Shared
                                     }
                                 },
                             },
-                            null,
-                            V.Label(new LabelProps { Text = "Animated Card" })
+                            key: "multi-anim-box",
+                            V.Label(
+                                new LabelProps { Text = "Animated Card" },
+                                key: "multi-anim-label"
+                            )
                         )
                     )
                 );
@@ -1207,16 +1277,22 @@ namespace ReactiveUITK.Samples.Shared
                     // Values bar docked at top; fixed height via minHeight
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", barSlotStyle } },
-                        null,
+                        key: "values-bar-slot",
                         V.Func(
                             ValuesBarFunc.Render,
-                            new Dictionary<string, object> { { "items", valuesItems } }
+                            new Dictionary<string, object> { { "items", valuesItems } },
+                            key: "values-bar-content"
                         )
                     ),
-                    // Main scrollable content
+                    // Main scrollable content (direct ScrollView for stability)
                     V.ScrollView(
-                        new ScrollViewProps { Mode = "vertical", Style = mainScrollStyle },
-                        null,
+                        new ScrollViewProps
+                        {
+                            Mode = "vertical",
+                            Style = mainScrollStyle,
+                            Name = "main-scroll",
+                        },
+                        key: "main-scroll",
                         PageBody()
                     )
                 )

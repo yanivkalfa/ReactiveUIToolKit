@@ -24,30 +24,6 @@ namespace ReactiveUITK.Samples.Shared
         {
             var (rows, setRows) = Hooks.UseState(new List<RowData>());
 
-            // Notify parent of current displayed row count (roots + children) if requested
-            try
-            {
-                int countValue = 0;
-                for (int i = 0; i < rows.Count; i++)
-                {
-                    countValue += 1;
-                    if (rows[i]?.HasChild == true) countValue += 1;
-                }
-                if (props != null && props.TryGetValue("onCountChanged", out var oc) && oc is Action<int> cb)
-                {
-                    // Fire only when count changes
-                    Hooks.UseEffect(
-                        () =>
-                        {
-                            try { cb(countValue); } catch { }
-                            return null;
-                        },
-                        new object[] { countValue }
-                    );
-                }
-            }
-            catch { }
-
             Func<List<TreeViewItemData<object>>> buildRoots = () =>
             {
                 var combined = new List<TreeViewItemData<object>>();
@@ -98,22 +74,57 @@ namespace ReactiveUITK.Samples.Shared
                             if (row == null)
                                 return V.Label(
                                     new LabelProps { Text = "<invalid row payload>" },
-                                    $"row-{i}"
+                                    $"tv-invalid-{i}"
                                 );
 
-                            var id = !string.IsNullOrEmpty(row.Id) ? $"{row.Id}" : $"{i}";
+                            var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
                             var prefix = (row.IsChild == true) ? "child" : "parent";
                             var funcKey = $"tv-{prefix}-{id}";
 
-                            var children = row.ShouldOverrideElement
+                            var childNode = row.ShouldOverrideElement
                                 ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
                                 : V.Func(IntroCounterFunc.Render, null, funcKey);
 
-                            return V.VisualElement(null, null, children);
+                            // Provide explicit wrapper key to avoid auto-key assignment.
+                            return V.VisualElement(null, key: $"tv-wrap-{prefix}-{id}", childNode);
                         }
                     ),
                 rows
             );
+
+            // Notify parent of current displayed row count (roots + children) if requested (moved after memo to align with primed hook order)
+            try
+            {
+                int countValue = 0;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    countValue += 1;
+                    if (rows[i]?.HasChild == true)
+                    {
+                        countValue += 1;
+                    }
+                }
+                Hooks.UseEffect(
+                    () =>
+                    {
+                        try
+                        {
+                            if (
+                                props != null
+                                && props.TryGetValue("onCountChanged", out var oc)
+                                && oc is Action<int> cb
+                            )
+                            {
+                                cb(countValue);
+                            }
+                        }
+                        catch { }
+                        return null;
+                    },
+                    new object[] { countValue }
+                );
+            }
+            catch { }
 
             void AddParent()
             {

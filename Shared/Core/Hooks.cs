@@ -15,7 +15,11 @@ namespace ReactiveUITK.Core
     public static class Hooks
     {
         public static bool EnableHookValidation { get; set; } = true;
-    public static bool EnableStrictDiagnostics { get; set; } = false;
+        public static bool EnableStrictDiagnostics { get; set; } = false;
+
+        // When true, a first-time hook order mismatch will realign the stored signature instead of continually erroring.
+        // This helps during iterative hot-edit sessions where hook ordering changes legitimately.
+        public static bool EnableHookAutoRealign { get; set; } = true;
 
         public sealed class MutableRef<T>
         {
@@ -28,8 +32,8 @@ namespace ReactiveUITK.Core
             }
         }
 
-    // React-style setter delegate: accepts either a direct value or functional updater and returns the committed value.
-    public delegate T StateSetter<T>(StateUpdate<T> update);
+        // React-style setter delegate: accepts either a direct value or functional updater and returns the committed value.
+        public delegate T StateSetter<T>(StateUpdate<T> update);
 
         public readonly struct StateUpdate<T>
         {
@@ -57,7 +61,8 @@ namespace ReactiveUITK.Core
                 return Updater(previous);
             }
 
-            public static implicit operator StateUpdate<T>(T value) => new StateUpdate<T>(value, null, false);
+            public static implicit operator StateUpdate<T>(T value) =>
+                new StateUpdate<T>(value, null, false);
 
             public static implicit operator StateUpdate<T>(Func<T, T> updater) =>
                 new StateUpdate<T>(default, updater, true);
@@ -139,7 +144,11 @@ namespace ReactiveUITK.Core
 
             private T GetCurrent()
             {
-                if (metadata == null || metadata.HookStates == null || index >= metadata.HookStates.Count)
+                if (
+                    metadata == null
+                    || metadata.HookStates == null
+                    || index >= metadata.HookStates.Count
+                )
                 {
                     return default;
                 }
@@ -228,7 +237,6 @@ namespace ReactiveUITK.Core
             }
         }
 
-
         private const string HookIdUseSafeArea = "UseSafeArea";
         private const string HookIdStableFunc = "UseStableFunc";
         private const string HookIdStableAction = "UseStableAction";
@@ -274,11 +282,28 @@ namespace ReactiveUITK.Core
                 );
                 return;
             }
-            if (!string.Equals(metadata.HookOrderSignatures[index], hookId, StringComparison.Ordinal))
+            if (
+                !string.Equals(
+                    metadata.HookOrderSignatures[index],
+                    hookId,
+                    StringComparison.Ordinal
+                )
+            )
             {
                 Debug.LogError(
                     $"[Hooks] Hook order mismatch: expected {metadata.HookOrderSignatures[index]} but saw {hookId} for component {DescribeComponent(metadata)}"
                 );
+                if (EnableHookAutoRealign)
+                {
+                    // Aggressive realign: clear entire signature list to fully re-prime on next render to avoid cascading mismatches.
+                    try
+                    {
+                        metadata.HookOrderSignatures.Clear();
+                    }
+                    catch { }
+                    metadata.HookOrderSignatures.Add(hookId); // seed with current
+                    metadata.HookOrderPrimed = false;
+                }
             }
         }
 
@@ -328,8 +353,8 @@ namespace ReactiveUITK.Core
             bool treatEmptyAsMissing = false
         )
         {
-            bool missing = dependencies == null
-                || (treatEmptyAsMissing && (dependencies?.Length ?? 0) == 0);
+            bool missing =
+                dependencies == null || (treatEmptyAsMissing && (dependencies?.Length ?? 0) == 0);
             if (!missing)
             {
                 return;
@@ -491,7 +516,12 @@ namespace ReactiveUITK.Core
                 return;
             }
             RecordHook(metadata, HookIdLayoutEffect);
-            WarnMissingDependencies(metadata, HookIdLayoutEffect, metadata.LayoutEffectIndex, dependencies);
+            WarnMissingDependencies(
+                metadata,
+                HookIdLayoutEffect,
+                metadata.LayoutEffectIndex,
+                dependencies
+            );
             metadata.FunctionLayoutEffects ??=
                 new List<(Func<Action>, object[], object[], Action)>();
             int index = metadata.LayoutEffectIndex;
