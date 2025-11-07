@@ -32,7 +32,7 @@ namespace ReactiveUITK.Core
         public UnityEngine.UIElements.VisualElement PortalTarget { get; set; }
         public VirtualNode Fallback { get; set; }
         public System.Func<bool> SuspenseReady { get; set; }
-        public System.Threading.Tasks.Task<bool> SuspenseReadyTask { get; set; }
+    public System.Threading.Tasks.Task SuspenseReadyTask { get; set; }
         public string TextContent { get; set; }
         public string Key { get; set; }
         public IReadOnlyDictionary<string, object> Properties { get; set; }
@@ -62,7 +62,7 @@ namespace ReactiveUITK.Core
             UnityEngine.UIElements.VisualElement portalTarget = null,
             VirtualNode fallback = null,
             System.Func<bool> suspenseReady = null,
-            System.Threading.Tasks.Task<bool> suspenseReadyTask = null,
+            System.Threading.Tasks.Task suspenseReadyTask = null,
             VirtualNode errorFallback = null,
             Action<Exception> errorHandler = null,
             string errorResetToken = null

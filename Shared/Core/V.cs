@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.AnimationComponents;
 using ReactiveUITK.Core.Util;
@@ -558,6 +559,14 @@ namespace ReactiveUITK
             VirtualNode fallbackNode,
             string key = null,
             params VirtualNode[] children
+        ) => Suspense(isReady, null, fallbackNode, key, children);
+
+        public static VirtualNode Suspense(
+            System.Func<bool> isReady,
+            Task readyTask,
+            VirtualNode fallbackNode,
+            string key = null,
+            params VirtualNode[] children
         )
         {
             return new VirtualNode(
@@ -569,9 +578,17 @@ namespace ReactiveUITK
                 properties: EmptyProps(),
                 children: children ?? EmptyChildren(),
                 suspenseReady: isReady,
+                suspenseReadyTask: readyTask,
                 fallback: fallbackNode
             );
         }
+
+        public static VirtualNode Suspense(
+            Task readyTask,
+            VirtualNode fallbackNode,
+            string key = null,
+            params VirtualNode[] children
+        ) => Suspense(null, readyTask, fallbackNode, key, children);
 
         public static VirtualNode ErrorBoundary(
             ErrorBoundaryProps props,

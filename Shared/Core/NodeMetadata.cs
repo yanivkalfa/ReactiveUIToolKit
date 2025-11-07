@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
 {
@@ -58,5 +60,16 @@ namespace ReactiveUITK.Core
         public string ErrorBoundaryResetKey;
         public HashSet<string> StrictDiagnosticsKeys;
         public Dictionary<(int slot, byte kind), Delegate> StateSetterDelegateCache;
+        public Dictionary<string, int> ContextVersions;
+        public SuspenseRenderState SuspenseState;
+        public Task SuspensePendingTask;
+        public object SuspenseTaskLock;
+        public int SuspenseTaskVersion;
+    }
+
+    internal sealed class SuspenseRenderState
+    {
+        public IReadOnlyList<VirtualNode> LastRenderedChildren;
+        public bool ShowingFallback;
     }
 }

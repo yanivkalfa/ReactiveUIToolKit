@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Elements;
 using ReactiveUITK.Elements.Pools;
@@ -53,6 +55,7 @@ namespace ReactiveUITK.Core
         }
 
         public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
+    public static bool WarnOnMixedKeySiblings = false;
 
         private int reconciledNodeCount;
         private int skippedNodeCount;
@@ -308,7 +311,7 @@ namespace ReactiveUITK.Core
             }
 
             // React-style: only warn when mixing keyed + unkeyed siblings.
-            if (anyKeyed && anyUnkeyed)
+            if (WarnOnMixedKeySiblings && anyKeyed && anyUnkeyed)
             {
                 try
                 {
@@ -328,6 +331,7 @@ namespace ReactiveUITK.Core
         }
 
         private static HashSet<int> _warnedMixedKeyParents;
+    private static HashSet<int> _warnedMissingElementTypes;
 
         // Removed strict missing-key heuristic; React-like behavior implemented in BuildChildren.
 
@@ -406,6 +410,35 @@ namespace ReactiveUITK.Core
                     parentElement.Add(errorBoundaryElement);
                     return;
             }
+            if (string.IsNullOrWhiteSpace(virtualNode.ElementTypeName))
+            {
+                try
+                {
+                    int nodeId = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(
+                        virtualNode
+                    );
+                    _warnedMissingElementTypes ??= new HashSet<int>();
+                    if (_warnedMissingElementTypes.Add(nodeId))
+                    {
+                        Debug.LogWarning(
+                            $"ReactiveUITK: Element node missing type. Key='{virtualNode.Key ?? "<null>"}'. Rendering fallback container."
+                        );
+                    }
+                }
+                catch { }
+
+                VisualElement missingElementFallback = new()
+                {
+                    name = string.IsNullOrEmpty(virtualNode.Key)
+                        ? "UnknownElement"
+                        : ($"Unknown_{virtualNode.Key}"),
+                    userData = new NodeMetadata { Key = virtualNode.Key },
+                };
+                parentElement.Add(missingElementFallback);
+                BuildChildren(missingElementFallback, virtualNode.Children);
+                return;
+            }
+
             IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(
                 virtualNode.ElementTypeName
             );
@@ -875,22 +908,16 @@ namespace ReactiveUITK.Core
 
                 case VirtualNodeType.Suspense:
                 {
-                    var suspenseContainerElement = new VisualElement
+                    var suspenseContainerElement = new VisualElement();
+                    var suspenseMetadata = new NodeMetadata
                     {
-                        userData = new NodeMetadata { Key = virtualNode.Key },
+                        Key = virtualNode.Key,
+                        Container = suspenseContainerElement,
+                        HostContext = hostContext,
+                        Reconciler = this,
                     };
-                    bool suspenseReady = virtualNode.SuspenseReady?.Invoke() ?? true;
-                    if (suspenseReady)
-                    {
-                        BuildChildren(suspenseContainerElement, virtualNode.Children);
-                    }
-                    else if (virtualNode.Fallback != null)
-                    {
-                        BuildChildren(
-                            suspenseContainerElement,
-                            new List<VirtualNode> { virtualNode.Fallback }
-                        );
-                    }
+                    suspenseContainerElement.userData = suspenseMetadata;
+                    RenderSuspenseNode(suspenseContainerElement, suspenseMetadata, virtualNode);
                     Cache(virtualNode.Key, suspenseContainerElement);
                     return suspenseContainerElement;
                 }
@@ -1120,6 +1147,200 @@ namespace ReactiveUITK.Core
             }
         }
 
+        private void RenderSuspenseNode(
+            VisualElement hostElement,
+            NodeMetadata metadata,
+            VirtualNode suspenseNode
+        )
+        {
+            if (hostElement == null || metadata == null || suspenseNode == null)
+            {
+                return;
+            }
+
+            metadata.SuspenseState ??= new SuspenseRenderState();
+            SuspenseRenderState suspenseState = metadata.SuspenseState;
+
+            bool ready = true;
+            bool readyEvaluatorProvided = false;
+            try
+            {
+                if (suspenseNode.SuspenseReady != null)
+                {
+                    readyEvaluatorProvided = true;
+                    ready = suspenseNode.SuspenseReady();
+                }
+            }
+            catch (Exception ex)
+            {
+                ready = false;
+                try
+                {
+                    Debug.LogWarning($"ReactiveUITK: Suspense ready function threw: {ex}");
+                }
+                catch { }
+            }
+
+            Task suspenderTask = suspenseNode.SuspenseReadyTask;
+            if (suspenderTask == null && metadata.SuspensePendingTask != null)
+            {
+                suspenderTask = metadata.SuspensePendingTask;
+            }
+
+            if (!ready && suspenderTask == null && !readyEvaluatorProvided)
+            {
+                ready = true;
+            }
+
+            if (suspenderTask != null)
+            {
+                if (suspenderTask.IsCompleted)
+                {
+                    ready = EvaluateSuspenseTaskResult(suspenderTask);
+                    metadata.SuspensePendingTask = null;
+                }
+                else if (!ready)
+                {
+                    RegisterPendingSuspenseTask(metadata, suspenderTask);
+                }
+            }
+
+            bool renderFallback = !ready;
+
+            IReadOnlyList<VirtualNode> targetChildren = renderFallback
+                ? (suspenseNode.Fallback != null
+                    ? new[] { suspenseNode.Fallback }
+                    : Array.Empty<VirtualNode>())
+                : (suspenseNode.Children ?? Array.Empty<VirtualNode>());
+
+            ClearHostElement(hostElement);
+            if (targetChildren.Count > 0)
+            {
+                BuildChildren(hostElement, targetChildren);
+            }
+
+            suspenseState.LastRenderedChildren = targetChildren;
+            suspenseState.ShowingFallback = renderFallback;
+        }
+
+        private static bool EvaluateSuspenseTaskResult(Task suspenderTask)
+        {
+            if (suspenderTask == null)
+            {
+                return true;
+            }
+
+            if (!suspenderTask.IsCompleted)
+            {
+                return false;
+            }
+
+            if (suspenderTask.IsFaulted)
+            {
+                try
+                {
+                    Debug.LogWarning(
+                        $"ReactiveUITK: Suspense task faulted: {suspenderTask.Exception}"
+                    );
+                }
+                catch { }
+                return true;
+            }
+
+            if (suspenderTask.IsCanceled)
+            {
+                return false;
+            }
+
+            if (suspenderTask is Task<bool> boolTask)
+            {
+                try
+                {
+                    return boolTask.Result;
+                }
+                catch
+                {
+                    return true;
+                }
+            }
+
+            return true;
+        }
+
+        private void RegisterPendingSuspenseTask(NodeMetadata metadata, Task suspenderTask)
+        {
+            if (metadata == null || suspenderTask == null)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(metadata.SuspensePendingTask, suspenderTask))
+            {
+                return;
+            }
+
+            metadata.SuspenseTaskLock ??= new object();
+            metadata.SuspensePendingTask = suspenderTask;
+            int version;
+            lock (metadata.SuspenseTaskLock)
+            {
+                version = ++metadata.SuspenseTaskVersion;
+            }
+
+            SynchronizationContext syncContext = SynchronizationContext.Current;
+            IScheduler scheduler = ResolveScheduler();
+
+            suspenderTask.ContinueWith(
+                _ =>
+                {
+                    void Publish()
+                    {
+                        bool shouldEnqueue;
+                        lock (metadata.SuspenseTaskLock)
+                        {
+                            shouldEnqueue = metadata.SuspenseTaskVersion == version;
+                            if (shouldEnqueue)
+                            {
+                                metadata.SuspensePendingTask = null;
+                            }
+                        }
+
+                        if (!shouldEnqueue || metadata.Container == null)
+                        {
+                            return;
+                        }
+
+                        FrameBatcher.Enqueue(metadata);
+                    }
+
+                    if (scheduler != null)
+                    {
+                        try
+                        {
+                            scheduler.Enqueue(Publish, IScheduler.Priority.Normal);
+                            return;
+                        }
+                        catch { }
+                    }
+
+                    if (syncContext != null)
+                    {
+                        try
+                        {
+                            syncContext.Post(static state => ((Action)state)(), (Action)Publish);
+                            return;
+                        }
+                        catch { }
+                    }
+
+                    Publish();
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default
+            );
+        }
+
         private void ClearHostElement(VisualElement hostElement)
         {
             if (hostElement == null)
@@ -1198,6 +1419,18 @@ namespace ReactiveUITK.Core
                     previousNode.Children ?? Array.Empty<VirtualNode>(),
                     nextNode.Children ?? Array.Empty<VirtualNode>()
                 );
+                return;
+            }
+
+            if (nextNode.NodeType == VirtualNodeType.Suspense)
+            {
+                NodeMetadata suspenseMetadata = hostElement.userData as NodeMetadata;
+                if (suspenseMetadata == null)
+                {
+                    ReplaceNode(hostElement, nextNode);
+                    return;
+                }
+                RenderSuspenseNode(hostElement, suspenseMetadata, nextNode);
                 return;
             }
 
@@ -1828,6 +2061,11 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
+            try
+            {
+                metadata.HostContext?.UnregisterContextConsumer(metadata);
+            }
+            catch { }
             // Unregister all registered event wrappers to avoid duplicate invocations on reused visuals
             if (metadata.EventHandlers != null && metadata.EventHandlers.Count > 0)
             {

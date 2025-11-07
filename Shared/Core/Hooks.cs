@@ -1021,9 +1021,9 @@ namespace ReactiveUITK.Core
                 return default;
             }
             RecordHook(metadata, HookIdContext);
-            metadata.SubscribedContextKeys ??= new HashSet<string>();
-            metadata.SubscribedContextKeys.Add(key);
-            object resolved = metadata.HostContext.ResolveContext(key);
+            int version;
+            object resolved = metadata.HostContext.ResolveContext(key, out version);
+            metadata.HostContext.RegisterContextConsumer(metadata, key);
             metadata.HookStates ??= new List<object>();
             if (metadata.HookIndex >= metadata.HookStates.Count)
             {
