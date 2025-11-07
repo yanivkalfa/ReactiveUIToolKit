@@ -16,6 +16,7 @@ namespace ReactiveUITK.Props.Typed
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
         public Style Style { get; set; }
+    public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -36,6 +37,8 @@ namespace ReactiveUITK.Props.Typed
                 d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
             if (Style != null)
                 d["style"] = Style;
+            if (Ref != null)
+                d["ref"] = Ref;
             return d;
         }
     }

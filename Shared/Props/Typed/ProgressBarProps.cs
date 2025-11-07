@@ -11,6 +11,7 @@ namespace ReactiveUITK.Props.Typed
         public Style Style { get; set; }
         public Dictionary<string, object> Progress { get; set; }
         public Dictionary<string, object> TitleElement { get; set; }
+    public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -42,6 +43,10 @@ namespace ReactiveUITK.Props.Typed
             if (Style != null)
             {
                 map["style"] = Style;
+            }
+            if (Ref != null)
+            {
+                map["ref"] = Ref;
             }
             return map;
         }

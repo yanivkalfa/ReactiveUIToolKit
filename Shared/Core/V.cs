@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ReactiveUITK.Core;
@@ -498,6 +499,52 @@ namespace ReactiveUITK
                 children: children ?? EmptyChildren(),
                 memoize: memoize,
                 memoCompare: memoCompare
+            );
+        }
+
+        public static VirtualNode ForwardRef(
+            Func<Dictionary<string, object>, object, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
+            IReadOnlyDictionary<string, object> functionProps = null,
+            string key = null,
+            bool memoize = false,
+            Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
+            params VirtualNode[] children
+        )
+        {
+            if (renderFunction == null)
+            {
+                throw new ArgumentNullException(nameof(renderFunction));
+            }
+
+            VirtualNode Wrapper(Dictionary<string, object> incomingProps, IReadOnlyList<VirtualNode> childNodes)
+            {
+                object forwardedRef = null;
+                Dictionary<string, object> sanitizedProps;
+
+                if (incomingProps == null || incomingProps.Count == 0)
+                {
+                    sanitizedProps = new Dictionary<string, object>();
+                }
+                else
+                {
+                    sanitizedProps = new Dictionary<string, object>(incomingProps);
+                    if (sanitizedProps.TryGetValue("ref", out var refCandidate))
+                    {
+                        forwardedRef = refCandidate;
+                        sanitizedProps.Remove("ref");
+                    }
+                }
+
+                return renderFunction(sanitizedProps, forwardedRef, childNodes);
+            }
+
+            return Func(
+                Wrapper,
+                functionProps,
+                key,
+                memoize,
+                memoCompare,
+                children
             );
         }
 

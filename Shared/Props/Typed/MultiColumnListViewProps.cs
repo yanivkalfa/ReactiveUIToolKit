@@ -15,6 +15,7 @@ namespace ReactiveUITK.Props.Typed
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }
         public Style Style { get; set; }
+    public object Ref { get; set; }
 
         // Column definitions
         public List<ColumnDef> Columns { get; set; }
@@ -120,6 +121,8 @@ namespace ReactiveUITK.Props.Typed
             }
             if (Style != null)
                 dict["style"] = Style;
+            if (Ref != null)
+                dict["ref"] = Ref;
             return dict;
         }
     }

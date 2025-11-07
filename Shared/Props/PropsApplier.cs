@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
+using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Props
 {
@@ -950,6 +951,32 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "ref")
+            {
+                var meta = element.userData as NodeMetadata;
+                if (meta == null && element.userData == null)
+                {
+                    meta = new NodeMetadata();
+                    element.userData = meta;
+                }
+                if (meta != null)
+                {
+                    if (!ReferenceEquals(meta.AttachedRef, propertyValue))
+                    {
+                        if (meta.AttachedRef != null)
+                        {
+                            RefUtility.Assign(meta.AttachedRef, null);
+                        }
+                        meta.AttachedRef = propertyValue;
+                    }
+                    RefUtility.Assign(meta.AttachedRef, element);
+                }
+                else if (propertyValue != null)
+                {
+                    RefUtility.Assign(propertyValue, element);
+                }
+                return;
+            }
             if (propertyName == "className" || propertyName == "class")
             {
                 string newClasses = propertyValue as string;
@@ -1028,6 +1055,27 @@ namespace ReactiveUITK.Props
 
         private static void RemoveProp(VisualElement element, string propertyName, object oldValue)
         {
+            if (propertyName == "ref")
+            {
+                var meta = element.userData as NodeMetadata;
+                object target = oldValue;
+                if (meta != null)
+                {
+                    if (target == null)
+                    {
+                        target = meta.AttachedRef;
+                    }
+                    if (ReferenceEquals(meta.AttachedRef, target))
+                    {
+                        meta.AttachedRef = null;
+                    }
+                }
+                if (target != null)
+                {
+                    RefUtility.Assign(target, null);
+                }
+                return;
+            }
             if (propertyName.StartsWith("on") && oldValue is Delegate oldHandler)
             {
                 var meta = element.userData as Core.NodeMetadata;

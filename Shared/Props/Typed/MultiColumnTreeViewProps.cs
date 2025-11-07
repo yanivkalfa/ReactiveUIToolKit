@@ -21,6 +21,7 @@ namespace ReactiveUITK.Props.Typed
         public object SortingMode { get; set; }
     public Delegate ColumnSortingChanged { get; set; }
         public Style Style { get; set; }
+        public object Ref { get; set; }
 
         public sealed class ColumnDef
         {
@@ -123,6 +124,8 @@ namespace ReactiveUITK.Props.Typed
             }
             if (Style != null)
                 d["style"] = Style;
+            if (Ref != null)
+                d["ref"] = Ref;
             return d;
         }
     }

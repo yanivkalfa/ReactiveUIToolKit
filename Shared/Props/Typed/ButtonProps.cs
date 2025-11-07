@@ -10,6 +10,7 @@ namespace ReactiveUITK.Props.Typed
         public string Text { get; set; }
         public Action OnClick { get; set; }
         public Style Style { get; set; }
+        public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -33,6 +34,10 @@ namespace ReactiveUITK.Props.Typed
             if (Style != null)
             {
                 dict["style"] = Style;
+            }
+            if (Ref != null)
+            {
+                dict["ref"] = Ref;
             }
             return dict;
         }

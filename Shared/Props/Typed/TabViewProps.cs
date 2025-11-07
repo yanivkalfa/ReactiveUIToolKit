@@ -9,6 +9,7 @@ namespace ReactiveUITK.Props.Typed
         public int? SelectedIndex { get; set; }
         public List<TabDef> Tabs { get; set; }
         public Style Style { get; set; }
+    public object Ref { get; set; }
 
         public sealed class TabDef
         {
@@ -37,6 +38,7 @@ namespace ReactiveUITK.Props.Typed
                 d["tabs"] = list;
             }
             if (Style != null) d["style"] = Style;
+            if (Ref != null) d["ref"] = Ref;
             return d;
         }
     }
