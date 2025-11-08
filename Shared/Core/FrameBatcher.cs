@@ -79,14 +79,28 @@ namespace ReactiveUITK.Core
         private static void Flush()
         {
             scheduled = false;
-            lastFlushedCount = pending.Count;
-            foreach (var meta in pending)
+            if (pending.Count == 0)
             {
+                lastFlushedCount = 0;
+                return;
+            }
+
+            // Snapshot pending updates before executing; components may enqueue new updates during flush.
+            var toFlush = new List<NodeMetadata>(pending);
+            pending.Clear();
+            lastFlushedCount = toFlush.Count;
+
+            foreach (var meta in toFlush)
+            {
+                if (meta == null)
+                {
+                    continue;
+                }
                 try
                 {
                     meta.UpdateQueued = false;
                     meta.HookIndex = 0;
-                    meta.Reconciler.ForceFunctionComponentUpdate(meta);
+                    meta.Reconciler?.ForceFunctionComponentUpdate(meta);
                 }
                 catch (Exception ex)
                 {
