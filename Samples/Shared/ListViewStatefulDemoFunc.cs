@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
@@ -6,34 +7,54 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Samples.Shared
 {
+    public sealed class ListViewRowState
+    {
+        public string Id;
+        public string Text;
+        public bool ShouldOverrideElement;
+    }
+
     public static class ListViewStatefulDemoFunc
     {
-        private sealed class Row
-        {
-            public string Id;
-            public string Text;
-            public bool ShouldOverrideElement;
-        }
-
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
         )
         {
-            var initial = Hooks.UseMemo(() =>
-            {
-                // Start with 0 rows
-                return new List<Row>();
-            });
+            var items =
+                props != null
+                && props.TryGetValue("items", out var itemsObj)
+                && itemsObj is IReadOnlyList<ListViewRowState> typedItems
+                    ? typedItems
+                    : Array.Empty<ListViewRowState>();
 
-            var (items, setItems) = Hooks.UseState(initial);
+            var addItem =
+                props != null
+                && props.TryGetValue("addItem", out var addItemObj)
+                && addItemObj is Action addAction
+                    ? addAction
+                    : null;
+
+            var setTopItem =
+                props != null
+                && props.TryGetValue("setTopItem", out var setTopObj)
+                && setTopObj is Action setTopAction
+                    ? setTopAction
+                    : null;
+
+            var deleteLast =
+                props != null
+                && props.TryGetValue("deleteLast", out var deleteObj)
+                && deleteObj is Action deleteAction
+                    ? deleteAction
+                    : null;
 
             var rowRenderer = Hooks.UseMemo(
                 () =>
                     (Func<int, object, VirtualNode>)(
                         (index, obj) =>
                         {
-                            var r = obj as Row;
+                            var r = obj as ListViewRowState;
                             if (r == null)
                                 return V.Label(
                                     new LabelProps { Text = "<invalid>" },
@@ -50,7 +71,6 @@ namespace ReactiveUITK.Samples.Shared
                 items
             );
 
-            // Notify parent only when count changes to avoid render loops (moved below memo to preserve original hook order signature)
             Hooks.UseEffect(
                 () =>
                 {
@@ -71,9 +91,13 @@ namespace ReactiveUITK.Samples.Shared
                 new object[] { items?.Count ?? 0 }
             );
 
+            IList listItems =
+                items as IList
+                ?? (items != null ? new List<ListViewRowState>(items) : new List<ListViewRowState>());
+
             var listProps = new ListViewProps
             {
-                Items = items,
+                Items = listItems,
                 FixedItemHeight = 20f,
                 Selection = SelectionType.None,
                 Row = rowRenderer,
@@ -87,45 +111,7 @@ namespace ReactiveUITK.Samples.Shared
                 },
             };
 
-            var btnAdd = new ButtonProps
-            {
-                Text = "Add",
-                OnClick = () =>
-                {
-                    var copy = new List<Row>(items.Count + 1);
-                    copy.Add(new Row { Id = System.Guid.NewGuid().ToString("N"), Text = "Parent" });
-                    copy.AddRange(items);
-                    setItems(copy);
-                },
-            };
-            var btnSetLast = new ButtonProps
-            {
-                Text = "Set Value",
-                OnClick = () =>
-                {
-                    if (items.Count == 0)
-                        return;
-                    var copy = new List<Row>(items);
-                    // New rows are added to the top; update the most recently added (index 0)
-                    var top = copy[0];
-                    top.Text = $"{top.Id} {System.DateTime.Now:HH:mm:ss}";
-                    top.ShouldOverrideElement = true;
-                    copy[0] = top;
-                    setItems(copy);
-                },
-            };
-            var btnDeleteLast = new ButtonProps
-            {
-                Text = "Delete Last",
-                OnClick = () =>
-                {
-                    if (items.Count == 0)
-                        return;
-                    var copy = new List<Row>(items);
-                    copy.RemoveAt(copy.Count - 1);
-                    setItems(copy);
-                },
-            };
+            Action Safe(Action candidate) => candidate ?? (() => { });
 
             var controls = V.VisualElement(
                 new Dictionary<string, object>
@@ -141,9 +127,9 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 },
                 null,
-                V.Button(btnAdd),
-                V.Button(btnSetLast),
-                V.Button(btnDeleteLast)
+                V.Button(new ButtonProps { Text = "Add", OnClick = Safe(addItem) }),
+                V.Button(new ButtonProps { Text = "Set Value", OnClick = Safe(setTopItem) }),
+                V.Button(new ButtonProps { Text = "Delete Last", OnClick = Safe(deleteLast) })
             );
 
             return V.VisualElement(null, null, controls, V.ListView(listProps));

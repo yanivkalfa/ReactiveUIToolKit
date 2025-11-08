@@ -112,6 +112,13 @@ namespace ReactiveUITK.Samples.Shared
             var (showListTabs, setShowListTabs) = Hooks.UseState(true);
             var (animNonce, setAnimNonce) = Hooks.UseState(0);
             var (batchClicks, setBatchClicks) = Hooks.UseState(0);
+            var (treeRows, setTreeRows) = Hooks.UseState(new List<TreeViewRowState>());
+            var (mctvRows, setMctvRows) = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
+            var (mctvNextPid, setMctvNextPid) = Hooks.UseState(2000);
+            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<MultiColumnTreeViewProps.SortedColumnDef>>(null);
+            var (listRows, setListRows) = Hooks.UseState(new List<ListViewRowState>());
+            var (mclvRows, setMclvRows) = Hooks.UseState(new List<MultiColumnListViewRowState>());
+            var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<List<MultiColumnListViewProps.SortedColumnDef>>(null);
 
             TextFieldProps inputTextFieldProps = new()
             {
@@ -400,6 +407,356 @@ namespace ReactiveUITK.Samples.Shared
                 Style = new Style { (MarginLeft, 6f), (Height, 28f) },
             };
 
+            Action treeAddParent = () =>
+            {
+                setTreeRows.Set(prev =>
+                {
+                    var next = prev != null ? new List<TreeViewRowState>(prev) : new List<TreeViewRowState>();
+                    next.Add(
+                        new TreeViewRowState
+                        {
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
+                    return next;
+                });
+            };
+
+            Action treeAddChild = () =>
+            {
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<TreeViewRowState>(prev);
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var updated = new TreeViewRowState
+                    {
+                        Parent = source.Parent,
+                        Child = source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
+                        HasChild = true,
+                    };
+                    next[next.Count - 1] = updated;
+                    return next;
+                });
+            };
+
+            Action treeSetParentValue = () =>
+            {
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<TreeViewRowState>(prev);
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+                    parentItem.ShouldOverrideElement = true;
+                    var updated = new TreeViewRowState
+                    {
+                        Parent = parentItem,
+                        Child = source.Child,
+                        HasChild = source.HasChild,
+                    };
+                    next[next.Count - 1] = updated;
+                    return next;
+                });
+            };
+
+            Action treeSetChildValue = () =>
+            {
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem = source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
+                    childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+                    childItem.ShouldOverrideElement = true;
+                    var next = new List<TreeViewRowState>(prev);
+                    next[next.Count - 1] = new TreeViewRowState
+                    {
+                        Parent = source.Parent,
+                        Child = childItem,
+                        HasChild = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action treeDeleteLast = () =>
+            {
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<TreeViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action mctvAddParent = () =>
+            {
+                var pidBase = mctvNextPid;
+                setMctvRows.Set(prev =>
+                {
+                    var next = prev != null
+                        ? new List<MultiColumnTreeViewRowState>(prev)
+                        : new List<MultiColumnTreeViewRowState>();
+                    next.Add(
+                        new MultiColumnTreeViewRowState
+                        {
+                            Pid = pidBase,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
+                    return next;
+                });
+                setMctvNextPid(pidBase + 2);
+            };
+
+            Action mctvAddChild = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next[next.Count - 1] = new MultiColumnTreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = source.Parent,
+                        Child = source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
+                        HasChild = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action mctvSetParentValue = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+                    parentItem.ShouldOverrideElement = true;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next[next.Count - 1] = new MultiColumnTreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = parentItem,
+                        Child = source.Child,
+                        HasChild = source.HasChild,
+                    };
+                    return next;
+                });
+            };
+
+            Action mctvSetChildValue = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem = source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
+                    childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+                    childItem.ShouldOverrideElement = true;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next[next.Count - 1] = new MultiColumnTreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = source.Parent,
+                        Child = childItem,
+                        HasChild = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action mctvDeleteLast = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> mctvSortChanged = defs =>
+            {
+                setMctvSortDefs(defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null);
+            };
+
+            Action listAddItem = () =>
+            {
+                setListRows.Set(prev =>
+                {
+                    var next = new List<ListViewRowState>
+                    {
+                        new ListViewRowState
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "Parent",
+                        },
+                    };
+                    if (prev != null)
+                    {
+                        for (int i = 0; i < prev.Count; i++)
+                        {
+                            next.Add(prev[i]);
+                        }
+                    }
+                    return next;
+                });
+            };
+
+            Action listSetTopItem = () =>
+            {
+                setListRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[0];
+                    if (source == null)
+                        return prev;
+                    var id = !string.IsNullOrEmpty(source.Id) ? source.Id : Guid.NewGuid().ToString("N");
+                    var next = new List<ListViewRowState>(prev);
+                    next[0] = new ListViewRowState
+                    {
+                        Id = id,
+                        Text = $"{id} {DateTime.Now:HH:mm:ss}",
+                        ShouldOverrideElement = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action listDeleteLast = () =>
+            {
+                setListRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<ListViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action mclvAddItem = () =>
+            {
+                setMclvRows.Set(prev =>
+                {
+                    var next = new List<MultiColumnListViewRowState>
+                    {
+                        new MultiColumnListViewRowState
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                        },
+                    };
+                    if (prev != null)
+                    {
+                        for (int i = 0; i < prev.Count; i++)
+                        {
+                            next.Add(prev[i]);
+                        }
+                    }
+                    return next;
+                });
+            };
+
+            Action mclvSetTopItem = () =>
+            {
+                setMclvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[0];
+                    if (source == null)
+                        return prev;
+                    var id = !string.IsNullOrEmpty(source.Id) ? source.Id : Guid.NewGuid().ToString("N");
+                    var next = new List<MultiColumnListViewRowState>(prev);
+                    next[0] = new MultiColumnListViewRowState
+                    {
+                        Id = id,
+                        Text = $"{id} {DateTime.Now:HH:mm:ss}",
+                        ShouldOverrideElement = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action mclvDeleteLast = () =>
+            {
+                setMclvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<MultiColumnListViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action<List<MultiColumnListViewProps.SortedColumnDef>> mclvSortChanged = defs =>
+            {
+                setMclvSortDefs(defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null);
+            };
+
             var tabViewProps = new TabViewProps
             {
                 SelectedTabIndex = treeTabIndex,
@@ -419,6 +776,12 @@ namespace ReactiveUITK.Samples.Shared
                                 TreeViewStatefulDemoFunc.Render,
                                 new Dictionary<string, object>
                                 {
+                                    { "rows", treeRows },
+                                    { "addParent", treeAddParent },
+                                    { "addChild", treeAddChild },
+                                    { "setParent", treeSetParentValue },
+                                    { "setChild", treeSetChildValue },
+                                    { "deleteLast", treeDeleteLast },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>
@@ -440,6 +803,14 @@ namespace ReactiveUITK.Samples.Shared
                                 MultiColumnTreeViewStatefulDemoFunc.Render,
                                 new Dictionary<string, object>
                                 {
+                                    { "rows", mctvRows },
+                                    { "sortDefs", mctvSortDefs },
+                                    { "addParent", mctvAddParent },
+                                    { "addChild", mctvAddChild },
+                                    { "setParent", mctvSetParentValue },
+                                    { "setChild", mctvSetChildValue },
+                                    { "deleteLast", mctvDeleteLast },
+                                    { "onSortChanged", mctvSortChanged },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>
@@ -476,6 +847,10 @@ namespace ReactiveUITK.Samples.Shared
                                 ListViewStatefulDemoFunc.Render,
                                 new Dictionary<string, object>
                                 {
+                                    { "items", listRows },
+                                    { "addItem", listAddItem },
+                                    { "setTopItem", listSetTopItem },
+                                    { "deleteLast", listDeleteLast },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>
@@ -497,6 +872,12 @@ namespace ReactiveUITK.Samples.Shared
                                 MultiColumnListViewStatefulDemoFunc.Render,
                                 new Dictionary<string, object>
                                 {
+                                    { "items", mclvRows },
+                                    { "sortDefs", mclvSortDefs },
+                                    { "addItem", mclvAddItem },
+                                    { "setTopItem", mclvSetTopItem },
+                                    { "deleteLast", mclvDeleteLast },
+                                    { "onSortChanged", mclvSortChanged },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>

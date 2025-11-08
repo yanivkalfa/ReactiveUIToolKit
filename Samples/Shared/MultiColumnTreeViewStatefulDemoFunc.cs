@@ -9,111 +9,76 @@ using static ReactiveUITK.Props.Typed.StyleKeys;
 
 namespace ReactiveUITK.Samples.Shared
 {
+    public sealed class MultiColumnTreeViewRowState
+    {
+        public SharedTreeRowItem Parent;
+        public SharedTreeRowItem Child;
+        public bool HasChild;
+        public int Pid;
+    }
+
     public static class MultiColumnTreeViewStatefulDemoFunc
     {
-        private sealed class RowData
-        {
-            public SharedTreeRowItem Parent;
-            public SharedTreeRowItem Child;
-            public bool HasChild;
-            public int Pid; // stable per-row id
-        }
-
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
         )
         {
-            var (rows, setRows) = Hooks.UseState(new List<RowData>());
-            var (nextPid, setNextPid) = Hooks.UseState(2000);
-            var (sortDefs, setSortDefs) = Hooks.UseState<
-                List<MultiColumnTreeViewProps.SortedColumnDef>
-            >(null);
+            var rows =
+                props != null
+                && props.TryGetValue("rows", out var rowsObj)
+                && rowsObj is IReadOnlyList<MultiColumnTreeViewRowState> typedRows
+                    ? typedRows
+                    : Array.Empty<MultiColumnTreeViewRowState>();
 
-            void AddParent()
-            {
-                var copy = new List<RowData>(rows);
-                copy.Add(
-                    new RowData
-                    {
-                        Pid = nextPid,
-                        Parent = new SharedTreeRowItem
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Text = "Parent",
-                        },
-                        HasChild = false,
-                    }
-                );
-                setRows(copy);
-                setNextPid(nextPid + 2);
-            }
+            var sortDefs =
+                props != null
+                && props.TryGetValue("sortDefs", out var sortObj)
+                && sortObj is List<MultiColumnTreeViewProps.SortedColumnDef> typedSort
+                    ? typedSort
+                    : null;
 
-            void AddChild()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                var last = copy[copy.Count - 1];
-                last.HasChild = true;
-                last.Child ??= new SharedTreeRowItem
-                {
-                    Id = Guid.NewGuid().ToString("N"),
-                    Text = "Child",
-                    IsChild = true,
-                };
-                copy[copy.Count - 1] = last;
-                setRows(copy);
-            }
+            var addParent =
+                props != null
+                && props.TryGetValue("addParent", out var addParentObj)
+                && addParentObj is Action addParentAction
+                    ? addParentAction
+                    : null;
 
-            void SetParentValue()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                var last = copy[copy.Count - 1];
-                last.Parent ??= new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
-                var prevParent = last.Parent.Text;
-                last.Parent.Text = $"{last.Parent.Id} {DateTime.Now:HH:mm:ss}";
-                last.Parent.ShouldOverrideElement = true;
-                copy[copy.Count - 1] = last;
-                setRows(copy);
-            }
+            var addChild =
+                props != null
+                && props.TryGetValue("addChild", out var addChildObj)
+                && addChildObj is Action addChildAction
+                    ? addChildAction
+                    : null;
 
-            void SetChildValue()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                var last = copy[copy.Count - 1];
-                if (!last.HasChild)
-                    return;
-                last.Child ??= new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
-                var prevChild = last.Child.Text;
-                last.Child.Text = $"{last.Child.Id} {DateTime.Now:HH:mm:ss}";
-                last.Child.ShouldOverrideElement = true;
-                copy[copy.Count - 1] = last;
-                setRows(copy);
-            }
+            var setParent =
+                props != null
+                && props.TryGetValue("setParent", out var setParentObj)
+                && setParentObj is Action setParentAction
+                    ? setParentAction
+                    : null;
 
-            void DeleteLast()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                copy.RemoveAt(copy.Count - 1);
-                setRows(copy);
-            }
+            var setChild =
+                props != null
+                && props.TryGetValue("setChild", out var setChildObj)
+                && setChildObj is Action setChildAction
+                    ? setChildAction
+                    : null;
 
-            var btnRow = V.VisualElement(
-                new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
-                null,
-                V.Button(new ButtonProps { Text = "Add Parent", OnClick = AddParent }),
-                V.Button(new ButtonProps { Text = "Add Child", OnClick = AddChild }),
-                V.Button(new ButtonProps { Text = "Set Parent", OnClick = SetParentValue }),
-                V.Button(new ButtonProps { Text = "Set Child", OnClick = SetChildValue }),
-                V.Button(new ButtonProps { Text = "Delete Last", OnClick = DeleteLast })
-            );
+            var deleteLast =
+                props != null
+                && props.TryGetValue("deleteLast", out var deleteObj)
+                && deleteObj is Action deleteAction
+                    ? deleteAction
+                    : null;
+
+            var onSortChanged =
+                props != null
+                && props.TryGetValue("onSortChanged", out var sortChangedObj)
+                && sortChangedObj is Action<List<MultiColumnTreeViewProps.SortedColumnDef>> sortChangedAction
+                    ? sortChangedAction
+                    : null;
 
             var rootsNow = BuildRoots(rows, sortDefs);
 
@@ -176,14 +141,16 @@ namespace ReactiveUITK.Samples.Shared
                 rootsNow?.Count ?? 0
             );
 
-            // Notify parent of current displayed row count (roots + children) if requested (moved below columns memo)
             try
             {
                 int countValue = 0;
                 for (int i = 0; i < rows.Count; i++)
                 {
+                    var row = rows[i];
+                    if (row == null)
+                        continue;
                     countValue += 1;
-                    if (rows[i]?.HasChild == true)
+                    if (row.HasChild)
                         countValue += 1;
                 }
                 Hooks.UseEffect(
@@ -208,10 +175,17 @@ namespace ReactiveUITK.Samples.Shared
             }
             catch { }
 
-            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> onSort = (defs) =>
-            {
-                setSortDefs(defs);
-            };
+            Action Safe(Action candidate) => candidate ?? (() => { });
+
+            var btnRow = V.VisualElement(
+                new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
+                null,
+                V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
+                V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),
+                V.Button(new ButtonProps { Text = "Set Parent", OnClick = Safe(setParent) }),
+                V.Button(new ButtonProps { Text = "Set Child", OnClick = Safe(setChild) }),
+                V.Button(new ButtonProps { Text = "Delete Last", OnClick = Safe(deleteLast) })
+            );
 
             var propsMap = new MultiColumnTreeViewProps
             {
@@ -220,7 +194,8 @@ namespace ReactiveUITK.Samples.Shared
                 FixedItemHeight = 20f,
                 Columns = columns,
                 SortingMode = ColumnSortingMode.Custom,
-                ColumnSortingChanged = onSort,
+                SortedColumns = sortDefs,
+                ColumnSortingChanged = onSortChanged ?? (_ => { }),
                 Style = new Style { (MarginBottom, 30f) },
             };
 
@@ -228,13 +203,25 @@ namespace ReactiveUITK.Samples.Shared
         }
 
         private static List<TreeViewItemData<object>> BuildRoots(
-            List<RowData> rows,
-            List<MultiColumnTreeViewProps.SortedColumnDef> sortDefs
+            IReadOnlyList<MultiColumnTreeViewRowState> rows,
+            IReadOnlyList<MultiColumnTreeViewProps.SortedColumnDef> sortDefs
         )
         {
+            var rowBuffer = new List<MultiColumnTreeViewRowState>();
+            if (rows != null)
+            {
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    if (rows[i] != null)
+                    {
+                        rowBuffer.Add(rows[i]);
+                    }
+                }
+            }
+
             var sortedRows = ReactiveUITK.Shared.Util.SortUtils.MultiSort(
                 sortDefs,
-                new List<RowData>(rows),
+                rowBuffer,
                 (r, col) =>
                     string.Equals(col, "Name", StringComparison.OrdinalIgnoreCase) ? r?.Parent?.Text
                     : string.Equals(col, "ID", StringComparison.OrdinalIgnoreCase) ? r?.Parent?.Id
@@ -247,6 +234,8 @@ namespace ReactiveUITK.Samples.Shared
             for (int i = 0; i < sortedRows.Count; i++)
             {
                 var row = sortedRows[i];
+                if (row == null)
+                    continue;
                 int pid = row.Pid;
                 List<TreeViewItemData<object>> ch = null;
                 if (row.HasChild)

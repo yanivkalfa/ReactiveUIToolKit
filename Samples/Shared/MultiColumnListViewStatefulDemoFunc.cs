@@ -6,75 +6,61 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Samples.Shared
 {
+    public sealed class MultiColumnListViewRowState
+    {
+        public string Id;
+        public string Text;
+        public bool ShouldOverrideElement;
+    }
+
     public static class MultiColumnListViewStatefulDemoFunc
     {
-        private sealed class Row
-        {
-            public string Id;
-            public string Text;
-            public bool ShouldOverrideElement;
-        }
-
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
         )
         {
-            var initial = Hooks.UseMemo(() =>
-            {
-                // Start with 0 rows
-                return new List<Row>();
-            });
-            var (items, setItems) = Hooks.UseState(initial);
-            var (sortDefs, setSortDefs) = Hooks.UseState<
-                List<MultiColumnListViewProps.SortedColumnDef>
-            >(null);
+            var items =
+                props != null
+                && props.TryGetValue("items", out var itemsObj)
+                && itemsObj is IReadOnlyList<MultiColumnListViewRowState> typedItems
+                    ? typedItems
+                    : Array.Empty<MultiColumnListViewRowState>();
 
-            var btnAdd = new ButtonProps
-            {
-                Text = "Add Parent",
-                OnClick = () =>
-                {
-                    var copy = new List<Row>((items?.Count ?? 0) + 1)
-                    {
-                        new Row
-                        {
-                            Id = System.Guid.NewGuid().ToString("N"),
-                            Text = "NEW " + System.DateTime.Now.ToLongTimeString(),
-                        },
-                    };
-                    if (items != null)
-                        copy.AddRange(items);
-                    setItems(copy);
-                },
-            };
-            var btnSetLast = new ButtonProps
-            {
-                Text = "Set Value",
-                OnClick = () =>
-                {
-                    if (items == null || items.Count == 0)
-                        return;
-                    var copy = new List<Row>(items);
-                    var top = copy[0];
-                    top.Text = $"{top.Id} {System.DateTime.Now:HH:mm:ss}";
-                    top.ShouldOverrideElement = true;
-                    copy[0] = top;
-                    setItems(copy);
-                },
-            };
-            var btnDeleteLast = new ButtonProps
-            {
-                Text = "Delete Last",
-                OnClick = () =>
-                {
-                    if (items == null || items.Count == 0)
-                        return;
-                    var copy = new List<Row>(items);
-                    copy.RemoveAt(copy.Count - 1);
-                    setItems(copy);
-                },
-            };
+            var sortDefs =
+                props != null
+                && props.TryGetValue("sortDefs", out var sortObj)
+                && sortObj is List<MultiColumnListViewProps.SortedColumnDef> typedSort
+                    ? typedSort
+                    : null;
+
+            var addItem =
+                props != null
+                && props.TryGetValue("addItem", out var addItemObj)
+                && addItemObj is Action addAction
+                    ? addAction
+                    : null;
+
+            var setTopItem =
+                props != null
+                && props.TryGetValue("setTopItem", out var setTopObj)
+                && setTopObj is Action setTopAction
+                    ? setTopAction
+                    : null;
+
+            var deleteLast =
+                props != null
+                && props.TryGetValue("deleteLast", out var deleteObj)
+                && deleteObj is Action deleteAction
+                    ? deleteAction
+                    : null;
+
+            var sortChanged =
+                props != null
+                && props.TryGetValue("onSortChanged", out var sortChangedObj)
+                && sortChangedObj is Action<List<MultiColumnListViewProps.SortedColumnDef>> sortChangedAction
+                    ? sortChangedAction
+                    : null;
 
             var columns = Hooks.UseMemo(
                 () =>
@@ -91,7 +77,7 @@ namespace ReactiveUITK.Samples.Shared
                             Sortable = true,
                             Cell = (i, obj) =>
                             {
-                                var it = obj as Row;
+                                var it = obj as MultiColumnListViewRowState;
                                 var id = it?.Id ?? i.ToString();
                                 var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
                                 return V.Label(
@@ -111,7 +97,7 @@ namespace ReactiveUITK.Samples.Shared
                             Sortable = true,
                             Cell = (i, obj) =>
                             {
-                                var it = obj as Row;
+                                var it = obj as MultiColumnListViewRowState;
                                 if (it == null)
                                     return V.Label(
                                         new LabelProps { Text = "<invalid>" },
@@ -125,7 +111,6 @@ namespace ReactiveUITK.Samples.Shared
                                         funcKey
                                     )
                                     : V.Func(IntroCounterFunc.Render, null, funcKey);
-                                // Wrap to ensure stable VisualElement root
                                 return V.VisualElement(null, key: $"row-wrap-{id}", childrenNode);
                             },
                         },
@@ -133,7 +118,6 @@ namespace ReactiveUITK.Samples.Shared
                 items
             );
 
-            // Build displayed list respecting current multi-sort definitions (memo BEFORE effect)
             var displayed = Hooks.UseMemo(
                 () =>
                 {
@@ -157,7 +141,7 @@ namespace ReactiveUITK.Samples.Shared
                     }
                     return ReactiveUITK.Shared.Util.SortUtils.MultiSort(
                         defsTree,
-                        items ?? new List<Row>(),
+                        items ?? new List<MultiColumnListViewRowState>(),
                         (r, col) =>
                             string.Equals(col, "ID", StringComparison.OrdinalIgnoreCase) ? r?.Id
                             : string.Equals(col, "Text", StringComparison.OrdinalIgnoreCase)
@@ -168,7 +152,6 @@ namespace ReactiveUITK.Samples.Shared
                 new object[] { items, sortDefs }
             );
 
-            // Notify parent of count when it changes (effect AFTER all memos)
             Hooks.UseEffect(
                 () =>
                 {
@@ -197,9 +180,11 @@ namespace ReactiveUITK.Samples.Shared
                 Columns = columns,
                 SortingMode = ColumnSortingMode.Custom,
                 SortedColumns = sortDefs,
-                ColumnSortingChanged = setSortDefs,
+                ColumnSortingChanged = sortChanged ?? (_ => { }),
                 Style = new Style { (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 30f) },
             };
+
+            Action Safe(Action candidate) => candidate ?? (() => { });
 
             var controls = V.VisualElement(
                 new Dictionary<string, object>
@@ -215,9 +200,9 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 },
                 key: "controls",
-                V.Button(btnAdd, key: "btn-add"),
-                V.Button(btnSetLast, key: "btn-set"),
-                V.Button(btnDeleteLast, key: "btn-delete")
+                V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addItem) }, key: "btn-add"),
+                V.Button(new ButtonProps { Text = "Set Value", OnClick = Safe(setTopItem) }, key: "btn-set"),
+                V.Button(new ButtonProps { Text = "Delete Last", OnClick = Safe(deleteLast) }, key: "btn-delete")
             );
 
             return V.VisualElement(
