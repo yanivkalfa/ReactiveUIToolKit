@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props;
-using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -60,15 +58,6 @@ namespace ReactiveUITK.Elements
             catch { }
         }
 
-        private sealed class Cached
-        {
-            public List<string> Titles;
-            public List<Func<VirtualNode>> ContentFns;
-            public List<VirtualNode> StaticNodes;
-        }
-
-        private static readonly ConditionalWeakTable<TabView, Cached> cache = new();
-
         private static HostContext sharedHost;
 
         private static HostContext GetHost()
@@ -96,47 +85,13 @@ namespace ReactiveUITK.Elements
                 return;
             }
 
-            var parts = cache.GetValue(tv, _ => new Cached());
-
-            if (properties != null)
+            if (
+                properties != null
+                && properties.TryGetValue("tabs", out var tabsObj)
+                && tabsObj is IEnumerable<Dictionary<string, object>> tabs
+            )
             {
-                if (
-                    properties.TryGetValue("tabs", out var tabsObj)
-                    && tabsObj is IEnumerable<Dictionary<string, object>> tabs
-                )
-                {
-                    var titles = new List<string>();
-                    var fns = new List<Func<VirtualNode>>();
-                    var nodes = new List<VirtualNode>();
-                    foreach (var t in tabs)
-                    {
-                        t.TryGetValue("title", out var titleObj);
-                        t.TryGetValue("content", out var contentObj);
-                        t.TryGetValue("staticContent", out var staticObj);
-                        titles.Add(titleObj as string);
-                        fns.Add(contentObj as Func<VirtualNode>);
-                        nodes.Add(staticObj as VirtualNode);
-                    }
-                    bool same = parts.Titles != null && parts.Titles.Count == titles.Count;
-                    if (same)
-                    {
-                        for (int i = 0; i < titles.Count; i++)
-                        {
-                            if (!string.Equals(parts.Titles[i], titles[i]))
-                            {
-                                same = false;
-                                break;
-                            }
-                        }
-                    }
-                    parts.Titles = titles;
-                    parts.ContentFns = fns;
-                    parts.StaticNodes = nodes;
-                    if (!same)
-                        RebuildTabs(tv, parts);
-                    else
-                        RebindAll(tv, parts);
-                }
+                RebuildTabs(tv, tabs);
             }
 
             PropsApplier.Apply(element, properties);
@@ -155,46 +110,17 @@ namespace ReactiveUITK.Elements
             }
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
-            var parts = cache.GetValue(tv, _ => new Cached());
 
-            previous.TryGetValue("tabs", out var prevTabs);
-            next.TryGetValue("tabs", out var nextTabs);
             if (
-                !ReferenceEquals(prevTabs, nextTabs)
+                next.TryGetValue("tabs", out var nextTabs)
                 && nextTabs is IEnumerable<Dictionary<string, object>> tabs
             )
             {
-                var titles = new List<string>();
-                var fns = new List<Func<VirtualNode>>();
-                var nodes = new List<VirtualNode>();
-                foreach (var t in tabs)
-                {
-                    t.TryGetValue("title", out var titleObj);
-                    t.TryGetValue("content", out var contentObj);
-                    t.TryGetValue("staticContent", out var staticObj);
-                    titles.Add(titleObj as string);
-                    fns.Add(contentObj as Func<VirtualNode>);
-                    nodes.Add(staticObj as VirtualNode);
-                }
-                bool same = parts.Titles != null && parts.Titles.Count == titles.Count;
-                if (same)
-                {
-                    for (int i = 0; i < titles.Count; i++)
-                    {
-                        if (!string.Equals(parts.Titles[i], titles[i]))
-                        {
-                            same = false;
-                            break;
-                        }
-                    }
-                }
-                parts.Titles = titles;
-                parts.ContentFns = fns;
-                parts.StaticNodes = nodes;
-                if (!same)
-                    RebuildTabs(tv, parts);
-                else
-                    RebindAll(tv, parts);
+                RebuildTabs(tv, tabs);
+            }
+            else if (previous.ContainsKey("tabs"))
+            {
+                tv.Clear();
             }
 
             PropsApplier.ApplyDiff(element, previous, next);
@@ -202,15 +128,38 @@ namespace ReactiveUITK.Elements
 
         // Deprecated: replaced by AdapterUtil.EnsureVisualElementRoot
 
-        private static void RebuildTabs(TabView tv, Cached parts)
+        private static void RebuildTabs(
+            TabView tv,
+            IEnumerable<Dictionary<string, object>> tabs
+        )
         {
-            tv.Clear();
-            if (parts.Titles == null)
+            if (tv == null)
                 return;
-            for (int i = 0; i < parts.Titles.Count; i++)
+
+            tv.Clear();
+
+            if (tabs == null)
+                return;
+
+            foreach (var tabDefinition in tabs)
             {
                 var tab = new Tab();
-                SetTabTitle(tab, parts.Titles[i] ?? string.Empty);
+                string title = null;
+                Func<VirtualNode> fn = null;
+                VirtualNode node = null;
+
+                if (tabDefinition != null)
+                {
+                    tabDefinition.TryGetValue("title", out var titleObj);
+                    tabDefinition.TryGetValue("content", out var contentObj);
+                    tabDefinition.TryGetValue("staticContent", out var staticObj);
+                    title = titleObj as string;
+                    fn = contentObj as Func<VirtualNode>;
+                    node = staticObj as VirtualNode;
+                }
+
+                SetTabTitle(tab, title ?? string.Empty);
+
                 var content = new VisualElement();
                 var rr = new VNodeHostRenderer(GetHost(), content);
                 try
@@ -218,14 +167,6 @@ namespace ReactiveUITK.Elements
                     content.userData = rr;
                 }
                 catch { }
-                var fn =
-                    parts.ContentFns != null && i < parts.ContentFns.Count
-                        ? parts.ContentFns[i]
-                        : null;
-                var node =
-                    parts.StaticNodes != null && i < parts.StaticNodes.Count
-                        ? parts.StaticNodes[i]
-                        : null;
                 var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
                 if (vnode != null)
                     rr.Render(vnode);
@@ -238,59 +179,6 @@ namespace ReactiveUITK.Elements
                     tab.Add(content);
                 }
                 tv.Add(tab);
-            }
-        }
-
-        private static void RebindAll(TabView tv, Cached parts)
-        {
-            if (parts?.Titles == null)
-                return;
-            int count = Math.Min(parts.Titles.Count, tv.childCount);
-            for (int i = 0; i < count; i++)
-            {
-                var tab = tv[i] as Tab;
-                if (tab == null)
-                    continue;
-                VisualElement content = null;
-                try
-                {
-                    if (tab.contentContainer != null && tab.contentContainer.childCount > 0)
-                        content = tab.contentContainer.ElementAt(0) as VisualElement;
-                }
-                catch { }
-                if (content == null)
-                {
-                    content = new VisualElement();
-                    try
-                    {
-                        tab.contentContainer.Add(content);
-                    }
-                    catch
-                    {
-                        tab.Add(content);
-                    }
-                }
-                var rr = content.userData as IVNodeHostRenderer;
-                if (rr == null)
-                {
-                    rr = new VNodeHostRenderer(GetHost(), content);
-                    try
-                    {
-                        content.userData = rr;
-                    }
-                    catch { }
-                }
-                var fn =
-                    parts.ContentFns != null && i < parts.ContentFns.Count
-                        ? parts.ContentFns[i]
-                        : null;
-                var node =
-                    parts.StaticNodes != null && i < parts.StaticNodes.Count
-                        ? parts.StaticNodes[i]
-                        : null;
-                var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
-                if (vnode != null)
-                    rr.Render(vnode);
             }
         }
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
@@ -15,6 +16,19 @@ namespace ReactiveUITK.Samples.Shared
     {
         // One-time metrics subscription so the Batch Test button visibly demonstrates batching.
         private static bool metricsHooked;
+
+        private static readonly string[] TabSelectionEventNames =
+        {
+            "selectedIndexChanged",
+            "selectedTabChanged",
+            "tabSelectionChanged",
+        };
+        private static readonly string[] TabSelectedIndexPropertyNames =
+        {
+            "selectedIndex",
+            "selectedTabIndex",
+            "currentTabIndex",
+        };
 
         //private static void EnsureMetricsHook()
         //{
@@ -498,9 +512,12 @@ namespace ReactiveUITK.Samples.Shared
             var (mctvDisplayCount, setMctvDisplayCount) = Hooks.UseState(0);
             // Track MultiColumnListView displayed row count for Values bar
             var (mclvDisplayCount, setMclvDisplayCount) = Hooks.UseState(0);
+            var (treeTabIndex, setTreeTabIndex) = Hooks.UseState(0);
+            Hooks.MutableRef<TabView> treeTabRef = Hooks.UseRef<TabView>();
 
             var tabViewProps = new TabViewProps
             {
+                SelectedIndex = treeTabIndex,
                 Tabs = new List<TabViewProps.TabDef>
                 {
                     new()
@@ -726,14 +743,18 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 // Reserve space for the TabView body so content is visible
                 Style = new Style { (Height, 240f) },
+                Ref = treeTabRef,
             };
 
             // List TabView
             // Receive simple ListView count from child component
             var (simpleListCount, setSimpleListCount) = Hooks.UseState(0);
+            var (listTabIndex, setListTabIndex) = Hooks.UseState(0);
+            Hooks.MutableRef<TabView> listTabRef = Hooks.UseRef<TabView>();
 
             var listTabViewProps = new TabViewProps
             {
+                SelectedIndex = listTabIndex,
                 Tabs = new List<TabViewProps.TabDef>
                 {
                     new()
@@ -794,6 +815,7 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 },
                 Style = new Style { (Height, 240f) },
+                Ref = listTabRef,
             };
 
             // Toggle visibility of each TabView (state on main component)
@@ -991,7 +1013,204 @@ namespace ReactiveUITK.Samples.Shared
                         {
                             Property = "opacity",
                             From = 1f,
-                            To = 0.3f,
+                // Effects placed AFTER all state/memo hooks to keep hook order validation stable.
+                Hooks.UseEffect(
+                    () =>
+                    {
+                        var tabView = treeTabRef?.Value;
+                        if (tabView == null)
+                        {
+                            return null;
+                        }
+
+                        int tabCount = tabView.childCount;
+                        bool suppressSelectionEvent = false;
+                        if (tabCount == 0)
+                        {
+                            if (treeTabIndex != 0)
+                            {
+                                setTreeTabIndex(0);
+                            }
+                        }
+                        else
+                        {
+                            if (treeTabIndex >= tabCount)
+                            {
+                                setTreeTabIndex(tabCount - 1);
+                            }
+                            else if (treeTabIndex >= 0)
+                            {
+                                int currentIndex = GetTabViewSelectedIndex(tabView);
+                                if (currentIndex != treeTabIndex)
+                                {
+                                    suppressSelectionEvent = true;
+                                    SetTabViewSelectedIndex(tabView, treeTabIndex);
+                                }
+                            }
+                        }
+
+                        Action unsubscribe = SubscribeTabSelection(
+                            tabView,
+                            () =>
+                            {
+                                if (suppressSelectionEvent)
+                                {
+                                    suppressSelectionEvent = false;
+                                    return;
+                                }
+                                int current = GetTabViewSelectedIndex(tabView);
+                                if (current < 0)
+                                {
+                                    current = 0;
+                                }
+                                if (current != treeTabIndex)
+                                {
+                                    setTreeTabIndex(current);
+                                }
+                            }
+                        );
+
+                        IVisualElementScheduledItem pollItem = null;
+                        if (unsubscribe == null)
+                        {
+                            pollItem = tabView
+                                .schedule.Execute(
+                                    () =>
+                                    {
+                                        suppressSelectionEvent = false;
+                                        int current = GetTabViewSelectedIndex(tabView);
+                                        if (current < 0)
+                                        {
+                                            current = 0;
+                                        }
+                                        if (current != treeTabIndex)
+                                        {
+                                            setTreeTabIndex(current);
+                                        }
+                                    }
+                                )
+                                .Every(150);
+                        }
+
+                        return () =>
+                        {
+                            try
+                            {
+                                unsubscribe?.Invoke();
+                            }
+                            catch { }
+                            if (pollItem != null)
+                            {
+                                try
+                                {
+                                    pollItem.Pause();
+                                }
+                                catch { }
+                            }
+                        };
+                    },
+                    treeTabRef?.Value,
+                    treeTabIndex
+                );
+                Hooks.UseEffect(
+                    () =>
+                    {
+                        var tabView = listTabRef?.Value;
+                        if (tabView == null)
+                        {
+                            return null;
+                        }
+
+                        int tabCount = tabView.childCount;
+                        bool suppressSelectionEvent = false;
+                        if (tabCount == 0)
+                        {
+                            if (listTabIndex != 0)
+                            {
+                                setListTabIndex(0);
+                            }
+                        }
+                        else
+                        {
+                            if (listTabIndex >= tabCount)
+                            {
+                                setListTabIndex(tabCount - 1);
+                            }
+                            else if (listTabIndex >= 0)
+                            {
+                                int currentIndex = GetTabViewSelectedIndex(tabView);
+                                if (currentIndex != listTabIndex)
+                                {
+                                    suppressSelectionEvent = true;
+                                    SetTabViewSelectedIndex(tabView, listTabIndex);
+                                }
+                            }
+                        }
+
+                        Action unsubscribe = SubscribeTabSelection(
+                            tabView,
+                            () =>
+                            {
+                                if (suppressSelectionEvent)
+                                {
+                                    suppressSelectionEvent = false;
+                                    return;
+                                }
+                                int current = GetTabViewSelectedIndex(tabView);
+                                if (current < 0)
+                                {
+                                    current = 0;
+                                }
+                                if (current != listTabIndex)
+                                {
+                                    setListTabIndex(current);
+                                }
+                            }
+                        );
+
+                        IVisualElementScheduledItem pollItem = null;
+                        if (unsubscribe == null)
+                        {
+                            pollItem = tabView
+                                .schedule.Execute(
+                                    () =>
+                                    {
+                                        suppressSelectionEvent = false;
+                                        int current = GetTabViewSelectedIndex(tabView);
+                                        if (current < 0)
+                                        {
+                                            current = 0;
+                                        }
+                                        if (current != listTabIndex)
+                                        {
+                                            setListTabIndex(current);
+                                        }
+                                    }
+                                )
+                                .Every(150);
+                        }
+
+                        return () =>
+                        {
+                            try
+                            {
+                                unsubscribe?.Invoke();
+                            }
+                            catch { }
+                            if (pollItem != null)
+                            {
+                                try
+                                {
+                                    pollItem.Pause();
+                                }
+                                catch { }
+                            }
+                        };
+                    },
+                    listTabRef?.Value,
+                    listTabIndex
+                );
+                Hooks.UseEffect(
                             Duration = 0.8f,
                             Ease = Ease.EaseInOutSine,
                             Yoyo = true,
@@ -1146,16 +1365,6 @@ namespace ReactiveUITK.Samples.Shared
                             new LabelProps { Text = "Multi-Attr Animation" },
                             key: "multi-anim-label"
                         )
-                    // V.Animate(
-                    //     new AnimateProps { Tracks = multiTracks },
-                    //     null,
-                    //     V.VisualElement(
-                    //         new Dictionary<string, object> { { "style", animCardStyle } },
-                    //         null,
-                    //         V.Label(new LabelProps { Text = "Animated Card" })
-                    //     )
-                    // ),
-
                     ),
                     // Toggle buttons to show/hide each TabView (grouped separately)
                     // Toggle block for Tree TabView with persistent container to avoid layout expansion on re-mount
@@ -1335,5 +1544,354 @@ namespace ReactiveUITK.Samples.Shared
                 )
             );
         }
-    }
+
+        private static int GetTabViewSelectedIndex(TabView tabView)
+        {
+            if (tabView == null)
+            {
+                return 0;
+            }
+
+            var viewType = tabView.GetType();
+            foreach (var propertyName in TabSelectedIndexPropertyNames)
+            {
+                var property = viewType.GetProperty(
+                    propertyName,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                );
+                if (property == null || !property.CanRead || property.PropertyType != typeof(int))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    return (int)property.GetValue(tabView);
+                }
+                catch
+                {
+                    // ignore and continue probing other options
+                }
+            }
+
+            foreach (
+                var method in viewType.GetMethods(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )
+            )
+            {
+                if (method.ReturnType != typeof(int) || method.GetParameters().Length != 0)
+                {
+                    continue;
+                }
+
+                if (method.Name.IndexOf("Selected", StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    return (int)method.Invoke(tabView, Array.Empty<object>());
+                }
+                catch
+                {
+                    // ignore and continue
+                }
+            }
+
+            var selectedTabProperty = viewType.GetProperty(
+                "selectedTab",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
+            if (selectedTabProperty != null && selectedTabProperty.CanRead)
+            {
+                try
+                {
+                    if (selectedTabProperty.GetValue(tabView) is Tab selectedTab)
+                    {
+                        int tabIndex = GetIndexOfTab(tabView, selectedTab);
+                        if (tabIndex >= 0)
+                        {
+                            return tabIndex;
+                        }
+                    }
+                }
+                catch
+                {
+                    // ignore and fall through
+                }
+            }
+
+            return 0;
+        }
+
+        private static void SetTabViewSelectedIndex(TabView tabView, int index)
+        {
+            if (tabView == null)
+            {
+                return;
+            }
+
+            var viewType = tabView.GetType();
+            foreach (var propertyName in TabSelectedIndexPropertyNames)
+            {
+                var property = viewType.GetProperty(
+                    propertyName,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                );
+                if (property == null || !property.CanWrite || property.PropertyType != typeof(int))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    property.SetValue(tabView, index);
+                    return;
+                }
+                catch
+                {
+                    // ignore and continue probing
+                }
+            }
+
+            foreach (
+                var method in viewType.GetMethods(
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                )
+            )
+            {
+                var parameters = method.GetParameters();
+                if (parameters.Length != 1)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (
+                        parameters[0].ParameterType == typeof(int)
+                        && method.Name.IndexOf("Select", StringComparison.OrdinalIgnoreCase) >= 0
+                    )
+                    {
+                        method.Invoke(tabView, new object[] { index });
+                        return;
+                    }
+
+                    if (typeof(Tab).IsAssignableFrom(parameters[0].ParameterType))
+                    {
+                        var tab = GetTabAtIndex(tabView, index);
+                        if (tab == null)
+                        {
+                            continue;
+                        }
+                        method.Invoke(tabView, new object[] { tab });
+                        return;
+                    }
+                }
+                catch
+                {
+                    // ignore and continue probing
+                }
+            }
+
+            var selectedTabProperty = viewType.GetProperty(
+                "selectedTab",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
+            if (selectedTabProperty == null || !selectedTabProperty.CanWrite)
+            {
+                return;
+            }
+
+            var targetTab = GetTabAtIndex(tabView, index);
+            if (targetTab == null || !selectedTabProperty.PropertyType.IsInstanceOfType(targetTab))
+            {
+                return;
+            }
+
+            try
+            {
+                selectedTabProperty.SetValue(tabView, targetTab);
+            }
+            catch
+            {
+                // final fallback failed; nothing else to do
+            }
+        }
+
+        private static int GetIndexOfTab(TabView tabView, Tab tab)
+        {
+            if (tabView == null || tab == null)
+            {
+                return -1;
+            }
+
+            int idx = 0;
+            foreach (var candidate in EnumerateTabs(tabView))
+            {
+                if (ReferenceEquals(candidate, tab))
+                {
+                    return idx;
+                }
+
+                idx++;
+            }
+
+            return -1;
+        }
+
+        private static Tab GetTabAtIndex(TabView tabView, int index)
+        {
+            if (tabView == null || index < 0)
+            {
+                return null;
+            }
+
+            int idx = 0;
+            foreach (var candidate in EnumerateTabs(tabView))
+            {
+                if (idx == index)
+                {
+                    return candidate;
+                }
+
+                idx++;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<Tab> EnumerateTabs(TabView tabView)
+        {
+            if (tabView == null)
+            {
+                yield break;
+            }
+
+            foreach (var child in tabView.Children())
+            {
+                if (child is Tab tab && ReferenceEquals(tab.parent, tabView))
+                {
+                    yield return tab;
+                }
+            }
+        }
+
+        private static Action SubscribeTabSelection(TabView tabView, Action onSelectionChanged)
+        {
+            if (tabView == null || onSelectionChanged == null)
+            {
+                return null;
+            }
+
+            foreach (var eventName in TabSelectionEventNames)
+            {
+                var eventInfo = typeof(TabView).GetEvent(
+                    eventName,
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                );
+                if (eventInfo == null)
+                {
+                    continue;
+                }
+
+                var handlerDelegate = CreateSelectionHandlerDelegate(
+                    eventInfo.EventHandlerType,
+                    onSelectionChanged
+                );
+                if (handlerDelegate == null)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    eventInfo.AddEventHandler(tabView, handlerDelegate);
+                }
+                catch
+                {
+                    continue;
+                }
+
+                return () =>
+                {
+                    try
+                    {
+                        eventInfo.RemoveEventHandler(tabView, handlerDelegate);
+                    }
+                    catch { }
+                };
+            }
+
+            return null;
+        }
+
+        private static Delegate CreateSelectionHandlerDelegate(
+            Type handlerType,
+            Action onSelectionChanged
+        )
+        {
+            if (handlerType == null || onSelectionChanged == null)
+            {
+                return null;
+            }
+
+            MethodInfo invoke = handlerType.GetMethod("Invoke");
+            if (invoke == null)
+            {
+                return null;
+            }
+
+            var parameters = invoke.GetParameters();
+            try
+            {
+                switch (parameters.Length)
+                {
+                    case 0:
+                    {
+                        Action handler = onSelectionChanged;
+                        return Delegate.CreateDelegate(handlerType, handler.Target, handler.Method);
+                    }
+                    case 1:
+                    {
+                        var parameterType = parameters[0].ParameterType;
+                        if (parameterType == typeof(int))
+                        {
+                            Action<int> handler = _ => onSelectionChanged();
+                            return Delegate.CreateDelegate(handlerType, handler.Target, handler.Method);
+                        }
+                        if (parameterType == typeof(Tab))
+                        {
+                            Action<Tab> handler = _ => onSelectionChanged();
+                            return Delegate.CreateDelegate(handlerType, handler.Target, handler.Method);
+                        }
+                        Action<object> handlerFallback = _ => onSelectionChanged();
+                        return Delegate.CreateDelegate(
+                            handlerType,
+                            handlerFallback.Target,
+                            handlerFallback.Method
+                        );
+                    }
+                    case 2:
+                    {
+                        Action<object, object> handler = (_, __) => onSelectionChanged();
+                        return Delegate.CreateDelegate(
+                            handlerType,
+                            handler.Target,
+                            handler.Method
+                        );
+                    }
+                    default:
+                        return null;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+}
+
 }
