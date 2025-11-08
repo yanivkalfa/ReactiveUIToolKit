@@ -5,6 +5,7 @@ using System.Reflection;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -77,28 +78,19 @@ namespace ReactiveUITK.Elements
                     foreach (var id in ids)
                         parts.DesiredExpanded.Add(id);
                 }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, null, properties, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, null, properties);
             }
 
             if (properties.TryGetValue("rootItems", out var roots))
             {
+                var scrollSnapshot = CaptureScrollSnapshot(tv);
                 SetRootItems(tv, roots);
                 try
                 {
                     tv.RefreshItems();
                 }
                 catch { }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, null, properties, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, null, properties, scrollSnapshot);
             }
 
             TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -210,18 +202,14 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("rootItems", out var nr);
             if (!ReferenceEquals(pr, nr))
             {
+                var scrollSnapshot = CaptureScrollSnapshot(tv);
                 SetRootItems(tv, nr);
                 try
                 {
                     tv.RefreshItems();
                 }
                 catch { }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, previous, next, scrollSnapshot);
             }
             // Apply fixedItemHeight diff regardless of root change
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
@@ -240,22 +228,12 @@ namespace ReactiveUITK.Elements
                     foreach (var id in ids)
                         parts.DesiredExpanded.Add(id);
                 }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, previous, next);
             }
 
             PropsApplier.ApplyDiff(element, previous, next);
             // Final cooperative reapply guard
-            try
-            {
-                var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
-            }
-            catch { }
+            ReapplyExpansion(tv, parts, previous, next);
         }
 
         private static void SetRootItems(TreeView tv, object root)
@@ -361,5 +339,156 @@ namespace ReactiveUITK.Elements
         }
 
         // Inline expansion helpers removed in favor of cooperative tracker
+
+        private static void ReapplyExpansion(
+            TreeView view,
+            Cached parts,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            ScrollSnapshot? snapshotOverride = null
+        )
+        {
+            if (view == null || parts == null)
+                return;
+
+            var snapshot = snapshotOverride.HasValue
+                ? snapshotOverride.Value
+                : CaptureScrollSnapshot(view);
+
+            try
+            {
+                var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Reapply(view, parts, previous, next, ops);
+            }
+            catch { }
+
+            RestoreScrollSnapshot(view, snapshot);
+        }
+
+        private static ScrollSnapshot CaptureScrollSnapshot(TreeView view)
+        {
+            if (view == null)
+                return default;
+
+            try
+            {
+                var scroll = view.Q<ScrollView>();
+                if (scroll == null)
+                    return default;
+
+                var offset = scroll.scrollOffset;
+                var maxX = GetHighValue(scroll.horizontalScroller);
+                var maxY = GetHighValue(scroll.verticalScroller);
+                return new ScrollSnapshot(true, offset, maxX, maxY);
+            }
+            catch
+            {
+                return default;
+            }
+        }
+
+        private static void RestoreScrollSnapshot(TreeView view, ScrollSnapshot snapshot)
+        {
+            if (view == null || !snapshot.IsValid)
+                return;
+
+            try
+            {
+                var scroll = view.Q<ScrollView>();
+                if (scroll == null)
+                    return;
+
+                var target = new Vector2(
+                    ResolveAxis(
+                        snapshot.Offset.x,
+                        snapshot.MaxX,
+                        GetHighValue(scroll.horizontalScroller)
+                    ),
+                    ResolveAxis(
+                        snapshot.Offset.y,
+                        snapshot.MaxY,
+                        GetHighValue(scroll.verticalScroller)
+                    )
+                );
+
+                ApplyScrollOffset(scroll, target);
+            }
+            catch { }
+        }
+
+        private static void ApplyScrollOffset(ScrollView scroll, Vector2 target)
+        {
+            if (scroll == null)
+                return;
+
+            void Apply()
+            {
+                try
+                {
+                    scroll.scrollOffset = target;
+                }
+                catch { }
+            }
+
+            Apply();
+            try
+            {
+                scroll.schedule?.Execute(Apply)?.ExecuteLater(0);
+            }
+            catch { }
+        }
+
+        private static float ResolveAxis(float previousValue, float previousMax, float newMax)
+        {
+            newMax = Math.Max(newMax, 0f);
+            if (previousMax <= 0f)
+                return Clamp(previousValue, 0f, newMax);
+
+            var tolerance = Math.Max(previousMax * 0.01f, 2f);
+            var distanceFromEnd = previousMax - previousValue;
+            if (distanceFromEnd <= tolerance)
+                return newMax;
+
+            return Clamp(previousValue, 0f, newMax);
+        }
+
+        private static float GetHighValue(Scroller scroller)
+        {
+            if (scroller == null)
+                return 0f;
+            try
+            {
+                return scroller.highValue;
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            if (value < min)
+                return min;
+            if (value > max)
+                return max;
+            return value;
+        }
+
+        private readonly struct ScrollSnapshot
+        {
+            public ScrollSnapshot(bool isValid, Vector2 offset, float maxX, float maxY)
+            {
+                IsValid = isValid;
+                Offset = offset;
+                MaxX = maxX;
+                MaxY = maxY;
+            }
+
+            public bool IsValid { get; }
+            public Vector2 Offset { get; }
+            public float MaxX { get; }
+            public float MaxY { get; }
+        }
     }
 }
