@@ -2,60 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using ReactiveUITK.Core;
+using ReactiveUITK.Elements.Trackers;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    public sealed class TabViewElementAdapter : BaseElementAdapter
+    public sealed class TabViewElementAdapter
+        : StatefulElementAdapter<TabView, TabViewElementAdapter.Cached>
     {
-        private static void SetTabTitle(Tab tab, string title)
+        public sealed class Cached
         {
-            if (tab == null)
-                return;
-            if (string.IsNullOrEmpty(title))
-                title = string.Empty;
-            try
-            {
-                var p = typeof(Tab).GetProperty(
-                    "title",
-                    BindingFlags.Instance | BindingFlags.Public
-                );
-                if (p != null && p.CanWrite)
-                {
-                    p.SetValue(tab, title);
-                    return;
-                }
-            }
-            catch { }
-            try
-            {
-                var p = typeof(Tab).GetProperty(
-                    "text",
-                    BindingFlags.Instance | BindingFlags.Public
-                );
-                if (p != null && p.CanWrite)
-                {
-                    p.SetValue(tab, title);
-                    return;
-                }
-            }
-            catch { }
-            try
-            {
-                var label = tab.Q<Label>("title") ?? tab.Q<Label>();
-                if (label != null)
-                {
-                    label.text = title;
-                    return;
-                }
-            }
-            catch { }
-            try
-            {
-                tab.name = string.IsNullOrEmpty(tab.name) ? ("Tab_" + title) : tab.name;
-            }
-            catch { }
+            public TabViewSelectionState SelectionState { get; } = new();
+            public TabViewSelectionTracker SelectionTracker { get; } = new();
         }
 
         private static HostContext sharedHost;
@@ -66,6 +25,7 @@ namespace ReactiveUITK.Elements
             {
                 sharedHost = new HostContext(ElementRegistryProvider.GetDefaultRegistry());
             }
+
             return sharedHost;
         }
 
@@ -79,22 +39,37 @@ namespace ReactiveUITK.Elements
             IReadOnlyDictionary<string, object> properties
         )
         {
-            if (element is not TabView tv)
+            if (element is not TabView tabView)
             {
                 PropsApplier.Apply(element, properties);
                 return;
             }
 
-            if (
-                properties != null
-                && properties.TryGetValue("tabs", out var tabsObj)
-                && tabsObj is IEnumerable<Dictionary<string, object>> tabs
-            )
+            var cached = GetState(tabView);
+            var tracker = cached.SelectionTracker;
+            var selectionState = cached.SelectionState;
+
+            tracker.Attach(tabView, selectionState, properties);
+            ApplyTabs(tabView, tracker, selectionState, previousProps: null, nextProps: properties);
+
+            bool shouldSuppress = tracker.ShouldSuppressForProps(properties);
+            if (shouldSuppress)
             {
-                RebuildTabs(tv, tabs);
+                tracker.BeginSuppression(selectionState);
             }
 
-            PropsApplier.Apply(element, properties);
+            try
+            {
+                PropsApplier.Apply(element, properties);
+            }
+            finally
+            {
+                if (shouldSuppress)
+                {
+                    tracker.EndSuppression(selectionState);
+                    tracker.SyncFromView(tabView, selectionState);
+                }
+            }
         }
 
         public override void ApplyPropertiesDiff(
@@ -103,83 +78,196 @@ namespace ReactiveUITK.Elements
             IReadOnlyDictionary<string, object> next
         )
         {
-            if (element is not TabView tv)
+            previous ??= new Dictionary<string, object>();
+            next ??= new Dictionary<string, object>();
+
+            if (element is not TabView tabView)
             {
                 PropsApplier.ApplyDiff(element, previous, next);
                 return;
             }
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
 
-            if (
-                next.TryGetValue("tabs", out var nextTabs)
-                && nextTabs is IEnumerable<Dictionary<string, object>> tabs
-            )
+            var cached = GetState(tabView);
+            var tracker = cached.SelectionTracker;
+            var selectionState = cached.SelectionState;
+
+            tracker.Attach(tabView, selectionState, next);
+            ApplyTabs(tabView, tracker, selectionState, previous, next);
+
+            bool shouldSuppress = tracker.ShouldSuppressForProps(next);
+            if (shouldSuppress)
             {
-                RebuildTabs(tv, tabs);
-            }
-            else if (previous.ContainsKey("tabs"))
-            {
-                tv.Clear();
+                tracker.BeginSuppression(selectionState);
             }
 
-            PropsApplier.ApplyDiff(element, previous, next);
+            try
+            {
+                PropsApplier.ApplyDiff(element, previous, next);
+            }
+            finally
+            {
+                if (shouldSuppress)
+                {
+                    tracker.EndSuppression(selectionState);
+                    tracker.SyncFromView(tabView, selectionState);
+                }
+            }
         }
 
-        // Deprecated: replaced by AdapterUtil.EnsureVisualElementRoot
-
-        private static void RebuildTabs(
-            TabView tv,
-            IEnumerable<Dictionary<string, object>> tabs
+        private static void ApplyTabs(
+            TabView tabView,
+            TabViewSelectionTracker tracker,
+            TabViewSelectionState selectionState,
+            IReadOnlyDictionary<string, object> previousProps,
+            IReadOnlyDictionary<string, object> nextProps
         )
         {
-            if (tv == null)
+            bool tabsChanged = TabViewSelectionTracker.TabsChanged(previousProps, nextProps);
+            if (!tabsChanged)
+            {
+                tracker.Reapply(tabView, selectionState, previousProps, nextProps);
+                tracker.SyncFromView(tabView, selectionState);
                 return;
+            }
 
-            tv.Clear();
+            tracker.BeginSuppression(selectionState);
+            try
+            {
+                RebuildTabs(tabView, nextProps);
+                tracker.Reapply(tabView, selectionState, previousProps, nextProps);
+                tracker.SyncFromView(tabView, selectionState);
+            }
+            finally
+            {
+                tracker.EndSuppression(selectionState);
+            }
+        }
 
-            if (tabs == null)
+        private static void RebuildTabs(
+            TabView tabView,
+            IReadOnlyDictionary<string, object> props
+        )
+        {
+            if (tabView == null)
+            {
                 return;
+            }
+
+            tabView.Clear();
+            if (props == null || !props.TryGetValue("tabs", out var tabsObj))
+            {
+                return;
+            }
+
+            if (tabsObj is not IEnumerable<Dictionary<string, object>> tabs)
+            {
+                return;
+            }
 
             foreach (var tabDefinition in tabs)
             {
                 var tab = new Tab();
                 string title = null;
-                Func<VirtualNode> fn = null;
-                VirtualNode node = null;
+                Func<VirtualNode> dynamicContent = null;
+                VirtualNode staticContent = null;
 
-                if (tabDefinition != null)
-                {
-                    tabDefinition.TryGetValue("title", out var titleObj);
-                    tabDefinition.TryGetValue("content", out var contentObj);
-                    tabDefinition.TryGetValue("staticContent", out var staticObj);
-                    title = titleObj as string;
-                    fn = contentObj as Func<VirtualNode>;
-                    node = staticObj as VirtualNode;
-                }
+                object titleObj = null;
+                object contentObj = null;
+                object staticObj = null;
+
+                tabDefinition?.TryGetValue("title", out titleObj);
+                tabDefinition?.TryGetValue("content", out contentObj);
+                tabDefinition?.TryGetValue("staticContent", out staticObj);
+
+                title = titleObj as string;
+                dynamicContent = contentObj as Func<VirtualNode>;
+                staticContent = staticObj as VirtualNode;
 
                 SetTabTitle(tab, title ?? string.Empty);
+                tabView.Add(tab);
 
-                var content = new VisualElement();
-                var rr = new VNodeHostRenderer(GetHost(), content);
+                var contentRoot = new VisualElement();
+                var renderer = new VNodeHostRenderer(GetHost(), contentRoot);
                 try
                 {
-                    content.userData = rr;
+                    contentRoot.userData = renderer;
                 }
                 catch { }
-                var vnode = EnsureVisualElementRoot(fn != null ? fn() : node, "TabView");
+
+                var vnode = dynamicContent != null ? dynamicContent() : staticContent;
+                vnode = EnsureVisualElementRoot(vnode, "TabView");
                 if (vnode != null)
-                    rr.Render(vnode);
+                {
+                    renderer.Render(vnode);
+                }
+
                 try
                 {
-                    tab.contentContainer.Add(content);
+                    tab.contentContainer.Add(contentRoot);
                 }
                 catch
                 {
-                    tab.Add(content);
+                    tab.Add(contentRoot);
                 }
-                tv.Add(tab);
             }
+        }
+
+        private static void SetTabTitle(Tab tab, string title)
+        {
+            if (tab == null)
+            {
+                return;
+            }
+
+            if (string.IsNullOrEmpty(title))
+            {
+                title = string.Empty;
+            }
+
+            try
+            {
+                var property = typeof(Tab).GetProperty(
+                    "title",
+                    BindingFlags.Instance | BindingFlags.Public
+                );
+                if (property != null && property.CanWrite)
+                {
+                    property.SetValue(tab, title);
+                    return;
+                }
+            }
+            catch { }
+
+            try
+            {
+                var property = typeof(Tab).GetProperty(
+                    "text",
+                    BindingFlags.Instance | BindingFlags.Public
+                );
+                if (property != null && property.CanWrite)
+                {
+                    property.SetValue(tab, title);
+                    return;
+                }
+            }
+            catch { }
+
+            try
+            {
+                var label = tab.Q<Label>("title") ?? tab.Q<Label>();
+                if (label != null)
+                {
+                    label.text = title;
+                    return;
+                }
+            }
+            catch { }
+
+            try
+            {
+                tab.name = string.IsNullOrEmpty(tab.name) ? $"Tab_{title}" : tab.name;
+            }
+            catch { }
         }
     }
 }

@@ -1,46 +1,17 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
-using static ReactiveUITK.Props.Typed.StyleKeys; // style key static import
+using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
 
 namespace ReactiveUITK.Samples.Shared
 {
     public static class SharedDemoPage
     {
-        // One-time metrics subscription so the Batch Test button visibly demonstrates batching.
-        private static bool metricsHooked;
-
-        private static readonly string[] TabSelectionEventNames =
-        {
-            "selectedIndexChanged",
-            "selectedTabChanged",
-            "tabSelectionChanged",
-        };
-        private static readonly string[] TabSelectedIndexPropertyNames =
-        {
-            "selectedIndex",
-            "selectedTabIndex",
-            "currentTabIndex",
-        };
-
-        //private static void EnsureMetricsHook()
-        //{
-        //    if (metricsHooked)
-        //        return; // compact form acceptable
-        //    metricsHooked = true;
-        //    Reconciler.MetricsEmitted += m =>
-        //        Debug.Log(
-        //            $"[ReactiveUITK Metrics] diff={m.LastDiffMs}ms reconciled={m.Reconciled} skipped={m.Skipped} effects={m.EffectsRan} portals={m.PortalsBuilt}/{m.PortalsUpdated} batchedComponents={m.BatchedComponentUpdates}"
-        //        );
-        //}
-
         private static readonly Style TopBarStyle = new()
         {
             (StyleKeys.FlexDirection, "row"),
@@ -54,6 +25,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderBottomWidth, 1f),
             (BorderBottomColor, new Color(0.85f, 0.85f, 0.85f, 1f)),
         };
+
         private static readonly Style LeftBoxStyle = new()
         {
             (BackgroundColor, new Color(0.2f, 0.4f, 0.9f, 1f)),
@@ -65,6 +37,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderRadius, 4f),
             (FontSize, 14f),
         };
+
         private static readonly Style RightBoxStyle = new()
         {
             (BackgroundColor, new UColor(0.9f, 0.3f, 0.2f, 1f)),
@@ -76,6 +49,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderRadius, 4f),
             (FontSize, 14f),
         };
+
         private static readonly Style TextInputStyle = new()
         {
             (FlexGrow, 1f),
@@ -91,6 +65,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderColor, new UColor(0.8f, 0.8f, 0.8f, 1f)),
             (BackgroundColor, new UColor(1f, 1f, 1f, 1f)),
         };
+
         private static readonly Style PageStyle = new()
         {
             (StyleKeys.FlexDirection, "column"),
@@ -98,11 +73,7 @@ namespace ReactiveUITK.Samples.Shared
             (JustifyContent, "space-between"),
             (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
         };
-        private static readonly Style ListContainerStyle = new()
-        {
-            (FlexGrow, 1f),
-            (MarginTop, 8f),
-        };
+
         private static readonly Style ExtrasContainerStyle = new()
         {
             (MarginTop, 12f),
@@ -116,118 +87,42 @@ namespace ReactiveUITK.Samples.Shared
             (StyleKeys.FlexDirection, "column"),
         };
 
-        public static VirtualNode Render(
-            Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
-            // Ensure metrics logging is active (safe to call every render)
-            //EnsureMetricsHook();
-            var (isListVisible, setListVisible) = Hooks.UseState(true);
             var (inputText, setInputText) = Hooks.UseState(string.Empty);
             var (isOptionEnabled, setOptionEnabled) = Hooks.UseState(false);
             var (isRadioSingleSelected, setRadioSingleSelected) = Hooks.UseState(false);
-            var selectionChoices = Hooks.UseMemo(
-                () => new List<string> { "One", "Two", "Three" },
-                0
-            );
+            var selectionChoices = Hooks.UseMemo(() => new List<string> { "One", "Two", "Three" }, 0);
             var (selectionIndex, setSelectionIndex) = Hooks.UseState(0);
             var (repeatClickCount, setRepeatClickCount) = Hooks.UseState(0);
             var (currentTime, setCurrentTime) = Hooks.UseState(DateTime.Now);
-            // New element demo state
             var (sliderValue, setSliderValue) = Hooks.UseState(0.5f);
             var (sliderIntValue, setSliderIntValue) = Hooks.UseState(5);
+            var (treeTabIndex, setTreeTabIndex) = Hooks.UseState(0);
+            var (listTabIndex, setListTabIndex) = Hooks.UseState(0);
             var ddChoices = Hooks.UseMemo(() => new List<string> { "Alpha", "Beta", "Gamma" }, 0);
             var (ddValue, setDdValue) = Hooks.UseState("Beta");
             var (foldoutOpen, setFoldoutOpen) = Hooks.UseState(true);
-            var rootElement = Hooks.UseRef(); // returns current component container VisualElement
-            // Scroll persistence temporarily disabled to restore stable hook ordering.
-            var initialItems = Hooks.UseMemo(() =>
-            {
-                var seededItems = new List<SharedRowItem>();
-                for (int i = 1; i <= 5; i++)
-                    seededItems.Add(
-                        new SharedRowItem { Id = Guid.NewGuid().ToString("N"), Text = $"Item {i}" }
-                    );
-                return seededItems;
-            });
-            var (listItems, setListItems) = Hooks.UseState(initialItems);
-            // removed inline table view state (moved to dedicated tab component)
-            var listRowRenderer = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (index, itemObj) =>
-                        {
-                            var typedItem = itemObj as SharedRowItem;
-                            return V.Func(
-                                SharedListViewRow.Render,
-                                new Dictionary<string, object>
-                                {
-                                    { "item", typedItem },
-                                    { "index", index },
-                                    {
-                                        "onRemove",
-                                        (Action<SharedRowItem>)(
-                                            removeItem =>
-                                            {
-                                                if (removeItem == null)
-                                                {
-                                                    return;
-                                                }
-                                                var copy = new List<SharedRowItem>(listItems);
-                                                int foundIndex = copy.FindIndex(r =>
-                                                    r.Id == removeItem.Id
-                                                );
-                                                if (foundIndex >= 0)
-                                                {
-                                                    copy.RemoveAt(foundIndex);
-                                                    // Direct value assignment uses invocation, reserve .Set for functional updates
-                                                    setListItems(copy);
-                                                }
-                                            }
-                                        )
-                                    },
-                                },
-                                key: typedItem != null
-                                    ? $"{typedItem.Id}-{index}"
-                                    : $"row-missing-{index}"
-                            );
-                        }
-                    ),
-                listItems
-            );
-            // Inline ListView demo removed; keep input and other controls
+            var rootElement = Hooks.UseRef();
+            var (treeDisplayCount, setTreeDisplayCount) = Hooks.UseState(0);
+            var (mctvDisplayCount, setMctvDisplayCount) = Hooks.UseState(0);
+            var (mclvDisplayCount, setMclvDisplayCount) = Hooks.UseState(0);
+            var (simpleListCount, setSimpleListCount) = Hooks.UseState(0);
+            var (showTreeTabs, setShowTreeTabs) = Hooks.UseState(true);
+            var (showListTabs, setShowListTabs) = Hooks.UseState(true);
+            var (animNonce, setAnimNonce) = Hooks.UseState(0);
+            var (batchClicks, setBatchClicks) = Hooks.UseState(0);
+
             TextFieldProps inputTextFieldProps = new()
             {
                 Style = TextInputStyle,
                 Placeholder = "Type here...",
                 HidePlaceholderOnFocus = false,
                 Value = inputText,
-                LabelText = string.IsNullOrEmpty(inputText)
-                    ? string.Empty
-                    : ("Value: " + inputText),
+                LabelText = string.IsNullOrEmpty(inputText) ? string.Empty : "Value: " + inputText,
                 OnChange = e => setInputText(e.newValue),
             };
-            // Removed inline ListView change/add buttons
-            // removed inline table add button (handled in MultiColumnListViewStatefulDemoFunc)
-            var listFadeTracks = Hooks.UseMemo(
-                () =>
-                    new List<AnimateTrack>
-                    {
-                        new AnimateTrack
-                        {
-                            Property = "opacity",
-                            From = 0f,
-                            To = 1f,
-                            Duration = 1.5f,
-                            Ease = Ease.EaseOutCubic,
-                        },
-                    },
-                isListVisible
-            );
-            // Removed inline ListView content rendering
 
-            // Extracted styles (avoid inline styles/props below)
             var outerWrapperStyle = new Style
             {
                 (BackgroundColor, new UColor(0.2f, 0.4f, 0.8f, 1f)),
@@ -241,9 +136,7 @@ namespace ReactiveUITK.Samples.Shared
             };
             var barSlotStyle = new Style { (FlexShrink, 0f), (MinHeight, 110f) };
             var mainScrollStyle = new Style { (FlexGrow, 1f), (PaddingBottom, 20f) };
-
             var groupBox1ContentStyle = new Style { (PaddingLeft, 6f), (PaddingTop, 4f) };
-
             var newCompsGroupContentStyle = new Style
             {
                 (PaddingLeft, 8f),
@@ -268,39 +161,31 @@ namespace ReactiveUITK.Samples.Shared
             };
             var sliderWidthStyle = new Style { (Width, 200f) };
 
-            // Extracted props
-            var outerWrapperProps = new Dictionary<string, object>
-            {
-                { "style", outerWrapperStyle },
-            };
+            var outerWrapperProps = new Dictionary<string, object> { { "style", outerWrapperStyle } };
+
             var groupBox1Props = new GroupBoxProps
             {
                 Text = "GroupBox",
-                ContentContainer = new Dictionary<string, object>
-                {
-                    { "style", groupBox1ContentStyle },
-                },
+                ContentContainer = new Dictionary<string, object> { { "style", groupBox1ContentStyle } },
             };
+
             var newComponentsGroupProps = new GroupBoxProps
             {
                 Text = "New Components",
-                ContentContainer = new Dictionary<string, object>
-                {
-                    { "style", newCompsGroupContentStyle },
-                },
+                ContentContainer = new Dictionary<string, object> { { "style", newCompsGroupContentStyle } },
             };
+
             var foldoutProps = new FoldoutProps
             {
                 Text = "More settings",
                 Value = foldoutOpen,
                 OnChange = e => setFoldoutOpen(e.newValue),
                 Header = new Dictionary<string, object> { { "style", foldoutHeaderStyle } },
-                ContentContainer = new Dictionary<string, object>
-                {
-                    { "style", foldoutContentStyle },
-                },
+                ContentContainer = new Dictionary<string, object> { { "style", foldoutContentStyle } },
             };
+
             var imageProps = new ImageProps { Style = imageDemoStyle };
+
             var sliderProps = new SliderProps
             {
                 LowValue = 0f,
@@ -310,6 +195,7 @@ namespace ReactiveUITK.Samples.Shared
                 OnChange = e => setSliderValue(e.newValue),
                 Style = sliderWidthStyle,
             };
+
             var dropdownProps = new DropdownFieldProps
             {
                 Choices = ddChoices,
@@ -317,576 +203,43 @@ namespace ReactiveUITK.Samples.Shared
                 OnChange = e => setDdValue(e.newValue),
             };
 
-            var treeRootItems = Hooks.UseMemo(
-                () =>
-                {
-                    var c1 = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                    {
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            11,
-                            new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Child 1",
-                            },
-                            null
-                        ),
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            12,
-                            new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Child 2",
-                            },
-                            null
-                        ),
-                    };
-                    var c2 = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                    {
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            21,
-                            new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Child A",
-                            },
-                            null
-                        ),
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            22,
-                            new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Child B",
-                            },
-                            null
-                        ),
-                    };
-                    var roots = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                    {
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            1,
-                            new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Root 1",
-                            },
-                            c1
-                        ),
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            2,
-                            new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Root 2",
-                            },
-                            c2
-                        ),
-                    };
-                    return roots;
-                },
-                0
-            );
-            var treeRowRenderer = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (i, obj) =>
-                        {
-                            if (obj is VirtualNode vn)
-                            {
-                                return vn;
-                            }
-                            var it = obj as SharedRowItem;
-                            return V.Label(new LabelProps { Text = it?.Text ?? "<null>" });
-                        }
-                    ),
-                0
-            );
-            var treeViewProps = new TreeViewProps
-            {
-                RootItems = treeRootItems,
-                Selection = UnityEngine.UIElements.SelectionType.None,
-                FixedItemHeight = 20f,
-                Row = treeRowRenderer,
-            };
-            var mctvColumns = Hooks.UseMemo(
-                () =>
-                    new List<MultiColumnTreeViewProps.ColumnDef>
-                    {
-                        new()
-                        {
-                            Title = "Name",
-                            Width = 180f,
-                            Cell = (i, obj) =>
-                            {
-                                var it = obj as SharedRowItem;
-                                return V.Label(new LabelProps { Text = it?.Text ?? string.Empty });
-                            },
-                        },
-                        new()
-                        {
-                            Title = "ID",
-                            Width = 160f,
-                            Cell = (i, obj) =>
-                            {
-                                var it = obj as SharedRowItem;
-                                var id = it?.Id ?? string.Empty;
-                                var s = id.Length > 6 ? id.Substring(0, 6) : id;
-                                return V.VisualElement(
-                                    new Dictionary<string, object>
-                                    {
-                                        {
-                                            "style",
-                                            new Style { (TextColor, "red") }
-                                        },
-                                    },
-                                    null,
-                                    V.Label(new LabelProps { Text = s })
-                                );
-                            },
-                        },
-                    },
-                treeRootItems?.Count ?? 0
-            );
-            var mctvProps = new MultiColumnTreeViewProps
-            {
-                RootItems = treeRootItems,
-                Selection = UnityEngine.UIElements.SelectionType.None,
-                FixedItemHeight = 20f,
-                Columns = mctvColumns,
-            };
-            // Dynamic Tree tab state for add/delete/set
-            var (treePairs, setTreePairs) = Hooks.UseState(
-                new List<(
-                    SharedRowItem parent,
-                    SharedRowItem childLabel,
-                    bool hasChild,
-                    bool childAsFunc
-                )>()
-            );
-            var (treeNextIsParent, setTreeNextIsParent) = Hooks.UseState(true);
-            var combinedTreeRoots = new List<UnityEngine.UIElements.TreeViewItemData<object>>(
-                treeRootItems ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
-            );
-            for (int i = 0; i < treePairs.Count; i++)
-            {
-                var pair = treePairs[i];
-                int pid = 1000 + (i * 2);
-                List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
-                if (pair.hasChild)
-                {
-                    object childData = pair.childAsFunc
-                        ? (object)
-                            ReactiveUITK.V.Func(
-                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render,
-                                null,
-                                $"tv-child-{pid}"
-                            )
-                        : (object)(
-                            pair.childLabel
-                            ?? new SharedRowItem
-                            {
-                                Id = System.Guid.NewGuid().ToString("N"),
-                                Text = "Child",
-                            }
-                        );
-                    ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                    {
-                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                            pid + 1,
-                            childData,
-                            null
-                        ),
-                    };
-                }
-                combinedTreeRoots.Add(
-                    new UnityEngine.UIElements.TreeViewItemData<object>(pid, pair.parent, ch)
-                );
-            }
-
-            // Removed tab content animations
-            // Track TreeView displayed row count for Values bar
-            var (treeDisplayCount, setTreeDisplayCount) = Hooks.UseState(0);
-
-            // Track MultiColumnTreeView displayed row count for Values bar
-            var (mctvDisplayCount, setMctvDisplayCount) = Hooks.UseState(0);
-            // Track MultiColumnListView displayed row count for Values bar
-            var (mclvDisplayCount, setMclvDisplayCount) = Hooks.UseState(0);
-            var (treeTabIndex, setTreeTabIndex) = Hooks.UseState(0);
-            Hooks.MutableRef<TabView> treeTabRef = Hooks.UseRef<TabView>();
-
-            var tabViewProps = new TabViewProps
-            {
-                SelectedIndex = treeTabIndex,
-                Tabs = new List<TabViewProps.TabDef>
-                {
-                    new()
-                    {
-                        Title = "Intro",
-                        Content = () =>
-                            ReactiveUITK.V.Func(
-                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render
-                            ),
-                    },
-                    new()
-                    {
-                        Title = "Tree",
-                        Content = () =>
-                        {
-                            // Compose combined roots: initial + dynamic
-                            var combined =
-                                new List<UnityEngine.UIElements.TreeViewItemData<object>>(
-                                    treeRootItems
-                                        ?? new List<UnityEngine.UIElements.TreeViewItemData<object>>()
-                                );
-                            for (int i = 0; i < treePairs.Count; i++)
-                            {
-                                var pair = treePairs[i];
-                                int pid = 1000 + (i * 2);
-                                List<UnityEngine.UIElements.TreeViewItemData<object>> ch = null;
-                                if (pair.hasChild)
-                                {
-                                    object childData = pair.childAsFunc
-                                        ? (object)
-                                            ReactiveUITK.V.Func(
-                                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render,
-                                                null,
-                                                $"tv-child-{pid}"
-                                            )
-                                        : (object)(
-                                            pair.childLabel
-                                            ?? new SharedRowItem
-                                            {
-                                                Id = System.Guid.NewGuid().ToString("N"),
-                                                Text = "Child",
-                                            }
-                                        );
-                                    ch = new List<UnityEngine.UIElements.TreeViewItemData<object>>
-                                    {
-                                        new UnityEngine.UIElements.TreeViewItemData<object>(
-                                            pid + 1,
-                                            childData,
-                                            null
-                                        ),
-                                    };
-                                }
-                                combined.Add(
-                                    new UnityEngine.UIElements.TreeViewItemData<object>(
-                                        pid,
-                                        pair.parent,
-                                        ch
-                                    )
-                                );
-                            }
-
-                            var addBtn = new ButtonProps
-                            {
-                                Text = "Add",
-                                OnClick = () =>
-                                {
-                                    var copy = new List<(
-                                        SharedRowItem parent,
-                                        SharedRowItem childLabel,
-                                        bool hasChild,
-                                        bool childAsFunc
-                                    )>(treePairs);
-                                    if (treeNextIsParent)
-                                    {
-                                        copy.Add(
-                                            (
-                                                new SharedRowItem
-                                                {
-                                                    Id = System.Guid.NewGuid().ToString("N"),
-                                                    Text = $"Parent {copy.Count + 1}",
-                                                },
-                                                null,
-                                                false,
-                                                false
-                                            )
-                                        );
-                                        setTreePairs(copy);
-                                        setTreeNextIsParent(false);
-                                    }
-                                    else if (copy.Count > 0)
-                                    {
-                                        var last = copy[copy.Count - 1];
-                                        last.hasChild = true;
-                                        last.childAsFunc = true;
-                                        if (last.childLabel == null)
-                                            last.childLabel = new SharedRowItem
-                                            {
-                                                Id = System.Guid.NewGuid().ToString("N"),
-                                                Text = "Child",
-                                            };
-                                        copy[copy.Count - 1] = last;
-                                        setTreePairs(copy);
-                                        setTreeNextIsParent(true);
-                                    }
-                                },
-                            };
-                            var delBtn = new ButtonProps
-                            {
-                                Text = "Delete",
-                                OnClick = () =>
-                                {
-                                    var copy = new List<(
-                                        SharedRowItem parent,
-                                        SharedRowItem childLabel,
-                                        bool hasChild,
-                                        bool childAsFunc
-                                    )>(treePairs);
-                                    if (copy.Count == 0)
-                                        return;
-                                    if (treeNextIsParent)
-                                    {
-                                        var last = copy[copy.Count - 1];
-                                        if (last.hasChild)
-                                        {
-                                            last.hasChild = false;
-                                            last.childAsFunc = false;
-                                            copy[copy.Count - 1] = last;
-                                            setTreePairs(copy);
-                                            setTreeNextIsParent(false);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        copy.RemoveAt(copy.Count - 1);
-                                        setTreePairs(copy);
-                                        setTreeNextIsParent(true);
-                                    }
-                                },
-                            };
-                            var setBtn = new ButtonProps
-                            {
-                                Text = "SetValue",
-                                OnClick = () =>
-                                {
-                                    var copy = new List<(
-                                        SharedRowItem parent,
-                                        SharedRowItem childLabel,
-                                        bool hasChild,
-                                        bool childAsFunc
-                                    )>(treePairs);
-                                    if (copy.Count == 0)
-                                        return;
-                                    var last = copy[copy.Count - 1];
-                                    string stamp = System.DateTime.Now.ToString("HH:mm:ss");
-                                    if (treeNextIsParent)
-                                    {
-                                        if (last.hasChild)
-                                        {
-                                            last.childAsFunc = false;
-                                            if (last.childLabel == null)
-                                                last.childLabel = new SharedRowItem
-                                                {
-                                                    Id = System.Guid.NewGuid().ToString("N"),
-                                                };
-                                            last.childLabel.Text = $"{last.childLabel.Id} {stamp}";
-                                            copy[copy.Count - 1] = last;
-                                            setTreePairs(copy);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        if (last.parent == null)
-                                            last.parent = new SharedRowItem
-                                            {
-                                                Id = System.Guid.NewGuid().ToString("N"),
-                                            };
-                                        last.parent.Text = $"{last.parent.Id} {stamp}";
-                                        copy[copy.Count - 1] = last;
-                                        setTreePairs(copy);
-                                    }
-                                },
-                            };
-
-                            return V.Func(
-                                TreeViewStatefulDemoFunc.Render,
-                                new Dictionary<string, object>
-                                {
-                                    {
-                                        "onCountChanged",
-                                        (Action<int>)(
-                                            c =>
-                                            {
-                                                if (c != treeDisplayCount)
-                                                    setTreeDisplayCount(c);
-                                            }
-                                        )
-                                    },
-                                }
-                            );
-                        },
-                    },
-                    new()
-                    {
-                        Title = "Columns",
-                        Content = () =>
-                            V.Func(
-                                MultiColumnTreeViewStatefulDemoFunc.Render,
-                                new Dictionary<string, object>
-                                {
-                                    {
-                                        "onCountChanged",
-                                        (Action<int>)(
-                                            c =>
-                                            {
-                                                if (c != mctvDisplayCount)
-                                                    setMctvDisplayCount(c);
-                                            }
-                                        )
-                                    },
-                                }
-                            ),
-                    },
-                },
-                // Reserve space for the TabView body so content is visible
-                Style = new Style { (Height, 240f) },
-                Ref = treeTabRef,
-            };
-
-            // List TabView
-            // Receive simple ListView count from child component
-            var (simpleListCount, setSimpleListCount) = Hooks.UseState(0);
-            var (listTabIndex, setListTabIndex) = Hooks.UseState(0);
-            Hooks.MutableRef<TabView> listTabRef = Hooks.UseRef<TabView>();
-
-            var listTabViewProps = new TabViewProps
-            {
-                SelectedIndex = listTabIndex,
-                Tabs = new List<TabViewProps.TabDef>
-                {
-                    new()
-                    {
-                        Title = "Intro",
-                        Content = () =>
-                            ReactiveUITK.V.Func(
-                                ReactiveUITK.Samples.Shared.IntroCounterFunc.Render
-                            ),
-                    },
-                    new()
-                    {
-                        Title = "List",
-                        Content = () =>
-                        {
-                            return ReactiveUITK.V.Func(
-                                ReactiveUITK.Samples.Shared.ListViewStatefulDemoFunc.Render,
-                                new Dictionary<string, object>
-                                {
-                                    {
-                                        "onCountChanged",
-                                        (Action<int>)(
-                                            c =>
-                                            {
-                                                if (c != simpleListCount)
-                                                    setSimpleListCount(c);
-                                            }
-                                        )
-                                    },
-                                }
-                            );
-                        },
-                    },
-                    new()
-                    {
-                        Title = "Columns",
-                        Content = () =>
-                            ReactiveUITK.V.Func(
-                                ReactiveUITK
-                                    .Samples
-                                    .Shared
-                                    .MultiColumnListViewStatefulDemoFunc
-                                    .Render,
-                                new Dictionary<string, object>
-                                {
-                                    {
-                                        "onCountChanged",
-                                        (Action<int>)(
-                                            c =>
-                                            {
-                                                if (c != mclvDisplayCount)
-                                                    setMclvDisplayCount(c);
-                                            }
-                                        )
-                                    },
-                                }
-                            ),
-                    },
-                },
-                Style = new Style { (Height, 240f) },
-                Ref = listTabRef,
-            };
-
-            // Toggle visibility of each TabView (state on main component)
-            var (showTreeTabs, setShowTreeTabs) = Hooks.UseState(true);
-            var (showListTabs, setShowListTabs) = Hooks.UseState(true);
-            var toggleTreeTabsBtn = new ButtonProps
-            {
-                Text = showTreeTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
-                OnClick = () => setShowTreeTabs(!showTreeTabs),
-            };
-            var toggleListTabsBtn = new ButtonProps
-            {
-                Text = showListTabs ? "Hide List Tabs" : "Show List Tabs",
-                OnClick = () => setShowListTabs(!showListTabs),
-            };
-
-            // Build Values bar items
-            // ListCount shows sum of: TreeView + MultiColumnTreeView + ListView + MultiColumnListView
-            int totalListCount =
-                treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
-            var valuesItems = new List<KeyValuePair<string, string>>
-            {
-                new("TextField", inputText ?? string.Empty),
-                new("Toggle", isOptionEnabled.ToString()),
-                new("RadioSingle", isRadioSingleSelected.ToString()),
-                new("RadioIndex", selectionIndex.ToString()),
-                new("Slider", sliderValue.ToString("F2")),
-                new("SliderInt", sliderIntValue.ToString()),
-                new("Dropdown", ddValue ?? string.Empty),
-                new("Repeat", repeatClickCount.ToString()),
-                new("Time", currentTime.ToLongTimeString()),
-                new("ListCount", totalListCount.ToString()),
-            };
-
-            // Props for frequently used controls (avoid inline props)
             var toggleProps = new ToggleProps
             {
                 Text = "Enable option",
                 Value = isOptionEnabled,
                 OnChange = e => setOptionEnabled(e.newValue),
             };
+
             var radioSingleProps = new RadioButtonProps
             {
                 Text = "Single radio",
                 Value = isRadioSingleSelected,
                 OnChange = e => setRadioSingleSelected(e.newValue),
             };
+
             var radioGroupProps = new RadioButtonGroupProps
             {
                 Choices = selectionChoices,
                 Index = selectionIndex,
                 OnChange = e => setSelectionIndex(e.newValue),
             };
+
             var progressBarProps = new ProgressBarProps
             {
                 Value = repeatClickCount % 100,
                 Title = "Progress",
             };
+
             var repeatButtonProps = new RepeatButtonProps
             {
                 Text = $"Repeat ({repeatClickCount})",
                 OnClick = () => setRepeatClickCount(repeatClickCount + 1),
             };
-            // Batch test button: triggers multiple state updates in a single click (animNonce defined first for clarity).
-            var (animNonce, setAnimNonce) = Hooks.UseState(0);
-            var (batchClicks, setBatchClicks) = Hooks.UseState(0);
+
             var repeatPulseTracks = Hooks.UseMemo(
                 () =>
                     new List<AnimateTrack>
                     {
-                        // Stronger visibility on the button
                         new AnimateTrack
                         {
                             Property = "opacity",
@@ -897,7 +250,6 @@ namespace ReactiveUITK.Samples.Shared
                             Yoyo = true,
                             Loop = true,
                         },
-                        // Gentle bob
                         new AnimateTrack
                         {
                             Property = "translateY",
@@ -908,7 +260,6 @@ namespace ReactiveUITK.Samples.Shared
                             Yoyo = true,
                             Loop = true,
                         },
-                        // Subtle size breathing via padding
                         new AnimateTrack
                         {
                             Property = "paddingLeft",
@@ -932,29 +283,27 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 0
             );
-            // Multi-attribute animation demo controls
+
             var batchTestButtonProps = new ButtonProps
             {
                 Text = $"Batch Test ({batchClicks})",
                 OnClick = () =>
                 {
-                    // Value update (direct)
                     setBatchClicks(batchClicks + 1);
-                    // Functional updates via extension .Set (language limitation prevents lambda direct to struct parameter)
-                    setRepeatClickCount.Set(c => c + 1);
-                    setRepeatClickCount.Set(c => c + 1); // second increment
-                    setSliderValue.Set(v => Mathf.Clamp01(v + 0.05f));
-                    setSliderIntValue.Set(v => (v + 1) % 11);
+                    setRepeatClickCount.Set(value => value + 1);
+                    setRepeatClickCount.Set(value => value + 1);
+                    setSliderValue.Set(value => Mathf.Clamp01(value + 0.05f));
+                    setSliderIntValue.Set(value => (value + 1) % 11);
                     setOptionEnabled(!isOptionEnabled);
-                    setAnimNonce.Set(n => n + 1);
+                    setAnimNonce.Set(value => value + 1);
                 },
                 Style = new Style { (MarginLeft, 6f) },
             };
+
             var multiTracks = Hooks.UseMemo(
                 () =>
                     new List<AnimateTrack>
                     {
-                        // Fade + slide in
                         new AnimateTrack
                         {
                             Property = "opacity",
@@ -971,7 +320,6 @@ namespace ReactiveUITK.Samples.Shared
                             Duration = 0.5f,
                             Ease = Ease.EaseOutCubic,
                         },
-                        // Size breathing
                         new AnimateTrack
                         {
                             Property = "width",
@@ -992,7 +340,6 @@ namespace ReactiveUITK.Samples.Shared
                             Yoyo = true,
                             Loop = true,
                         },
-                        // Tint to white
                         new AnimateTrack
                         {
                             Property = "backgroundColor",
@@ -1004,7 +351,7 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 animNonce
             );
-            // Former inline memo for flashing box tracks moved here to keep hook order stable.
+
             var flashAnimTracks = Hooks.UseMemo(
                 () =>
                     new List<AnimateTrack>
@@ -1013,204 +360,7 @@ namespace ReactiveUITK.Samples.Shared
                         {
                             Property = "opacity",
                             From = 1f,
-                // Effects placed AFTER all state/memo hooks to keep hook order validation stable.
-                Hooks.UseEffect(
-                    () =>
-                    {
-                        var tabView = treeTabRef?.Value;
-                        if (tabView == null)
-                        {
-                            return null;
-                        }
-
-                        int tabCount = tabView.childCount;
-                        bool suppressSelectionEvent = false;
-                        if (tabCount == 0)
-                        {
-                            if (treeTabIndex != 0)
-                            {
-                                setTreeTabIndex(0);
-                            }
-                        }
-                        else
-                        {
-                            if (treeTabIndex >= tabCount)
-                            {
-                                setTreeTabIndex(tabCount - 1);
-                            }
-                            else if (treeTabIndex >= 0)
-                            {
-                                int currentIndex = GetTabViewSelectedIndex(tabView);
-                                if (currentIndex != treeTabIndex)
-                                {
-                                    suppressSelectionEvent = true;
-                                    SetTabViewSelectedIndex(tabView, treeTabIndex);
-                                }
-                            }
-                        }
-
-                        Action unsubscribe = SubscribeTabSelection(
-                            tabView,
-                            () =>
-                            {
-                                if (suppressSelectionEvent)
-                                {
-                                    suppressSelectionEvent = false;
-                                    return;
-                                }
-                                int current = GetTabViewSelectedIndex(tabView);
-                                if (current < 0)
-                                {
-                                    current = 0;
-                                }
-                                if (current != treeTabIndex)
-                                {
-                                    setTreeTabIndex(current);
-                                }
-                            }
-                        );
-
-                        IVisualElementScheduledItem pollItem = null;
-                        if (unsubscribe == null)
-                        {
-                            pollItem = tabView
-                                .schedule.Execute(
-                                    () =>
-                                    {
-                                        suppressSelectionEvent = false;
-                                        int current = GetTabViewSelectedIndex(tabView);
-                                        if (current < 0)
-                                        {
-                                            current = 0;
-                                        }
-                                        if (current != treeTabIndex)
-                                        {
-                                            setTreeTabIndex(current);
-                                        }
-                                    }
-                                )
-                                .Every(150);
-                        }
-
-                        return () =>
-                        {
-                            try
-                            {
-                                unsubscribe?.Invoke();
-                            }
-                            catch { }
-                            if (pollItem != null)
-                            {
-                                try
-                                {
-                                    pollItem.Pause();
-                                }
-                                catch { }
-                            }
-                        };
-                    },
-                    treeTabRef?.Value,
-                    treeTabIndex
-                );
-                Hooks.UseEffect(
-                    () =>
-                    {
-                        var tabView = listTabRef?.Value;
-                        if (tabView == null)
-                        {
-                            return null;
-                        }
-
-                        int tabCount = tabView.childCount;
-                        bool suppressSelectionEvent = false;
-                        if (tabCount == 0)
-                        {
-                            if (listTabIndex != 0)
-                            {
-                                setListTabIndex(0);
-                            }
-                        }
-                        else
-                        {
-                            if (listTabIndex >= tabCount)
-                            {
-                                setListTabIndex(tabCount - 1);
-                            }
-                            else if (listTabIndex >= 0)
-                            {
-                                int currentIndex = GetTabViewSelectedIndex(tabView);
-                                if (currentIndex != listTabIndex)
-                                {
-                                    suppressSelectionEvent = true;
-                                    SetTabViewSelectedIndex(tabView, listTabIndex);
-                                }
-                            }
-                        }
-
-                        Action unsubscribe = SubscribeTabSelection(
-                            tabView,
-                            () =>
-                            {
-                                if (suppressSelectionEvent)
-                                {
-                                    suppressSelectionEvent = false;
-                                    return;
-                                }
-                                int current = GetTabViewSelectedIndex(tabView);
-                                if (current < 0)
-                                {
-                                    current = 0;
-                                }
-                                if (current != listTabIndex)
-                                {
-                                    setListTabIndex(current);
-                                }
-                            }
-                        );
-
-                        IVisualElementScheduledItem pollItem = null;
-                        if (unsubscribe == null)
-                        {
-                            pollItem = tabView
-                                .schedule.Execute(
-                                    () =>
-                                    {
-                                        suppressSelectionEvent = false;
-                                        int current = GetTabViewSelectedIndex(tabView);
-                                        if (current < 0)
-                                        {
-                                            current = 0;
-                                        }
-                                        if (current != listTabIndex)
-                                        {
-                                            setListTabIndex(current);
-                                        }
-                                    }
-                                )
-                                .Every(150);
-                        }
-
-                        return () =>
-                        {
-                            try
-                            {
-                                unsubscribe?.Invoke();
-                            }
-                            catch { }
-                            if (pollItem != null)
-                            {
-                                try
-                                {
-                                    pollItem.Pause();
-                                }
-                                catch { }
-                            }
-                        };
-                    },
-                    listTabRef?.Value,
-                    listTabIndex
-                );
-                Hooks.UseEffect(
+                            To = 0.3f,
                             Duration = 0.8f,
                             Ease = Ease.EaseInOutSine,
                             Yoyo = true,
@@ -1219,7 +369,7 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 0
             );
-            // Timer effect placed AFTER all state/memo hooks to avoid order mismatches.
+
             Hooks.UseEffect(
                 () =>
                 {
@@ -1227,31 +377,22 @@ namespace ReactiveUITK.Samples.Shared
                     {
                         return null;
                     }
-                    var timerHandle = rootElement
-                        .schedule.Execute(() => setCurrentTime.Set(DateTime.Now))
-                        .Every(1000);
+
+                    var timerHandle = rootElement.schedule.Execute(() => setCurrentTime.Set(DateTime.Now)).Every(1000);
                     return () =>
                     {
                         try
                         {
                             timerHandle?.Pause();
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     };
                 },
                 Array.Empty<object>()
             );
-            var animCardStyle = new Style
-            {
-                (Width, 120f),
-                (Height, 32f),
-                (BackgroundColor, new UColor(0.9f, 0.95f, 1f, 1f)),
-                (BorderRadius, 6f),
-                (MarginTop, 6f),
-                (AlignItems, "center"),
-                (JustifyContent, "center"),
-            };
-            // Button near text field to change its value
+
             var setTextButtonProps = new ButtonProps
             {
                 Text = "Set Text",
@@ -1259,81 +400,183 @@ namespace ReactiveUITK.Samples.Shared
                 Style = new Style { (MarginLeft, 6f), (Height, 28f) },
             };
 
-            // Original page content grouped for ScrollView
+            var tabViewProps = new TabViewProps
+            {
+                SelectedTabIndex = treeTabIndex,
+                SelectedIndexChanged = (Action<int>)(index => setTreeTabIndex(index)),
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                    new()
+                    {
+                        Title = "Intro",
+                        Content = () => ReactiveUITK.V.Func(Shared.IntroCounterFunc.Render),
+                    },
+                    new()
+                    {
+                        Title = "Tree",
+                        Content = () =>
+                            V.Func(
+                                TreeViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != treeDisplayCount)
+                                            {
+                                                setTreeDisplayCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                    new()
+                    {
+                        Title = "Columns",
+                        Content = () =>
+                            V.Func(
+                                MultiColumnTreeViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != mctvDisplayCount)
+                                            {
+                                                setMctvDisplayCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                },
+                Style = new Style { (Height, 240f) },
+            };
+
+            var listTabViewProps = new TabViewProps
+            {
+                SelectedTabIndex = listTabIndex,
+                SelectedIndexChanged = (Action<int>)(index => setListTabIndex(index)),
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                    new()
+                    {
+                        Title = "Intro",
+                        Content = () => ReactiveUITK.V.Func(Shared.IntroCounterFunc.Render),
+                    },
+                    new()
+                    {
+                        Title = "List",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                ListViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != simpleListCount)
+                                            {
+                                                setSimpleListCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                    new()
+                    {
+                        Title = "Columns",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                MultiColumnListViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != mclvDisplayCount)
+                                            {
+                                                setMclvDisplayCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                },
+                Style = new Style { (Height, 240f) },
+            };
+
+            int totalListCount = treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
+
+            var valuesItems = new List<KeyValuePair<string, string>>
+            {
+                new("TextField", inputText ?? string.Empty),
+                new("Toggle", isOptionEnabled.ToString()),
+                new("RadioSingle", isRadioSingleSelected.ToString()),
+                new("RadioIndex", selectionIndex.ToString()),
+                new("Slider", sliderValue.ToString("F2")),
+                new("SliderInt", sliderIntValue.ToString()),
+                new("Dropdown", ddValue ?? string.Empty),
+                new("Repeat", repeatClickCount.ToString()),
+                new("Time", currentTime.ToLongTimeString()),
+                new("TreeTab", treeTabIndex.ToString()),
+                new("ListTab", listTabIndex.ToString()),
+                new("ListCount", totalListCount.ToString()),
+            };
+
+            var toggleTreeTabsBtn = new ButtonProps
+            {
+                Text = showTreeTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
+                OnClick = () => setShowTreeTabs(!showTreeTabs),
+            };
+
+            var toggleListTabsBtn = new ButtonProps
+            {
+                Text = showListTabs ? "Hide List Tabs" : "Show List Tabs",
+                OnClick = () => setShowListTabs(!showListTabs),
+            };
+
             VirtualNode PageBody() =>
                 V.VisualElement(
                     new Dictionary<string, object> { { "style", PageStyle } },
-                    key: "shared-page-root",
+                    null,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", TopBarStyle } },
-                        key: "top-bar",
-                        V.VisualElement(
-                            new Dictionary<string, object> { { "style", LeftBoxStyle } },
-                            key: "left-box",
-                            V.Text("Left")
-                        ),
-                        V.TextField(inputTextFieldProps, key: "input-field"),
-                        V.Button(setTextButtonProps, key: "set-text-btn"),
-                        V.VisualElement(
-                            new Dictionary<string, object> { { "style", RightBoxStyle } },
-                            key: "right-box",
-                            V.Text("Right")
-                        )
+                        null,
+                        V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
+                        V.TextField(inputTextFieldProps),
+                        V.Button(setTextButtonProps),
+                        V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                     ),
-                    V.Label(
-                        new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() },
-                        key: "time-label"
-                    ),
+                    V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
-                        key: "extras",
-                        V.Label(new LabelProps { Text = "Extras" }, key: "extras-label"),
-                        V.GroupBox(
-                            groupBox1Props,
-                            key: "group-box-1",
-                            V.Label(new LabelProps { Text = "Inside group" }, key: "inner-one")
-                        ),
-                        V.Toggle(toggleProps, key: "toggle"),
-                        V.RadioButton(radioSingleProps, key: "single-radio"),
-                        V.RadioButtonGroup(
-                            radioGroupProps,
-                            key: "radio-group",
-                            V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
-                        ),
-                        V.ProgressBar(progressBarProps, key: "progress"),
-                        V.Button(batchTestButtonProps, key: "batch-test-btn"),
-                        V.Animate(
-                            new AnimateProps { Tracks = repeatPulseTracks },
-                            key: "repeat-anim",
-                            V.RepeatButton(repeatButtonProps, key: "repeat-btn")
-                        )
+                        null,
+                        V.Label(new LabelProps { Text = "Extras" }),
+                        V.GroupBox(groupBox1Props, null, V.Label(new LabelProps { Text = "Inside group" })),
+                        V.Toggle(toggleProps),
+                        V.RadioButton(radioSingleProps),
+                        V.RadioButtonGroup(radioGroupProps, null, V.Label(new LabelProps { Text = "Pick one" })),
+                        V.ProgressBar(progressBarProps),
+                        V.Button(batchTestButtonProps),
+                        V.Animate(new AnimateProps { Tracks = repeatPulseTracks }, null, V.RepeatButton(repeatButtonProps))
                     ),
-                    // New components demo section
                     V.GroupBox(
                         newComponentsGroupProps,
-                        key: "new-components",
-                        // Foldout first (ensure visibility)
-                        V.Foldout(
-                            foldoutProps,
-                            key: "foldout-demo",
-                            V.Label(
-                                new LabelProps { Text = "Inside foldout" },
-                                key: "foldout-label"
-                            )
-                        ),
-                        // Image demo (uses background color when no sprite/texture)
-                        V.Image(imageProps, key: "img-demo"),
-                        // Slider demo
-                        V.Label(
-                            new LabelProps { Text = $"Slider: {sliderValue:F2}" },
-                            key: "slider-label"
-                        ),
-                        V.Slider(sliderProps, key: "slider"),
-                        // SliderInt demo
-                        V.Label(
-                            new LabelProps { Text = $"SliderInt: {sliderIntValue}" },
-                            key: "slider-int-label"
-                        ),
+                        null,
+                        V.Foldout(foldoutProps, null, V.Label(new LabelProps { Text = "Inside foldout" })),
+                        V.Image(imageProps),
+                        V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
+                        V.Slider(sliderProps),
+                        V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
                         V.SliderInt(
                             new SliderIntProps
                             {
@@ -1341,10 +584,8 @@ namespace ReactiveUITK.Samples.Shared
                                 HighValue = 10,
                                 Value = sliderIntValue,
                                 OnChange = e => setSliderIntValue.Set(e.newValue),
-                            },
-                            key: "slider-int"
+                            }
                         ),
-                        // HelpBox demo (Editor-only)
 #if UNITY_EDITOR
                         V.HelpBox(
                             new HelpBoxProps
@@ -1354,35 +595,22 @@ namespace ReactiveUITK.Samples.Shared
                                         ? "error"
                                         : (sliderIntValue % 2 == 0 ? "warning" : "info"),
                                 Text = "This is a HelpBox showing state-driven message type.",
-                            },
-                            key: "help-box"
+                            }
                         ),
 #endif
-                        // Dropdown demo
-                        V.DropdownField(dropdownProps, key: "dropdown"),
-                        // Multi-attribute animation example (control removed to avoid parse issues)
-                        V.Label(
-                            new LabelProps { Text = "Multi-Attr Animation" },
-                            key: "multi-anim-label"
-                        )
+                        V.DropdownField(dropdownProps),
+                        V.Label(new LabelProps { Text = "Multi-Attr Animation" })
                     ),
-                    // Toggle buttons to show/hide each TabView (grouped separately)
-                    // Toggle block for Tree TabView with persistent container to avoid layout expansion on re-mount
                     V.VisualElement(
                         null,
-                        key: "tree-tabs-toggle",
-                        V.Button(toggleTreeTabsBtn, key: "tree-tabs-btn"),
+                        null,
+                        V.Button(toggleTreeTabsBtn),
                         V.Label(
                             new LabelProps
                             {
                                 Text = "TabView + TreeView",
-                                Style = new Style
-                                {
-                                    (FontSize, 16f),
-                                    (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
-                                },
-                            },
-                            key: "tree-tabs-label"
+                                Style = new Style { (FontSize, 16f), (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)) },
+                            }
                         ),
                         V.VisualElement(
                             new Dictionary<string, object>
@@ -1391,40 +619,29 @@ namespace ReactiveUITK.Samples.Shared
                                     "style",
                                     new Style
                                     {
-                                        // Allow natural height but cap it; remove hard height to improve page scroll
                                         (MaxHeight, 500f),
                                         (FlexGrow, 0f),
                                         (StyleKeys.Display, showTreeTabs ? "flex" : "none"),
                                         (StyleKeys.FlexDirection, "column"),
-                                        // Visible overflow so internal TabView scroll areas can contribute to outer ScrollView
                                         (StyleKeys.Overflow, "visible"),
                                     }
                                 },
                             },
-                            key: "tree-tabview-container",
-                            // Always keep TabView mounted so internal layout/state is stable
-                            V.TabView(tabViewProps, key: "tree-tabview")
+                            null,
+                            V.TabView(tabViewProps)
                         ),
-                        !showTreeTabs
-                            ? V.Text("Tree tabs hidden", key: "tree-tabs-hidden-msg")
-                            : null
+                        showTreeTabs ? V.Fragment() : V.Text("Tree tabs hidden")
                     ),
-                    // Toggle block for List TabView with persistent container
                     V.VisualElement(
                         null,
-                        key: "list-tabs-toggle",
-                        V.Button(toggleListTabsBtn, key: "list-tabs-btn"),
+                        null,
+                        V.Button(toggleListTabsBtn),
                         V.Label(
                             new LabelProps
                             {
                                 Text = "TabView + ListViews",
-                                Style = new Style
-                                {
-                                    (FontSize, 16f),
-                                    (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
-                                },
-                            },
-                            key: "list-tabs-label"
+                                Style = new Style { (FontSize, 16f), (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)) },
+                            }
                         ),
                         V.VisualElement(
                             new Dictionary<string, object>
@@ -1441,19 +658,15 @@ namespace ReactiveUITK.Samples.Shared
                                     }
                                 },
                             },
-                            key: "list-tabview-container",
-                            V.TabView(listTabViewProps, key: "list-tabview")
+                            null,
+                            V.TabView(listTabViewProps)
                         ),
-                        !showListTabs
-                            ? V.Text("List tabs hidden", key: "list-tabs-hidden-msg")
-                            : null
+                        showListTabs ? V.Fragment() : V.Text("List tabs hidden")
                     ),
-                    // Animations section (moved to bottom)
-                    V.Label(new LabelProps { Text = "Animations" }, key: "animations-label"),
-                    // Simple flashing box
+                    V.Label(new LabelProps { Text = "Animations" }),
                     V.Animate(
                         new AnimateProps { Tracks = flashAnimTracks },
-                        key: "flash-anim",
+                        null,
                         V.VisualElement(
                             new Dictionary<string, object>
                             {
@@ -1471,21 +684,13 @@ namespace ReactiveUITK.Samples.Shared
                                     }
                                 },
                             },
-                            key: "flash-anim-box",
-                            V.Label(
-                                new LabelProps
-                                {
-                                    Text = "Flashing Box",
-                                    Style = new Style { (TextColor, UColor.white) },
-                                },
-                                key: "flash-anim-label"
-                            )
+                            null,
+                            V.Label(new LabelProps { Text = "Flashing Box", Style = new Style { (TextColor, UColor.white) } })
                         )
                     ),
-                    // Animated card using existing multiTracks
                     V.Animate(
                         new AnimateProps { Tracks = multiTracks },
-                        key: "multi-anim",
+                        null,
                         V.VisualElement(
                             new Dictionary<string, object>
                             {
@@ -1503,34 +708,23 @@ namespace ReactiveUITK.Samples.Shared
                                     }
                                 },
                             },
-                            key: "multi-anim-box",
-                            V.Label(
-                                new LabelProps { Text = "Animated Card" },
-                                key: "multi-anim-label"
-                            )
+                            null,
+                            V.Label(new LabelProps { Text = "Animated Card" })
                         )
                     )
                 );
 
-            // Outer wrapper (blue full-screen) -> Safe area wrapper (green)
-            // Inside safe area: Values bar (top, fixed in layout) + ScrollView (body)
             return V.VisualElement(
                 outerWrapperProps,
-                key: "outer-wrap",
+                null,
                 V.VisualElementSafe(
                     safeWrapperStyle,
-                    key: "safe-wrap",
-                    // Values bar docked at top; fixed height via minHeight
+                    null,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", barSlotStyle } },
-                        key: "values-bar-slot",
-                        V.Func(
-                            ValuesBarFunc.Render,
-                            new Dictionary<string, object> { { "items", valuesItems } },
-                            key: "values-bar-content"
-                        )
+                        null,
+                        V.Func(ValuesBarFunc.Render, new Dictionary<string, object> { { "items", valuesItems } })
                     ),
-                    // Main scrollable content (direct ScrollView for stability)
                     V.ScrollView(
                         new ScrollViewProps
                         {
@@ -1538,360 +732,11 @@ namespace ReactiveUITK.Samples.Shared
                             Style = mainScrollStyle,
                             Name = "main-scroll",
                         },
-                        key: "main-scroll",
+                        null,
                         PageBody()
                     )
                 )
             );
         }
-
-        private static int GetTabViewSelectedIndex(TabView tabView)
-        {
-            if (tabView == null)
-            {
-                return 0;
-            }
-
-            var viewType = tabView.GetType();
-            foreach (var propertyName in TabSelectedIndexPropertyNames)
-            {
-                var property = viewType.GetProperty(
-                    propertyName,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                );
-                if (property == null || !property.CanRead || property.PropertyType != typeof(int))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    return (int)property.GetValue(tabView);
-                }
-                catch
-                {
-                    // ignore and continue probing other options
-                }
-            }
-
-            foreach (
-                var method in viewType.GetMethods(
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                )
-            )
-            {
-                if (method.ReturnType != typeof(int) || method.GetParameters().Length != 0)
-                {
-                    continue;
-                }
-
-                if (method.Name.IndexOf("Selected", StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    return (int)method.Invoke(tabView, Array.Empty<object>());
-                }
-                catch
-                {
-                    // ignore and continue
-                }
-            }
-
-            var selectedTabProperty = viewType.GetProperty(
-                "selectedTab",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
-            if (selectedTabProperty != null && selectedTabProperty.CanRead)
-            {
-                try
-                {
-                    if (selectedTabProperty.GetValue(tabView) is Tab selectedTab)
-                    {
-                        int tabIndex = GetIndexOfTab(tabView, selectedTab);
-                        if (tabIndex >= 0)
-                        {
-                            return tabIndex;
-                        }
-                    }
-                }
-                catch
-                {
-                    // ignore and fall through
-                }
-            }
-
-            return 0;
-        }
-
-        private static void SetTabViewSelectedIndex(TabView tabView, int index)
-        {
-            if (tabView == null)
-            {
-                return;
-            }
-
-            var viewType = tabView.GetType();
-            foreach (var propertyName in TabSelectedIndexPropertyNames)
-            {
-                var property = viewType.GetProperty(
-                    propertyName,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                );
-                if (property == null || !property.CanWrite || property.PropertyType != typeof(int))
-                {
-                    continue;
-                }
-
-                try
-                {
-                    property.SetValue(tabView, index);
-                    return;
-                }
-                catch
-                {
-                    // ignore and continue probing
-                }
-            }
-
-            foreach (
-                var method in viewType.GetMethods(
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                )
-            )
-            {
-                var parameters = method.GetParameters();
-                if (parameters.Length != 1)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    if (
-                        parameters[0].ParameterType == typeof(int)
-                        && method.Name.IndexOf("Select", StringComparison.OrdinalIgnoreCase) >= 0
-                    )
-                    {
-                        method.Invoke(tabView, new object[] { index });
-                        return;
-                    }
-
-                    if (typeof(Tab).IsAssignableFrom(parameters[0].ParameterType))
-                    {
-                        var tab = GetTabAtIndex(tabView, index);
-                        if (tab == null)
-                        {
-                            continue;
-                        }
-                        method.Invoke(tabView, new object[] { tab });
-                        return;
-                    }
-                }
-                catch
-                {
-                    // ignore and continue probing
-                }
-            }
-
-            var selectedTabProperty = viewType.GetProperty(
-                "selectedTab",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
-            if (selectedTabProperty == null || !selectedTabProperty.CanWrite)
-            {
-                return;
-            }
-
-            var targetTab = GetTabAtIndex(tabView, index);
-            if (targetTab == null || !selectedTabProperty.PropertyType.IsInstanceOfType(targetTab))
-            {
-                return;
-            }
-
-            try
-            {
-                selectedTabProperty.SetValue(tabView, targetTab);
-            }
-            catch
-            {
-                // final fallback failed; nothing else to do
-            }
-        }
-
-        private static int GetIndexOfTab(TabView tabView, Tab tab)
-        {
-            if (tabView == null || tab == null)
-            {
-                return -1;
-            }
-
-            int idx = 0;
-            foreach (var candidate in EnumerateTabs(tabView))
-            {
-                if (ReferenceEquals(candidate, tab))
-                {
-                    return idx;
-                }
-
-                idx++;
-            }
-
-            return -1;
-        }
-
-        private static Tab GetTabAtIndex(TabView tabView, int index)
-        {
-            if (tabView == null || index < 0)
-            {
-                return null;
-            }
-
-            int idx = 0;
-            foreach (var candidate in EnumerateTabs(tabView))
-            {
-                if (idx == index)
-                {
-                    return candidate;
-                }
-
-                idx++;
-            }
-
-            return null;
-        }
-
-        private static IEnumerable<Tab> EnumerateTabs(TabView tabView)
-        {
-            if (tabView == null)
-            {
-                yield break;
-            }
-
-            foreach (var child in tabView.Children())
-            {
-                if (child is Tab tab && ReferenceEquals(tab.parent, tabView))
-                {
-                    yield return tab;
-                }
-            }
-        }
-
-        private static Action SubscribeTabSelection(TabView tabView, Action onSelectionChanged)
-        {
-            if (tabView == null || onSelectionChanged == null)
-            {
-                return null;
-            }
-
-            foreach (var eventName in TabSelectionEventNames)
-            {
-                var eventInfo = typeof(TabView).GetEvent(
-                    eventName,
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-                );
-                if (eventInfo == null)
-                {
-                    continue;
-                }
-
-                var handlerDelegate = CreateSelectionHandlerDelegate(
-                    eventInfo.EventHandlerType,
-                    onSelectionChanged
-                );
-                if (handlerDelegate == null)
-                {
-                    continue;
-                }
-
-                try
-                {
-                    eventInfo.AddEventHandler(tabView, handlerDelegate);
-                }
-                catch
-                {
-                    continue;
-                }
-
-                return () =>
-                {
-                    try
-                    {
-                        eventInfo.RemoveEventHandler(tabView, handlerDelegate);
-                    }
-                    catch { }
-                };
-            }
-
-            return null;
-        }
-
-        private static Delegate CreateSelectionHandlerDelegate(
-            Type handlerType,
-            Action onSelectionChanged
-        )
-        {
-            if (handlerType == null || onSelectionChanged == null)
-            {
-                return null;
-            }
-
-            MethodInfo invoke = handlerType.GetMethod("Invoke");
-            if (invoke == null)
-            {
-                return null;
-            }
-
-            var parameters = invoke.GetParameters();
-            try
-            {
-                switch (parameters.Length)
-                {
-                    case 0:
-                    {
-                        Action handler = onSelectionChanged;
-                        return Delegate.CreateDelegate(handlerType, handler.Target, handler.Method);
-                    }
-                    case 1:
-                    {
-                        var parameterType = parameters[0].ParameterType;
-                        if (parameterType == typeof(int))
-                        {
-                            Action<int> handler = _ => onSelectionChanged();
-                            return Delegate.CreateDelegate(handlerType, handler.Target, handler.Method);
-                        }
-                        if (parameterType == typeof(Tab))
-                        {
-                            Action<Tab> handler = _ => onSelectionChanged();
-                            return Delegate.CreateDelegate(handlerType, handler.Target, handler.Method);
-                        }
-                        Action<object> handlerFallback = _ => onSelectionChanged();
-                        return Delegate.CreateDelegate(
-                            handlerType,
-                            handlerFallback.Target,
-                            handlerFallback.Method
-                        );
-                    }
-                    case 2:
-                    {
-                        Action<object, object> handler = (_, __) => onSelectionChanged();
-                        return Delegate.CreateDelegate(
-                            handlerType,
-                            handler.Target,
-                            handler.Method
-                        );
-                    }
-                    default:
-                        return null;
-                }
-            }
-            catch
-            {
-                return null;
-            }
-        }
-}
-
+    }
 }
