@@ -89,6 +89,122 @@ namespace ReactiveUITK.Samples.Shared
 
         public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
+            static Dictionary<string, T> CloneDict<T>(IReadOnlyDictionary<string, T> source)
+            {
+                if (source == null)
+                    return null;
+                if (source.Count == 0)
+                    return new Dictionary<string, T>();
+                return new Dictionary<string, T>(source);
+            }
+
+            static bool DictEqual<T>(IReadOnlyDictionary<string, T> left, IReadOnlyDictionary<string, T> right)
+            {
+                if (ReferenceEquals(left, right))
+                    return true;
+                if (left == null || right == null)
+                    return false;
+                if (left.Count != right.Count)
+                    return false;
+                foreach (var kv in left)
+                {
+                    if (!right.TryGetValue(kv.Key, out var rv))
+                        return false;
+                    if (!EqualityComparer<T>.Default.Equals(kv.Value, rv))
+                        return false;
+                }
+                return true;
+            }
+
+            static MultiColumnListViewProps.ColumnLayoutState CloneListLayout(
+                MultiColumnListViewProps.ColumnLayoutState layout
+            )
+            {
+                if (layout == null)
+                    return null;
+                return new MultiColumnListViewProps.ColumnLayoutState
+                {
+                    ColumnWidths = CloneDict(layout.ColumnWidths),
+                    ColumnVisibility = CloneDict(layout.ColumnVisibility),
+                    ColumnDisplayIndex = CloneDict(layout.ColumnDisplayIndex),
+                };
+            }
+
+            static bool ListLayoutEqual(
+                MultiColumnListViewProps.ColumnLayoutState a,
+                MultiColumnListViewProps.ColumnLayoutState b
+            )
+            {
+                return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
+                    && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)
+                    && DictEqual(a?.ColumnDisplayIndex, b?.ColumnDisplayIndex);
+            }
+
+            static MultiColumnTreeViewProps.ColumnLayoutState CloneTreeLayout(
+                MultiColumnTreeViewProps.ColumnLayoutState layout
+            )
+            {
+                if (layout == null)
+                    return null;
+                return new MultiColumnTreeViewProps.ColumnLayoutState
+                {
+                    ColumnWidths = CloneDict(layout.ColumnWidths),
+                    ColumnVisibility = CloneDict(layout.ColumnVisibility),
+                    ColumnDisplayIndex = CloneDict(layout.ColumnDisplayIndex),
+                };
+            }
+
+            static bool TreeLayoutEqual(
+                MultiColumnTreeViewProps.ColumnLayoutState a,
+                MultiColumnTreeViewProps.ColumnLayoutState b
+            )
+            {
+                return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
+                    && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)
+                    && DictEqual(a?.ColumnDisplayIndex, b?.ColumnDisplayIndex);
+            }
+
+            static HashSet<int> BuildTreeValidIds(IReadOnlyList<TreeViewRowState> rows)
+            {
+                var set = new HashSet<int>();
+                if (rows == null)
+                    return set;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var row = rows[i];
+                    int baseId = row != null && row.Pid != 0 ? row.Pid : 1000 + (i * 2);
+                    if (baseId != 0)
+                        set.Add(baseId);
+                    if (row?.HasChild == true)
+                        set.Add(baseId + 1);
+                }
+                return set;
+            }
+
+            static List<int> PruneTreeExpandedIds(IReadOnlyList<TreeViewRowState> rows, IList<int> expanded)
+            {
+                if (expanded == null)
+                    return null;
+                var valid = BuildTreeValidIds(rows);
+                if (expanded.Count == 0)
+                    return expanded as List<int> ?? new List<int>();
+                var nextSet = new HashSet<int>();
+                bool changed = false;
+                for (int i = 0; i < expanded.Count; i++)
+                {
+                    var id = expanded[i];
+                    if (valid.Contains(id))
+                        nextSet.Add(id);
+                    else
+                        changed = true;
+                }
+                if (!changed && expanded is List<int> existingList && existingList.Count == nextSet.Count)
+                    return existingList;
+                var nextList = new List<int>(nextSet);
+                nextList.Sort();
+                return nextList;
+            }
+
             var (inputText, setInputText) = Hooks.UseState(string.Empty);
             var (isOptionEnabled, setOptionEnabled) = Hooks.UseState(false);
             var (isRadioSingleSelected, setRadioSingleSelected) = Hooks.UseState(false);
@@ -113,12 +229,16 @@ namespace ReactiveUITK.Samples.Shared
             var (animNonce, setAnimNonce) = Hooks.UseState(0);
             var (batchClicks, setBatchClicks) = Hooks.UseState(0);
             var (treeRows, setTreeRows) = Hooks.UseState(new List<TreeViewRowState>());
+            var (treeExpandedIds, setTreeExpandedIds) = Hooks.UseState(new List<int>());
+            var (_, setTreeNextPid) = Hooks.UseState(1000);
             var (mctvRows, setMctvRows) = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
             var (mctvNextPid, setMctvNextPid) = Hooks.UseState(2000);
             var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<MultiColumnTreeViewProps.SortedColumnDef>>(null);
             var (listRows, setListRows) = Hooks.UseState(new List<ListViewRowState>());
             var (mclvRows, setMclvRows) = Hooks.UseState(new List<MultiColumnListViewRowState>());
             var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<List<MultiColumnListViewProps.SortedColumnDef>>(null);
+            var (mctvLayout, setMctvLayout) = Hooks.UseState<MultiColumnTreeViewProps.ColumnLayoutState>(null);
+            var (mclvLayout, setMclvLayout) = Hooks.UseState<MultiColumnListViewProps.ColumnLayoutState>(null);
 
             TextFieldProps inputTextFieldProps = new()
             {
@@ -409,12 +529,20 @@ namespace ReactiveUITK.Samples.Shared
 
             Action treeAddParent = () =>
             {
+                int assignedPid = 0;
+                setTreeNextPid.Set(prev =>
+                {
+                    assignedPid = prev;
+                    return prev + 2;
+                });
+                List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
                     var next = prev != null ? new List<TreeViewRowState>(prev) : new List<TreeViewRowState>();
                     next.Add(
                         new TreeViewRowState
                         {
+                            Pid = assignedPid,
                             Parent = new SharedTreeRowItem
                             {
                                 Id = Guid.NewGuid().ToString("N"),
@@ -423,22 +551,29 @@ namespace ReactiveUITK.Samples.Shared
                             HasChild = false,
                         }
                     );
+                    latestRows = next;
                     return next;
                 });
+                if (latestRows != null)
+                {
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
             };
 
             Action treeAddChild = () =>
             {
+                List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
                         return prev;
-                    var next = new List<TreeViewRowState>(prev);
                     var source = prev[prev.Count - 1];
                     if (source == null)
                         return prev;
-                    var updated = new TreeViewRowState
+                    var next = new List<TreeViewRowState>(prev);
+                    next[next.Count - 1] = new TreeViewRowState
                     {
+                        Pid = source.Pid,
                         Parent = source.Parent,
                         Child = source.Child
                             ?? new SharedTreeRowItem
@@ -449,37 +584,46 @@ namespace ReactiveUITK.Samples.Shared
                             },
                         HasChild = true,
                     };
-                    next[next.Count - 1] = updated;
+                    latestRows = next;
                     return next;
                 });
+                if (latestRows != null)
+                {
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
             };
 
             Action treeSetParentValue = () =>
             {
+                List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
                         return prev;
-                    var next = new List<TreeViewRowState>(prev);
                     var source = prev[prev.Count - 1];
                     if (source == null)
                         return prev;
                     var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
-                    var updated = new TreeViewRowState
+                    var next = new List<TreeViewRowState>(prev);
+                    next[next.Count - 1] = new TreeViewRowState
                     {
+                        Pid = source.Pid,
                         Parent = parentItem,
                         Child = source.Child,
                         HasChild = source.HasChild,
                     };
-                    next[next.Count - 1] = updated;
+                    latestRows = next;
                     return next;
                 });
+                if (latestRows != null)
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
             };
 
             Action treeSetChildValue = () =>
             {
+                List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
@@ -498,23 +642,68 @@ namespace ReactiveUITK.Samples.Shared
                     var next = new List<TreeViewRowState>(prev);
                     next[next.Count - 1] = new TreeViewRowState
                     {
+                        Pid = source.Pid,
                         Parent = source.Parent,
                         Child = childItem,
                         HasChild = true,
                     };
+                    latestRows = next;
                     return next;
                 });
+                if (latestRows != null)
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
             };
 
             Action treeDeleteLast = () =>
             {
+                List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
                         return prev;
                     var next = new List<TreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
+                    latestRows = next;
                     return next;
+                });
+                if (latestRows != null)
+                {
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
+            };
+            Action<TreeViewExpansionChangedArgs> treeExpandedChanged = args =>
+            {
+                setTreeExpandedIds.Set(prev =>
+                {
+                    var nextSet = prev != null ? new HashSet<int>(prev) : new HashSet<int>();
+                    if (args != null)
+                    {
+                        if (args.isExpanded)
+                            nextSet.Add(args.id);
+                        else
+                            nextSet.Remove(args.id);
+                    }
+                    var valid = BuildTreeValidIds(treeRows);
+                    if (valid.Count > 0)
+                    {
+                        var removals = new List<int>();
+                        foreach (var id in nextSet)
+                        {
+                            if (!valid.Contains(id))
+                                removals.Add(id);
+                        }
+                        for (int i = 0; i < removals.Count; i++)
+                            nextSet.Remove(removals[i]);
+                    }
+                    var nextList = new List<int>(nextSet);
+                    nextList.Sort();
+                    if (prev != null && prev.Count == nextList.Count)
+                    {
+                        var prevSet = new HashSet<int>(prev);
+                        if (prevSet.SetEquals(nextSet))
+                            return prev;
+                    }
+                    return nextList;
                 });
             };
 
@@ -635,6 +824,14 @@ namespace ReactiveUITK.Samples.Shared
                 });
             };
 
+            Action<MultiColumnTreeViewProps.ColumnLayoutState> mctvLayoutChanged = layout =>
+            {
+                var clone = CloneTreeLayout(layout);
+                if (TreeLayoutEqual(clone, mctvLayout))
+                    return;
+                setMctvLayout.Set(_ => clone);
+            };
+
             Action<List<MultiColumnTreeViewProps.SortedColumnDef>> mctvSortChanged = defs =>
             {
                 setMctvSortDefs(defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null);
@@ -752,6 +949,14 @@ namespace ReactiveUITK.Samples.Shared
                 });
             };
 
+            Action<MultiColumnListViewProps.ColumnLayoutState> mclvLayoutChanged = layout =>
+            {
+                var clone = CloneListLayout(layout);
+                if (ListLayoutEqual(clone, mclvLayout))
+                    return;
+                setMclvLayout.Set(_ => clone);
+            };
+
             Action<List<MultiColumnListViewProps.SortedColumnDef>> mclvSortChanged = defs =>
             {
                 setMclvSortDefs(defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null);
@@ -782,6 +987,8 @@ namespace ReactiveUITK.Samples.Shared
                                     { "setParent", treeSetParentValue },
                                     { "setChild", treeSetChildValue },
                                     { "deleteLast", treeDeleteLast },
+                                    { "expandedItemIds", treeExpandedIds },
+                                    { "onExpandedChanged", treeExpandedChanged },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>
@@ -805,12 +1012,16 @@ namespace ReactiveUITK.Samples.Shared
                                 {
                                     { "rows", mctvRows },
                                     { "sortDefs", mctvSortDefs },
+                                    { "columnWidths", mctvLayout?.ColumnWidths },
+                                    { "columnVisibility", mctvLayout?.ColumnVisibility },
+                                    { "columnDisplayIndex", mctvLayout?.ColumnDisplayIndex },
                                     { "addParent", mctvAddParent },
                                     { "addChild", mctvAddChild },
                                     { "setParent", mctvSetParentValue },
                                     { "setChild", mctvSetChildValue },
                                     { "deleteLast", mctvDeleteLast },
                                     { "onSortChanged", mctvSortChanged },
+                                    { "onLayoutChanged", mctvLayoutChanged },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>
@@ -874,10 +1085,14 @@ namespace ReactiveUITK.Samples.Shared
                                 {
                                     { "items", mclvRows },
                                     { "sortDefs", mclvSortDefs },
+                                    { "columnWidths", mclvLayout?.ColumnWidths },
+                                    { "columnVisibility", mclvLayout?.ColumnVisibility },
+                                    { "columnDisplayIndex", mclvLayout?.ColumnDisplayIndex },
                                     { "addItem", mclvAddItem },
                                     { "setTopItem", mclvSetTopItem },
                                     { "deleteLast", mclvDeleteLast },
                                     { "onSortChanged", mclvSortChanged },
+                                    { "onLayoutChanged", mclvLayoutChanged },
                                     {
                                         "onCountChanged",
                                         (Action<int>)(count =>

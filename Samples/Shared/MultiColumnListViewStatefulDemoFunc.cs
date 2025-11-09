@@ -20,6 +20,38 @@ namespace ReactiveUITK.Samples.Shared
             IReadOnlyList<VirtualNode> children
         )
         {
+            static Dictionary<string, T> ExtractDict<T>(object source)
+            {
+                if (source is Dictionary<string, T> direct)
+                    return direct;
+                if (source is IDictionary<string, T> dict)
+                    return new Dictionary<string, T>(dict);
+                if (source is IReadOnlyDictionary<string, T> ro)
+                    return new Dictionary<string, T>(ro);
+                if (source is IDictionary<string, object> objMap)
+                {
+                    var result = new Dictionary<string, T>();
+                    foreach (var kv in objMap)
+                    {
+                        try
+                        {
+                            if (kv.Value is T tv)
+                            {
+                                result[kv.Key] = tv;
+                            }
+                            else if (kv.Value != null)
+                            {
+                                var converted = (T)Convert.ChangeType(kv.Value, typeof(T));
+                                result[kv.Key] = converted;
+                            }
+                        }
+                        catch { }
+                    }
+                    return result;
+                }
+                return null;
+            }
+
             var items =
                 props != null
                 && props.TryGetValue("items", out var itemsObj)
@@ -32,6 +64,24 @@ namespace ReactiveUITK.Samples.Shared
                 && props.TryGetValue("sortDefs", out var sortObj)
                 && sortObj is List<MultiColumnListViewProps.SortedColumnDef> typedSort
                     ? typedSort
+                    : null;
+
+            var columnWidths =
+                props != null
+                && props.TryGetValue("columnWidths", out var widthsObj)
+                    ? ExtractDict<float>(widthsObj)
+                    : null;
+
+            var columnVisibility =
+                props != null
+                && props.TryGetValue("columnVisibility", out var visibilityObj)
+                    ? ExtractDict<bool>(visibilityObj)
+                    : null;
+
+            var columnDisplayIndex =
+                props != null
+                && props.TryGetValue("columnDisplayIndex", out var displayObj)
+                    ? ExtractDict<int>(displayObj)
                     : null;
 
             var addItem =
@@ -61,6 +111,22 @@ namespace ReactiveUITK.Samples.Shared
                 && sortChangedObj is Action<List<MultiColumnListViewProps.SortedColumnDef>> sortChangedAction
                     ? sortChangedAction
                     : null;
+
+            Delegate columnLayoutChanged = null;
+            if (props != null && props.TryGetValue("onLayoutChanged", out var layoutChangedObj))
+            {
+                if (layoutChangedObj is Delegate del)
+                {
+                    columnLayoutChanged = del;
+                }
+                else if (
+                    layoutChangedObj
+                    is Hooks.StateSetter<MultiColumnListViewProps.ColumnLayoutState> setter
+                )
+                {
+                    columnLayoutChanged = setter.ToValueAction();
+                }
+            }
 
             var columns = Hooks.UseMemo(
                 () =>
@@ -181,6 +247,10 @@ namespace ReactiveUITK.Samples.Shared
                 SortingMode = ColumnSortingMode.Custom,
                 SortedColumns = sortDefs,
                 ColumnSortingChanged = sortChanged ?? (_ => { }),
+                ColumnWidths = columnWidths,
+                ColumnVisibility = columnVisibility,
+                ColumnDisplayIndex = columnDisplayIndex,
+                ColumnLayoutChanged = columnLayoutChanged,
                 Style = new Style { (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 30f) },
             };
 

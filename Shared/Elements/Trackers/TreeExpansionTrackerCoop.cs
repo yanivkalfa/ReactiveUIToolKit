@@ -20,6 +20,7 @@ namespace ReactiveUITK.Elements
                 return;
 
             // stopTrackingUserChange
+            state.TrackUserExpansion = true;
             if (props != null && props.TryGetValue("stopTrackingUserChange", out var stopObj))
                 state.TrackUserExpansion = !(stopObj is bool b && b);
 
@@ -49,8 +50,8 @@ namespace ReactiveUITK.Elements
             }
 
             // Our internal tracker only when no user handler
-            bool shouldAttach = state.TrackUserExpansion && state.UserExpandedHandler == null;
-            if (shouldAttach && !state.OurHandlerAttached)
+            bool shouldAttach = state.TrackUserExpansion && !state.OurHandlerAttached;
+            if (shouldAttach)
             {
                 Action<TreeViewExpansionChangedArgs> h = e =>
                 {

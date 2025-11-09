@@ -57,13 +57,12 @@ namespace ReactiveUITK.Elements
             }
 
             // Expansion wiring
-            if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Attach(tv, parts, properties, ops);
-                }
-                catch { }
+            try
+            {
+                var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Attach(tv, parts, properties, ops);
+            }
+            catch { }
             // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
             // User expansion handler wiring is handled by the cooperative tracker
             // Inline expansion handler removed; cooperative tracker handles subscriptions

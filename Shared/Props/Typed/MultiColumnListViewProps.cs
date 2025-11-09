@@ -15,7 +15,7 @@ namespace ReactiveUITK.Props.Typed
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         // Column definitions
         public List<ColumnDef> Columns { get; set; }
@@ -23,6 +23,10 @@ namespace ReactiveUITK.Props.Typed
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
         public Delegate ColumnSortingChanged { get; set; }
+        public Dictionary<string, float> ColumnWidths { get; set; }
+        public Dictionary<string, bool> ColumnVisibility { get; set; }
+        public Dictionary<string, int> ColumnDisplayIndex { get; set; }
+        public Delegate ColumnLayoutChanged { get; set; }
 
         public sealed class ColumnDef
         {
@@ -80,6 +84,13 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
+        public sealed class ColumnLayoutState
+        {
+            public Dictionary<string, float> ColumnWidths { get; set; }
+            public Dictionary<string, bool> ColumnVisibility { get; set; }
+            public Dictionary<string, int> ColumnDisplayIndex { get; set; }
+        }
+
         public Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
@@ -118,6 +129,24 @@ namespace ReactiveUITK.Props.Typed
             else if (ColumnSortingChanged is Action<List<SortedColumnDef>> action)
             {
                 dict["columnSortingChanged"] = action;
+            }
+            if (ColumnWidths != null)
+                dict["columnWidths"] = ColumnWidths;
+            if (ColumnVisibility != null)
+                dict["columnVisibility"] = ColumnVisibility;
+            if (ColumnDisplayIndex != null)
+                dict["columnDisplayIndex"] = ColumnDisplayIndex;
+            if (ColumnLayoutChanged is Hooks.StateSetter<ColumnLayoutState> layoutSetter)
+            {
+                dict["columnLayoutChanged"] = layoutSetter.ToValueAction();
+            }
+            else if (ColumnLayoutChanged is Action<ColumnLayoutState> layoutAction)
+            {
+                dict["columnLayoutChanged"] = layoutAction;
+            }
+            else if (ColumnLayoutChanged != null)
+            {
+                dict["columnLayoutChanged"] = ColumnLayoutChanged;
             }
             if (Style != null)
                 dict["style"] = Style;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
@@ -13,6 +14,7 @@ namespace ReactiveUITK.Samples.Shared
         public SharedTreeRowItem Parent;
         public SharedTreeRowItem Child;
         public bool HasChild;
+        public int Pid;
     }
 
     public static class TreeViewStatefulDemoFunc
@@ -22,6 +24,39 @@ namespace ReactiveUITK.Samples.Shared
             IReadOnlyList<VirtualNode> children
         )
         {
+            static List<T> ExtractList<T>(object source)
+            {
+                if (source is List<T> direct)
+                    return direct;
+                if (source is T[] arr)
+                    return new List<T>(arr);
+                if (source is IReadOnlyList<T> ro)
+                    return new List<T>(ro);
+                if (source is IEnumerable<T> enGeneric)
+                    return new List<T>(enGeneric);
+                if (source is IEnumerable en)
+                {
+                    var list = new List<T>();
+                    foreach (var item in en)
+                    {
+                        try
+                        {
+                            if (item is T tv)
+                            {
+                                list.Add(tv);
+                            }
+                            else if (item != null)
+                            {
+                                list.Add((T)Convert.ChangeType(item, typeof(T)));
+                            }
+                        }
+                        catch { }
+                    }
+                    return list;
+                }
+                return null;
+            }
+
             var rows =
                 props != null
                 && props.TryGetValue("rows", out var rowsObj)
@@ -64,51 +99,68 @@ namespace ReactiveUITK.Samples.Shared
                     ? deleteAction
                     : null;
 
-            Func<List<TreeViewItemData<object>>> buildRoots = () =>
-            {
-                var combined = new List<TreeViewItemData<object>>();
-                for (int i = 0; i < rows.Count; i++)
-                {
-                    var row = rows[i];
-                    if (row == null)
-                    {
-                        continue;
-                    }
+            var expandedItemIds =
+                props != null
+                && props.TryGetValue("expandedItemIds", out var expandedObj)
+                    ? ExtractList<int>(expandedObj)
+                    : null;
 
-                    int pid = 1000 + (i * 2);
-                    List<TreeViewItemData<object>> ch = null;
-                    if (row.HasChild)
+            Delegate expandedChanged = null;
+            if (props != null && props.TryGetValue("onExpandedChanged", out var expandedChangedObj))
+            {
+                if (expandedChangedObj is Delegate del)
+                {
+                    expandedChanged = del;
+                }
+            }
+
+            var rootItems = Hooks.UseMemo(
+                () =>
+                {
+                    var combined = new List<TreeViewItemData<object>>();
+                    if (rows == null)
+                        return combined;
+                    for (int i = 0; i < rows.Count; i++)
                     {
-                        ch = new List<TreeViewItemData<object>>
+                        var row = rows[i];
+                        if (row == null)
+                            continue;
+                        var baseId = row.Pid != 0 ? row.Pid : 1000 + (i * 2);
+                        List<TreeViewItemData<object>> ch = null;
+                        if (row.HasChild)
                         {
+                            ch = new List<TreeViewItemData<object>>
+                            {
+                                new TreeViewItemData<object>(
+                                    baseId + 1,
+                                    row.Child
+                                        ?? new SharedTreeRowItem
+                                        {
+                                            Id = Guid.NewGuid().ToString("N"),
+                                            Text = "Child",
+                                            IsChild = true,
+                                        },
+                                    null
+                                ),
+                            };
+                        }
+                        combined.Add(
                             new TreeViewItemData<object>(
-                                pid + 1,
-                                row.Child
+                                baseId,
+                                row.Parent
                                     ?? new SharedTreeRowItem
                                     {
                                         Id = Guid.NewGuid().ToString("N"),
-                                        Text = "Child",
-                                        IsChild = true,
+                                        Text = "Parent",
                                     },
-                                null
-                            ),
-                        };
+                                ch
+                            )
+                        );
                     }
-                    combined.Add(
-                        new TreeViewItemData<object>(
-                            pid,
-                            row.Parent
-                                ?? new SharedTreeRowItem
-                                {
-                                    Id = Guid.NewGuid().ToString("N"),
-                                    Text = "Parent",
-                                },
-                            ch
-                        )
-                    );
-                }
-                return combined;
-            };
+                    return combined;
+                },
+                new object[] { rows }
+            );
 
             var rowRenderer = Hooks.UseMemo(
                 () =>
@@ -186,10 +238,12 @@ namespace ReactiveUITK.Samples.Shared
 
             var tvProps = new TreeViewProps
             {
-                RootItems = buildRoots(),
+                RootItems = rootItems,
                 Selection = SelectionType.None,
                 FixedItemHeight = 20f,
                 Row = rowRenderer,
+                ExpandedItemIds = expandedItemIds,
+                ItemExpandedChanged = expandedChanged,
                 Style = new Style { (MarginBottom, 30f) },
             };
             return V.VisualElement(null, null, btnRow, V.TreeView(tvProps));
