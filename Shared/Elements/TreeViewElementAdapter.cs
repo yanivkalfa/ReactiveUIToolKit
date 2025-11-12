@@ -14,7 +14,7 @@ namespace ReactiveUITK.Elements
     public sealed class TreeViewElementAdapter
         : StatefulElementAdapter<TreeView, TreeViewElementAdapter.Cached>
     {
-        public sealed class Cached : IExpansionState
+        public sealed class Cached : IExpansionState, IScrollState
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
@@ -31,6 +31,21 @@ namespace ReactiveUITK.Elements
             public bool OurHandlerAttached { get; set; }
             public Delegate UserExpandedHandler { get; set; }
             public bool TrackUserExpansion { get; set; } = true;
+
+            // Scroll persistence
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+
+            public IElementStateTracker<TreeView, Cached> ScrollTracker =
+                new MultiColumnScrollTracker<TreeView, Cached>(
+                    new MultiColumnScrollOps<TreeView>(),
+                    flush: null
+                );
         }
 
         private static HostContext sharedHost;
@@ -55,6 +70,7 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
+            EnsureViewDataKey(tv, properties);
 
             // Expansion wiring
             try
@@ -63,6 +79,8 @@ namespace ReactiveUITK.Elements
                 parts.ExpansionTracker.Attach(tv, parts, properties, ops);
             }
             catch { }
+
+            parts.ScrollTracker.Attach(tv, parts, properties);
             // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
             // User expansion handler wiring is handled by the cooperative tracker
             // Inline expansion handler removed; cooperative tracker handles subscriptions
@@ -170,6 +188,7 @@ namespace ReactiveUITK.Elements
             }
 
             PropsApplier.Apply(element, properties);
+            parts.ScrollTracker.Reapply(tv, parts, null, properties);
         }
 
         public override void ApplyPropertiesDiff(
@@ -186,6 +205,7 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+            EnsureViewDataKey(tv, next);
 
             // Expansion wiring diff
             // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
@@ -233,6 +253,7 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
             // Final cooperative reapply guard
             ReapplyExpansion(tv, parts, previous, next);
+            parts.ScrollTracker.Reapply(tv, parts, previous, next);
         }
 
         private static void SetRootItems(TreeView tv, object root)
@@ -488,6 +509,52 @@ namespace ReactiveUITK.Elements
             public Vector2 Offset { get; }
             public float MaxX { get; }
             public float MaxY { get; }
+        }
+
+        private static void EnsureViewDataKey(
+            TreeView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+            {
+                return;
+            }
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                return;
+            }
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            view.viewDataKey = desired;
         }
     }
 }

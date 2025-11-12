@@ -18,6 +18,7 @@ namespace ReactiveUITK.Props.Typed
         public Delegate ItemExpandedChanged { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
+        public string ViewDataKey { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -42,6 +43,8 @@ namespace ReactiveUITK.Props.Typed
                 d["style"] = Style;
             if (Ref != null)
                 d["ref"] = Ref;
+            if (!string.IsNullOrEmpty(ViewDataKey))
+                d["viewDataKey"] = ViewDataKey;
             return d;
         }
     }

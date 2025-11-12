@@ -444,6 +444,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(tv);
+            EnsureViewDataKey(tv, properties);
             EnsureDetachHook(tv, parts);
             parts.AdjustmentTracker.Attach(tv, parts, properties);
             parts.ScrollTracker.Attach(tv, parts, properties);
@@ -572,6 +573,7 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+            EnsureViewDataKey(tv, next);
             EnsureDetachHook(tv, parts);
             parts.AdjustmentTracker.Attach(tv, parts, next);
             parts.ScrollTracker.Attach(tv, parts, next);
@@ -1054,6 +1056,52 @@ namespace ReactiveUITK.Elements
             {
                 parts.IsCommitting = false;
             }
+        }
+
+        private static void EnsureViewDataKey(
+            MultiColumnTreeView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+            {
+                return;
+            }
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                return;
+            }
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            view.viewDataKey = desired;
         }
 
         private static void EnsureDetachHook(MultiColumnTreeView tv, Cached parts)
