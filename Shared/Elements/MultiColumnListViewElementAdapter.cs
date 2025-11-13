@@ -336,6 +336,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(view);
+            EnsureViewDataKey(view, properties);
             EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, properties);
             parts.ScrollTracker.Attach(view, parts, properties);
@@ -444,6 +445,7 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
 
             var parts = GetState(view);
+            EnsureViewDataKey(view, next);
             EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, next);
             parts.ScrollTracker.Attach(view, parts, next);
@@ -1094,6 +1096,46 @@ namespace ReactiveUITK.Elements
                 }
                 catch { }
             });
+        }
+
+        private static void EnsureViewDataKey(
+            MultiColumnListView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+                return;
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+                return;
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+                return;
+
+            view.viewDataKey = desired;
         }
     }
 }

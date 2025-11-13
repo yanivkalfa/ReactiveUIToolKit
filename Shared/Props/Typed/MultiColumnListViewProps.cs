@@ -16,6 +16,7 @@ namespace ReactiveUITK.Props.Typed
         public SelectionType? Selection { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
+        public string ViewDataKey { get; set; }
 
         // Column definitions
         public List<ColumnDef> Columns { get; set; }
@@ -152,6 +153,8 @@ namespace ReactiveUITK.Props.Typed
                 dict["style"] = Style;
             if (Ref != null)
                 dict["ref"] = Ref;
+            if (!string.IsNullOrEmpty(ViewDataKey))
+                dict["viewDataKey"] = ViewDataKey;
             return dict;
         }
     }
