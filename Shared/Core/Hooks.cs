@@ -91,6 +91,43 @@ namespace ReactiveUITK.Core
                 new StateUpdate<T>(default, updater, true);
         }
 
+        internal readonly struct PendingStateUpdate
+        {
+            private readonly bool usesUpdater;
+            private readonly object directValue;
+            private readonly Func<object, object> updater;
+
+            private PendingStateUpdate(bool usesUpdater, object directValue, Func<object, object> updater)
+            {
+                this.usesUpdater = usesUpdater;
+                this.directValue = directValue;
+                this.updater = updater;
+            }
+
+            public static PendingStateUpdate From<T>(StateUpdate<T> update)
+            {
+                if (update.UsesUpdater)
+                {
+                    Func<object, object> bridge = previous =>
+                    {
+                        T typedPrev = previous is T cast ? cast : default;
+                        return update.Apply(typedPrev);
+                    };
+                    return new PendingStateUpdate(true, null, bridge);
+                }
+                return new PendingStateUpdate(false, update.Value, null);
+            }
+
+            public object Apply(object previous)
+            {
+                if (usesUpdater)
+                {
+                    return updater != null ? updater(previous) : previous;
+                }
+                return directValue;
+            }
+        }
+
         internal readonly struct StateSetterHandle<T>
         {
             private readonly NodeMetadata metadata;
@@ -114,34 +151,17 @@ namespace ReactiveUITK.Core
 
             public T Invoke(StateUpdate<T> update) => GetCombinedDelegate()(update);
 
-            public T Set(StateUpdate<T> update)
-            {
-                if (!update.UsesUpdater)
-                {
-                    return Set(update.Value);
-                }
-                if (update.Updater == null)
-                {
-                    return GetCurrent();
-                }
-                return Set(update.Updater);
-            }
+            public T Set(StateUpdate<T> update) => ApplyAndQueue(update);
 
-            public T Set(Func<T, T> updater)
-            {
-                if (metadata == null || updater == null)
-                {
-                    return default;
-                }
-                var previous = GetCurrent();
-                return Set(updater(previous));
-            }
+            public T Set(Func<T, T> updater) => ApplyAndQueue(updater);
 
-            public T Set(T value)
+            public T Set(T value) => ApplyAndQueue(value);
+
+            private T ApplyAndQueue(StateUpdate<T> update)
             {
                 if (metadata == null)
                 {
-                    return value;
+                    return update.Apply(default);
                 }
                 if (metadata.IsRendering)
                 {
@@ -151,31 +171,51 @@ namespace ReactiveUITK.Core
                         $"[Hooks][StrictMode] State update scheduled during render of '{DescribeComponent(metadata)}'. Move this set call to an effect or event handler."
                     );
                 }
-                if (metadata.HookStates == null || index >= metadata.HookStates.Count)
-                {
-                    return value;
-                }
-                var previous = metadata.HookStates[index];
-                if (previous is T prevTyped && Equals(prevTyped, value))
-                {
-                    return prevTyped;
-                }
-                metadata.HookStates[index] = value;
-                Hooks.RequestComponentRerender(metadata);
-                return value;
+                var previous = GetProjectedState();
+                var computed = update.Apply(previous);
+                EnqueuePendingUpdate(update, computed);
+                return computed;
             }
 
-            private T GetCurrent()
+            private T GetProjectedState()
             {
+                if (metadata == null)
+                {
+                    return default;
+                }
                 if (
-                    metadata == null
-                    || metadata.HookStates == null
+                    metadata.PendingHookStatePreviews != null
+                    && metadata.PendingHookStatePreviews.TryGetValue(index, out var pending)
+                    && pending is T projected
+                )
+                {
+                    return projected;
+                }
+                if (
+                    metadata.HookStates == null
                     || index >= metadata.HookStates.Count
                 )
                 {
                     return default;
                 }
                 return metadata.HookStates[index] is T current ? current : default;
+            }
+
+            private void EnqueuePendingUpdate(StateUpdate<T> update, T computed)
+            {
+                metadata.HookStateQueues ??= new Dictionary<
+                    int,
+                    Queue<PendingStateUpdate>
+                >();
+                if (!metadata.HookStateQueues.TryGetValue(index, out var queue))
+                {
+                    queue = new Queue<PendingStateUpdate>();
+                    metadata.HookStateQueues[index] = queue;
+                }
+                queue.Enqueue(PendingStateUpdate.From(update));
+                metadata.PendingHookStatePreviews ??= new Dictionary<int, object>();
+                metadata.PendingHookStatePreviews[index] = computed;
+                Hooks.RequestComponentRerender(metadata);
             }
 
             private Action<T> GetValueDelegate()
@@ -251,7 +291,7 @@ namespace ReactiveUITK.Core
                     }
                     if (update.Updater == null)
                     {
-                        return setter.GetCurrent();
+                        return setter.GetProjectedState();
                     }
                     return setter.Set(update.Updater);
                 };
@@ -426,6 +466,43 @@ namespace ReactiveUITK.Core
             }
             // Frame batching: enqueue component for end-of-frame flush instead of immediate render
             ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
+        }
+
+        internal static void FlushQueuedStateUpdates(NodeMetadata metadata)
+        {
+            if (metadata == null)
+            {
+                return;
+            }
+            if (metadata.HookStateQueues == null || metadata.HookStateQueues.Count == 0)
+            {
+                metadata.PendingHookStatePreviews?.Clear();
+                return;
+            }
+            metadata.HookStates ??= new List<object>();
+            foreach (var kvp in metadata.HookStateQueues)
+            {
+                var queue = kvp.Value;
+                if (queue == null || queue.Count == 0)
+                {
+                    continue;
+                }
+                int slot = kvp.Key;
+                object current =
+                    slot < metadata.HookStates.Count ? metadata.HookStates[slot] : null;
+                while (queue.Count > 0)
+                {
+                    var pending = queue.Dequeue();
+                    current = pending.Apply(current);
+                }
+                while (metadata.HookStates.Count <= slot)
+                {
+                    metadata.HookStates.Add(null);
+                }
+                metadata.HookStates[slot] = current;
+            }
+            metadata.HookStateQueues.Clear();
+            metadata.PendingHookStatePreviews?.Clear();
         }
 
         public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)

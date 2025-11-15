@@ -66,6 +66,8 @@ namespace ReactiveUITK.Core
         public Task SuspensePendingTask;
         public object SuspenseTaskLock;
         public int SuspenseTaskVersion;
+        public Dictionary<int, Queue<Hooks.PendingStateUpdate>> HookStateQueues;
+        public Dictionary<int, object> PendingHookStatePreviews;
     }
 
     internal sealed class SuspenseRenderState

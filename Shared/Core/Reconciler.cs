@@ -146,6 +146,7 @@ namespace ReactiveUITK.Core
             }
             try
             {
+                Hooks.FlushQueuedStateUpdates(metadata);
                 metadata.PendingUpdate = false;
                 metadata.HookIndex = 0;
                 RenderFunctionComponent(metadata, metadata.Container);
@@ -668,42 +669,7 @@ namespace ReactiveUITK.Core
                 }
             }
 
-            // Compute minimal moves using LIS on retained elements
-            var managedAfterRemoval = new List<VisualElement>(orderedElements.Count);
-            GetManagedChildren(parentElement, managedAfterRemoval);
-            var firstManagedAfter =
-                managedAfterRemoval.Count > 0 ? managedAfterRemoval[0] : null;
-
-            var indexLookup = new Dictionary<VisualElement, int>(managedAfterRemoval.Count);
-            for (int i = 0; i < managedAfterRemoval.Count; i++)
-            {
-                var managedElement = managedAfterRemoval[i];
-                if (managedElement != null && !indexLookup.ContainsKey(managedElement))
-                {
-                    indexLookup[managedElement] = i;
-                }
-            }
-
-            var desiredIndices = new int[orderedElements.Count];
-            for (int i = 0; i < orderedElements.Count; i++)
-            {
-                var element = orderedElements[i];
-                if (
-                    element != null
-                    && element.parent == parentElement
-                    && indexLookup.TryGetValue(element, out int idx)
-                )
-                {
-                    desiredIndices[i] = idx;
-                }
-                else
-                {
-                    desiredIndices[i] = -1;
-                }
-            }
-
-            var lisPositions = ComputeLisPositions(desiredIndices);
-
+            var stableElements = ComputeStableElementSet(parentElement, orderedElements);
             VisualElement anchor = null;
 
             for (int i = 0; i < orderedElements.Count; i++)
@@ -715,7 +681,7 @@ namespace ReactiveUITK.Core
                 }
 
                 bool alreadyParented = element.parent == parentElement;
-                bool shouldStay = alreadyParented && lisPositions.Contains(i);
+                bool shouldStay = alreadyParented && stableElements.Contains(element);
 
                 if (alreadyParented && shouldStay)
                 {
@@ -723,85 +689,118 @@ namespace ReactiveUITK.Core
                     continue;
                 }
 
-                if (!alreadyParented)
-                {
-                    if (anchor == null)
-                    {
-                        if (firstManagedAfter != null)
-                        {
-                            int insertIndex = parentElement.IndexOf(firstManagedAfter);
-                            if (insertIndex >= 0)
-                            {
-                                parentElement.Insert(insertIndex, element);
-                            }
-                            else
-                            {
-                                parentElement.Add(element);
-                            }
-                        }
-                        else
-                        {
-                            parentElement.Add(element);
-                        }
-                    }
-                    else
-                    {
-                        int anchorIndex = parentElement.IndexOf(anchor);
-                        if (anchorIndex >= 0)
-                        {
-                            parentElement.Insert(anchorIndex + 1, element);
-                        }
-                        else
-                        {
-                            parentElement.Add(element);
-                        }
-                    }
-
-                    anchor = element;
-                    continue;
-                }
-
-                if (anchor == null)
-                {
-                    if (firstManagedAfter != null && !ReferenceEquals(firstManagedAfter, element))
-                    {
-                        int targetIndex = parentElement.IndexOf(firstManagedAfter);
-                        int currentIndex = parentElement.IndexOf(element);
-                        if (targetIndex >= 0 && currentIndex != targetIndex)
-                        {
-                            element.RemoveFromHierarchy();
-                            parentElement.Insert(targetIndex, element);
-                        }
-                    }
-
-                    anchor = element;
-                    continue;
-                }
-
-                int anchorIndexCurrent = parentElement.IndexOf(anchor);
-                if (anchorIndexCurrent < 0)
-                {
-                    anchor = element;
-                    continue;
-                }
-
-                int desiredIndex = anchorIndexCurrent + 1;
-                int currentIndexExisting = parentElement.IndexOf(element);
-                if (currentIndexExisting != desiredIndex)
-                {
-                    element.RemoveFromHierarchy();
-                    if (desiredIndex >= parentElement.childCount)
-                    {
-                        parentElement.Add(element);
-                    }
-                    else
-                    {
-                        parentElement.Insert(desiredIndex, element);
-                    }
-                }
-
+                InsertElementRelative(parentElement, element, anchor);
                 anchor = element;
             }
+        }
+
+        private static HashSet<VisualElement> ComputeStableElementSet(
+            VisualElement parentElement,
+            List<VisualElement> orderedElements
+        )
+        {
+            var existing = new List<VisualElement>();
+            var positions = new List<int>();
+            for (int i = 0; i < orderedElements.Count; i++)
+            {
+                var element = orderedElements[i];
+                if (element == null || element.parent != parentElement)
+                {
+                    continue;
+                }
+                existing.Add(element);
+                positions.Add(parentElement.IndexOf(element));
+            }
+
+            var stableElements = new HashSet<VisualElement>();
+            if (existing.Count == 0)
+                return stableElements;
+
+            var lisIndexes = ComputeLisPositions(positions);
+            foreach (var idx in lisIndexes)
+            {
+                if (idx >= 0 && idx < existing.Count)
+                {
+                    stableElements.Add(existing[idx]);
+                }
+            }
+
+            return stableElements;
+        }
+
+        private static void InsertElementRelative(
+            VisualElement parentElement,
+            VisualElement element,
+            VisualElement anchor
+        )
+        {
+            if (element == null)
+                return;
+
+            void InsertAt(int index)
+            {
+                element.RemoveFromHierarchy();
+                if (index < 0 || index >= parentElement.childCount)
+                {
+                    parentElement.Add(element);
+                }
+                else
+                {
+                    parentElement.Insert(index, element);
+                }
+            }
+
+            if (anchor == null)
+            {
+                var firstManaged = GetFirstManagedChild(parentElement);
+                if (firstManaged == null)
+                {
+                    element.RemoveFromHierarchy();
+                    parentElement.Add(element);
+                }
+                else
+                {
+                    var targetIndex = parentElement.IndexOf(firstManaged);
+                    var currentIndex = element.parent == parentElement
+                        ? parentElement.IndexOf(element)
+                        : -1;
+                    if (currentIndex != targetIndex)
+                    {
+                        InsertAt(Math.Max(0, targetIndex));
+                    }
+                }
+                return;
+            }
+
+            var anchorIndex = parentElement.IndexOf(anchor);
+            if (anchorIndex < 0)
+            {
+                element.RemoveFromHierarchy();
+                parentElement.Add(element);
+                return;
+            }
+
+            var desiredIndex = anchorIndex + 1;
+            var existingIndex = element.parent == parentElement
+                ? parentElement.IndexOf(element)
+                : -1;
+            if (existingIndex != desiredIndex)
+            {
+                InsertAt(desiredIndex);
+            }
+        }
+
+        private static VisualElement GetFirstManagedChild(VisualElement parent)
+        {
+            if (parent == null)
+                return null;
+            for (int i = 0; i < parent.childCount; i++)
+            {
+                var child = parent.ElementAt(i);
+                if (child?.userData is NodeMetadata)
+                    return child;
+            }
+            return null;
         }
 
         private VisualElement CreateDetached(VirtualNode virtualNode)
@@ -1730,6 +1729,7 @@ namespace ReactiveUITK.Core
                 {
                     return;
                 }
+                Hooks.FlushQueuedStateUpdates(functionComponentMetadata);
                 // Reset hook indices before render
                 functionComponentMetadata.HookIndex = 0;
                 functionComponentMetadata.EffectIndex = 0;

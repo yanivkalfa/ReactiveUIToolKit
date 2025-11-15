@@ -1564,11 +1564,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<ClickEvent> wrapper = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var targetDel);
-                        InvokeHandler(targetDel, e);
-                    };
+                    EventCallback<ClickEvent> wrapper = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(wrapper);
                     meta.EventHandlers[eventPropName] = wrapper;
                 }
@@ -1602,10 +1598,7 @@ namespace ReactiveUITK.Props
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<PointerDownEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1616,11 +1609,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerUpEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<PointerUpEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1632,10 +1621,7 @@ namespace ReactiveUITK.Props
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<PointerMoveEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1647,10 +1633,7 @@ namespace ReactiveUITK.Props
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<PointerEnterEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1662,10 +1645,7 @@ namespace ReactiveUITK.Props
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<PointerLeaveEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1676,11 +1656,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<WheelEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1691,11 +1667,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<FocusEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<FocusEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1706,11 +1678,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<BlurEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<BlurEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1721,11 +1689,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<KeyDownEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<KeyDownEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1736,11 +1700,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<KeyUpEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<KeyUpEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1754,10 +1714,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<bool>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1769,10 +1726,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<int>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1784,10 +1738,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<bool>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1799,10 +1750,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<int>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1814,10 +1762,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<float>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1829,10 +1774,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<bool>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1844,10 +1786,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<string>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1859,11 +1798,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<InputEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<InputEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1874,12 +1809,9 @@ namespace ReactiveUITK.Props
             if (eventPropName == "onDragEnter")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragEnterEvent> w = e =>
                     {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                        EventCallback<DragEnterEvent> w = e =>
+                            InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1889,12 +1821,9 @@ namespace ReactiveUITK.Props
             if (eventPropName == "onDragLeave")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragLeaveEvent> w = e =>
                     {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                        EventCallback<DragLeaveEvent> w = e =>
+                            InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1906,11 +1835,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<WheelEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -2107,6 +2032,57 @@ namespace ReactiveUITK.Props
             }
             meta.EventHandlers.Remove(eventPropName);
             totalEventsRemoved++;
+        }
+
+        private static void InvokeEvent(
+            Core.NodeMetadata metadata,
+            string eventPropName,
+            EventBase evt
+        )
+        {
+            if (metadata == null || string.IsNullOrEmpty(eventPropName))
+            {
+                return;
+            }
+            if (
+                metadata.EventHandlerTargets == null
+                || !metadata.EventHandlerTargets.TryGetValue(eventPropName, out var handler)
+                || handler == null
+            )
+            {
+                return;
+            }
+            var scheduler = ResolveScheduler(metadata);
+            if (scheduler == null)
+            {
+                InvokeHandler(handler, evt);
+                return;
+            }
+            scheduler.BeginBatch();
+            try
+            {
+                InvokeHandler(handler, evt);
+            }
+            finally
+            {
+                scheduler.EndBatch();
+            }
+        }
+
+        private static IScheduler ResolveScheduler(Core.NodeMetadata metadata)
+        {
+            if (metadata?.HostContext?.Environment == null)
+            {
+                return null;
+            }
+            if (
+                metadata.HostContext.Environment.TryGetValue("scheduler", out var schedulerObj)
+                && schedulerObj is IScheduler scheduler
+            )
+            {
+                return scheduler;
+            }
+            return null;
         }
 
         private static void InvokeHandler(Delegate del, EventBase evt)
