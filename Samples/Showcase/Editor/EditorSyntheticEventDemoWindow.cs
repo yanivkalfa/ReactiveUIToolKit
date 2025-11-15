@@ -7,27 +7,21 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Samples.Editor
 {
-    public sealed class EditorHookQueueDemoWindow : EditorWindow
+    public sealed class EditorSyntheticEventDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Tests-(13-17-18-26)/Hook Queue Merge")]
+        [MenuItem("Window/ReactiveUITK/Demos/Tests-(35-37-40)/Synthetic Events")]
         public static void ShowWindow()
         {
-            var window = GetWindow<EditorHookQueueDemoWindow>("Hook Queue Merge Demo");
+            var window = GetWindow<EditorSyntheticEventDemoWindow>("Synthetic Event Demo");
             window.minSize = new Vector2(520, 420);
             window.Show();
-        }
-
-        [MenuItem("Window/ReactiveUITK/Demos/Tests-(35-37-40)/Linked Update Queue")]
-        public static void ShowWindowModern()
-        {
-            ShowWindow();
         }
 
         private void CreateGUI()
         {
             VisualElement host = rootVisualElement;
             host.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(host, V.Func(HookStateQueueDemoFunc.Render));
+            EditorRootRendererUtility.Render(host, V.Func(SyntheticEventDemoFunc.Render));
         }
 
         private void OnDisable()

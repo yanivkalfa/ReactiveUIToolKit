@@ -65,7 +65,8 @@ namespace ReactiveUITK.Core
             System.Threading.Tasks.Task suspenseReadyTask = null,
             VirtualNode errorFallback = null,
             Action<Exception> errorHandler = null,
-            string errorResetToken = null
+            string errorResetToken = null,
+            IReadOnlyList<PropTypeDefinition> propTypes = null
         )
         {
             NodeType = nodeType;
@@ -84,7 +85,10 @@ namespace ReactiveUITK.Core
             ErrorFallback = errorFallback;
             ErrorHandler = errorHandler;
             ErrorResetToken = errorResetToken;
+            PropTypes = propTypes;
         }
+
+        public IReadOnlyList<PropTypeDefinition> PropTypes { get; set; }
 
         // Implicit conversion: function component -> VirtualNode
         public static implicit operator VirtualNode(

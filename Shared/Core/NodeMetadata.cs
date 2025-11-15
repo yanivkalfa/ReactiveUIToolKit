@@ -25,6 +25,7 @@ namespace ReactiveUITK.Core
         > FuncRender;
         public Dictionary<string, object> FuncProps;
         public IReadOnlyList<VirtualNode> FuncChildren;
+        public IReadOnlyList<PropTypeDefinition> FuncPropTypes;
         public List<object> HookStates;
         public int HookIndex;
         public VirtualNode LastRenderedSubtree;
@@ -66,8 +67,49 @@ namespace ReactiveUITK.Core
         public Task SuspensePendingTask;
         public object SuspenseTaskLock;
         public int SuspenseTaskVersion;
-        public Dictionary<int, Queue<Hooks.PendingStateUpdate>> HookStateQueues;
+        public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
         public Dictionary<int, object> PendingHookStatePreviews;
+    }
+
+    internal sealed class HookStateUpdateQueue
+    {
+        private HookStateUpdateNode head;
+        private HookStateUpdateNode tail;
+
+        public bool HasPending => head != null;
+
+        public void Enqueue(Hooks.PendingStateUpdate update)
+        {
+            var node = new HookStateUpdateNode(update);
+            if (head == null)
+            {
+                head = tail = node;
+            }
+            else
+            {
+                tail.Next = node;
+                tail = node;
+            }
+        }
+
+        public HookStateUpdateNode ConsumeAll()
+        {
+            var current = head;
+            head = null;
+            tail = null;
+            return current;
+        }
+    }
+
+    internal sealed class HookStateUpdateNode
+    {
+        internal HookStateUpdateNode(Hooks.PendingStateUpdate update)
+        {
+            Update = update;
+        }
+
+        public Hooks.PendingStateUpdate Update { get; }
+        public HookStateUpdateNode Next { get; set; }
     }
 
     internal sealed class SuspenseRenderState

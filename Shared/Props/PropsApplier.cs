@@ -2108,6 +2108,11 @@ namespace ReactiveUITK.Props
                 }
             }
             catch { }
+            SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
+            if (syntheticEvent != null)
+            {
+                syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;
+            }
             try
             {
                 if (del is Action action)
@@ -2155,6 +2160,12 @@ namespace ReactiveUITK.Props
                         return;
                     }
 
+                    if (syntheticEvent != null && p0.IsInstanceOfType(syntheticEvent))
+                    {
+                        del.DynamicInvoke(syntheticEvent);
+                        return;
+                    }
+
                     // If expects a value type/string and we have newValue, pass it
                     if (newValue != null)
                     {
@@ -2191,6 +2202,8 @@ namespace ReactiveUITK.Props
                     var p0 = parameters[0].ParameterType;
                     if (evt != null && p0.IsAssignableFrom(evt.GetType()))
                         args[0] = evt;
+                    else if (syntheticEvent != null && p0.IsInstanceOfType(syntheticEvent))
+                        args[0] = syntheticEvent;
                     else if (newValue != null && p0.IsInstanceOfType(newValue))
                         args[0] = newValue;
                     else

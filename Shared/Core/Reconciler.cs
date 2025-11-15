@@ -395,6 +395,7 @@ namespace ReactiveUITK.Core
                         FuncRender = virtualNode.FunctionRender,
                         FuncProps = new Dictionary<string, object>(virtualNode.Properties),
                         FuncChildren = virtualNode.Children,
+                        FuncPropTypes = virtualNode.PropTypes,
                         HookStates = new List<object>(),
                         HookIndex = 0,
                         Container = functionComponentContainer,
@@ -1489,6 +1490,7 @@ namespace ReactiveUITK.Core
                 reconciledNodeCount++;
                 functionMetadata.FuncProps = new Dictionary<string, object>(nextNode.Properties);
                 functionMetadata.FuncChildren = nextNode.Children;
+                functionMetadata.FuncPropTypes = nextNode.PropTypes;
                 functionMetadata.HookIndex = 0;
                 RenderFunctionComponent(functionMetadata, hostElement);
                 return;
@@ -1743,6 +1745,21 @@ namespace ReactiveUITK.Core
                         && functionComponentMetadata.HookOrderSignatures.Count > 0;
                 }
                 HookContext.Current = functionComponentMetadata;
+                if (
+                    functionComponentMetadata.FuncPropTypes != null
+                    && functionComponentMetadata.FuncPropTypes.Count > 0
+                )
+                {
+                    string componentName =
+                        functionComponentMetadata.FuncRender?.Method?.DeclaringType?.Name
+                        ?? functionComponentMetadata.FuncRender?.Method?.Name
+                        ?? "FunctionComponent";
+                    PropTypeValidator.Validate(
+                        componentName,
+                        functionComponentMetadata.FuncProps,
+                        functionComponentMetadata.FuncPropTypes
+                    );
+                }
                 bool initialMount =
                     functionComponentMetadata.LastRenderedSubtree == null
                     || targetContainer.childCount == 0;

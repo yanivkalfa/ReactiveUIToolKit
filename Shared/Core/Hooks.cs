@@ -203,13 +203,10 @@ namespace ReactiveUITK.Core
 
             private void EnqueuePendingUpdate(StateUpdate<T> update, T computed)
             {
-                metadata.HookStateQueues ??= new Dictionary<
-                    int,
-                    Queue<PendingStateUpdate>
-                >();
+                metadata.HookStateQueues ??= new Dictionary<int, HookStateUpdateQueue>();
                 if (!metadata.HookStateQueues.TryGetValue(index, out var queue))
                 {
-                    queue = new Queue<PendingStateUpdate>();
+                    queue = new HookStateUpdateQueue();
                     metadata.HookStateQueues[index] = queue;
                 }
                 queue.Enqueue(PendingStateUpdate.From(update));
@@ -483,17 +480,18 @@ namespace ReactiveUITK.Core
             foreach (var kvp in metadata.HookStateQueues)
             {
                 var queue = kvp.Value;
-                if (queue == null || queue.Count == 0)
+                if (queue == null || !queue.HasPending)
                 {
                     continue;
                 }
                 int slot = kvp.Key;
                 object current =
                     slot < metadata.HookStates.Count ? metadata.HookStates[slot] : null;
-                while (queue.Count > 0)
+                var node = queue.ConsumeAll();
+                while (node != null)
                 {
-                    var pending = queue.Dequeue();
-                    current = pending.Apply(current);
+                    current = node.Update.Apply(current);
+                    node = node.Next;
                 }
                 while (metadata.HookStates.Count <= slot)
                 {
@@ -501,7 +499,6 @@ namespace ReactiveUITK.Core
                 }
                 metadata.HookStates[slot] = current;
             }
-            metadata.HookStateQueues.Clear();
             metadata.PendingHookStatePreviews?.Clear();
         }
 
