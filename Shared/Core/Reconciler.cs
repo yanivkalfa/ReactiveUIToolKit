@@ -374,6 +374,8 @@ namespace ReactiveUITK.Core
                         userData = new NodeMetadata { Key = virtualNode.Key },
                     };
                     parentElement.Add(portalPlaceholderElement);
+                    var portalMetadata = portalPlaceholderElement.userData as NodeMetadata;
+                    AttachPortalTarget(portalMetadata, virtualNode.PortalTarget);
                     virtualNode.PortalTarget.Clear();
                     BuildChildren(virtualNode.PortalTarget, virtualNode.Children);
                     portalBuildCount++;
@@ -1396,6 +1398,7 @@ namespace ReactiveUITK.Core
                 var portalMetadata = hostElement.userData as NodeMetadata;
                 if (nextNode.PortalTarget != null)
                 {
+                    AttachPortalTarget(portalMetadata, nextNode.PortalTarget);
                     var previousPortalChildren =
                         portalMetadata?.PortalPreviousChildren ?? new List<VirtualNode>();
                     DiffChildren(nextNode.PortalTarget, previousPortalChildren, nextNode.Children);
@@ -1407,7 +1410,7 @@ namespace ReactiveUITK.Core
                 }
                 else
                 {
-                    portalMetadata?.PortalPreviousChildren?.Clear();
+                    ClearPortalTargetChildren(portalMetadata);
                 }
                 return;
             }
@@ -2078,6 +2081,8 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
+            ClearPortalTargetChildren(metadata);
+            DetachPortalTarget(metadata);
             try
             {
                 metadata.HostContext?.UnregisterContextConsumer(metadata);
@@ -2224,6 +2229,76 @@ namespace ReactiveUITK.Core
                 }
                 metadata.FunctionLayoutEffects.Clear();
             }
+        }
+
+        private void AttachPortalTarget(NodeMetadata metadata, VisualElement target)
+        {
+            if (metadata == null)
+            {
+                return;
+            }
+            if (ReferenceEquals(metadata.PortalTarget, target))
+            {
+                return;
+            }
+            DetachPortalTarget(metadata);
+            metadata.PortalTarget = target;
+            if (target == null)
+            {
+                return;
+            }
+            EventCallback<DetachFromPanelEvent> handler = _ => ClearPortalTargetChildren(metadata);
+            metadata.PortalDetachHandler = handler;
+            metadata.PortalDetachWired = true;
+            try
+            {
+                target.RegisterCallback(handler);
+            }
+            catch
+            {
+                metadata.PortalDetachWired = false;
+                metadata.PortalDetachHandler = null;
+            }
+        }
+
+        private void DetachPortalTarget(NodeMetadata metadata)
+        {
+            if (metadata == null)
+            {
+                return;
+            }
+            if (metadata.PortalDetachWired && metadata.PortalDetachHandler != null && metadata.PortalTarget != null)
+            {
+                try
+                {
+                    metadata.PortalTarget.UnregisterCallback(metadata.PortalDetachHandler);
+                }
+                catch { }
+            }
+            metadata.PortalDetachWired = false;
+            metadata.PortalDetachHandler = null;
+            metadata.PortalTarget = null;
+        }
+
+        private void ClearPortalTargetChildren(NodeMetadata metadata)
+        {
+            var target = metadata?.PortalTarget;
+            if (target == null)
+            {
+                return;
+            }
+            for (int i = target.childCount - 1; i >= 0; i--)
+            {
+                var child = target.ElementAt(i);
+                bool managed = child.userData is NodeMetadata;
+                RunRemovalCleanup(child);
+                child.RemoveFromHierarchy();
+                if (managed)
+                {
+                    GlobalVisualElementPool.Release(child);
+                }
+            }
+            metadata?.PortalPreviousChildren?.Clear();
         }
 
         public (

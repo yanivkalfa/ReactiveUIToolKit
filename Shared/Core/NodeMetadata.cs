@@ -50,6 +50,9 @@ namespace ReactiveUITK.Core
         public int LayoutEffectIndex;
         public HashSet<string> SubscribedContextKeys;
         public List<VirtualNode> PortalPreviousChildren;
+        public UnityEngine.UIElements.VisualElement PortalTarget;
+        public bool PortalDetachWired;
+        public EventCallback<DetachFromPanelEvent> PortalDetachHandler;
         public bool IsFlattened; // true when function component root element is directly mounted without wrapper
         public bool IsRendering; // re-entrancy guard for function components
         public bool PendingUpdate; // schedule one update after commit
