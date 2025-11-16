@@ -101,10 +101,10 @@ namespace ReactiveUITK.Core
                         {
                             return true;
                         }
+                    }
+                    return false;
                 }
-                return false;
-            }
-        );
+            );
 
         public static PropTypeDefinition Enum(
             string name,
@@ -125,8 +125,7 @@ namespace ReactiveUITK.Core
             Func<object, bool> validator,
             string description,
             bool required = false
-        ) =>
-            new SimplePropTypeDefinition(name, required, description, validator);
+        ) => new SimplePropTypeDefinition(name, required, description, validator);
     }
 
     internal static class PropTypeValidator
@@ -150,8 +149,7 @@ namespace ReactiveUITK.Core
                     continue;
                 }
                 object propValue = null;
-                bool hasValue =
-                    props != null && props.TryGetValue(definition.Name, out propValue);
+                bool hasValue = props != null && props.TryGetValue(definition.Name, out propValue);
                 if (!hasValue)
                 {
                     if (definition.Required)
@@ -188,11 +186,11 @@ namespace ReactiveUITK.Core
             params PropTypeDefinition[] definitions
         )
         {
-            if (node != null)
+            if (node == null || definitions == null || definitions.Length == 0)
             {
-                node.PropTypes = definitions;
+                return node;
             }
-            return node;
+            return node.WithPropTypesImmutable(definitions);
         }
     }
 }

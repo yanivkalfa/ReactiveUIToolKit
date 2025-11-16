@@ -212,7 +212,10 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode MultiColumnTreeView(MultiColumnTreeViewProps props, string key = null)
+        public static VirtualNode MultiColumnTreeView(
+            MultiColumnTreeViewProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -503,11 +506,20 @@ namespace ReactiveUITK
         }
 
         public static VirtualNode ForwardRef(
-            Func<Dictionary<string, object>, object, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
+            Func<
+                Dictionary<string, object>,
+                object,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > renderFunction,
             IReadOnlyDictionary<string, object> functionProps = null,
             string key = null,
             bool memoize = false,
-            Func<IReadOnlyDictionary<string, object>, IReadOnlyDictionary<string, object>, bool> memoCompare = null,
+            Func<
+                IReadOnlyDictionary<string, object>,
+                IReadOnlyDictionary<string, object>,
+                bool
+            > memoCompare = null,
             params VirtualNode[] children
         )
         {
@@ -516,7 +528,10 @@ namespace ReactiveUITK
                 throw new ArgumentNullException(nameof(renderFunction));
             }
 
-            VirtualNode Wrapper(Dictionary<string, object> incomingProps, IReadOnlyList<VirtualNode> childNodes)
+            VirtualNode Wrapper(
+                Dictionary<string, object> incomingProps,
+                IReadOnlyList<VirtualNode> childNodes
+            )
             {
                 object forwardedRef = null;
                 Dictionary<string, object> sanitizedProps;
@@ -538,14 +553,7 @@ namespace ReactiveUITK
                 return renderFunction(sanitizedProps, forwardedRef, childNodes);
             }
 
-            return Func(
-                Wrapper,
-                functionProps,
-                key,
-                memoize,
-                memoCompare,
-                children
-            );
+            return Func(Wrapper, functionProps, key, memoize, memoCompare, children);
         }
 
         public static VirtualNode Fragment(string key = null, params VirtualNode[] children)
@@ -676,10 +684,9 @@ namespace ReactiveUITK
             return Func(renderFunction, functionProps, key, true, memoCompare, children);
         }
 
-        private static IReadOnlyDictionary<string, object> EmptyProps() =>
-            new Dictionary<string, object>(0);
+        private static IReadOnlyDictionary<string, object> EmptyProps() => VirtualNode.EmptyProps;
 
-        private static IReadOnlyList<VirtualNode> EmptyChildren() => new List<VirtualNode>(0);
+        private static IReadOnlyList<VirtualNode> EmptyChildren() => VirtualNode.EmptyChildren;
 
         private static IReadOnlyDictionary<string, object> CloneStyleDictionary(
             IReadOnlyDictionary<string, object> source
