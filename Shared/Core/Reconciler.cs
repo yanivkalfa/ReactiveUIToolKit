@@ -378,6 +378,12 @@ namespace ReactiveUITK.Core
                     AttachPortalTarget(portalMetadata, virtualNode.PortalTarget);
                     virtualNode.PortalTarget.Clear();
                     BuildChildren(virtualNode.PortalTarget, virtualNode.Children);
+                    if (portalMetadata != null)
+                    {
+                        portalMetadata.PortalPreviousChildren = new List<VirtualNode>(
+                            virtualNode.Children ?? Array.Empty<VirtualNode>()
+                        );
+                    }
                     portalBuildCount++;
                     return;
                 // Class component nodes removed
