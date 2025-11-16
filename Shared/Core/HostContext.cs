@@ -1,20 +1,81 @@
+using System;
 using System.Collections.Generic;
 using ReactiveUITK.Elements;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
 {
+    internal readonly struct ContextKey : IEquatable<ContextKey>
+    {
+        public ContextKey(string name, int providerId)
+        {
+            Name = name ?? string.Empty;
+            ProviderId = providerId;
+        }
+
+        public string Name { get; }
+        public int ProviderId { get; }
+
+        public bool Equals(ContextKey other) =>
+            ProviderId == other.ProviderId && string.Equals(Name, other.Name, StringComparison.Ordinal);
+
+        public override bool Equals(object obj) => obj is ContextKey other && Equals(other);
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((ProviderId * 397) ^ (Name?.GetHashCode() ?? 0));
+            }
+        }
+
+        public override string ToString() => $"{Name}@{ProviderId}";
+    }
+
     public sealed class HostContext
     {
+        internal sealed class ContextFrame
+        {
+            public ContextFrame Parent;
+            public IReadOnlyDictionary<string, object> Values;
+            public int ProviderId;
+        }
+
+        public readonly struct ContextFrameHandle : IEquatable<ContextFrameHandle>
+        {
+            internal ContextFrameHandle(ContextFrame frame)
+            {
+                Frame = frame;
+            }
+
+            internal ContextFrame Frame { get; }
+            public bool IsValid => Frame != null;
+
+            public bool Equals(ContextFrameHandle other) => ReferenceEquals(Frame, other.Frame);
+            public override bool Equals(object obj) =>
+                obj is ContextFrameHandle handle && Equals(handle);
+            public override int GetHashCode() => Frame != null ? Frame.GetHashCode() : 0;
+        }
+
+        internal ContextFrameHandle CaptureFrame() => new ContextFrameHandle(currentFrame);
+
+        internal void RestoreFrame(ContextFrameHandle handle)
+        {
+            currentFrame = handle.Frame;
+        }
+
         public ElementRegistry ElementRegistry { get; }
         public Dictionary<string, object> Environment { get; } = new();
-        private readonly Stack<Dictionary<string, object>> contextProviderStack = new();
-        private readonly Dictionary<string, int> contextVersions = new();
-        private readonly Dictionary<string, HashSet<NodeMetadata>> contextSubscribers = new();
+
+        private ContextFrame currentFrame;
+        private int nextProviderId = 1;
+        private readonly Dictionary<ContextKey, int> contextVersions = new();
+        private readonly Dictionary<ContextKey, HashSet<NodeMetadata>> contextSubscribers = new();
 
         public HostContext(ElementRegistry elementRegistry)
         {
             ElementRegistry = elementRegistry;
+            currentFrame = null;
         }
 
         public void SetContextValue(string key, object value)
@@ -23,71 +84,100 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            object previous = ResolveContext(key);
-
-            if (contextProviderStack.Count > 0)
-            {
-                contextProviderStack.Peek()[key] = value;
-            }
-
             Environment[key] = value;
+            var contextKey = new ContextKey(key, 0);
+            int version = IncrementContextVersion(contextKey);
+            NotifyContextSubscribers(contextKey, version);
+        }
 
-            if (!Equals(previous, value))
+        internal ContextFrameHandle PushProvider(
+            IReadOnlyDictionary<string, object> values,
+            ref int providerId
+        )
+        {
+            if (values == null || values.Count == 0)
             {
-                int version = IncrementContextVersion(key);
-                NotifyContextSubscribers(key, version);
+                return default;
             }
-        }
-
-        public void PushProvider(Dictionary<string, object> values)
-        {
-            contextProviderStack.Push(values ?? new Dictionary<string, object>());
-        }
-
-        public void PopProvider()
-        {
-            if (contextProviderStack.Count > 0)
+            if (providerId <= 0)
             {
-                contextProviderStack.Pop();
+                providerId = nextProviderId++;
+            }
+            var frame = new ContextFrame
+            {
+                Parent = currentFrame,
+                Values = values,
+                ProviderId = providerId,
+            };
+            currentFrame = frame;
+            return new ContextFrameHandle(frame);
+        }
+
+        internal void PopProvider(ContextFrameHandle handle)
+        {
+            if (!handle.IsValid)
+            {
+                return;
+            }
+            if (currentFrame == handle.Frame)
+            {
+                currentFrame = handle.Frame.Parent;
+                return;
+            }
+            // Fallback: locate frame in chain
+            var cursor = currentFrame;
+            while (cursor != null && cursor != handle.Frame)
+            {
+                cursor = cursor.Parent;
+            }
+            if (cursor == handle.Frame)
+            {
+                currentFrame = handle.Frame.Parent;
             }
         }
 
         public object ResolveContext(string key)
         {
-            return ResolveContext(key, out _);
+            return ResolveContext(key, out _, out _);
         }
 
-        public object ResolveContext(string key, out int version)
+        public object ResolveContext(string key, out int version, out int providerId)
         {
-            foreach (Dictionary<string, object> providerValues in contextProviderStack)
+            var frame = currentFrame;
+            while (frame != null)
             {
-                if (providerValues.TryGetValue(key, out object provided))
+                if (frame.Values != null && frame.Values.TryGetValue(key, out object provided))
                 {
-                    version = GetContextVersion(key);
+                    providerId = frame.ProviderId;
+                    version = GetContextVersion(new ContextKey(key, providerId));
                     return provided;
                 }
+                frame = frame.Parent;
             }
+            providerId = 0;
             Environment.TryGetValue(key, out object globalValue);
-            version = GetContextVersion(key);
+            version = GetContextVersion(new ContextKey(key, providerId));
             return globalValue;
         }
 
-        internal void RegisterContextConsumer(NodeMetadata metadata, string key)
+        internal void RegisterContextConsumer(NodeMetadata metadata, string key, int providerId)
         {
             if (metadata == null || string.IsNullOrEmpty(key))
             {
                 return;
             }
 
-            metadata.SubscribedContextKeys ??= new HashSet<string>();
-            metadata.SubscribedContextKeys.Add(key);
-            metadata.ContextVersions ??= new Dictionary<string, int>();
-            metadata.ContextVersions[key] = GetContextVersion(key);
+            var contextKey = new ContextKey(key, providerId);
+            RemoveStaleContextSubscriptions(metadata, key, contextKey);
+            metadata.SubscribedContextKeys ??= new HashSet<ContextKey>();
+            metadata.SubscribedContextKeys.Add(contextKey);
+            metadata.ContextVersions ??= new Dictionary<ContextKey, int>();
+            metadata.ContextVersions[contextKey] = GetContextVersion(contextKey);
 
-            if (!contextSubscribers.TryGetValue(key, out HashSet<NodeMetadata> subscribers))
+            if (!contextSubscribers.TryGetValue(contextKey, out HashSet<NodeMetadata> subscribers))
             {
                 subscribers = new HashSet<NodeMetadata>();
-                contextSubscribers[key] = subscribers;
+                contextSubscribers[contextKey] = subscribers;
             }
             subscribers.Add(metadata);
         }
@@ -99,7 +189,7 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            foreach (string key in metadata.SubscribedContextKeys)
+            foreach (ContextKey key in metadata.SubscribedContextKeys)
             {
                 if (contextSubscribers.TryGetValue(key, out HashSet<NodeMetadata> subscribers))
                 {
@@ -112,9 +202,68 @@ namespace ReactiveUITK.Core
             }
 
             metadata.SubscribedContextKeys.Clear();
+            metadata.ContextVersions?.Clear();
         }
 
-        private int IncrementContextVersion(string key)
+        internal void NotifyContextChanged(
+            int providerId,
+            IReadOnlyDictionary<string, object> values
+        )
+        {
+            if (providerId <= 0 || values == null || values.Count == 0)
+            {
+                return;
+            }
+            foreach (var kv in values)
+            {
+                var key = new ContextKey(kv.Key, providerId);
+                int version = IncrementContextVersion(key);
+                NotifyContextSubscribers(key, version);
+            }
+        }
+
+        private void RemoveStaleContextSubscriptions(
+            NodeMetadata metadata,
+            string keyName,
+            ContextKey incomingKey
+        )
+        {
+            if (metadata?.SubscribedContextKeys == null || metadata.SubscribedContextKeys.Count == 0)
+            {
+                return;
+            }
+            List<ContextKey> removals = null;
+            foreach (var existing in metadata.SubscribedContextKeys)
+            {
+                if (
+                    string.Equals(existing.Name, keyName, StringComparison.Ordinal)
+                    && existing.ProviderId != incomingKey.ProviderId
+                )
+                {
+                    removals ??= new List<ContextKey>();
+                    removals.Add(existing);
+                }
+            }
+            if (removals == null)
+            {
+                return;
+            }
+            foreach (var removeKey in removals)
+            {
+                if (contextSubscribers.TryGetValue(removeKey, out var subscribers))
+                {
+                    subscribers.Remove(metadata);
+                    if (subscribers.Count == 0)
+                    {
+                        contextSubscribers.Remove(removeKey);
+                    }
+                }
+                metadata.SubscribedContextKeys.Remove(removeKey);
+                metadata.ContextVersions?.Remove(removeKey);
+            }
+        }
+
+        private int IncrementContextVersion(ContextKey key)
         {
             if (!contextVersions.TryGetValue(key, out int version))
             {
@@ -125,12 +274,12 @@ namespace ReactiveUITK.Core
             return version;
         }
 
-        private int GetContextVersion(string key)
+        private int GetContextVersion(ContextKey key)
         {
             return contextVersions.TryGetValue(key, out int version) ? version : 0;
         }
 
-        private void NotifyContextSubscribers(string key, int version)
+        private void NotifyContextSubscribers(ContextKey key, int version)
         {
             if (!contextSubscribers.TryGetValue(key, out HashSet<NodeMetadata> subscribers))
             {
@@ -149,10 +298,7 @@ namespace ReactiveUITK.Core
                 {
                     continue;
                 }
-                if (metadata.ContextVersions == null)
-                {
-                    metadata.ContextVersions = new Dictionary<string, int>();
-                }
+                metadata.ContextVersions ??= new Dictionary<ContextKey, int>();
 
                 if (
                     metadata.ContextVersions.TryGetValue(key, out int recordedVersion)
@@ -171,6 +317,7 @@ namespace ReactiveUITK.Core
 
                 try
                 {
+                    metadata.Reconciler?.ForceFunctionComponentUpdate(metadata);
                     FrameBatcher.Enqueue(metadata);
                 }
                 catch { }

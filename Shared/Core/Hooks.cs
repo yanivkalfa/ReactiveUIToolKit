@@ -1096,8 +1096,9 @@ namespace ReactiveUITK.Core
             }
             RecordHook(metadata, HookIdContext);
             int version;
-            object resolved = metadata.HostContext.ResolveContext(key, out version);
-            metadata.HostContext.RegisterContextConsumer(metadata, key);
+            int providerId;
+            object resolved = metadata.HostContext.ResolveContext(key, out version, out providerId);
+            metadata.HostContext.RegisterContextConsumer(metadata, key, providerId);
             metadata.HookStates ??= new List<object>();
             if (metadata.HookIndex >= metadata.HookStates.Count)
             {
@@ -1112,6 +1113,20 @@ namespace ReactiveUITK.Core
             metadata.HookStates[metadata.HookIndex] = default(T);
             metadata.HookIndex++;
             return default;
+        }
+
+        public static void ProvideContext<T>(string key, T value) =>
+            ProvideContext(key, (object)value);
+
+        public static void ProvideContext(string key, object value)
+        {
+            NodeMetadata metadata = HookContext.Current;
+            if (metadata == null || string.IsNullOrEmpty(key))
+            {
+                return;
+            }
+            metadata.PendingProvidedContext ??= new Dictionary<string, object>();
+            metadata.PendingProvidedContext[key] = value;
         }
 
         private static bool DepsChanged(object[] previousDependencies, object[] nextDependencies)

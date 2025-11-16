@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -149,7 +150,7 @@ namespace ReactiveUITK.Core
                 Hooks.FlushQueuedStateUpdates(metadata);
                 metadata.PendingUpdate = false;
                 metadata.HookIndex = 0;
-                RenderFunctionComponent(metadata, metadata.Container);
+                RenderFunctionComponent(metadata, metadata.Container, restoreAncestorContext: true);
             }
             catch (Exception ex)
             {
@@ -1494,7 +1495,10 @@ namespace ReactiveUITK.Core
                 }
 
                 if (skip)
+                {
+                    functionMetadata.InheritedContextFrame = hostContext.CaptureFrame();
                     return;
+                }
 
                 reconciledNodeCount++;
                 functionMetadata.FuncProps = new Dictionary<string, object>(nextNode.Properties);
@@ -1729,7 +1733,8 @@ namespace ReactiveUITK.Core
 
         private void RenderFunctionComponent(
             NodeMetadata functionComponentMetadata,
-            VisualElement reuseContainer = null
+            VisualElement reuseContainer = null,
+            bool restoreAncestorContext = false
         )
         {
             using (RenderFunctionComponentMarker.Auto())
@@ -1740,11 +1745,22 @@ namespace ReactiveUITK.Core
                 {
                     return;
                 }
+                HostContext.ContextFrameHandle originalFrame = default;
+                if (restoreAncestorContext && functionComponentMetadata.InheritedContextFrame.IsValid)
+                {
+                    originalFrame = hostContext.CaptureFrame();
+                    hostContext.RestoreFrame(functionComponentMetadata.InheritedContextFrame);
+                }
+                else if (!restoreAncestorContext)
+                {
+                    functionComponentMetadata.InheritedContextFrame = hostContext.CaptureFrame();
+                }
                 Hooks.FlushQueuedStateUpdates(functionComponentMetadata);
                 // Reset hook indices before render
                 functionComponentMetadata.HookIndex = 0;
                 functionComponentMetadata.EffectIndex = 0;
                 functionComponentMetadata.LayoutEffectIndex = 0;
+                functionComponentMetadata.PendingProvidedContext = null;
                 // Preserve existing HookOrderPrimed value (auto-realign may have set it false). Do not force true just because signatures exist.
                 if (functionComponentMetadata.HookOrderPrimed)
                 {
@@ -1774,6 +1790,9 @@ namespace ReactiveUITK.Core
                     || targetContainer.childCount == 0;
                 VirtualNode nextSubtree = null;
                 bool renderCompleted = false;
+                IReadOnlyDictionary<string, object> providerSnapshot = null;
+                HostContext.ContextFrameHandle providerHandle = default;
+                bool providerApplied = false;
                 try
                 {
                     functionComponentMetadata.IsRendering = true;
@@ -1794,38 +1813,59 @@ namespace ReactiveUITK.Core
                         functionComponentMetadata.FuncProps,
                         functionComponentMetadata.FuncChildren
                     );
+                    providerSnapshot = SnapshotContext(functionComponentMetadata.PendingProvidedContext);
+                    functionComponentMetadata.PendingProvidedContext = null;
+                    if (providerSnapshot != null)
+                    {
+                        providerHandle = hostContext.PushProvider(
+                            providerSnapshot,
+                            ref functionComponentMetadata.ContextProviderId
+                        );
+                        providerApplied = true;
+                    }
                     // Unified handling: build/diff then continue to effect phase (no early returns) so first render runs effects.
-                    if (nextSubtree == null)
+                    try
                     {
-                        // Clear any existing child and mark as empty
-                        targetContainer.Clear();
-                        functionComponentMetadata.LastRenderedSubtree = null;
-                    }
-                    else if (initialMount)
-                    {
-                        targetContainer.Clear();
-                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
-                        BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
-                    }
-                    else
-                    {
-                        // Diff against previous cached subtree
-                        VisualElement existingRootElement =
-                            targetContainer.childCount > 0 ? targetContainer.ElementAt(0) : null;
-                        if (existingRootElement == null)
+                        if (nextSubtree == null)
+                        {
+                            // Clear any existing child and mark as empty
+                            targetContainer.Clear();
+                            functionComponentMetadata.LastRenderedSubtree = null;
+                        }
+                        else if (initialMount)
                         {
                             targetContainer.Clear();
+                            functionComponentMetadata.LastRenderedSubtree = nextSubtree;
                             BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
                         }
                         else
                         {
-                            DiffNode(
-                                existingRootElement,
-                                functionComponentMetadata.LastRenderedSubtree,
-                                nextSubtree
-                            );
+                            // Diff against previous cached subtree
+                            VisualElement existingRootElement =
+                                targetContainer.childCount > 0 ? targetContainer.ElementAt(0) : null;
+                            if (existingRootElement == null)
+                            {
+                                targetContainer.Clear();
+                                BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
+                            }
+                            else
+                            {
+                                DiffNode(
+                                    existingRootElement,
+                                    functionComponentMetadata.LastRenderedSubtree,
+                                    nextSubtree
+                                );
+                            }
+                            functionComponentMetadata.LastRenderedSubtree = nextSubtree;
                         }
-                        functionComponentMetadata.LastRenderedSubtree = nextSubtree;
+                    }
+                    finally
+                    {
+                        if (providerApplied)
+                        {
+                            hostContext.PopProvider(providerHandle);
+                            providerApplied = false;
+                        }
                     }
                     renderCompleted = true;
                 }
@@ -1840,6 +1880,7 @@ namespace ReactiveUITK.Core
                 {
                     functionComponentMetadata.IsRendering = false;
                     HookContext.Current = null;
+                    functionComponentMetadata.PendingProvidedContext = null;
                     if (renderCompleted && Hooks.EnableHookValidation)
                     {
                         functionComponentMetadata.HookOrderPrimed = true;
@@ -1848,11 +1889,16 @@ namespace ReactiveUITK.Core
                     {
                         functionComponentMetadata.HookOrderPrimed = false;
                     }
+                    if (restoreAncestorContext && originalFrame.IsValid)
+                    {
+                        hostContext.RestoreFrame(originalFrame);
+                    }
                 }
                 if (!renderCompleted)
                 {
                     return;
                 }
+                HandleContextNotifications(functionComponentMetadata, providerSnapshot);
                 // Layout effects phase
                 if (functionComponentMetadata.FunctionLayoutEffects != null)
                 {
@@ -2436,6 +2482,84 @@ namespace ReactiveUITK.Core
             {
                 elementCache.Remove(key);
             }
+        }
+
+        private void HandleContextNotifications(
+            NodeMetadata metadata,
+            IReadOnlyDictionary<string, object> snapshot
+        )
+        {
+            if (metadata == null)
+            {
+                return;
+            }
+            var previous = metadata.LastProvidedContextSnapshot;
+            bool hadPrevious = previous != null && previous.Count > 0;
+            bool hasNew = snapshot != null && snapshot.Count > 0;
+
+            if (hasNew)
+            {
+                metadata.LastProvidedContextSnapshot = snapshot;
+                if (!ContextValuesEqual(previous, snapshot))
+                {
+                    hostContext?.NotifyContextChanged(metadata.ContextProviderId, snapshot);
+                }
+            }
+            else
+            {
+                metadata.LastProvidedContextSnapshot = null;
+                if (hadPrevious)
+                {
+                    hostContext?.NotifyContextChanged(metadata.ContextProviderId, previous);
+                }
+            }
+        }
+
+        private static IReadOnlyDictionary<string, object> SnapshotContext(
+            Dictionary<string, object> source
+        )
+        {
+            if (source == null || source.Count == 0)
+            {
+                return null;
+            }
+            var copy = new Dictionary<string, object>(source.Count);
+            foreach (var kv in source)
+            {
+                copy[kv.Key] = kv.Value;
+            }
+            return new ReadOnlyDictionary<string, object>(copy);
+        }
+
+        private static bool ContextValuesEqual(
+            IReadOnlyDictionary<string, object> first,
+            IReadOnlyDictionary<string, object> second
+        )
+        {
+            if (ReferenceEquals(first, second))
+            {
+                return true;
+            }
+            if (first == null || second == null)
+            {
+                return false;
+            }
+            if (first.Count != second.Count)
+            {
+                return false;
+            }
+            foreach (var kv in first)
+            {
+                if (!second.TryGetValue(kv.Key, out var other))
+                {
+                    return false;
+                }
+                if (!Equals(kv.Value, other))
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         // (Converters removed – styles no longer applied directly here.)

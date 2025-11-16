@@ -48,7 +48,7 @@ namespace ReactiveUITK.Core
         // Independent indices for effect lists to avoid interference with state/reducer hook index
         public int EffectIndex;
         public int LayoutEffectIndex;
-        public HashSet<string> SubscribedContextKeys;
+        public HashSet<ContextKey> SubscribedContextKeys;
         public List<VirtualNode> PortalPreviousChildren;
         public UnityEngine.UIElements.VisualElement PortalTarget;
         public bool PortalDetachWired;
@@ -65,13 +65,17 @@ namespace ReactiveUITK.Core
         public string ErrorBoundaryResetKey;
         public HashSet<string> StrictDiagnosticsKeys;
         public Dictionary<(int slot, byte kind), Delegate> StateSetterDelegateCache;
-        public Dictionary<string, int> ContextVersions;
+        public Dictionary<ContextKey, int> ContextVersions;
         public SuspenseRenderState SuspenseState;
         public Task SuspensePendingTask;
         public object SuspenseTaskLock;
         public int SuspenseTaskVersion;
         public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
         public Dictionary<int, object> PendingHookStatePreviews;
+        public HostContext.ContextFrameHandle InheritedContextFrame;
+        public Dictionary<string, object> PendingProvidedContext;
+        public IReadOnlyDictionary<string, object> LastProvidedContextSnapshot;
+        public int ContextProviderId;
     }
 
     internal sealed class HookStateUpdateQueue

@@ -137,8 +137,7 @@ Delegates may be `Action` or handlers with one parameter (UI Toolkit event).
 - Imperative handle: `Hooks.UseImperativeHandle(() => handleObj, deps...)`
 
 ## 8. Context
-Class components: `ProvideContext("themeColor", Color.cyan);` and consumers call `ConsumeContext<Color>("themeColor")`.
-Function components: `Hooks.UseContext<Color>("themeColor")`.
+Function components can expose context values by calling `Hooks.ProvideContext("themeColor", Color.cyan)` during render; descendants consume them via `Hooks.UseContext<Color>("themeColor")`.
 
 ## 9. Portals & Suspense
 - Portal: `V.Portal(targetElement, key, childNodes...)` renders children into another `VisualElement` while keeping a placeholder in parent ordering.
