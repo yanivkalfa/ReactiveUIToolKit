@@ -15,6 +15,7 @@ namespace ReactiveUITK.Core
         private static int batchedUpdateCountThisFrame;
         private static int lastFlushedCount;
         private static int lastFrameId;
+        private static readonly List<NodeMetadata> flushBuffer = new();
 
         public static int LastFlushComponentCount => lastFlushedCount;
         public static int LastFrameBatchedUpdates => batchedUpdateCountThisFrame;
@@ -76,12 +77,12 @@ namespace ReactiveUITK.Core
             }
             if (scheduled)
             {
-                Flush();
+                FlushPendingNow();
             }
         }
 #endif
 
-        private static void Flush()
+        private static void FlushPendingNow()
         {
             scheduled = false;
             if (pending.Count == 0)
@@ -91,11 +92,12 @@ namespace ReactiveUITK.Core
             }
 
             // Snapshot pending updates before executing; components may enqueue new updates during flush.
-            var toFlush = new List<NodeMetadata>(pending);
+            flushBuffer.Clear();
+            flushBuffer.AddRange(pending);
             pending.Clear();
-            lastFlushedCount = toFlush.Count;
+            lastFlushedCount = flushBuffer.Count;
 
-            foreach (var meta in toFlush)
+            foreach (var meta in flushBuffer)
             {
                 if (meta == null)
                 {
@@ -121,7 +123,26 @@ namespace ReactiveUITK.Core
                     catch { }
                 }
             }
-            pending.Clear();
+            flushBuffer.Clear();
+        }
+
+        public static void FlushSync(Action action = null)
+        {
+            if (action != null)
+            {
+                try
+                {
+                    action();
+                }
+                finally
+                {
+                    FlushPendingNow();
+                }
+            }
+            else
+            {
+                FlushPendingNow();
+            }
         }
 
         private sealed class FrameBatchDriver : MonoBehaviour
@@ -147,7 +168,7 @@ namespace ReactiveUITK.Core
                 }
                 if (scheduled)
                 {
-                    Flush();
+                    FlushPendingNow();
                 }
             }
 
@@ -155,7 +176,7 @@ namespace ReactiveUITK.Core
             {
                 if (scheduled)
                 {
-                    Flush();
+                    FlushPendingNow();
                 }
             }
         }

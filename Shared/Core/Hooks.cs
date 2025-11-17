@@ -1220,6 +1220,17 @@ namespace ReactiveUITK.Core
             metadata.PendingProvidedContext[key] = value;
         }
 
+        /// <summary>
+        /// React-style flushSync helper: run <paramref name="action"/> and immediately process any queued component updates.
+        /// </summary>
+        public static void FlushSync(Action action)
+        {
+            FrameBatcher.FlushSync(action);
+        }
+
+        /// <summary>Flush any queued updates immediately without running additional code.</summary>
+        public static void FlushSync() => FrameBatcher.FlushSync();
+
         private static bool DepsChanged(object[] previousDependencies, object[] nextDependencies)
         {
             if (previousDependencies == null || nextDependencies == null)
