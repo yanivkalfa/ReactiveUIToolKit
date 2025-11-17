@@ -55,7 +55,7 @@ namespace ReactiveUITK.Core
         }
 
         public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
-    public static bool WarnOnMixedKeySiblings = false;
+        public static bool WarnOnMixedKeySiblings = false;
 
         private int reconciledNodeCount;
         private int skippedNodeCount;
@@ -334,7 +334,7 @@ namespace ReactiveUITK.Core
         }
 
         private static HashSet<int> _warnedMixedKeyParents;
-    private static HashSet<int> _warnedMissingElementTypes;
+        private static HashSet<int> _warnedMissingElementTypes;
 
         // Removed strict missing-key heuristic; React-like behavior implemented in BuildChildren.
 
@@ -521,10 +521,10 @@ namespace ReactiveUITK.Core
             for (int i = managedCount - 1; i >= nextCount; i--)
             {
                 var toRemove = managed[i];
-                    RunRemovalCleanup(toRemove);
-                    toRemove.RemoveFromHierarchy();
-                }
+                RunRemovalCleanup(toRemove);
+                toRemove.RemoveFromHierarchy();
             }
+        }
 
         private void DiffChildrenByKey(
             VisualElement parentElement,
@@ -771,9 +771,8 @@ namespace ReactiveUITK.Core
                 else
                 {
                     var targetIndex = parentElement.IndexOf(firstManaged);
-                    var currentIndex = element.parent == parentElement
-                        ? parentElement.IndexOf(element)
-                        : -1;
+                    var currentIndex =
+                        element.parent == parentElement ? parentElement.IndexOf(element) : -1;
                     if (currentIndex != targetIndex)
                     {
                         InsertAt(Math.Max(0, targetIndex));
@@ -791,9 +790,8 @@ namespace ReactiveUITK.Core
             }
 
             var desiredIndex = anchorIndex + 1;
-            var existingIndex = element.parent == parentElement
-                ? parentElement.IndexOf(element)
-                : -1;
+            var existingIndex =
+                element.parent == parentElement ? parentElement.IndexOf(element) : -1;
             if (existingIndex != desiredIndex)
             {
                 InsertAt(desiredIndex);
@@ -1190,9 +1188,11 @@ namespace ReactiveUITK.Core
             bool renderFallback = !ready;
 
             IReadOnlyList<VirtualNode> targetChildren = renderFallback
-                ? (suspenseNode.Fallback != null
-                    ? new[] { suspenseNode.Fallback }
-                    : Array.Empty<VirtualNode>())
+                ? (
+                    suspenseNode.Fallback != null
+                        ? new[] { suspenseNode.Fallback }
+                        : Array.Empty<VirtualNode>()
+                )
                 : (suspenseNode.Children ?? Array.Empty<VirtualNode>());
 
             ClearHostElement(hostElement);
@@ -1717,7 +1717,10 @@ namespace ReactiveUITK.Core
                     return;
                 }
                 HostContext.ContextFrameHandle originalFrame = default;
-                if (restoreAncestorContext && functionComponentMetadata.InheritedContextFrame.IsValid)
+                if (
+                    restoreAncestorContext
+                    && functionComponentMetadata.InheritedContextFrame.IsValid
+                )
                 {
                     originalFrame = hostContext.CaptureFrame();
                     hostContext.RestoreFrame(functionComponentMetadata.InheritedContextFrame);
@@ -1787,7 +1790,9 @@ namespace ReactiveUITK.Core
                         functionComponentMetadata.FuncProps,
                         functionComponentMetadata.FuncChildren
                     );
-                    providerSnapshot = SnapshotContext(functionComponentMetadata.PendingProvidedContext);
+                    providerSnapshot = SnapshotContext(
+                        functionComponentMetadata.PendingProvidedContext
+                    );
                     functionComponentMetadata.PendingProvidedContext = null;
                     if (providerSnapshot != null)
                     {
@@ -1816,11 +1821,16 @@ namespace ReactiveUITK.Core
                         {
                             // Diff against previous cached subtree
                             VisualElement existingRootElement =
-                                targetContainer.childCount > 0 ? targetContainer.ElementAt(0) : null;
+                                targetContainer.childCount > 0
+                                    ? targetContainer.ElementAt(0)
+                                    : null;
                             if (existingRootElement == null)
                             {
                                 targetContainer.Clear();
-                                BuildChildren(targetContainer, new List<VirtualNode> { nextSubtree });
+                                BuildChildren(
+                                    targetContainer,
+                                    new List<VirtualNode> { nextSubtree }
+                                );
                             }
                             else
                             {
@@ -2297,7 +2307,11 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            if (metadata.PortalDetachWired && metadata.PortalDetachHandler != null && metadata.PortalTarget != null)
+            if (
+                metadata.PortalDetachWired
+                && metadata.PortalDetachHandler != null
+                && metadata.PortalTarget != null
+            )
             {
                 try
                 {
@@ -2382,8 +2396,7 @@ namespace ReactiveUITK.Core
                 else
                 {
                     double elapsedMs =
-                        (nowTicks - lastMetricsEmitTimestamp) * 1000.0
-                        / Stopwatch.Frequency;
+                        (nowTicks - lastMetricsEmitTimestamp) * 1000.0 / Stopwatch.Frequency;
                     allowEmit = elapsedMs >= metricsMinIntervalMs;
                 }
             }
