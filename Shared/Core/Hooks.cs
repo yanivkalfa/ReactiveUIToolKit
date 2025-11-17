@@ -9,7 +9,7 @@ namespace ReactiveUITK.Core
     internal static class HookContext
     {
         [ThreadStatic]
-        public static NodeMetadata Current;
+        public static FunctionComponentState Current;
     }
 
     public static class Hooks
@@ -130,6 +130,7 @@ namespace ReactiveUITK.Core
 
         internal readonly struct StateSetterHandle<T>
         {
+            private readonly FunctionComponentState state;
             private readonly NodeMetadata metadata;
             private readonly int index;
             private const byte ValueDelegateKind = 0;
@@ -139,9 +140,10 @@ namespace ReactiveUITK.Core
             private static readonly Action<Func<T, T>> NoopUpdaterDelegate = _ => { };
             private static readonly StateSetter<T> NoopCombinedDelegate = _ => default;
 
-            internal StateSetterHandle(NodeMetadata metadata, int index)
+            internal StateSetterHandle(FunctionComponentState state, int index)
             {
-                this.metadata = metadata;
+                this.state = state;
+                metadata = state?.Owner;
                 this.index = index;
             }
 
@@ -159,13 +161,14 @@ namespace ReactiveUITK.Core
 
             private T ApplyAndQueue(StateUpdate<T> update)
             {
-                if (metadata == null)
+                if (state == null)
                 {
                     return update.Apply(default);
                 }
-                if (metadata.IsRendering)
+                if (state.IsRendering)
                 {
                     WarnStrict(
+                        state,
                         metadata,
                         "state-update-during-render",
                         $"[Hooks][StrictMode] State update scheduled during render of '{DescribeComponent(metadata)}'. Move this set call to an effect or event handler."
@@ -174,6 +177,7 @@ namespace ReactiveUITK.Core
                 var previous = GetProjectedState();
                 var computed = update.Apply(previous);
                 EnqueuePendingUpdate(update, computed);
+                metadata?.SyncComponentState(state);
                 return computed;
             }
 
@@ -184,47 +188,48 @@ namespace ReactiveUITK.Core
                     return default;
                 }
                 if (
-                    metadata.PendingHookStatePreviews != null
-                    && metadata.PendingHookStatePreviews.TryGetValue(index, out var pending)
+                    state.PendingHookStatePreviews != null
+                    && state.PendingHookStatePreviews.TryGetValue(index, out var pending)
                     && pending is T projected
                 )
                 {
                     return projected;
                 }
                 if (
-                    metadata.HookStates == null
-                    || index >= metadata.HookStates.Count
+                    state.HookStates == null
+                    || index >= state.HookStates.Count
                 )
                 {
                     return default;
                 }
-                return metadata.HookStates[index] is T current ? current : default;
+                return state.HookStates[index] is T current ? current : default;
             }
 
             private void EnqueuePendingUpdate(StateUpdate<T> update, T computed)
             {
-                metadata.HookStateQueues ??= new Dictionary<int, HookStateUpdateQueue>();
-                if (!metadata.HookStateQueues.TryGetValue(index, out var queue))
+                state.HookStateQueues ??= new Dictionary<int, HookStateUpdateQueue>();
+                if (!state.HookStateQueues.TryGetValue(index, out var queue))
                 {
                     queue = new HookStateUpdateQueue();
-                    metadata.HookStateQueues[index] = queue;
+                    state.HookStateQueues[index] = queue;
                 }
                 queue.Enqueue(PendingStateUpdate.From(update));
-                metadata.PendingHookStatePreviews ??= new Dictionary<int, object>();
-                metadata.PendingHookStatePreviews[index] = computed;
+                state.PendingHookStatePreviews ??= new Dictionary<int, object>();
+                state.PendingHookStatePreviews[index] = computed;
+                metadata?.SyncComponentState(state);
                 Hooks.RequestComponentRerender(metadata);
             }
 
             private Action<T> GetValueDelegate()
             {
-                if (metadata == null)
+                if (state == null)
                 {
                     return NoopValueDelegate;
                 }
-                metadata.StateSetterDelegateCache ??= new Dictionary<(int, byte), Delegate>();
+                state.StateSetterDelegateCache ??= new Dictionary<(int, byte), Delegate>();
                 var key = (index, ValueDelegateKind);
                 if (
-                    metadata.StateSetterDelegateCache.TryGetValue(key, out var existing)
+                    state.StateSetterDelegateCache.TryGetValue(key, out var existing)
                     && existing is Action<T> typed
                 )
                 {
@@ -232,20 +237,20 @@ namespace ReactiveUITK.Core
                 }
                 var setter = this;
                 Action<T> action = value => setter.Set(value);
-                metadata.StateSetterDelegateCache[key] = action;
+                state.StateSetterDelegateCache[key] = action;
                 return action;
             }
 
             private Action<Func<T, T>> GetUpdaterDelegate()
             {
-                if (metadata == null)
+                if (state == null)
                 {
                     return NoopUpdaterDelegate;
                 }
-                metadata.StateSetterDelegateCache ??= new Dictionary<(int, byte), Delegate>();
+                state.StateSetterDelegateCache ??= new Dictionary<(int, byte), Delegate>();
                 var key = (index, UpdaterDelegateKind);
                 if (
-                    metadata.StateSetterDelegateCache.TryGetValue(key, out var existing)
+                    state.StateSetterDelegateCache.TryGetValue(key, out var existing)
                     && existing is Action<Func<T, T>> typed
                 )
                 {
@@ -260,20 +265,20 @@ namespace ReactiveUITK.Core
                     }
                     setter.Set(update);
                 };
-                metadata.StateSetterDelegateCache[key] = action;
+                state.StateSetterDelegateCache[key] = action;
                 return action;
             }
 
             internal StateSetter<T> GetCombinedDelegate()
             {
-                if (metadata == null)
+                if (state == null)
                 {
                     return NoopCombinedDelegate;
                 }
-                metadata.StateSetterDelegateCache ??= new Dictionary<(int, byte), Delegate>();
+                state.StateSetterDelegateCache ??= new Dictionary<(int, byte), Delegate>();
                 var key = (index, CombinedDelegateKind);
                 if (
-                    metadata.StateSetterDelegateCache.TryGetValue(key, out var existing)
+                    state.StateSetterDelegateCache.TryGetValue(key, out var existing)
                     && existing is StateSetter<T> typed
                 )
                 {
@@ -292,7 +297,7 @@ namespace ReactiveUITK.Core
                     }
                     return setter.Set(update.Updater);
                 };
-                metadata.StateSetterDelegateCache[key] = combined;
+                state.StateSetterDelegateCache[key] = combined;
                 return combined;
             }
         }
@@ -315,27 +320,51 @@ namespace ReactiveUITK.Core
         private const string HookIdContext = "UseContext";
         private const string HookIdMutableRef = "UseMutableRef";
 
-        private static void RecordHook(NodeMetadata metadata, string hookId)
+        private static FunctionComponentState EnsureState(NodeMetadata metadata)
         {
-            if (!EnableHookValidation || metadata == null)
+            if (metadata == null)
+            {
+                return null;
+            }
+            var state = HookContext.Current ?? metadata.ComponentState;
+            if (state == null)
+            {
+                state = metadata.EnsureComponentState();
+            }
+            metadata.SyncComponentState(state);
+            return state;
+        }
+
+        private static void SyncState(NodeMetadata metadata, FunctionComponentState state)
+        {
+            metadata?.SyncComponentState(state);
+        }
+
+        private static void RecordHook(
+            NodeMetadata metadata,
+            FunctionComponentState state,
+            string hookId
+        )
+        {
+            if (!EnableHookValidation || metadata == null || state == null)
             {
                 return;
             }
-            metadata.HookOrderSignatures ??= new List<string>();
-            int index = metadata.HookIndex;
-            if (!metadata.HookOrderPrimed)
+            state.HookOrderSignatures ??= new List<string>();
+            int index = state.HookIndex;
+            if (!state.HookOrderPrimed)
             {
-                if (metadata.HookOrderSignatures.Count > index)
+                if (state.HookOrderSignatures.Count > index)
                 {
-                    metadata.HookOrderSignatures[index] = hookId;
+                    state.HookOrderSignatures[index] = hookId;
                 }
                 else
                 {
-                    metadata.HookOrderSignatures.Add(hookId);
+                    state.HookOrderSignatures.Add(hookId);
                 }
                 return;
             }
-            if (index >= metadata.HookOrderSignatures.Count)
+            if (index >= state.HookOrderSignatures.Count)
             {
                 Debug.LogError(
                     $"[Hooks] Hook count changed for component {DescribeComponent(metadata)}"
@@ -344,25 +373,25 @@ namespace ReactiveUITK.Core
             }
             if (
                 !string.Equals(
-                    metadata.HookOrderSignatures[index],
+                    state.HookOrderSignatures[index],
                     hookId,
                     StringComparison.Ordinal
                 )
             )
             {
                 Debug.LogError(
-                    $"[Hooks] Hook order mismatch: expected {metadata.HookOrderSignatures[index]} but saw {hookId} for component {DescribeComponent(metadata)}"
+                    $"[Hooks] Hook order mismatch: expected {state.HookOrderSignatures[index]} but saw {hookId} for component {DescribeComponent(metadata)}"
                 );
                 if (EnableHookAutoRealign)
                 {
                     // Aggressive realign: clear entire signature list to fully re-prime on next render to avoid cascading mismatches.
                     try
                     {
-                        metadata.HookOrderSignatures.Clear();
+                        state.HookOrderSignatures.Clear();
                     }
                     catch { }
-                    metadata.HookOrderSignatures.Add(hookId); // seed with current
-                    metadata.HookOrderPrimed = false;
+                    state.HookOrderSignatures.Add(hookId); // seed with current
+                    state.HookOrderPrimed = false;
                 }
             }
         }
@@ -387,14 +416,24 @@ namespace ReactiveUITK.Core
             }
         }
 
-        private static void WarnStrict(NodeMetadata metadata, string key, string message)
+        private static void WarnStrict(
+            FunctionComponentState state,
+            NodeMetadata metadata,
+            string key,
+            string message
+        )
         {
-            if (!EnableStrictDiagnostics || metadata == null || string.IsNullOrEmpty(message))
+            if (!EnableStrictDiagnostics || string.IsNullOrEmpty(message))
             {
                 return;
             }
-            metadata.StrictDiagnosticsKeys ??= new HashSet<string>();
-            if (!metadata.StrictDiagnosticsKeys.Add(key))
+            state ??= metadata?.ComponentState ?? HookContext.Current;
+            if (state == null)
+            {
+                return;
+            }
+            state.StrictDiagnosticsKeys ??= new HashSet<string>();
+            if (!state.StrictDiagnosticsKeys.Add(key))
             {
                 return;
             }
@@ -407,6 +446,7 @@ namespace ReactiveUITK.Core
 
         private static void WarnMissingDependencies(
             NodeMetadata metadata,
+            FunctionComponentState state,
             string hookId,
             int logicalIndex,
             object[] dependencies,
@@ -423,6 +463,7 @@ namespace ReactiveUITK.Core
             string hookName = hookId ?? "Hook";
             string key = $"missing-deps:{hookName}:{logicalIndex}";
             WarnStrict(
+                state,
                 metadata,
                 key,
                 $"[Hooks][StrictMode] {hookName} in component '{component}' was invoked without a dependency array; it will re-run every render. Provide explicit dependencies or refactor the logic."
@@ -451,16 +492,20 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            if (metadata.IsRendering)
+            FunctionComponentState state = metadata.ComponentState ?? metadata.EnsureComponentState();
+            if (state?.IsRendering == true)
             {
-                metadata.PendingUpdate = true;
+                state.PendingUpdate = true;
                 WarnStrict(
+                    state,
                     metadata,
                     "state-update-during-render",
                     $"[Hooks][StrictMode] State update scheduled during render of '{DescribeComponent(metadata)}'. Move this set call to an effect or event handler."
                 );
+                metadata.SyncComponentState(state);
                 return;
             }
+            metadata.SyncComponentState(state);
             // Frame batching: enqueue component for end-of-frame flush instead of immediate render
             ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
         }
@@ -471,13 +516,15 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            if (metadata.HookStateQueues == null || metadata.HookStateQueues.Count == 0)
+            var state = metadata.EnsureComponentState();
+            if (state.HookStateQueues == null || state.HookStateQueues.Count == 0)
             {
-                metadata.PendingHookStatePreviews?.Clear();
+                state.PendingHookStatePreviews?.Clear();
+                metadata.SyncComponentState(state);
                 return;
             }
-            metadata.HookStates ??= new List<object>();
-            foreach (var kvp in metadata.HookStateQueues)
+            state.HookStates ??= new List<object>();
+            foreach (var kvp in state.HookStateQueues)
             {
                 var queue = kvp.Value;
                 if (queue == null || !queue.HasPending)
@@ -486,135 +533,148 @@ namespace ReactiveUITK.Core
                 }
                 int slot = kvp.Key;
                 object current =
-                    slot < metadata.HookStates.Count ? metadata.HookStates[slot] : null;
+                    slot < state.HookStates.Count ? state.HookStates[slot] : null;
                 var node = queue.ConsumeAll();
                 while (node != null)
                 {
                     current = node.Update.Apply(current);
                     node = node.Next;
                 }
-                while (metadata.HookStates.Count <= slot)
+                while (state.HookStates.Count <= slot)
                 {
-                    metadata.HookStates.Add(null);
+                    state.HookStates.Add(null);
                 }
-                metadata.HookStates[slot] = current;
+                state.HookStates[slot] = current;
             }
-            metadata.PendingHookStatePreviews?.Clear();
+            state.PendingHookStatePreviews?.Clear();
+            metadata.SyncComponentState(state);
         }
 
         public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)
         {
             // Lightweight read; no re-render trigger. Caller can combine with other state to refresh on orientation/resize.
             var current = SafeAreaUtility.GetInsets();
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            FunctionComponentState state = HookContext.Current;
+            NodeMetadata metadata = state?.Owner;
+            if (metadata == null || state == null)
             {
                 return current;
             }
-            RecordHook(metadata, HookIdUseSafeArea);
-            metadata.HookStates ??= new System.Collections.Generic.List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdUseSafeArea);
+            state.HookStates ??= new System.Collections.Generic.List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(current);
+                state.HookStates.Add(current);
             }
             // Keep last value for potential future change detection
-            metadata.HookStates[metadata.HookIndex] = current;
-            metadata.HookIndex++;
+            state.HookStates[state.HookIndex] = current;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return current;
         }
 
         public static Func<T> UseStableFunc<T>(Func<T> function)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return function;
             }
-            RecordHook(metadata, HookIdStableFunc);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdStableFunc);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(function);
+                state.HookStates.Add(function);
             }
-            Func<T> stored = (Func<T>)metadata.HookStates[metadata.HookIndex];
-            metadata.HookIndex++;
-            metadata.HookStates[metadata.HookIndex - 1] = function;
+            Func<T> stored = (Func<T>)state.HookStates[state.HookIndex];
+            state.HookIndex++;
+            state.HookStates[state.HookIndex - 1] = function;
+            metadata.SyncComponentState(state);
             return stored;
         }
 
         public static Action<T> UseStableAction<T>(Action<T> action)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return action;
             }
-            RecordHook(metadata, HookIdStableAction);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdStableAction);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(action);
+                state.HookStates.Add(action);
             }
-            Action<T> stored = (Action<T>)metadata.HookStates[metadata.HookIndex];
-            metadata.HookIndex++;
-            metadata.HookStates[metadata.HookIndex - 1] = action;
+            Action<T> stored = (Action<T>)state.HookStates[state.HookIndex];
+            state.HookIndex++;
+            state.HookStates[state.HookIndex - 1] = action;
+            metadata.SyncComponentState(state);
             return stored;
         }
 
         public static Action UseStableCallback(Action callback)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return callback;
             }
-            RecordHook(metadata, HookIdStableCallback);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdStableCallback);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(callback);
+                state.HookStates.Add(callback);
             }
-            Action stored = (Action)metadata.HookStates[metadata.HookIndex];
-            metadata.HookIndex++;
-            metadata.HookStates[metadata.HookIndex - 1] = callback;
+            Action stored = (Action)state.HookStates[state.HookIndex];
+            state.HookIndex++;
+            state.HookStates[state.HookIndex - 1] = callback;
+            metadata.SyncComponentState(state);
             return stored;
         }
 
         public static void UseLayoutEffect(Func<Action> effectFactory, params object[] dependencies)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return;
             }
-            RecordHook(metadata, HookIdLayoutEffect);
+            RecordHook(metadata, state, HookIdLayoutEffect);
             WarnMissingDependencies(
                 metadata,
+                state,
                 HookIdLayoutEffect,
-                metadata.LayoutEffectIndex,
+                state.LayoutEffectIndex,
                 dependencies
             );
-            metadata.FunctionLayoutEffects ??=
+            state.FunctionLayoutEffects ??=
                 new List<(Func<Action>, object[], object[], Action)>();
-            int index = metadata.LayoutEffectIndex;
-            if (index >= metadata.FunctionLayoutEffects.Count)
+            int index = state.LayoutEffectIndex;
+            if (index >= state.FunctionLayoutEffects.Count)
             {
-                metadata.FunctionLayoutEffects.Add((effectFactory, dependencies, null, null));
+                state.FunctionLayoutEffects.Add((effectFactory, dependencies, null, null));
             }
             else
             {
-                var entry = metadata.FunctionLayoutEffects[index];
+                var entry = state.FunctionLayoutEffects[index];
                 entry.factory = effectFactory;
                 entry.deps = dependencies;
-                metadata.FunctionLayoutEffects[index] = entry;
+                state.FunctionLayoutEffects[index] = entry;
             }
-            metadata.LayoutEffectIndex++;
+            state.LayoutEffectIndex++;
+            metadata.SyncComponentState(state);
         }
 
         public static (T value, StateSetter<T> set) UseState<T>(T initial = default)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            FunctionComponentState state = HookContext.Current ?? metadata?.EnsureComponentState();
+            if (metadata == null || state == null)
             {
                 StateSetter<T> noop = update =>
                 {
@@ -637,16 +697,17 @@ namespace ReactiveUITK.Core
                 };
                 return (initial, noop);
             }
-            RecordHook(metadata, HookIdState);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdState);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(initial);
+                state.HookStates.Add(initial);
             }
-            T currentValue = (T)metadata.HookStates[metadata.HookIndex];
-            int capturedIndex = metadata.HookIndex;
-            metadata.HookIndex++;
-            var setterHandle = new StateSetterHandle<T>(metadata, capturedIndex);
+            T currentValue = (T)state.HookStates[state.HookIndex];
+            int capturedIndex = state.HookIndex;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
+            var setterHandle = new StateSetterHandle<T>(state, capturedIndex);
             return (currentValue, setterHandle.GetCombinedDelegate());
         }
 
@@ -655,23 +716,25 @@ namespace ReactiveUITK.Core
             TState initialState
         )
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            FunctionComponentState state = HookContext.Current ?? metadata?.EnsureComponentState();
+            if (metadata == null || state == null)
             {
                 return (initialState, _ => { });
             }
-            RecordHook(metadata, HookIdReducer);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdReducer);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(initialState);
+                state.HookStates.Add(initialState);
             }
-            int index = metadata.HookIndex;
-            TState currentState = (TState)metadata.HookStates[index];
-            metadata.HookIndex++;
+            int index = state.HookIndex;
+            TState currentState = (TState)state.HookStates[index];
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             void Dispatch(TAction action)
             {
-                TState previous = (TState)metadata.HookStates[index];
+                TState previous = (TState)state.HookStates[index];
                 TState next;
                 try
                 {
@@ -683,115 +746,125 @@ namespace ReactiveUITK.Core
                 }
                 if (!Equals(previous, next))
                 {
-                    metadata.HookStates[index] = next;
+                    state.HookStates[index] = next;
                     RequestComponentRerender(metadata);
                 }
             }
+            metadata.SyncComponentState(state);
             return (currentState, Dispatch);
         }
 
         public static T UseMemo<T>(Func<T> factory, params object[] dependencies)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return factory();
             }
-            RecordHook(metadata, HookIdMemo);
+            RecordHook(metadata, state, HookIdMemo);
             WarnMissingDependencies(
                 metadata,
+                state,
                 HookIdMemo,
-                metadata.HookIndex,
+                state.HookIndex,
                 dependencies,
                 treatEmptyAsMissing: true
             );
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add((factory(), dependencies));
+                state.HookStates.Add((factory(), dependencies));
             }
             // Guard against transient mismatch
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add((factory(), dependencies));
+                state.HookStates.Add((factory(), dependencies));
             }
-            var tuple = ((T value, object[] d))metadata.HookStates[metadata.HookIndex];
+            var tuple = ((T value, object[] d))state.HookStates[state.HookIndex];
             bool changed = DepsChanged(tuple.d, dependencies);
             if (changed)
             {
                 tuple = (factory(), dependencies);
-                metadata.HookStates[metadata.HookIndex] = tuple;
+                state.HookStates[state.HookIndex] = tuple;
             }
-            metadata.HookIndex++;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return tuple.value;
         }
 
         public static T UseDeferredValue<T>(T value, params object[] dependencies)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return value;
             }
-            RecordHook(metadata, HookIdDeferred);
-            WarnMissingDependencies(metadata, HookIdDeferred, metadata.HookIndex, dependencies);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdDeferred);
+            WarnMissingDependencies(metadata, state, HookIdDeferred, state.HookIndex, dependencies);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add((value, dependencies));
+                state.HookStates.Add((value, dependencies));
             }
-            var tuple = ((T val, object[] d))metadata.HookStates[metadata.HookIndex];
+            var tuple = ((T val, object[] d))state.HookStates[state.HookIndex];
             bool changed = DepsChanged(tuple.d, dependencies);
             if (changed && !Equals(tuple.val, value))
             {
                 T newVal = value;
-                int index = metadata.HookIndex;
+                int index = state.HookIndex;
                 var scheduler = ResolveScheduler(metadata);
                 if (scheduler != null)
                 {
                     scheduler.EnqueueBatchedEffect(() =>
                     {
-                        metadata.HookStates[index] = (newVal, dependencies);
+                        state.HookStates[index] = (newVal, dependencies);
+                        metadata.SyncComponentState(state);
                     });
                 }
                 else
                 {
-                    metadata.HookStates[index] = (newVal, dependencies);
+                    state.HookStates[index] = (newVal, dependencies);
                 }
             }
-            metadata.HookIndex++;
-            var latest = ((T val, object[] d))metadata.HookStates[metadata.HookIndex - 1];
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
+            var latest = ((T val, object[] d))state.HookStates[state.HookIndex - 1];
             return latest.val;
         }
 
         public static Func<T> UseCallback<T>(Func<T> callback, params object[] dependencies)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return callback;
             }
-            RecordHook(metadata, HookIdCallback);
+            RecordHook(metadata, state, HookIdCallback);
             WarnMissingDependencies(
                 metadata,
+                state,
                 HookIdCallback,
-                metadata.HookIndex,
+                state.HookIndex,
                 dependencies,
                 treatEmptyAsMissing: true
             );
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add((callback, dependencies));
+                state.HookStates.Add((callback, dependencies));
             }
-            var tuple = ((Func<T> cb, object[] d))metadata.HookStates[metadata.HookIndex];
+            var tuple = ((Func<T> cb, object[] d))state.HookStates[state.HookIndex];
             bool changed = DepsChanged(tuple.d, dependencies);
             if (changed)
             {
                 tuple = (callback, dependencies);
-                metadata.HookStates[metadata.HookIndex] = tuple;
+                state.HookStates[state.HookIndex] = tuple;
             }
-            metadata.HookIndex++;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return tuple.cb;
         }
 
@@ -801,94 +874,102 @@ namespace ReactiveUITK.Core
         )
             where THandle : class
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return factory();
             }
-            RecordHook(metadata, HookIdImperative);
+            RecordHook(metadata, state, HookIdImperative);
             WarnMissingDependencies(
                 metadata,
+                state,
                 HookIdImperative,
-                metadata.HookIndex,
+                state.HookIndex,
                 dependencies,
                 treatEmptyAsMissing: true
             );
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add((factory(), dependencies));
+                state.HookStates.Add((factory(), dependencies));
             }
-            var tuple = ((THandle handle, object[] d))metadata.HookStates[metadata.HookIndex];
+            var tuple = ((THandle handle, object[] d))state.HookStates[state.HookIndex];
             if (DepsChanged(tuple.d, dependencies))
             {
                 tuple = (factory(), dependencies);
-                metadata.HookStates[metadata.HookIndex] = tuple;
+                state.HookStates[state.HookIndex] = tuple;
             }
-            metadata.HookIndex++;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return tuple.handle;
         }
 
         public static MutableRef<T> UseRef<T>(T initial = default)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return new MutableRef<T> { Value = initial };
             }
-            RecordHook(metadata, HookIdMutableRef);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdMutableRef);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(new MutableRef<T> { Value = initial });
+                state.HookStates.Add(new MutableRef<T> { Value = initial });
             }
-            var stored = (MutableRef<T>)metadata.HookStates[metadata.HookIndex];
-            metadata.HookIndex++;
+            var stored = (MutableRef<T>)state.HookStates[state.HookIndex];
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return stored;
         }
 
         public static VisualElement UseRef()
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return null;
             }
-            RecordHook(metadata, HookIdElementRef);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdElementRef);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(metadata.Container);
+                state.HookStates.Add(metadata.Container);
             }
             else
             {
-                metadata.HookStates[metadata.HookIndex] = metadata.Container;
+                state.HookStates[state.HookIndex] = metadata.Container;
             }
-            metadata.HookIndex++;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return metadata.Container;
         }
 
         public static void UseEffect(Func<Action> effectFactory, params object[] dependencies)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return;
             }
-            RecordHook(metadata, HookIdEffect);
-            WarnMissingDependencies(metadata, HookIdEffect, metadata.EffectIndex, dependencies);
-            metadata.FunctionEffects ??= new List<(Func<Action>, object[], object[], Action)>();
-            int index = metadata.EffectIndex;
-            if (index >= metadata.FunctionEffects.Count)
+            RecordHook(metadata, state, HookIdEffect);
+            WarnMissingDependencies(metadata, state, HookIdEffect, state.EffectIndex, dependencies);
+            state.FunctionEffects ??= new List<(Func<Action>, object[], object[], Action)>();
+            int index = state.EffectIndex;
+            if (index >= state.FunctionEffects.Count)
             {
-                metadata.FunctionEffects.Add((effectFactory, dependencies, null, null));
+                state.FunctionEffects.Add((effectFactory, dependencies, null, null));
             }
             else
             {
-                var entry = metadata.FunctionEffects[index];
+                var entry = state.FunctionEffects[index];
                 entry.factory = effectFactory;
                 entry.deps = dependencies;
-                metadata.FunctionEffects[index] = entry;
+                state.FunctionEffects[index] = entry;
             }
             if (
                 ReactiveUITK.Core.Reconciler.TraceLevel
@@ -906,7 +987,8 @@ namespace ReactiveUITK.Core
                 }
                 catch { }
             }
-            metadata.EffectIndex++;
+            state.EffectIndex++;
+            metadata.SyncComponentState(state);
         }
 
         // Animate the current function component container using tracks.
@@ -917,27 +999,29 @@ namespace ReactiveUITK.Core
             params object[] dependencies
         )
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return;
             }
-            RecordHook(metadata, HookIdAnimate);
+            RecordHook(metadata, state, HookIdAnimate);
             // Store last handles in hook state slot
-            metadata.HookStates ??= new System.Collections.Generic.List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            state.HookStates ??= new System.Collections.Generic.List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(null);
+                state.HookStates.Add(null);
             }
-            int index = metadata.HookIndex;
-            metadata.HookIndex++;
+            int index = state.HookIndex;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             // Run effect when deps change
             UseEffect(
                 () =>
                 {
                     // stop previous if any
                     var prev =
-                        metadata.HookStates[index]
+                        state.HookStates[index]
                         as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
                     if (prev != null)
                     {
@@ -959,11 +1043,12 @@ namespace ReactiveUITK.Core
                             tracks
                         );
                     }
-                    metadata.HookStates[index] = handles;
+                    state.HookStates[index] = handles;
+                    metadata.SyncComponentState(state);
                     return () =>
                     {
                         var hs =
-                            metadata.HookStates[index]
+                            state.HookStates[index]
                             as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
                         if (hs != null)
                         {
@@ -975,7 +1060,8 @@ namespace ReactiveUITK.Core
                                 }
                                 catch { }
                             }
-                            metadata.HookStates[index] = null;
+                            state.HookStates[index] = null;
+                            metadata.SyncComponentState(state);
                         }
                     };
                 },
@@ -995,19 +1081,21 @@ namespace ReactiveUITK.Core
             params object[] dependencies
         )
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || state == null)
             {
                 return;
             }
-            RecordHook(metadata, HookIdTween);
-            metadata.HookStates ??= new System.Collections.Generic.List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            RecordHook(metadata, state, HookIdTween);
+            state.HookStates ??= new System.Collections.Generic.List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(null);
+                state.HookStates.Add(null);
             }
-            int index = metadata.HookIndex;
-            metadata.HookIndex++;
+            int index = state.HookIndex;
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
 
             UseEffect(
                 () =>
@@ -1089,29 +1177,32 @@ namespace ReactiveUITK.Core
 
         public static T UseContext<T>(string key)
         {
-            NodeMetadata metadata = HookContext.Current;
-            if (metadata == null || metadata.HostContext == null)
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (metadata == null || metadata.HostContext == null || state == null)
             {
                 return default;
             }
-            RecordHook(metadata, HookIdContext);
+            RecordHook(metadata, state, HookIdContext);
             int version;
             int providerId;
             object resolved = metadata.HostContext.ResolveContext(key, out version, out providerId);
             metadata.HostContext.RegisterContextConsumer(metadata, key, providerId);
-            metadata.HookStates ??= new List<object>();
-            if (metadata.HookIndex >= metadata.HookStates.Count)
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
             {
-                metadata.HookStates.Add(default(T));
+                state.HookStates.Add(default(T));
             }
             if (resolved is T typed)
             {
-                metadata.HookStates[metadata.HookIndex] = typed;
-                metadata.HookIndex++;
+                state.HookStates[state.HookIndex] = typed;
+                state.HookIndex++;
+                metadata.SyncComponentState(state);
                 return typed;
             }
-            metadata.HookStates[metadata.HookIndex] = default(T);
-            metadata.HookIndex++;
+            state.HookStates[state.HookIndex] = default(T);
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
             return default;
         }
 
@@ -1120,7 +1211,7 @@ namespace ReactiveUITK.Core
 
         public static void ProvideContext(string key, object value)
         {
-            NodeMetadata metadata = HookContext.Current;
+            NodeMetadata metadata = HookContext.Current?.Owner;
             if (metadata == null || string.IsNullOrEmpty(key))
             {
                 return;

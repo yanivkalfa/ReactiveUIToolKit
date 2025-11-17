@@ -26,56 +26,46 @@ namespace ReactiveUITK.Core
         public Dictionary<string, object> FuncProps;
         public IReadOnlyList<VirtualNode> FuncChildren;
         public IReadOnlyList<PropTypeDefinition> FuncPropTypes;
-        public List<object> HookStates;
-        public int HookIndex;
         public VirtualNode LastRenderedSubtree;
         public UnityEngine.UIElements.VisualElement Container;
         public HostContext HostContext;
         public Reconciler Reconciler;
-        public List<(
-            Func<Action> factory,
-            object[] deps,
-            object[] lastDeps,
-            Action cleanup
-        )> FunctionEffects;
-        public List<(
-            Func<Action> factory,
-            object[] deps,
-            object[] lastDeps,
-            Action cleanup
-        )> FunctionLayoutEffects;
-
-        // Independent indices for effect lists to avoid interference with state/reducer hook index
-        public int EffectIndex;
-        public int LayoutEffectIndex;
-        public HashSet<ContextKey> SubscribedContextKeys;
+        public FunctionComponentState ComponentState;
         public List<VirtualNode> PortalPreviousChildren;
         public UnityEngine.UIElements.VisualElement PortalTarget;
         public bool PortalDetachWired;
         public EventCallback<DetachFromPanelEvent> PortalDetachHandler;
         public bool IsFlattened; // true when function component root element is directly mounted without wrapper
-        public bool IsRendering; // re-entrancy guard for function components
-        public bool PendingUpdate; // schedule one update after commit
-        public bool UpdateQueued; // reused to guard against duplicate scheduled updates
-        public List<string> HookOrderSignatures;
-        public bool HookOrderPrimed;
         public bool ErrorBoundaryActive;
         public bool ErrorBoundaryShowingFallback;
         public Exception ErrorBoundaryLastException;
         public string ErrorBoundaryResetKey;
-        public HashSet<string> StrictDiagnosticsKeys;
-        public Dictionary<(int slot, byte kind), Delegate> StateSetterDelegateCache;
-        public Dictionary<ContextKey, int> ContextVersions;
         public SuspenseRenderState SuspenseState;
         public Task SuspensePendingTask;
         public object SuspenseTaskLock;
         public int SuspenseTaskVersion;
-        public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
-        public Dictionary<int, object> PendingHookStatePreviews;
         public HostContext.ContextFrameHandle InheritedContextFrame;
         public Dictionary<string, object> PendingProvidedContext;
         public IReadOnlyDictionary<string, object> LastProvidedContextSnapshot;
         public int ContextProviderId;
+
+        internal FunctionComponentState EnsureComponentState()
+        {
+            if (ComponentState == null)
+            {
+                ComponentState = new FunctionComponentState(this);
+            }
+            return ComponentState;
+        }
+
+        internal void SyncComponentState(FunctionComponentState state)
+        {
+            if (state == null)
+            {
+                return;
+            }
+            ComponentState = state;
+        }
     }
 
     internal sealed class HookStateUpdateQueue
@@ -123,5 +113,42 @@ namespace ReactiveUITK.Core
     {
         public IReadOnlyList<VirtualNode> LastRenderedChildren;
         public bool ShowingFallback;
+    }
+
+    internal sealed class FunctionComponentState
+    {
+        public FunctionComponentState(NodeMetadata owner)
+        {
+            Owner = owner;
+        }
+
+        public NodeMetadata Owner { get; }
+        public List<object> HookStates = new();
+        public int HookIndex;
+        public List<(
+            Func<Action> factory,
+            object[] deps,
+            object[] lastDeps,
+            Action cleanup
+        )> FunctionEffects;
+        public List<(
+            Func<Action> factory,
+            object[] deps,
+            object[] lastDeps,
+            Action cleanup
+        )> FunctionLayoutEffects;
+        public int EffectIndex;
+        public int LayoutEffectIndex;
+        public HashSet<ContextKey> SubscribedContextKeys;
+        public bool PendingUpdate;
+        public bool UpdateQueued;
+        public List<string> HookOrderSignatures;
+        public bool HookOrderPrimed;
+        public bool IsRendering;
+        public HashSet<string> StrictDiagnosticsKeys;
+        public Dictionary<(int slot, byte kind), Delegate> StateSetterDelegateCache;
+        public Dictionary<ContextKey, int> ContextVersions;
+        public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
+        public Dictionary<int, object> PendingHookStatePreviews;
     }
 }

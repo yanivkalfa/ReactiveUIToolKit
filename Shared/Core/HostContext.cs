@@ -41,7 +41,7 @@ namespace ReactiveUITK.Core
             public int ProviderId;
         }
 
-        public readonly struct ContextFrameHandle : IEquatable<ContextFrameHandle>
+        internal readonly struct ContextFrameHandle : IEquatable<ContextFrameHandle>
         {
             internal ContextFrameHandle(ContextFrame frame)
             {
@@ -168,11 +168,17 @@ namespace ReactiveUITK.Core
             }
 
             var contextKey = new ContextKey(key, providerId);
-            RemoveStaleContextSubscriptions(metadata, key, contextKey);
-            metadata.SubscribedContextKeys ??= new HashSet<ContextKey>();
-            metadata.SubscribedContextKeys.Add(contextKey);
-            metadata.ContextVersions ??= new Dictionary<ContextKey, int>();
-            metadata.ContextVersions[contextKey] = GetContextVersion(contextKey);
+            var state = metadata.ComponentState ?? metadata.EnsureComponentState();
+            if (state == null)
+            {
+                return;
+            }
+            RemoveStaleContextSubscriptions(metadata, state, key, contextKey);
+            state.SubscribedContextKeys ??= new HashSet<ContextKey>();
+            state.SubscribedContextKeys.Add(contextKey);
+            state.ContextVersions ??= new Dictionary<ContextKey, int>();
+            state.ContextVersions[contextKey] = GetContextVersion(contextKey);
+            metadata.SyncComponentState(state);
 
             if (!contextSubscribers.TryGetValue(contextKey, out HashSet<NodeMetadata> subscribers))
             {
@@ -184,12 +190,13 @@ namespace ReactiveUITK.Core
 
         internal void UnregisterContextConsumer(NodeMetadata metadata)
         {
-            if (metadata?.SubscribedContextKeys == null)
+            var state = metadata?.ComponentState ?? metadata?.EnsureComponentState();
+            if (state?.SubscribedContextKeys == null)
             {
                 return;
             }
 
-            foreach (ContextKey key in metadata.SubscribedContextKeys)
+            foreach (ContextKey key in state.SubscribedContextKeys)
             {
                 if (contextSubscribers.TryGetValue(key, out HashSet<NodeMetadata> subscribers))
                 {
@@ -201,8 +208,9 @@ namespace ReactiveUITK.Core
                 }
             }
 
-            metadata.SubscribedContextKeys.Clear();
-            metadata.ContextVersions?.Clear();
+            state.SubscribedContextKeys.Clear();
+            state.ContextVersions?.Clear();
+            metadata?.SyncComponentState(state);
         }
 
         internal void NotifyContextChanged(
@@ -224,16 +232,17 @@ namespace ReactiveUITK.Core
 
         private void RemoveStaleContextSubscriptions(
             NodeMetadata metadata,
+            FunctionComponentState state,
             string keyName,
             ContextKey incomingKey
         )
         {
-            if (metadata?.SubscribedContextKeys == null || metadata.SubscribedContextKeys.Count == 0)
+            if (metadata == null || state?.SubscribedContextKeys == null || state.SubscribedContextKeys.Count == 0)
             {
                 return;
             }
             List<ContextKey> removals = null;
-            foreach (var existing in metadata.SubscribedContextKeys)
+            foreach (var existing in state.SubscribedContextKeys)
             {
                 if (
                     string.Equals(existing.Name, keyName, StringComparison.Ordinal)
@@ -258,9 +267,10 @@ namespace ReactiveUITK.Core
                         contextSubscribers.Remove(removeKey);
                     }
                 }
-                metadata.SubscribedContextKeys.Remove(removeKey);
-                metadata.ContextVersions?.Remove(removeKey);
+                state.SubscribedContextKeys.Remove(removeKey);
+                state.ContextVersions?.Remove(removeKey);
             }
+            metadata.SyncComponentState(state);
         }
 
         private int IncrementContextVersion(ContextKey key)
@@ -298,17 +308,23 @@ namespace ReactiveUITK.Core
                 {
                     continue;
                 }
-                metadata.ContextVersions ??= new Dictionary<ContextKey, int>();
+                var state = metadata.ComponentState ?? metadata.EnsureComponentState();
+                if (state == null)
+                {
+                    continue;
+                }
+                state.ContextVersions ??= new Dictionary<ContextKey, int>();
 
                 if (
-                    metadata.ContextVersions.TryGetValue(key, out int recordedVersion)
+                    state.ContextVersions.TryGetValue(key, out int recordedVersion)
                     && recordedVersion == version
                 )
                 {
                     continue;
                 }
 
-                metadata.ContextVersions[key] = version;
+                state.ContextVersions[key] = version;
+                metadata.SyncComponentState(state);
 
                 if (metadata.Container == null)
                 {

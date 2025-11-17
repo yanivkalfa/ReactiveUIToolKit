@@ -148,8 +148,13 @@ namespace ReactiveUITK.Core
             try
             {
                 Hooks.FlushQueuedStateUpdates(metadata);
-                metadata.PendingUpdate = false;
-                metadata.HookIndex = 0;
+                var state = metadata.ComponentState ?? metadata.EnsureComponentState();
+                if (state != null)
+                {
+                    state.PendingUpdate = false;
+                    state.HookIndex = 0;
+                    metadata.SyncComponentState(state);
+                }
                 RenderFunctionComponent(metadata, metadata.Container, restoreAncestorContext: true);
             }
             catch (Exception ex)
@@ -405,13 +410,14 @@ namespace ReactiveUITK.Core
                         FuncProps = new Dictionary<string, object>(virtualNode.Properties),
                         FuncChildren = virtualNode.Children,
                         FuncPropTypes = virtualNode.PropTypes,
-                        HookStates = new List<object>(),
-                        HookIndex = 0,
                         Container = functionComponentContainer,
                         HostContext = hostContext,
                         Reconciler = this,
                         IsFlattened = false,
                     };
+                    functionComponentMetadata.ComponentState = new FunctionComponentState(
+                        functionComponentMetadata
+                    );
                     functionComponentContainer.userData = functionComponentMetadata;
                     parentElement.Add(functionComponentContainer);
                     RenderFunctionComponent(functionComponentMetadata);
@@ -894,13 +900,12 @@ namespace ReactiveUITK.Core
                         FuncRender = virtualNode.FunctionRender,
                         FuncProps = new Dictionary<string, object>(virtualNode.Properties),
                         FuncChildren = virtualNode.Children,
-                        HookStates = new List<object>(),
-                        HookIndex = 0,
                         Container = functionComponentContainer,
                         HostContext = hostContext,
                         Reconciler = this,
                         IsFlattened = false,
                     };
+                    wrapperMetadata.ComponentState = new FunctionComponentState(wrapperMetadata);
                     functionComponentContainer.userData = wrapperMetadata;
 
                     RenderFunctionComponent(wrapperMetadata);
@@ -1504,7 +1509,13 @@ namespace ReactiveUITK.Core
                 functionMetadata.FuncProps = new Dictionary<string, object>(nextNode.Properties);
                 functionMetadata.FuncChildren = nextNode.Children;
                 functionMetadata.FuncPropTypes = nextNode.PropTypes;
-                functionMetadata.HookIndex = 0;
+                var functionState =
+                    functionMetadata.ComponentState ?? functionMetadata.EnsureComponentState();
+                if (functionState != null)
+                {
+                    functionState.HookIndex = 0;
+                    functionMetadata.SyncComponentState(functionState);
+                }
                 RenderFunctionComponent(functionMetadata, hostElement);
                 return;
             }
@@ -1756,20 +1767,23 @@ namespace ReactiveUITK.Core
                     functionComponentMetadata.InheritedContextFrame = hostContext.CaptureFrame();
                 }
                 Hooks.FlushQueuedStateUpdates(functionComponentMetadata);
+                var componentState =
+                    functionComponentMetadata.ComponentState
+                    ?? functionComponentMetadata.EnsureComponentState();
                 // Reset hook indices before render
-                functionComponentMetadata.HookIndex = 0;
-                functionComponentMetadata.EffectIndex = 0;
-                functionComponentMetadata.LayoutEffectIndex = 0;
+                componentState.HookIndex = 0;
+                componentState.EffectIndex = 0;
+                componentState.LayoutEffectIndex = 0;
                 functionComponentMetadata.PendingProvidedContext = null;
                 // Preserve existing HookOrderPrimed value (auto-realign may have set it false). Do not force true just because signatures exist.
-                if (functionComponentMetadata.HookOrderPrimed)
+                if (componentState.HookOrderPrimed)
                 {
-                    functionComponentMetadata.HookOrderPrimed =
+                    componentState.HookOrderPrimed =
                         Hooks.EnableHookValidation
-                        && functionComponentMetadata.HookOrderSignatures != null
-                        && functionComponentMetadata.HookOrderSignatures.Count > 0;
+                        && componentState.HookOrderSignatures != null
+                        && componentState.HookOrderSignatures.Count > 0;
                 }
-                HookContext.Current = functionComponentMetadata;
+                HookContext.Current = componentState;
                 if (
                     functionComponentMetadata.FuncPropTypes != null
                     && functionComponentMetadata.FuncPropTypes.Count > 0
@@ -1795,7 +1809,7 @@ namespace ReactiveUITK.Core
                 bool providerApplied = false;
                 try
                 {
-                    functionComponentMetadata.IsRendering = true;
+                    componentState.IsRendering = true;
                     if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
                     {
                         try
@@ -1804,7 +1818,7 @@ namespace ReactiveUITK.Core
                                 "[FuncRender:enter] key="
                                     + functionComponentMetadata.Key
                                     + ", pending="
-                                    + functionComponentMetadata.PendingUpdate
+                                    + componentState.PendingUpdate
                             );
                         }
                         catch { }
@@ -1878,33 +1892,34 @@ namespace ReactiveUITK.Core
                 }
                 finally
                 {
-                    functionComponentMetadata.IsRendering = false;
+                    componentState.IsRendering = false;
                     HookContext.Current = null;
                     functionComponentMetadata.PendingProvidedContext = null;
                     if (renderCompleted && Hooks.EnableHookValidation)
                     {
-                        functionComponentMetadata.HookOrderPrimed = true;
+                        componentState.HookOrderPrimed = true;
                     }
                     else if (!renderCompleted)
                     {
-                        functionComponentMetadata.HookOrderPrimed = false;
+                        componentState.HookOrderPrimed = false;
                     }
                     if (restoreAncestorContext && originalFrame.IsValid)
                     {
                         hostContext.RestoreFrame(originalFrame);
                     }
                 }
+                functionComponentMetadata.SyncComponentState(componentState);
                 if (!renderCompleted)
                 {
                     return;
                 }
                 HandleContextNotifications(functionComponentMetadata, providerSnapshot);
                 // Layout effects phase
-                if (functionComponentMetadata.FunctionLayoutEffects != null)
+                if (componentState.FunctionLayoutEffects != null)
                 {
-                    for (int i = 0; i < functionComponentMetadata.FunctionLayoutEffects.Count; i++)
+                    for (int i = 0; i < componentState.FunctionLayoutEffects.Count; i++)
                     {
-                        var entry = functionComponentMetadata.FunctionLayoutEffects[i];
+                        var entry = componentState.FunctionLayoutEffects[i];
                         bool shouldRun =
                             entry.lastDeps == null
                             || DepsChangedInternal(entry.lastDeps, entry.deps);
@@ -1921,9 +1936,9 @@ namespace ReactiveUITK.Core
                                 newCleanup = entry.factory?.Invoke();
                             }
                             catch { }
-                            if (i < functionComponentMetadata.FunctionLayoutEffects.Count)
+                            if (i < componentState.FunctionLayoutEffects.Count)
                             {
-                                functionComponentMetadata.FunctionLayoutEffects[i] = (
+                                componentState.FunctionLayoutEffects[i] = (
                                     entry.factory,
                                     entry.deps,
                                     (object[])entry.deps?.Clone(),
@@ -1935,18 +1950,18 @@ namespace ReactiveUITK.Core
                     }
                 }
                 // Passive effects phase
-                if (functionComponentMetadata.FunctionEffects != null)
+                if (componentState.FunctionEffects != null)
                 {
-                    for (int i = 0; i < functionComponentMetadata.FunctionEffects.Count; i++)
+                    for (int i = 0; i < componentState.FunctionEffects.Count; i++)
                     {
-                        var entry = functionComponentMetadata.FunctionEffects[i];
+                        var entry = componentState.FunctionEffects[i];
                         bool shouldRun =
                             entry.lastDeps == null
                             || DepsChangedInternal(entry.lastDeps, entry.deps);
                         if (shouldRun)
                         {
                             // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
-                            functionComponentMetadata.FunctionEffects[i] = (
+                            componentState.FunctionEffects[i] = (
                                 entry.factory,
                                 entry.deps,
                                 (object[])entry.deps?.Clone(),
@@ -1968,9 +1983,9 @@ namespace ReactiveUITK.Core
                                     newCleanup = capturedEntry.factory?.Invoke();
                                 }
                                 catch { }
-                                if (capturedIndex < functionComponentMetadata.FunctionEffects.Count)
+                                if (capturedIndex < componentState.FunctionEffects.Count)
                                 {
-                                    functionComponentMetadata.FunctionEffects[capturedIndex] = (
+                                    componentState.FunctionEffects[capturedIndex] = (
                                         capturedEntry.factory,
                                         capturedEntry.deps,
                                         (object[])capturedEntry.deps?.Clone(),
@@ -1992,25 +2007,26 @@ namespace ReactiveUITK.Core
                     }
                 }
                 // Flush one pending update if requested during render
-                if (functionComponentMetadata.PendingUpdate)
+                if (componentState.PendingUpdate)
                 {
-                    functionComponentMetadata.PendingUpdate = false;
-                    if (functionComponentMetadata.UpdateQueued)
+                    componentState.PendingUpdate = false;
+                    if (componentState.UpdateQueued)
                     {
                         return;
                     }
-                    functionComponentMetadata.UpdateQueued = true;
+                    componentState.UpdateQueued = true;
                     var sched = ResolveScheduler();
                     void FlushPending()
                     {
                         try
                         {
-                            functionComponentMetadata.HookIndex = 0;
+                            componentState.HookIndex = 0;
                             ForceFunctionComponentUpdate(functionComponentMetadata);
                         }
                         finally
                         {
-                            functionComponentMetadata.UpdateQueued = false;
+                            componentState.UpdateQueued = false;
+                            functionComponentMetadata.SyncComponentState(componentState);
                         }
                     }
                     if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
@@ -2257,9 +2273,10 @@ namespace ReactiveUITK.Core
                     metadata.EventHandlerSignatures.Clear();
             }
             // No class component cleanup needed
-            if (metadata.FunctionEffects != null)
+            var state = metadata.ComponentState ?? metadata.EnsureComponentState();
+            if (state?.FunctionEffects != null)
             {
-                foreach (var effect in metadata.FunctionEffects)
+                foreach (var effect in state.FunctionEffects)
                 {
                     try
                     {
@@ -2267,11 +2284,11 @@ namespace ReactiveUITK.Core
                     }
                     catch { }
                 }
-                metadata.FunctionEffects.Clear();
+                state.FunctionEffects.Clear();
             }
-            if (metadata.FunctionLayoutEffects != null)
+            if (state?.FunctionLayoutEffects != null)
             {
-                foreach (var effect in metadata.FunctionLayoutEffects)
+                foreach (var effect in state.FunctionLayoutEffects)
                 {
                     try
                     {
@@ -2279,8 +2296,9 @@ namespace ReactiveUITK.Core
                     }
                     catch { }
                 }
-                metadata.FunctionLayoutEffects.Clear();
+                state.FunctionLayoutEffects.Clear();
             }
+            metadata.SyncComponentState(state);
         }
 
         private void AttachPortalTarget(NodeMetadata metadata, VisualElement target)

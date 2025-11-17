@@ -27,7 +27,12 @@ namespace ReactiveUITK.Core
             }
             if (pending.Add(metadata))
             {
-                metadata.UpdateQueued = true;
+                var state = metadata.EnsureComponentState();
+                if (state != null)
+                {
+                    state.UpdateQueued = true;
+                    metadata.SyncComponentState(state);
+                }
             }
             batchedUpdateCountThisFrame++;
             if (!scheduled)
@@ -98,8 +103,13 @@ namespace ReactiveUITK.Core
                 }
                 try
                 {
-                    meta.UpdateQueued = false;
-                    meta.HookIndex = 0;
+                    var state = meta.EnsureComponentState();
+                    if (state != null)
+                    {
+                        state.UpdateQueued = false;
+                        state.HookIndex = 0;
+                        meta.SyncComponentState(state);
+                    }
                     meta.Reconciler?.ForceFunctionComponentUpdate(meta);
                 }
                 catch (Exception ex)
