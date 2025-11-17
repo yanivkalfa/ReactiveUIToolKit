@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -10,7 +9,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<ScrollView>();
+            return new ScrollView();
         }
 
         private static void ApplySlots(

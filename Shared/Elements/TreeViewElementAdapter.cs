@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -52,7 +51,7 @@ namespace ReactiveUITK.Elements
         private static HostContext Host =>
             sharedHost ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
-        public override VisualElement Create() => GlobalVisualElementPool.Get<TreeView>();
+        public override VisualElement Create() => new TreeView();
 
         public override void ApplyProperties(
             VisualElement element,

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -18,7 +17,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<GroupBox>();
+            return new GroupBox();
         }
 
         public override void ApplyProperties(

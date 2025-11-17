@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Elements;
-using ReactiveUITK.Elements.Pools;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -68,9 +67,6 @@ namespace ReactiveUITK.Core
 
         // Re-added caches & counters lost during previous refactor
 
-        private readonly Dictionary<string, VisualElement> elementCache = new();
-        private int cacheHitCount;
-        private int cacheMissCount;
         private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
 
         private static int metricsSampleInterval = 10;
@@ -525,11 +521,10 @@ namespace ReactiveUITK.Core
             for (int i = managedCount - 1; i >= nextCount; i--)
             {
                 var toRemove = managed[i];
-                RunRemovalCleanup(toRemove);
-                toRemove.RemoveFromHierarchy();
-                GlobalVisualElementPool.Release(toRemove);
+                    RunRemovalCleanup(toRemove);
+                    toRemove.RemoveFromHierarchy();
+                }
             }
-        }
 
         private void DiffChildrenByKey(
             VisualElement parentElement,
@@ -681,7 +676,6 @@ namespace ReactiveUITK.Core
                 {
                     RunRemovalCleanup(existing);
                     existing.RemoveFromHierarchy();
-                    GlobalVisualElementPool.Release(existing);
                 }
             }
 
@@ -821,24 +815,6 @@ namespace ReactiveUITK.Core
 
         private VisualElement CreateDetached(VirtualNode virtualNode)
         {
-            if (
-                !string.IsNullOrEmpty(virtualNode.Key)
-                && elementCache.TryGetValue(virtualNode.Key, out VisualElement cachedElement)
-                && cachedElement.parent == null
-            )
-            {
-                cacheHitCount++;
-                IncrementNodeType(virtualNode.NodeType);
-                if (EnableDiffTracing || TraceLevel == DiffTraceLevel.Verbose)
-                {
-                    UnityEngine.Debug.Log(
-                        $"[Reconciler] Reuse cached element key={virtualNode.Key}"
-                    );
-                }
-                return cachedElement;
-            }
-
-            cacheMissCount++;
             IncrementNodeType(virtualNode.NodeType);
 
             switch (virtualNode.NodeType)
@@ -849,7 +825,6 @@ namespace ReactiveUITK.Core
                     {
                         userData = new NodeMetadata { Key = virtualNode.Key },
                     };
-                    Cache(virtualNode.Key, detachedTextLabel);
                     return detachedTextLabel;
                 }
 
@@ -863,7 +838,6 @@ namespace ReactiveUITK.Core
                         userData = new NodeMetadata { Key = virtualNode.Key },
                     };
                     BuildChildren(fragmentContainer, virtualNode.Children);
-                    Cache(virtualNode.Key, fragmentContainer);
                     return fragmentContainer;
                 }
 
@@ -879,7 +853,6 @@ namespace ReactiveUITK.Core
                         virtualNode.PortalTarget.Clear();
                         BuildChildren(virtualNode.PortalTarget, virtualNode.Children);
                     }
-                    Cache(virtualNode.Key, portalPlaceholderElement);
                     return portalPlaceholderElement;
                 }
 
@@ -893,7 +866,6 @@ namespace ReactiveUITK.Core
                             : (funcName + "Container"),
                     };
                     functionComponentContainer.style.flexGrow = 1f;
-
                     var wrapperMetadata = new NodeMetadata
                     {
                         Key = virtualNode.Key,
@@ -909,14 +881,12 @@ namespace ReactiveUITK.Core
                     functionComponentContainer.userData = wrapperMetadata;
 
                     RenderFunctionComponent(wrapperMetadata);
-                    Cache(virtualNode.Key, functionComponentContainer);
                     return functionComponentContainer;
                 }
 
                 case VirtualNodeType.ErrorBoundary:
                 {
                     var errorBoundaryElement = CreateErrorBoundaryElement(virtualNode);
-                    Cache(virtualNode.Key, errorBoundaryElement);
                     return errorBoundaryElement;
                 }
 
@@ -932,7 +902,6 @@ namespace ReactiveUITK.Core
                     };
                     suspenseContainerElement.userData = suspenseMetadata;
                     RenderSuspenseNode(suspenseContainerElement, suspenseMetadata, virtualNode);
-                    Cache(virtualNode.Key, suspenseContainerElement);
                     return suspenseContainerElement;
                 }
             }
@@ -961,7 +930,6 @@ namespace ReactiveUITK.Core
 
             BuildChildren(childrenHost, virtualNode.Children);
 
-            Cache(virtualNode.Key, createdElement);
             return createdElement;
         }
 
@@ -1368,10 +1336,6 @@ namespace ReactiveUITK.Core
                 bool managed = child.userData is NodeMetadata;
                 RunRemovalCleanup(child);
                 child.RemoveFromHierarchy();
-                if (managed)
-                {
-                    GlobalVisualElementPool.Release(child);
-                }
             }
         }
 
@@ -1698,8 +1662,6 @@ namespace ReactiveUITK.Core
                 return;
             }
             int hostIndex = parentElement.IndexOf(hostElement);
-            string existingKey = (hostElement.userData as NodeMetadata)?.Key;
-            InvalidateCache(existingKey);
             if (EnableDiffTracing || TraceLevel != DiffTraceLevel.None)
             {
                 try
@@ -1709,8 +1671,6 @@ namespace ReactiveUITK.Core
                             + parentElement.name
                             + ", index="
                             + hostIndex
-                            + ", existingKey="
-                            + existingKey
                             + ", nextType="
                             + nextNode.NodeType
                             + ", nextKey="
@@ -2363,10 +2323,6 @@ namespace ReactiveUITK.Core
                 bool managed = child.userData is NodeMetadata;
                 RunRemovalCleanup(child);
                 child.RemoveFromHierarchy();
-                if (managed)
-                {
-                    GlobalVisualElementPool.Release(child);
-                }
             }
             metadata?.PortalPreviousChildren?.Clear();
         }
@@ -2387,29 +2343,6 @@ namespace ReactiveUITK.Core
                 portalUpdateCount,
                 lastDiffDurationMs
             );
-
-        public (
-            int cacheHits,
-            int cacheMisses,
-            Dictionary<VirtualNodeType, int> counts
-        ) GetExtendedMetrics() =>
-            (
-                cacheHitCount,
-                cacheMissCount,
-                new Dictionary<VirtualNodeType, int>(nodeTypeBuildCounts)
-            );
-
-        private void Cache(string key, VisualElement element)
-        {
-            if (string.IsNullOrEmpty(key))
-            {
-                return;
-            }
-            if (!elementCache.ContainsKey(key))
-            {
-                elementCache[key] = element;
-            }
-        }
 
         public void BeginDiffTiming()
         {
@@ -2488,18 +2421,6 @@ namespace ReactiveUITK.Core
                 nodeTypeBuildCounts[nodeType] = 0;
             }
             nodeTypeBuildCounts[nodeType]++;
-        }
-
-        private void InvalidateCache(string key)
-        {
-            if (string.IsNullOrEmpty(key))
-            {
-                return;
-            }
-            if (elementCache.ContainsKey(key))
-            {
-                elementCache.Remove(key);
-            }
         }
 
         private void HandleContextNotifications(

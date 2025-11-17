@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
@@ -323,7 +322,7 @@ namespace ReactiveUITK.Elements
         }
 
         public override VisualElement Create() =>
-            GlobalVisualElementPool.Get<MultiColumnListView>();
+                new MultiColumnListView();
 
         public override void ApplyProperties(
             VisualElement element,
