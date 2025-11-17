@@ -56,6 +56,7 @@ namespace ReactiveUITK.Core
 
         public static DiffTraceLevel TraceLevel = DiffTraceLevel.None;
         public static bool WarnOnMixedKeySiblings = false;
+        public static bool UseExceptionBoundaryFlow = false;
 
         private int reconciledNodeCount;
         private int skippedNodeCount;
@@ -422,6 +423,32 @@ namespace ReactiveUITK.Core
                     VisualElement errorBoundaryElement = CreateErrorBoundaryElement(virtualNode);
                     parentElement.Add(errorBoundaryElement);
                     return;
+                case VirtualNodeType.Suspense:
+                {
+                    VisualElement suspenseContainerElement = new VisualElement();
+                    var suspenseMetadata = new NodeMetadata
+                    {
+                        Key = virtualNode.Key,
+                        Container = suspenseContainerElement,
+                        HostContext = hostContext,
+                        Reconciler = this,
+                    };
+                    suspenseContainerElement.userData = suspenseMetadata;
+                    try
+                    {
+                        RenderSuspenseNode(suspenseContainerElement, suspenseMetadata, virtualNode);
+                    }
+                    catch (SuspenseSuspendException)
+                    {
+                        RenderSuspenseFallbackContents(
+                            suspenseContainerElement,
+                            suspenseMetadata,
+                            virtualNode
+                        );
+                    }
+                    parentElement.Add(suspenseContainerElement);
+                    return;
+                }
             }
             if (string.IsNullOrWhiteSpace(virtualNode.ElementTypeName))
             {
@@ -899,7 +926,18 @@ namespace ReactiveUITK.Core
                         Reconciler = this,
                     };
                     suspenseContainerElement.userData = suspenseMetadata;
-                    RenderSuspenseNode(suspenseContainerElement, suspenseMetadata, virtualNode);
+                    try
+                    {
+                        RenderSuspenseNode(suspenseContainerElement, suspenseMetadata, virtualNode);
+                    }
+                    catch (SuspenseSuspendException)
+                    {
+                        RenderSuspenseFallbackContents(
+                            suspenseContainerElement,
+                            suspenseMetadata,
+                            virtualNode
+                        );
+                    }
                     return suspenseContainerElement;
                 }
             }
@@ -949,7 +987,21 @@ namespace ReactiveUITK.Core
                 ErrorBoundaryResetKey = virtualNode.ErrorResetToken,
             };
             boundaryElement.userData = metadata;
-            TryRenderErrorBoundaryInitial(boundaryElement, metadata, virtualNode);
+            try
+            {
+                TryRenderErrorBoundaryInitial(boundaryElement, metadata, virtualNode);
+            }
+            catch (ErrorBoundaryCapturedException captured)
+            {
+                RenderErrorBoundaryFallbackContents(
+                    boundaryElement,
+                    virtualNode,
+                    metadata,
+                    captured.CapturedException,
+                    captured.NotifyHandler,
+                    captured.LogException
+                );
+            }
             return boundaryElement;
         }
 
@@ -1078,6 +1130,30 @@ namespace ReactiveUITK.Core
             metadata.ErrorBoundaryLastException = exception;
             metadata.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
 
+            if (UseExceptionBoundaryFlow)
+            {
+                throw new ErrorBoundaryCapturedException(exception, notifyHandler, logException);
+            }
+
+            RenderErrorBoundaryFallbackContents(
+                hostElement,
+                boundaryNode,
+                metadata,
+                exception,
+                notifyHandler,
+                logException
+            );
+        }
+
+        private void RenderErrorBoundaryFallbackContents(
+            VisualElement hostElement,
+            VirtualNode boundaryNode,
+            NodeMetadata metadata,
+            Exception exception,
+            bool notifyHandler,
+            bool logException
+        )
+        {
             if (logException && exception != null)
             {
                 try
@@ -1110,11 +1186,14 @@ namespace ReactiveUITK.Core
                 }
             }
 
+            bool handled = boundaryNode.ErrorFallback != null;
+
             if (notifyHandler && boundaryNode.ErrorHandler != null)
             {
                 try
                 {
                     boundaryNode.ErrorHandler(exception);
+                    handled = true;
                 }
                 catch (Exception handlerEx)
                 {
@@ -1124,6 +1203,11 @@ namespace ReactiveUITK.Core
                     }
                     catch { }
                 }
+            }
+
+            if (!handled && exception != null)
+            {
+                throw exception;
             }
         }
 
@@ -1187,13 +1271,19 @@ namespace ReactiveUITK.Core
 
             bool renderFallback = !ready;
 
-            IReadOnlyList<VirtualNode> targetChildren = renderFallback
-                ? (
-                    suspenseNode.Fallback != null
-                        ? new[] { suspenseNode.Fallback }
-                        : Array.Empty<VirtualNode>()
-                )
-                : (suspenseNode.Children ?? Array.Empty<VirtualNode>());
+            if (renderFallback)
+            {
+                if (UseExceptionBoundaryFlow)
+                {
+                    throw new SuspenseSuspendException();
+                }
+
+                RenderSuspenseFallbackContents(hostElement, metadata, suspenseNode);
+                return;
+            }
+
+            IReadOnlyList<VirtualNode> targetChildren = suspenseNode.Children
+                ?? Array.Empty<VirtualNode>();
 
             ClearHostElement(hostElement);
             if (targetChildren.Count > 0)
@@ -1202,7 +1292,33 @@ namespace ReactiveUITK.Core
             }
 
             suspenseState.LastRenderedChildren = targetChildren;
-            suspenseState.ShowingFallback = renderFallback;
+            suspenseState.ShowingFallback = false;
+        }
+
+        private void RenderSuspenseFallbackContents(
+            VisualElement hostElement,
+            NodeMetadata metadata,
+            VirtualNode suspenseNode
+        )
+        {
+            if (hostElement == null || metadata == null || suspenseNode == null)
+            {
+                return;
+            }
+
+            IReadOnlyList<VirtualNode> fallbackChildren = suspenseNode.Fallback != null
+                ? new[] { suspenseNode.Fallback }
+                : Array.Empty<VirtualNode>();
+
+            ClearHostElement(hostElement);
+            if (fallbackChildren.Count > 0)
+            {
+                BuildChildren(hostElement, fallbackChildren);
+            }
+
+            metadata.SuspenseState ??= new SuspenseRenderState();
+            metadata.SuspenseState.LastRenderedChildren = fallbackChildren;
+            metadata.SuspenseState.ShowingFallback = true;
         }
 
         private static bool EvaluateSuspenseTaskResult(Task suspenderTask)
@@ -1409,7 +1525,14 @@ namespace ReactiveUITK.Core
                     ReplaceNode(hostElement, nextNode);
                     return;
                 }
-                RenderSuspenseNode(hostElement, suspenseMetadata, nextNode);
+                try
+                {
+                    RenderSuspenseNode(hostElement, suspenseMetadata, nextNode);
+                }
+                catch (SuspenseSuspendException)
+                {
+                    RenderSuspenseFallbackContents(hostElement, suspenseMetadata, nextNode);
+                }
                 return;
             }
 
@@ -1492,7 +1615,21 @@ namespace ReactiveUITK.Core
                     ReplaceNode(hostElement, nextNode);
                     return;
                 }
-                DiffErrorBoundary(hostElement, errorBoundaryMetadata, previousNode, nextNode);
+                try
+                {
+                    DiffErrorBoundary(hostElement, errorBoundaryMetadata, previousNode, nextNode);
+                }
+                catch (ErrorBoundaryCapturedException captured)
+                {
+                    RenderErrorBoundaryFallbackContents(
+                        hostElement,
+                        nextNode,
+                        errorBoundaryMetadata,
+                        captured.CapturedException,
+                        captured.NotifyHandler,
+                        captured.LogException
+                    );
+                }
                 return;
             }
 
@@ -2515,5 +2652,32 @@ namespace ReactiveUITK.Core
         }
 
         // (Converters removed – styles no longer applied directly here.)
+
+        private sealed class ErrorBoundaryCapturedException : Exception
+        {
+            public Exception CapturedException { get; }
+            public bool NotifyHandler { get; }
+            public bool LogException { get; }
+
+            public ErrorBoundaryCapturedException(
+                Exception capturedException,
+                bool notifyHandler,
+                bool logException
+            )
+                : base("ReactiveUITK error boundary control flow")
+            {
+                CapturedException = capturedException;
+                NotifyHandler = notifyHandler;
+                LogException = logException;
+            }
+        }
+
+        private sealed class SuspenseSuspendException : Exception
+        {
+            public SuspenseSuspendException()
+                : base("ReactiveUITK suspense control flow")
+            {
+            }
+        }
     }
 }

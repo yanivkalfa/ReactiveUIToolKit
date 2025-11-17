@@ -1476,6 +1476,10 @@ namespace ReactiveUITK.Props
             {
                 return c;
             }
+            if (value is Color32 c32)
+            {
+                return c32;
+            }
             if (value is string s)
             {
                 if (ColorUtility.TryParseHtmlString(s, out Color parsed))

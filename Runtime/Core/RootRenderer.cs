@@ -36,6 +36,8 @@ namespace ReactiveUITK.Core
                 sharedHostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                Reconciler.UseExceptionBoundaryFlow =
+                    BuildDefinesConfig.ResolveExceptionBoundaryFlow();
             }
         }
 
