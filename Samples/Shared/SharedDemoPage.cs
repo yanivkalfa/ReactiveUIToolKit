@@ -1,8 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
+using UnityEngine.UIElements;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
 
@@ -12,7 +14,7 @@ namespace ReactiveUITK.Samples.Shared
     {
         private static readonly Style TopBarStyle = new()
         {
-            (FlexDirection, "row"),
+            (StyleKeys.FlexDirection, "row"),
             (JustifyContent, "space-between"),
             (AlignItems, "center"),
             (FlexGrow, 1f),
@@ -23,6 +25,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderBottomWidth, 1f),
             (BorderBottomColor, new Color(0.85f, 0.85f, 0.85f, 1f)),
         };
+
         private static readonly Style LeftBoxStyle = new()
         {
             (BackgroundColor, new Color(0.2f, 0.4f, 0.9f, 1f)),
@@ -34,6 +37,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderRadius, 4f),
             (FontSize, 14f),
         };
+
         private static readonly Style RightBoxStyle = new()
         {
             (BackgroundColor, new UColor(0.9f, 0.3f, 0.2f, 1f)),
@@ -45,6 +49,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderRadius, 4f),
             (FontSize, 14f),
         };
+
         private static readonly Style TextInputStyle = new()
         {
             (FlexGrow, 1f),
@@ -60,18 +65,15 @@ namespace ReactiveUITK.Samples.Shared
             (BorderColor, new UColor(0.8f, 0.8f, 0.8f, 1f)),
             (BackgroundColor, new UColor(1f, 1f, 1f, 1f)),
         };
+
         private static readonly Style PageStyle = new()
         {
-            (FlexDirection, "column"),
+            (StyleKeys.FlexDirection, "column"),
             (FlexGrow, 1f),
             (JustifyContent, "space-between"),
             (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
         };
-        private static readonly Style ListContainerStyle = new()
-        {
-            (FlexGrow, 1f),
-            (MarginTop, 8f),
-        };
+
         private static readonly Style ExtrasContainerStyle = new()
         {
             (MarginTop, 12f),
@@ -82,155 +84,172 @@ namespace ReactiveUITK.Samples.Shared
             (BackgroundColor, UColor.white),
             (BorderTopWidth, 1f),
             (BorderTopColor, new UColor(0.85f, 0.85f, 0.85f, 1f)),
-            (FlexDirection, "column"),
+            (StyleKeys.FlexDirection, "column"),
         };
 
-        public static VirtualNode Render(
-            Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
         {
-            var (isListVisible, setListVisible) = Hooks.UseState(true);
+            static Dictionary<string, T> CloneDict<T>(IReadOnlyDictionary<string, T> source)
+            {
+                if (source == null)
+                    return null;
+                if (source.Count == 0)
+                    return new Dictionary<string, T>();
+                return new Dictionary<string, T>(source);
+            }
+
+            static bool DictEqual<T>(IReadOnlyDictionary<string, T> left, IReadOnlyDictionary<string, T> right)
+            {
+                if (ReferenceEquals(left, right))
+                    return true;
+                if (left == null || right == null)
+                    return false;
+                if (left.Count != right.Count)
+                    return false;
+                foreach (var kv in left)
+                {
+                    if (!right.TryGetValue(kv.Key, out var rv))
+                        return false;
+                    if (!EqualityComparer<T>.Default.Equals(kv.Value, rv))
+                        return false;
+                }
+                return true;
+            }
+
+            static MultiColumnListViewProps.ColumnLayoutState CloneListLayout(
+                MultiColumnListViewProps.ColumnLayoutState layout
+            )
+            {
+                if (layout == null)
+                    return null;
+                return new MultiColumnListViewProps.ColumnLayoutState
+                {
+                    ColumnWidths = CloneDict(layout.ColumnWidths),
+                    ColumnVisibility = CloneDict(layout.ColumnVisibility),
+                    ColumnDisplayIndex = CloneDict(layout.ColumnDisplayIndex),
+                };
+            }
+
+            static bool ListLayoutEqual(
+                MultiColumnListViewProps.ColumnLayoutState a,
+                MultiColumnListViewProps.ColumnLayoutState b
+            )
+            {
+                return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
+                    && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)
+                    && DictEqual(a?.ColumnDisplayIndex, b?.ColumnDisplayIndex);
+            }
+
+            static MultiColumnTreeViewProps.ColumnLayoutState CloneTreeLayout(
+                MultiColumnTreeViewProps.ColumnLayoutState layout
+            )
+            {
+                if (layout == null)
+                    return null;
+                return new MultiColumnTreeViewProps.ColumnLayoutState
+                {
+                    ColumnWidths = CloneDict(layout.ColumnWidths),
+                    ColumnVisibility = CloneDict(layout.ColumnVisibility),
+                    ColumnDisplayIndex = CloneDict(layout.ColumnDisplayIndex),
+                };
+            }
+
+            static bool TreeLayoutEqual(
+                MultiColumnTreeViewProps.ColumnLayoutState a,
+                MultiColumnTreeViewProps.ColumnLayoutState b
+            )
+            {
+                return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
+                    && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)
+                    && DictEqual(a?.ColumnDisplayIndex, b?.ColumnDisplayIndex);
+            }
+
+            static HashSet<int> BuildTreeValidIds(IReadOnlyList<TreeViewRowState> rows)
+            {
+                var set = new HashSet<int>();
+                if (rows == null)
+                    return set;
+                for (int i = 0; i < rows.Count; i++)
+                {
+                    var row = rows[i];
+                    int baseId = row != null && row.Pid != 0 ? row.Pid : 1000 + (i * 2);
+                    if (baseId != 0)
+                        set.Add(baseId);
+                    if (row?.HasChild == true)
+                        set.Add(baseId + 1);
+                }
+                return set;
+            }
+
+            static List<int> PruneTreeExpandedIds(IReadOnlyList<TreeViewRowState> rows, IList<int> expanded)
+            {
+                if (expanded == null)
+                    return null;
+                var valid = BuildTreeValidIds(rows);
+                if (expanded.Count == 0)
+                    return expanded as List<int> ?? new List<int>();
+                var nextSet = new HashSet<int>();
+                bool changed = false;
+                for (int i = 0; i < expanded.Count; i++)
+                {
+                    var id = expanded[i];
+                    if (valid.Contains(id))
+                        nextSet.Add(id);
+                    else
+                        changed = true;
+                }
+                if (!changed && expanded is List<int> existingList && existingList.Count == nextSet.Count)
+                    return existingList;
+                var nextList = new List<int>(nextSet);
+                nextList.Sort();
+                return nextList;
+            }
+
             var (inputText, setInputText) = Hooks.UseState(string.Empty);
             var (isOptionEnabled, setOptionEnabled) = Hooks.UseState(false);
             var (isRadioSingleSelected, setRadioSingleSelected) = Hooks.UseState(false);
-            var selectionChoices = Hooks.UseMemo(
-                () => new List<string> { "One", "Two", "Three" },
-                0
-            );
+            var selectionChoices = Hooks.UseMemo(() => new List<string> { "One", "Two", "Three" }, 0);
             var (selectionIndex, setSelectionIndex) = Hooks.UseState(0);
             var (repeatClickCount, setRepeatClickCount) = Hooks.UseState(0);
             var (currentTime, setCurrentTime) = Hooks.UseState(DateTime.Now);
-            // New element demo state
             var (sliderValue, setSliderValue) = Hooks.UseState(0.5f);
+            var (sliderIntValue, setSliderIntValue) = Hooks.UseState(5);
+            var (treeTabIndex, setTreeTabIndex) = Hooks.UseState(0);
+            var (listTabIndex, setListTabIndex) = Hooks.UseState(0);
             var ddChoices = Hooks.UseMemo(() => new List<string> { "Alpha", "Beta", "Gamma" }, 0);
             var (ddValue, setDdValue) = Hooks.UseState("Beta");
             var (foldoutOpen, setFoldoutOpen) = Hooks.UseState(true);
             var rootElement = Hooks.UseRef();
-            Hooks.UseEffect(
-                () =>
-                {
-                    if (rootElement == null)
-                    {
-                        return null;
-                    }
-                    var timerHandle = rootElement
-                        .schedule.Execute(() => setCurrentTime(DateTime.Now))
-                        .Every(1000);
-                    return () =>
-                    {
-                        try
-                        {
-                            timerHandle?.Pause();
-                        }
-                        catch { }
-                    };
-                },
-                Array.Empty<object>()
-            );
-            var initialItems = Hooks.UseMemo(() =>
-            {
-                var seededItems = new List<SharedRowItem>();
-                for (int i = 1; i <= 5; i++)
-                    seededItems.Add(
-                        new SharedRowItem { Id = Guid.NewGuid().ToString("N"), Text = $"Item {i}" }
-                    );
-                return seededItems;
-            });
-            var (listItems, setListItems) = Hooks.UseState(initialItems);
-            var listRowRenderer = Hooks.UseMemo(
-                () =>
-                    (Func<int, object, VirtualNode>)(
-                        (index, itemObj) =>
-                        {
-                            var typedItem = itemObj as SharedRowItem;
-                            return V.Func(
-                                SharedListViewRow.Render,
-                                new Dictionary<string, object>
-                                {
-                                    { "item", typedItem },
-                                    { "index", index },
-                                    {
-                                        "onRemove",
-                                        (Action<SharedRowItem>)(
-                                            removeItem =>
-                                            {
-                                                if (removeItem == null)
-                                                {
-                                                    return;
-                                                }
-                                                var copy = new List<SharedRowItem>(listItems);
-                                                int foundIndex = copy.FindIndex(r =>
-                                                    r.Id == removeItem.Id
-                                                );
-                                                if (foundIndex >= 0)
-                                                {
-                                                    copy.RemoveAt(foundIndex);
-                                                    setListItems(copy);
-                                                }
-                                            }
-                                        )
-                                    },
-                                },
-                                key: typedItem != null
-                                    ? $"{typedItem.Id}-{index}"
-                                    : $"row-missing-{index}"
-                            );
-                        }
-                    ),
-                listItems
-            );
-            ListViewProps listViewProps = new()
-            {
-                Items = listItems,
-                FixedItemHeight = 20f,
-                Selection = UnityEngine.UIElements.SelectionType.None,
-                Row = listRowRenderer,
-            };
-            ButtonProps toggleListButtonProps = new()
-            {
-                Text = isListVisible ? "Hide List" : "Show List",
-                OnClick = () => setListVisible(!isListVisible),
-                Style = new Style { (MarginTop, 8f), (Width, 120f), (Height, 28f) },
-            };
+            var (treeDisplayCount, setTreeDisplayCount) = Hooks.UseState(0);
+            var (mctvDisplayCount, setMctvDisplayCount) = Hooks.UseState(0);
+            var (mclvDisplayCount, setMclvDisplayCount) = Hooks.UseState(0);
+            var (simpleListCount, setSimpleListCount) = Hooks.UseState(0);
+            var (showTreeTabs, setShowTreeTabs) = Hooks.UseState(true);
+            var (showListTabs, setShowListTabs) = Hooks.UseState(true);
+            var (animNonce, setAnimNonce) = Hooks.UseState(0);
+            var (batchClicks, setBatchClicks) = Hooks.UseState(0);
+            var (treeRows, setTreeRows) = Hooks.UseState(new List<TreeViewRowState>());
+            var (treeExpandedIds, setTreeExpandedIds) = Hooks.UseState(new List<int>());
+            var (_, setTreeNextPid) = Hooks.UseState(1000);
+            var (mctvRows, setMctvRows) = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
+            var (mctvNextPid, setMctvNextPid) = Hooks.UseState(2000);
+            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<MultiColumnTreeViewProps.SortedColumnDef>>(null);
+            var (listRows, setListRows) = Hooks.UseState(new List<ListViewRowState>());
+            var (mclvRows, setMclvRows) = Hooks.UseState(new List<MultiColumnListViewRowState>());
+            var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<List<MultiColumnListViewProps.SortedColumnDef>>(null);
+            var (mctvLayout, setMctvLayout) = Hooks.UseState<MultiColumnTreeViewProps.ColumnLayoutState>(null);
+            var (mclvLayout, setMclvLayout) = Hooks.UseState<MultiColumnListViewProps.ColumnLayoutState>(null);
+
             TextFieldProps inputTextFieldProps = new()
             {
                 Style = TextInputStyle,
                 Placeholder = "Type here...",
                 HidePlaceholderOnFocus = false,
                 Value = inputText,
-                LabelText = string.IsNullOrEmpty(inputText)
-                    ? string.Empty
-                    : ("Value: " + inputText),
+                LabelText = string.IsNullOrEmpty(inputText) ? string.Empty : "Value: " + inputText,
                 OnChange = e => setInputText(e.newValue),
             };
-            ButtonProps updateFirstItemButtonProps = new()
-            {
-                Text = "Change First Item",
-                OnClick = () =>
-                {
-                    if (listItems.Count > 0)
-                    {
-                        var copy = new List<SharedRowItem>(listItems);
-                        copy[0] = new SharedRowItem
-                        {
-                            Id = copy[0].Id,
-                            Text = "UPDATED " + DateTime.Now.ToLongTimeString(),
-                        };
-                        setListItems(copy);
-                    }
-                },
-                Style = new Style { (MarginTop, 8f), (Width, 160f), (Height, 28f) },
-            };
-            var listContent = isListVisible
-                ? V.VisualElement(
-                    new Dictionary<string, object> { { "style", ListContainerStyle } },
-                    null,
-                    V.ListView(listViewProps)
-                )
-                : V.Text("List hidden");
 
-            // Extracted styles (avoid inline styles/props below)
             var outerWrapperStyle = new Style
             {
                 (BackgroundColor, new UColor(0.2f, 0.4f, 0.8f, 1f)),
@@ -240,13 +259,11 @@ namespace ReactiveUITK.Samples.Shared
             {
                 (BackgroundColor, new UColor(0.2f, 0.6f, 0.2f, 1f)),
                 (FlexGrow, 1f),
-                (FlexDirection, "column"),
+                (StyleKeys.FlexDirection, "column"),
             };
             var barSlotStyle = new Style { (FlexShrink, 0f), (MinHeight, 110f) };
-            var mainScrollStyle = new Style { (FlexGrow, 1f) };
-
+            var mainScrollStyle = new Style { (FlexGrow, 1f), (PaddingBottom, 20f) };
             var groupBox1ContentStyle = new Style { (PaddingLeft, 6f), (PaddingTop, 4f) };
-
             var newCompsGroupContentStyle = new Style
             {
                 (PaddingLeft, 8f),
@@ -271,39 +288,31 @@ namespace ReactiveUITK.Samples.Shared
             };
             var sliderWidthStyle = new Style { (Width, 200f) };
 
-            // Extracted props
-            var outerWrapperProps = new Dictionary<string, object>
-            {
-                { "style", outerWrapperStyle },
-            };
+            var outerWrapperProps = new Dictionary<string, object> { { "style", outerWrapperStyle } };
+
             var groupBox1Props = new GroupBoxProps
             {
                 Text = "GroupBox",
-                ContentContainer = new Dictionary<string, object>
-                {
-                    { "style", groupBox1ContentStyle },
-                },
+                ContentContainer = new Dictionary<string, object> { { "style", groupBox1ContentStyle } },
             };
+
             var newComponentsGroupProps = new GroupBoxProps
             {
                 Text = "New Components",
-                ContentContainer = new Dictionary<string, object>
-                {
-                    { "style", newCompsGroupContentStyle },
-                },
+                ContentContainer = new Dictionary<string, object> { { "style", newCompsGroupContentStyle } },
             };
+
             var foldoutProps = new FoldoutProps
             {
                 Text = "More settings",
                 Value = foldoutOpen,
                 OnChange = e => setFoldoutOpen(e.newValue),
                 Header = new Dictionary<string, object> { { "style", foldoutHeaderStyle } },
-                ContentContainer = new Dictionary<string, object>
-                {
-                    { "style", foldoutContentStyle },
-                },
+                ContentContainer = new Dictionary<string, object> { { "style", foldoutContentStyle } },
             };
+
             var imageProps = new ImageProps { Style = imageDemoStyle };
+
             var sliderProps = new SliderProps
             {
                 LowValue = 0f,
@@ -313,6 +322,7 @@ namespace ReactiveUITK.Samples.Shared
                 OnChange = e => setSliderValue(e.newValue),
                 Style = sliderWidthStyle,
             };
+
             var dropdownProps = new DropdownFieldProps
             {
                 Choices = ddChoices,
@@ -320,7 +330,788 @@ namespace ReactiveUITK.Samples.Shared
                 OnChange = e => setDdValue(e.newValue),
             };
 
-            // Build Values bar items
+            var toggleProps = new ToggleProps
+            {
+                Text = "Enable option",
+                Value = isOptionEnabled,
+                OnChange = e => setOptionEnabled(e.newValue),
+            };
+
+            var radioSingleProps = new RadioButtonProps
+            {
+                Text = "Single radio",
+                Value = isRadioSingleSelected,
+                OnChange = e => setRadioSingleSelected(e.newValue),
+            };
+
+            var radioGroupProps = new RadioButtonGroupProps
+            {
+                Choices = selectionChoices,
+                Index = selectionIndex,
+                OnChange = e => setSelectionIndex(e.newValue),
+            };
+
+            var progressBarProps = new ProgressBarProps
+            {
+                Value = repeatClickCount % 100,
+                Title = "Progress",
+            };
+
+            var repeatButtonProps = new RepeatButtonProps
+            {
+                Text = $"Repeat ({repeatClickCount})",
+                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
+            };
+
+            var repeatPulseTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 1f,
+                            To = 0.4f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "translateY",
+                            From = 0f,
+                            To = 6f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "paddingLeft",
+                            From = 0f,
+                            To = 8f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "paddingRight",
+                            From = 0f,
+                            To = 8f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                    },
+                0
+            );
+
+            var batchTestButtonProps = new ButtonProps
+            {
+                Text = $"Batch Test ({batchClicks})",
+                OnClick = () =>
+                {
+                    setBatchClicks(batchClicks + 1);
+                    setRepeatClickCount.Set(value => value + 1);
+                    setRepeatClickCount.Set(value => value + 1);
+                    setSliderValue.Set(value => Mathf.Clamp01(value + 0.05f));
+                    setSliderIntValue.Set(value => (value + 1) % 11);
+                    setOptionEnabled(!isOptionEnabled);
+                    setAnimNonce.Set(value => value + 1);
+                },
+                Style = new Style { (MarginLeft, 6f) },
+            };
+
+            var multiTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 0f,
+                            To = 1f,
+                            Duration = 0.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "translateY",
+                            From = 12f,
+                            To = 0f,
+                            Duration = 0.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "width",
+                            From = 120f,
+                            To = 180f,
+                            Duration = 0.6f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "height",
+                            From = 32f,
+                            To = 44f,
+                            Duration = 0.6f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                        new AnimateTrack
+                        {
+                            Property = "backgroundColor",
+                            From = new UColor(0.75f, 0.85f, 1f, 1f),
+                            To = new UColor(1f, 1f, 1f, 1f),
+                            Duration = 0.5f,
+                            Ease = Ease.EaseOutCubic,
+                        },
+                    },
+                animNonce
+            );
+
+            var flashAnimTracks = Hooks.UseMemo(
+                () =>
+                    new List<AnimateTrack>
+                    {
+                        new AnimateTrack
+                        {
+                            Property = "opacity",
+                            From = 1f,
+                            To = 0.3f,
+                            Duration = 0.8f,
+                            Ease = Ease.EaseInOutSine,
+                            Yoyo = true,
+                            Loop = true,
+                        },
+                    },
+                0
+            );
+
+            Hooks.UseEffect(
+                () =>
+                {
+                    if (rootElement == null)
+                    {
+                        return null;
+                    }
+
+                    var timerHandle = rootElement.schedule.Execute(() => setCurrentTime.Set(DateTime.Now)).Every(1000);
+                    return () =>
+                    {
+                        try
+                        {
+                            timerHandle?.Pause();
+                        }
+                        catch
+                        {
+                        }
+                    };
+                },
+                Array.Empty<object>()
+            );
+
+            var setTextButtonProps = new ButtonProps
+            {
+                Text = "Set Text",
+                OnClick = () => setInputText.Set("Updated!"),
+                Style = new Style { (MarginLeft, 6f), (Height, 28f) },
+            };
+
+            Action treeAddParent = () =>
+            {
+                int assignedPid = 0;
+                setTreeNextPid.Set(prev =>
+                {
+                    assignedPid = prev;
+                    return prev + 2;
+                });
+                List<TreeViewRowState> latestRows = null;
+                setTreeRows.Set(prev =>
+                {
+                    var next = prev != null ? new List<TreeViewRowState>(prev) : new List<TreeViewRowState>();
+                    next.Add(
+                        new TreeViewRowState
+                        {
+                            Pid = assignedPid,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
+                    latestRows = next;
+                    return next;
+                });
+                if (latestRows != null)
+                {
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
+            };
+
+            Action treeAddChild = () =>
+            {
+                List<TreeViewRowState> latestRows = null;
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var next = new List<TreeViewRowState>(prev);
+                    next[next.Count - 1] = new TreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = source.Parent,
+                        Child = source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
+                        HasChild = true,
+                    };
+                    latestRows = next;
+                    return next;
+                });
+                if (latestRows != null)
+                {
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
+            };
+
+            Action treeSetParentValue = () =>
+            {
+                List<TreeViewRowState> latestRows = null;
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+                    parentItem.ShouldOverrideElement = true;
+                    var next = new List<TreeViewRowState>(prev);
+                    next[next.Count - 1] = new TreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = parentItem,
+                        Child = source.Child,
+                        HasChild = source.HasChild,
+                    };
+                    latestRows = next;
+                    return next;
+                });
+                if (latestRows != null)
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+            };
+
+            Action treeSetChildValue = () =>
+            {
+                List<TreeViewRowState> latestRows = null;
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem = source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
+                    childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+                    childItem.ShouldOverrideElement = true;
+                    var next = new List<TreeViewRowState>(prev);
+                    next[next.Count - 1] = new TreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = source.Parent,
+                        Child = childItem,
+                        HasChild = true,
+                    };
+                    latestRows = next;
+                    return next;
+                });
+                if (latestRows != null)
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+            };
+
+            Action treeDeleteLast = () =>
+            {
+                List<TreeViewRowState> latestRows = null;
+                setTreeRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<TreeViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    latestRows = next;
+                    return next;
+                });
+                if (latestRows != null)
+                {
+                    setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
+            };
+            Action<TreeViewExpansionChangedArgs> treeExpandedChanged = args =>
+            {
+                setTreeExpandedIds.Set(prev =>
+                {
+                    var nextSet = prev != null ? new HashSet<int>(prev) : new HashSet<int>();
+                    if (args != null)
+                    {
+                        if (args.isExpanded)
+                            nextSet.Add(args.id);
+                        else
+                            nextSet.Remove(args.id);
+                    }
+                    var valid = BuildTreeValidIds(treeRows);
+                    if (valid.Count > 0)
+                    {
+                        var removals = new List<int>();
+                        foreach (var id in nextSet)
+                        {
+                            if (!valid.Contains(id))
+                                removals.Add(id);
+                        }
+                        for (int i = 0; i < removals.Count; i++)
+                            nextSet.Remove(removals[i]);
+                    }
+                    var nextList = new List<int>(nextSet);
+                    nextList.Sort();
+                    if (prev != null && prev.Count == nextList.Count)
+                    {
+                        var prevSet = new HashSet<int>(prev);
+                        if (prevSet.SetEquals(nextSet))
+                            return prev;
+                    }
+                    return nextList;
+                });
+            };
+
+            Action mctvAddParent = () =>
+            {
+                var pidBase = mctvNextPid;
+                setMctvRows.Set(prev =>
+                {
+                    var next = prev != null
+                        ? new List<MultiColumnTreeViewRowState>(prev)
+                        : new List<MultiColumnTreeViewRowState>();
+                    next.Add(
+                        new MultiColumnTreeViewRowState
+                        {
+                            Pid = pidBase,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
+                    return next;
+                });
+                setMctvNextPid(pidBase + 2);
+            };
+
+            Action mctvAddChild = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next[next.Count - 1] = new MultiColumnTreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = source.Parent,
+                        Child = source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
+                        HasChild = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action mctvSetParentValue = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null)
+                        return prev;
+                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+                    parentItem.ShouldOverrideElement = true;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next[next.Count - 1] = new MultiColumnTreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = parentItem,
+                        Child = source.Child,
+                        HasChild = source.HasChild,
+                    };
+                    return next;
+                });
+            };
+
+            Action mctvSetChildValue = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[prev.Count - 1];
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem = source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
+                    childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+                    childItem.ShouldOverrideElement = true;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next[next.Count - 1] = new MultiColumnTreeViewRowState
+                    {
+                        Pid = source.Pid,
+                        Parent = source.Parent,
+                        Child = childItem,
+                        HasChild = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action mctvDeleteLast = () =>
+            {
+                setMctvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<MultiColumnTreeViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action<MultiColumnTreeViewProps.ColumnLayoutState> mctvLayoutChanged = layout =>
+            {
+                var clone = CloneTreeLayout(layout);
+                if (TreeLayoutEqual(clone, mctvLayout))
+                    return;
+                setMctvLayout.Set(_ => clone);
+            };
+
+            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> mctvSortChanged = defs =>
+            {
+                setMctvSortDefs(defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null);
+            };
+
+            Action listAddItem = () =>
+            {
+                setListRows.Set(prev =>
+                {
+                    var next = new List<ListViewRowState>
+                    {
+                        new ListViewRowState
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "Parent",
+                        },
+                    };
+                    if (prev != null)
+                    {
+                        for (int i = 0; i < prev.Count; i++)
+                        {
+                            next.Add(prev[i]);
+                        }
+                    }
+                    return next;
+                });
+            };
+
+            Action listSetTopItem = () =>
+            {
+                setListRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[0];
+                    if (source == null)
+                        return prev;
+                    var id = !string.IsNullOrEmpty(source.Id) ? source.Id : Guid.NewGuid().ToString("N");
+                    var next = new List<ListViewRowState>(prev);
+                    next[0] = new ListViewRowState
+                    {
+                        Id = id,
+                        Text = $"{id} {DateTime.Now:HH:mm:ss}",
+                        ShouldOverrideElement = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action listDeleteLast = () =>
+            {
+                setListRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<ListViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action mclvAddItem = () =>
+            {
+                setMclvRows.Set(prev =>
+                {
+                    var next = new List<MultiColumnListViewRowState>
+                    {
+                        new MultiColumnListViewRowState
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            Text = "NEW " + DateTime.Now.ToLongTimeString(),
+                        },
+                    };
+                    if (prev != null)
+                    {
+                        for (int i = 0; i < prev.Count; i++)
+                        {
+                            next.Add(prev[i]);
+                        }
+                    }
+                    return next;
+                });
+            };
+
+            Action mclvSetTopItem = () =>
+            {
+                setMclvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var source = prev[0];
+                    if (source == null)
+                        return prev;
+                    var id = !string.IsNullOrEmpty(source.Id) ? source.Id : Guid.NewGuid().ToString("N");
+                    var next = new List<MultiColumnListViewRowState>(prev);
+                    next[0] = new MultiColumnListViewRowState
+                    {
+                        Id = id,
+                        Text = $"{id} {DateTime.Now:HH:mm:ss}",
+                        ShouldOverrideElement = true,
+                    };
+                    return next;
+                });
+            };
+
+            Action mclvDeleteLast = () =>
+            {
+                setMclvRows.Set(prev =>
+                {
+                    if (prev == null || prev.Count == 0)
+                        return prev;
+                    var next = new List<MultiColumnListViewRowState>(prev);
+                    next.RemoveAt(next.Count - 1);
+                    return next;
+                });
+            };
+
+            Action<MultiColumnListViewProps.ColumnLayoutState> mclvLayoutChanged = layout =>
+            {
+                var clone = CloneListLayout(layout);
+                if (ListLayoutEqual(clone, mclvLayout))
+                    return;
+                setMclvLayout.Set(_ => clone);
+            };
+
+            Action<List<MultiColumnListViewProps.SortedColumnDef>> mclvSortChanged = defs =>
+            {
+                setMclvSortDefs(defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null);
+            };
+
+            var tabViewProps = new TabViewProps
+            {
+                SelectedTabIndex = treeTabIndex,
+                SelectedIndexChanged = (Action<int>)(index => setTreeTabIndex(index)),
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                    new()
+                    {
+                        Title = "Intro",
+                        Content = () => ReactiveUITK.V.Func(Shared.IntroCounterFunc.Render),
+                    },
+                    new()
+                    {
+                        Title = "Tree",
+                        Content = () =>
+                            V.Func(
+                                TreeViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    { "rows", treeRows },
+                                    { "addParent", treeAddParent },
+                                    { "addChild", treeAddChild },
+                                    { "setParent", treeSetParentValue },
+                                    { "setChild", treeSetChildValue },
+                                    { "deleteLast", treeDeleteLast },
+                                    { "expandedItemIds", treeExpandedIds },
+                                    { "onExpandedChanged", treeExpandedChanged },
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != treeDisplayCount)
+                                            {
+                                                setTreeDisplayCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                    new()
+                    {
+                        Title = "Columns",
+                        Content = () =>
+                            V.Func(
+                                MultiColumnTreeViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    { "rows", mctvRows },
+                                    { "sortDefs", mctvSortDefs },
+                                    { "columnWidths", mctvLayout?.ColumnWidths },
+                                    { "columnVisibility", mctvLayout?.ColumnVisibility },
+                                    { "columnDisplayIndex", mctvLayout?.ColumnDisplayIndex },
+                                    { "addParent", mctvAddParent },
+                                    { "addChild", mctvAddChild },
+                                    { "setParent", mctvSetParentValue },
+                                    { "setChild", mctvSetChildValue },
+                                    { "deleteLast", mctvDeleteLast },
+                                    { "onSortChanged", mctvSortChanged },
+                                    { "onLayoutChanged", mctvLayoutChanged },
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != mctvDisplayCount)
+                                            {
+                                                setMctvDisplayCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                },
+                Style = new Style { (Height, 240f) },
+            };
+
+            var listTabViewProps = new TabViewProps
+            {
+                SelectedTabIndex = listTabIndex,
+                SelectedIndexChanged = (Action<int>)(index => setListTabIndex(index)),
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                    new()
+                    {
+                        Title = "Intro",
+                        Content = () => ReactiveUITK.V.Func(Shared.IntroCounterFunc.Render),
+                    },
+                    new()
+                    {
+                        Title = "List",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                ListViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    { "items", listRows },
+                                    { "addItem", listAddItem },
+                                    { "setTopItem", listSetTopItem },
+                                    { "deleteLast", listDeleteLast },
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != simpleListCount)
+                                            {
+                                                setSimpleListCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                    new()
+                    {
+                        Title = "Columns",
+                        Content = () =>
+                            ReactiveUITK.V.Func(
+                                MultiColumnListViewStatefulDemoFunc.Render,
+                                new Dictionary<string, object>
+                                {
+                                    { "items", mclvRows },
+                                    { "sortDefs", mclvSortDefs },
+                                    { "columnWidths", mclvLayout?.ColumnWidths },
+                                    { "columnVisibility", mclvLayout?.ColumnVisibility },
+                                    { "columnDisplayIndex", mclvLayout?.ColumnDisplayIndex },
+                                    { "addItem", mclvAddItem },
+                                    { "setTopItem", mclvSetTopItem },
+                                    { "deleteLast", mclvDeleteLast },
+                                    { "onSortChanged", mclvSortChanged },
+                                    { "onLayoutChanged", mclvLayoutChanged },
+                                    {
+                                        "onCountChanged",
+                                        (Action<int>)(count =>
+                                        {
+                                            if (count != mclvDisplayCount)
+                                            {
+                                                setMclvDisplayCount(count);
+                                            }
+                                        })
+                                    },
+                                }
+                            ),
+                    },
+                },
+                Style = new Style { (Height, 240f) },
+            };
+
+            int totalListCount = treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
+
             var valuesItems = new List<KeyValuePair<string, string>>
             {
                 new("TextField", inputText ?? string.Empty),
@@ -328,133 +1119,215 @@ namespace ReactiveUITK.Samples.Shared
                 new("RadioSingle", isRadioSingleSelected.ToString()),
                 new("RadioIndex", selectionIndex.ToString()),
                 new("Slider", sliderValue.ToString("F2")),
+                new("SliderInt", sliderIntValue.ToString()),
                 new("Dropdown", ddValue ?? string.Empty),
                 new("Repeat", repeatClickCount.ToString()),
                 new("Time", currentTime.ToLongTimeString()),
-                new("ListCount", listItems?.Count.ToString() ?? "0"),
+                new("TreeTab", treeTabIndex.ToString()),
+                new("ListTab", listTabIndex.ToString()),
+                new("ListCount", totalListCount.ToString()),
             };
 
-            // Props for frequently used controls (avoid inline props)
-            var toggleProps = new ToggleProps
+            var toggleTreeTabsBtn = new ButtonProps
             {
-                Text = "Enable option",
-                Value = isOptionEnabled,
-                OnChange = e => setOptionEnabled(e.newValue),
-            };
-            var radioSingleProps = new RadioButtonProps
-            {
-                Text = "Single radio",
-                Value = isRadioSingleSelected,
-                OnChange = e => setRadioSingleSelected(e.newValue),
-            };
-            var radioGroupProps = new RadioButtonGroupProps
-            {
-                Choices = selectionChoices,
-                Index = selectionIndex,
-                OnChange = e => setSelectionIndex(e.newValue),
-            };
-            var progressBarProps = new ProgressBarProps
-            {
-                Value = repeatClickCount % 100,
-                Title = "Progress",
-            };
-            var repeatButtonProps = new RepeatButtonProps
-            {
-                Text = $"Repeat ({repeatClickCount})",
-                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
-            };
-            // Button near text field to change its value
-            var setTextButtonProps = new ButtonProps
-            {
-                Text = "Set Text",
-                OnClick = () => setInputText("Updated!"),
-                Style = new Style { (MarginLeft, 6f), (Height, 28f) },
+                Text = showTreeTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
+                OnClick = () => setShowTreeTabs(!showTreeTabs),
             };
 
-            // Original page content grouped for ScrollView
+            var toggleListTabsBtn = new ButtonProps
+            {
+                Text = showListTabs ? "Hide List Tabs" : "Show List Tabs",
+                OnClick = () => setShowListTabs(!showListTabs),
+            };
+
             VirtualNode PageBody() =>
                 V.VisualElement(
                     new Dictionary<string, object> { { "style", PageStyle } },
-                    key: "shared-page-root",
+                    null,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", TopBarStyle } },
                         null,
-                        V.VisualElement(
-                            new Dictionary<string, object> { { "style", LeftBoxStyle } },
-                            null,
-                            V.Text("Left")
-                        ),
+                        V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
                         V.TextField(inputTextFieldProps),
                         V.Button(setTextButtonProps),
-                        V.VisualElement(
-                            new Dictionary<string, object> { { "style", RightBoxStyle } },
-                            null,
-                            V.Text("Right")
-                        )
+                        V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
                     ),
                     V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
-                    V.Button(toggleListButtonProps),
-                    V.Button(updateFirstItemButtonProps),
-                    listContent,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
-                        key: "extras",
+                        null,
                         V.Label(new LabelProps { Text = "Extras" }),
-                        V.GroupBox(
-                            groupBox1Props,
-                            null,
-                            V.Label(new LabelProps { Text = "Inside group" }, key: "inner-one")
-                        ),
+                        V.GroupBox(groupBox1Props, null, V.Label(new LabelProps { Text = "Inside group" })),
                         V.Toggle(toggleProps),
                         V.RadioButton(radioSingleProps),
-                        V.RadioButtonGroup(
-                            radioGroupProps,
-                            null,
-                            V.Label(new LabelProps { Text = "Pick one" }, key: "radio-label")
-                        ),
+                        V.RadioButtonGroup(radioGroupProps, null, V.Label(new LabelProps { Text = "Pick one" })),
                         V.ProgressBar(progressBarProps),
-                        V.RepeatButton(repeatButtonProps)
+                        V.Button(batchTestButtonProps),
+                        V.Animate(new AnimateProps { Tracks = repeatPulseTracks }, null, V.RepeatButton(repeatButtonProps))
                     ),
-                    // New components demo section
                     V.GroupBox(
                         newComponentsGroupProps,
                         null,
-                        // Foldout first (ensure visibility)
-                        V.Foldout(
-                            foldoutProps,
-                            null,
-                            V.Label(new LabelProps { Text = "Inside foldout" })
-                        ),
-                        // Image demo (uses background color when no sprite/texture)
-                        V.Image(imageProps, key: "img-demo"),
-                        // Slider demo
+                        V.Foldout(foldoutProps, null, V.Label(new LabelProps { Text = "Inside foldout" })),
+                        V.Image(imageProps),
                         V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
                         V.Slider(sliderProps),
-                        // Dropdown demo
-                        V.DropdownField(dropdownProps)
+                        V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
+                        V.SliderInt(
+                            new SliderIntProps
+                            {
+                                LowValue = 0,
+                                HighValue = 10,
+                                Value = sliderIntValue,
+                                OnChange = e => setSliderIntValue.Set(e.newValue),
+                            }
+                        ),
+#if UNITY_EDITOR
+                        V.HelpBox(
+                            new HelpBoxProps
+                            {
+                                MessageType =
+                                    sliderIntValue % 3 == 0
+                                        ? "error"
+                                        : (sliderIntValue % 2 == 0 ? "warning" : "info"),
+                                Text = "This is a HelpBox showing state-driven message type.",
+                            }
+                        ),
+#endif
+                        V.DropdownField(dropdownProps),
+                        V.Label(new LabelProps { Text = "Multi-Attr Animation" })
+                    ),
+                    V.VisualElement(
+                        null,
+                        null,
+                        V.Button(toggleTreeTabsBtn),
+                        V.Label(
+                            new LabelProps
+                            {
+                                Text = "TabView + TreeView",
+                                Style = new Style { (FontSize, 16f), (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)) },
+                            }
+                        ),
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (MaxHeight, 500f),
+                                        (FlexGrow, 0f),
+                                        (StyleKeys.Display, showTreeTabs ? "flex" : "none"),
+                                        (StyleKeys.FlexDirection, "column"),
+                                        (StyleKeys.Overflow, "visible"),
+                                    }
+                                },
+                            },
+                            null,
+                            V.TabView(tabViewProps)
+                        ),
+                        showTreeTabs ? V.Fragment() : V.Text("Tree tabs hidden")
+                    ),
+                    V.VisualElement(
+                        null,
+                        null,
+                        V.Button(toggleListTabsBtn),
+                        V.Label(
+                            new LabelProps
+                            {
+                                Text = "TabView + ListViews",
+                                Style = new Style { (FontSize, 16f), (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)) },
+                            }
+                        ),
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (MaxHeight, 500f),
+                                        (FlexGrow, 0f),
+                                        (StyleKeys.Display, showListTabs ? "flex" : "none"),
+                                        (StyleKeys.FlexDirection, "column"),
+                                        (StyleKeys.Overflow, "visible"),
+                                    }
+                                },
+                            },
+                            null,
+                            V.TabView(listTabViewProps)
+                        ),
+                        showListTabs ? V.Fragment() : V.Text("List tabs hidden")
+                    ),
+                    V.Label(new LabelProps { Text = "Animations" }),
+                    V.Animate(
+                        new AnimateProps { Tracks = flashAnimTracks },
+                        null,
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (Width, 160f),
+                                        (Height, 60f),
+                                        (BackgroundColor, new UColor(0.3f, 0.6f, 0.9f, 1f)),
+                                        (BorderRadius, 6f),
+                                        (JustifyContent, "center"),
+                                        (AlignItems, "center"),
+                                        (MarginTop, 6f),
+                                    }
+                                },
+                            },
+                            null,
+                            V.Label(new LabelProps { Text = "Flashing Box", Style = new Style { (TextColor, UColor.white) } })
+                        )
+                    ),
+                    V.Animate(
+                        new AnimateProps { Tracks = multiTracks },
+                        null,
+                        V.VisualElement(
+                            new Dictionary<string, object>
+                            {
+                                {
+                                    "style",
+                                    new Style
+                                    {
+                                        (Width, 200f),
+                                        (Height, 120f),
+                                        (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
+                                        (BorderRadius, 8f),
+                                        (JustifyContent, "center"),
+                                        (AlignItems, "center"),
+                                        (MarginTop, 8f),
+                                    }
+                                },
+                            },
+                            null,
+                            V.Label(new LabelProps { Text = "Animated Card" })
+                        )
                     )
                 );
 
-            // Outer wrapper (blue full-screen) -> Safe area wrapper (green)
-            // Inside safe area: Values bar (top, fixed in layout) + ScrollView (body)
             return V.VisualElement(
                 outerWrapperProps,
-                key: "outer-wrap",
+                null,
                 V.VisualElementSafe(
                     safeWrapperStyle,
-                    key: "safe-wrap",
-                    // Values bar docked at top; fixed height via minHeight
+                    null,
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", barSlotStyle } },
                         null,
-                        V.Func(
-                            ValuesBarFunc.Render,
-                            new Dictionary<string, object> { { "items", valuesItems } }
-                        )
+                        V.Func(ValuesBarFunc.Render, new Dictionary<string, object> { { "items", valuesItems } })
                     ),
-                    // Main scrollable content
                     V.ScrollView(
-                        new ScrollViewProps { Mode = "vertical", Style = mainScrollStyle },
+                        new ScrollViewProps
+                        {
+                            Mode = "vertical",
+                            Style = mainScrollStyle,
+                            Name = "main-scroll",
+                        },
                         null,
                         PageBody()
                     )

@@ -59,6 +59,7 @@ namespace ReactiveUITK.Bench
                 "PropChurn_500" => PropChurn(500),
                 "ListReorder_200" => ListReorder(200),
                 "MountUnmount_50x20" => MountUnmount(50, 20),
+                "ErrorBoundaryTrip" => ErrorBoundaryTrip(),
                 "BigListManual_3000" => BigListManual(3000),
                 "SharedDemo" => SharedDemo(),
                 _ => null,
@@ -211,6 +212,82 @@ namespace ReactiveUITK.Bench
                     null,
                     children.ToArray()
                 );
+                BenchSharedHost.Render(vnode);
+            };
+        }
+
+        public static Action ErrorBoundaryTrip()
+        {
+            int frame = 0;
+            bool lastShouldThrow = false;
+            string resetKey = Guid.NewGuid().ToString("N");
+
+            return () =>
+            {
+                frame++;
+                bool shouldThrow = (frame / 120) % 2 == 0;
+                if (lastShouldThrow && !shouldThrow)
+                {
+                    resetKey = Guid.NewGuid().ToString("N");
+                }
+                lastShouldThrow = shouldThrow;
+
+                VirtualNode guardedChild = V.Func(
+                    (props, children) =>
+                    {
+                        if (shouldThrow)
+                        {
+                            throw new InvalidOperationException("Synthetic benchmark error");
+                        }
+                        return V.Label(
+                            new LabelProps
+                            {
+                                Text = $"Frame {frame}: all good",
+                                Style = new Style { (TextColor, UColor.green) },
+                            }
+                        );
+                    },
+                    null,
+                    "bench_guarded"
+                );
+
+                VirtualNode fallback = V.Label(
+                    new LabelProps
+                    {
+                        Text = "Fallback active",
+                        Style = new Style { (TextColor, UColor.red) },
+                    }
+                );
+
+                VirtualNode boundary = V.ErrorBoundary(
+                    new ErrorBoundaryProps
+                    {
+                        Fallback = fallback,
+                        OnError = ex =>
+                        {
+                            Debug.LogWarning("Bench ErrorBoundary captured: " + ex?.Message);
+                        },
+                        ResetKey = resetKey,
+                    },
+                    "bench_error_boundary",
+                    guardedChild
+                );
+
+                var statusLabel = V.Label(
+                    new LabelProps
+                    {
+                        Text = shouldThrow ? "Phase: throwing" : "Phase: stable",
+                        Style = new Style { (TextColor, shouldThrow ? UColor.red : UColor.white) },
+                    }
+                );
+
+                var vnode = V.VisualElement(
+                    Column(),
+                    null,
+                    statusLabel,
+                    boundary
+                );
+
                 BenchSharedHost.Render(vnode);
             };
         }

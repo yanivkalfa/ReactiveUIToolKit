@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -9,7 +8,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<Button>();
+            return new Button();
         }
 
         private static bool IsInsideListView(VisualElement ve)
@@ -17,7 +16,7 @@ namespace ReactiveUITK.Elements
             var p = ve.parent;
             while (p != null)
             {
-                if (p is ListView)
+                if (p is BaseVerticalCollectionView)
                     return true;
                 p = p.parent;
             }

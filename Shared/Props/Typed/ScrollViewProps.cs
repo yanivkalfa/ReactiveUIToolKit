@@ -13,6 +13,7 @@ namespace ReactiveUITK.Props.Typed
         public ScrollerVisibility? HorizontalScrollerVisibility { get; set; }
         public Vector2? ScrollOffset { get; set; }
         public Style Style { get; set; }
+    public object Ref { get; set; }
 
         // Slots
         public Dictionary<string, object> ContentContainer { get; set; }
@@ -36,6 +37,8 @@ namespace ReactiveUITK.Props.Typed
                 dict["contentContainer"] = ContentContainer;
             if (Style != null)
                 dict["style"] = Style;
+            if (Ref != null)
+                dict["ref"] = Ref;
             return dict;
         }
     }

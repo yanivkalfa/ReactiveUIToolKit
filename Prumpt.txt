@@ -1,0 +1,93 @@
+—BEGIN HANDOFF PROMPT—
+
+Context
+
+Repo: ReactiveUIToolKit (Unity UI Toolkit + React-like VNodes)
+I added production-ready support for:
+SliderInt (adapter + typed props + V helper)
+HelpBox (editor-guarded adapter + typed props + V helper)
+MultiColumnListView (adapter + typed props + V helper), columns preserve user-resized widths and cell VNodes render correctly
+Demo: Extended Samples/Shared/SharedDemoPage.cs with:
+Buttons to add items (ListView and table)
+MultiColumnListView now renders SharedListViewRow in a column to exercise nested row UI
+Current Status
+
+Column resize persists across re-renders (fixed).
+MultiColumnListView rows render correctly; shared row UI mounts and updates.
+Both “Add Item” buttons currently operate on the same shared list state by design (visible in both views).
+Open Issues to Resolve
+
+Row counter resets in MultiColumnListView when timer re-renders (still intermittent)
+Likely cause: some realized rows are being re-bound (unbind+bind) despite our signature gating, which unmounts the VNode subtree and resets hooks.
+Minimally reproduce in Samples/Shared/SharedDemoPage.cs by clicking + in a table row; the count advances, but occasionally after the 1s timer tick it resets.
+“X” remove button in table rows not firing
+Buttons inside MultiColumnListView likely need the same “be list-friendly” tweak we applied for ListView (disable focus + set picking mode).
+Our ButtonElementAdapter currently detects ancestor ListView only. It should detect BaseVerticalCollectionView or MultiColumnListView as well.
+Add buttons share the same list state (expected, but the request wants one button per view)
+Separate states so each view can add independently (keeping the demo clearer).
+Files Changed (key)
+
+Shared/Elements/MultiColumnListViewElementAdapter.cs
+Shared/Props/Typed/MultiColumnListViewProps.cs
+Shared/Core/V.cs
+Shared/Elements/SliderIntElementAdapter.cs, Shared/Props/Typed/SliderIntProps.cs
+Shared/Elements/HelpBoxElementAdapter.cs, Shared/Props/Typed/HelpBoxProps.cs
+Samples/Shared/SharedDemoPage.cs
+Proposed Fix Plan (surgical)
+
+Prevent unintended rebinds (counter resets)
+In MultiColumnListViewElementAdapter:
+Already added a semantic columns signature (Name/Title only) to avoid rebuilds.
+We removed RefreshItem calls on mere delegate identity changes.
+Next step: ensure rows don’t diff when nothing material changed:
+Memoize the columns list and the cell delegates in SharedDemoPage via Hooks.UseMemo to keep references stable across the timer tick.
+Confirm no call paths in the adapter call view.Rebuild except for real changes.
+Make buttons inside MultiColumnListView row cells clickable like in ListView
+Shared/Elements/ButtonElementAdapter.cs:
+Update IsInsideListView to detect BaseVerticalCollectionView (or MultiColumnListView) ancestors, not only ListView.
+Keep the same behavior:
+button.focusable = false;
+button.pickingMode = PickingMode.Position;
+This mirrors the ListView row behavior and avoids selection layer interference.
+Separate list state for ListView vs Table (demo clarity)
+In Samples/Shared/SharedDemoPage.cs:
+Introduce var (tableItems, setTableItems) = Hooks.UseState(initialItems) alongside the existing listItems.
+Wire MultiColumnListView to use tableItems.
+Point “Add Item (Table)” to update tableItems, and “Add Item (ListView)” to update listItems.
+Keep remove handlers specific to each list’s state.
+Validation Steps
+
+Resize table columns, wait for the 1s timer; widths persist.
+Click + multiple times in a table row; timer ticks should not reset the count.
+Click X remove in a table row; row should be removed without selection changes.
+Add in table vs list independently; each updates only its own view.
+Patch Pointers
+
+ButtonElementAdapter.cs: add ancestor check for BaseVerticalCollectionView
+while (p != null) if (p is BaseVerticalCollectionView) return true;
+SharedDemoPage.cs: duplicate list state and wire table to tableItems
+Replace both add handlers to target the correct state.
+Memoize columns with Hooks.UseMemo so delegate identity remains stable:
+var columns = Hooks.UseMemo(() => new List<...> { ... }, tableItems?.Count ?? 0);
+Notes
+
+We changed MultiColumnListView cell binding to always wrap non-VisualElement VNodes in a VisualElement root to match the host and avoid remount quirks.
+Column state preservation prefers previous measured values unless explicitly provided in props.
+No opinionated defaults are applied now; if a column prop isn’t provided, UITK defaults are used or previous measured value is retained.
+If you want me to carry out the 3-point fix plan above next, I’ll implement it exactly as listed, then re-verify in the demo.
+
+—END HANDOFF PROMPT—
+
+
+
+You are an expert Unity UI Toolkit and C# assistant embedded in a ReactiveUIToolKit repo (branch dev_2_after_refactor). We’ve already:
+- Converted our TreeView demos to React-style controlled expansion using `TreeExpansionTrackerCoop` and `Samples/Shared/SharedDemoPage.cs`.
+- Hoisted expansion/layout state into `SharedDemoPage` via Hooks and ensured no conditional hooks remain.
+- Ensured multi-column layout trackers attach before view rebuilds and fire callbacks with the latest column snapshot.
+
+Your job now is to continue this controlled-props work:
+1. Validate and finish column layout persistence for `MultiColumnListView` and `MultiColumnTreeView` demos: captured widths/order/visibility should round-trip into Unity after user tweaks.
+2. Confirm controlled tree expansion remains stable when rows change (pruning, re-rooting) and consider adding regression tests or demo asserts if practical.
+3. Flag any remaining warnings or edge cases tied to the new controlled flow (e.g., tracker attachment timing, state sync between demos and shared helpers).
+
+Stay within ASCII, follow existing coding conventions, and avoid introducing new hook order risks. Ask if anything is unclear before diving in.

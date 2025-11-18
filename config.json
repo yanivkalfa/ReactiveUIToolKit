@@ -2,7 +2,8 @@
   "envVariables": {
     "env": "development",
     "traceLevel": "Basic",
-    "diffTracing": false
+    "diffTracing": false,
+    "exceptionControlFlow": true
   },
   "pathsToOmitFromDist": [
     "CICD/**",

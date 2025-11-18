@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -13,11 +12,26 @@ namespace ReactiveUITK.Elements
     {
         private static HostContext sharedHostContext;
 
-        private sealed class CachedParts
+        private sealed class CachedParts : IScrollState
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
             public IList LastItems; // track previous items reference
+            public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
+                new();
+
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+            public IElementStateTracker<ListView, CachedParts> ScrollTracker =
+                new MultiColumnScrollTracker<ListView, CachedParts>(
+                    new MultiColumnScrollOps<ListView>(),
+                    flush: null
+                );
         }
 
         private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList =
@@ -35,7 +49,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<ListView>();
+            return new ListView();
         }
 
         private static IList NormalizeItems(object itemsObj)
@@ -65,6 +79,8 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+            EnsureViewDataKey(listView, properties);
+            parts.ScrollTracker.Attach(listView, parts, properties);
 
             if (properties.TryGetValue("items", out var itemsObj))
             {
@@ -116,34 +132,59 @@ namespace ReactiveUITK.Elements
                     {
                         listView.selectionType = SelectionType.None;
                     }
-                    listView.makeItem = () =>
-                    {
-                        var ve = new VisualElement();
-                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        return ve;
-                    };
+                    listView.makeItem = () => new VisualElement();
                     listView.bindItem = (ve, i) =>
                     {
-                        var rr = ve.userData as IVNodeHostRenderer;
-                        if (rr == null)
-                        {
-                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                            ve.userData = rr;
-                        }
                         object item = null;
                         if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
                         {
                             item = il[i];
                         }
+                        var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        if (!parts.Pool.TryGetValue(key, out var entry))
+                        {
+                            var mount = new VisualElement();
+                            try
+                            {
+                                mount.pickingMode = PickingMode.Ignore;
+                            }
+                            catch { }
+                            var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
+                            entry = (rrNew, mount);
+                            parts.Pool[key] = entry;
+                        }
+                        if (entry.mount.parent != ve)
+                        {
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                            ve.Add(entry.mount);
+                        }
                         var f = parts.RowFn;
                         if (f != null)
                         {
-                            rr.Render(f(i, item));
+                            var vnode = EnsureVisualElementRoot(f(i, item), "ListViewRow");
+                            entry.renderer.Render(vnode);
                         }
                     };
                     listView.unbindItem = (ve, i) =>
                     {
-                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        foreach (var kv in parts.Pool)
+                        {
+                            var mount = kv.Value.mount;
+                            if (mount != null && mount.parent == ve)
+                            {
+                                try
+                                {
+                                    mount.RemoveFromHierarchy();
+                                }
+                                catch { }
+                            }
+                        }
                     };
                 }
             }
@@ -170,6 +211,7 @@ namespace ReactiveUITK.Elements
 
             ApplySlots(listView, properties);
             PropsApplier.Apply(element, properties);
+            parts.ScrollTracker.Reapply(listView, parts, null, properties);
         }
 
         public override void ApplyPropertiesDiff(
@@ -234,34 +276,59 @@ namespace ReactiveUITK.Elements
                     {
                         listView.selectionType = SelectionType.None;
                     }
-                    listView.makeItem = () =>
-                    {
-                        var ve = new VisualElement();
-                        ve.userData = new VNodeHostRenderer(GetRowHostContext(), ve);
-                        return ve;
-                    };
+                    listView.makeItem = () => new VisualElement();
                     listView.bindItem = (ve, i) =>
                     {
-                        var rr = ve.userData as IVNodeHostRenderer;
-                        if (rr == null)
-                        {
-                            rr = new VNodeHostRenderer(GetRowHostContext(), ve);
-                            ve.userData = rr;
-                        }
                         object item = null;
                         if (listView.itemsSource is IList il && i >= 0 && i < il.Count)
                         {
                             item = il[i];
                         }
+                        var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        if (!parts.Pool.TryGetValue(key, out var entry))
+                        {
+                            var mount = new VisualElement();
+                            try
+                            {
+                                mount.pickingMode = PickingMode.Ignore;
+                            }
+                            catch { }
+                            var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
+                            entry = (rrNew, mount);
+                            parts.Pool[key] = entry;
+                        }
+                        if (entry.mount.parent != ve)
+                        {
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
+                            ve.Add(entry.mount);
+                        }
                         var f = parts.RowFn;
                         if (f != null)
                         {
-                            rr.Render(f(i, item));
+                            var vnode = EnsureVisualElementRoot(f(i, item), "ListViewRow");
+                            entry.renderer.Render(vnode);
                         }
                     };
                     listView.unbindItem = (ve, i) =>
                     {
-                        (ve.userData as IVNodeHostRenderer)?.Unmount();
+                        var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        foreach (var kv in parts.Pool)
+                        {
+                            var mount = kv.Value.mount;
+                            if (mount != null && mount.parent == ve)
+                            {
+                                try
+                                {
+                                    mount.RemoveFromHierarchy();
+                                }
+                                catch { }
+                            }
+                        }
                     };
                 }
                 else if (changed && parts.LastItems != null)
@@ -306,6 +373,7 @@ namespace ReactiveUITK.Elements
 
             ApplySlotsDiff(listView, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
+            parts.ScrollTracker.Reapply(listView, parts, previous, next);
         }
 
         private static void ApplySlots(
@@ -355,6 +423,81 @@ namespace ReactiveUITK.Elements
                 if (scroll != null)
                     PropsApplier.Apply(scroll, svMap);
             }
+        }
+
+        private static string DeriveRowKey(ListView listView, int index, object item)
+        {
+            try
+            {
+                if (item != null)
+                {
+                    var t = item.GetType();
+                    var f = t.GetField(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (f?.FieldType == typeof(string))
+                    {
+                        var s = f.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                    var p = t.GetProperty(
+                        "Id",
+                        System.Reflection.BindingFlags.Instance
+                            | System.Reflection.BindingFlags.Public
+                    );
+                    if (p?.PropertyType == typeof(string))
+                    {
+                        var s = p.GetValue(item) as string;
+                        if (!string.IsNullOrEmpty(s))
+                            return s;
+                    }
+                }
+            }
+            catch { }
+            return $"row-{index}";
+        }
+
+        private static void EnsureViewDataKey(
+            ListView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+                return;
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+                return;
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+                return;
+
+            view.viewDataKey = desired;
         }
     }
 }
