@@ -71,20 +71,17 @@ namespace ReactiveUITK.Samples.Shared
                     : null;
 
             var columnWidths =
-                props != null
-                && props.TryGetValue("columnWidths", out var widthsObj)
+                props != null && props.TryGetValue("columnWidths", out var widthsObj)
                     ? ExtractDict<float>(widthsObj)
                     : null;
 
             var columnVisibility =
-                props != null
-                && props.TryGetValue("columnVisibility", out var visibilityObj)
+                props != null && props.TryGetValue("columnVisibility", out var visibilityObj)
                     ? ExtractDict<bool>(visibilityObj)
                     : null;
 
             var columnDisplayIndex =
-                props != null
-                && props.TryGetValue("columnDisplayIndex", out var displayObj)
+                props != null && props.TryGetValue("columnDisplayIndex", out var displayObj)
                     ? ExtractDict<int>(displayObj)
                     : null;
 
@@ -126,7 +123,8 @@ namespace ReactiveUITK.Samples.Shared
             var onSortChanged =
                 props != null
                 && props.TryGetValue("onSortChanged", out var sortChangedObj)
-                && sortChangedObj is Action<List<MultiColumnTreeViewProps.SortedColumnDef>> sortChangedAction
+                && sortChangedObj
+                    is Action<List<MultiColumnTreeViewProps.SortedColumnDef>> sortChangedAction
                     ? sortChangedAction
                     : null;
 

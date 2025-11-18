@@ -86,18 +86,19 @@ namespace ReactiveUITK.Elements
             return sharedHostContext;
         }
 
-    internal sealed class ColumnLayoutSnapshot
+        internal sealed class ColumnLayoutSnapshot
         {
             public Dictionary<string, float> Widths;
             public Dictionary<string, bool> Visibility;
             public Dictionary<string, int> DisplayIndex;
 
-            public ColumnLayoutSnapshot Clone() => new ColumnLayoutSnapshot
-            {
-                Widths = CloneDict(Widths),
-                Visibility = CloneDict(Visibility),
-                DisplayIndex = CloneDict(DisplayIndex),
-            };
+            public ColumnLayoutSnapshot Clone() =>
+                new ColumnLayoutSnapshot
+                {
+                    Widths = CloneDict(Widths),
+                    Visibility = CloneDict(Visibility),
+                    DisplayIndex = CloneDict(DisplayIndex),
+                };
         }
 
         private static Dictionary<string, T> CloneDict<T>(Dictionary<string, T> source)
@@ -247,13 +248,20 @@ namespace ReactiveUITK.Elements
                 case Action<MultiColumnListViewProps.ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<VisualElement, MultiColumnListViewProps.ColumnLayoutState> typedWithView:
+                case Action<
+                    VisualElement,
+                    MultiColumnListViewProps.ColumnLayoutState
+                > typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:
                     widthsOnly(payload.ColumnWidths);
                     return true;
-                case Action<Dictionary<string, float>, Dictionary<string, bool>, Dictionary<string, int>> triple:
+                case Action<
+                    Dictionary<string, float>,
+                    Dictionary<string, bool>,
+                    Dictionary<string, int>
+                > triple:
                     triple(
                         payload.ColumnWidths,
                         payload.ColumnVisibility,
@@ -287,20 +295,26 @@ namespace ReactiveUITK.Elements
                         args[i] = payload;
                         continue;
                     }
-                    if (typeof(Dictionary<string, float>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, float>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnWidths;
                         continue;
                     }
-                    if (typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnVisibility;
                         continue;
                     }
-                    if (typeof(Dictionary<string, int>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, int>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnDisplayIndex;
                         continue;
@@ -321,8 +335,7 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public override VisualElement Create() =>
-                new MultiColumnListView();
+        public override VisualElement Create() => new MultiColumnListView();
 
         public override void ApplyProperties(
             VisualElement element,
@@ -341,7 +354,10 @@ namespace ReactiveUITK.Elements
             parts.ScrollTracker.Attach(view, parts, properties);
             parts.LayoutTracker.Attach(view, parts, properties);
             Delegate layoutCallback = null;
-            if (properties != null && properties.TryGetValue("columnLayoutChanged", out var layoutObj))
+            if (
+                properties != null
+                && properties.TryGetValue("columnLayoutChanged", out var layoutObj)
+            )
             {
                 layoutCallback = layoutObj as Delegate;
             }
@@ -613,14 +629,19 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            var normalized = new List<(IDictionary<string, object> map, string name, int originalIndex)>();
+            var normalized =
+                new List<(IDictionary<string, object> map, string name, int originalIndex)>();
             int original = 0;
             foreach (var co in newCols)
             {
                 if (co is IDictionary<string, object> cm)
                 {
                     string nm = null;
-                    if (cm.TryGetValue("name", out var nameObj) && nameObj is string ns && !string.IsNullOrEmpty(ns))
+                    if (
+                        cm.TryGetValue("name", out var nameObj)
+                        && nameObj is string ns
+                        && !string.IsNullOrEmpty(ns)
+                    )
                     {
                         nm = ns;
                     }
@@ -636,8 +657,10 @@ namespace ReactiveUITK.Elements
                     {
                         int ai = 0;
                         int bi = 0;
-                        bool aHas = a.name != null && parts.ColumnDisplayIndex.TryGetValue(a.name, out ai);
-                        bool bHas = b.name != null && parts.ColumnDisplayIndex.TryGetValue(b.name, out bi);
+                        bool aHas =
+                            a.name != null && parts.ColumnDisplayIndex.TryGetValue(a.name, out ai);
+                        bool bHas =
+                            b.name != null && parts.ColumnDisplayIndex.TryGetValue(b.name, out bi);
                         if (aHas && bHas)
                         {
                             var cmp = ai.CompareTo(bi);
@@ -1118,7 +1141,10 @@ namespace ReactiveUITK.Elements
 
             if (string.IsNullOrEmpty(desired))
             {
-                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
                 {
                     desired = metadataKey;
                 }

@@ -26,35 +26,30 @@ namespace ReactiveUITK.Elements.Trackers
     public sealed class TabViewSelectionTracker
         : IElementStateTracker<TabView, TabViewSelectionState>
     {
-        private static readonly PropertyInfo SelectedTabIndexProperty =
-            typeof(TabView).GetProperty(
-                "selectedTabIndex",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
+        private static readonly PropertyInfo SelectedTabIndexProperty = typeof(TabView).GetProperty(
+            "selectedTabIndex",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
 
-        private static readonly PropertyInfo ActiveTabProperty =
-            typeof(TabView).GetProperty(
-                "activeTab",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
+        private static readonly PropertyInfo ActiveTabProperty = typeof(TabView).GetProperty(
+            "activeTab",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
 
-        private static readonly EventInfo ActiveTabChangedEvent =
-            typeof(TabView).GetEvent(
-                "activeTabChanged",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
+        private static readonly EventInfo ActiveTabChangedEvent = typeof(TabView).GetEvent(
+            "activeTabChanged",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
 
-        private static readonly EventInfo SelectedIndexChangedEvent =
-            typeof(TabView).GetEvent(
-                "selectedIndexChanged",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
+        private static readonly EventInfo SelectedIndexChangedEvent = typeof(TabView).GetEvent(
+            "selectedIndexChanged",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
 
-        private static readonly EventInfo SelectedTabIndexChangedEvent =
-            typeof(TabView).GetEvent(
-                "selectedTabIndexChanged",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
-            );
+        private static readonly EventInfo SelectedTabIndexChangedEvent = typeof(TabView).GetEvent(
+            "selectedTabIndexChanged",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+        );
 
         public void Attach(
             TabView element,
@@ -242,7 +237,11 @@ namespace ReactiveUITK.Elements.Trackers
                 return;
             }
 
-            if (state.ActiveTabHooked && state.ActiveTabHandler != null && ActiveTabChangedEvent != null)
+            if (
+                state.ActiveTabHooked
+                && state.ActiveTabHandler != null
+                && ActiveTabChangedEvent != null
+            )
             {
                 try
                 {
@@ -253,7 +252,11 @@ namespace ReactiveUITK.Elements.Trackers
             state.ActiveTabHandler = null;
             state.ActiveTabHooked = false;
 
-            if (state.SelectedIndexHooked && state.SelectedIndexHandler != null && SelectedIndexChangedEvent != null)
+            if (
+                state.SelectedIndexHooked
+                && state.SelectedIndexHandler != null
+                && SelectedIndexChangedEvent != null
+            )
             {
                 try
                 {
@@ -264,11 +267,18 @@ namespace ReactiveUITK.Elements.Trackers
             state.SelectedIndexHandler = null;
             state.SelectedIndexHooked = false;
 
-            if (state.SelectedTabIndexHooked && state.SelectedTabIndexHandler != null && SelectedTabIndexChangedEvent != null)
+            if (
+                state.SelectedTabIndexHooked
+                && state.SelectedTabIndexHandler != null
+                && SelectedTabIndexChangedEvent != null
+            )
             {
                 try
                 {
-                    SelectedTabIndexChangedEvent.RemoveEventHandler(view, state.SelectedTabIndexHandler);
+                    SelectedTabIndexChangedEvent.RemoveEventHandler(
+                        view,
+                        state.SelectedTabIndexHandler
+                    );
                 }
                 catch { }
             }
@@ -342,7 +352,12 @@ namespace ReactiveUITK.Elements.Trackers
             }
         }
 
-        private void HandleActiveTabChanged(TabView view, TabViewSelectionState state, Tab prev, Tab next)
+        private void HandleActiveTabChanged(
+            TabView view,
+            TabViewSelectionState state,
+            Tab prev,
+            Tab next
+        )
         {
             if (IsSuppressed(state))
             {
@@ -354,7 +369,11 @@ namespace ReactiveUITK.Elements.Trackers
             DispatchSelectionChanged(view, state, resolvedIndex, prev, next);
         }
 
-        private void HandleExplicitIndexChanged(TabView view, TabViewSelectionState state, int index)
+        private void HandleExplicitIndexChanged(
+            TabView view,
+            TabViewSelectionState state,
+            int index
+        )
         {
             if (IsSuppressed(state))
             {
@@ -399,12 +418,7 @@ namespace ReactiveUITK.Elements.Trackers
             NotifyActiveTabDelegate(state.ActiveTabChangedDelegate, index, previous, next);
         }
 
-        private static void NotifyIndexDelegate(
-            Delegate del,
-            int index,
-            Tab previous,
-            Tab next
-        )
+        private static void NotifyIndexDelegate(Delegate del, int index, Tab previous, Tab next)
         {
             if (del == null)
             {
@@ -441,12 +455,7 @@ namespace ReactiveUITK.Elements.Trackers
             catch { }
         }
 
-        private static void NotifyActiveTabDelegate(
-            Delegate del,
-            int index,
-            Tab previous,
-            Tab next
-        )
+        private static void NotifyActiveTabDelegate(Delegate del, int index, Tab previous, Tab next)
         {
             if (del == null)
             {
@@ -668,10 +677,7 @@ namespace ReactiveUITK.Elements.Trackers
             return null;
         }
 
-        private static bool TryReadIndex(
-            IReadOnlyDictionary<string, object> props,
-            out int index
-        )
+        private static bool TryReadIndex(IReadOnlyDictionary<string, object> props, out int index)
         {
             index = 0;
             if (props == null)
@@ -687,7 +693,10 @@ namespace ReactiveUITK.Elements.Trackers
                 return true;
             }
 
-            if (props.TryGetValue("selectedIndex", out var legacy) && TryCoerceInt(legacy, out index))
+            if (
+                props.TryGetValue("selectedIndex", out var legacy)
+                && TryCoerceInt(legacy, out index)
+            )
             {
                 return true;
             }

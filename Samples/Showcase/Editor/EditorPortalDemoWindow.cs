@@ -34,11 +34,7 @@ namespace ReactiveUITK.Samples.Editor
             contentContainer = new VisualElement
             {
                 name = "ContentRegion",
-                style =
-                {
-                    flexGrow = 1f,
-                    marginRight = 6f,
-                }
+                style = { flexGrow = 1f, marginRight = 6f },
             };
             var portalOuter = new VisualElement
             {
@@ -46,22 +42,18 @@ namespace ReactiveUITK.Samples.Editor
                 style =
                 {
                     width = 220f,
-                    backgroundColor = new Color(0.1f,0.1f,0.1f,0.9f),
+                    backgroundColor = new Color(0.1f, 0.1f, 0.1f, 0.9f),
                     paddingTop = 6f,
                     paddingBottom = 6f,
                     paddingLeft = 6f,
                     paddingRight = 6f,
-                }
+                },
             };
             portalOuter.Add(new Label("Portal Target"));
             portalTarget = new VisualElement
             {
                 name = "PortalTarget",
-                style =
-                {
-                    flexGrow = 1f,
-                    marginTop = 4f,
-                }
+                style = { flexGrow = 1f, marginTop = 4f },
             };
             portalOuter.Add(portalTarget);
 
@@ -70,7 +62,10 @@ namespace ReactiveUITK.Samples.Editor
             root.Add(hostContainer);
 
             var props = new Dictionary<string, object> { { "portalTarget", portalTarget } };
-            EditorRootRendererUtility.Render(contentContainer, V.Func(PortalEventScopeDemoFunc.Render, props));
+            EditorRootRendererUtility.Render(
+                contentContainer,
+                V.Func(PortalEventScopeDemoFunc.Render, props)
+            );
         }
 
         private void OnDisable()

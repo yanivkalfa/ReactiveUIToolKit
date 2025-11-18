@@ -27,12 +27,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 TextField textField = inputRef?.Value;
                 Label label = labelRef?.Value;
                 bool isFocused = textField?.focusController?.focusedElement == textField;
-                string textSummary = textField == null
-                    ? "input ref is null"
-                    : $"input ref current: value=\"{textField.value}\" focused={isFocused}";
-                string labelSummary = label == null
-                    ? "label ref is null"
-                    : $"label ref current: text=\"{label.text}\"";
+                string textSummary =
+                    textField == null
+                        ? "input ref is null"
+                        : $"input ref current: value=\"{textField.value}\" focused={isFocused}";
+                string labelSummary =
+                    label == null
+                        ? "label ref is null"
+                        : $"label ref current: text=\"{label.text}\"";
                 setSnapshot($"{textSummary}; {labelSummary}");
             }
 
@@ -41,15 +43,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 {
                     (SK.FlexDirection, "row"),
                     (SK.AlignItems, "center"),
-                    (SK.MarginTop, 6f)
+                    (SK.MarginTop, 6f),
                 },
                 "ref-forward-controls",
                 V.Button(
-                    new ButtonProps
-                    {
-                        Text = "Read refs (parent)",
-                        OnClick = UpdateSnapshot
-                    },
+                    new ButtonProps { Text = "Read refs (parent)", OnClick = UpdateSnapshot },
                     key: "read-refs-btn"
                 ),
                 V.Button(
@@ -57,7 +55,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         Text = "Focus input (parent)",
                         OnClick = () => inputRef?.Value?.Focus(),
-                        Style = new Style { (SK.MarginLeft, 6f) }
+                        Style = new Style { (SK.MarginLeft, 6f) },
                     },
                     key: "focus-parent-btn"
                 )
@@ -69,7 +67,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 { "labelRef", labelRef },
                 { "value", inputValue },
                 { "onChange", (Action<string>)(newValue => setInputValue(newValue)) },
-                { "onChildSnapshot", (Action)UpdateSnapshot }
+                { "onChildSnapshot", (Action)UpdateSnapshot },
             };
 
             VirtualNode childDemo = V.ForwardRef(
@@ -79,12 +77,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new Style
-                {
-                    (SK.FlexDirection, "column"),
-                    (SK.Padding, 12f),
-                    (SK.FlexGrow, 1f)
-                },
+                new Style { (SK.FlexDirection, "column"), (SK.Padding, 12f), (SK.FlexGrow, 1f) },
                 "ref-forward-root",
                 V.Text("Forward refs + useRef demo", key: "title"),
                 V.Text(
@@ -97,27 +90,29 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new LabelProps
                     {
                         Text = snapshot,
-                        Style = new Style { (SK.MarginTop, 8f), (SK.FontSize, 13f) }
+                        Style = new Style { (SK.MarginTop, 8f), (SK.FontSize, 13f) },
                     },
                     key: "snapshot-label"
                 ),
                 V.Label(
                     new LabelProps
                     {
-                        Text = inputRef?.Value != null
-                            ? $"Parent sees ref.current: TextField name='{inputRef.Value.name}'"
-                            : "Parent sees ref.current == null",
-                        Style = new Style { (SK.MarginTop, 4f) }
+                        Text =
+                            inputRef?.Value != null
+                                ? $"Parent sees ref.current: TextField name='{inputRef.Value.name}'"
+                                : "Parent sees ref.current == null",
+                        Style = new Style { (SK.MarginTop, 4f) },
                     },
                     key: "parent-ref-line"
                 ),
                 V.Label(
                     new LabelProps
                     {
-                        Text = labelRef?.Value != null
-                            ? $"Child label ref.current.text = '{labelRef.Value.text}'"
-                            : "Child label ref.current is null",
-                        Style = new Style { (SK.MarginTop, 2f) }
+                        Text =
+                            labelRef?.Value != null
+                                ? $"Child label ref.current.text = '{labelRef.Value.text}'"
+                                : "Child label ref.current is null",
+                        Style = new Style { (SK.MarginTop, 2f) },
                     },
                     key: "label-ref-line"
                 )
@@ -136,7 +131,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 string value = string.Empty;
                 Action<string> onChange = null;
                 Action onChildSnapshot = null;
-                Hooks.MutableRef<TextField> typedForwardedRef = forwardedRef as Hooks.MutableRef<TextField>;
+                Hooks.MutableRef<TextField> typedForwardedRef =
+                    forwardedRef as Hooks.MutableRef<TextField>;
 
                 if (props != null)
                 {
@@ -148,11 +144,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         value = s;
                     }
-                    if (props.TryGetValue("onChange", out object changeObj) && changeObj is Action<string> change)
+                    if (
+                        props.TryGetValue("onChange", out object changeObj)
+                        && changeObj is Action<string> change
+                    )
                     {
                         onChange = change;
                     }
-                    if (props.TryGetValue("onChildSnapshot", out object snapshotObj) && snapshotObj is Action snap)
+                    if (
+                        props.TryGetValue("onChildSnapshot", out object snapshotObj)
+                        && snapshotObj is Action snap
+                    )
                     {
                         onChildSnapshot = snap;
                     }
@@ -165,15 +167,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (SK.MarginTop, 10f),
                         (SK.Padding, 8f),
                         (SK.BorderWidth, 1f),
-                        (SK.BorderColor, new Color(0.82f, 0.82f, 0.82f, 1f))
+                        (SK.BorderColor, new Color(0.82f, 0.82f, 0.82f, 1f)),
                     },
                     "ref-forward-child-root",
                     V.Label(
-                        new LabelProps
-                        {
-                            Text = $"Child sees value: {value}",
-                            Ref = labelRef
-                        },
+                        new LabelProps { Text = $"Child sees value: {value}", Ref = labelRef },
                         key: "child-label"
                     ),
                     V.TextField(
@@ -182,7 +180,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             Value = value,
                             OnChange = evt => onChange?.Invoke(evt.newValue),
                             Ref = forwardedRef,
-                            Style = new Style { (SK.MarginTop, 6f) }
+                            Style = new Style { (SK.MarginTop, 6f) },
                         },
                         key: "child-input"
                     ),
@@ -195,7 +193,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                 typedForwardedRef?.Value?.Focus();
                                 onChildSnapshot?.Invoke();
                             },
-                            Style = new Style { (SK.MarginTop, 8f) }
+                            Style = new Style { (SK.MarginTop, 8f) },
                         },
                         key: "child-focus-button"
                     )

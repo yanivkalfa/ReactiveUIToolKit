@@ -92,18 +92,19 @@ namespace ReactiveUITK.Elements
         private static HostContext Host =>
             host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
-    internal sealed class ColumnLayoutSnapshot
+        internal sealed class ColumnLayoutSnapshot
         {
             public Dictionary<string, float> Widths;
             public Dictionary<string, bool> Visibility;
             public Dictionary<string, int> DisplayIndex;
 
-            public ColumnLayoutSnapshot Clone() => new ColumnLayoutSnapshot
-            {
-                Widths = CloneDict(Widths),
-                Visibility = CloneDict(Visibility),
-                DisplayIndex = CloneDict(DisplayIndex),
-            };
+            public ColumnLayoutSnapshot Clone() =>
+                new ColumnLayoutSnapshot
+                {
+                    Widths = CloneDict(Widths),
+                    Visibility = CloneDict(Visibility),
+                    DisplayIndex = CloneDict(DisplayIndex),
+                };
         }
 
         private static Dictionary<string, T> CloneDict<T>(Dictionary<string, T> source)
@@ -217,13 +218,20 @@ namespace ReactiveUITK.Elements
                 case Action<MultiColumnTreeViewProps.ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<VisualElement, MultiColumnTreeViewProps.ColumnLayoutState> typedWithView:
+                case Action<
+                    VisualElement,
+                    MultiColumnTreeViewProps.ColumnLayoutState
+                > typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:
                     widthsOnly(payload.ColumnWidths);
                     return true;
-                case Action<Dictionary<string, float>, Dictionary<string, bool>, Dictionary<string, int>> triple:
+                case Action<
+                    Dictionary<string, float>,
+                    Dictionary<string, bool>,
+                    Dictionary<string, int>
+                > triple:
                     triple(
                         payload.ColumnWidths,
                         payload.ColumnVisibility,
@@ -257,20 +265,26 @@ namespace ReactiveUITK.Elements
                         args[i] = payload;
                         continue;
                     }
-                    if (typeof(Dictionary<string, float>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, float>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnWidths;
                         continue;
                     }
-                    if (typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnVisibility;
                         continue;
                     }
-                    if (typeof(Dictionary<string, int>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, int>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnDisplayIndex;
                         continue;
@@ -291,8 +305,7 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public override VisualElement Create() =>
-                new MultiColumnTreeView();
+        public override VisualElement Create() => new MultiColumnTreeView();
 
         private static void SetRootItems(MultiColumnTreeView tv, object root)
         {
@@ -449,7 +462,10 @@ namespace ReactiveUITK.Elements
             parts.ScrollTracker.Attach(tv, parts, properties);
             parts.LayoutTracker.Attach(tv, parts, properties);
             Delegate layoutCallback = null;
-            if (properties != null && properties.TryGetValue("columnLayoutChanged", out var layoutObj))
+            if (
+                properties != null
+                && properties.TryGetValue("columnLayoutChanged", out var layoutObj)
+            )
             {
                 layoutCallback = layoutObj as Delegate;
             }
@@ -1080,7 +1096,10 @@ namespace ReactiveUITK.Elements
 
             if (string.IsNullOrEmpty(desired))
             {
-                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
                 {
                     desired = metadataKey;
                 }

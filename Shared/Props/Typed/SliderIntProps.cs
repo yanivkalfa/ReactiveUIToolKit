@@ -13,7 +13,7 @@ namespace ReactiveUITK.Props.Typed
         public int? Value { get; set; }
         public string Direction { get; set; } // "horizontal" | "vertical"
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         public Action<ChangeEvent<int>> OnChange { get; set; }
 
@@ -42,4 +42,3 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 }
-

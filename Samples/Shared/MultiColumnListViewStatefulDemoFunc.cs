@@ -67,20 +67,17 @@ namespace ReactiveUITK.Samples.Shared
                     : null;
 
             var columnWidths =
-                props != null
-                && props.TryGetValue("columnWidths", out var widthsObj)
+                props != null && props.TryGetValue("columnWidths", out var widthsObj)
                     ? ExtractDict<float>(widthsObj)
                     : null;
 
             var columnVisibility =
-                props != null
-                && props.TryGetValue("columnVisibility", out var visibilityObj)
+                props != null && props.TryGetValue("columnVisibility", out var visibilityObj)
                     ? ExtractDict<bool>(visibilityObj)
                     : null;
 
             var columnDisplayIndex =
-                props != null
-                && props.TryGetValue("columnDisplayIndex", out var displayObj)
+                props != null && props.TryGetValue("columnDisplayIndex", out var displayObj)
                     ? ExtractDict<int>(displayObj)
                     : null;
 
@@ -108,7 +105,8 @@ namespace ReactiveUITK.Samples.Shared
             var sortChanged =
                 props != null
                 && props.TryGetValue("onSortChanged", out var sortChangedObj)
-                && sortChangedObj is Action<List<MultiColumnListViewProps.SortedColumnDef>> sortChangedAction
+                && sortChangedObj
+                    is Action<List<MultiColumnListViewProps.SortedColumnDef>> sortChangedAction
                     ? sortChangedAction
                     : null;
 
@@ -270,9 +268,18 @@ namespace ReactiveUITK.Samples.Shared
                     },
                 },
                 key: "controls",
-                V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addItem) }, key: "btn-add"),
-                V.Button(new ButtonProps { Text = "Set Value", OnClick = Safe(setTopItem) }, key: "btn-set"),
-                V.Button(new ButtonProps { Text = "Delete Last", OnClick = Safe(deleteLast) }, key: "btn-delete")
+                V.Button(
+                    new ButtonProps { Text = "Add Parent", OnClick = Safe(addItem) },
+                    key: "btn-add"
+                ),
+                V.Button(
+                    new ButtonProps { Text = "Set Value", OnClick = Safe(setTopItem) },
+                    key: "btn-set"
+                ),
+                V.Button(
+                    new ButtonProps { Text = "Delete Last", OnClick = Safe(deleteLast) },
+                    key: "btn-delete"
+                )
             );
 
             return V.VisualElement(

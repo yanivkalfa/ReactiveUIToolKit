@@ -8,7 +8,7 @@ namespace ReactiveUITK.Props.Typed
         public string ClassName { get; set; }
         public string Text { get; set; }
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {

@@ -15,7 +15,7 @@ namespace ReactiveUITK.Props.Typed
         public string Placeholder { get; set; }
         public bool? HidePlaceholderOnFocus { get; set; }
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         // Nested slot props
         public Dictionary<string, object> Label { get; set; }

@@ -11,7 +11,7 @@ namespace ReactiveUITK.Props.Typed
         public Sprite Sprite { get; set; }
         public string ScaleMode { get; set; } // or use enum via adapter mapping
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {

@@ -181,11 +181,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             return V.ScrollView(
                 new ScrollViewProps
                 {
-                    Style = new Style
-                    {
-                        (StyleKeys.Padding, 10f),
-                        (StyleKeys.FlexGrow, 1f),
-                    },
+                    Style = new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) },
                 },
                 null,
                 V.Label(new LabelProps { Text = "Keyed diff / LIS test", Style = headerStyle }),

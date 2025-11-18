@@ -10,7 +10,7 @@ namespace ReactiveUITK.Props.Typed
         public string Text { get; set; }
         public bool? Value { get; set; }
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         public Action<UnityEngine.UIElements.ChangeEvent<bool>> OnChange { get; set; }
 

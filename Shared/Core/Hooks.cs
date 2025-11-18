@@ -98,7 +98,11 @@ namespace ReactiveUITK.Core
             private readonly object directValue;
             private readonly Func<object, object> updater;
 
-            private PendingStateUpdate(bool usesUpdater, object directValue, Func<object, object> updater)
+            private PendingStateUpdate(
+                bool usesUpdater,
+                object directValue,
+                Func<object, object> updater
+            )
             {
                 this.usesUpdater = usesUpdater;
                 this.directValue = directValue;
@@ -196,10 +200,7 @@ namespace ReactiveUITK.Core
                 {
                     return projected;
                 }
-                if (
-                    state.HookStates == null
-                    || index >= state.HookStates.Count
-                )
+                if (state.HookStates == null || index >= state.HookStates.Count)
                 {
                     return default;
                 }
@@ -373,13 +374,7 @@ namespace ReactiveUITK.Core
                 );
                 return;
             }
-            if (
-                !string.Equals(
-                    state.HookOrderSignatures[index],
-                    hookId,
-                    StringComparison.Ordinal
-                )
-            )
+            if (!string.Equals(state.HookOrderSignatures[index], hookId, StringComparison.Ordinal))
             {
                 Debug.LogError(
                     $"[Hooks] Hook order mismatch: expected {state.HookOrderSignatures[index]} but saw {hookId} for component {DescribeComponent(metadata)}"
@@ -494,7 +489,8 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            FunctionComponentState state = metadata.ComponentState ?? metadata.EnsureComponentState();
+            FunctionComponentState state =
+                metadata.ComponentState ?? metadata.EnsureComponentState();
             if (state?.IsRendering == true)
             {
                 state.PendingUpdate = true;
@@ -534,8 +530,7 @@ namespace ReactiveUITK.Core
                     continue;
                 }
                 int slot = kvp.Key;
-                object current =
-                    slot < state.HookStates.Count ? state.HookStates[slot] : null;
+                object current = slot < state.HookStates.Count ? state.HookStates[slot] : null;
                 var node = queue.ConsumeAll();
                 while (node != null)
                 {
@@ -654,8 +649,7 @@ namespace ReactiveUITK.Core
                 state.LayoutEffectIndex,
                 dependencies
             );
-            state.FunctionLayoutEffects ??=
-                new List<(Func<Action>, object[], object[], Action)>();
+            state.FunctionLayoutEffects ??= new List<(Func<Action>, object[], object[], Action)>();
             int index = state.LayoutEffectIndex;
             if (index >= state.FunctionLayoutEffects.Count)
             {

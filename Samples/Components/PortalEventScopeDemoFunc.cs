@@ -14,7 +14,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             IReadOnlyList<VirtualNode> children
         )
         {
-            if (props == null || !props.TryGetValue("portalTarget", out var targetObj) || targetObj is not VisualElement portalTarget)
+            if (
+                props == null
+                || !props.TryGetValue("portalTarget", out var targetObj)
+                || targetObj is not VisualElement portalTarget
+            )
             {
                 return V.Label(new LabelProps { Text = "Portal target not supplied." });
             }
@@ -43,11 +47,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new Style
-                {
-                    (StyleKeys.FlexGrow, 1f),
-                    (StyleKeys.Padding, 10f),
-                },
+                new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
                 null,
                 V.Label(
                     new LabelProps
@@ -65,7 +65,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         Text = mounted ? "Unmount Portal" : "Mount Portal",
                         OnClick = () => setMounted(!mounted),
-                        Style = new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f) },
+                        Style = new Style
+                        {
+                            (StyleKeys.MinWidth, 140f),
+                            (StyleKeys.MarginBottom, 6f),
+                        },
                     }
                 ),
                 V.Label(
