@@ -17,7 +17,8 @@ namespace ReactiveUITK.Core
         public int ProviderId { get; }
 
         public bool Equals(ContextKey other) =>
-            ProviderId == other.ProviderId && string.Equals(Name, other.Name, StringComparison.Ordinal);
+            ProviderId == other.ProviderId
+            && string.Equals(Name, other.Name, StringComparison.Ordinal);
 
         public override bool Equals(object obj) => obj is ContextKey other && Equals(other);
 
@@ -52,8 +53,10 @@ namespace ReactiveUITK.Core
             public bool IsValid => Frame != null;
 
             public bool Equals(ContextFrameHandle other) => ReferenceEquals(Frame, other.Frame);
+
             public override bool Equals(object obj) =>
                 obj is ContextFrameHandle handle && Equals(handle);
+
             public override int GetHashCode() => Frame != null ? Frame.GetHashCode() : 0;
         }
 
@@ -237,7 +240,11 @@ namespace ReactiveUITK.Core
             ContextKey incomingKey
         )
         {
-            if (metadata == null || state?.SubscribedContextKeys == null || state.SubscribedContextKeys.Count == 0)
+            if (
+                metadata == null
+                || state?.SubscribedContextKeys == null
+                || state.SubscribedContextKeys.Count == 0
+            )
             {
                 return;
             }

@@ -11,7 +11,7 @@ namespace ReactiveUITK.Props.Typed
         public string Value { get; set; }
         public int? SelectedIndex { get; set; }
         public Style Style { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         public Action<UnityEngine.UIElements.ChangeEvent<string>> OnChange { get; set; }
 

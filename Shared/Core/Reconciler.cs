@@ -1282,8 +1282,8 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            IReadOnlyList<VirtualNode> targetChildren = suspenseNode.Children
-                ?? Array.Empty<VirtualNode>();
+            IReadOnlyList<VirtualNode> targetChildren =
+                suspenseNode.Children ?? Array.Empty<VirtualNode>();
 
             ClearHostElement(hostElement);
             if (targetChildren.Count > 0)
@@ -1306,9 +1306,10 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            IReadOnlyList<VirtualNode> fallbackChildren = suspenseNode.Fallback != null
-                ? new[] { suspenseNode.Fallback }
-                : Array.Empty<VirtualNode>();
+            IReadOnlyList<VirtualNode> fallbackChildren =
+                suspenseNode.Fallback != null
+                    ? new[] { suspenseNode.Fallback }
+                    : Array.Empty<VirtualNode>();
 
             ClearHostElement(hostElement);
             if (fallbackChildren.Count > 0)
@@ -2680,9 +2681,7 @@ namespace ReactiveUITK.Core
         private sealed class SuspenseSuspendException : Exception
         {
             public SuspenseSuspendException()
-                : base("ReactiveUITK suspense control flow")
-            {
-            }
+                : base("ReactiveUITK suspense control flow") { }
         }
     }
 }

@@ -245,9 +245,15 @@ namespace ReactiveUITK.Elements
 
             if (!widthsProvided && (state.ColumnWidths == null || state.ColumnWidths.Count == 0))
                 state.ColumnWidths = CaptureCurrentWidths(tv);
-            if (!visibilityProvided && (state.ColumnVisibility == null || state.ColumnVisibility.Count == 0))
+            if (
+                !visibilityProvided
+                && (state.ColumnVisibility == null || state.ColumnVisibility.Count == 0)
+            )
                 state.ColumnVisibility = CaptureCurrentVisibility(tv);
-            if (!displayProvided && (state.ColumnDisplayIndex == null || state.ColumnDisplayIndex.Count == 0))
+            if (
+                !displayProvided
+                && (state.ColumnDisplayIndex == null || state.ColumnDisplayIndex.Count == 0)
+            )
                 state.ColumnDisplayIndex = CaptureCurrentIndices(tv);
         }
 

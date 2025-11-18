@@ -12,7 +12,7 @@ namespace ReactiveUITK.Props.Typed
         public Style Style { get; set; }
         public System.Action<ChangeEvent<bool>> OnChange { get; set; }
         public Dictionary<string, object> Label { get; set; }
-    public object Ref { get; set; }
+        public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {

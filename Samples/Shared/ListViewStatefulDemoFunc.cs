@@ -93,7 +93,9 @@ namespace ReactiveUITK.Samples.Shared
 
             IList listItems =
                 items as IList
-                ?? (items != null ? new List<ListViewRowState>(items) : new List<ListViewRowState>());
+                ?? (
+                    items != null ? new List<ListViewRowState>(items) : new List<ListViewRowState>()
+                );
 
             var listProps = new ListViewProps
             {

@@ -55,7 +55,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         }
                     ),
                     V.Button(
-                        new ButtonProps { Text = "Reset", OnClick = () => CounterSignal.Dispatch(0) }
+                        new ButtonProps
+                        {
+                            Text = "Reset",
+                            OnClick = () => CounterSignal.Dispatch(0),
+                        }
                     )
                 )
             );

@@ -79,10 +79,26 @@ namespace ReactiveUITK.Elements
             if (state == null)
                 return;
             // Clear flags and buffers so subsequent attaches start clean
-            try { state.IsAdjusting = false; } catch { }
-            try { state.HeaderWired = false; } catch { }
-            try { state.PendingPrev = null; } catch { }
-            try { state.PendingNext = null; } catch { }
+            try
+            {
+                state.IsAdjusting = false;
+            }
+            catch { }
+            try
+            {
+                state.HeaderWired = false;
+            }
+            catch { }
+            try
+            {
+                state.PendingPrev = null;
+            }
+            catch { }
+            try
+            {
+                state.PendingNext = null;
+            }
+            catch { }
             // Note: we do not unregister callbacks here because we registered inline delegates.
             // Adapters typically live for the lifetime of the control; if you need explicit
             // unregistration, store the delegates in state and remove them here.

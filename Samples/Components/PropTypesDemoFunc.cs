@@ -28,20 +28,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 { "statusColor", useInvalid ? (object)"red" : Color.green },
             };
 
-            var badge = V
-                .Func(StatusBadgeFunc.Render, badgeProps)
-                .WithPropTypes(BadgePropTypes);
+            var badge = V.Func(StatusBadgeFunc.Render, badgeProps).WithPropTypes(BadgePropTypes);
 
             string modeText = useInvalid
                 ? "Invalid props (watch console for warnings)"
                 : "Valid props";
 
             return V.VisualElement(
-                new Style
-                {
-                    (StyleKeys.FlexGrow, 1f),
-                    (StyleKeys.Padding, 10f),
-                },
+                new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
                 null,
                 V.Label(
                     new LabelProps
@@ -67,13 +61,18 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         Text = useInvalid ? "Switch to valid props" : "Inject invalid props",
                         OnClick = () => setUseInvalid(!useInvalid),
-                        Style = new Style { (StyleKeys.MinWidth, 160f), (StyleKeys.MarginBottom, 6f) },
+                        Style = new Style
+                        {
+                            (StyleKeys.MinWidth, 160f),
+                            (StyleKeys.MarginBottom, 6f),
+                        },
                     }
                 ),
                 V.Label(
                     new LabelProps
                     {
-                        Text = "React-style prop-type warnings will appear in the Unity Console when invalid props are supplied.",
+                        Text =
+                            "React-style prop-type warnings will appear in the Unity Console when invalid props are supplied.",
                         Style = new Style { (StyleKeys.WhiteSpace, "normal") },
                     }
                 )

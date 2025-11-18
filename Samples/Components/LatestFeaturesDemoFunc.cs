@@ -9,13 +9,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class LatestFeaturesDemoFunc
     {
-        private static readonly string[] DefaultItems =
-        {
-            "Alpha",
-            "Bravo",
-            "Charlie",
-            "Delta",
-        };
+        private static readonly string[] DefaultItems = { "Alpha", "Bravo", "Charlie", "Delta" };
 
         private static List<string> CreateDefaultItems()
         {
@@ -40,7 +34,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var (items, setItems) = Hooks.UseState(CreateDefaultItems());
             var (pendingTask, setPendingTask) = Hooks.UseState<Task>(null);
             var (loadCount, setLoadCount) = Hooks.UseState(0);
-            var (status, setStatus) = Hooks.UseState("Click \"Simulate async load\" to exercise Suspense.");
+            var (status, setStatus) = Hooks.UseState(
+                "Click \"Simulate async load\" to exercise Suspense."
+            );
             var (metricsSnapshot, setMetricsSnapshot) = Hooks.UseState<MetricsSnapshot>(null);
 
             Hooks.UseEffect(
@@ -177,7 +173,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
                 setStatus("Loading sample data...");
                 setItems(new List<string>());
-                Task loadTask = Task.Run(async () => { await Task.Delay(1500); });
+                Task loadTask = Task.Run(async () =>
+                {
+                    await Task.Delay(1500);
+                });
                 setPendingTask(loadTask);
             }
 
@@ -186,7 +185,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 {
                     Text = text,
                     OnClick = onClick,
-                    Style = new Style { ("minWidth", 140f) }
+                    Style = new Style { ("minWidth", 140f) },
                 };
 
             VirtualNode controlsRow = V.VisualElement(
@@ -194,18 +193,15 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 {
                     {
                         "style",
-                        new Style
-                        {
-                            ("flexDirection", "row"),
-                            ("gap", 6f),
-                            ("marginBottom", 6f)
-                        }
-                    }
+                        new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 6f) }
+                    },
                 },
                 "controls-row",
                 V.Button(
                     CreateButton(
-                        pendingTask != null && !pendingTask.IsCompleted ? "Loading..." : "Simulate async load",
+                        pendingTask != null && !pendingTask.IsCompleted
+                            ? "Loading..."
+                            : "Simulate async load",
                         SimulateAsyncLoad
                     )
                 )
@@ -217,10 +213,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 null,
                 "suspense-fallback",
                 V.Text("Loading sample content...", key: "fallback-line-1"),
-                V.Text(
-                    "This fallback disappears once the Task finishes.",
-                    key: "fallback-line-2"
-                )
+                V.Text("This fallback disappears once the Task finishes.", key: "fallback-line-2")
             );
 
             List<VirtualNode> itemNodes = new List<VirtualNode>(items.Count);
@@ -237,7 +230,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             if (itemNodes.Count == 0)
             {
                 itemNodes.Add(
-                    V.Text("No items loaded yet. Click the button above to fetch sample data.", key: "lis-empty")
+                    V.Text(
+                        "No items loaded yet. Click the button above to fetch sample data.",
+                        key: "lis-empty"
+                    )
                 );
             }
 
@@ -246,13 +242,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 {
                     {
                         "style",
-                        new Style
-                        {
-                            ("flexDirection", "row"),
-                            ("gap", 6f),
-                            ("marginBottom", 4f)
-                        }
-                    }
+                        new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 4f) }
+                    },
                 },
                 "reorder-controls",
                 V.Button(CreateButton("Reverse order", ReverseOrder)),
@@ -271,9 +262,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.VisualElement(null, "lis-items-host", itemNodes.ToArray())
             );
 
-            string metricsLine = metricsSnapshot == null
-                ? "Waiting for diff metrics..."
-                : $"Last diff {metricsSnapshot.LastDiffMs} ms | reconciled {metricsSnapshot.Reconciled}, skipped {metricsSnapshot.Skipped}, effects {metricsSnapshot.Effects}.";
+            string metricsLine =
+                metricsSnapshot == null
+                    ? "Waiting for diff metrics..."
+                    : $"Last diff {metricsSnapshot.LastDiffMs} ms | reconciled {metricsSnapshot.Reconciled}, skipped {metricsSnapshot.Skipped}, effects {metricsSnapshot.Effects}.";
 
             VirtualNode metricsSection = V.VisualElement(
                 null,
@@ -295,13 +287,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 {
                     {
                         "style",
-                        new Style
-                        {
-                            ("padding", 12f),
-                            ("flexDirection", "column"),
-                            ("gap", 8f)
-                        }
-                    }
+                        new Style { ("padding", 12f), ("flexDirection", "column"), ("gap", 8f) }
+                    },
                 },
                 "latest-demo-root",
                 V.Text("ReactiveUITK Latest Changes Showcase", key: "latest-heading"),

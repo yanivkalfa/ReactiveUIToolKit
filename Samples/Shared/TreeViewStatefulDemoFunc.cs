@@ -100,8 +100,7 @@ namespace ReactiveUITK.Samples.Shared
                     : null;
 
             var expandedItemIds =
-                props != null
-                && props.TryGetValue("expandedItemIds", out var expandedObj)
+                props != null && props.TryGetValue("expandedItemIds", out var expandedObj)
                     ? ExtractList<int>(expandedObj)
                     : null;
 

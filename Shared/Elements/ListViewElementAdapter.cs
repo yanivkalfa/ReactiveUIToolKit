@@ -481,7 +481,10 @@ namespace ReactiveUITK.Elements
 
             if (string.IsNullOrEmpty(desired))
             {
-                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
                 {
                     desired = metadataKey;
                 }

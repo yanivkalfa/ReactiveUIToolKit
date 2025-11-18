@@ -87,7 +87,10 @@ namespace ReactiveUITK.Samples.Shared
             (StyleKeys.FlexDirection, "column"),
         };
 
-        public static VirtualNode Render(Dictionary<string, object> props, IReadOnlyList<VirtualNode> children)
+        public static VirtualNode Render(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
             static Dictionary<string, T> CloneDict<T>(IReadOnlyDictionary<string, T> source)
             {
@@ -98,7 +101,10 @@ namespace ReactiveUITK.Samples.Shared
                 return new Dictionary<string, T>(source);
             }
 
-            static bool DictEqual<T>(IReadOnlyDictionary<string, T> left, IReadOnlyDictionary<string, T> right)
+            static bool DictEqual<T>(
+                IReadOnlyDictionary<string, T> left,
+                IReadOnlyDictionary<string, T> right
+            )
             {
                 if (ReferenceEquals(left, right))
                     return true;
@@ -181,7 +187,10 @@ namespace ReactiveUITK.Samples.Shared
                 return set;
             }
 
-            static List<int> PruneTreeExpandedIds(IReadOnlyList<TreeViewRowState> rows, IList<int> expanded)
+            static List<int> PruneTreeExpandedIds(
+                IReadOnlyList<TreeViewRowState> rows,
+                IList<int> expanded
+            )
             {
                 if (expanded == null)
                     return null;
@@ -198,7 +207,11 @@ namespace ReactiveUITK.Samples.Shared
                     else
                         changed = true;
                 }
-                if (!changed && expanded is List<int> existingList && existingList.Count == nextSet.Count)
+                if (
+                    !changed
+                    && expanded is List<int> existingList
+                    && existingList.Count == nextSet.Count
+                )
                     return existingList;
                 var nextList = new List<int>(nextSet);
                 nextList.Sort();
@@ -208,7 +221,10 @@ namespace ReactiveUITK.Samples.Shared
             var (inputText, setInputText) = Hooks.UseState(string.Empty);
             var (isOptionEnabled, setOptionEnabled) = Hooks.UseState(false);
             var (isRadioSingleSelected, setRadioSingleSelected) = Hooks.UseState(false);
-            var selectionChoices = Hooks.UseMemo(() => new List<string> { "One", "Two", "Three" }, 0);
+            var selectionChoices = Hooks.UseMemo(
+                () => new List<string> { "One", "Two", "Three" },
+                0
+            );
             var (selectionIndex, setSelectionIndex) = Hooks.UseState(0);
             var (repeatClickCount, setRepeatClickCount) = Hooks.UseState(0);
             var (currentTime, setCurrentTime) = Hooks.UseState(DateTime.Now);
@@ -233,12 +249,18 @@ namespace ReactiveUITK.Samples.Shared
             var (_, setTreeNextPid) = Hooks.UseState(1000);
             var (mctvRows, setMctvRows) = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
             var (mctvNextPid, setMctvNextPid) = Hooks.UseState(2000);
-            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<MultiColumnTreeViewProps.SortedColumnDef>>(null);
+            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<
+                List<MultiColumnTreeViewProps.SortedColumnDef>
+            >(null);
             var (listRows, setListRows) = Hooks.UseState(new List<ListViewRowState>());
             var (mclvRows, setMclvRows) = Hooks.UseState(new List<MultiColumnListViewRowState>());
-            var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<List<MultiColumnListViewProps.SortedColumnDef>>(null);
-            var (mctvLayout, setMctvLayout) = Hooks.UseState<MultiColumnTreeViewProps.ColumnLayoutState>(null);
-            var (mclvLayout, setMclvLayout) = Hooks.UseState<MultiColumnListViewProps.ColumnLayoutState>(null);
+            var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<
+                List<MultiColumnListViewProps.SortedColumnDef>
+            >(null);
+            var (mctvLayout, setMctvLayout) =
+                Hooks.UseState<MultiColumnTreeViewProps.ColumnLayoutState>(null);
+            var (mclvLayout, setMclvLayout) =
+                Hooks.UseState<MultiColumnListViewProps.ColumnLayoutState>(null);
 
             TextFieldProps inputTextFieldProps = new()
             {
@@ -288,18 +310,27 @@ namespace ReactiveUITK.Samples.Shared
             };
             var sliderWidthStyle = new Style { (Width, 200f) };
 
-            var outerWrapperProps = new Dictionary<string, object> { { "style", outerWrapperStyle } };
+            var outerWrapperProps = new Dictionary<string, object>
+            {
+                { "style", outerWrapperStyle },
+            };
 
             var groupBox1Props = new GroupBoxProps
             {
                 Text = "GroupBox",
-                ContentContainer = new Dictionary<string, object> { { "style", groupBox1ContentStyle } },
+                ContentContainer = new Dictionary<string, object>
+                {
+                    { "style", groupBox1ContentStyle },
+                },
             };
 
             var newComponentsGroupProps = new GroupBoxProps
             {
                 Text = "New Components",
-                ContentContainer = new Dictionary<string, object> { { "style", newCompsGroupContentStyle } },
+                ContentContainer = new Dictionary<string, object>
+                {
+                    { "style", newCompsGroupContentStyle },
+                },
             };
 
             var foldoutProps = new FoldoutProps
@@ -308,7 +339,10 @@ namespace ReactiveUITK.Samples.Shared
                 Value = foldoutOpen,
                 OnChange = e => setFoldoutOpen(e.newValue),
                 Header = new Dictionary<string, object> { { "style", foldoutHeaderStyle } },
-                ContentContainer = new Dictionary<string, object> { { "style", foldoutContentStyle } },
+                ContentContainer = new Dictionary<string, object>
+                {
+                    { "style", foldoutContentStyle },
+                },
             };
 
             var imageProps = new ImageProps { Style = imageDemoStyle };
@@ -505,16 +539,16 @@ namespace ReactiveUITK.Samples.Shared
                         return null;
                     }
 
-                    var timerHandle = rootElement.schedule.Execute(() => setCurrentTime.Set(DateTime.Now)).Every(1000);
+                    var timerHandle = rootElement
+                        .schedule.Execute(() => setCurrentTime.Set(DateTime.Now))
+                        .Every(1000);
                     return () =>
                     {
                         try
                         {
                             timerHandle?.Pause();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     };
                 },
                 Array.Empty<object>()
@@ -538,7 +572,10 @@ namespace ReactiveUITK.Samples.Shared
                 List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
-                    var next = prev != null ? new List<TreeViewRowState>(prev) : new List<TreeViewRowState>();
+                    var next =
+                        prev != null
+                            ? new List<TreeViewRowState>(prev)
+                            : new List<TreeViewRowState>();
                     next.Add(
                         new TreeViewRowState
                         {
@@ -575,7 +612,8 @@ namespace ReactiveUITK.Samples.Shared
                     {
                         Pid = source.Pid,
                         Parent = source.Parent,
-                        Child = source.Child
+                        Child =
+                            source.Child
                             ?? new SharedTreeRowItem
                             {
                                 Id = Guid.NewGuid().ToString("N"),
@@ -603,7 +641,9 @@ namespace ReactiveUITK.Samples.Shared
                     var source = prev[prev.Count - 1];
                     if (source == null)
                         return prev;
-                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    var parentItem =
+                        source.Parent
+                        ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
                     var next = new List<TreeViewRowState>(prev);
@@ -631,7 +671,8 @@ namespace ReactiveUITK.Samples.Shared
                     var source = prev[prev.Count - 1];
                     if (source == null || !source.HasChild)
                         return prev;
-                    var childItem = source.Child
+                    var childItem =
+                        source.Child
                         ?? new SharedTreeRowItem
                         {
                             Id = Guid.NewGuid().ToString("N"),
@@ -712,9 +753,10 @@ namespace ReactiveUITK.Samples.Shared
                 var pidBase = mctvNextPid;
                 setMctvRows.Set(prev =>
                 {
-                    var next = prev != null
-                        ? new List<MultiColumnTreeViewRowState>(prev)
-                        : new List<MultiColumnTreeViewRowState>();
+                    var next =
+                        prev != null
+                            ? new List<MultiColumnTreeViewRowState>(prev)
+                            : new List<MultiColumnTreeViewRowState>();
                     next.Add(
                         new MultiColumnTreeViewRowState
                         {
@@ -746,7 +788,8 @@ namespace ReactiveUITK.Samples.Shared
                     {
                         Pid = source.Pid,
                         Parent = source.Parent,
-                        Child = source.Child
+                        Child =
+                            source.Child
                             ?? new SharedTreeRowItem
                             {
                                 Id = Guid.NewGuid().ToString("N"),
@@ -768,7 +811,9 @@ namespace ReactiveUITK.Samples.Shared
                     var source = prev[prev.Count - 1];
                     if (source == null)
                         return prev;
-                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    var parentItem =
+                        source.Parent
+                        ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
@@ -792,7 +837,8 @@ namespace ReactiveUITK.Samples.Shared
                     var source = prev[prev.Count - 1];
                     if (source == null || !source.HasChild)
                         return prev;
-                    var childItem = source.Child
+                    var childItem =
+                        source.Child
                         ?? new SharedTreeRowItem
                         {
                             Id = Guid.NewGuid().ToString("N"),
@@ -834,7 +880,9 @@ namespace ReactiveUITK.Samples.Shared
 
             Action<List<MultiColumnTreeViewProps.SortedColumnDef>> mctvSortChanged = defs =>
             {
-                setMctvSortDefs(defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null);
+                setMctvSortDefs(
+                    defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null
+                );
             };
 
             Action listAddItem = () =>
@@ -843,11 +891,7 @@ namespace ReactiveUITK.Samples.Shared
                 {
                     var next = new List<ListViewRowState>
                     {
-                        new ListViewRowState
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Text = "Parent",
-                        },
+                        new ListViewRowState { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
                     };
                     if (prev != null)
                     {
@@ -869,7 +913,9 @@ namespace ReactiveUITK.Samples.Shared
                     var source = prev[0];
                     if (source == null)
                         return prev;
-                    var id = !string.IsNullOrEmpty(source.Id) ? source.Id : Guid.NewGuid().ToString("N");
+                    var id = !string.IsNullOrEmpty(source.Id)
+                        ? source.Id
+                        : Guid.NewGuid().ToString("N");
                     var next = new List<ListViewRowState>(prev);
                     next[0] = new ListViewRowState
                     {
@@ -925,7 +971,9 @@ namespace ReactiveUITK.Samples.Shared
                     var source = prev[0];
                     if (source == null)
                         return prev;
-                    var id = !string.IsNullOrEmpty(source.Id) ? source.Id : Guid.NewGuid().ToString("N");
+                    var id = !string.IsNullOrEmpty(source.Id)
+                        ? source.Id
+                        : Guid.NewGuid().ToString("N");
                     var next = new List<MultiColumnListViewRowState>(prev);
                     next[0] = new MultiColumnListViewRowState
                     {
@@ -959,7 +1007,9 @@ namespace ReactiveUITK.Samples.Shared
 
             Action<List<MultiColumnListViewProps.SortedColumnDef>> mclvSortChanged = defs =>
             {
-                setMclvSortDefs(defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null);
+                setMclvSortDefs(
+                    defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null
+                );
             };
 
             var tabViewProps = new TabViewProps
@@ -991,13 +1041,15 @@ namespace ReactiveUITK.Samples.Shared
                                     { "onExpandedChanged", treeExpandedChanged },
                                     {
                                         "onCountChanged",
-                                        (Action<int>)(count =>
-                                        {
-                                            if (count != treeDisplayCount)
+                                        (Action<int>)(
+                                            count =>
                                             {
-                                                setTreeDisplayCount(count);
+                                                if (count != treeDisplayCount)
+                                                {
+                                                    setTreeDisplayCount(count);
+                                                }
                                             }
-                                        })
+                                        )
                                     },
                                 }
                             ),
@@ -1024,13 +1076,15 @@ namespace ReactiveUITK.Samples.Shared
                                     { "onLayoutChanged", mctvLayoutChanged },
                                     {
                                         "onCountChanged",
-                                        (Action<int>)(count =>
-                                        {
-                                            if (count != mctvDisplayCount)
+                                        (Action<int>)(
+                                            count =>
                                             {
-                                                setMctvDisplayCount(count);
+                                                if (count != mctvDisplayCount)
+                                                {
+                                                    setMctvDisplayCount(count);
+                                                }
                                             }
-                                        })
+                                        )
                                     },
                                 }
                             ),
@@ -1064,13 +1118,15 @@ namespace ReactiveUITK.Samples.Shared
                                     { "deleteLast", listDeleteLast },
                                     {
                                         "onCountChanged",
-                                        (Action<int>)(count =>
-                                        {
-                                            if (count != simpleListCount)
+                                        (Action<int>)(
+                                            count =>
                                             {
-                                                setSimpleListCount(count);
+                                                if (count != simpleListCount)
+                                                {
+                                                    setSimpleListCount(count);
+                                                }
                                             }
-                                        })
+                                        )
                                     },
                                 }
                             ),
@@ -1095,13 +1151,15 @@ namespace ReactiveUITK.Samples.Shared
                                     { "onLayoutChanged", mclvLayoutChanged },
                                     {
                                         "onCountChanged",
-                                        (Action<int>)(count =>
-                                        {
-                                            if (count != mclvDisplayCount)
+                                        (Action<int>)(
+                                            count =>
                                             {
-                                                setMclvDisplayCount(count);
+                                                if (count != mclvDisplayCount)
+                                                {
+                                                    setMclvDisplayCount(count);
+                                                }
                                             }
-                                        })
+                                        )
                                     },
                                 }
                             ),
@@ -1110,7 +1168,8 @@ namespace ReactiveUITK.Samples.Shared
                 Style = new Style { (Height, 240f) },
             };
 
-            int totalListCount = treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
+            int totalListCount =
+                treeDisplayCount + mctvDisplayCount + simpleListCount + mclvDisplayCount;
 
             var valuesItems = new List<KeyValuePair<string, string>>
             {
@@ -1147,28 +1206,52 @@ namespace ReactiveUITK.Samples.Shared
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", TopBarStyle } },
                         null,
-                        V.VisualElement(new Dictionary<string, object> { { "style", LeftBoxStyle } }, null, V.Text("Left")),
+                        V.VisualElement(
+                            new Dictionary<string, object> { { "style", LeftBoxStyle } },
+                            null,
+                            V.Text("Left")
+                        ),
                         V.TextField(inputTextFieldProps),
                         V.Button(setTextButtonProps),
-                        V.VisualElement(new Dictionary<string, object> { { "style", RightBoxStyle } }, null, V.Text("Right"))
+                        V.VisualElement(
+                            new Dictionary<string, object> { { "style", RightBoxStyle } },
+                            null,
+                            V.Text("Right")
+                        )
                     ),
                     V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
                         null,
                         V.Label(new LabelProps { Text = "Extras" }),
-                        V.GroupBox(groupBox1Props, null, V.Label(new LabelProps { Text = "Inside group" })),
+                        V.GroupBox(
+                            groupBox1Props,
+                            null,
+                            V.Label(new LabelProps { Text = "Inside group" })
+                        ),
                         V.Toggle(toggleProps),
                         V.RadioButton(radioSingleProps),
-                        V.RadioButtonGroup(radioGroupProps, null, V.Label(new LabelProps { Text = "Pick one" })),
+                        V.RadioButtonGroup(
+                            radioGroupProps,
+                            null,
+                            V.Label(new LabelProps { Text = "Pick one" })
+                        ),
                         V.ProgressBar(progressBarProps),
                         V.Button(batchTestButtonProps),
-                        V.Animate(new AnimateProps { Tracks = repeatPulseTracks }, null, V.RepeatButton(repeatButtonProps))
+                        V.Animate(
+                            new AnimateProps { Tracks = repeatPulseTracks },
+                            null,
+                            V.RepeatButton(repeatButtonProps)
+                        )
                     ),
                     V.GroupBox(
                         newComponentsGroupProps,
                         null,
-                        V.Foldout(foldoutProps, null, V.Label(new LabelProps { Text = "Inside foldout" })),
+                        V.Foldout(
+                            foldoutProps,
+                            null,
+                            V.Label(new LabelProps { Text = "Inside foldout" })
+                        ),
                         V.Image(imageProps),
                         V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
                         V.Slider(sliderProps),
@@ -1205,7 +1288,11 @@ namespace ReactiveUITK.Samples.Shared
                             new LabelProps
                             {
                                 Text = "TabView + TreeView",
-                                Style = new Style { (FontSize, 16f), (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)) },
+                                Style = new Style
+                                {
+                                    (FontSize, 16f),
+                                    (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
+                                },
                             }
                         ),
                         V.VisualElement(
@@ -1236,7 +1323,11 @@ namespace ReactiveUITK.Samples.Shared
                             new LabelProps
                             {
                                 Text = "TabView + ListViews",
-                                Style = new Style { (FontSize, 16f), (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)) },
+                                Style = new Style
+                                {
+                                    (FontSize, 16f),
+                                    (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)),
+                                },
                             }
                         ),
                         V.VisualElement(
@@ -1281,7 +1372,13 @@ namespace ReactiveUITK.Samples.Shared
                                 },
                             },
                             null,
-                            V.Label(new LabelProps { Text = "Flashing Box", Style = new Style { (TextColor, UColor.white) } })
+                            V.Label(
+                                new LabelProps
+                                {
+                                    Text = "Flashing Box",
+                                    Style = new Style { (TextColor, UColor.white) },
+                                }
+                            )
                         )
                     ),
                     V.Animate(
@@ -1319,7 +1416,10 @@ namespace ReactiveUITK.Samples.Shared
                     V.VisualElement(
                         new Dictionary<string, object> { { "style", barSlotStyle } },
                         null,
-                        V.Func(ValuesBarFunc.Render, new Dictionary<string, object> { { "items", valuesItems } })
+                        V.Func(
+                            ValuesBarFunc.Render,
+                            new Dictionary<string, object> { { "items", valuesItems } }
+                        )
                     ),
                     V.ScrollView(
                         new ScrollViewProps

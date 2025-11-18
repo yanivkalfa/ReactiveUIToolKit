@@ -143,10 +143,7 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        private static void RebuildTabs(
-            TabView tabView,
-            IReadOnlyDictionary<string, object> props
-        )
+        private static void RebuildTabs(TabView tabView, IReadOnlyDictionary<string, object> props)
         {
             if (tabView == null)
             {
