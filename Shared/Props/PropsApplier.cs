@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
-using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Props
 {
@@ -1601,8 +1601,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerDownEvent> w = e =>
-                        InvokeEvent(meta, eventPropName, e);
+                    EventCallback<PointerDownEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1624,8 +1623,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerMoveEvent> w = e =>
-                        InvokeEvent(meta, eventPropName, e);
+                    EventCallback<PointerMoveEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1636,8 +1634,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerEnterEvent> w = e =>
-                        InvokeEvent(meta, eventPropName, e);
+                    EventCallback<PointerEnterEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1648,8 +1645,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerLeaveEvent> w = e =>
-                        InvokeEvent(meta, eventPropName, e);
+                    EventCallback<PointerLeaveEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1813,9 +1809,8 @@ namespace ReactiveUITK.Props
             if (eventPropName == "onDragEnter")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<DragEnterEvent> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
+                {
+                    EventCallback<DragEnterEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1825,9 +1820,8 @@ namespace ReactiveUITK.Props
             if (eventPropName == "onDragLeave")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<DragLeaveEvent> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
+                {
+                    EventCallback<DragLeaveEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }

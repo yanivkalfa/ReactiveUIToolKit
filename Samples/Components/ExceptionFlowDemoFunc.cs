@@ -8,15 +8,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class ExceptionFlowDemoFunc
     {
-        private static readonly Style CardStyle =
-            new Style
-            {
-                (StyleKeys.Padding, 12f),
-                ("rowGap", 6f),
-                (StyleKeys.BackgroundColor, new Color32(245, 245, 245, 255)),
-                (StyleKeys.Color, Color.black),
-                (StyleKeys.BorderRadius, 6f),
-            };
+        private static readonly Style CardStyle = new Style
+        {
+            (StyleKeys.Padding, 12f),
+            (StyleKeys.MarginTop, 6f),
+            (StyleKeys.BackgroundColor, new Color32(245, 245, 245, 255)),
+            (StyleKeys.Color, Color.black),
+            (StyleKeys.BorderRadius, 6f),
+        };
         private const float SimulatedLoadSeconds = 1.2f;
 
         public static VirtualNode Render(
@@ -90,10 +89,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 {
                     {
                         "style",
-                        new Style
-                        {
-                            (StyleKeys.FlexDirection, "row"),
-                        }
+                        new Style { (StyleKeys.FlexDirection, "row") }
                     },
                 },
                 null,
@@ -102,11 +98,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         Text = shouldThrow ? "Clear Error" : "Trigger Error",
                         OnClick = ToggleError,
-                        Style = new Style
-                        {
-                            (StyleKeys.Width, 140f),
-                            (StyleKeys.MarginRight, 8f),
-                        },
+                        Style = new Style { (StyleKeys.Width, 140f), (StyleKeys.MarginRight, 8f) },
                     }
                 ),
                 V.Button(
@@ -135,7 +127,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.AlignItems, "center"),
                             (StyleKeys.JustifyContent, "center"),
                         }
-                    }
+                    },
                 },
                 null,
                 V.Text("Suspense fallback: awaiting fake data…")
@@ -157,7 +149,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.AlignItems, "center"),
                             (StyleKeys.JustifyContent, "center"),
                         }
-                    }
+                    },
                 },
                 null,
                 V.Text("Error fallback: boundary caught an exception.")
@@ -177,10 +169,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new Style
                         {
                             (StyleKeys.Padding, 14f),
-                            ("rowGap", 10f),
+                            (StyleKeys.MarginTop, 10f),
                             (StyleKeys.FlexGrow, 1f),
                         }
-                    }
+                    },
                 },
                 null,
                 V.Text("Error Boundary + Suspense Control-Flow Demo"),
@@ -215,7 +207,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 IReadOnlyList<VirtualNode> children
             )
             {
-                bool shouldThrow = props != null
+                bool shouldThrow =
+                    props != null
                     && props.TryGetValue("shouldThrow", out var raw)
                     && raw is bool flag
                     && flag;

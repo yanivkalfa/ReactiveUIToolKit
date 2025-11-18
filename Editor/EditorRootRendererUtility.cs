@@ -27,6 +27,8 @@ namespace ReactiveUITK.EditorSupport
                 hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                Reconciler.UseExceptionBoundaryFlow =
+                    BuildDefinesConfig.ResolveExceptionBoundaryFlow();
                 renderer = new VNodeHostRenderer(hostContext, hostElement);
                 renderersByHost[hostElement] = renderer;
             }
