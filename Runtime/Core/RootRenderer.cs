@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Signals;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -29,6 +30,7 @@ namespace ReactiveUITK.Core
                     go.hideFlags = HideFlags.DontSave;
                     go.AddComponent<RenderScheduler>();
                 }
+                SignalsRuntime.EnsureInitialized();
                 sharedHostContext = new HostContext(elementRegistry);
                 sharedHostContext.Environment["scheduler"] = RenderScheduler.Instance;
                 sharedHostContext.Environment["isEditor"] = false;

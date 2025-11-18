@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core.Util;
+using ReactiveUITK.Signals;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -319,6 +320,7 @@ namespace ReactiveUITK.Core
         private const string HookIdTween = "UseTween";
         private const string HookIdContext = "UseContext";
         private const string HookIdMutableRef = "UseMutableRef";
+        private const string HookIdSignal = "UseSignal";
 
         private static FunctionComponentState EnsureState(NodeMetadata metadata)
         {
@@ -1206,6 +1208,51 @@ namespace ReactiveUITK.Core
             return default;
         }
 
+        public static T UseSignal<T>(Signal<T> signal)
+        {
+            return UseSignal(signal, static value => value, EqualityComparer<T>.Default);
+        }
+
+        public static TSlice UseSignal<T, TSlice>(
+            Signal<T> signal,
+            Func<T, TSlice> selector,
+            IEqualityComparer<TSlice> comparer = null
+        )
+        {
+            if (signal == null)
+            {
+                return default;
+            }
+            if (selector == null)
+            {
+                throw new ArgumentNullException(nameof(selector));
+            }
+            var boxedSelector = new Func<object, object>(raw => selector((T)raw));
+            var boxedComparer = new BoxedEqualityComparer<TSlice>(
+                comparer ?? EqualityComparer<TSlice>.Default
+            );
+            return (TSlice)UseSignalInternal(signal, boxedSelector, boxedComparer);
+        }
+
+        public static T UseSignal<T>(string key, T initialValue = default)
+        {
+            return UseSignal(ReactiveUITK.Signals.Signals.Get<T>(key, initialValue));
+        }
+
+        public static TSlice UseSignal<T, TSlice>(
+            string key,
+            Func<T, TSlice> selector,
+            IEqualityComparer<TSlice> comparer = null,
+            T initialValue = default
+        )
+        {
+            return UseSignal(
+                ReactiveUITK.Signals.Signals.Get<T>(key, initialValue),
+                selector,
+                comparer
+            );
+        }
+
         public static void ProvideContext<T>(string key, T value) =>
             ProvideContext(key, (object)value);
 
@@ -1231,6 +1278,51 @@ namespace ReactiveUITK.Core
         /// <summary>Flush any queued updates immediately without running additional code.</summary>
         public static void FlushSync() => FrameBatcher.FlushSync();
 
+        private static readonly Func<object, object> IdentitySelector = value => value;
+
+        private static object UseSignalInternal(
+            SignalBase signal,
+            Func<object, object> selector,
+            IEqualityComparer<object> comparer
+        )
+        {
+            selector ??= IdentitySelector;
+            comparer ??= EqualityComparer<object>.Default;
+
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            FunctionComponentState state = HookContext.Current ?? metadata?.EnsureComponentState();
+            if (metadata == null || state == null)
+            {
+                return selector(signal?.UntypedValue);
+            }
+            RecordHook(metadata, state, HookIdSignal);
+            state.HookStates ??= new List<object>();
+            SignalSubscriptionState slot;
+            if (
+                state.HookIndex < state.HookStates.Count
+                && state.HookStates[state.HookIndex] is SignalSubscriptionState existing
+            )
+            {
+                slot = existing;
+            }
+            else
+            {
+                slot = new SignalSubscriptionState(metadata);
+                if (state.HookIndex < state.HookStates.Count)
+                {
+                    state.HookStates[state.HookIndex] = slot;
+                }
+                else
+                {
+                    state.HookStates.Add(slot);
+                }
+            }
+            object latest = slot.Bind(signal, selector, comparer);
+            state.HookIndex++;
+            metadata.SyncComponentState(state);
+            return latest;
+        }
+
         private static bool DepsChanged(object[] previousDependencies, object[] nextDependencies)
         {
             if (previousDependencies == null || nextDependencies == null)
@@ -1249,6 +1341,127 @@ namespace ReactiveUITK.Core
                 }
             }
             return false;
+        }
+
+        private sealed class SignalSubscriptionState : IDisposable
+        {
+            private readonly NodeMetadata owner;
+            private SignalBase signal;
+            private IDisposable subscription;
+            private Func<object, object> selector = IdentitySelector;
+            private IEqualityComparer<object> comparer = EqualityComparer<object>.Default;
+            private object lastValue;
+            private bool initialized;
+
+            internal SignalSubscriptionState(NodeMetadata owner)
+            {
+                this.owner = owner;
+            }
+
+            public object Bind(
+                SignalBase nextSignal,
+                Func<object, object> nextSelector,
+                IEqualityComparer<object> nextComparer
+            )
+            {
+                bool signalChanged = !ReferenceEquals(signal, nextSignal);
+                Func<object, object> resolvedSelector = nextSelector ?? IdentitySelector;
+                IEqualityComparer<object> resolvedComparer =
+                    nextComparer ?? EqualityComparer<object>.Default;
+                bool selectorChanged =
+                    !ReferenceEquals(selector, resolvedSelector)
+                    || !ReferenceEquals(comparer, resolvedComparer);
+
+                selector = resolvedSelector;
+                comparer = resolvedComparer;
+
+                if (signalChanged)
+                {
+                    DisposeSubscription();
+                    signal = nextSignal;
+                    if (signal != null)
+                    {
+                        subscription = signal.SubscribeRaw(OnSignalChanged);
+                    }
+                    initialized = false;
+                }
+
+                if (!initialized || selectorChanged)
+                {
+                    lastValue = selector(signal?.UntypedValue);
+                    initialized = true;
+                }
+
+                return lastValue;
+            }
+
+            private void OnSignalChanged(object rawValue)
+            {
+                var next = selector(rawValue);
+                if (comparer.Equals(next, lastValue))
+                {
+                    return;
+                }
+                lastValue = next;
+                RequestComponentRerender(owner);
+            }
+
+            private void DisposeSubscription()
+            {
+                subscription?.Dispose();
+                subscription = null;
+            }
+
+            public void Dispose()
+            {
+                DisposeSubscription();
+                signal = null;
+                initialized = false;
+            }
+        }
+
+        private sealed class BoxedEqualityComparer<T> : IEqualityComparer<object>
+        {
+            private readonly IEqualityComparer<T> comparer;
+
+            public BoxedEqualityComparer(IEqualityComparer<T> comparer)
+            {
+                this.comparer = comparer ?? EqualityComparer<T>.Default;
+            }
+
+            public new bool Equals(object x, object y)
+            {
+                if (x is T tx && y is T ty)
+                {
+                    return comparer.Equals(tx, ty);
+                }
+                return ReferenceEquals(x, y);
+            }
+
+            public int GetHashCode(object obj)
+            {
+                if (obj is T t)
+                {
+                    return comparer.GetHashCode(t);
+                }
+                return obj?.GetHashCode() ?? 0;
+            }
+        }
+
+        internal static void DisposeSignalSubscriptions(NodeMetadata metadata)
+        {
+            var state = metadata?.ComponentState;
+            if (state?.HookStates == null)
+            {
+                return;
+            }
+            foreach (var hookState in state.HookStates)
+            {
+                if (hookState is SignalSubscriptionState subscription)
+                {
+                    subscription.Dispose();
+                }
+            }
         }
     }
 }

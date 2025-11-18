@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Signals;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -23,6 +24,7 @@ namespace ReactiveUITK.EditorSupport
                 HostContext hostContext = new(registry);
                 hostContext.Environment["scheduler"] = EditorRenderScheduler.Instance;
                 hostContext.Environment["isEditor"] = true;
+                SignalsRuntime.EnsureInitialized();
                 // Apply build-define derived configuration for editor host
                 hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();

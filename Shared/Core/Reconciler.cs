@@ -2263,6 +2263,11 @@ namespace ReactiveUITK.Core
                 metadata.HostContext?.UnregisterContextConsumer(metadata);
             }
             catch { }
+            try
+            {
+                Hooks.DisposeSignalSubscriptions(metadata);
+            }
+            catch { }
             // Unregister all registered event wrappers to avoid duplicate invocations on reused visuals
             if (metadata.EventHandlers != null && metadata.EventHandlers.Count > 0)
             {
