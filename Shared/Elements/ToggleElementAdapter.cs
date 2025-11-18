@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -19,7 +18,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<Toggle>();
+            return new Toggle();
         }
 
         public override void ApplyProperties(

@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -10,7 +9,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<HelpBox>();
+            return new HelpBox();
         }
 
         public override void ApplyProperties(

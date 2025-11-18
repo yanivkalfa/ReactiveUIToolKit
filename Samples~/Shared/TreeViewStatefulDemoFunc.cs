@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
@@ -8,86 +9,158 @@ using static ReactiveUITK.Props.Typed.StyleKeys;
 
 namespace ReactiveUITK.Samples.Shared
 {
+    public sealed class TreeViewRowState
+    {
+        public SharedTreeRowItem Parent;
+        public SharedTreeRowItem Child;
+        public bool HasChild;
+        public int Pid;
+    }
+
     public static class TreeViewStatefulDemoFunc
     {
-        private sealed class RowData
-        {
-            public SharedTreeRowItem Parent;
-            public SharedTreeRowItem Child;
-            public bool HasChild;
-        }
-
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
         )
         {
-            var (rows, setRows) = Hooks.UseState(new List<RowData>());
-
-            // Notify parent of current displayed row count (roots + children) if requested
-            try
+            static List<T> ExtractList<T>(object source)
             {
-                int countValue = 0;
-                for (int i = 0; i < rows.Count; i++)
+                if (source is List<T> direct)
+                    return direct;
+                if (source is T[] arr)
+                    return new List<T>(arr);
+                if (source is IReadOnlyList<T> ro)
+                    return new List<T>(ro);
+                if (source is IEnumerable<T> enGeneric)
+                    return new List<T>(enGeneric);
+                if (source is IEnumerable en)
                 {
-                    countValue += 1;
-                    if (rows[i]?.HasChild == true) countValue += 1;
-                }
-                if (props != null && props.TryGetValue("onCountChanged", out var oc) && oc is Action<int> cb)
-                {
-                    // Fire only when count changes
-                    Hooks.UseEffect(
-                        () =>
+                    var list = new List<T>();
+                    foreach (var item in en)
+                    {
+                        try
                         {
-                            try { cb(countValue); } catch { }
-                            return null;
-                        },
-                        new object[] { countValue }
-                    );
+                            if (item is T tv)
+                            {
+                                list.Add(tv);
+                            }
+                            else if (item != null)
+                            {
+                                list.Add((T)Convert.ChangeType(item, typeof(T)));
+                            }
+                        }
+                        catch { }
+                    }
+                    return list;
+                }
+                return null;
+            }
+
+            var rows =
+                props != null
+                && props.TryGetValue("rows", out var rowsObj)
+                && rowsObj is IReadOnlyList<TreeViewRowState> typedRows
+                    ? typedRows
+                    : Array.Empty<TreeViewRowState>();
+
+            var addParent =
+                props != null
+                && props.TryGetValue("addParent", out var addParentObj)
+                && addParentObj is Action addParentAction
+                    ? addParentAction
+                    : null;
+
+            var addChild =
+                props != null
+                && props.TryGetValue("addChild", out var addChildObj)
+                && addChildObj is Action addChildAction
+                    ? addChildAction
+                    : null;
+
+            var setParent =
+                props != null
+                && props.TryGetValue("setParent", out var setParentObj)
+                && setParentObj is Action setParentAction
+                    ? setParentAction
+                    : null;
+
+            var setChild =
+                props != null
+                && props.TryGetValue("setChild", out var setChildObj)
+                && setChildObj is Action setChildAction
+                    ? setChildAction
+                    : null;
+
+            var deleteLast =
+                props != null
+                && props.TryGetValue("deleteLast", out var deleteObj)
+                && deleteObj is Action deleteAction
+                    ? deleteAction
+                    : null;
+
+            var expandedItemIds =
+                props != null
+                && props.TryGetValue("expandedItemIds", out var expandedObj)
+                    ? ExtractList<int>(expandedObj)
+                    : null;
+
+            Delegate expandedChanged = null;
+            if (props != null && props.TryGetValue("onExpandedChanged", out var expandedChangedObj))
+            {
+                if (expandedChangedObj is Delegate del)
+                {
+                    expandedChanged = del;
                 }
             }
-            catch { }
 
-            Func<List<TreeViewItemData<object>>> buildRoots = () =>
-            {
-                var combined = new List<TreeViewItemData<object>>();
-                for (int i = 0; i < rows.Count; i++)
+            var rootItems = Hooks.UseMemo(
+                () =>
                 {
-                    var row = rows[i];
-                    int pid = 1000 + (i * 2);
-                    List<TreeViewItemData<object>> ch = null;
-                    if (row.HasChild)
+                    var combined = new List<TreeViewItemData<object>>();
+                    if (rows == null)
+                        return combined;
+                    for (int i = 0; i < rows.Count; i++)
                     {
-                        ch = new List<TreeViewItemData<object>>
+                        var row = rows[i];
+                        if (row == null)
+                            continue;
+                        var baseId = row.Pid != 0 ? row.Pid : 1000 + (i * 2);
+                        List<TreeViewItemData<object>> ch = null;
+                        if (row.HasChild)
                         {
+                            ch = new List<TreeViewItemData<object>>
+                            {
+                                new TreeViewItemData<object>(
+                                    baseId + 1,
+                                    row.Child
+                                        ?? new SharedTreeRowItem
+                                        {
+                                            Id = Guid.NewGuid().ToString("N"),
+                                            Text = "Child",
+                                            IsChild = true,
+                                        },
+                                    null
+                                ),
+                            };
+                        }
+                        combined.Add(
                             new TreeViewItemData<object>(
-                                pid + 1,
-                                row.Child
+                                baseId,
+                                row.Parent
                                     ?? new SharedTreeRowItem
                                     {
                                         Id = Guid.NewGuid().ToString("N"),
-                                        Text = "Child",
-                                        IsChild = true,
+                                        Text = "Parent",
                                     },
-                                null
-                            ),
-                        };
+                                ch
+                            )
+                        );
                     }
-                    combined.Add(
-                        new TreeViewItemData<object>(
-                            pid,
-                            row.Parent
-                                ?? new SharedTreeRowItem
-                                {
-                                    Id = Guid.NewGuid().ToString("N"),
-                                    Text = "Parent",
-                                },
-                            ch
-                        )
-                    );
-                }
-                return combined;
-            };
+                    return combined;
+                },
+                new object[] { rows }
+            );
 
             var rowRenderer = Hooks.UseMemo(
                 () =>
@@ -98,113 +171,79 @@ namespace ReactiveUITK.Samples.Shared
                             if (row == null)
                                 return V.Label(
                                     new LabelProps { Text = "<invalid row payload>" },
-                                    $"row-{i}"
+                                    $"tv-invalid-{i}"
                                 );
 
-                            var id = !string.IsNullOrEmpty(row.Id) ? $"{row.Id}" : $"{i}";
+                            var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
                             var prefix = (row.IsChild == true) ? "child" : "parent";
                             var funcKey = $"tv-{prefix}-{id}";
 
-                            var children = row.ShouldOverrideElement
+                            var childNode = row.ShouldOverrideElement
                                 ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
                                 : V.Func(IntroCounterFunc.Render, null, funcKey);
 
-                            return V.VisualElement(null, null, children);
+                            return V.VisualElement(null, key: $"tv-wrap-{prefix}-{id}", childNode);
                         }
                     ),
                 rows
             );
 
-            void AddParent()
+            try
             {
-                var copy = new List<RowData>(rows);
-                copy.Add(
-                    new RowData
-                    {
-                        Parent = new SharedTreeRowItem
-                        {
-                            Id = Guid.NewGuid().ToString("N"),
-                            Text = "Parent",
-                        },
-                        HasChild = false,
-                    }
-                );
-                setRows(copy);
-            }
-
-            void AddChild()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                var last = copy[copy.Count - 1];
-                last.HasChild = true;
-                if (last.Child == null)
+                int countValue = 0;
+                for (int i = 0; i < rows.Count; i++)
                 {
-                    last.Child = new SharedTreeRowItem
+                    var row = rows[i];
+                    if (row == null)
+                        continue;
+                    countValue += 1;
+                    if (row.HasChild)
                     {
-                        Id = Guid.NewGuid().ToString("N"),
-                        Text = "Child",
-                        IsChild = true,
-                    };
+                        countValue += 1;
+                    }
                 }
-                copy[copy.Count - 1] = last;
-                setRows(copy);
+                Hooks.UseEffect(
+                    () =>
+                    {
+                        try
+                        {
+                            if (
+                                props != null
+                                && props.TryGetValue("onCountChanged", out var oc)
+                                && oc is Action<int> cb
+                            )
+                            {
+                                cb(countValue);
+                            }
+                        }
+                        catch { }
+                        return null;
+                    },
+                    new object[] { countValue }
+                );
             }
+            catch { }
 
-            void SetParentValue()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                var last = copy[copy.Count - 1];
-                last.Parent ??= new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
-                last.Parent.Text = $"{last.Parent.Id} {DateTime.Now:HH:mm:ss}";
-                last.Parent.ShouldOverrideElement = true;
-                copy[copy.Count - 1] = last;
-                setRows(copy);
-            }
-
-            void SetChildValue()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                var last = copy[copy.Count - 1];
-                if (!last.HasChild)
-                    return;
-                last.Child ??= new SharedTreeRowItem { Id = System.Guid.NewGuid().ToString("N") };
-                last.Child.Text = $"{last.Child.Id} {DateTime.Now:HH:mm:ss}";
-                last.Child.ShouldOverrideElement = true;
-                copy[copy.Count - 1] = last;
-                setRows(copy);
-            }
-
-            void DeleteLast()
-            {
-                if (rows.Count == 0)
-                    return;
-                var copy = new List<RowData>(rows);
-                copy.RemoveAt(copy.Count - 1);
-                setRows(copy);
-            }
+            Action Safe(Action candidate) => candidate ?? (() => { });
 
             var btnRow = V.VisualElement(
                 new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
                 null,
-                V.Button(new ButtonProps { Text = "Add Parent", OnClick = AddParent }),
-                V.Button(new ButtonProps { Text = "Add Child", OnClick = AddChild }),
-                V.Button(new ButtonProps { Text = "Set Parent", OnClick = SetParentValue }),
-                V.Button(new ButtonProps { Text = "Set Child", OnClick = SetChildValue }),
-                V.Button(new ButtonProps { Text = "Delete Last", OnClick = DeleteLast })
+                V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
+                V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),
+                V.Button(new ButtonProps { Text = "Set Parent", OnClick = Safe(setParent) }),
+                V.Button(new ButtonProps { Text = "Set Child", OnClick = Safe(setChild) }),
+                V.Button(new ButtonProps { Text = "Delete Last", OnClick = Safe(deleteLast) })
             );
 
             var tvProps = new TreeViewProps
             {
-                RootItems = buildRoots(),
+                RootItems = rootItems,
                 Selection = SelectionType.None,
                 FixedItemHeight = 20f,
                 Row = rowRenderer,
+                ExpandedItemIds = expandedItemIds,
+                ItemExpandedChanged = expandedChanged,
                 Style = new Style { (MarginBottom, 30f) },
             };
             return V.VisualElement(null, null, btnRow, V.TreeView(tvProps));

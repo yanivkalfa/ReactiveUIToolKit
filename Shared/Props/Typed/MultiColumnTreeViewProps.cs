@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -16,10 +17,14 @@ namespace ReactiveUITK.Props.Typed
         public bool? StopTrackingUserChange { get; set; }
         public Dictionary<string, float> ColumnWidths { get; set; }
         public Dictionary<string, bool> ColumnVisibility { get; set; }
+        public Dictionary<string, int> ColumnDisplayIndex { get; set; }
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
-        public Action<List<SortedColumnDef>> ColumnSortingChanged { get; set; }
+        public Delegate ColumnSortingChanged { get; set; }
+        public Delegate ColumnLayoutChanged { get; set; }
         public Style Style { get; set; }
+        public object Ref { get; set; }
+        public string ViewDataKey { get; set; }
 
         public sealed class ColumnDef
         {
@@ -77,6 +82,13 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
+        public sealed class ColumnLayoutState
+        {
+            public Dictionary<string, float> ColumnWidths { get; set; }
+            public Dictionary<string, bool> ColumnVisibility { get; set; }
+            public Dictionary<string, int> ColumnDisplayIndex { get; set; }
+        }
+
         public Dictionary<string, object> ToDictionary()
         {
             var d = new Dictionary<string, object>();
@@ -103,6 +115,8 @@ namespace ReactiveUITK.Props.Typed
                 d["columnWidths"] = ColumnWidths;
             if (ColumnVisibility != null)
                 d["columnVisibility"] = ColumnVisibility;
+            if (ColumnDisplayIndex != null)
+                d["columnDisplayIndex"] = ColumnDisplayIndex;
             if (SortedColumns != null)
             {
                 var arr = new List<Dictionary<string, object>>(SortedColumns.Count);
@@ -112,10 +126,36 @@ namespace ReactiveUITK.Props.Typed
             }
             if (SortingMode != null)
                 d["sortingMode"] = SortingMode;
-            if (ColumnSortingChanged != null)
+            if (ColumnSortingChanged is Hooks.StateSetter<List<SortedColumnDef>> setter)
+            {
+                d["columnSortingChanged"] = setter.ToValueAction();
+            }
+            else if (ColumnSortingChanged is Action<List<SortedColumnDef>> action)
+            {
+                d["columnSortingChanged"] = action;
+            }
+            else if (ColumnSortingChanged != null)
+            {
                 d["columnSortingChanged"] = ColumnSortingChanged;
+            }
+            if (ColumnLayoutChanged is Hooks.StateSetter<ColumnLayoutState> layoutSetter)
+            {
+                d["columnLayoutChanged"] = layoutSetter.ToValueAction();
+            }
+            else if (ColumnLayoutChanged is Action<ColumnLayoutState> layoutAction)
+            {
+                d["columnLayoutChanged"] = layoutAction;
+            }
+            else if (ColumnLayoutChanged != null)
+            {
+                d["columnLayoutChanged"] = ColumnLayoutChanged;
+            }
             if (Style != null)
                 d["style"] = Style;
+            if (Ref != null)
+                d["ref"] = Ref;
+            if (!string.IsNullOrEmpty(ViewDataKey))
+                d["viewDataKey"] = ViewDataKey;
             return d;
         }
     }

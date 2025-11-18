@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -13,13 +12,26 @@ namespace ReactiveUITK.Elements
     {
         private static HostContext sharedHostContext;
 
-        private sealed class CachedParts
+        private sealed class CachedParts : IScrollState
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
             public IList LastItems; // track previous items reference
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
+
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+            public IElementStateTracker<ListView, CachedParts> ScrollTracker =
+                new MultiColumnScrollTracker<ListView, CachedParts>(
+                    new MultiColumnScrollOps<ListView>(),
+                    flush: null
+                );
         }
 
         private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList =
@@ -37,7 +49,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<ListView>();
+            return new ListView();
         }
 
         private static IList NormalizeItems(object itemsObj)
@@ -67,6 +79,8 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+            EnsureViewDataKey(listView, properties);
+            parts.ScrollTracker.Attach(listView, parts, properties);
 
             if (properties.TryGetValue("items", out var itemsObj))
             {
@@ -197,6 +211,7 @@ namespace ReactiveUITK.Elements
 
             ApplySlots(listView, properties);
             PropsApplier.Apply(element, properties);
+            parts.ScrollTracker.Reapply(listView, parts, null, properties);
         }
 
         public override void ApplyPropertiesDiff(
@@ -358,6 +373,7 @@ namespace ReactiveUITK.Elements
 
             ApplySlotsDiff(listView, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
+            parts.ScrollTracker.Reapply(listView, parts, previous, next);
         }
 
         private static void ApplySlots(
@@ -442,6 +458,46 @@ namespace ReactiveUITK.Elements
             }
             catch { }
             return $"row-{index}";
+        }
+
+        private static void EnsureViewDataKey(
+            ListView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+                return;
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+                return;
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+                return;
+
+            view.viewDataKey = desired;
         }
     }
 }

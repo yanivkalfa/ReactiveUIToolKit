@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.AnimationComponents;
 using ReactiveUITK.Core.Util;
@@ -210,7 +212,10 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode MultiColumnTreeView(MultiColumnTreeViewProps props, string key = null)
+        public static VirtualNode MultiColumnTreeView(
+            MultiColumnTreeViewProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -500,6 +505,57 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode ForwardRef(
+            Func<
+                Dictionary<string, object>,
+                object,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > renderFunction,
+            IReadOnlyDictionary<string, object> functionProps = null,
+            string key = null,
+            bool memoize = false,
+            Func<
+                IReadOnlyDictionary<string, object>,
+                IReadOnlyDictionary<string, object>,
+                bool
+            > memoCompare = null,
+            params VirtualNode[] children
+        )
+        {
+            if (renderFunction == null)
+            {
+                throw new ArgumentNullException(nameof(renderFunction));
+            }
+
+            VirtualNode Wrapper(
+                Dictionary<string, object> incomingProps,
+                IReadOnlyList<VirtualNode> childNodes
+            )
+            {
+                object forwardedRef = null;
+                Dictionary<string, object> sanitizedProps;
+
+                if (incomingProps == null || incomingProps.Count == 0)
+                {
+                    sanitizedProps = new Dictionary<string, object>();
+                }
+                else
+                {
+                    sanitizedProps = new Dictionary<string, object>(incomingProps);
+                    if (sanitizedProps.TryGetValue("ref", out var refCandidate))
+                    {
+                        forwardedRef = refCandidate;
+                        sanitizedProps.Remove("ref");
+                    }
+                }
+
+                return renderFunction(sanitizedProps, forwardedRef, childNodes);
+            }
+
+            return Func(Wrapper, functionProps, key, memoize, memoCompare, children);
+        }
+
         public static VirtualNode Fragment(string key = null, params VirtualNode[] children)
         {
             return new VirtualNode(
@@ -558,6 +614,14 @@ namespace ReactiveUITK
             VirtualNode fallbackNode,
             string key = null,
             params VirtualNode[] children
+        ) => Suspense(isReady, null, fallbackNode, key, children);
+
+        public static VirtualNode Suspense(
+            System.Func<bool> isReady,
+            Task readyTask,
+            VirtualNode fallbackNode,
+            string key = null,
+            params VirtualNode[] children
         )
         {
             return new VirtualNode(
@@ -569,14 +633,60 @@ namespace ReactiveUITK
                 properties: EmptyProps(),
                 children: children ?? EmptyChildren(),
                 suspenseReady: isReady,
+                suspenseReadyTask: readyTask,
                 fallback: fallbackNode
             );
         }
 
-        private static IReadOnlyDictionary<string, object> EmptyProps() =>
-            new Dictionary<string, object>(0);
+        public static VirtualNode Suspense(
+            Task readyTask,
+            VirtualNode fallbackNode,
+            string key = null,
+            params VirtualNode[] children
+        ) => Suspense(null, readyTask, fallbackNode, key, children);
 
-        private static IReadOnlyList<VirtualNode> EmptyChildren() => new List<VirtualNode>(0);
+        public static VirtualNode ErrorBoundary(
+            ErrorBoundaryProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            return new VirtualNode(
+                VirtualNodeType.ErrorBoundary,
+                elementTypeName: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: EmptyProps(),
+                children: children ?? EmptyChildren(),
+                errorFallback: props?.Fallback,
+                errorHandler: props?.OnError,
+                errorResetToken: props?.ResetKey
+            );
+        }
+
+        public static VirtualNode Memo(
+            System.Func<
+                Dictionary<string, object>,
+                IReadOnlyList<VirtualNode>,
+                VirtualNode
+            > renderFunction,
+            IReadOnlyDictionary<string, object> functionProps = null,
+            string key = null,
+            System.Func<
+                IReadOnlyDictionary<string, object>,
+                IReadOnlyDictionary<string, object>,
+                bool
+            > memoCompare = null,
+            params VirtualNode[] children
+        )
+        {
+            return Func(renderFunction, functionProps, key, true, memoCompare, children);
+        }
+
+        private static IReadOnlyDictionary<string, object> EmptyProps() => VirtualNode.EmptyProps;
+
+        private static IReadOnlyList<VirtualNode> EmptyChildren() => VirtualNode.EmptyChildren;
 
         private static IReadOnlyDictionary<string, object> CloneStyleDictionary(
             IReadOnlyDictionary<string, object> source

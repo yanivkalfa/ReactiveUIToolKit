@@ -3,8 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -41,6 +41,8 @@ namespace ReactiveUITK.Elements
             public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
             public IElementStateTracker<MultiColumnListView, Cached> LayoutTracker =
                 new MultiColumnLayoutTracker<MultiColumnListView, Cached>();
+            public Delegate ColumnLayoutChanged { get; set; }
+            internal ColumnLayoutSnapshot LastLayoutSnapshot { get; set; }
 
             // Suspend heavy updates during header interactions
             public bool IsAdjusting { get; set; }
@@ -84,6 +86,27 @@ namespace ReactiveUITK.Elements
             return sharedHostContext;
         }
 
+    internal sealed class ColumnLayoutSnapshot
+        {
+            public Dictionary<string, float> Widths;
+            public Dictionary<string, bool> Visibility;
+            public Dictionary<string, int> DisplayIndex;
+
+            public ColumnLayoutSnapshot Clone() => new ColumnLayoutSnapshot
+            {
+                Widths = CloneDict(Widths),
+                Visibility = CloneDict(Visibility),
+                DisplayIndex = CloneDict(DisplayIndex),
+            };
+        }
+
+        private static Dictionary<string, T> CloneDict<T>(Dictionary<string, T> source)
+        {
+            if (source == null || source.Count == 0)
+                return new Dictionary<string, T>();
+            return new Dictionary<string, T>(source);
+        }
+
         private static VirtualNode EnsureVisualRoot(VirtualNode node)
         {
             if (node == null)
@@ -120,8 +143,186 @@ namespace ReactiveUITK.Elements
             return null;
         }
 
+        private static ColumnLayoutSnapshot CaptureLayoutSnapshot(Cached parts)
+        {
+            if (parts == null)
+                return new ColumnLayoutSnapshot();
+            return new ColumnLayoutSnapshot
+            {
+                Widths = CloneDict(parts.ColumnWidths),
+                Visibility = CloneDict(parts.ColumnVisibility),
+                DisplayIndex = CloneDict(parts.ColumnDisplayIndex),
+            };
+        }
+
+        private static bool LayoutEqual(ColumnLayoutSnapshot a, ColumnLayoutSnapshot b)
+        {
+            return DictEqual(a?.Widths, b?.Widths)
+                && DictEqual(a?.Visibility, b?.Visibility)
+                && DictEqual(a?.DisplayIndex, b?.DisplayIndex);
+        }
+
+        private static bool DictEqual<T>(Dictionary<string, T> left, Dictionary<string, T> right)
+        {
+            if (ReferenceEquals(left, right))
+                return true;
+            if (left == null || right == null)
+                return false;
+            if (left.Count != right.Count)
+                return false;
+            foreach (var kv in left)
+            {
+                if (!right.TryGetValue(kv.Key, out var rv))
+                    return false;
+                if (!EqualityComparer<T>.Default.Equals(kv.Value, rv))
+                    return false;
+            }
+            return true;
+        }
+
+        private static void DispatchLayoutChanged(MultiColumnListView view, Cached parts)
+        {
+            if (view == null || parts == null)
+                return;
+
+            var snapshot = CaptureLayoutSnapshot(parts);
+            var changed = !LayoutEqual(parts.LastLayoutSnapshot, snapshot);
+            parts.LastLayoutSnapshot = snapshot?.Clone();
+
+            var callback = parts.ColumnLayoutChanged;
+            if (callback == null || !changed)
+                return;
+
+            var payload = new MultiColumnListViewProps.ColumnLayoutState
+            {
+                ColumnWidths = CloneDict(snapshot?.Widths),
+                ColumnVisibility = CloneDict(snapshot?.Visibility),
+                ColumnDisplayIndex = CloneDict(snapshot?.DisplayIndex),
+            };
+
+            void Invoke()
+            {
+                try
+                {
+                    if (!TryDispatchLayoutDelegate(view, callback, payload))
+                    {
+                        callback.DynamicInvoke(payload);
+                    }
+                }
+                catch { }
+            }
+
+#if UNITY_EDITOR
+            try
+            {
+                UnityEditor.EditorApplication.delayCall += Invoke;
+            }
+            catch
+            {
+                Invoke();
+            }
+#else
+            try
+            {
+                view.schedule?.Execute(Invoke)?.ExecuteLater(0);
+            }
+            catch
+            {
+                Invoke();
+            }
+#endif
+        }
+
+        private static bool TryDispatchLayoutDelegate(
+            MultiColumnListView view,
+            Delegate callback,
+            MultiColumnListViewProps.ColumnLayoutState payload
+        )
+        {
+            if (callback == null || payload == null)
+                return true;
+
+            switch (callback)
+            {
+                case Action<MultiColumnListViewProps.ColumnLayoutState> typed:
+                    typed(payload);
+                    return true;
+                case Action<VisualElement, MultiColumnListViewProps.ColumnLayoutState> typedWithView:
+                    typedWithView(view, payload);
+                    return true;
+                case Action<Dictionary<string, float>> widthsOnly:
+                    widthsOnly(payload.ColumnWidths);
+                    return true;
+                case Action<Dictionary<string, float>, Dictionary<string, bool>, Dictionary<string, int>> triple:
+                    triple(
+                        payload.ColumnWidths,
+                        payload.ColumnVisibility,
+                        payload.ColumnDisplayIndex
+                    );
+                    return true;
+                case Action action:
+                    action();
+                    return true;
+            }
+
+            try
+            {
+                var parameters = callback.Method.GetParameters();
+                if (parameters.Length == 0)
+                {
+                    callback.DynamicInvoke();
+                    return true;
+                }
+                var args = new object[parameters.Length];
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    var pt = parameters[i].ParameterType;
+                    if (typeof(VisualElement).IsAssignableFrom(pt))
+                    {
+                        args[i] = view;
+                        continue;
+                    }
+                    if (typeof(MultiColumnListViewProps.ColumnLayoutState).IsAssignableFrom(pt))
+                    {
+                        args[i] = payload;
+                        continue;
+                    }
+                    if (typeof(Dictionary<string, float>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt))
+                    {
+                        args[i] = payload.ColumnWidths;
+                        continue;
+                    }
+                    if (typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt))
+                    {
+                        args[i] = payload.ColumnVisibility;
+                        continue;
+                    }
+                    if (typeof(Dictionary<string, int>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt))
+                    {
+                        args[i] = payload.ColumnDisplayIndex;
+                        continue;
+                    }
+                    if (pt == typeof(object))
+                    {
+                        args[i] = payload;
+                        continue;
+                    }
+                    args[i] = payload;
+                }
+                callback.DynamicInvoke(args);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public override VisualElement Create() =>
-            GlobalVisualElementPool.Get<MultiColumnListView>();
+                new MultiColumnListView();
 
         public override void ApplyProperties(
             VisualElement element,
@@ -134,9 +335,21 @@ namespace ReactiveUITK.Elements
                 return;
             }
             var parts = GetState(view);
+            EnsureViewDataKey(view, properties);
             EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, properties);
             parts.ScrollTracker.Attach(view, parts, properties);
+            parts.LayoutTracker.Attach(view, parts, properties);
+            Delegate layoutCallback = null;
+            if (properties != null && properties.TryGetValue("columnLayoutChanged", out var layoutObj))
+            {
+                layoutCallback = layoutObj as Delegate;
+            }
+            if (!ReferenceEquals(parts.ColumnLayoutChanged, layoutCallback))
+            {
+                parts.ColumnLayoutChanged = layoutCallback;
+                parts.LastLayoutSnapshot = null;
+            }
             if (parts.IsAdjusting || parts.IsScrolling)
             {
                 parts.AdjustmentTracker.Reapply(view, parts, null, properties);
@@ -208,10 +421,9 @@ namespace ReactiveUITK.Elements
             }
 
             ApplySlots(view, properties);
-
             // trackers
-            parts.LayoutTracker.Attach(view, parts, properties);
             parts.LayoutTracker.Reapply(view, parts, null, properties);
+            DispatchLayoutChanged(view, parts);
             parts.SortTracker.Attach(view, parts, properties);
             parts.SortTracker.Reapply(view, parts, null, properties);
             PropsApplier.Apply(element, properties);
@@ -232,9 +444,21 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
 
             var parts = GetState(view);
+            EnsureViewDataKey(view, next);
             EnsureDetachHook(view, parts);
             parts.AdjustmentTracker.Attach(view, parts, next);
             parts.ScrollTracker.Attach(view, parts, next);
+            parts.LayoutTracker.Attach(view, parts, next);
+            Delegate layoutCallback = null;
+            if (next != null && next.TryGetValue("columnLayoutChanged", out var layoutObj))
+            {
+                layoutCallback = layoutObj as Delegate;
+            }
+            if (!ReferenceEquals(parts.ColumnLayoutChanged, layoutCallback))
+            {
+                parts.ColumnLayoutChanged = layoutCallback;
+                parts.LastLayoutSnapshot = null;
+            }
             if (parts.IsAdjusting || parts.IsScrolling)
             {
                 parts.AdjustmentTracker.Reapply(view, parts, previous, next);
@@ -301,6 +525,7 @@ namespace ReactiveUITK.Elements
 
             // trackers
             parts.LayoutTracker.Reapply(view, parts, previous, next);
+            DispatchLayoutChanged(view, parts);
             parts.SortTracker.Reapply(view, parts, previous, next);
             parts.ScrollTracker.Reapply(view, parts, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
@@ -387,16 +612,59 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            int index = 0;
-            int colIndex = 0;
+
+            var normalized = new List<(IDictionary<string, object> map, string name, int originalIndex)>();
+            int original = 0;
             foreach (var co in newCols)
             {
-                if (co is not IDictionary<string, object> colMap)
+                if (co is IDictionary<string, object> cm)
+                {
+                    string nm = null;
+                    if (cm.TryGetValue("name", out var nameObj) && nameObj is string ns && !string.IsNullOrEmpty(ns))
+                    {
+                        nm = ns;
+                    }
+                    normalized.Add((cm, nm, original));
+                }
+                original++;
+            }
+
+            if (parts?.ColumnDisplayIndex != null && parts.ColumnDisplayIndex.Count > 0)
+            {
+                normalized.Sort(
+                    (a, b) =>
+                    {
+                        int ai = 0;
+                        int bi = 0;
+                        bool aHas = a.name != null && parts.ColumnDisplayIndex.TryGetValue(a.name, out ai);
+                        bool bHas = b.name != null && parts.ColumnDisplayIndex.TryGetValue(b.name, out bi);
+                        if (aHas && bHas)
+                        {
+                            var cmp = ai.CompareTo(bi);
+                            if (cmp != 0)
+                                return cmp;
+                            return a.originalIndex.CompareTo(b.originalIndex);
+                        }
+                        if (aHas && !bHas)
+                            return -1;
+                        if (!aHas && bHas)
+                            return 1;
+                        return a.originalIndex.CompareTo(b.originalIndex);
+                    }
+                );
+            }
+
+            int index = 0;
+            int colIndex = 0;
+            foreach (var entry in normalized)
+            {
+                var colMap = entry.map;
+                if (colMap == null)
                 {
                     index++;
                     continue;
                 }
-                string name = colMap.TryGetValue("name", out var n) ? n as string : null;
+                string name = entry.name;
                 string title = colMap.TryGetValue("title", out var t) ? t as string : null;
                 Func<int, object, VirtualNode> cellFn = null;
                 if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
@@ -738,6 +1006,7 @@ namespace ReactiveUITK.Elements
 
                 // Layout persistence
                 parts.LayoutTracker.Reapply(view, parts, null, n);
+                DispatchLayoutChanged(view, parts);
 
                 // Scalars
                 if (n.TryGetValue("fixedItemHeight", out var fv) && fv is float ff)
@@ -826,6 +1095,46 @@ namespace ReactiveUITK.Elements
                 }
                 catch { }
             });
+        }
+
+        private static void EnsureViewDataKey(
+            MultiColumnListView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+                return;
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+                return;
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+                return;
+
+            view.viewDataKey = desired;
         }
     }
 }

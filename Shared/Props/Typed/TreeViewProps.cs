@@ -15,7 +15,10 @@ namespace ReactiveUITK.Props.Typed
         public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
+        public Delegate ItemExpandedChanged { get; set; }
         public Style Style { get; set; }
+        public object Ref { get; set; }
+        public string ViewDataKey { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -34,8 +37,14 @@ namespace ReactiveUITK.Props.Typed
                 d["expandedItemIds"] = ExpandedItemIds;
             if (StopTrackingUserChange.HasValue)
                 d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
+            if (ItemExpandedChanged != null)
+                d["itemExpandedChanged"] = ItemExpandedChanged;
             if (Style != null)
                 d["style"] = Style;
+            if (Ref != null)
+                d["ref"] = Ref;
+            if (!string.IsNullOrEmpty(ViewDataKey))
+                d["viewDataKey"] = ViewDataKey;
             return d;
         }
     }

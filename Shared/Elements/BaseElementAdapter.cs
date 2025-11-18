@@ -102,13 +102,21 @@ namespace ReactiveUITK.Elements
                 && string.Equals(vnode.ElementTypeName, "VisualElement", StringComparison.Ordinal);
             if (!isRootVE)
             {
-                Debug.LogWarning(
-                    $"[ReactiveUITK][{contextTag ?? "Adapter"}] Root was not a 'VisualElement'. Wrapping automatically."
-                );
+                // Throttle noisy wrap warnings: only log once per adapter context
+                _rootWrapWarned ??= new HashSet<string>();
+                string tag = contextTag ?? "Adapter";
+                if (_rootWrapWarned.Add(tag))
+                {
+                    Debug.LogWarning(
+                        $"[ReactiveUITK][{tag}] Root was not a 'VisualElement'. Wrapping automatically (further wraps suppressed)."
+                    );
+                }
                 return ReactiveUITK.V.VisualElement(null, null, vnode);
             }
             return vnode;
         }
+
+        private static HashSet<string> _rootWrapWarned;
 
         // Coerce various enumerable/object inputs into a List<int> of ids
         // Public for reuse by trackers that don't inherit from BaseElementAdapter

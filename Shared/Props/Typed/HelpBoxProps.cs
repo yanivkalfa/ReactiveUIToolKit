@@ -9,6 +9,7 @@ namespace ReactiveUITK.Props.Typed
         public string Text { get; set; }
         public string MessageType { get; set; } // "info" | "warning" | "error"
         public Style Style { get; set; }
+    public object Ref { get; set; }
 
         public Dictionary<string, object> ToDictionary()
         {
@@ -18,6 +19,7 @@ namespace ReactiveUITK.Props.Typed
             if (Text != null) dict["text"] = Text;
             if (!string.IsNullOrEmpty(MessageType)) dict["messageType"] = MessageType;
             if (Style != null) dict["style"] = Style;
+            if (Ref != null) dict["ref"] = Ref;
             return dict;
         }
     }

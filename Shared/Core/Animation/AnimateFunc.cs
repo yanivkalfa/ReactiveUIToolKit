@@ -21,12 +21,13 @@ namespace ReactiveUITK.Core.AnimationComponents
             var tracks = tracksObj as IReadOnlyList<AnimateTrack>;
             bool autoplay = autoplayObj is bool b ? b : true;
 
-            // Kick the animations on this wrapper container
-            Hooks.UseAnimate(tracks, autoplay, tracks);
-
             // Ensure this lightweight wrapper does not grab layout space unexpectedly.
             // Function component containers default to flexGrow=1; for inline wrappers this can collapse siblings.
+            // Acquire element ref BEFORE animation hook to preserve historical hook ordering (UseRefElement precedes UseAnimate).
             var container = Hooks.UseRef();
+
+            // Kick the animations on this wrapper container (UseAnimate will record its own hook + effect internally)
+            Hooks.UseAnimate(tracks, autoplay, tracks);
             if (container != null)
             {
                 container.style.flexGrow = 0f;
