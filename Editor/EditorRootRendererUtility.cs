@@ -25,7 +25,7 @@ namespace ReactiveUITK.EditorSupport
                 hostContext.Environment["scheduler"] = EditorRenderScheduler.Instance;
                 hostContext.Environment["isEditor"] = true;
                 SignalsRuntime.EnsureInitialized();
-                
+
                 hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
@@ -37,13 +37,10 @@ namespace ReactiveUITK.EditorSupport
             renderer.Render(root);
         }
 
-        
         public static void Render(VisualElement hostElement, VirtualNode root)
         {
             Mount(hostElement, root);
         }
-
-        
 
         public static void Unmount(VisualElement hostElement)
         {

@@ -9,7 +9,6 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    
     public sealed class TreeViewElementAdapter
         : StatefulElementAdapter<TreeView, TreeViewElementAdapter.Cached>
     {
@@ -18,11 +17,9 @@ namespace ReactiveUITK.Elements
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
 
-            
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
-            
             internal ExpansionStateTracker<TreeView, Cached> ExpansionTracker =
                 new ExpansionStateTracker<TreeView, Cached>();
             public HashSet<int> DesiredExpanded { get; set; } = new();
@@ -31,7 +28,6 @@ namespace ReactiveUITK.Elements
             public Delegate UserExpandedHandler { get; set; }
             public bool TrackUserExpansion { get; set; } = true;
 
-            
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
             public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
@@ -71,20 +67,14 @@ namespace ReactiveUITK.Elements
             }
             EnsureViewDataKey(tv, properties);
 
-            
             try
             {
                 var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
                 parts.ExpansionTracker.Attach(tv, parts, properties, ops);
             }
-            catch
-            {
-            }
+            catch { }
 
             parts.ScrollTracker.Attach(tv, parts, properties);
-            
-            
-            
 
             if (properties.TryGetValue("expandedItemIds", out var expObj))
             {
@@ -109,9 +99,7 @@ namespace ReactiveUITK.Elements
                 {
                     tv.RefreshItems();
                 }
-                catch
-                {
-                }
+                catch { }
                 ReapplyExpansion(tv, parts, null, properties, scrollSnapshot);
             }
 
@@ -122,7 +110,6 @@ namespace ReactiveUITK.Elements
             }
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            
             if (
                 properties.TryGetValue("row", out var rowFn)
                 && rowFn is Func<int, object, VirtualNode> rf
@@ -150,9 +137,7 @@ namespace ReactiveUITK.Elements
                             {
                                 entry.mount.RemoveFromHierarchy();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             ve.Add(entry.mount);
                         }
                         var f = parts.RowFn;
@@ -173,16 +158,13 @@ namespace ReactiveUITK.Elements
                                 {
                                     mount.RemoveFromHierarchy();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                             }
                         }
                     };
                 }
             }
 
-            
             if (
                 properties.TryGetValue("contentContainer", out var cc)
                 && cc is Dictionary<string, object> ccMap
@@ -222,17 +204,12 @@ namespace ReactiveUITK.Elements
             var parts = GetState(tv);
             EnsureViewDataKey(tv, next);
 
-            
-            
-            
             try
             {
                 var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
                 parts.ExpansionTracker.Attach(tv, parts, next, ops);
             }
-            catch
-            {
-            }
+            catch { }
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
@@ -244,12 +221,10 @@ namespace ReactiveUITK.Elements
                 {
                     tv.RefreshItems();
                 }
-                catch
-                {
-                }
+                catch { }
                 ReapplyExpansion(tv, parts, previous, next, scrollSnapshot);
             }
-            
+
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
             {
@@ -257,7 +232,6 @@ namespace ReactiveUITK.Elements
             }
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.SetSelection(i));
 
-            
             if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
                 var ids = BaseElementAdapter.CoerceIds(nextExp);
@@ -274,7 +248,7 @@ namespace ReactiveUITK.Elements
             }
 
             PropsApplier.ApplyDiff(element, previous, next);
-            
+
             ReapplyExpansion(tv, parts, previous, next);
             parts.ScrollTracker.Reapply(tv, parts, previous, next);
         }
@@ -296,9 +270,7 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 var any = typeof(TreeView)
@@ -306,9 +278,7 @@ namespace ReactiveUITK.Elements
                     .FirstOrDefault(m => m.Name == "SetRootItems" && m.GetParameters().Length == 1);
                 any?.Invoke(tv, new object[] { root });
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static object GetItemForIndex(TreeView tv, int index)
@@ -328,9 +298,7 @@ namespace ReactiveUITK.Elements
                         return gen.MakeGenericMethod(typeof(object))
                             .Invoke(tv, new object[] { index });
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 var nonGen = methods.FirstOrDefault(m =>
                     m.Name == "GetItemDataForIndex" && !m.IsGenericMethod
@@ -341,14 +309,10 @@ namespace ReactiveUITK.Elements
                     {
                         return nonGen.Invoke(tv, new object[] { index });
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return null;
         }
 
@@ -379,9 +343,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 var mi = typeof(TreeView).GetMethod(
@@ -397,13 +359,9 @@ namespace ReactiveUITK.Elements
                     return idObj.ToString();
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return $"row-{index}";
         }
-
-        
 
         private static void ReapplyExpansion(
             TreeView view,
@@ -427,9 +385,7 @@ namespace ReactiveUITK.Elements
                 var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
                 parts.ExpansionTracker.Reapply(view, parts, previous, next, ops);
             }
-            catch
-            {
-            }
+            catch { }
 
             RestoreScrollSnapshot(view, snapshot);
         }
@@ -490,9 +446,7 @@ namespace ReactiveUITK.Elements
 
                 ApplyScrollOffset(scroll, target);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void ApplyScrollOffset(ScrollView scroll, Vector2 target)
@@ -508,9 +462,7 @@ namespace ReactiveUITK.Elements
                 {
                     scroll.scrollOffset = target;
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             Apply();
@@ -518,9 +470,7 @@ namespace ReactiveUITK.Elements
             {
                 scroll.schedule?.Execute(Apply)?.ExecuteLater(0);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static float ResolveAxis(float previousValue, float previousMax, float newMax)

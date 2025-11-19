@@ -87,9 +87,7 @@ namespace ReactiveUITK.Samples.Shared
                             cb(items?.Count ?? 0);
                         }
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                     return null;
                 },
                 new object[] { items?.Count ?? 0 }

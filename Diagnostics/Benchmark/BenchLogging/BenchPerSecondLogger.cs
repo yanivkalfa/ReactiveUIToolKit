@@ -30,8 +30,8 @@ namespace ReactiveUITK.Bench
         public int index;
         public string name;
         public float durationSec;
-        public double startedAt; 
-        public double endedAt; 
+        public double startedAt;
+        public double endedAt;
     }
 
     [Serializable]
@@ -50,13 +50,13 @@ namespace ReactiveUITK.Bench
     [Serializable]
     public class BenchPerSecondBucket
     {
-        public int sec; 
+        public int sec;
         public float fpsAvg;
         public float fpsMin;
         public float fpsMax;
         public int sampleCount;
         public long monoUsedMax;
-        public int gcCollections; 
+        public int gcCollections;
     }
 
     [Serializable]
@@ -70,17 +70,12 @@ namespace ReactiveUITK.Bench
         public List<BenchPerSecondBucket> perSecond;
     }
 
-    
-    
-    
-    
     public static class BenchPerSecondLogger
     {
         private static string _runId;
         private static string _suite;
         private static BenchEnv _env;
 
-        
         private static int _idx;
         private static string _name;
         private static float _durationSec;
@@ -93,12 +88,10 @@ namespace ReactiveUITK.Bench
         private static long _monoUsedMaxScenario;
         private static int _gcAtScenarioStart;
 
-        
-        private const int MaxPctlCache = 4096; 
+        private const int MaxPctlCache = 4096;
         private static readonly float[] _pctlFps = new float[MaxPctlCache];
         private static int _pctlCount;
 
-        
         private static float _accFpsSum;
         private static int _accFpsCount;
         private static float _accFpsMin;
@@ -108,7 +101,6 @@ namespace ReactiveUITK.Bench
 
         private static BenchOutputTarget _forcedOutput = BenchOutputTarget.Auto;
 
-        
 #if UNITY_EDITOR
         private static double NowSec() => EditorApplication.timeSinceStartup;
 #else
@@ -194,30 +186,25 @@ namespace ReactiveUITK.Bench
                 return;
             }
 
-            
             if (dt <= 0f)
             {
                 dt = 1f / 60f;
             }
             var fps = 1f / dt;
 
-            
             if (_pctlCount < MaxPctlCache)
             {
                 _pctlFps[_pctlCount++] = fps;
             }
 
-            
-            var elapsed = NowSec() - 0.0; 
-            
-            
+            var elapsed = NowSec() - 0.0;
+
             var secBin = (int)Math.Floor(EpochNowSec() - _secStartEpoch);
             if (secBin < 0)
             {
                 secBin = 0;
             }
 
-            
             if (secBin != _lastSecondBin && _lastSecondBin >= 0)
             {
                 FlushSecondBin(_lastSecondBin);
@@ -225,7 +212,6 @@ namespace ReactiveUITK.Bench
 
             if (secBin != _lastSecondBin)
             {
-                
                 _accFpsSum = 0f;
                 _accFpsCount = 0;
                 _accFpsMin = float.PositiveInfinity;
@@ -235,7 +221,6 @@ namespace ReactiveUITK.Bench
                 _lastSecondBin = secBin;
             }
 
-            
             _accFpsSum += fps;
             _accFpsCount++;
             if (fps < _accFpsMin)
@@ -271,7 +256,6 @@ namespace ReactiveUITK.Bench
                 return;
             }
 
-            
             if (_lastSecondBin >= 0)
             {
                 FlushSecondBin(_lastSecondBin);
@@ -279,7 +263,6 @@ namespace ReactiveUITK.Bench
 
             var endedEpoch = EpochNowSec();
 
-            
             var scenarioFile = new BenchScenarioFile
             {
                 runId = _runId,
@@ -297,7 +280,6 @@ namespace ReactiveUITK.Bench
                 perSecond = _bins,
             };
 
-            
             string folderName;
             switch (_forcedOutput)
             {
@@ -340,20 +322,17 @@ namespace ReactiveUITK.Bench
                 $"[Bench] Wrote scenario JSON: {path}  (bins={_bins.Count}, samples={_samplesTotal})"
             );
 
-            
             _active = false;
             _bins = null;
         }
 
         private static BenchScenarioSummary BuildScenarioSummary()
         {
-            
             float fpsAvg = 0f,
                 fpsMin = float.PositiveInfinity,
                 fpsMax = float.NegativeInfinity;
             if (_pctlCount > 0)
             {
-                
                 var n = _pctlCount;
                 var tmp = new float[n];
                 Array.Copy(_pctlFps, tmp, n);
@@ -384,7 +363,6 @@ namespace ReactiveUITK.Bench
                 };
             }
 
-            
             return new BenchScenarioSummary
             {
                 fpsAvg = 0,
@@ -402,7 +380,6 @@ namespace ReactiveUITK.Bench
         {
             if (_accFpsCount <= 0)
             {
-                
                 _bins.Add(
                     new BenchPerSecondBucket
                     {

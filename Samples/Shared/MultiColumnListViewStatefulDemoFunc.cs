@@ -51,9 +51,7 @@ namespace ReactiveUITK.Samples.Shared
                                 result[kv.Key] = converted;
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     return result;
                 }
@@ -240,9 +238,7 @@ namespace ReactiveUITK.Samples.Shared
                             cb(items?.Count ?? 0);
                         }
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                     return null;
                 },
                 new object[] { items?.Count ?? 0 }

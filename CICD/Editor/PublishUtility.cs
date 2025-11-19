@@ -32,7 +32,6 @@ namespace ReactiveUITK.CICD
         {
             try
             {
-                
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
                 string distRoot = Path.Combine(packageRoot, "dist~");
 
@@ -48,16 +47,14 @@ namespace ReactiveUITK.CICD
                 }
                 Directory.CreateDirectory(distRoot);
 
-                
                 CopyDirectory(packageRoot, distRoot);
-                
+
                 var distGit = Path.Combine(distRoot, ".git");
                 if (Directory.Exists(distGit))
                 {
                     DeleteDirectory(distGit);
                 }
 
-                
                 string cfgPath = Path.Combine(packageRoot, "config.json");
                 ConfigModel cfg = null;
                 if (File.Exists(cfgPath))
@@ -72,7 +69,6 @@ namespace ReactiveUITK.CICD
                     }
                 }
 
-                
                 if (cfg != null && cfg.pathsToOmitFromDist != null)
                 {
                     foreach (var raw in cfg.pathsToOmitFromDist)
@@ -88,7 +84,6 @@ namespace ReactiveUITK.CICD
                             : pattern;
                         basePath = basePath.TrimEnd('/');
 
-                        
                         string abs = Path.Combine(
                             distRoot,
                             basePath.Replace('/', Path.DirectorySeparatorChar)
@@ -101,7 +96,7 @@ namespace ReactiveUITK.CICD
                                 DeleteDirectory(abs);
                                 continue;
                             }
-                            
+
                             DeleteAllStartingWith(distRoot, basePath);
                             continue;
                         }
@@ -114,13 +109,12 @@ namespace ReactiveUITK.CICD
                         if (File.Exists(abs))
                         {
                             TryDeleteFile(abs);
-                            
+
                             TryDeleteFile(abs + ".meta");
                         }
                     }
                 }
 
-                
                 string samples = Path.Combine(distRoot, "Samples");
                 string samplesTilde = Path.Combine(distRoot, "Samples~");
                 if (Directory.Exists(samples))
@@ -130,11 +124,10 @@ namespace ReactiveUITK.CICD
                         DeleteDirectory(samplesTilde);
                     }
                     Directory.Move(samples, samplesTilde);
-                    
+
                     TryMoveMeta(samples, samplesTilde);
                 }
 
-                
                 string pkgJson = Path.Combine(distRoot, "package.json");
                 if (!File.Exists(pkgJson))
                 {
@@ -155,7 +148,7 @@ namespace ReactiveUITK.CICD
             try
             {
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
-                
+
                 string rootPkg = Path.Combine(packageRoot, "package.json");
                 string bumpedVersion = BumpPatchVersion(rootPkg);
                 if (!string.IsNullOrEmpty(bumpedVersion))
@@ -164,7 +157,6 @@ namespace ReactiveUITK.CICD
                     AssetDatabase.Refresh();
                 }
 
-                
                 BuildDist();
 
                 string distRoot = Path.Combine(packageRoot, "dist~");
@@ -174,7 +166,6 @@ namespace ReactiveUITK.CICD
                     return;
                 }
 
-                
                 var gitTop = RunGit(
                     "rev-parse --show-toplevel",
                     packageRoot,
@@ -188,36 +179,29 @@ namespace ReactiveUITK.CICD
                 }
                 repoRoot = repoRoot.Trim();
 
-                
                 string tag = string.IsNullOrEmpty(bumpedVersion) ? null : ("v" + bumpedVersion);
 
                 string branch = "dist";
                 string remote = "origin";
                 string worktree = Path.Combine(repoRoot, "_dist_branch");
 
-                
                 if (Directory.Exists(worktree))
                 {
-                    
                     RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _eRm);
                     RunGit("worktree prune", repoRoot, out var _, out var _ePrune);
                     try
                     {
                         DeleteDirectory(worktree);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
 
-                
                 RunGit("fetch --tags --prune origin", repoRoot, out var _fOut, out var fErr);
                 if (!string.IsNullOrEmpty(fErr))
                 {
                     Debug.Log("Publish: fetch note: " + fErr);
                 }
 
-                
                 bool remoteBranchExists =
                     RunGit(
                         $"ls-remote --heads {remote} {branch}",
@@ -227,7 +211,6 @@ namespace ReactiveUITK.CICD
                     ) == 0
                     && !string.IsNullOrWhiteSpace(lsOut);
 
-                
                 bool branchExists =
                     RunGit(
                         $"rev-parse --verify --quiet {branch}",
@@ -236,8 +219,6 @@ namespace ReactiveUITK.CICD
                         out var _eChk
                     ) == 0;
 
-                
-                
                 string commitish = remoteBranchExists
                     ? $"{remote}/{branch}"
                     : (branchExists ? branch : "HEAD");
@@ -254,13 +235,10 @@ namespace ReactiveUITK.CICD
                     return;
                 }
 
-                
                 DeleteAllExceptGit(worktree);
 
-                
                 CopyDirectory(distRoot, worktree);
 
-                
                 if (RunGit("add -A", worktree, out var _, out var e3) != 0)
                 {
                     Debug.LogError("Publish: git add failed: " + e3);
@@ -282,10 +260,8 @@ namespace ReactiveUITK.CICD
                     Debug.Log("Publish: no changes to commit on dist branch");
                 }
 
-                
                 if (!string.IsNullOrEmpty(tag))
                 {
-                    
                     RunGit($"tag -f {tag}", worktree, out var _, out var tagErr);
                     if (!string.IsNullOrEmpty(tagErr))
                     {
@@ -293,8 +269,6 @@ namespace ReactiveUITK.CICD
                     }
                 }
 
-                
-                
                 string pushArgs = branchExists
                     ? $"push {remote} {branch}"
                     : $"push -u {remote} {branch}";
@@ -312,7 +286,6 @@ namespace ReactiveUITK.CICD
                     }
                 }
 
-                
                 RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _e7);
 
                 Debug.Log(
@@ -337,8 +310,6 @@ namespace ReactiveUITK.CICD
             Debug.Log("Publish: Store upload not implemented yet. Dist built.");
         }
 
-        
-
         [Serializable]
         private class PackageJson
         {
@@ -353,7 +324,7 @@ namespace ReactiveUITK.CICD
             {
                 string rel = dir.Substring(sourceDir.Length)
                     .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                
+
                 var relForward = rel.Replace('\\', '/');
                 if (relForward.Length == 0)
                 {
@@ -420,9 +391,7 @@ namespace ReactiveUITK.CICD
                 }
                 File.Delete(p);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void TryDeleteDir(string p)
@@ -434,9 +403,7 @@ namespace ReactiveUITK.CICD
                     Directory.Delete(p, recursive: false);
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void DeleteAllStartingWith(string distRoot, string relBaseForward)
@@ -485,12 +452,9 @@ namespace ReactiveUITK.CICD
                     File.Move(metaFrom, metaTo);
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
 
-        
         private static string BumpPatchVersion(string packageJsonPath)
         {
             try
@@ -504,7 +468,6 @@ namespace ReactiveUITK.CICD
                 }
                 string text = File.ReadAllText(packageJsonPath, Encoding.UTF8);
 
-                
                 var m = Regex.Match(
                     text,
                     "\"version\"\\s*:\\s*\"([^\"]+)\"",
@@ -520,7 +483,6 @@ namespace ReactiveUITK.CICD
 
                 if (m.Success)
                 {
-                    
                     int valStart = m.Groups[1].Index;
                     int valLen = m.Groups[1].Length;
                     var sb = new StringBuilder(text.Length - valLen + next.Length);
@@ -531,7 +493,6 @@ namespace ReactiveUITK.CICD
                 }
                 else
                 {
-                    
                     int insertAt = text.LastIndexOf('}');
                     if (insertAt < 0)
                     {
@@ -552,7 +513,6 @@ namespace ReactiveUITK.CICD
 
                 File.WriteAllText(packageJsonPath, text, Encoding.UTF8);
 
-                
                 var vm = Regex.Match(
                     text,
                     "\"version\"\\s*:\\s*\"([^\"]+)\"",

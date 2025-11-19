@@ -18,7 +18,6 @@ namespace ReactiveUITK.Props.Typed
         public object Ref { get; set; }
         public string ViewDataKey { get; set; }
 
-        
         public List<ColumnDef> Columns { get; set; }
 
         public List<SortedColumnDef> SortedColumns { get; set; }

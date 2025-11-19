@@ -2,7 +2,6 @@ namespace ReactiveUITK.Props.Typed
 {
     public static class StyleKeys
     {
-        
         public const string Width = "width";
         public const string Height = "height";
         public const string MinWidth = "minWidth";
@@ -28,7 +27,6 @@ namespace ReactiveUITK.Props.Typed
         public const string Overflow = "overflow";
         public const string Opacity = "opacity";
 
-        
         public const string Margin = "margin";
         public const string MarginLeft = "marginLeft";
         public const string MarginRight = "marginRight";
@@ -40,15 +38,12 @@ namespace ReactiveUITK.Props.Typed
         public const string PaddingTop = "paddingTop";
         public const string PaddingBottom = "paddingBottom";
 
-        
         public const string FontSize = "fontSize";
         public const string FontFamily = "fontFamily";
         public const string TextAlign = "textAlign";
 
-        
         public const string TextColor = "color";
 
-        
         public const string Color = TextColor;
         public const string BackgroundColor = "backgroundColor";
         public const string BackgroundImage = "backgroundImage";
@@ -60,7 +55,6 @@ namespace ReactiveUITK.Props.Typed
         public const string UnityTextOutlineWidth = "unityTextOutlineWidth";
         public const string UnityTextOverflowPosition = "unityTextOverflowPosition";
 
-        
         public const string BorderWidth = "borderWidth";
         public const string BorderColor = "borderColor";
         public const string BorderLeftWidth = "borderLeftWidth";
@@ -77,11 +71,8 @@ namespace ReactiveUITK.Props.Typed
         public const string BorderBottomLeftRadius = "borderBottomLeftRadius";
         public const string BorderBottomRightRadius = "borderBottomRightRadius";
 
-        
         public const string Rotate = "rotate";
         public const string Scale = "scale";
         public const string Translate = "translate";
-
-        
     }
 }

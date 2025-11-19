@@ -4,9 +4,6 @@ using UnityEngine;
 
 namespace ReactiveUITK.Core.Config
 {
-    
-    
-    
     public sealed class ReactiveUITKConfig
     {
         [Serializable]
@@ -68,18 +65,13 @@ namespace ReactiveUITK.Core.Config
                     }
                 }
             }
-            catch
-            {
-                
-            }
+            catch { }
             return cfg;
         }
 
         private static string GetDefaultProjectConfigPath()
         {
-            
-            
-            string assets = Application.dataPath; 
+            string assets = Application.dataPath;
             return Path.Combine(assets, "ReactiveUIToolKit", "config.json");
         }
 

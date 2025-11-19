@@ -185,7 +185,6 @@ namespace ReactiveUITK
                 var nowMs = Time.realtimeSinceStartup * 1000f;
                 if (budgetLimit > 0f && nowMs - frameStartTimestampMs > budgetLimit)
                 {
-                    
                     break;
                 }
                 Action action = queue.Dequeue();

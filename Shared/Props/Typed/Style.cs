@@ -2,7 +2,6 @@ using System.Collections.Generic;
 
 namespace ReactiveUITK.Props.Typed
 {
-    
     public class Style : Dictionary<string, object>
     {
         public Style() { }
@@ -13,7 +12,6 @@ namespace ReactiveUITK.Props.Typed
         public Style(IDictionary<string, object> dictionary)
             : base(dictionary) { }
 
-        
         public void Add((string key, object value) entry)
         {
             this[entry.key] = entry.value;

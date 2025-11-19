@@ -22,7 +22,6 @@ namespace ReactiveUITK.Elements
             internal List<ColumnSignature> LastColSignature;
             public List<Func<int, object, VirtualNode>> CellFns;
 
-            
             internal Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
@@ -44,7 +43,6 @@ namespace ReactiveUITK.Elements
             public Delegate ColumnLayoutChanged { get; set; }
             internal ColumnLayoutSnapshot LastLayoutSnapshot { get; set; }
 
-            
             public bool IsAdjusting { get; set; }
             public bool HeaderWired { get; set; }
             public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
@@ -56,7 +54,6 @@ namespace ReactiveUITK.Elements
                 );
             public bool DetachWired { get; set; }
 
-            
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
             public float ScrollX { get; set; }
@@ -68,7 +65,6 @@ namespace ReactiveUITK.Elements
                     ApplyAdjustmentFlush
                 );
 
-            
             public bool CommitQueued { get; set; }
             public bool IsCommitting { get; set; }
             public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
@@ -238,9 +234,7 @@ namespace ReactiveUITK.Elements
                         callback.DynamicInvoke(payload);
                     }
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
 #if UNITY_EDITOR
@@ -418,9 +412,7 @@ namespace ReactiveUITK.Elements
                     {
                         view.Rebuild();
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
             else if (parts.LastItems != null)
@@ -431,9 +423,7 @@ namespace ReactiveUITK.Elements
                 {
                     view.Rebuild();
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             TryApplyProp<int>(properties, "selectedIndex", i => view.selectedIndex = i);
@@ -446,36 +436,30 @@ namespace ReactiveUITK.Elements
                 view.selectionType = sel;
             }
 
-            
             TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(view, m));
 
-            
             if (properties.TryGetValue("columns", out var colsObj) && colsObj is IEnumerable cols)
             {
                 var (newSig, newFns) = ColumnSignatureUtil.Extract(cols);
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
-                    parts.LastColSignature = newSig; 
+                    parts.LastColSignature = newSig;
                     RebuildColumnsPreservingState(view, cols, parts);
                 }
                 else
                 {
-                    
-                    
                     parts.CellFns = newFns;
                     try
                     {
                         view.RefreshItems();
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
 
             ApplySlots(view, properties);
-            
+
             parts.LayoutTracker.Reapply(view, parts, null, properties);
             DispatchLayoutChanged(view, parts);
             parts.SortTracker.Attach(view, parts, properties);
@@ -534,9 +518,7 @@ namespace ReactiveUITK.Elements
                 {
                     view.Rebuild();
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             TryDiffProp<int>(previous, next, "selectedIndex", i => view.selectedIndex = i);
@@ -562,26 +544,22 @@ namespace ReactiveUITK.Elements
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
-                    parts.LastColSignature = newSig; 
+                    parts.LastColSignature = newSig;
                     RebuildColumnsPreservingState(view, ncols, parts);
                 }
                 else
                 {
-                    
                     parts.CellFns = newFns;
                     try
                     {
                         view.RefreshItems();
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
 
             ApplySlotsDiff(view, previous, next);
 
-            
             parts.LayoutTracker.Reapply(view, parts, previous, next);
             DispatchLayoutChanged(view, parts);
             parts.SortTracker.Reapply(view, parts, previous, next);
@@ -619,9 +597,7 @@ namespace ReactiveUITK.Elements
                     {
                         val = Enum.Parse(enumType, s, true);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 else if (mode is int i)
                 {
@@ -629,18 +605,14 @@ namespace ReactiveUITK.Elements
                     {
                         val = Enum.ToObject(enumType, i);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 if (val != null)
                 {
                     pi.SetValue(view, val);
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void RebuildColumnsPreservingState(
@@ -649,7 +621,6 @@ namespace ReactiveUITK.Elements
             Cached parts
         )
         {
-            
             var existingByName = new Dictionary<string, Column>();
             var existingByIndex = new List<Column>();
             for (int ci = 0; ci < view.columns.Count; ci++)
@@ -664,8 +635,6 @@ namespace ReactiveUITK.Elements
 
             view.columns.Clear();
 
-            
-            
             var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
             if (
                 parts?.LastColSignature != null
@@ -781,9 +750,7 @@ namespace ReactiveUITK.Elements
                         minWidth = Convert.ToSingle(mw);
                         minWidthProvided = true;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 float maxWidth = 0f;
                 bool maxWidthProvided = false;
@@ -884,7 +851,7 @@ namespace ReactiveUITK.Elements
                     {
                         item = il[rowIndex];
                     }
-                    
+
                     var rowKey = DeriveRowKeyList(view, rowIndex, item);
                     var key = rowKey + "|c=" + capturedIndex;
                     if (!parts.Pool.TryGetValue(key, out var entry))
@@ -894,9 +861,7 @@ namespace ReactiveUITK.Elements
                         {
                             mount.pickingMode = PickingMode.Ignore;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         var rrNew = new VNodeHostRenderer(GetCellHostContext(), mount);
                         entry = (rrNew, mount);
                         parts.Pool[key] = entry;
@@ -907,12 +872,10 @@ namespace ReactiveUITK.Elements
                         {
                             entry.mount.RemoveFromHierarchy();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         ve.Add(entry.mount);
                     }
-                    
+
                     Func<int, object, VirtualNode> activeFn = null;
                     if (
                         !string.IsNullOrEmpty(column.name)
@@ -935,7 +898,7 @@ namespace ReactiveUITK.Elements
                         entry.renderer.Render(vnode);
                     }
                 };
-                
+
                 column.unbindCell = (ve, i) =>
                 {
                     foreach (var kv in parts.Pool)
@@ -947,13 +910,11 @@ namespace ReactiveUITK.Elements
                             {
                                 mount.RemoveFromHierarchy();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                         }
                     }
                 };
-                
+
                 if (
                     !string.IsNullOrEmpty(column.name)
                     && parts.ColumnWidths != null
@@ -964,11 +925,9 @@ namespace ReactiveUITK.Elements
                     {
                         column.width = savedW;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
-                
+
                 if (
                     !string.IsNullOrEmpty(column.name)
                     && parts.ColumnVisibility != null
@@ -979,9 +938,7 @@ namespace ReactiveUITK.Elements
                     {
                         column.visible = isVisible;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
 
                 view.columns.Add(column);
@@ -993,9 +950,7 @@ namespace ReactiveUITK.Elements
             {
                 view.Rebuild();
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static bool SignaturesEqual(List<ColumnSignature> a, List<ColumnSignature> b)
@@ -1094,9 +1049,7 @@ namespace ReactiveUITK.Elements
                 {
                     RunCommit(view, parts);
                 }
-                catch
-                {
-                }
+                catch { }
             }
         }
 
@@ -1120,7 +1073,6 @@ namespace ReactiveUITK.Elements
             parts.IsCommitting = true;
             try
             {
-                
                 if (n.TryGetValue("items", out var nextItemsObj))
                 {
                     var nextItems = NormalizeItems(nextItemsObj);
@@ -1132,13 +1084,10 @@ namespace ReactiveUITK.Elements
                         {
                             view.Rebuild();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
 
-                
                 if (n.TryGetValue("columns", out var nextCols) && nextCols is IEnumerable ncols)
                 {
                     var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
@@ -1155,17 +1104,13 @@ namespace ReactiveUITK.Elements
                         {
                             view.RefreshItems();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
 
-                
                 parts.LayoutTracker.Reapply(view, parts, null, n);
                 DispatchLayoutChanged(view, parts);
 
-                
                 if (n.TryGetValue("fixedItemHeight", out var fv) && fv is float ff)
                 {
                     view.fixedItemHeight = ff;
@@ -1183,16 +1128,12 @@ namespace ReactiveUITK.Elements
                     ApplySortingMode(view, sm);
                 }
 
-                
                 ApplySlotsDiff(view, new Dictionary<string, object>(), n);
 
-                
                 parts.SortTracker.Reapply(view, parts, null, n);
                 parts.ScrollTracker.Reapply(view, parts, null, n);
             }
-            catch
-            {
-            }
+            catch { }
             finally
             {
                 parts.IsCommitting = false;
@@ -1234,9 +1175,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return $"row-{index}";
         }
 
@@ -1253,30 +1192,22 @@ namespace ReactiveUITK.Elements
                 {
                     parts.AdjustmentTracker.Detach(view, parts);
                 }
-                catch
-                {
-                }
+                catch { }
                 try
                 {
                     parts.SortTracker.Detach(view, parts);
                 }
-                catch
-                {
-                }
+                catch { }
                 try
                 {
                     parts.LayoutTracker.Detach(view, parts);
                 }
-                catch
-                {
-                }
+                catch { }
                 try
                 {
                     parts.ScrollTracker.Detach(view, parts);
                 }
-                catch
-                {
-                }
+                catch { }
             });
         }
 

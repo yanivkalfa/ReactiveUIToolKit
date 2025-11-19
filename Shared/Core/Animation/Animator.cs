@@ -17,16 +17,12 @@ namespace ReactiveUITK.Core.Animation
             {
                 item?.Pause();
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 onStop?.Invoke();
             }
-            catch
-            {
-            }
+            catch { }
             item = null;
             onStop = null;
         }
@@ -34,27 +30,24 @@ namespace ReactiveUITK.Core.Animation
 
     public sealed class AnimateTrack
     {
-        public string Property; 
-        public object From; 
-        public object To; 
-        public float Duration; 
-        public float Delay; 
+        public string Property;
+        public object From;
+        public object To;
+        public float Duration;
+        public float Delay;
         public Ease Ease = Ease.EaseInOutCubic;
 
-        
-        public int Repeat; 
-        public bool Loop; 
-        public bool Yoyo; 
-        public float TimeScale = 1f; 
+        public int Repeat;
+        public bool Loop;
+        public bool Yoyo;
+        public float TimeScale = 1f;
 
-        
-        public Action<float> OnUpdate; 
-        public Action OnComplete; 
+        public Action<float> OnUpdate;
+        public Action OnComplete;
     }
 
     internal static class Animator
     {
-        
         private static readonly ConditionalWeakTable<
             VisualElement,
             Dictionary<string, AnimationHandle>
@@ -95,7 +88,6 @@ namespace ReactiveUITK.Core.Animation
             float delay = Mathf.Max(0f, track.Delay);
             string prop = (track.Property ?? string.Empty).Trim();
 
-            
             object from = track.From ?? ReadCurrent(ve, prop);
             object to = track.To;
             if (to == null || from == null)
@@ -107,7 +99,6 @@ namespace ReactiveUITK.Core.Animation
             double startTime = 0;
             bool started = false;
 
-            
             var map = active.GetValue(
                 ve,
                 _ => new Dictionary<string, AnimationHandle>(StringComparer.Ordinal)
@@ -118,19 +109,15 @@ namespace ReactiveUITK.Core.Animation
                 {
                     existing.Stop();
                 }
-                catch
-                {
-                }
+                catch { }
             }
             map[prop] = handle;
 
-            
             handle.item = ve
                 .schedule.Execute(() =>
                 {
                     if (ve.panel == null)
                     {
-                        
                         handle.Stop();
                         return;
                     }
@@ -157,9 +144,10 @@ namespace ReactiveUITK.Core.Animation
 
                     float scaledDuration = duration / Mathf.Max(0.0001f, track.TimeScale);
                     if (scaledDuration <= 0f)
+                    {
                         scaledDuration = 0.0001f;
+                    }
 
-                    
                     double elapsed = now - startTime;
                     float cycleT = Mathf.Clamp01(
                         (float)(elapsed % scaledDuration) / scaledDuration
@@ -174,35 +162,28 @@ namespace ReactiveUITK.Core.Animation
                     {
                         track.OnUpdate?.Invoke(eased);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
 
-                    
                     if (!track.Loop)
                     {
                         int totalCycles = 1 + Math.Max(0, track.Repeat);
                         if (cycleIndex >= totalCycles - 1 && cycleT >= 1f - 1e-4f)
                         {
-                            
                             object final = (track.Yoyo && ((totalCycles - 1) % 2 == 1)) ? from : to;
                             Apply(ve, prop, final);
                             try
                             {
                                 track.OnComplete?.Invoke();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             handle.Stop();
                         }
                     }
                 })
-                .Every(16); 
+                .Every(16);
 
             handle.onStop = () =>
             {
-                
                 if (active.TryGetValue(ve, out var m))
                 {
                     if (m.TryGetValue(prop, out var h) && object.ReferenceEquals(h, handle))
@@ -225,9 +206,7 @@ namespace ReactiveUITK.Core.Animation
                     {
                         v = ve.resolvedStyle.opacity;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                     return v;
                 }
                 case "backgroundColor":
@@ -276,115 +255,153 @@ namespace ReactiveUITK.Core.Animation
                 case "width":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.width = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "height":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.height = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "minWidth":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.minWidth = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "minHeight":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.minHeight = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "maxWidth":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.maxWidth = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "maxHeight":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.maxHeight = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "marginLeft":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.marginLeft = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "marginRight":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.marginRight = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "marginTop":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.marginTop = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "marginBottom":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.marginBottom = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "paddingLeft":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.paddingLeft = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "paddingRight":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.paddingRight = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "paddingTop":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.paddingTop = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "paddingBottom":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.paddingBottom = new Length(f, LengthUnit.Pixel);
+                    }
                     break;
                 }
                 case "borderLeftWidth":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.borderLeftWidth = f;
+                    }
                     break;
                 }
                 case "borderRightWidth":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.borderRightWidth = f;
+                    }
                     break;
                 }
                 case "borderTopWidth":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.borderTopWidth = f;
+                    }
                     break;
                 }
                 case "borderBottomWidth":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.borderBottomWidth = f;
+                    }
                     break;
                 }
                 case "letterSpacing":
                 {
                     if (TryToFloat(value, out var f))
+                    {
                         ve.style.letterSpacing = f;
+                    }
                     break;
                 }
                 case "backgroundColor":
@@ -411,9 +428,7 @@ namespace ReactiveUITK.Core.Animation
                         {
                             ve.style.unityTextOutlineColor = oc;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     break;
                 }
@@ -425,9 +440,7 @@ namespace ReactiveUITK.Core.Animation
                         {
                             ve.style.unityTextOutlineWidth = f;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     break;
                 }
@@ -438,13 +451,11 @@ namespace ReactiveUITK.Core.Animation
                         try
                         {
                             var st = ve.style.translate;
-                            var cur = st.value; 
+                            var cur = st.value;
                             var next = new Translate(new Length(f, LengthUnit.Pixel), cur.y, cur.z);
                             ve.style.translate = new StyleTranslate(next);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     break;
                 }
@@ -455,13 +466,11 @@ namespace ReactiveUITK.Core.Animation
                         try
                         {
                             var st = ve.style.translate;
-                            var cur = st.value; 
+                            var cur = st.value;
                             var next = new Translate(cur.x, new Length(f, LengthUnit.Pixel), cur.z);
                             ve.style.translate = new StyleTranslate(next);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     break;
                 }

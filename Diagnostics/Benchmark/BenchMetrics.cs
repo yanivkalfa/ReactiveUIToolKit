@@ -1,4 +1,3 @@
-
 using System;
 using UnityEngine;
 #if UNITY_2022_2_OR_NEWER
@@ -35,9 +34,7 @@ namespace ReactiveUITK.Bench
                     "GC Allocated In Frame"
                 );
             }
-            catch
-            {
-            }
+            catch { }
 #endif
         }
 
@@ -102,9 +99,7 @@ namespace ReactiveUITK.Bench
             {
                 gc = (long)gcAllocRecorder.LastValue;
             }
-            catch
-            {
-            }
+            catch { }
 #endif
             return $"{name},{durationSec},{count},{avgDt:F6},{avgFps:F2},{p95fps:F2},{p99fps:F2},{(1.0 / maxDt):F2},{(1.0 / minDt):F2},{gc}";
         }
@@ -120,9 +115,7 @@ namespace ReactiveUITK.Bench
             {
                 gc = (long)gcAllocRecorder.LastValue;
             }
-            catch
-            {
-            }
+            catch { }
 #endif
             return $"avgFPS={fps:F1} p95FPS={p95:F1} p99FPS={p99:F1} minFPS={(1.0 / maxDt):F1} maxFPS={(1.0 / minDt):F1} GC/frame={gc} bytes";
         }

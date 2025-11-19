@@ -7,7 +7,7 @@ namespace ReactiveUITK.Props.Typed
         public string Name { get; set; }
         public string ClassName { get; set; }
         public string Text { get; set; }
-        public string MessageType { get; set; } 
+        public string MessageType { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
 

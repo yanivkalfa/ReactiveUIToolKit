@@ -7,7 +7,6 @@ namespace ReactiveUITK.Props.Typed
 {
     public sealed class TreeViewProps
     {
-        
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }

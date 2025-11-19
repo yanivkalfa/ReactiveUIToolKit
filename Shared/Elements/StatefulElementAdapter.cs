@@ -4,7 +4,6 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    
     public abstract class StatefulElementAdapter<TElement, TState> : BaseElementAdapter
         where TElement : VisualElement
         where TState : class, new()

@@ -7,7 +7,6 @@ using UnityEditor;
 
 namespace ReactiveUITK.Bench
 {
-    
     public static class BenchSharedHost
     {
         private static IVNodeHostRenderer _renderer;
@@ -19,28 +18,14 @@ namespace ReactiveUITK.Bench
         private static string _currentName;
         private static float _currentDuration;
 
-        
         public static Func<VirtualNode> SharedDemoRenderer;
 
-        
         public static int CurrentIndex => _scenarioIndex;
         public static string CurrentName => _currentName;
 
 #if UNITY_EDITOR
         private static double _lastEditorNow = -1;
 #endif
-
-        
-        
-        
-        
-
-        
-        
-
-        
-        
-        
 
         public static void Init(
             IVNodeHostRenderer renderer,
@@ -68,10 +53,8 @@ namespace ReactiveUITK.Bench
                 return;
             }
 
-            
             _currentRender.Invoke();
 
-            
 #if UNITY_EDITOR
             double now = EditorApplication.timeSinceStartup;
             if (_lastEditorNow < 0)
@@ -82,7 +65,7 @@ namespace ReactiveUITK.Bench
             _lastEditorNow = now;
             if (dt <= 0f || dt > 0.5f)
             {
-                dt = 1f / 60f; 
+                dt = 1f / 60f;
             }
 #else
             float dt = Time.unscaledDeltaTime;
@@ -90,7 +73,6 @@ namespace ReactiveUITK.Bench
             _metrics.Sample(dt);
             _timer += dt;
 
-            
             BenchPerSecondLogger.SampleFrame(dt);
 
             if (_timer >= _currentDuration)
@@ -115,7 +97,6 @@ namespace ReactiveUITK.Bench
 
             try
             {
-                
                 Debug.Log($"[Bench] {_currentName} => {_metrics.SummaryString()}");
             }
             catch (Exception e)
@@ -124,7 +105,6 @@ namespace ReactiveUITK.Bench
             }
             finally
             {
-                
                 BenchPerSecondLogger.EndScenarioAndWriteFile();
                 _metrics.End();
             }
@@ -153,7 +133,6 @@ namespace ReactiveUITK.Bench
 
             _metrics.Begin();
 
-            
             BenchPerSecondLogger.BeginScenario(_scenarioIndex, _currentName, _currentDuration);
 
             Debug.Log($"[Bench] Start: {_currentName} ({_currentDuration:F1}s)");

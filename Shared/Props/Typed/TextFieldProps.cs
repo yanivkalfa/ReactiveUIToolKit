@@ -17,15 +17,12 @@ namespace ReactiveUITK.Props.Typed
         public Style Style { get; set; }
         public object Ref { get; set; }
 
-        
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> TextElement { get; set; }
 
-        
         public System.Action<ChangeEvent<string>> OnChange { get; set; }
 
-        
         public string LabelText { get; set; }
 
         public Dictionary<string, object> ToDictionary()

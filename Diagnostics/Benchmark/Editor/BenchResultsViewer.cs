@@ -8,7 +8,6 @@ using UnityEngine;
 
 namespace ReactiveUITK.Bench.EditorTools
 {
-    
     public class BenchResultsViewer : EditorWindow
     {
         [MenuItem("Window/ReactiveUITK/Diagnostics/Benchmark/Results Viewer")]
@@ -20,23 +19,19 @@ namespace ReactiveUITK.Bench.EditorTools
             w.Show();
         }
 
-        
         private const string Pref_LastRunFolder = "RUITK_BenchViewer_LastRunFolder";
 
-        
         private readonly List<RunEntry> _runs = new();
-        private readonly List<Item> _items = new(); 
+        private readonly List<Item> _items = new();
         private Vector2 _leftScroll,
             _summaryScroll;
 
-        
         private bool _autoY = true;
         private float _yMax = 200f;
         private bool _showMinMaxBands = true;
         private bool _showP95 = true;
         private bool _normalizeXToDuration = true;
 
-        
         private bool _onlyEditor = false;
         private bool _onlyRuntime = false;
         private string _search = "";
@@ -70,13 +65,12 @@ namespace ReactiveUITK.Bench.EditorTools
             new(0.56f, 0.56f, 0.56f),
         };
 
-        
         private void OnGUI()
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                DrawLeftPanel(); 
-                DrawRightPanel(); 
+                DrawLeftPanel();
+                DrawRightPanel();
             }
         }
 
@@ -180,7 +174,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 );
                 EditorGUI.DrawRect(rect, new Color(0.10f, 0.10f, 0.10f));
 
-                
                 float maxX = 1f,
                     globalYMax = 60f;
                 foreach (var it in _items.Where(VisibleAndPasses))
@@ -211,7 +204,6 @@ namespace ReactiveUITK.Bench.EditorTools
 
                 DrawAxes(rect, maxX, yMax);
 
-                
                 foreach (var it in _items.Where(VisibleAndPasses))
                 {
                     Plot(rect, it, maxX, yMax);
@@ -219,7 +211,6 @@ namespace ReactiveUITK.Bench.EditorTools
 
                 GUILayout.Space(8);
 
-                
                 _summaryScroll = EditorGUILayout.BeginScrollView(_summaryScroll);
                 foreach (var it in _items.Where(PassesFilters))
                 {
@@ -287,8 +278,6 @@ namespace ReactiveUITK.Bench.EditorTools
             }
         }
 
-        
-
         private void Plot(Rect rect, Item it, float maxX, float yMax)
         {
             var secs = it.file.perSecond;
@@ -354,7 +343,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 }
             );
 
-            
             int yTicks = 5;
             for (int i = 0; i <= yTicks; i++)
             {
@@ -365,7 +353,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 GUI.Label(new Rect(r.x + 4, y - 8, 80, 16), $"{v:F0}", EditorStyles.miniLabel);
             }
 
-            
             Handles.color = new Color(1, 1, 1, 0.06f);
             int xTicks = 10;
             for (int i = 0; i <= xTicks; i++)
@@ -378,7 +365,6 @@ namespace ReactiveUITK.Bench.EditorTools
             Handles.EndGUI();
         }
 
-        
         private void TryAddRun(string folder)
         {
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
@@ -412,7 +398,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 }
             );
 
-            
             EditorPrefs.SetString(Pref_LastRunFolder, folder);
 
             RebuildItems();
@@ -535,21 +520,18 @@ namespace ReactiveUITK.Bench.EditorTools
 
         private string GetDefaultStartFolder()
         {
-            
             var last = EditorPrefs.GetString(Pref_LastRunFolder, null);
             if (!string.IsNullOrEmpty(last) && Directory.Exists(last))
             {
                 return last;
             }
 
-            
             var sel = _runs.FirstOrDefault(r => r.selected);
             if (sel != null && Directory.Exists(sel.path))
             {
                 return sel.path;
             }
 
-            
             var guess = Path.Combine(
                 Application.dataPath,
                 "ReactiveUIToolKit",
@@ -562,7 +544,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 return guess;
             }
 
-            
             return Application.dataPath;
         }
     }

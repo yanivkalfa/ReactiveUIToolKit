@@ -55,9 +55,7 @@ namespace ReactiveUITK.Samples.Shared
                                 result[kv.Key] = converted;
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     return result;
                 }
@@ -227,7 +225,9 @@ namespace ReactiveUITK.Samples.Shared
                     }
                     countValue += 1;
                     if (row.HasChild)
+                    {
                         countValue += 1;
+                    }
                 }
                 Hooks.UseEffect(
                     () =>
@@ -243,17 +243,13 @@ namespace ReactiveUITK.Samples.Shared
                                 cb(countValue);
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         return null;
                     },
                     new object[] { countValue }
                 );
             }
-            catch
-            {
-            }
+            catch { }
 
             Action Safe(Action candidate) => candidate ?? (() => { });
 

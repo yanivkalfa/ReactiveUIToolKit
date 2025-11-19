@@ -27,7 +27,6 @@ namespace ReactiveUITK.Bench
             _mount = rootVisualElement;
             _mount.style.flexGrow = 1;
 
-            
             var header = new VisualElement
             {
                 style =
@@ -43,27 +42,22 @@ namespace ReactiveUITK.Bench
             header.Add(new Label("Bench: running  —  Space/→ to skip"));
             _mount.Add(header);
 
-            
             _hostVE = new VisualElement
             {
                 style = { flexGrow = 1, backgroundColor = new Color(0.10f, 0.10f, 0.10f, 1f) },
-                
+
                 focusable = true,
                 pickingMode = PickingMode.Position,
                 tabIndex = 0,
             };
             _mount.Add(_hostVE);
 
-            
             _hostVE.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
 
-            
             BenchSharedHost.Init(this, BenchOutputTarget.Editor);
 
-            
             TrySetSharedDemoHook();
 
-            
             EditorApplication.update += OnEditorUpdate;
         }
 
@@ -71,19 +65,19 @@ namespace ReactiveUITK.Bench
         {
             EditorApplication.update -= OnEditorUpdate;
             if (_hostVE != null)
+            {
                 _hostVE.UnregisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
+            }
             Unmount();
         }
 
         private void OnFocus()
         {
-            
             _hostVE?.Focus();
         }
 
         private void OnInspectorUpdate()
         {
-            
             Repaint();
         }
 
@@ -93,7 +87,6 @@ namespace ReactiveUITK.Bench
             Repaint();
         }
 
-        
         private void OnKeyDown(KeyDownEvent e)
         {
             if (e.keyCode == KeyCode.Space || e.keyCode == KeyCode.RightArrow)
@@ -104,7 +97,6 @@ namespace ReactiveUITK.Bench
             }
         }
 
-        
         public void Render(VirtualNode vnode)
         {
             if (_hostVE == null)
@@ -130,9 +122,7 @@ namespace ReactiveUITK.Bench
                 BenchSharedHost.SharedDemoRenderer = () => V.Func(SharedDemoPage.Render);
                 Debug.Log("[BenchEditorHost] SharedDemo hook set.");
             }
-            catch
-            { 
-            }
+            catch { }
         }
     }
 }

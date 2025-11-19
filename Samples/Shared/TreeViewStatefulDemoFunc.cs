@@ -58,9 +58,7 @@ namespace ReactiveUITK.Samples.Shared
                                 list.Add((T)Convert.ChangeType(item, typeof(T)));
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     return list;
                 }
@@ -233,17 +231,13 @@ namespace ReactiveUITK.Samples.Shared
                                 cb(countValue);
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         return null;
                     },
                     new object[] { countValue }
                 );
             }
-            catch
-            {
-            }
+            catch { }
 
             Action Safe(Action candidate) => candidate ?? (() => { });
 

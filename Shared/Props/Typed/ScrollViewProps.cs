@@ -8,14 +8,13 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
-        public string Mode { get; set; } 
+        public string Mode { get; set; }
         public ScrollerVisibility? VerticalScrollerVisibility { get; set; }
         public ScrollerVisibility? HorizontalScrollerVisibility { get; set; }
         public Vector2? ScrollOffset { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
 
-        
         public Dictionary<string, object> ContentContainer { get; set; }
 
         public Dictionary<string, object> ToDictionary()

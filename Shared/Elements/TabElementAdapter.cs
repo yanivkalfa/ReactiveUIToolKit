@@ -29,9 +29,7 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 var p = typeof(Tab).GetProperty(
@@ -44,10 +42,8 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch
-            {
-            }
-            
+            catch { }
+
             try
             {
                 var titleLabel = tab.Q<Label>("title") ?? tab.Q<Label>();
@@ -57,17 +53,13 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch
-            {
-            }
-            
+            catch { }
+
             try
             {
                 tab.name = string.IsNullOrEmpty(tab.name) ? ("Tab_" + title) : tab.name;
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public override VisualElement Create()
@@ -86,7 +78,7 @@ namespace ReactiveUITK.Elements
                 {
                     SetTabTitle(tab, txt);
                 }
-                
+
                 if (
                     properties.TryGetValue("contentContainer", out var cc)
                     && cc is Dictionary<string, object> ccMap

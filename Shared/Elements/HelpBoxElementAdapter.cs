@@ -22,7 +22,6 @@ namespace ReactiveUITK.Elements
                 TryApplyProp<string>(properties, "text", v => hb.text = v ?? string.Empty);
                 if (properties.TryGetValue("messageType", out var mt))
                 {
-                    
                     if (mt is HelpBoxMessageType t)
                     {
                         hb.messageType = t;
@@ -58,7 +57,9 @@ namespace ReactiveUITK.Elements
                 if (!Equals(pm, nm))
                 {
                     if (nm is HelpBoxMessageType t)
+                    {
                         hb.messageType = t;
+                    }
                     else if (nm is string ms)
                     {
                         ms = ms.ToLowerInvariant();

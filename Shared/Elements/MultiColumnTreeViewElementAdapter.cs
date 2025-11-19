@@ -23,7 +23,6 @@ namespace ReactiveUITK.Elements
             internal List<ColumnSignature> ColSig;
             public List<Func<int, object, VirtualNode>> CellFns;
 
-            
             public HashSet<int> DesiredExpanded { get; set; } = new();
             public Dictionary<int, bool> ExpandAllById { get; set; } = new();
             public bool OurHandlerAttached { get; set; }
@@ -32,11 +31,9 @@ namespace ReactiveUITK.Elements
             internal ExpansionStateTracker<MultiColumnTreeView, Cached> ExpansionTracker =
                 new ExpansionStateTracker<MultiColumnTreeView, Cached>();
 
-            
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
-            
             public Dictionary<string, float> ColumnWidths { get; set; } = new();
             public Dictionary<string, bool> ColumnVisibility { get; set; } = new();
             public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
@@ -45,7 +42,6 @@ namespace ReactiveUITK.Elements
             public Delegate ColumnLayoutChanged { get; set; }
             internal ColumnLayoutSnapshot LastLayoutSnapshot { get; set; }
 
-            
             public List<(
                 string name,
                 SortDirection direction,
@@ -56,9 +52,6 @@ namespace ReactiveUITK.Elements
             public Delegate UserSortNotify { get; set; }
             public Action InternalSortHandler { get; set; }
 
-            
-
-            
             public bool IsAdjusting { get; set; }
             public bool HeaderWired { get; set; }
             public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
@@ -70,7 +63,6 @@ namespace ReactiveUITK.Elements
                 );
             public bool DetachWired { get; set; }
 
-            
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
             public float ScrollX { get; set; }
@@ -82,7 +74,6 @@ namespace ReactiveUITK.Elements
                     ApplyAdjustmentFlush
                 );
 
-            
             public bool CommitQueued { get; set; }
             public bool IsCommitting { get; set; }
             public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
@@ -198,9 +189,7 @@ namespace ReactiveUITK.Elements
                         callback.DynamicInvoke(payload);
                     }
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
 #if UNITY_EDITOR
@@ -345,9 +334,7 @@ namespace ReactiveUITK.Elements
                     mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { root });
                     return;
                 }
-                catch
-                {
-                }
+                catch { }
             }
             var any = typeof(MultiColumnTreeView)
                 .GetMethods()
@@ -356,9 +343,7 @@ namespace ReactiveUITK.Elements
             {
                 any?.Invoke(tv, new object[] { root });
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static object GetItemForRow(MultiColumnTreeView tv, int index)
@@ -375,9 +360,7 @@ namespace ReactiveUITK.Elements
                     return mi.MakeGenericMethod(typeof(object)).Invoke(tv, new object[] { index });
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return null;
         }
 
@@ -411,9 +394,7 @@ namespace ReactiveUITK.Elements
                     {
                         val = Enum.Parse(enumType, s, true);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 else if (mode is int i)
                 {
@@ -421,18 +402,14 @@ namespace ReactiveUITK.Elements
                     {
                         val = Enum.ToObject(enumType, i);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 if (val != null)
                 {
                     pi.SetValue(tv, val);
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static string DeriveRowKey(MultiColumnTreeView tv, int index, object item)
@@ -470,9 +447,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 var mi = typeof(MultiColumnTreeView).GetMethod(
@@ -493,9 +468,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return $"row-{index}";
         }
 
@@ -530,7 +503,6 @@ namespace ReactiveUITK.Elements
             }
             if (parts.IsAdjusting || parts.IsScrolling)
             {
-                
                 parts.AdjustmentTracker.Reapply(tv, parts, null, properties);
                 parts.ScrollTracker.Reapply(tv, parts, null, properties);
                 return;
@@ -542,10 +514,8 @@ namespace ReactiveUITK.Elements
                     var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                     parts.ExpansionTracker.Attach(tv, parts, properties, ops);
                 }
-                catch
-                {
-                }
-                
+                catch { }
+
                 if (properties.TryGetValue("rootItems", out var r))
                 {
                     var nextList = r as IList;
@@ -557,9 +527,7 @@ namespace ReactiveUITK.Elements
                         {
                             tv.Rebuild();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         try
                         {
                             var ops = ReactiveUITK
@@ -568,9 +536,7 @@ namespace ReactiveUITK.Elements
                                 .Instance;
                             parts.ExpansionTracker.Reapply(tv, parts, null, properties, ops);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         parts.LayoutTracker.Reapply(tv, parts, null, properties);
                     }
                 }
@@ -622,7 +588,7 @@ namespace ReactiveUITK.Elements
                 if (!same)
                 {
                     RebuildColumnsPreservingState(tv, list, parts);
-                    
+
                     parts.LayoutTracker.Reapply(tv, parts, null, properties);
                 }
             }
@@ -667,20 +633,17 @@ namespace ReactiveUITK.Elements
             }
             if (parts.IsAdjusting || parts.IsScrolling)
             {
-                
                 parts.AdjustmentTracker.Reapply(tv, parts, previous, next);
                 parts.ScrollTracker.Reapply(tv, parts, previous, next);
                 return;
             }
-            
+
             try
             {
                 var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                 parts.ExpansionTracker.Attach(tv, parts, next, ops);
             }
-            catch
-            {
-            }
+            catch { }
 
             previous.TryGetValue("rootItems", out var pr);
             next.TryGetValue("rootItems", out var nr);
@@ -692,17 +655,13 @@ namespace ReactiveUITK.Elements
                 {
                     tv.Rebuild();
                 }
-                catch
-                {
-                }
+                catch { }
                 try
                 {
                     var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                     parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
                 }
-                catch
-                {
-                }
+                catch { }
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
@@ -720,14 +679,11 @@ namespace ReactiveUITK.Elements
                 parts.ColSig = sig;
                 parts.CellFns = fns;
                 RebuildColumnsPreservingState(tv, list, parts);
-                
+
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             ApplySlotsDiff(tv, previous, next);
 
-            
-
-            
             if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
                 var ids = BaseElementAdapter.CoerceIds(nextExp);
@@ -736,16 +692,16 @@ namespace ReactiveUITK.Elements
                 if (ids != null)
                 {
                     foreach (var id in ids)
+                    {
                         parts.DesiredExpanded.Add(id);
+                    }
                 }
                 try
                 {
                     var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                     parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             parts.LayoutTracker.Reapply(tv, parts, previous, next);
@@ -758,9 +714,7 @@ namespace ReactiveUITK.Elements
                 var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                 parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void RebuildColumnsPreservingState(
@@ -771,7 +725,6 @@ namespace ReactiveUITK.Elements
         {
             tv.columns.Clear();
 
-            
             var colList = cols?.ToList() ?? new List<Dictionary<string, object>>();
             var withKey = new List<(Dictionary<string, object> c, string name, int orig)>();
             for (int i = 0; i < colList.Count; i++)
@@ -802,10 +755,10 @@ namespace ReactiveUITK.Elements
                             var aiVal = parts.ColumnDisplayIndex[a.name];
                             var biVal = parts.ColumnDisplayIndex[b.name];
                             int cmp = aiVal.CompareTo(biVal);
-                        if (cmp != 0)
-                        {
+                            if (cmp != 0)
+                            {
                                 return cmp;
-                        }
+                            }
                             return a.orig.CompareTo(b.orig);
                         }
                         if (ah && !bh)
@@ -821,8 +774,6 @@ namespace ReactiveUITK.Elements
                 );
             }
 
-            
-            
             var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
             if (
                 parts?.ColSig != null
@@ -865,9 +816,7 @@ namespace ReactiveUITK.Elements
                     {
                         col.width = Convert.ToSingle(w);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 if (c.TryGetValue("minWidth", out var mw))
                 {
@@ -875,9 +824,7 @@ namespace ReactiveUITK.Elements
                     {
                         col.minWidth = Convert.ToSingle(mw);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 if (c.TryGetValue("maxWidth", out var xw))
                 {
@@ -885,9 +832,7 @@ namespace ReactiveUITK.Elements
                     {
                         col.maxWidth = Convert.ToSingle(xw);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 if (c.TryGetValue("resizable", out var rz) && rz is bool rb)
                 {
@@ -915,9 +860,7 @@ namespace ReactiveUITK.Elements
                         {
                             mount.pickingMode = PickingMode.Ignore;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         var rrNew = new VNodeHostRenderer(Host, mount);
                         entry = (rrNew, mount);
                         parts.Pool[key] = entry;
@@ -928,13 +871,11 @@ namespace ReactiveUITK.Elements
                         {
                             entry.mount.RemoveFromHierarchy();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         ve.Add(entry.mount);
                     }
                     Func<int, object, VirtualNode> fn = null;
-                    
+
                     if (
                         !string.IsNullOrEmpty(col.name)
                         && cellFnByName.TryGetValue(col.name, out var byName)
@@ -964,13 +905,11 @@ namespace ReactiveUITK.Elements
                             {
                                 mount.RemoveFromHierarchy();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                         }
                     }
                 };
-                
+
                 if (
                     !string.IsNullOrEmpty(col.name)
                     && parts.ColumnWidths != null
@@ -981,11 +920,9 @@ namespace ReactiveUITK.Elements
                     {
                         col.width = savedW;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
-                
+
                 if (
                     !string.IsNullOrEmpty(col.name)
                     && parts.ColumnVisibility != null
@@ -996,9 +933,7 @@ namespace ReactiveUITK.Elements
                     {
                         col.visible = isVisible;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 tv.columns.Add(col);
                 idx++;
@@ -1007,18 +942,13 @@ namespace ReactiveUITK.Elements
             {
                 tv.Rebuild();
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                 parts.ExpansionTracker.Reapply(tv, parts, null, null, ops);
             }
-            catch
-            {
-            }
-            
+            catch { }
         }
 
         private static void ApplySlots(
@@ -1076,8 +1006,6 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        
-
         private static void ApplyAdjustmentFlush(
             MultiColumnTreeView tv,
             Cached parts,
@@ -1089,7 +1017,7 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-            
+
             parts.PendingCommit = next ?? parts.PendingCommit;
             ScheduleCommit(tv, parts);
         }
@@ -1115,9 +1043,7 @@ namespace ReactiveUITK.Elements
                 {
                     RunCommit(tv, parts);
                 }
-                catch
-                {
-                }
+                catch { }
             }
         }
 
@@ -1141,7 +1067,6 @@ namespace ReactiveUITK.Elements
             parts.IsCommitting = true;
             try
             {
-                
                 if (n.TryGetValue("rootItems", out var nr))
                 {
                     var nextList = nr as IList;
@@ -1153,13 +1078,10 @@ namespace ReactiveUITK.Elements
                         {
                             tv.Rebuild();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
 
-                
                 if (
                     n.TryGetValue("columns", out var colsObj)
                     && colsObj is IEnumerable<Dictionary<string, object>> list
@@ -1176,11 +1098,9 @@ namespace ReactiveUITK.Elements
                     }
                 }
 
-                
                 parts.LayoutTracker.Reapply(tv, parts, null, n);
                 DispatchLayoutChanged(tv, parts);
 
-                
                 if (n.TryGetValue("fixedItemHeight", out var fih) && fih is float fh)
                 {
                     tv.fixedItemHeight = fh;
@@ -1198,27 +1118,19 @@ namespace ReactiveUITK.Elements
                     ApplySortingMode(tv, sm);
                 }
 
-                
                 ApplySlotsDiff(tv, new Dictionary<string, object>(), n);
 
-                
-                
                 try
                 {
                     var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
                     parts.ExpansionTracker.Reapply(tv, parts, null, n, ops);
                 }
-                catch
-                {
-                }
+                catch { }
 
-                
                 parts.SortTracker.Reapply(tv, parts, null, n);
                 parts.ScrollTracker.Reapply(tv, parts, null, n);
             }
-            catch
-            {
-            }
+            catch { }
             finally
             {
                 parts.IsCommitting = false;
@@ -1287,23 +1199,17 @@ namespace ReactiveUITK.Elements
                 {
                     parts.AdjustmentTracker.Detach(tv, parts);
                 }
-                catch
-                {
-                }
+                catch { }
                 try
                 {
                     parts.SortTracker.Detach(tv, parts);
                 }
-                catch
-                {
-                }
+                catch { }
                 try
                 {
                     parts.LayoutTracker.Detach(tv, parts);
                 }
-                catch
-                {
-                }
+                catch { }
             });
         }
     }

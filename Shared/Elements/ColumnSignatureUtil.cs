@@ -27,7 +27,9 @@ namespace ReactiveUITK.Elements
                 colMap.TryGetValue("title", out var t);
                 Func<int, object, VirtualNode> fn = null;
                 if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
+                {
                     fn = cf;
+                }
                 list.Add(new ColumnSignature { Name = n as string, Title = t as string });
                 fns.Add(fn);
             }
@@ -37,7 +39,9 @@ namespace ReactiveUITK.Elements
         public static bool Equal(List<ColumnSignature> a, List<ColumnSignature> b)
         {
             if (ReferenceEquals(a, b))
+            {
                 return true;
+            }
             if (a == null || b == null)
             {
                 return false;
@@ -49,9 +53,13 @@ namespace ReactiveUITK.Elements
             for (int i = 0; i < a.Count; i++)
             {
                 if (!string.Equals(a[i].Name, b[i].Name, StringComparison.Ordinal))
+                {
                     return false;
+                }
                 if (!string.Equals(a[i].Title, b[i].Title, StringComparison.Ordinal))
+                {
                     return false;
+                }
             }
             return true;
         }

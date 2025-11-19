@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
@@ -11,7 +10,6 @@ namespace ReactiveUITK.Bench
 {
     internal static class BenchScenarios
     {
-        
         private static VirtualNode Row(string text, string key = null, bool last = false)
         {
             var style = new Style
@@ -26,11 +24,7 @@ namespace ReactiveUITK.Bench
                 (MinHeight, 50f),
             };
 
-            
-            var labelStyle = new Style
-            {
-                (TextColor, UColor.white), 
-            };
+            var labelStyle = new Style { (TextColor, UColor.white) };
 
             return V.VisualElement(
                 style,
@@ -48,13 +42,13 @@ namespace ReactiveUITK.Bench
                 (PaddingRight, padding),
                 (PaddingTop, padding),
                 (PaddingBottom, padding),
-                (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)), 
+                (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
             };
 
         public static Action Build(string name) =>
             name switch
             {
-                "Smoke" => Smoke(), 
+                "Smoke" => Smoke(),
                 "StaticScreen" => StaticScreen(),
                 "PropChurn_500" => PropChurn(500),
                 "ListReorder_200" => ListReorder(200),
@@ -65,10 +59,9 @@ namespace ReactiveUITK.Bench
                 _ => null,
             };
 
-        
         public static Action Smoke()
         {
-            var headerStyle = new Style { (TextColor, UColor.white) }; 
+            var headerStyle = new Style { (TextColor, UColor.white) };
             var vnode = V.VisualElement(
                 Column(),
                 null,
@@ -115,7 +108,7 @@ namespace ReactiveUITK.Bench
 
         public static Action StaticScreen()
         {
-            var headerStyle = new Style { (TextColor, UColor.white) }; 
+            var headerStyle = new Style { (TextColor, UColor.white) };
             var vnode = V.VisualElement(
                 Column(),
                 null,
@@ -135,7 +128,9 @@ namespace ReactiveUITK.Bench
                 tick++;
                 var children = new List<VirtualNode>(n);
                 for (int i = 0; i < n; i++)
+                {
                     children.Add(Row($"Row {i} :: {tick % 1000}", key: $"k{i}", last: i == n - 1));
+                }
                 var vnode = V.VisualElement(
                     new Style
                     {
@@ -154,7 +149,9 @@ namespace ReactiveUITK.Bench
         {
             var order = new List<int>(n);
             for (int i = 0; i < n; i++)
+            {
                 order.Add(i);
+            }
             float t = 0;
             return () =>
             {
@@ -199,7 +196,9 @@ namespace ReactiveUITK.Bench
                     for (int i = 0; i < perGroup; i++)
                     {
                         if (show)
+                        {
                             children.Add(Row($"G{g} I{i}", key: $"g{g}_i{i}"));
+                        }
                     }
                 }
                 var vnode = V.VisualElement(
@@ -281,12 +280,7 @@ namespace ReactiveUITK.Bench
                     }
                 );
 
-                var vnode = V.VisualElement(
-                    Column(),
-                    null,
-                    statusLabel,
-                    boundary
-                );
+                var vnode = V.VisualElement(Column(), null, statusLabel, boundary);
 
                 BenchSharedHost.Render(vnode);
             };
@@ -318,7 +312,6 @@ namespace ReactiveUITK.Bench
             };
         }
 
-        
         public static Action SharedDemo()
         {
             return () =>

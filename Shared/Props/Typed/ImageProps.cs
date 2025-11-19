@@ -9,7 +9,7 @@ namespace ReactiveUITK.Props.Typed
         public string ClassName { get; set; }
         public Texture2D Texture { get; set; }
         public Sprite Sprite { get; set; }
-        public string ScaleMode { get; set; } 
+        public string ScaleMode { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
 

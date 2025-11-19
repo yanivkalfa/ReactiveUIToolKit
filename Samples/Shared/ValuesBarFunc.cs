@@ -20,7 +20,6 @@ namespace ReactiveUITK.Samples.Shared
             (PaddingBottom, 6f),
         };
 
-        
         private static readonly ScrollViewProps ScrollProps = new()
         {
             Mode = "vertical",
@@ -40,7 +39,6 @@ namespace ReactiveUITK.Samples.Shared
             },
         };
 
-        
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children

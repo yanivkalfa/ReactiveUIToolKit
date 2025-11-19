@@ -48,7 +48,6 @@ namespace ReactiveUITK.Elements
             }
             state.ScrollWired = true;
 
-            
             try
             {
                 if (sv.verticalScroller != null)
@@ -61,9 +60,7 @@ namespace ReactiveUITK.Elements
                     };
                 }
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 if (sv.horizontalScroller != null)
@@ -76,11 +73,8 @@ namespace ReactiveUITK.Elements
                     };
                 }
             }
-            catch
-            {
-            }
+            catch { }
 
-            
             sv.RegisterCallback<WheelEvent>(
                 _ =>
                 {
@@ -109,12 +103,9 @@ namespace ReactiveUITK.Elements
                 {
                     _flush(view, state, prev, next);
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
-            
             view.RegisterCallback<PointerUpEvent>(_ => End(), TrickleDown.TrickleDown);
             view.RegisterCallback<PointerCancelEvent>(_ => End(), TrickleDown.TrickleDown);
             view.RegisterCallback<MouseCaptureOutEvent>(_ => End());
@@ -133,9 +124,7 @@ namespace ReactiveUITK.Elements
                         })
                         ?.ExecuteLater(150);
                 }
-                catch
-                {
-                }
+                catch { }
             }
         }
 
@@ -149,30 +138,22 @@ namespace ReactiveUITK.Elements
             {
                 state.IsScrolling = false;
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 state.ScrollWired = false;
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 state.PendingPrev = null;
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 state.PendingNext = null;
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void Reapply(
@@ -192,7 +173,7 @@ namespace ReactiveUITK.Elements
                 state.PendingNext = nextProps;
                 return;
             }
-            
+
             var sv = _ops.GetScrollView(view);
             if (sv == null)
             {
@@ -211,9 +192,7 @@ namespace ReactiveUITK.Elements
                     );
                 }
             }
-            catch
-            {
-            }
+            catch { }
         }
     }
 }

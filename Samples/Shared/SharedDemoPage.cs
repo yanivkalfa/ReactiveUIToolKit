@@ -582,9 +582,7 @@ namespace ReactiveUITK.Samples.Shared
                         {
                             timerHandle?.Pause();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     };
                 },
                 Array.Empty<object>()
@@ -952,7 +950,9 @@ namespace ReactiveUITK.Samples.Shared
             {
                 var clone = CloneTreeLayout(layout);
                 if (TreeLayoutEqual(clone, mctvLayout))
+                {
                     return;
+                }
                 setMctvLayout.Set(_ => clone);
             };
 
@@ -1091,7 +1091,9 @@ namespace ReactiveUITK.Samples.Shared
             {
                 var clone = CloneListLayout(layout);
                 if (ListLayoutEqual(clone, mclvLayout))
+                {
                     return;
+                }
                 setMclvLayout.Set(_ => clone);
             };
 

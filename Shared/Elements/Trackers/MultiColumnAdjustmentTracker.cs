@@ -74,9 +74,7 @@ namespace ReactiveUITK.Elements
                 {
                     _flush(view, state, prev, next);
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             view.RegisterCallback<PointerUpEvent>(_ => End(), TrickleDown.TrickleDown);
@@ -90,38 +88,27 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-            
+
             try
             {
                 state.IsAdjusting = false;
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 state.HeaderWired = false;
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 state.PendingPrev = null;
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 state.PendingNext = null;
             }
-            catch
-            {
-            }
-            
-            
-            
+            catch { }
         }
 
         public void Reapply(

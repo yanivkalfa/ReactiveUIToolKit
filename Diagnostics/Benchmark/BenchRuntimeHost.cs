@@ -37,31 +37,28 @@ namespace ReactiveUITK.Bench
             }
         }
 
-        
-        
-        
         private static bool ShouldSkip()
         {
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
-            
+
             return TryNewInputSystemPressed();
 
 #elif ENABLE_INPUT_SYSTEM && ENABLE_LEGACY_INPUT_MANAGER
-            
+
             if (TryNewInputSystemPressed())
+            {
                 return true;
+            }
             return LegacyPressed();
 
 #else
-            
+
             return LegacyPressed();
 #endif
         }
 
-        
         private static bool LegacyPressed()
         {
-            
             if (Input.GetKeyDown(KeyCode.Space))
             {
                 return true;
@@ -77,7 +74,6 @@ namespace ReactiveUITK.Bench
             return false;
         }
 
-        
         private static bool _checkedNewInput;
         private static bool _hasNewInput;
 
@@ -99,7 +95,6 @@ namespace ReactiveUITK.Bench
             {
                 _checkedNewInput = true;
 
-                
                 _tKeyboard = Type.GetType("UnityEngine.InputSystem.Keyboard, Unity.InputSystem");
                 _tMouse = Type.GetType("UnityEngine.InputSystem.Mouse, Unity.InputSystem");
                 _tTouchscreen = Type.GetType(
@@ -161,7 +156,6 @@ namespace ReactiveUITK.Bench
 
             try
             {
-                
                 var kb = _pKeyboardCurrent?.GetValue(null);
                 if (kb != null)
                 {
@@ -172,7 +166,6 @@ namespace ReactiveUITK.Bench
                     }
                 }
 
-                
                 var ms = _pMouseCurrent?.GetValue(null);
                 if (ms != null)
                 {
@@ -183,7 +176,6 @@ namespace ReactiveUITK.Bench
                     }
                 }
 
-                
                 var ts = _pTouchscreenCurrent?.GetValue(null);
                 if (ts != null)
                 {
@@ -195,10 +187,7 @@ namespace ReactiveUITK.Bench
                     }
                 }
             }
-            catch
-            {
-                
-            }
+            catch { }
 
             return false;
         }
@@ -213,7 +202,6 @@ namespace ReactiveUITK.Bench
             return val is bool b && b;
         }
 
-        
         public void Render(VirtualNode vnode) => rootRenderer.Render(vnode);
 
         public void Unmount() => rootRenderer.Unmount();

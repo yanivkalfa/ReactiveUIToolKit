@@ -182,7 +182,6 @@ namespace ReactiveUITK.Core
             return Array.AsReadOnly(buffer);
         }
 
-        
         public static implicit operator VirtualNode(
             System.Func<
                 Dictionary<string, object>,

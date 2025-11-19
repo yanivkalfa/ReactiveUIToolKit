@@ -16,7 +16,7 @@ namespace ReactiveUITK.Elements
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
-            public IList LastItems; 
+            public IList LastItems;
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
@@ -99,23 +99,18 @@ namespace ReactiveUITK.Elements
                     {
                         listView.Rebuild();
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
             else if (parts.LastItems != null)
             {
-                
                 parts.LastItems = null;
                 listView.itemsSource = null;
                 try
                 {
                     listView.Rebuild();
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             TryApplyProp<int>(properties, "selectedIndex", i => listView.selectedIndex = i);
@@ -128,7 +123,6 @@ namespace ReactiveUITK.Elements
                 listView.selectionType = sel;
             }
 
-            
             if (
                 properties.TryGetValue("row", out var rowObj)
                 && rowObj is Func<int, object, VirtualNode> rowFn
@@ -159,9 +153,7 @@ namespace ReactiveUITK.Elements
                             {
                                 mount.pickingMode = PickingMode.Ignore;
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
                             entry = (rrNew, mount);
                             parts.Pool[key] = entry;
@@ -172,9 +164,7 @@ namespace ReactiveUITK.Elements
                             {
                                 entry.mount.RemoveFromHierarchy();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             ve.Add(entry.mount);
                         }
                         var f = parts.RowFn;
@@ -196,16 +186,13 @@ namespace ReactiveUITK.Elements
                                 {
                                     mount.RemoveFromHierarchy();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                             }
                         }
                     };
                 }
             }
 
-            
             if (properties.TryGetValue("makeItem", out var mi) && mi is Func<VisualElement> make)
             {
                 listView.makeItem = make;
@@ -257,9 +244,7 @@ namespace ReactiveUITK.Elements
                 {
                     listView.Rebuild();
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             TryDiffProp<int>(previous, next, "selectedIndex", i => listView.selectedIndex = i);
@@ -311,9 +296,7 @@ namespace ReactiveUITK.Elements
                             {
                                 mount.pickingMode = PickingMode.Ignore;
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             var rrNew = new VNodeHostRenderer(GetRowHostContext(), mount);
                             entry = (rrNew, mount);
                             parts.Pool[key] = entry;
@@ -324,9 +307,7 @@ namespace ReactiveUITK.Elements
                             {
                                 entry.mount.RemoveFromHierarchy();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             ve.Add(entry.mount);
                         }
                         var f = parts.RowFn;
@@ -348,16 +329,13 @@ namespace ReactiveUITK.Elements
                                 {
                                     mount.RemoveFromHierarchy();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                             }
                         }
                     };
                 }
                 else if (changed && parts.LastItems != null)
                 {
-                    
                     int count = parts.LastItems.Count;
                     for (int i = 0; i < count; i++)
                     {
@@ -365,9 +343,7 @@ namespace ReactiveUITK.Elements
                         {
                             listView.RefreshItem(i);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
             }
@@ -492,9 +468,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return $"row-{index}";
         }
 

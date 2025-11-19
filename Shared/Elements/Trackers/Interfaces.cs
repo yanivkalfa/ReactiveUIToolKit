@@ -4,7 +4,6 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    
     public interface IElementStateTracker<TElement, TState>
         where TElement : VisualElement
     {
@@ -18,7 +17,6 @@ namespace ReactiveUITK.Elements
         );
     }
 
-    
     internal interface ISortState
     {
         List<(string name, SortDirection direction, int index)> SortedColumns { get; set; }
@@ -26,7 +24,6 @@ namespace ReactiveUITK.Elements
         Action InternalSortHandler { get; set; }
     }
 
-    
     internal interface IColumnLayoutState
     {
         Dictionary<string, float> ColumnWidths { get; set; }
@@ -34,7 +31,6 @@ namespace ReactiveUITK.Elements
         Dictionary<string, int> ColumnDisplayIndex { get; set; }
     }
 
-    
     internal interface IExpansionState
     {
         HashSet<int> DesiredExpanded { get; set; }
@@ -44,7 +40,6 @@ namespace ReactiveUITK.Elements
         bool TrackUserExpansion { get; set; }
     }
 
-    
     public interface IExpansionViewOps<TView>
         where TView : VisualElement
     {
@@ -54,7 +49,6 @@ namespace ReactiveUITK.Elements
         void Refresh(TView view);
     }
 
-    
     internal interface IAdjustmentSuspendState
     {
         bool IsAdjusting { get; set; }
@@ -63,14 +57,12 @@ namespace ReactiveUITK.Elements
         IReadOnlyDictionary<string, object> PendingNext { get; set; }
     }
 
-    
     public interface IHeaderOps<TView>
         where TView : VisualElement
     {
         bool IsHeaderElement(VisualElement e);
     }
 
-    
     internal interface IScrollState
     {
         bool IsScrolling { get; set; }
@@ -82,7 +74,6 @@ namespace ReactiveUITK.Elements
         int ScrollActivityId { get; set; }
     }
 
-    
     public interface IScrollOps<TView>
         where TView : VisualElement
     {

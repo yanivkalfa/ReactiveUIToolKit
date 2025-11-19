@@ -38,7 +38,7 @@ namespace ReactiveUITK.Samples.Shared
                         Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render),
                     },
                 },
-                
+
                 Style = new Style { (Props.Typed.StyleKeys.Height, 240f) },
             };
 

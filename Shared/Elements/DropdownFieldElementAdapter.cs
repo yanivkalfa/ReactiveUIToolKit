@@ -154,9 +154,7 @@ namespace ReactiveUITK.Elements
                             }
                         }
                     )
-                )
-                {
-                }
+                ) { }
 
                 ApplySlotsDiff(df, previous, next);
             }

@@ -11,7 +11,7 @@ namespace ReactiveUITK.Props.Typed
         public int? LowValue { get; set; }
         public int? HighValue { get; set; }
         public int? Value { get; set; }
-        public string Direction { get; set; } 
+        public string Direction { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
 

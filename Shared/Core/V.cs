@@ -43,8 +43,6 @@ namespace ReactiveUITK
             );
         }
 
-        
-
         public static VirtualNode Button(ButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
@@ -90,7 +88,6 @@ namespace ReactiveUITK
             );
         }
 
-        
         public static VirtualNode VisualElement(
             Style style,
             string key = null,
@@ -105,7 +102,6 @@ namespace ReactiveUITK
             return VisualElement(props, key, children);
         }
 
-        
         public static VirtualNode VisualElementSafe(
             Style style = null,
             string key = null,
@@ -113,7 +109,7 @@ namespace ReactiveUITK
         )
         {
             var insets = SafeAreaUtility.GetInsets();
-            
+
             float GetUser(string k)
             {
                 if (style == null)
@@ -146,7 +142,7 @@ namespace ReactiveUITK
                     Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom), insets.Bottom)
                 ),
             };
-            
+
             if (style != null)
             {
                 foreach (var kv in style)
@@ -158,7 +154,6 @@ namespace ReactiveUITK
                         || kv.Key == Props.Typed.StyleKeys.PaddingBottom
                     )
                     {
-                        
                         continue;
                     }
                     merged[kv.Key] = kv.Value;
@@ -166,8 +161,6 @@ namespace ReactiveUITK
             }
             return VisualElement(merged, key, children);
         }
-
-        
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)
         {
@@ -183,8 +176,6 @@ namespace ReactiveUITK
                 children: EmptyChildren()
             );
         }
-
-        
 
         public static VirtualNode ListView(ListViewProps props, string key = null)
         {
@@ -591,7 +582,6 @@ namespace ReactiveUITK
             );
         }
 
-        
         public static VirtualNode Animate(
             AnimateProps props,
             string key = null,
@@ -607,8 +597,7 @@ namespace ReactiveUITK
                     enriched[kv.Key] = kv.Value;
                 }
             }
-            
-            
+
             enriched["__childRef"] = children;
             return Func(AnimateFunc.Render, enriched, key, false, null, children);
         }

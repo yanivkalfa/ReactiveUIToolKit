@@ -18,7 +18,6 @@ namespace ReactiveUITK.Props
         private static int totalEventsRegistered;
         private static int totalEventsRemoved;
 
-        
         private static readonly Dictionary<string, Action<VisualElement, object>> styleSetters =
             new(StringComparer.Ordinal);
         private static readonly Dictionary<string, Action<VisualElement>> styleResetters = new(
@@ -27,7 +26,6 @@ namespace ReactiveUITK.Props
 
         static PropsApplier()
         {
-            
             styleSetters["width"] = (e, v) =>
             {
                 e.style.width = ConvertToLength(v);
@@ -37,7 +35,6 @@ namespace ReactiveUITK.Props
                 e.style.height = ConvertToLength(v);
             };
 
-            
             styleSetters["flexGrow"] = (e, v) =>
             {
                 e.style.flexGrow = ConvertToFloat(v);
@@ -91,7 +88,6 @@ namespace ReactiveUITK.Props
                 e.style.maxHeight = ConvertToLength(v);
             };
 
-            
             styleSetters["position"] = (e, v) =>
             {
                 e.style.position =
@@ -114,7 +110,6 @@ namespace ReactiveUITK.Props
                 e.style.bottom = ConvertToLength(v);
             };
 
-            
             styleSetters["display"] = (e, v) =>
             {
                 e.style.display =
@@ -140,7 +135,6 @@ namespace ReactiveUITK.Props
                     v is string ws && ws == "nowrap" ? WhiteSpace.NoWrap : WhiteSpace.Normal;
             };
 
-            
             styleSetters["fontSize"] = (e, v) =>
             {
                 e.style.fontSize = ConvertToFloat(v);
@@ -188,9 +182,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.letterSpacing = ConvertToFloat(v);
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleSetters["textOverflow"] = (e, v) =>
             {
@@ -201,9 +193,7 @@ namespace ReactiveUITK.Props
                         e.style.textOverflow =
                             ovf == "ellipsis" ? TextOverflow.Ellipsis : TextOverflow.Clip;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             };
             styleSetters["unityTextOutlineColor"] = (e, v) =>
@@ -212,9 +202,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityTextOutlineColor = ConvertToColor(v);
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleSetters["unityTextOutlineWidth"] = (e, v) =>
             {
@@ -222,9 +210,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityTextOutlineWidth = ConvertToFloat(v);
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleSetters["unityTextOverflowPosition"] = (e, v) =>
             {
@@ -239,13 +225,10 @@ namespace ReactiveUITK.Props
                             _ => TextOverflowPosition.Start,
                         };
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             };
 
-            
             styleSetters["backgroundImage"] = (e, v) =>
             {
                 if (v is Texture2D tex)
@@ -262,7 +245,6 @@ namespace ReactiveUITK.Props
                 e.style.unityBackgroundImageTintColor = ConvertToColor(v);
             };
 
-            
             styleSetters["borderWidth"] = (e, v) =>
             {
                 var bw = ConvertToFloat(v);
@@ -336,7 +318,6 @@ namespace ReactiveUITK.Props
                 e.style.borderBottomRightRadius = ConvertToLength(v);
             };
 
-            
             styleSetters["margin"] = (e, v) =>
             {
                 var len = ConvertToLength(v);
@@ -386,16 +367,13 @@ namespace ReactiveUITK.Props
                 e.style.paddingBottom = ConvertToLength(v);
             };
 
-            
             styleSetters["rotate"] = (e, v) =>
             {
                 try
                 {
                     e.style.rotate = new Rotate(ConvertToFloat(v));
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleSetters["scale"] = (e, v) =>
             {
@@ -430,9 +408,7 @@ namespace ReactiveUITK.Props
                         e.style.scale = new Scale(new Vector3(sx, sy, 1));
                     }
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleSetters["translate"] = (e, v) =>
             {
@@ -466,12 +442,9 @@ namespace ReactiveUITK.Props
                         );
                     }
                 }
-                catch
-                {
-                }
+                catch { }
             };
 
-            
             styleSetters["flex"] = (e, v) =>
             {
                 if (v is string flexStr)
@@ -501,9 +474,7 @@ namespace ReactiveUITK.Props
                     var uiCursor = new UnityEngine.UIElements.Cursor();
                     e.style.cursor = new StyleCursor(uiCursor);
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleSetters["backgroundRepeat"] = (e, v) => { };
             styleSetters["backgroundPosition"] = (e, v) => { };
@@ -516,7 +487,6 @@ namespace ReactiveUITK.Props
             styleSetters["transitionProperty"] = (e, v) => { };
             styleSetters["transitionTimingFunction"] = (e, v) => { };
 
-            
             styleResetters["width"] = e =>
             {
                 e.style.width = StyleKeyword.Null;
@@ -691,9 +661,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.letterSpacing = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["textOverflow"] = e =>
             {
@@ -701,9 +669,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.textOverflow = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unityTextOutlineColor"] = e =>
             {
@@ -711,9 +677,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityTextOutlineColor = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unityTextOutlineWidth"] = e =>
             {
@@ -721,9 +685,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityTextOutlineWidth = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unityTextOverflowPosition"] = e =>
             {
@@ -731,9 +693,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityTextOverflowPosition = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unityOverflowClipBox"] = e =>
             {
@@ -741,9 +701,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityOverflowClipBox = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unityParagraphSpacing"] = e =>
             {
@@ -751,9 +709,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unityParagraphSpacing = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unitySliceBottom"] = e =>
             {
@@ -761,9 +717,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unitySliceBottom = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unitySliceTop"] = e =>
             {
@@ -771,9 +725,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unitySliceTop = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unitySliceLeft"] = e =>
             {
@@ -781,9 +733,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unitySliceLeft = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unitySliceRight"] = e =>
             {
@@ -791,9 +741,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unitySliceRight = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unitySliceScale"] = e =>
             {
@@ -801,9 +749,7 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unitySliceScale = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
             styleResetters["unitySliceType"] = e =>
             {
@@ -811,13 +757,10 @@ namespace ReactiveUITK.Props
                 {
                     e.style.unitySliceType = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
             };
         }
 
-        
         private static string Canonicalize(string key)
         {
             if (string.IsNullOrEmpty(key))
@@ -879,7 +822,6 @@ namespace ReactiveUITK.Props
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
 
-            
             foreach (KeyValuePair<string, object> prevEntry in previous)
             {
                 if (prevEntry.Key == "style")
@@ -893,7 +835,6 @@ namespace ReactiveUITK.Props
                 RemoveProp(element, prevEntry.Key, prevEntry.Value);
             }
 
-            
             foreach (KeyValuePair<string, object> currentEntry in next)
             {
                 if (currentEntry.Key == "style")
@@ -912,7 +853,6 @@ namespace ReactiveUITK.Props
                 ApplySingle(element, oldValue, currentEntry.Key, currentEntry.Value);
             }
 
-            
             previous.TryGetValue("style", out var prevStyleObj);
             next.TryGetValue("style", out var nextStyleObj);
             if (prevStyleObj != null || nextStyleObj != null)
@@ -1188,7 +1128,7 @@ namespace ReactiveUITK.Props
                 totalStyleSets++;
                 return;
             }
-            
+
             return;
         }
 
@@ -1358,7 +1298,7 @@ namespace ReactiveUITK.Props
                 element.style.unityBackgroundImageTintColor = StyleKeyword.Null;
                 return;
             }
-            
+
             if (styleKey == "borderWidth")
             {
                 element.style.borderLeftWidth = StyleKeyword.Null;
@@ -1469,16 +1409,14 @@ namespace ReactiveUITK.Props
                 element.style.paddingBottom = StyleKeyword.Null;
                 return;
             }
-            
+
             if (styleKey == "letterSpacing")
             {
                 try
                 {
                     element.style.letterSpacing = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
                 return;
             }
             if (styleKey == "textOverflow")
@@ -1487,9 +1425,7 @@ namespace ReactiveUITK.Props
                 {
                     element.style.textOverflow = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
                 return;
             }
             if (styleKey == "unityTextOutlineColor")
@@ -1498,9 +1434,7 @@ namespace ReactiveUITK.Props
                 {
                     element.style.unityTextOutlineColor = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
                 return;
             }
             if (styleKey == "unityTextOutlineWidth")
@@ -1509,9 +1443,7 @@ namespace ReactiveUITK.Props
                 {
                     element.style.unityTextOutlineWidth = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
                 return;
             }
             if (styleKey == "unityTextOverflowPosition")
@@ -1520,16 +1452,13 @@ namespace ReactiveUITK.Props
                 {
                     element.style.unityTextOverflowPosition = StyleKeyword.Null;
                 }
-                catch
-                {
-                }
+                catch { }
                 return;
             }
             if (styleKey == "unityTextAutoSize")
-            { 
+            {
                 return;
             }
-            
         }
 
         private static Color ConvertToColor(object value)
@@ -1567,7 +1496,7 @@ namespace ReactiveUITK.Props
                 }
                 string owner = m.DeclaringType != null ? m.DeclaringType.FullName : "<null>";
                 string name = m.Name ?? "<noname>";
-                
+
                 return owner + "::" + name;
             }
             catch
@@ -1604,7 +1533,6 @@ namespace ReactiveUITK.Props
                 >();
             }
 
-            
             meta.EventHandlerTargets[eventPropName] = newHandler;
             string newSig = ComputeHandlerSignature(newHandler);
 
@@ -1627,7 +1555,6 @@ namespace ReactiveUITK.Props
                 return;
             }
 
-            
             if (eventPropName == "onClick")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
@@ -1640,8 +1567,7 @@ namespace ReactiveUITK.Props
                 {
                     meta.EventHandlerSignatures[eventPropName] = newSig;
                 }
-                
-                
+
                 if (
                     ReactiveUITK.Core.Reconciler.TraceLevel
                     == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
@@ -1656,9 +1582,7 @@ namespace ReactiveUITK.Props
                                 + (element.parent != null ? element.parent.name : "<null>")
                         );
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 totalEventsRegistered++;
                 return;
@@ -1847,7 +1771,7 @@ namespace ReactiveUITK.Props
                     meta.EventHandlerSignatures[eventPropName] = newSig;
                     return;
                 }
-                
+
                 {
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
@@ -1929,7 +1853,7 @@ namespace ReactiveUITK.Props
                     + ", handlerType="
                     + handler.GetType().Name
             );
-            
+
             if (eventPropName == "onClick" && handler is EventCallback<ClickEvent> clickCb)
             {
                 element.UnregisterCallback(clickCb);
@@ -2081,7 +2005,7 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
-            
+
             if (meta.EventHandlers.TryGetValue(eventPropName, out var stored))
             {
                 try
@@ -2096,13 +2020,11 @@ namespace ReactiveUITK.Props
                             + ", storedType="
                             + stored?.GetType().Name
                     );
-                    
+
                     RemoveEvent(element, eventPropName, stored, meta);
                     return;
                 }
-                catch
-                {
-                }
+                catch { }
             }
             meta.EventHandlers.Remove(eventPropName);
             totalEventsRemoved++;
@@ -2181,9 +2103,7 @@ namespace ReactiveUITK.Props
                     );
                 }
             }
-            catch
-            {
-            }
+            catch { }
             SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
             if (syntheticEvent != null)
             {
@@ -2200,14 +2120,12 @@ namespace ReactiveUITK.Props
                 var method = del.Method;
                 var parameters = method.GetParameters();
 
-                
                 if (parameters.Length == 0)
                 {
                     del.DynamicInvoke();
                     return;
                 }
 
-                
                 object newValue = null;
                 var evtObj = evt as object;
                 var evtType = evtObj?.GetType();
@@ -2221,17 +2139,13 @@ namespace ReactiveUITK.Props
                     {
                         newValue = evtType.GetProperty("newValue")?.GetValue(evtObj);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
 
-                
                 if (parameters.Length == 1)
                 {
                     var p0 = parameters[0].ParameterType;
 
-                    
                     if (evt != null && p0.IsAssignableFrom(evt.GetType()))
                     {
                         del.DynamicInvoke(evt);
@@ -2244,7 +2158,6 @@ namespace ReactiveUITK.Props
                         return;
                     }
 
-                    
                     if (newValue != null)
                     {
                         if (p0.IsInstanceOfType(newValue))
@@ -2258,23 +2171,18 @@ namespace ReactiveUITK.Props
                             del.DynamicInvoke(converted);
                             return;
                         }
-                        catch
-                        {
-                            
-                        }
+                        catch { }
                     }
 
-                    
                     if (p0 == typeof(object))
                     {
                         del.DynamicInvoke(newValue ?? (object)evt);
                         return;
                     }
-                    
+
                     return;
                 }
 
-                
                 {
                     object[] args = new object[parameters.Length];
                     var p0 = parameters[0].ParameterType;
@@ -2292,7 +2200,6 @@ namespace ReactiveUITK.Props
                     }
                     else
                     {
-                        
                         try
                         {
                             if (newValue != null)
@@ -2428,7 +2335,6 @@ namespace ReactiveUITK.Props
             return Align.Stretch;
         }
 
-        
         public static void NotifyElementRemoved(VisualElement element)
         {
             if (element == null)
@@ -2446,9 +2352,10 @@ namespace ReactiveUITK.Props
         ) GetStyleMetrics() =>
             (totalStyleSets, totalStyleResets, totalEventsRegistered, totalEventsRemoved);
 
-        private static void TrySetStyleField(VisualElement element, string fieldName, object value)
-        {
-            
-        }
+        private static void TrySetStyleField(
+            VisualElement element,
+            string fieldName,
+            object value
+        ) { }
     }
 }

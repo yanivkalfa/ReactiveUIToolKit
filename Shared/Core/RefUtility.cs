@@ -51,10 +51,7 @@ namespace ReactiveUITK.Core
                 {
                     Debug.LogWarning($"ReactiveUITK: ref assignment failed: {ex}");
                 }
-                catch
-                {
-                    
-                }
+                catch { }
             }
         }
 

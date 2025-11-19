@@ -13,7 +13,6 @@ namespace ReactiveUITK.Elements
     {
         public void Attach(TView tv, TState state, IReadOnlyDictionary<string, object> props)
         {
-            
             if (props != null && props.TryGetValue("sortedColumns", out var sortedObj))
             {
                 var fromProps = CoerceSorted(sortedObj);
@@ -23,13 +22,11 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            
             if (props != null && props.TryGetValue("columnSortingChanged", out var user))
             {
                 state.UserSortNotify = user as Delegate;
             }
 
-            
             if (state.InternalSortHandler == null)
             {
                 state.InternalSortHandler = () =>
@@ -39,16 +36,14 @@ namespace ReactiveUITK.Elements
                     {
                         snap = SnapshotSorted(tv);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                     snap ??= new List<(string, SortDirection, int)>();
                     var prev = state.SortedColumns ?? new List<(string, SortDirection, int)>();
                     bool changed = !SortedEqual(prev, snap);
                     state.SortedColumns = snap;
                     if (!changed)
                     {
-                        return; 
+                        return;
                     }
                     try
                     {
@@ -62,11 +57,11 @@ namespace ReactiveUITK.Elements
                                 try
                                 {
                                     if (!DispatchUserNotify(tv, state.UserSortNotify, defsTree))
+                                    {
                                         DispatchUserNotify(tv, state.UserSortNotify, defsList);
+                                    }
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                             };
 #else
                             try
@@ -88,9 +83,7 @@ namespace ReactiveUITK.Elements
                                                     defsList
                                                 );
                                         }
-                                        catch
-                                        {
-                                        }
+                                        catch { }
                                     })
                                     ?.ExecuteLater(0);
                             }
@@ -99,18 +92,16 @@ namespace ReactiveUITK.Elements
                                 try
                                 {
                                     if (!DispatchUserNotify(tv, state.UserSortNotify, defsTree))
+                                    {
                                         DispatchUserNotify(tv, state.UserSortNotify, defsList);
+                                    }
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                             }
 #endif
                         }
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 };
                 try
                 {
@@ -123,16 +114,11 @@ namespace ReactiveUITK.Elements
                         );
                     ev?.AddEventHandler(tv, state.InternalSortHandler);
                 }
-                catch
-                {
-                }
+                catch { }
             }
         }
 
-        public void Detach(TView tv, TState state)
-        {
-            
-        }
+        public void Detach(TView tv, TState state) { }
 
         public void Reapply(
             TView tv,
@@ -146,7 +132,6 @@ namespace ReactiveUITK.Elements
                 return;
             }
 
-            
             if (nextProps != null && nextProps.TryGetValue("sortedColumns", out var sortedObj))
             {
                 var fromProps = CoerceSorted(sortedObj);
@@ -156,13 +141,11 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            
             if (nextProps != null && nextProps.TryGetValue("columnSortingChanged", out var user))
             {
                 state.UserSortNotify = user as Delegate;
             }
 
-            
             try
             {
                 var desired = state.SortedColumns ?? new List<(string, SortDirection, int)>();
@@ -182,9 +165,7 @@ namespace ReactiveUITK.Elements
                     {
                         scd.GetType().GetMethod("Clear")?.Invoke(scd, null);
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                     foreach (var item in desired.OrderBy(x => x.index))
                     {
                         if (string.IsNullOrEmpty(item.name))
@@ -196,24 +177,17 @@ namespace ReactiveUITK.Elements
                         {
                             scd.GetType().GetMethod("Add")?.Invoke(scd, new object[] { desc });
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
 
-            
             try
             {
                 state.SortedColumns = SnapshotSorted(tv);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static List<(string name, SortDirection direction, int index)> CoerceSorted(
@@ -266,9 +240,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return list;
         }
 
@@ -290,7 +262,7 @@ namespace ReactiveUITK.Elements
                             | System.Reflection.BindingFlags.Public
                             | System.Reflection.BindingFlags.NonPublic
                     );
-                var sorted = prop?.GetValue(tv) as System.Collections.IEnumerable; 
+                var sorted = prop?.GetValue(tv) as System.Collections.IEnumerable;
                 if (sorted != null)
                 {
                     int i = 0;
@@ -307,16 +279,12 @@ namespace ReactiveUITK.Elements
                                 list.Add((name, dir, i));
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         i++;
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return list;
         }
 

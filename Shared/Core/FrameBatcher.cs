@@ -4,10 +4,6 @@ using UnityEngine;
 
 namespace ReactiveUITK.Core
 {
-    
-    
-    
-    
     internal static class FrameBatcher
     {
         private static readonly HashSet<NodeMetadata> pending = new();
@@ -45,10 +41,10 @@ namespace ReactiveUITK.Core
         private static void ScheduleFlush()
         {
             scheduled = true;
-            
+
             FrameBatchDriver.Ensure();
 #if UNITY_EDITOR
-            
+
             if (!UnityEngine.Application.isPlaying)
             {
                 EnsureEditorHook();
@@ -74,7 +70,6 @@ namespace ReactiveUITK.Core
         {
             if (UnityEngine.Application.isPlaying)
             {
-                
                 return;
             }
             if (scheduled)
@@ -93,7 +88,6 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            
             flushBuffer.Clear();
             flushBuffer.AddRange(pending);
             pending.Clear();
@@ -122,9 +116,7 @@ namespace ReactiveUITK.Core
                     {
                         Debug.LogWarning($"[FrameBatcher] Flush failure: {ex}");
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
             flushBuffer.Clear();
@@ -170,7 +162,7 @@ namespace ReactiveUITK.Core
                 if (currentFrame != lastFrameId)
                 {
                     lastFrameId = currentFrame;
-                    batchedUpdateCountThisFrame = 0; 
+                    batchedUpdateCountThisFrame = 0;
                 }
                 if (scheduled)
                 {

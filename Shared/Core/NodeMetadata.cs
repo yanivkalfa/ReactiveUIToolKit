@@ -9,15 +9,12 @@ namespace ReactiveUITK.Core
     {
         public string Key;
 
-        
         public Dictionary<string, Delegate> EventHandlers = new();
 
-        
         public Dictionary<string, Delegate> EventHandlerTargets = new();
         public Dictionary<string, string> EventHandlerSignatures = new();
         public object AttachedRef;
 
-        
         public System.Func<
             Dictionary<string, object>,
             IReadOnlyList<VirtualNode>,
@@ -35,7 +32,7 @@ namespace ReactiveUITK.Core
         public UnityEngine.UIElements.VisualElement PortalTarget;
         public bool PortalDetachWired;
         public EventCallback<DetachFromPanelEvent> PortalDetachHandler;
-        public bool IsFlattened; 
+        public bool IsFlattened;
         public bool ErrorBoundaryActive;
         public bool ErrorBoundaryShowingFallback;
         public Exception ErrorBoundaryLastException;

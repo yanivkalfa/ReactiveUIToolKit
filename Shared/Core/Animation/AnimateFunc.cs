@@ -21,12 +21,8 @@ namespace ReactiveUITK.Core.AnimationComponents
             var tracks = tracksObj as IReadOnlyList<AnimateTrack>;
             bool autoplay = autoplayObj is bool b ? b : true;
 
-            
-            
-            
             var container = Hooks.UseRef();
 
-            
             Hooks.UseAnimate(tracks, autoplay, tracks);
             if (container != null)
             {
@@ -34,7 +30,6 @@ namespace ReactiveUITK.Core.AnimationComponents
                 container.style.flexShrink = 0f;
             }
 
-            
             var style = styleObj as Style;
             var arr = children is VirtualNode[] a
                 ? a

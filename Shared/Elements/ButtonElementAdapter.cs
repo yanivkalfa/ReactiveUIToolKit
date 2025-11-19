@@ -32,8 +32,10 @@ namespace ReactiveUITK.Elements
                 return;
             }
             if (!IsInsideListView(button))
+            {
                 return;
-            
+            }
+
             button.focusable = false;
             button.pickingMode = PickingMode.Position;
         }

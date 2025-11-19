@@ -69,12 +69,12 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
             previous.TryGetValue(key, out var prevRaw);
             next.TryGetValue(key, out var nextRaw);
-            
+
             if (ReferenceEquals(prevRaw, nextRaw))
             {
                 return false;
             }
-            
+
             if (prevRaw != null && nextRaw != null && Equals(prevRaw, nextRaw))
             {
                 return false;
@@ -87,7 +87,6 @@ namespace ReactiveUITK.Elements
             return false;
         }
 
-        
         protected static VirtualNode EnsureVisualElementRoot(
             VirtualNode vnode,
             string contextTag = null
@@ -102,7 +101,6 @@ namespace ReactiveUITK.Elements
                 && string.Equals(vnode.ElementTypeName, "VisualElement", StringComparison.Ordinal);
             if (!isRootVE)
             {
-                
                 _rootWrapWarned ??= new HashSet<string>();
                 string tag = contextTag ?? "Adapter";
                 if (_rootWrapWarned.Add(tag))
@@ -118,8 +116,6 @@ namespace ReactiveUITK.Elements
 
         private static HashSet<string> _rootWrapWarned;
 
-        
-        
         public static List<int> CoerceIds(object value)
         {
             if (value == null)
@@ -145,16 +141,12 @@ namespace ReactiveUITK.Elements
                         {
                             list.Add(Convert.ToInt32(o));
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     return list;
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return null;
         }
     }

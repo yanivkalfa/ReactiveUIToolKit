@@ -18,8 +18,6 @@ namespace ReactiveUITK.Core
         public static bool EnableHookValidation { get; set; } = true;
         public static bool EnableStrictDiagnostics { get; set; } = false;
 
-        
-        
         public static bool EnableHookAutoRealign { get; set; } = true;
 
         public sealed class MutableRef<T>
@@ -33,30 +31,8 @@ namespace ReactiveUITK.Core
             }
         }
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         public delegate T StateSetter<T>(StateUpdate<T> update);
 
-        
-        
-        
-        
         public readonly struct StateUpdate<T>
         {
             internal readonly T Value;
@@ -83,11 +59,9 @@ namespace ReactiveUITK.Core
                 return Updater(previous);
             }
 
-            
             public static implicit operator StateUpdate<T>(T value) =>
                 new StateUpdate<T>(value, null, false);
 
-            
             public static implicit operator StateUpdate<T>(Func<T, T> updater) =>
                 new StateUpdate<T>(default, updater, true);
         }
@@ -381,15 +355,12 @@ namespace ReactiveUITK.Core
                 );
                 if (EnableHookAutoRealign)
                 {
-                    
                     try
                     {
                         state.HookOrderSignatures.Clear();
                     }
-                    catch
-                    {
-                    }
-                    state.HookOrderSignatures.Add(hookId); 
+                    catch { }
+                    state.HookOrderSignatures.Add(hookId);
                     state.HookOrderPrimed = false;
                 }
             }
@@ -440,9 +411,7 @@ namespace ReactiveUITK.Core
             {
                 Debug.LogWarning(message);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private static void WarnMissingDependencies(
@@ -508,7 +477,7 @@ namespace ReactiveUITK.Core
                 return;
             }
             metadata.SyncComponentState(state);
-            
+
             ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
         }
 
@@ -553,7 +522,6 @@ namespace ReactiveUITK.Core
 
         public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)
         {
-            
             var current = SafeAreaUtility.GetInsets();
             FunctionComponentState state = HookContext.Current;
             NodeMetadata metadata = state?.Owner;
@@ -567,7 +535,7 @@ namespace ReactiveUITK.Core
             {
                 state.HookStates.Add(current);
             }
-            
+
             state.HookStates[state.HookIndex] = current;
             state.HookIndex++;
             metadata.SyncComponentState(state);
@@ -776,7 +744,7 @@ namespace ReactiveUITK.Core
             {
                 state.HookStates.Add((factory(), dependencies));
             }
-            
+
             if (state.HookIndex >= state.HookStates.Count)
             {
                 state.HookStates.Add((factory(), dependencies));
@@ -985,16 +953,12 @@ namespace ReactiveUITK.Core
                             + (dependencies?.Length ?? 0)
                     );
                 }
-                catch
-                {
-                }
+                catch { }
             }
             state.EffectIndex++;
             metadata.SyncComponentState(state);
         }
 
-        
-        
         public static void UseAnimate(
             System.Collections.Generic.IReadOnlyList<ReactiveUITK.Core.Animation.AnimateTrack> tracks,
             bool autoplay = true,
@@ -1008,7 +972,7 @@ namespace ReactiveUITK.Core
                 return;
             }
             RecordHook(metadata, state, HookIdAnimate);
-            
+
             state.HookStates ??= new System.Collections.Generic.List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
@@ -1017,11 +981,10 @@ namespace ReactiveUITK.Core
             int index = state.HookIndex;
             state.HookIndex++;
             metadata.SyncComponentState(state);
-            
+
             UseEffect(
                 () =>
                 {
-                    
                     var prev =
                         state.HookStates[index]
                         as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
@@ -1033,9 +996,7 @@ namespace ReactiveUITK.Core
                             {
                                 h?.Stop();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                         }
                     }
                     System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle> handles =
@@ -1062,9 +1023,7 @@ namespace ReactiveUITK.Core
                                 {
                                     h?.Stop();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                             }
                             state.HookStates[index] = null;
                             metadata.SyncComponentState(state);
@@ -1075,7 +1034,6 @@ namespace ReactiveUITK.Core
             );
         }
 
-        
         public static void UseTweenFloat(
             float from,
             float to,
@@ -1118,9 +1076,7 @@ namespace ReactiveUITK.Core
                                 {
                                     item?.Pause();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                                 item = null;
                                 return;
                             }
@@ -1152,25 +1108,19 @@ namespace ReactiveUITK.Core
                             {
                                 onUpdate?.Invoke(v);
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             if (t >= 1f)
                             {
                                 try
                                 {
                                     onComplete?.Invoke();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                                 try
                                 {
                                     item?.Pause();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                                 item = null;
                             }
                         })
@@ -1182,9 +1132,7 @@ namespace ReactiveUITK.Core
                         {
                             item?.Pause();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     };
                 },
                 dependencies
@@ -1281,15 +1229,11 @@ namespace ReactiveUITK.Core
             metadata.PendingProvidedContext[key] = value;
         }
 
-        
-        
-        
         public static void FlushSync(Action action)
         {
             FrameBatcher.FlushSync(action);
         }
 
-        
         public static void FlushSync() => FrameBatcher.FlushSync();
 
         private static readonly Func<object, object> IdentitySelector = value => value;

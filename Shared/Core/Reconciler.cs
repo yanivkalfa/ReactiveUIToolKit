@@ -33,7 +33,6 @@ namespace ReactiveUITK.Core
             return null;
         }
 
-        
         private static void GetManagedChildren(VisualElement parent, List<VisualElement> buffer)
         {
             buffer.Clear();
@@ -66,9 +65,7 @@ namespace ReactiveUITK.Core
         private int portalBuildCount;
         private int portalUpdateCount;
         private Stopwatch diffStopwatch = new();
-        private long lastDiffDurationMs; 
-
-        
+        private long lastDiffDurationMs;
 
         private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
 
@@ -90,7 +87,6 @@ namespace ReactiveUITK.Core
         private int metricsSampleCounter;
         private long lastMetricsEmitTimestamp;
 
-        
         public readonly struct ReconcilerMetrics
         {
             public readonly long LastDiffMs;
@@ -123,7 +119,6 @@ namespace ReactiveUITK.Core
 
         public static event Action<ReconcilerMetrics> MetricsEmitted;
 
-        
         private static readonly ProfilerMarker DiffNodeMarker = new ProfilerMarker(
             "ReactiveUITK.DiffNode"
         );
@@ -131,13 +126,11 @@ namespace ReactiveUITK.Core
             "ReactiveUITK.RenderFunctionComponent"
         );
 
-        
         public Reconciler(HostContext hostContext)
         {
             this.hostContext = hostContext;
         }
 
-        
         internal void ForceFunctionComponentUpdate(NodeMetadata metadata)
         {
             if (metadata == null || metadata.FuncRender == null || metadata.Container == null)
@@ -162,17 +155,9 @@ namespace ReactiveUITK.Core
                 {
                     Debug.LogWarning($"ReactiveUITK: Force update failed: {ex}");
                 }
-                catch
-                {
-                }
+                catch { }
             }
         }
-
-        
-        
-        
-        
-        
 
         public void BuildSubtree(VisualElement hostElement, VirtualNode rootNode)
         {
@@ -185,7 +170,6 @@ namespace ReactiveUITK.Core
                     && !string.IsNullOrEmpty(rootNode.ElementTypeName)
                 )
                 {
-                    
                     IElementAdapter adapter = hostContext.ElementRegistry.Resolve(
                         rootNode.ElementTypeName
                     );
@@ -197,7 +181,6 @@ namespace ReactiveUITK.Core
                 }
                 else
                 {
-                    
                     BuildNode(hostElement, rootNode);
                 }
             }
@@ -216,7 +199,7 @@ namespace ReactiveUITK.Core
                 hostElement.Clear();
                 if (nextRoot != null)
                 {
-                    BuildSubtree(hostElement, nextRoot); 
+                    BuildSubtree(hostElement, nextRoot);
                 }
                 EndDiffTiming();
                 return;
@@ -227,8 +210,7 @@ namespace ReactiveUITK.Core
                 EndDiffTiming();
                 return;
             }
-            
-            
+
             if (
                 previousRoot.NodeType == nextRoot.NodeType
                 && previousRoot.NodeType != VirtualNodeType.Element
@@ -251,7 +233,6 @@ namespace ReactiveUITK.Core
                 && previousRoot.ElementTypeName == nextRoot.ElementTypeName
             )
             {
-                
                 IElementAdapter adapter = hostContext.ElementRegistry.Resolve(
                     nextRoot.ElementTypeName
                 );
@@ -271,7 +252,6 @@ namespace ReactiveUITK.Core
             }
             else
             {
-                
                 hostElement.Clear();
                 BuildSubtree(hostElement, nextRoot);
             }
@@ -296,7 +276,7 @@ namespace ReactiveUITK.Core
                 var currentChild = childNodes[index];
                 if (currentChild == null)
                 {
-                    continue; 
+                    continue;
                 }
                 if (string.IsNullOrEmpty(currentChild.Key))
                 {
@@ -322,7 +302,6 @@ namespace ReactiveUITK.Core
                 BuildNode(parentElement, currentChild);
             }
 
-            
             if (WarnOnMixedKeySiblings && anyKeyed && anyUnkeyed)
             {
                 try
@@ -338,22 +317,18 @@ namespace ReactiveUITK.Core
                         );
                     }
                 }
-                catch
-                {
-                }
+                catch { }
             }
         }
 
         private static HashSet<int> _warnedMixedKeyParents;
         private static HashSet<int> _warnedMissingElementTypes;
 
-        
-
         private void BuildNode(VisualElement parentElement, VirtualNode virtualNode)
         {
             if (parentElement == null || virtualNode == null)
             {
-                return; 
+                return;
             }
             switch (virtualNode.NodeType)
             {
@@ -365,7 +340,7 @@ namespace ReactiveUITK.Core
                     parentElement.Add(textLabel);
                     return;
                 case VirtualNodeType.Fragment:
-                    
+
                     VisualElement fragmentRoot = new()
                     {
                         name = string.IsNullOrEmpty(virtualNode.Key)
@@ -399,10 +374,10 @@ namespace ReactiveUITK.Core
                     }
                     portalBuildCount++;
                     return;
-                
+
                 case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
                     string funcName = virtualNode.FunctionRender.Method.Name;
-                    
+
                     VisualElement functionComponentContainer = new()
                     {
                         name = string.IsNullOrEmpty(funcName)
@@ -475,9 +450,7 @@ namespace ReactiveUITK.Core
                         );
                     }
                 }
-                catch
-                {
-                }
+                catch { }
 
                 VisualElement missingElementFallback = new()
                 {
@@ -552,10 +525,14 @@ namespace ReactiveUITK.Core
             int shared = Math.Min(Math.Min(previousCount, nextCount), managedCount);
 
             for (int i = 0; i < shared; i++)
+            {
                 DiffNode(managed[i], previousChildren[i], nextChildren[i]);
+            }
 
             for (int i = shared; i < nextCount; i++)
+            {
                 BuildNode(parentElement, nextChildren[i]);
+            }
 
             for (int i = managedCount - 1; i >= nextCount; i--)
             {
@@ -601,7 +578,9 @@ namespace ReactiveUITK.Core
                 if (!string.IsNullOrEmpty(key))
                 {
                     if (!previousChildrenByKey.ContainsKey(key))
+                    {
                         previousChildrenByKey.Add(key, (prevNode, prevElement));
+                    }
                 }
                 else
                 {
@@ -618,7 +597,7 @@ namespace ReactiveUITK.Core
                 var nextChildNode = nextChildren[i];
                 if (nextChildNode == null)
                 {
-                    continue; 
+                    continue;
                 }
                 var key = nextChildNode.Key;
 
@@ -661,7 +640,6 @@ namespace ReactiveUITK.Core
                         VisualElement resolved;
                         if (pv == null)
                         {
-                            
                             BuildNode(parentElement, nextChildNode);
                             resolved = parentElement.ElementAt(parentElement.childCount - 1);
                         }
@@ -672,7 +650,6 @@ namespace ReactiveUITK.Core
                         }
                         if (resolved.parent != parentElement)
                         {
-                            
                             resolved =
                                 (oldIndex >= 0 && oldIndex < parentElement.childCount)
                                     ? parentElement.ElementAt(oldIndex)
@@ -692,14 +669,13 @@ namespace ReactiveUITK.Core
                 }
             }
 
-            
             var managedAfter = new List<VisualElement>(
                 Math.Max(managed.Count, orderedElements.Count)
             );
             GetManagedChildren(parentElement, managedAfter);
             for (int i = managedAfter.Count - 1; i >= 0; i--)
             {
-                var existing = managedAfter[i]; 
+                var existing = managedAfter[i];
                 if (existing == null)
                 {
                     continue;
@@ -964,7 +940,6 @@ namespace ReactiveUITK.Core
                 }
             }
 
-            
             IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(
                 virtualNode.ElementTypeName
             );
@@ -981,11 +956,10 @@ namespace ReactiveUITK.Core
 
             elementAdapter?.ApplyProperties(createdElement, virtualNode.Properties);
 
-            
             var childrenHost = elementAdapter?.ResolveChildHost(createdElement) ?? createdElement;
             if (childrenHost == null)
             {
-                childrenHost = createdElement; 
+                childrenHost = createdElement;
             }
 
             BuildChildren(childrenHost, virtualNode.Children);
@@ -1184,9 +1158,7 @@ namespace ReactiveUITK.Core
                 {
                     Debug.LogError($"ReactiveUITK: Error boundary captured exception: {exception}");
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             ClearHostElement(hostElement);
@@ -1208,9 +1180,7 @@ namespace ReactiveUITK.Core
                             $"ReactiveUITK: Error boundary fallback render failed: {fallbackEx}"
                         );
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
 
@@ -1229,9 +1199,7 @@ namespace ReactiveUITK.Core
                     {
                         Debug.LogError($"ReactiveUITK: Error boundary handler threw: {handlerEx}");
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
 
@@ -1272,9 +1240,7 @@ namespace ReactiveUITK.Core
                 {
                     Debug.LogWarning($"ReactiveUITK: Suspense ready function threw: {ex}");
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             Task suspenderTask = suspenseNode.SuspenseReadyTask;
@@ -1374,9 +1340,7 @@ namespace ReactiveUITK.Core
                         $"ReactiveUITK: Suspense task faulted: {suspenderTask.Exception}"
                     );
                 }
-                catch
-                {
-                }
+                catch { }
                 return true;
             }
 
@@ -1453,9 +1417,7 @@ namespace ReactiveUITK.Core
                             scheduler.Enqueue(Publish, IScheduler.Priority.Normal);
                             return;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
 
                     if (syncContext != null)
@@ -1465,9 +1427,7 @@ namespace ReactiveUITK.Core
                             syncContext.Post(static state => ((Action)state)(), (Action)Publish);
                             return;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
 
                     Publish();
@@ -1590,7 +1550,6 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            
             if (nextNode.NodeType == VirtualNodeType.FunctionComponent)
             {
                 NodeMetadata functionMetadata = hostElement.userData as NodeMetadata;
@@ -1600,7 +1559,6 @@ namespace ReactiveUITK.Core
                     return;
                 }
 
-                
                 bool childrenEq = ShallowChildrenEqual(previousNode.Children, nextNode.Children);
                 bool skip;
                 if (nextNode.MemoCompare != null)
@@ -1678,15 +1636,12 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            
             if (nextNode.NodeType == VirtualNodeType.Element)
             {
                 var elementAdapter = hostContext.ElementRegistry.Resolve(nextNode.ElementTypeName);
 
-                
                 var oldChildHost = elementAdapter?.ResolveChildHost(hostElement) ?? hostElement;
 
-                
                 var prevKids = previousNode.Children ?? Array.Empty<VirtualNode>();
                 var nextKids = nextNode.Children ?? Array.Empty<VirtualNode>();
                 bool bothEmpty = (prevKids.Count == 0 && nextKids.Count == 0);
@@ -1697,13 +1652,10 @@ namespace ReactiveUITK.Core
                     nextNode.Properties
                 );
 
-                
                 var newChildHost = elementAdapter?.ResolveChildHost(hostElement) ?? hostElement;
 
-                
                 if (!ReferenceEquals(newChildHost, oldChildHost))
                 {
-                    
                     var buffer = new List<VisualElement>();
                     for (int i = 0; i < oldChildHost.childCount; i++)
                     {
@@ -1739,14 +1691,15 @@ namespace ReactiveUITK.Core
             }
         }
 
-        
         private static bool ShallowPropsEqual(
             IReadOnlyDictionary<string, object> a,
             IReadOnlyDictionary<string, object> b
         )
         {
             if (ReferenceEquals(a, b))
+            {
                 return true;
+            }
             int ac = a?.Count ?? 0,
                 bc = b?.Count ?? 0;
             if (ac != bc)
@@ -1761,23 +1714,26 @@ namespace ReactiveUITK.Core
             foreach (var kv in a)
             {
                 if (!b.TryGetValue(kv.Key, out var bv))
+                {
                     return false;
+                }
                 if (!Equals(kv.Value, bv))
-                    return false; 
+                {
+                    return false;
+                }
             }
             return true;
         }
 
-        
-        
-        
         private static bool ShallowChildrenEqual(
             IReadOnlyList<VirtualNode> a,
             IReadOnlyList<VirtualNode> b
         )
         {
             if (ReferenceEquals(a, b))
+            {
                 return true;
+            }
             int ac = a?.Count ?? 0,
                 bc = b?.Count ?? 0;
             if (ac != bc)
@@ -1794,13 +1750,14 @@ namespace ReactiveUITK.Core
                 var an = a[i];
                 var bn = b[i];
                 if (ReferenceEquals(an, bn))
+                {
                     continue;
+                }
                 if (an == null || bn == null)
                 {
                     return false;
                 }
 
-                
                 if (an.NodeType != bn.NodeType)
                 {
                     return false;
@@ -1812,7 +1769,9 @@ namespace ReactiveUITK.Core
                         StringComparison.Ordinal
                     )
                 )
+                {
                     return false;
+                }
                 if (
                     an.NodeType == VirtualNodeType.Element
                     && !string.Equals(
@@ -1821,7 +1780,9 @@ namespace ReactiveUITK.Core
                         StringComparison.Ordinal
                     )
                 )
+                {
                     return false;
+                }
                 if (
                     an.NodeType == VirtualNodeType.Text
                     && !string.Equals(
@@ -1830,12 +1791,13 @@ namespace ReactiveUITK.Core
                         StringComparison.Ordinal
                     )
                 )
+                {
                     return false;
+                }
             }
             return true;
         }
 
-        
         private static bool ShouldSkipMemo(
             VirtualNode previousNode,
             VirtualNode nextNode,
@@ -1844,10 +1806,14 @@ namespace ReactiveUITK.Core
         )
         {
             if (!ShallowPropsEqual(prevProps, nextProps))
+            {
                 return false;
+            }
             if (!ShallowChildrenEqual(previousNode.Children, nextNode.Children))
+            {
                 return false;
-            return true; 
+            }
+            return true;
         }
 
         private void ReplaceNode(VisualElement hostElement, VirtualNode nextNode)
@@ -1873,9 +1839,7 @@ namespace ReactiveUITK.Core
                             + nextNode.Key
                     );
                 }
-                catch
-                {
-                }
+                catch { }
             }
             RunRemovalCleanup(hostElement);
             hostElement.RemoveFromHierarchy();
@@ -1931,12 +1895,12 @@ namespace ReactiveUITK.Core
                 var componentState =
                     functionComponentMetadata.ComponentState
                     ?? functionComponentMetadata.EnsureComponentState();
-                
+
                 componentState.HookIndex = 0;
                 componentState.EffectIndex = 0;
                 componentState.LayoutEffectIndex = 0;
                 functionComponentMetadata.PendingProvidedContext = null;
-                
+
                 if (componentState.HookOrderPrimed)
                 {
                     componentState.HookOrderPrimed =
@@ -1982,9 +1946,7 @@ namespace ReactiveUITK.Core
                                     + componentState.PendingUpdate
                             );
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     nextSubtree = functionComponentMetadata.FuncRender(
                         functionComponentMetadata.FuncProps,
@@ -2002,12 +1964,11 @@ namespace ReactiveUITK.Core
                         );
                         providerApplied = true;
                     }
-                    
+
                     try
                     {
                         if (nextSubtree == null)
                         {
-                            
                             targetContainer.Clear();
                             functionComponentMetadata.LastRenderedSubtree = null;
                         }
@@ -2019,7 +1980,6 @@ namespace ReactiveUITK.Core
                         }
                         else
                         {
-                            
                             VisualElement existingRootElement =
                                 targetContainer.childCount > 0
                                     ? targetContainer.ElementAt(0)
@@ -2084,7 +2044,7 @@ namespace ReactiveUITK.Core
                     return;
                 }
                 HandleContextNotifications(functionComponentMetadata, providerSnapshot);
-                
+
                 if (componentState.FunctionLayoutEffects != null)
                 {
                     for (int i = 0; i < componentState.FunctionLayoutEffects.Count; i++)
@@ -2099,17 +2059,13 @@ namespace ReactiveUITK.Core
                             {
                                 entry.cleanup?.Invoke();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             Action newCleanup = null;
                             try
                             {
                                 newCleanup = entry.factory?.Invoke();
                             }
-                            catch
-                            {
-                            }
+                            catch { }
                             if (i < componentState.FunctionLayoutEffects.Count)
                             {
                                 componentState.FunctionLayoutEffects[i] = (
@@ -2123,7 +2079,7 @@ namespace ReactiveUITK.Core
                         }
                     }
                 }
-                
+
                 if (componentState.FunctionEffects != null)
                 {
                     for (int i = 0; i < componentState.FunctionEffects.Count; i++)
@@ -2134,7 +2090,6 @@ namespace ReactiveUITK.Core
                             || DepsChangedInternal(entry.lastDeps, entry.deps);
                         if (shouldRun)
                         {
-                            
                             componentState.FunctionEffects[i] = (
                                 entry.factory,
                                 entry.deps,
@@ -2150,17 +2105,13 @@ namespace ReactiveUITK.Core
                                 {
                                     capturedEntry.cleanup?.Invoke();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                                 Action newCleanup = null;
                                 try
                                 {
                                     newCleanup = capturedEntry.factory?.Invoke();
                                 }
-                                catch
-                                {
-                                }
+                                catch { }
                                 if (capturedIndex < componentState.FunctionEffects.Count)
                                 {
                                     componentState.FunctionEffects[capturedIndex] = (
@@ -2184,7 +2135,7 @@ namespace ReactiveUITK.Core
                         }
                     }
                 }
-                
+
                 if (componentState.PendingUpdate)
                 {
                     componentState.PendingUpdate = false;
@@ -2215,9 +2166,7 @@ namespace ReactiveUITK.Core
                                 "[FuncRender:flush-pending] key=" + functionComponentMetadata.Key
                             );
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     if (sched != null)
                     {
@@ -2236,9 +2185,7 @@ namespace ReactiveUITK.Core
                             "[FuncRender:exit] key=" + functionComponentMetadata.Key
                         );
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
         }
@@ -2337,17 +2284,13 @@ namespace ReactiveUITK.Core
             {
                 metadata.HostContext?.UnregisterContextConsumer(metadata);
             }
-            catch
-            {
-            }
+            catch { }
             try
             {
                 Hooks.DisposeSignalSubscriptions(metadata);
             }
-            catch
-            {
-            }
-            
+            catch { }
+
             if (metadata.EventHandlers != null && metadata.EventHandlers.Count > 0)
             {
                 var snapshot = new List<KeyValuePair<string, Delegate>>(metadata.EventHandlers);
@@ -2357,17 +2300,14 @@ namespace ReactiveUITK.Core
                     {
                         string eventPropName = kv.Key;
                         Delegate wrapper = kv.Value;
-                        
+
                         try
                         {
                             Props.PropsApplier.NotifyElementRemoved(element);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                         try
                         {
-                            
                             if (
                                 eventPropName == "onClick"
                                 && wrapper is EventCallback<ClickEvent> clickCb
@@ -2491,13 +2431,9 @@ namespace ReactiveUITK.Core
                                 element.UnregisterCallback(se);
                             }
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 metadata.EventHandlers.Clear();
                 if (metadata.EventHandlerTargets != null)
@@ -2509,7 +2445,7 @@ namespace ReactiveUITK.Core
                     metadata.EventHandlerSignatures.Clear();
                 }
             }
-            
+
             var state = metadata.ComponentState ?? metadata.EnsureComponentState();
             if (state?.FunctionEffects != null)
             {
@@ -2519,9 +2455,7 @@ namespace ReactiveUITK.Core
                     {
                         effect.cleanup?.Invoke();
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 state.FunctionEffects.Clear();
             }
@@ -2533,9 +2467,7 @@ namespace ReactiveUITK.Core
                     {
                         effect.cleanup?.Invoke();
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
                 state.FunctionLayoutEffects.Clear();
             }
@@ -2588,9 +2520,7 @@ namespace ReactiveUITK.Core
                 {
                     metadata.PortalTarget.UnregisterCallback(metadata.PortalDetachHandler);
                 }
-                catch
-                {
-                }
+                catch { }
             }
             metadata.PortalDetachWired = false;
             metadata.PortalDetachHandler = null;
@@ -2697,9 +2627,7 @@ namespace ReactiveUITK.Core
                     )
                 );
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         private void IncrementNodeType(VirtualNodeType nodeType)
@@ -2788,8 +2716,6 @@ namespace ReactiveUITK.Core
             }
             return true;
         }
-
-        
 
         private sealed class ErrorBoundaryCapturedException : Exception
         {

@@ -15,7 +15,6 @@ namespace ReactiveUITK.Props.Typed
 
         public Action<UnityEngine.UIElements.ChangeEvent<string>> OnChange { get; set; }
 
-        
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 

@@ -33,9 +33,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return list;
         }
 
@@ -63,14 +61,10 @@ namespace ReactiveUITK.Elements
                     {
                         map[name] = col.width.value;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return map;
         }
 
@@ -98,14 +92,10 @@ namespace ReactiveUITK.Elements
                     {
                         map[name] = col.visible;
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
-            catch
-            {
-            }
+            catch { }
             return map;
         }
 
@@ -167,18 +157,13 @@ namespace ReactiveUITK.Elements
                         }
                     }
                 }
-                catch
-                {
-                }
+                catch { }
                 map[name] = ord;
             }
             return map;
         }
 
-        private static void ApplySavedIndices(TView tv, Dictionary<string, int> saved)
-        {
-            
-        }
+        private static void ApplySavedIndices(TView tv, Dictionary<string, int> saved) { }
 
         public void Attach(TView tv, TState state, IReadOnlyDictionary<string, object> props)
         {
@@ -202,9 +187,7 @@ namespace ReactiveUITK.Elements
                         {
                             state.ColumnWidths[kv.Key] = Convert.ToSingle(kv.Value);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
                 else if (widthsObj is IDictionary<string, float> fMap)
@@ -235,9 +218,7 @@ namespace ReactiveUITK.Elements
                         {
                             state.ColumnVisibility[kv.Key] = Convert.ToBoolean(kv.Value);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
                 else if (visibilityObj is IDictionary<string, bool> bMap)
@@ -268,9 +249,7 @@ namespace ReactiveUITK.Elements
                         {
                             state.ColumnDisplayIndex[kv.Key] = Convert.ToInt32(kv.Value);
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
                 else if (displayObj is IDictionary<string, int> iMap)
@@ -309,10 +288,7 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public void Detach(TView tv, TState state)
-        {
-            
-        }
+        public void Detach(TView tv, TState state) { }
 
         public void Reapply(
             TView tv,
@@ -325,8 +301,6 @@ namespace ReactiveUITK.Elements
             {
                 return;
             }
-
-            
 
             try
             {
@@ -347,9 +321,7 @@ namespace ReactiveUITK.Elements
                     }
                 }
             }
-            catch
-            {
-            }
+            catch { }
 
             foreach (var col in GetColumns(tv))
             {
@@ -369,9 +341,7 @@ namespace ReactiveUITK.Elements
                         {
                             col.width = w;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     if (
                         state.ColumnVisibility != null
@@ -382,9 +352,7 @@ namespace ReactiveUITK.Elements
                         {
                             col.visible = vv;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                 }
             }
@@ -400,7 +368,5 @@ namespace ReactiveUITK.Elements
                 state.ColumnDisplayIndex = indicesNow;
             }
         }
-
-        
     }
 }

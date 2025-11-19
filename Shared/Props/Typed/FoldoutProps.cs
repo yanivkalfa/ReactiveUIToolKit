@@ -14,7 +14,6 @@ namespace ReactiveUITK.Props.Typed
 
         public Action<UnityEngine.UIElements.ChangeEvent<bool>> OnChange { get; set; }
 
-        
         public Dictionary<string, object> ContentContainer { get; set; }
         public Dictionary<string, object> Header { get; set; }
 
