@@ -247,7 +247,9 @@ namespace ReactiveUITK.Elements.Trackers
                 {
                     ActiveTabChangedEvent.RemoveEventHandler(view, state.ActiveTabHandler);
                 }
-                catch { }
+                catch
+                {
+                }
             }
             state.ActiveTabHandler = null;
             state.ActiveTabHooked = false;
@@ -262,7 +264,9 @@ namespace ReactiveUITK.Elements.Trackers
                 {
                     SelectedIndexChangedEvent.RemoveEventHandler(view, state.SelectedIndexHandler);
                 }
-                catch { }
+                catch
+                {
+                }
             }
             state.SelectedIndexHandler = null;
             state.SelectedIndexHooked = false;
@@ -280,7 +284,9 @@ namespace ReactiveUITK.Elements.Trackers
                         state.SelectedTabIndexHandler
                     );
                 }
-                catch { }
+                catch
+                {
+                }
             }
             state.SelectedTabIndexHandler = null;
             state.SelectedTabIndexHooked = false;
@@ -291,7 +297,9 @@ namespace ReactiveUITK.Elements.Trackers
                 {
                     view.UnregisterCallback<ChangeEvent<int>>(state.ChangeCallback);
                 }
-                catch { }
+                catch
+                {
+                }
             }
             state.ChangeCallback = default;
             state.ChangeHooked = false;
@@ -452,7 +460,9 @@ namespace ReactiveUITK.Elements.Trackers
                 }
                 del.DynamicInvoke(args);
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private static void NotifyActiveTabDelegate(Delegate del, int index, Tab previous, Tab next)
@@ -506,7 +516,9 @@ namespace ReactiveUITK.Elements.Trackers
 
                 del.DynamicInvoke(args);
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private void SetSelectedIndex(TabView view, TabViewSelectionState state, int index)
@@ -554,7 +566,9 @@ namespace ReactiveUITK.Elements.Trackers
                     SelectedTabIndexProperty.SetValue(view, index);
                     return true;
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             return false;
@@ -574,7 +588,9 @@ namespace ReactiveUITK.Elements.Trackers
                     ActiveTabProperty.SetValue(view, tab);
                     return true;
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             return false;
@@ -597,7 +613,9 @@ namespace ReactiveUITK.Elements.Trackers
                         return Convert.ToInt32(raw);
                     }
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             var active = GetActiveTab(view);
@@ -617,7 +635,9 @@ namespace ReactiveUITK.Elements.Trackers
                 {
                     return ActiveTabProperty.GetValue(view) as Tab;
                 }
-                catch { }
+                catch
+                {
+                }
             }
 
             return null;
@@ -634,7 +654,9 @@ namespace ReactiveUITK.Elements.Trackers
             {
                 return view.IndexOf(tab);
             }
-            catch { }
+            catch
+            {
+            }
 
             try
             {
@@ -647,7 +669,9 @@ namespace ReactiveUITK.Elements.Trackers
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             return -1;
         }
@@ -663,7 +687,9 @@ namespace ReactiveUITK.Elements.Trackers
             {
                 return view.GetTab(index);
             }
-            catch { }
+            catch
+            {
+            }
 
             try
             {
@@ -672,7 +698,9 @@ namespace ReactiveUITK.Elements.Trackers
                     return view.ElementAt(index) as Tab;
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             return null;
         }

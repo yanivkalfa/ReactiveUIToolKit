@@ -14,11 +14,15 @@ namespace ReactiveUITK.Elements
             var list = new List<ColumnSignature>();
             var fns = new List<Func<int, object, VirtualNode>>();
             if (cols == null)
+            {
                 return (list, fns);
+            }
             foreach (var co in cols)
             {
                 if (co is not IDictionary<string, object> colMap)
+                {
                     continue;
+                }
                 colMap.TryGetValue("name", out var n);
                 colMap.TryGetValue("title", out var t);
                 Func<int, object, VirtualNode> fn = null;
@@ -35,9 +39,13 @@ namespace ReactiveUITK.Elements
             if (ReferenceEquals(a, b))
                 return true;
             if (a == null || b == null)
+            {
                 return false;
+            }
             if (a.Count != b.Count)
+            {
                 return false;
+            }
             for (int i = 0; i < a.Count; i++)
             {
                 if (!string.Equals(a[i].Name, b[i].Name, StringComparison.Ordinal))

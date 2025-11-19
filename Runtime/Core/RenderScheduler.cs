@@ -185,7 +185,7 @@ namespace ReactiveUITK
                 var nowMs = Time.realtimeSinceStartup * 1000f;
                 if (budgetLimit > 0f && nowMs - frameStartTimestampMs > budgetLimit)
                 {
-                    // Respect frame budget; idle work gets a reduced allowance when allowOverBudget is false.
+                    
                     break;
                 }
                 Action action = queue.Dequeue();

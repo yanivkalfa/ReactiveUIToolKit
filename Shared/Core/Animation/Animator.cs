@@ -17,12 +17,16 @@ namespace ReactiveUITK.Core.Animation
             {
                 item?.Pause();
             }
-            catch { }
+            catch
+            {
+            }
             try
             {
                 onStop?.Invoke();
             }
-            catch { }
+            catch
+            {
+            }
             item = null;
             onStop = null;
         }
@@ -30,27 +34,27 @@ namespace ReactiveUITK.Core.Animation
 
     public sealed class AnimateTrack
     {
-        public string Property; // e.g., "opacity", "backgroundColor", "width" ...
-        public object From; // float or Color (optional; null means read current)
-        public object To; // float or Color
-        public float Duration; // seconds
-        public float Delay; // seconds
+        public string Property; 
+        public object From; 
+        public object To; 
+        public float Duration; 
+        public float Delay; 
         public Ease Ease = Ease.EaseInOutCubic;
 
-        // Playback
-        public int Repeat; // number of extra cycles after first (0 = play once)
-        public bool Loop; // ignore Repeat and loop indefinitely
-        public bool Yoyo; // reverse direction every cycle
-        public float TimeScale = 1f; // scale time for this track
+        
+        public int Repeat; 
+        public bool Loop; 
+        public bool Yoyo; 
+        public float TimeScale = 1f; 
 
-        // Callbacks
-        public Action<float> OnUpdate; // normalized 0..1 per cycle (after easing)
-        public Action OnComplete; // called when finished (not for Loop)
+        
+        public Action<float> OnUpdate; 
+        public Action OnComplete; 
     }
 
     internal static class Animator
     {
-        // Track one active animation per element per property
+        
         private static readonly ConditionalWeakTable<
             VisualElement,
             Dictionary<string, AnimationHandle>
@@ -63,14 +67,20 @@ namespace ReactiveUITK.Core.Animation
         {
             var list = new List<AnimationHandle>();
             if (ve == null || tracks == null || tracks.Count == 0)
+            {
                 return list;
+            }
             foreach (var t in tracks)
             {
                 if (t == null)
+                {
                     continue;
+                }
                 var h = PlayTrack(ve, t);
                 if (h != null)
+                {
                     list.Add(h);
+                }
             }
             return list;
         }
@@ -78,22 +88,26 @@ namespace ReactiveUITK.Core.Animation
         private static AnimationHandle PlayTrack(VisualElement ve, AnimateTrack track)
         {
             if (ve == null || track == null)
+            {
                 return null;
+            }
             float duration = Mathf.Max(0f, track.Duration);
             float delay = Mathf.Max(0f, track.Delay);
             string prop = (track.Property ?? string.Empty).Trim();
 
-            // Determine current value if From is null
+            
             object from = track.From ?? ReadCurrent(ve, prop);
             object to = track.To;
             if (to == null || from == null)
+            {
                 return null;
+            }
 
             var handle = new AnimationHandle();
             double startTime = 0;
             bool started = false;
 
-            // Stop any previous animation running on the same property
+            
             var map = active.GetValue(
                 ve,
                 _ => new Dictionary<string, AnimationHandle>(StringComparer.Ordinal)
@@ -104,17 +118,19 @@ namespace ReactiveUITK.Core.Animation
                 {
                     existing.Stop();
                 }
-                catch { }
+                catch
+                {
+                }
             }
             map[prop] = handle;
 
-            // Per-frame scheduler
+            
             handle.item = ve
                 .schedule.Execute(() =>
                 {
                     if (ve.panel == null)
                     {
-                        // Element detached: stop animation
+                        
                         handle.Stop();
                         return;
                     }
@@ -143,7 +159,7 @@ namespace ReactiveUITK.Core.Animation
                     if (scaledDuration <= 0f)
                         scaledDuration = 0.0001f;
 
-                    // Compute per-cycle progress for repeats/yoyo
+                    
                     double elapsed = now - startTime;
                     float cycleT = Mathf.Clamp01(
                         (float)(elapsed % scaledDuration) / scaledDuration
@@ -158,31 +174,35 @@ namespace ReactiveUITK.Core.Animation
                     {
                         track.OnUpdate?.Invoke(eased);
                     }
-                    catch { }
+                    catch
+                    {
+                    }
 
-                    // Decide termination
+                    
                     if (!track.Loop)
                     {
                         int totalCycles = 1 + Math.Max(0, track.Repeat);
                         if (cycleIndex >= totalCycles - 1 && cycleT >= 1f - 1e-4f)
                         {
-                            // Final value is 'to' unless odd yoyo leaves us at 'from'
+                            
                             object final = (track.Yoyo && ((totalCycles - 1) % 2 == 1)) ? from : to;
                             Apply(ve, prop, final);
                             try
                             {
                                 track.OnComplete?.Invoke();
                             }
-                            catch { }
+                            catch
+                            {
+                            }
                             handle.Stop();
                         }
                     }
                 })
-                .Every(16); // ~60 FPS
+                .Every(16); 
 
             handle.onStop = () =>
             {
-                // Clear active slot if we are the current one
+                
                 if (active.TryGetValue(ve, out var m))
                 {
                     if (m.TryGetValue(prop, out var h) && object.ReferenceEquals(h, handle))
@@ -205,7 +225,9 @@ namespace ReactiveUITK.Core.Animation
                     {
                         v = ve.resolvedStyle.opacity;
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                     return v;
                 }
                 case "backgroundColor":
@@ -238,7 +260,9 @@ namespace ReactiveUITK.Core.Animation
         private static void Apply(VisualElement ve, string prop, object value)
         {
             if (value == null)
+            {
                 return;
+            }
             switch (prop)
             {
                 case "opacity":
@@ -387,7 +411,9 @@ namespace ReactiveUITK.Core.Animation
                         {
                             ve.style.unityTextOutlineColor = oc;
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     break;
                 }
@@ -399,7 +425,9 @@ namespace ReactiveUITK.Core.Animation
                         {
                             ve.style.unityTextOutlineWidth = f;
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     break;
                 }
@@ -410,11 +438,13 @@ namespace ReactiveUITK.Core.Animation
                         try
                         {
                             var st = ve.style.translate;
-                            var cur = st.value; // struct copy
+                            var cur = st.value; 
                             var next = new Translate(new Length(f, LengthUnit.Pixel), cur.y, cur.z);
                             ve.style.translate = new StyleTranslate(next);
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     break;
                 }
@@ -425,11 +455,13 @@ namespace ReactiveUITK.Core.Animation
                         try
                         {
                             var st = ve.style.translate;
-                            var cur = st.value; // struct copy
+                            var cur = st.value; 
                             var next = new Translate(cur.x, new Length(f, LengthUnit.Pixel), cur.z);
                             ve.style.translate = new StyleTranslate(next);
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     break;
                 }

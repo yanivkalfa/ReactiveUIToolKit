@@ -14,7 +14,7 @@ namespace ReactiveUITK.Props.Typed
 
         public Action<UnityEngine.UIElements.ChangeEvent<bool>> OnChange { get; set; }
 
-        // Slots
+        
         public Dictionary<string, object> ContentContainer { get; set; }
         public Dictionary<string, object> Header { get; set; }
 
@@ -22,23 +22,41 @@ namespace ReactiveUITK.Props.Typed
         {
             var dict = new Dictionary<string, object>();
             if (!string.IsNullOrEmpty(Name))
+            {
                 dict["name"] = Name;
+            }
             if (!string.IsNullOrEmpty(ClassName))
+            {
                 dict["className"] = ClassName;
+            }
             if (Text != null)
+            {
                 dict["text"] = Text;
+            }
             if (Value.HasValue)
+            {
                 dict["value"] = Value.Value;
+            }
             if (OnChange != null)
+            {
                 dict["onChange"] = OnChange;
+            }
             if (ContentContainer != null)
+            {
                 dict["contentContainer"] = ContentContainer;
+            }
             if (Header != null)
+            {
                 dict["header"] = Header;
+            }
             if (Style != null)
+            {
                 dict["style"] = Style;
+            }
             if (Ref != null)
+            {
                 dict["ref"] = Ref;
+            }
             return dict;
         }
     }

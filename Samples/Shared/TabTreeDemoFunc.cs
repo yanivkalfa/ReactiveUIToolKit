@@ -38,7 +38,7 @@ namespace ReactiveUITK.Samples.Shared
                         Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render),
                     },
                 },
-                // Give the TabView a visible content area
+                
                 Style = new Style { (Props.Typed.StyleKeys.Height, 240f) },
             };
 

@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace ReactiveUITK.Props.Typed
 {
-    // Lightweight style map to allow target-typed new and collection initializers
+    
     public class Style : Dictionary<string, object>
     {
         public Style() { }
@@ -13,7 +13,7 @@ namespace ReactiveUITK.Props.Typed
         public Style(IDictionary<string, object> dictionary)
             : base(dictionary) { }
 
-        // Allow collection initializer with tuple entries: new Style { (key, value), ... }
+        
         public void Add((string key, object value) entry)
         {
             this[entry.key] = entry.value;

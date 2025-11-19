@@ -69,12 +69,12 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
             previous.TryGetValue(key, out var prevRaw);
             next.TryGetValue(key, out var nextRaw);
-            // Fast path: exact same reference
+            
             if (ReferenceEquals(prevRaw, nextRaw))
             {
                 return false;
             }
-            // Value equality: avoid reassigning when values are equal (e.g., boxed value types, strings)
+            
             if (prevRaw != null && nextRaw != null && Equals(prevRaw, nextRaw))
             {
                 return false;
@@ -87,7 +87,7 @@ namespace ReactiveUITK.Elements
             return false;
         }
 
-        // Helpers shared by adapters
+        
         protected static VirtualNode EnsureVisualElementRoot(
             VirtualNode vnode,
             string contextTag = null
@@ -102,7 +102,7 @@ namespace ReactiveUITK.Elements
                 && string.Equals(vnode.ElementTypeName, "VisualElement", StringComparison.Ordinal);
             if (!isRootVE)
             {
-                // Throttle noisy wrap warnings: only log once per adapter context
+                
                 _rootWrapWarned ??= new HashSet<string>();
                 string tag = contextTag ?? "Adapter";
                 if (_rootWrapWarned.Add(tag))
@@ -118,19 +118,23 @@ namespace ReactiveUITK.Elements
 
         private static HashSet<string> _rootWrapWarned;
 
-        // Coerce various enumerable/object inputs into a List<int> of ids
-        // Public for reuse by trackers that don't inherit from BaseElementAdapter
+        
+        
         public static List<int> CoerceIds(object value)
         {
             if (value == null)
+            {
                 return null;
+            }
             try
             {
                 var list = new List<int>();
                 if (value is IEnumerable<int> gen)
                 {
                     foreach (var v in gen)
+                    {
                         list.Add(v);
+                    }
                     return list;
                 }
                 if (value is System.Collections.IEnumerable any)
@@ -141,12 +145,16 @@ namespace ReactiveUITK.Elements
                         {
                             list.Add(Convert.ToInt32(o));
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     return list;
                 }
             }
-            catch { }
+            catch
+            {
+            }
             return null;
         }
     }

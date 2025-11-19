@@ -10,9 +10,13 @@ namespace ReactiveUITK.Elements
         private static void SetTabTitle(Tab tab, string title)
         {
             if (tab == null)
+            {
                 return;
+            }
             if (string.IsNullOrEmpty(title))
+            {
                 title = string.Empty;
+            }
             try
             {
                 var p = typeof(Tab).GetProperty(
@@ -25,7 +29,9 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch { }
+            catch
+            {
+            }
             try
             {
                 var p = typeof(Tab).GetProperty(
@@ -38,8 +44,10 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch { }
-            // Fallback: try to locate an inner Label commonly used for tab titles
+            catch
+            {
+            }
+            
             try
             {
                 var titleLabel = tab.Q<Label>("title") ?? tab.Q<Label>();
@@ -49,13 +57,17 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch { }
-            // Fallback: set name; may not display, but avoids compile-time API dependency
+            catch
+            {
+            }
+            
             try
             {
                 tab.name = string.IsNullOrEmpty(tab.name) ? ("Tab_" + title) : tab.name;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         public override VisualElement Create()
@@ -74,7 +86,7 @@ namespace ReactiveUITK.Elements
                 {
                     SetTabTitle(tab, txt);
                 }
-                // Slots: contentContainer styling
+                
                 if (
                     properties.TryGetValue("contentContainer", out var cc)
                     && cc is Dictionary<string, object> ccMap

@@ -27,11 +27,15 @@ namespace ReactiveUITK.Elements
                     foreach (var it in en)
                     {
                         if (it is Column c)
+                        {
                             list.Add(c);
+                        }
                     }
                 }
             }
-            catch { }
+            catch
+            {
+            }
             return list;
         }
 
@@ -39,24 +43,34 @@ namespace ReactiveUITK.Elements
         {
             var map = new Dictionary<string, float>();
             if (tv == null)
+            {
                 return map;
+            }
             try
             {
                 foreach (var col in GetColumns(tv))
                 {
                     if (col == null)
+                    {
                         continue;
+                    }
                     var name = string.IsNullOrEmpty(col.name) ? null : col.name;
                     if (name == null)
+                    {
                         continue;
+                    }
                     try
                     {
                         map[name] = col.width.value;
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
             }
-            catch { }
+            catch
+            {
+            }
             return map;
         }
 
@@ -64,31 +78,43 @@ namespace ReactiveUITK.Elements
         {
             var map = new Dictionary<string, bool>();
             if (tv == null)
+            {
                 return map;
+            }
             try
             {
                 foreach (var col in GetColumns(tv))
                 {
                     if (col == null)
+                    {
                         continue;
+                    }
                     var name = string.IsNullOrEmpty(col.name) ? null : col.name;
                     if (name == null)
+                    {
                         continue;
+                    }
                     try
                     {
                         map[name] = col.visible;
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
             }
-            catch { }
+            catch
+            {
+            }
             return map;
         }
 
         private static PropertyInfo FindIndexProperty(Column col, bool requireWritable)
         {
             if (col == null)
+            {
                 return null;
+            }
             var t = col.GetType();
             var props = new[] { "visibleIndex", "displayIndex", "logicalIndex", "index" };
             foreach (var name in props)
@@ -98,9 +124,13 @@ namespace ReactiveUITK.Elements
                     BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
                 );
                 if (p == null)
+                {
                     continue;
+                }
                 if (requireWritable && !p.CanWrite)
+                {
                     continue;
+                }
                 return p;
             }
             return null;
@@ -110,14 +140,20 @@ namespace ReactiveUITK.Elements
         {
             var map = new Dictionary<string, int>();
             if (tv == null)
+            {
                 return map;
+            }
             foreach (var col in GetColumns(tv))
             {
                 if (col == null)
+                {
                     continue;
+                }
                 var name = string.IsNullOrEmpty(col.name) ? null : col.name;
                 if (name == null)
+                {
                     continue;
+                }
                 int ord = -1;
                 try
                 {
@@ -126,10 +162,14 @@ namespace ReactiveUITK.Elements
                     {
                         var v = pi.GetValue(col);
                         if (v is int iv)
+                        {
                             ord = iv;
+                        }
                     }
                 }
-                catch { }
+                catch
+                {
+                }
                 map[name] = ord;
             }
             return map;
@@ -137,7 +177,7 @@ namespace ReactiveUITK.Elements
 
         private static void ApplySavedIndices(TView tv, Dictionary<string, int> saved)
         {
-            // No-op: Column order is applied during column rebuild in the adapter.
+            
         }
 
         public void Attach(TView tv, TState state, IReadOnlyDictionary<string, object> props)
@@ -162,7 +202,9 @@ namespace ReactiveUITK.Elements
                         {
                             state.ColumnWidths[kv.Key] = Convert.ToSingle(kv.Value);
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                 }
                 else if (widthsObj is IDictionary<string, float> fMap)
@@ -193,7 +235,9 @@ namespace ReactiveUITK.Elements
                         {
                             state.ColumnVisibility[kv.Key] = Convert.ToBoolean(kv.Value);
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                 }
                 else if (visibilityObj is IDictionary<string, bool> bMap)
@@ -224,7 +268,9 @@ namespace ReactiveUITK.Elements
                         {
                             state.ColumnDisplayIndex[kv.Key] = Convert.ToInt32(kv.Value);
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                 }
                 else if (displayObj is IDictionary<string, int> iMap)
@@ -244,22 +290,28 @@ namespace ReactiveUITK.Elements
             }
 
             if (!widthsProvided && (state.ColumnWidths == null || state.ColumnWidths.Count == 0))
+            {
                 state.ColumnWidths = CaptureCurrentWidths(tv);
+            }
             if (
                 !visibilityProvided
                 && (state.ColumnVisibility == null || state.ColumnVisibility.Count == 0)
             )
+            {
                 state.ColumnVisibility = CaptureCurrentVisibility(tv);
+            }
             if (
                 !displayProvided
                 && (state.ColumnDisplayIndex == null || state.ColumnDisplayIndex.Count == 0)
             )
+            {
                 state.ColumnDisplayIndex = CaptureCurrentIndices(tv);
+            }
         }
 
         public void Detach(TView tv, TState state)
         {
-            // No-op
+            
         }
 
         public void Reapply(
@@ -270,27 +322,41 @@ namespace ReactiveUITK.Elements
         )
         {
             if (tv == null || state == null)
+            {
                 return;
+            }
 
-            // Order application is handled inside adapter RebuildColumns; skip applying here.
+            
 
             try
             {
                 var widths = CaptureCurrentWidths(tv);
                 if (widths != null && widths.Count > 0)
+                {
                     foreach (var kv in widths)
+                    {
                         state.ColumnWidths[kv.Key] = kv.Value;
+                    }
+                }
                 var vis = CaptureCurrentVisibility(tv);
                 if (vis != null && vis.Count > 0)
+                {
                     foreach (var kv in vis)
+                    {
                         state.ColumnVisibility[kv.Key] = kv.Value;
+                    }
+                }
             }
-            catch { }
+            catch
+            {
+            }
 
             foreach (var col in GetColumns(tv))
             {
                 if (col == null)
+                {
                     continue;
+                }
                 var name = col.name;
                 if (!string.IsNullOrEmpty(name))
                 {
@@ -303,7 +369,9 @@ namespace ReactiveUITK.Elements
                         {
                             col.width = w;
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     if (
                         state.ColumnVisibility != null
@@ -314,7 +382,9 @@ namespace ReactiveUITK.Elements
                         {
                             col.visible = vv;
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                 }
             }
@@ -326,9 +396,11 @@ namespace ReactiveUITK.Elements
                     !indicesNow.TryGetValue(kv.Key, out var v) || v != kv.Value
                 );
             if (differ)
+            {
                 state.ColumnDisplayIndex = indicesNow;
+            }
         }
 
-        // no helpers needed beyond capture/apply in adapter
+        
     }
 }

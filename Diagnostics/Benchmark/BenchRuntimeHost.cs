@@ -32,44 +32,52 @@ namespace ReactiveUITK.Bench
             BenchSharedHost.Tick();
 
             if (ShouldSkip())
+            {
                 BenchSharedHost.SkipScenario();
+            }
         }
 
-        // =========================================================================
-        // Input handling across all configurations, without hard dependency.
-        // =========================================================================
+        
+        
+        
         private static bool ShouldSkip()
         {
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
-            // New Input System ONLY → never touch UnityEngine.Input
+            
             return TryNewInputSystemPressed();
 
 #elif ENABLE_INPUT_SYSTEM && ENABLE_LEGACY_INPUT_MANAGER
-            // Both enabled → prefer new system; fall back to legacy if package present but no device
+            
             if (TryNewInputSystemPressed())
                 return true;
             return LegacyPressed();
 
 #else
-            // Legacy Input ONLY
+            
             return LegacyPressed();
 #endif
         }
 
-        // ---- Legacy Input Manager path (safe when enabled) ----
+        
         private static bool LegacyPressed()
         {
-            // NOTE: This function must NEVER be called when new-only is active.
+            
             if (Input.GetKeyDown(KeyCode.Space))
+            {
                 return true;
+            }
             if (Input.GetMouseButtonDown(0))
+            {
                 return true;
+            }
             if (Input.touchCount > 0)
+            {
                 return true;
+            }
             return false;
         }
 
-        // ---- New Input System via reflection (no compile-time dependency) ----
+        
         private static bool _checkedNewInput;
         private static bool _hasNewInput;
 
@@ -91,7 +99,7 @@ namespace ReactiveUITK.Bench
             {
                 _checkedNewInput = true;
 
-                // Detect Input System types (if package installed)
+                
                 _tKeyboard = Type.GetType("UnityEngine.InputSystem.Keyboard, Unity.InputSystem");
                 _tMouse = Type.GetType("UnityEngine.InputSystem.Mouse, Unity.InputSystem");
                 _tTouchscreen = Type.GetType(
@@ -147,41 +155,49 @@ namespace ReactiveUITK.Bench
             }
 
             if (!_hasNewInput)
+            {
                 return false;
+            }
 
             try
             {
-                // Keyboard: Space
+                
                 var kb = _pKeyboardCurrent?.GetValue(null);
                 if (kb != null)
                 {
                     var spaceKey = _pKeyboardSpaceKey?.GetValue(kb);
                     if (ButtonWasPressed(spaceKey))
+                    {
                         return true;
+                    }
                 }
 
-                // Mouse: Left button
+                
                 var ms = _pMouseCurrent?.GetValue(null);
                 if (ms != null)
                 {
                     var left = _pMouseLeftButton?.GetValue(ms);
                     if (ButtonWasPressed(left))
+                    {
                         return true;
+                    }
                 }
 
-                // Touchscreen: primary press
+                
                 var ts = _pTouchscreenCurrent?.GetValue(null);
                 if (ts != null)
                 {
                     var primary = _pTouchscreenPrimaryTouch?.GetValue(ts);
                     var press = _pTouchPress?.GetValue(primary);
                     if (ButtonWasPressed(press))
+                    {
                         return true;
+                    }
                 }
             }
             catch
             {
-                // If reflection fails for any reason, treat as not pressed and let the compile-time path decide fallback.
+                
             }
 
             return false;
@@ -190,12 +206,14 @@ namespace ReactiveUITK.Bench
         private static bool ButtonWasPressed(object buttonControl)
         {
             if (buttonControl == null || _pWasPressedThisFrame == null)
+            {
                 return false;
+            }
             var val = _pWasPressedThisFrame.GetValue(buttonControl);
             return val is bool b && b;
         }
 
-        // ---- IVNodeHostRenderer ----
+        
         public void Render(VirtualNode vnode) => rootRenderer.Render(vnode);
 
         public void Unmount() => rootRenderer.Unmount();

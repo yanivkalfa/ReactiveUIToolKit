@@ -43,7 +43,7 @@ namespace ReactiveUITK
             );
         }
 
-        // Raw dictionary overload removed to enforce typed props usage for Button
+        
 
         public static VirtualNode Button(ButtonProps props, string key = null)
         {
@@ -90,7 +90,7 @@ namespace ReactiveUITK
             );
         }
 
-        // Convenience typed overload for VisualElement styles
+        
         public static VirtualNode VisualElement(
             Style style,
             string key = null,
@@ -105,7 +105,7 @@ namespace ReactiveUITK
             return VisualElement(props, key, children);
         }
 
-        // VisualElementSafe: applies safe-area padding as a minimum, without overriding larger paddings the user specifies.
+        
         public static VirtualNode VisualElementSafe(
             Style style = null,
             string key = null,
@@ -113,13 +113,17 @@ namespace ReactiveUITK
         )
         {
             var insets = SafeAreaUtility.GetInsets();
-            // Build a style where padding = Max(userPadding, safeInset)
+            
             float GetUser(string k)
             {
                 if (style == null)
+                {
                     return 0f;
+                }
                 if (style.TryGetValue(k, out var v) && v is float f)
+                {
                     return f;
+                }
                 return 0f;
             }
 
@@ -142,7 +146,7 @@ namespace ReactiveUITK
                     Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom), insets.Bottom)
                 ),
             };
-            // Merge any remaining user styles on top (they can override unrelated keys)
+            
             if (style != null)
             {
                 foreach (var kv in style)
@@ -154,7 +158,7 @@ namespace ReactiveUITK
                         || kv.Key == Props.Typed.StyleKeys.PaddingBottom
                     )
                     {
-                        // Keep the max already set
+                        
                         continue;
                     }
                     merged[kv.Key] = kv.Value;
@@ -163,7 +167,7 @@ namespace ReactiveUITK
             return VisualElement(merged, key, children);
         }
 
-        // Raw dictionary overload removed to enforce typed props usage for TextField
+        
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)
         {
@@ -180,7 +184,7 @@ namespace ReactiveUITK
             );
         }
 
-        // Raw dictionary overload removed to enforce typed props usage for ListView
+        
 
         public static VirtualNode ListView(ListViewProps props, string key = null)
         {
@@ -587,7 +591,7 @@ namespace ReactiveUITK
             );
         }
 
-        // Animate wrapper component: applies style animations to a wrapper element and renders children inside.
+        
         public static VirtualNode Animate(
             AnimateProps props,
             string key = null,
@@ -603,8 +607,8 @@ namespace ReactiveUITK
                     enriched[kv.Key] = kv.Value;
                 }
             }
-            // Feed children array by reference into props so function component never shallow-skips
-            // when inner content changes (Reconciler memoizes function components on props+children shape).
+            
+            
             enriched["__childRef"] = children;
             return Func(AnimateFunc.Render, enriched, key, false, null, children);
         }

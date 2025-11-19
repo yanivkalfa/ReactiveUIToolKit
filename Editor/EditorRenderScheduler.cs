@@ -101,7 +101,9 @@ namespace ReactiveUITK.EditorSupport
                     {
                         Debug.Log($"[Pump] qH={h} qN={n} qL={l} qI={i} batched={b}");
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
             }
             if (batchedEffectActions.Count > 0)
@@ -116,7 +118,9 @@ namespace ReactiveUITK.EditorSupport
                     {
                         Debug.Log("[Pump:flush-effects] count=" + count);
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
                 foreach (var e in batchedEffectActions)
                 {

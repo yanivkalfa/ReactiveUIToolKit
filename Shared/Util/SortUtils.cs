@@ -18,7 +18,9 @@ namespace ReactiveUITK.Shared.Util
             comparer ??= StringComparer.OrdinalIgnoreCase;
             var source = rows ?? Enumerable.Empty<T>();
             if (descriptors == null)
+            {
                 return source.ToList();
+            }
 
             IOrderedEnumerable<T> query = null;
             foreach (var d in descriptors.OrderBy(d => d.Index ?? 0))

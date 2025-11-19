@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    // Generic element state tracker contract used by adapters to persist and reapply per-element state
+    
     public interface IElementStateTracker<TElement, TState>
         where TElement : VisualElement
     {
@@ -18,7 +18,7 @@ namespace ReactiveUITK.Elements
         );
     }
 
-    // Common sort state carried by adapters' Cached
+    
     internal interface ISortState
     {
         List<(string name, SortDirection direction, int index)> SortedColumns { get; set; }
@@ -26,7 +26,7 @@ namespace ReactiveUITK.Elements
         Action InternalSortHandler { get; set; }
     }
 
-    // Common column layout state carried by adapters' Cached
+    
     internal interface IColumnLayoutState
     {
         Dictionary<string, float> ColumnWidths { get; set; }
@@ -34,7 +34,7 @@ namespace ReactiveUITK.Elements
         Dictionary<string, int> ColumnDisplayIndex { get; set; }
     }
 
-    // Common expansion state for tree-like views
+    
     internal interface IExpansionState
     {
         HashSet<int> DesiredExpanded { get; set; }
@@ -44,7 +44,7 @@ namespace ReactiveUITK.Elements
         bool TrackUserExpansion { get; set; }
     }
 
-    // Adapter-provided operations so a generic expansion tracker can operate without reflection
+    
     public interface IExpansionViewOps<TView>
         where TView : VisualElement
     {
@@ -54,7 +54,7 @@ namespace ReactiveUITK.Elements
         void Refresh(TView view);
     }
 
-    // Suspension state used to pause heavy updates during user adjustments (e.g., header drag)
+    
     internal interface IAdjustmentSuspendState
     {
         bool IsAdjusting { get; set; }
@@ -63,14 +63,14 @@ namespace ReactiveUITK.Elements
         IReadOnlyDictionary<string, object> PendingNext { get; set; }
     }
 
-    // Ops to detect header involvement without binding to concrete header types
+    
     public interface IHeaderOps<TView>
         where TView : VisualElement
     {
         bool IsHeaderElement(VisualElement e);
     }
 
-    // Scroll state persistence + suspend flags during active scroll interactions
+    
     internal interface IScrollState
     {
         bool IsScrolling { get; set; }
@@ -82,7 +82,7 @@ namespace ReactiveUITK.Elements
         int ScrollActivityId { get; set; }
     }
 
-    // Ops to get the underlying ScrollView for a view
+    
     public interface IScrollOps<TView>
         where TView : VisualElement
     {

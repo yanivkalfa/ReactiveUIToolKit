@@ -40,7 +40,7 @@ namespace ReactiveUITK.Samples.Shared
             Style = new Style { (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)), (MarginLeft, 4f) },
         };
 
-        // props: { "typeText": string, "typeValue": object }
+        
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
@@ -61,7 +61,7 @@ namespace ReactiveUITK.Samples.Shared
             {
                 Text = string.IsNullOrEmpty(label) ? "" : (label + ":"),
             };
-            // apply style presets
+            
             lblProps.Style = LabelPreset.Style;
             var valProps = new LabelProps { Text = valueText, Style = ValuePreset.Style };
 

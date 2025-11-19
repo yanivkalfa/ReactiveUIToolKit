@@ -4,10 +4,10 @@ using UnityEngine;
 
 namespace ReactiveUITK.Core
 {
-    /// <summary>
-    /// Coalesces multiple component state updates into a single flush per frame.
-    /// Runtime version uses UnityEngine callbacks; editor can still piggyback on Editor scheduler.
-    /// </summary>
+    
+    
+    
+    
     internal static class FrameBatcher
     {
         private static readonly HashSet<NodeMetadata> pending = new();
@@ -45,10 +45,10 @@ namespace ReactiveUITK.Core
         private static void ScheduleFlush()
         {
             scheduled = true;
-            // Runtime: hidden driver MonoBehaviour for per-frame Update.
+            
             FrameBatchDriver.Ensure();
 #if UNITY_EDITOR
-            // Editor (edit mode, not playing): MonoBehaviour.Update won't fire unless in play mode, so use EditorApplication.update.
+            
             if (!UnityEngine.Application.isPlaying)
             {
                 EnsureEditorHook();
@@ -62,7 +62,9 @@ namespace ReactiveUITK.Core
         private static void EnsureEditorHook()
         {
             if (editorHooked)
+            {
                 return;
+            }
             UnityEditor.EditorApplication.update -= EditorPump;
             UnityEditor.EditorApplication.update += EditorPump;
             editorHooked = true;
@@ -72,7 +74,7 @@ namespace ReactiveUITK.Core
         {
             if (UnityEngine.Application.isPlaying)
             {
-                // Play mode handled by driver MonoBehaviour Update.
+                
                 return;
             }
             if (scheduled)
@@ -91,7 +93,7 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            // Snapshot pending updates before executing; components may enqueue new updates during flush.
+            
             flushBuffer.Clear();
             flushBuffer.AddRange(pending);
             pending.Clear();
@@ -120,7 +122,9 @@ namespace ReactiveUITK.Core
                     {
                         Debug.LogWarning($"[FrameBatcher] Flush failure: {ex}");
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
             }
             flushBuffer.Clear();
@@ -152,7 +156,9 @@ namespace ReactiveUITK.Core
             internal static void Ensure()
             {
                 if (instance != null)
+                {
                     return;
+                }
                 var go = new GameObject("__ReactiveUITK_FrameBatchDriver");
                 go.hideFlags = HideFlags.HideAndDontSave;
                 instance = go.AddComponent<FrameBatchDriver>();
@@ -164,7 +170,7 @@ namespace ReactiveUITK.Core
                 if (currentFrame != lastFrameId)
                 {
                     lastFrameId = currentFrame;
-                    batchedUpdateCountThisFrame = 0; // reset counter for metrics per frame
+                    batchedUpdateCountThisFrame = 0; 
                 }
                 if (scheduled)
                 {

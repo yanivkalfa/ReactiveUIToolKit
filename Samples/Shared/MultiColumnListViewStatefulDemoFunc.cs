@@ -23,11 +23,17 @@ namespace ReactiveUITK.Samples.Shared
             static Dictionary<string, T> ExtractDict<T>(object source)
             {
                 if (source is Dictionary<string, T> direct)
+                {
                     return direct;
+                }
                 if (source is IDictionary<string, T> dict)
+                {
                     return new Dictionary<string, T>(dict);
+                }
                 if (source is IReadOnlyDictionary<string, T> ro)
+                {
                     return new Dictionary<string, T>(ro);
+                }
                 if (source is IDictionary<string, object> objMap)
                 {
                     var result = new Dictionary<string, T>();
@@ -45,7 +51,9 @@ namespace ReactiveUITK.Samples.Shared
                                 result[kv.Key] = converted;
                             }
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     return result;
                 }
@@ -163,10 +171,12 @@ namespace ReactiveUITK.Samples.Shared
                             {
                                 var it = obj as MultiColumnListViewRowState;
                                 if (it == null)
+                                {
                                     return V.Label(
                                         new LabelProps { Text = "<invalid>" },
                                         key: $"invalid-{i}"
                                     );
+                                }
                                 var id = it.Id ?? i.ToString();
                                 var funcKey = $"mclv-row-{id}";
                                 var childrenNode = it.ShouldOverrideElement
@@ -230,7 +240,9 @@ namespace ReactiveUITK.Samples.Shared
                             cb(items?.Count ?? 0);
                         }
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                     return null;
                 },
                 new object[] { items?.Count ?? 0 }

@@ -127,7 +127,7 @@ namespace ReactiveUITK.Core
                 currentFrame = handle.Frame.Parent;
                 return;
             }
-            // Fallback: locate frame in chain
+            
             var cursor = currentFrame;
             while (cursor != null && cursor != handle.Frame)
             {
@@ -343,7 +343,9 @@ namespace ReactiveUITK.Core
                     metadata.Reconciler?.ForceFunctionComponentUpdate(metadata);
                     FrameBatcher.Enqueue(metadata);
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }
     }

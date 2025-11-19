@@ -17,7 +17,9 @@ namespace ReactiveUITK.Elements
             while (p != null)
             {
                 if (p is BaseVerticalCollectionView)
+                {
                     return true;
+                }
                 p = p.parent;
             }
             return false;
@@ -26,10 +28,12 @@ namespace ReactiveUITK.Elements
         private static void EnsureListViewFriendly(Button button)
         {
             if (button == null)
+            {
                 return;
+            }
             if (!IsInsideListView(button))
                 return;
-            // Make button act independent inside ListView rows; rely on selectionType=None
+            
             button.focusable = false;
             button.pickingMode = PickingMode.Position;
         }

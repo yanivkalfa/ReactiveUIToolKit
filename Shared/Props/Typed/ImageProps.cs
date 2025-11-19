@@ -9,7 +9,7 @@ namespace ReactiveUITK.Props.Typed
         public string ClassName { get; set; }
         public Texture2D Texture { get; set; }
         public Sprite Sprite { get; set; }
-        public string ScaleMode { get; set; } // or use enum via adapter mapping
+        public string ScaleMode { get; set; } 
         public Style Style { get; set; }
         public object Ref { get; set; }
 
@@ -17,19 +17,33 @@ namespace ReactiveUITK.Props.Typed
         {
             var dict = new Dictionary<string, object>();
             if (!string.IsNullOrEmpty(Name))
+            {
                 dict["name"] = Name;
+            }
             if (!string.IsNullOrEmpty(ClassName))
+            {
                 dict["className"] = ClassName;
+            }
             if (Texture != null)
+            {
                 dict["texture"] = Texture;
+            }
             if (Sprite != null)
+            {
                 dict["sprite"] = Sprite;
+            }
             if (!string.IsNullOrEmpty(ScaleMode))
+            {
                 dict["scaleMode"] = ScaleMode;
+            }
             if (Style != null)
+            {
                 dict["style"] = Style;
+            }
             if (Ref != null)
+            {
                 dict["ref"] = Ref;
+            }
             return dict;
         }
     }

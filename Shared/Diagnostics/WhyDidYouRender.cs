@@ -15,7 +15,9 @@ namespace ReactiveUITK.Diagnostics
         )
         {
             if (!Enabled)
+            {
                 return;
+            }
             if (forced)
             {
                 Debug.Log($"[WDYR] {componentName} forced render");

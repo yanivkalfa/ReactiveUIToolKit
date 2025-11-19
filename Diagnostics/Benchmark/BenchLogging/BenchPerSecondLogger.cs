@@ -30,8 +30,8 @@ namespace ReactiveUITK.Bench
         public int index;
         public string name;
         public float durationSec;
-        public double startedAt; // epoch seconds
-        public double endedAt; // epoch seconds
+        public double startedAt; 
+        public double endedAt; 
     }
 
     [Serializable]
@@ -50,13 +50,13 @@ namespace ReactiveUITK.Bench
     [Serializable]
     public class BenchPerSecondBucket
     {
-        public int sec; // bucket second (0..N-1)
+        public int sec; 
         public float fpsAvg;
         public float fpsMin;
         public float fpsMax;
         public int sampleCount;
         public long monoUsedMax;
-        public int gcCollections; // delta collections within this second
+        public int gcCollections; 
     }
 
     [Serializable]
@@ -70,17 +70,17 @@ namespace ReactiveUITK.Bench
         public List<BenchPerSecondBucket> perSecond;
     }
 
-    /// <summary>
-    /// Lightweight per-second logger (O(1) work per frame, no per-frame allocations).
-    /// Writes a single JSON per scenario at scenario end.
-    /// </summary>
+    
+    
+    
+    
     public static class BenchPerSecondLogger
     {
         private static string _runId;
         private static string _suite;
         private static BenchEnv _env;
 
-        // Active scenario state
+        
         private static int _idx;
         private static string _name;
         private static float _durationSec;
@@ -93,12 +93,12 @@ namespace ReactiveUITK.Bench
         private static long _monoUsedMaxScenario;
         private static int _gcAtScenarioStart;
 
-        // Percentile buffer for scenario-level P95 (small ring buffer to avoid allocations)
-        private const int MaxPctlCache = 4096; // enough for long tests; we clamp appends
+        
+        private const int MaxPctlCache = 4096; 
         private static readonly float[] _pctlFps = new float[MaxPctlCache];
         private static int _pctlCount;
 
-        // Per-second working accumulators (no allocs per frame)
+        
         private static float _accFpsSum;
         private static int _accFpsCount;
         private static float _accFpsMin;
@@ -108,7 +108,7 @@ namespace ReactiveUITK.Bench
 
         private static BenchOutputTarget _forcedOutput = BenchOutputTarget.Auto;
 
-        // Time sources
+        
 #if UNITY_EDITOR
         private static double NowSec() => EditorApplication.timeSinceStartup;
 #else
@@ -190,32 +190,42 @@ namespace ReactiveUITK.Bench
         public static void SampleFrame(float dt)
         {
             if (!_active)
+            {
                 return;
+            }
 
-            // Clamp to avoid div by zero; this matches your dt clamp elsewhere
+            
             if (dt <= 0f)
+            {
                 dt = 1f / 60f;
+            }
             var fps = 1f / dt;
 
-            // Append to scenario-level percentile buffer (clamped)
+            
             if (_pctlCount < MaxPctlCache)
+            {
                 _pctlFps[_pctlCount++] = fps;
+            }
 
-            // Per-second binning
-            var elapsed = NowSec() - 0.0; // relative to window start doesn't matter; we use floor(timer) in host
-            // We prefer to pass in elapsed from host, but to keep this drop-in simple,
-            // we infer bucket index from scenario start & wall-clock:
+            
+            var elapsed = NowSec() - 0.0; 
+            
+            
             var secBin = (int)Math.Floor(EpochNowSec() - _secStartEpoch);
             if (secBin < 0)
+            {
                 secBin = 0;
+            }
 
-            // If we moved to a new second, flush the previous accumulator
+            
             if (secBin != _lastSecondBin && _lastSecondBin >= 0)
+            {
                 FlushSecondBin(_lastSecondBin);
+            }
 
             if (secBin != _lastSecondBin)
             {
-                // Start new second accumulators
+                
                 _accFpsSum = 0f;
                 _accFpsCount = 0;
                 _accFpsMin = float.PositiveInfinity;
@@ -225,13 +235,17 @@ namespace ReactiveUITK.Bench
                 _lastSecondBin = secBin;
             }
 
-            // Update current second accumulators
+            
             _accFpsSum += fps;
             _accFpsCount++;
             if (fps < _accFpsMin)
+            {
                 _accFpsMin = fps;
+            }
             if (fps > _accFpsMax)
+            {
                 _accFpsMax = fps;
+            }
 
 #if UNITY_2020_2_OR_NEWER
             var monoUsed = UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong();
@@ -239,9 +253,13 @@ namespace ReactiveUITK.Bench
             var monoUsed = 0L;
 #endif
             if (monoUsed > _accMonoUsedMax)
+            {
                 _accMonoUsedMax = monoUsed;
+            }
             if (monoUsed > _monoUsedMaxScenario)
+            {
                 _monoUsedMaxScenario = monoUsed;
+            }
 
             _samplesTotal++;
         }
@@ -249,15 +267,19 @@ namespace ReactiveUITK.Bench
         public static void EndScenarioAndWriteFile()
         {
             if (!_active)
+            {
                 return;
+            }
 
-            // Flush last partial second
+            
             if (_lastSecondBin >= 0)
+            {
                 FlushSecondBin(_lastSecondBin);
+            }
 
             var endedEpoch = EpochNowSec();
 
-            // Build final object
+            
             var scenarioFile = new BenchScenarioFile
             {
                 runId = _runId,
@@ -275,7 +297,7 @@ namespace ReactiveUITK.Bench
                 perSecond = _bins,
             };
 
-            // Path & filename
+            
             string folderName;
             switch (_forcedOutput)
             {
@@ -318,20 +340,20 @@ namespace ReactiveUITK.Bench
                 $"[Bench] Wrote scenario JSON: {path}  (bins={_bins.Count}, samples={_samplesTotal})"
             );
 
-            // Reset active
+            
             _active = false;
             _bins = null;
         }
 
         private static BenchScenarioSummary BuildScenarioSummary()
         {
-            // P95 from collected fps samples (clamped)
+            
             float fpsAvg = 0f,
                 fpsMin = float.PositiveInfinity,
                 fpsMax = float.NegativeInfinity;
             if (_pctlCount > 0)
             {
-                // copy to temp (avoid sorting whole buffer)
+                
                 var n = _pctlCount;
                 var tmp = new float[n];
                 Array.Copy(_pctlFps, tmp, n);
@@ -341,7 +363,9 @@ namespace ReactiveUITK.Bench
 
                 double sum = 0;
                 for (int i = 0; i < n; i++)
+                {
                     sum += tmp[i];
+                }
                 fpsAvg = (float)(sum / n);
 
                 int p95i = (int)Math.Floor(0.95 * (n - 1));
@@ -360,7 +384,7 @@ namespace ReactiveUITK.Bench
                 };
             }
 
-            // no samples
+            
             return new BenchScenarioSummary
             {
                 fpsAvg = 0,
@@ -378,7 +402,7 @@ namespace ReactiveUITK.Bench
         {
             if (_accFpsCount <= 0)
             {
-                // Still produce an empty bin to keep second count aligned
+                
                 _bins.Add(
                     new BenchPerSecondBucket
                     {
@@ -412,9 +436,13 @@ namespace ReactiveUITK.Bench
         private static string Sanitize(string s)
         {
             if (string.IsNullOrEmpty(s))
+            {
                 return "scenario";
+            }
             foreach (var c in Path.GetInvalidFileNameChars())
+            {
                 s = s.Replace(c, '_');
+            }
             return s.Replace(' ', '_');
         }
     }

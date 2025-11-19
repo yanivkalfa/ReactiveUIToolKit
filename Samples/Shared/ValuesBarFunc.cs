@@ -20,7 +20,7 @@ namespace ReactiveUITK.Samples.Shared
             (PaddingBottom, 6f),
         };
 
-        // Vertical scroll with row-wrapping content so items flow to new lines
+        
         private static readonly ScrollViewProps ScrollProps = new()
         {
             Mode = "vertical",
@@ -40,7 +40,7 @@ namespace ReactiveUITK.Samples.Shared
             },
         };
 
-        // props: { "items": IEnumerable<KeyValuePair<string,string>> }
+        
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children

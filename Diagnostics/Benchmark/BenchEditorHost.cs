@@ -27,7 +27,7 @@ namespace ReactiveUITK.Bench
             _mount = rootVisualElement;
             _mount.style.flexGrow = 1;
 
-            // Header (status)
+            
             var header = new VisualElement
             {
                 style =
@@ -43,27 +43,27 @@ namespace ReactiveUITK.Bench
             header.Add(new Label("Bench: running  —  Space/→ to skip"));
             _mount.Add(header);
 
-            // Content mount
+            
             _hostVE = new VisualElement
             {
                 style = { flexGrow = 1, backgroundColor = new Color(0.10f, 0.10f, 0.10f, 1f) },
-                // MUST be focusable to receive keyboard events
+                
                 focusable = true,
                 pickingMode = PickingMode.Position,
                 tabIndex = 0,
             };
             _mount.Add(_hostVE);
 
-            // Keyboard handler (UI Toolkit)
+            
             _hostVE.RegisterCallback<KeyDownEvent>(OnKeyDown, TrickleDown.TrickleDown);
 
-            // Initialize benchmark harness (uses this window as the renderer)
+            
             BenchSharedHost.Init(this, BenchOutputTarget.Editor);
 
-            // Auto-wire SharedDemo hook via reflection (best effort)
+            
             TrySetSharedDemoHook();
 
-            // Drive the bench tick from the editor update loop
+            
             EditorApplication.update += OnEditorUpdate;
         }
 
@@ -77,13 +77,13 @@ namespace ReactiveUITK.Bench
 
         private void OnFocus()
         {
-            // Ensure the content mount has focus so it receives KeyDownEvent
+            
             _hostVE?.Focus();
         }
 
         private void OnInspectorUpdate()
         {
-            // Extra repaint heartbeat in case nothing else is dirty
+            
             Repaint();
         }
 
@@ -93,7 +93,7 @@ namespace ReactiveUITK.Bench
             Repaint();
         }
 
-        // ===== Keyboard handler =====
+        
         private void OnKeyDown(KeyDownEvent e)
         {
             if (e.keyCode == KeyCode.Space || e.keyCode == KeyCode.RightArrow)
@@ -104,18 +104,22 @@ namespace ReactiveUITK.Bench
             }
         }
 
-        // ===== IVNodeHostRenderer via EditorRootRendererUtility =====
+        
         public void Render(VirtualNode vnode)
         {
             if (_hostVE == null)
+            {
                 return;
+            }
             EditorRootRendererUtility.Render(_hostVE, vnode);
         }
 
         public void Unmount()
         {
             if (_hostVE == null)
+            {
                 return;
+            }
             EditorRootRendererUtility.Unmount(_hostVE);
         }
 
@@ -127,7 +131,7 @@ namespace ReactiveUITK.Bench
                 Debug.Log("[BenchEditorHost] SharedDemo hook set.");
             }
             catch
-            { /* best-effort */
+            { 
             }
         }
     }

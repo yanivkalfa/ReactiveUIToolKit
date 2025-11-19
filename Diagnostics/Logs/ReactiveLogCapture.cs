@@ -111,7 +111,9 @@ namespace ReactiveUITK.EditorDiagnostics
                     File.AppendAllText(logFilePath, text);
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }
     }
 }

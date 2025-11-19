@@ -189,7 +189,9 @@ namespace ReactiveUITK.Elements
                 {
                     contentRoot.userData = renderer;
                 }
-                catch { }
+                catch
+                {
+                }
 
                 var vnode = dynamicContent != null ? dynamicContent() : staticContent;
                 vnode = EnsureVisualElementRoot(vnode, "TabView");
@@ -233,7 +235,9 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             try
             {
@@ -247,7 +251,9 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             try
             {
@@ -258,13 +264,17 @@ namespace ReactiveUITK.Elements
                     return;
                 }
             }
-            catch { }
+            catch
+            {
+            }
 
             try
             {
                 tab.name = string.IsNullOrEmpty(tab.name) ? $"Tab_{title}" : tab.name;
             }
-            catch { }
+            catch
+            {
+            }
         }
     }
 }

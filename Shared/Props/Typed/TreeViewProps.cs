@@ -7,7 +7,7 @@ namespace ReactiveUITK.Props.Typed
 {
     public sealed class TreeViewProps
     {
-        // Expect IList<TreeViewItemData<object>>; kept as non-generic for flexibility
+        
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }
@@ -24,27 +24,49 @@ namespace ReactiveUITK.Props.Typed
         {
             var d = new Dictionary<string, object>();
             if (RootItems != null)
+            {
                 d["rootItems"] = RootItems;
+            }
             if (FixedItemHeight.HasValue)
+            {
                 d["fixedItemHeight"] = FixedItemHeight.Value;
+            }
             if (Selection.HasValue)
+            {
                 d["selectionType"] = Selection.Value;
+            }
             if (SelectedIndex.HasValue)
+            {
                 d["selectedIndex"] = SelectedIndex.Value;
+            }
             if (Row != null)
+            {
                 d["row"] = Row;
+            }
             if (ExpandedItemIds != null)
+            {
                 d["expandedItemIds"] = ExpandedItemIds;
+            }
             if (StopTrackingUserChange.HasValue)
+            {
                 d["stopTrackingUserChange"] = StopTrackingUserChange.Value;
+            }
             if (ItemExpandedChanged != null)
+            {
                 d["itemExpandedChanged"] = ItemExpandedChanged;
+            }
             if (Style != null)
+            {
                 d["style"] = Style;
+            }
             if (Ref != null)
+            {
                 d["ref"] = Ref;
+            }
             if (!string.IsNullOrEmpty(ViewDataKey))
+            {
                 d["viewDataKey"] = ViewDataKey;
+            }
             return d;
         }
     }

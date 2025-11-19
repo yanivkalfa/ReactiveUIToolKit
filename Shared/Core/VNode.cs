@@ -182,7 +182,7 @@ namespace ReactiveUITK.Core
             return Array.AsReadOnly(buffer);
         }
 
-        // Implicit conversion: function component -> VirtualNode
+        
         public static implicit operator VirtualNode(
             System.Func<
                 Dictionary<string, object>,

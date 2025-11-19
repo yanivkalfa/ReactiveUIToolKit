@@ -20,8 +20,8 @@ namespace ReactiveUITK.Props.Typed
         {
             Dictionary<string, object> map = new();
             if (!string.IsNullOrEmpty(Name))
-            {
-                map["name"] = Name;
+            { 
+              map["name"] = Name; 
             }
             if (!string.IsNullOrEmpty(ClassName))
             {

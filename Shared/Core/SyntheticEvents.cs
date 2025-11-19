@@ -32,7 +32,9 @@ namespace ReactiveUITK.Core
                 IsPropagationStopped = true;
                 nativeEvent?.StopPropagation();
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         public virtual void PreventDefault()
@@ -188,7 +190,9 @@ namespace ReactiveUITK.Core
                     PreviousValue = prevProp?.GetValue(change);
                     NewValue = newProp?.GetValue(change);
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }
 

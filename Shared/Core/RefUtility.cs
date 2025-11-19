@@ -53,7 +53,7 @@ namespace ReactiveUITK.Core
                 }
                 catch
                 {
-                    // ignore logging failures
+                    
                 }
             }
         }

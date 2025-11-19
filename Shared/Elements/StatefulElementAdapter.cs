@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    // Minimal generic base to hold per-element adapter state via CWT
+    
     public abstract class StatefulElementAdapter<TElement, TState> : BaseElementAdapter
         where TElement : VisualElement
         where TState : class, new()

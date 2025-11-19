@@ -32,7 +32,7 @@ namespace ReactiveUITK.CICD
         {
             try
             {
-                // Build dist inside the package repo root (Assets/ReactiveUIToolKit/dist)
+                
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
                 string distRoot = Path.Combine(packageRoot, "dist~");
 
@@ -48,16 +48,16 @@ namespace ReactiveUITK.CICD
                 }
                 Directory.CreateDirectory(distRoot);
 
-                // Copy everything from packageRoot to dist
+                
                 CopyDirectory(packageRoot, distRoot);
-                // Ensure dist does not contain VCS metadata
+                
                 var distGit = Path.Combine(distRoot, ".git");
                 if (Directory.Exists(distGit))
                 {
                     DeleteDirectory(distGit);
                 }
 
-                // Load config.json if present
+                
                 string cfgPath = Path.Combine(packageRoot, "config.json");
                 ConfigModel cfg = null;
                 if (File.Exists(cfgPath))
@@ -72,13 +72,15 @@ namespace ReactiveUITK.CICD
                     }
                 }
 
-                // Prune per config
+                
                 if (cfg != null && cfg.pathsToOmitFromDist != null)
                 {
                     foreach (var raw in cfg.pathsToOmitFromDist)
                     {
                         if (string.IsNullOrWhiteSpace(raw))
+                        {
                             continue;
+                        }
                         string pattern = raw.Replace('\\', '/').Trim();
                         bool recursive = pattern.EndsWith("/**", StringComparison.Ordinal);
                         string basePath = recursive
@@ -86,7 +88,7 @@ namespace ReactiveUITK.CICD
                             : pattern;
                         basePath = basePath.TrimEnd('/');
 
-                        // Resolve absolute under dist
+                        
                         string abs = Path.Combine(
                             distRoot,
                             basePath.Replace('/', Path.DirectorySeparatorChar)
@@ -99,7 +101,7 @@ namespace ReactiveUITK.CICD
                                 DeleteDirectory(abs);
                                 continue;
                             }
-                            // If base is a glob into subdirs, remove any item starting with base
+                            
                             DeleteAllStartingWith(distRoot, basePath);
                             continue;
                         }
@@ -112,25 +114,27 @@ namespace ReactiveUITK.CICD
                         if (File.Exists(abs))
                         {
                             TryDeleteFile(abs);
-                            // also try delete matching .meta
+                            
                             TryDeleteFile(abs + ".meta");
                         }
                     }
                 }
 
-                // Rename Samples -> Samples~ if needed
+                
                 string samples = Path.Combine(distRoot, "Samples");
                 string samplesTilde = Path.Combine(distRoot, "Samples~");
                 if (Directory.Exists(samples))
                 {
                     if (Directory.Exists(samplesTilde))
+                    {
                         DeleteDirectory(samplesTilde);
+                    }
                     Directory.Move(samples, samplesTilde);
-                    // move meta if present
+                    
                     TryMoveMeta(samples, samplesTilde);
                 }
 
-                // Sanity check
+                
                 string pkgJson = Path.Combine(distRoot, "package.json");
                 if (!File.Exists(pkgJson))
                 {
@@ -151,7 +155,7 @@ namespace ReactiveUITK.CICD
             try
             {
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
-                // 1) Bump patch version in root package.json so dist picks it up
+                
                 string rootPkg = Path.Combine(packageRoot, "package.json");
                 string bumpedVersion = BumpPatchVersion(rootPkg);
                 if (!string.IsNullOrEmpty(bumpedVersion))
@@ -160,7 +164,7 @@ namespace ReactiveUITK.CICD
                     AssetDatabase.Refresh();
                 }
 
-                // 2) Build fresh dist~ from source (now with bumped version)
+                
                 BuildDist();
 
                 string distRoot = Path.Combine(packageRoot, "dist~");
@@ -170,7 +174,7 @@ namespace ReactiveUITK.CICD
                     return;
                 }
 
-                // Resolve repo root via git
+                
                 var gitTop = RunGit(
                     "rev-parse --show-toplevel",
                     packageRoot,
@@ -184,34 +188,36 @@ namespace ReactiveUITK.CICD
                 }
                 repoRoot = repoRoot.Trim();
 
-                // Determine tag from bumped version (optional)
+                
                 string tag = string.IsNullOrEmpty(bumpedVersion) ? null : ("v" + bumpedVersion);
 
                 string branch = "dist";
                 string remote = "origin";
                 string worktree = Path.Combine(repoRoot, "_dist_branch");
 
-                // Ensure previous worktree is removed cleanly if it exists
+                
                 if (Directory.Exists(worktree))
                 {
-                    // Try to detach via git first (in case the worktree is registered)
+                    
                     RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _eRm);
                     RunGit("worktree prune", repoRoot, out var _, out var _ePrune);
                     try
                     {
                         DeleteDirectory(worktree);
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
 
-                // Make sure we have the latest refs from the remote
+                
                 RunGit("fetch --tags --prune origin", repoRoot, out var _fOut, out var fErr);
                 if (!string.IsNullOrEmpty(fErr))
                 {
                     Debug.Log("Publish: fetch note: " + fErr);
                 }
 
-                // Determine if remote branch exists
+                
                 bool remoteBranchExists =
                     RunGit(
                         $"ls-remote --heads {remote} {branch}",
@@ -221,7 +227,7 @@ namespace ReactiveUITK.CICD
                     ) == 0
                     && !string.IsNullOrWhiteSpace(lsOut);
 
-                // Check if local branch exists
+                
                 bool branchExists =
                     RunGit(
                         $"rev-parse --verify --quiet {branch}",
@@ -230,8 +236,8 @@ namespace ReactiveUITK.CICD
                         out var _eChk
                     ) == 0;
 
-                // git worktree add -B dist <worktree> <commitish>
-                // Prefer basing on origin/dist when it exists to avoid non-fast-forward pushes
+                
+                
                 string commitish = remoteBranchExists
                     ? $"{remote}/{branch}"
                     : (branchExists ? branch : "HEAD");
@@ -248,13 +254,13 @@ namespace ReactiveUITK.CICD
                     return;
                 }
 
-                // Clean worktree (keep .git)
+                
                 DeleteAllExceptGit(worktree);
 
-                // Copy dist~ into worktree
+                
                 CopyDirectory(distRoot, worktree);
 
-                // Commit changes
+                
                 if (RunGit("add -A", worktree, out var _, out var e3) != 0)
                 {
                     Debug.LogError("Publish: git add failed: " + e3);
@@ -276,10 +282,10 @@ namespace ReactiveUITK.CICD
                     Debug.Log("Publish: no changes to commit on dist branch");
                 }
 
-                // Tag (optional)
+                
                 if (!string.IsNullOrEmpty(tag))
                 {
-                    // Create or update lightweight tag
+                    
                     RunGit($"tag -f {tag}", worktree, out var _, out var tagErr);
                     if (!string.IsNullOrEmpty(tagErr))
                     {
@@ -287,8 +293,8 @@ namespace ReactiveUITK.CICD
                     }
                 }
 
-                // Push branch and tag
-                // First push: set upstream if branch was newly created
+                
+                
                 string pushArgs = branchExists
                     ? $"push {remote} {branch}"
                     : $"push -u {remote} {branch}";
@@ -306,7 +312,7 @@ namespace ReactiveUITK.CICD
                     }
                 }
 
-                // Cleanup worktree
+                
                 RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _e7);
 
                 Debug.Log(
@@ -331,7 +337,7 @@ namespace ReactiveUITK.CICD
             Debug.Log("Publish: Store upload not implemented yet. Dist built.");
         }
 
-        // ===== helpers =====
+        
 
         [Serializable]
         private class PackageJson
@@ -347,14 +353,20 @@ namespace ReactiveUITK.CICD
             {
                 string rel = dir.Substring(sourceDir.Length)
                     .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-                // Skip any .git directory
+                
                 var relForward = rel.Replace('\\', '/');
                 if (relForward.Length == 0)
+                {
                     continue;
+                }
                 if (relForward.Equals(".git", StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
+                }
                 if (relForward.Contains("/.git/", StringComparison.Ordinal))
+                {
                     continue;
+                }
                 Directory.CreateDirectory(Path.Combine(destDir, rel));
             }
             foreach (string file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
@@ -363,9 +375,13 @@ namespace ReactiveUITK.CICD
                     .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 var relForward = rel.Replace('\\', '/');
                 if (relForward.StartsWith(".git/", StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
+                }
                 if (relForward.Contains("/.git/", StringComparison.Ordinal))
+                {
                     continue;
+                }
                 string target = Path.Combine(destDir, rel);
                 Directory.CreateDirectory(Path.GetDirectoryName(target));
                 File.Copy(file, target, overwrite: true);
@@ -375,7 +391,9 @@ namespace ReactiveUITK.CICD
         private static void DeleteDirectory(string path)
         {
             if (!Directory.Exists(path))
+            {
                 return;
+            }
             File.SetAttributes(path, FileAttributes.Normal);
             foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
             {
@@ -397,10 +415,14 @@ namespace ReactiveUITK.CICD
             try
             {
                 if (File.Exists(p))
+                {
                     File.SetAttributes(p, FileAttributes.Normal);
+                }
                 File.Delete(p);
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private static void TryDeleteDir(string p)
@@ -408,9 +430,13 @@ namespace ReactiveUITK.CICD
             try
             {
                 if (Directory.Exists(p))
+                {
                     Directory.Delete(p, recursive: false);
+                }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         private static void DeleteAllStartingWith(string distRoot, string relBaseForward)
@@ -433,9 +459,13 @@ namespace ReactiveUITK.CICD
                 )
                 {
                     if (Directory.Exists(path))
+                    {
                         DeleteDirectory(path);
+                    }
                     else
+                    {
                         TryDeleteFile(path);
+                    }
                 }
             }
         }
@@ -449,14 +479,18 @@ namespace ReactiveUITK.CICD
                 if (File.Exists(metaFrom))
                 {
                     if (File.Exists(metaTo))
+                    {
                         File.Delete(metaTo);
+                    }
                     File.Move(metaFrom, metaTo);
                 }
             }
-            catch { }
+            catch
+            {
+            }
         }
 
-        // ===== version bump helpers =====
+        
         private static string BumpPatchVersion(string packageJsonPath)
         {
             try
@@ -470,7 +504,7 @@ namespace ReactiveUITK.CICD
                 }
                 string text = File.ReadAllText(packageJsonPath, Encoding.UTF8);
 
-                // Find the version value and replace only the captured value in-place
+                
                 var m = Regex.Match(
                     text,
                     "\"version\"\\s*:\\s*\"([^\"]+)\"",
@@ -486,7 +520,7 @@ namespace ReactiveUITK.CICD
 
                 if (m.Success)
                 {
-                    // Replace just the value group so formatting is preserved
+                    
                     int valStart = m.Groups[1].Index;
                     int valLen = m.Groups[1].Length;
                     var sb = new StringBuilder(text.Length - valLen + next.Length);
@@ -497,7 +531,7 @@ namespace ReactiveUITK.CICD
                 }
                 else
                 {
-                    // Insert a version field before the closing brace (best-effort)
+                    
                     int insertAt = text.LastIndexOf('}');
                     if (insertAt < 0)
                     {
@@ -509,14 +543,16 @@ namespace ReactiveUITK.CICD
                     string prefix = text.Substring(0, insertAt).TrimEnd();
                     string suffix = text.Substring(insertAt);
                     if (!prefix.EndsWith(","))
+                    {
                         prefix += ",";
+                    }
                     string insert = "\n  \"version\": \"" + next + "\"\n";
                     text = prefix + insert + suffix;
                 }
 
                 File.WriteAllText(packageJsonPath, text, Encoding.UTF8);
 
-                // Validate the result
+                
                 var vm = Regex.Match(
                     text,
                     "\"version\"\\s*:\\s*\"([^\"]+)\"",
@@ -559,12 +595,16 @@ namespace ReactiveUITK.CICD
             p.OutputDataReceived += (_, e) =>
             {
                 if (e.Data != null)
+                {
                     sbOut.AppendLine(e.Data);
+                }
             };
             p.ErrorDataReceived += (_, e) =>
             {
                 if (e.Data != null)
+                {
                     sbErr.AppendLine(e.Data);
+                }
             };
             p.Start();
             p.BeginOutputReadLine();
@@ -573,26 +613,38 @@ namespace ReactiveUITK.CICD
             stdout = sbOut.ToString();
             stderr = sbErr.ToString();
             if (!string.IsNullOrEmpty(stdout))
+            {
                 Debug.Log($"[git] {args}\n{stdout}");
+            }
             if (!string.IsNullOrEmpty(stderr))
+            {
                 Debug.Log($"[git:err] {args}\n{stderr}");
+            }
             return p.ExitCode;
         }
 
         private static void DeleteAllExceptGit(string dir)
         {
             if (!Directory.Exists(dir))
+            {
                 return;
+            }
             foreach (var entry in Directory.GetFileSystemEntries(dir))
             {
                 var name = Path.GetFileName(entry)
                     ?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 if (string.Equals(name, ".git", StringComparison.OrdinalIgnoreCase))
+                {
                     continue;
+                }
                 if (Directory.Exists(entry))
+                {
                     DeleteDirectory(entry);
+                }
                 else
+                {
                     TryDeleteFile(entry);
+                }
             }
         }
     }

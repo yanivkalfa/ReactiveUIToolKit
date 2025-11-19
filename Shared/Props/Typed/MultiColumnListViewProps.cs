@@ -18,7 +18,7 @@ namespace ReactiveUITK.Props.Typed
         public object Ref { get; set; }
         public string ViewDataKey { get; set; }
 
-        // Column definitions
+        
         public List<ColumnDef> Columns { get; set; }
 
         public List<SortedColumnDef> SortedColumns { get; set; }
@@ -45,23 +45,41 @@ namespace ReactiveUITK.Props.Typed
             {
                 var dict = new Dictionary<string, object>();
                 if (!string.IsNullOrEmpty(Name))
+                {
                     dict["name"] = Name;
+                }
                 if (!string.IsNullOrEmpty(Title))
+                {
                     dict["title"] = Title;
+                }
                 if (Width.HasValue)
+                {
                     dict["width"] = Width.Value;
+                }
                 if (MinWidth.HasValue)
+                {
                     dict["minWidth"] = MinWidth.Value;
+                }
                 if (MaxWidth.HasValue)
+                {
                     dict["maxWidth"] = MaxWidth.Value;
+                }
                 if (Resizable.HasValue)
+                {
                     dict["resizable"] = Resizable.Value;
+                }
                 if (Stretchable.HasValue)
+                {
                     dict["stretchable"] = Stretchable.Value;
+                }
                 if (Sortable.HasValue)
+                {
                     dict["sortable"] = Sortable.Value;
+                }
                 if (Cell != null)
+                {
                     dict["cell"] = Cell;
+                }
                 return dict;
             }
         }
@@ -76,11 +94,17 @@ namespace ReactiveUITK.Props.Typed
             {
                 var d = new Dictionary<string, object>();
                 if (!string.IsNullOrEmpty(Name))
+                {
                     d["name"] = Name;
+                }
                 if (Direction.HasValue)
+                {
                     d["direction"] = Direction.Value;
+                }
                 if (Index.HasValue)
+                {
                     d["index"] = Index.Value;
+                }
                 return d;
             }
         }
@@ -96,33 +120,51 @@ namespace ReactiveUITK.Props.Typed
         {
             var dict = new Dictionary<string, object>();
             if (!string.IsNullOrEmpty(Name))
+            {
                 dict["name"] = Name;
+            }
             if (!string.IsNullOrEmpty(ClassName))
+            {
                 dict["className"] = ClassName;
+            }
             if (Items != null)
+            {
                 dict["items"] = Items;
+            }
             if (SelectedIndex.HasValue)
+            {
                 dict["selectedIndex"] = SelectedIndex.Value;
+            }
             if (FixedItemHeight.HasValue)
+            {
                 dict["fixedItemHeight"] = FixedItemHeight.Value;
+            }
             if (Selection.HasValue)
+            {
                 dict["selectionType"] = Selection.Value;
+            }
             if (Columns != null)
             {
                 var cols = new List<Dictionary<string, object>>(Columns.Count);
                 foreach (var c in Columns)
+                {
                     cols.Add(c?.ToDictionary());
+                }
                 dict["columns"] = cols;
             }
             if (SortedColumns != null)
             {
                 var arr = new List<Dictionary<string, object>>(SortedColumns.Count);
                 foreach (var s in SortedColumns)
+                {
                     arr.Add(s?.ToDictionary());
+                }
                 dict["sortedColumns"] = arr;
             }
             if (SortingMode != null)
+            {
                 dict["sortingMode"] = SortingMode;
+            }
             if (ColumnSortingChanged is Hooks.StateSetter<List<SortedColumnDef>> setter)
             {
                 dict["columnSortingChanged"] = setter.ToValueAction();
@@ -132,11 +174,17 @@ namespace ReactiveUITK.Props.Typed
                 dict["columnSortingChanged"] = action;
             }
             if (ColumnWidths != null)
+            {
                 dict["columnWidths"] = ColumnWidths;
+            }
             if (ColumnVisibility != null)
+            {
                 dict["columnVisibility"] = ColumnVisibility;
+            }
             if (ColumnDisplayIndex != null)
+            {
                 dict["columnDisplayIndex"] = ColumnDisplayIndex;
+            }
             if (ColumnLayoutChanged is Hooks.StateSetter<ColumnLayoutState> layoutSetter)
             {
                 dict["columnLayoutChanged"] = layoutSetter.ToValueAction();
@@ -150,11 +198,17 @@ namespace ReactiveUITK.Props.Typed
                 dict["columnLayoutChanged"] = ColumnLayoutChanged;
             }
             if (Style != null)
+            {
                 dict["style"] = Style;
+            }
             if (Ref != null)
+            {
                 dict["ref"] = Ref;
+            }
             if (!string.IsNullOrEmpty(ViewDataKey))
+            {
                 dict["viewDataKey"] = ViewDataKey;
+            }
             return dict;
         }
     }

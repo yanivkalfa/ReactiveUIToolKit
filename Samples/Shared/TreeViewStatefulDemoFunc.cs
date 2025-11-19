@@ -27,13 +27,21 @@ namespace ReactiveUITK.Samples.Shared
             static List<T> ExtractList<T>(object source)
             {
                 if (source is List<T> direct)
+                {
                     return direct;
+                }
                 if (source is T[] arr)
+                {
                     return new List<T>(arr);
+                }
                 if (source is IReadOnlyList<T> ro)
+                {
                     return new List<T>(ro);
+                }
                 if (source is IEnumerable<T> enGeneric)
+                {
                     return new List<T>(enGeneric);
+                }
                 if (source is IEnumerable en)
                 {
                     var list = new List<T>();
@@ -50,7 +58,9 @@ namespace ReactiveUITK.Samples.Shared
                                 list.Add((T)Convert.ChangeType(item, typeof(T)));
                             }
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     return list;
                 }
@@ -118,12 +128,16 @@ namespace ReactiveUITK.Samples.Shared
                 {
                     var combined = new List<TreeViewItemData<object>>();
                     if (rows == null)
+                    {
                         return combined;
+                    }
                     for (int i = 0; i < rows.Count; i++)
                     {
                         var row = rows[i];
                         if (row == null)
+                        {
                             continue;
+                        }
                         var baseId = row.Pid != 0 ? row.Pid : 1000 + (i * 2);
                         List<TreeViewItemData<object>> ch = null;
                         if (row.HasChild)
@@ -168,10 +182,12 @@ namespace ReactiveUITK.Samples.Shared
                         {
                             var row = obj as SharedTreeRowItem;
                             if (row == null)
+                            {
                                 return V.Label(
                                     new LabelProps { Text = "<invalid row payload>" },
                                     $"tv-invalid-{i}"
                                 );
+                            }
 
                             var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
                             var prefix = (row.IsChild == true) ? "child" : "parent";
@@ -194,7 +210,9 @@ namespace ReactiveUITK.Samples.Shared
                 {
                     var row = rows[i];
                     if (row == null)
+                    {
                         continue;
+                    }
                     countValue += 1;
                     if (row.HasChild)
                     {
@@ -215,13 +233,17 @@ namespace ReactiveUITK.Samples.Shared
                                 cb(countValue);
                             }
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                         return null;
                     },
                     new object[] { countValue }
                 );
             }
-            catch { }
+            catch
+            {
+            }
 
             Action Safe(Action candidate) => candidate ?? (() => { });
 

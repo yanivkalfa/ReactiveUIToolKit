@@ -160,7 +160,9 @@ namespace ReactiveUITK.Core
                                 $"[PropTypes] Component '{componentName}' is missing required prop '{definition.Name}' (expected {definition.Description})."
                             );
                         }
-                        catch { }
+                        catch
+                        {
+                        }
                     }
                     continue;
                 }
@@ -173,7 +175,9 @@ namespace ReactiveUITK.Core
                             $"[PropTypes] Component '{componentName}' received invalid prop '{definition.Name}'. Expected {definition.Description}, received {received}."
                         );
                     }
-                    catch { }
+                    catch
+                    {
+                    }
                 }
             }
         }
