@@ -33,6 +33,20 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "Foldout");
                 RegisterIfAllowed(registry, "Tab");
                 RegisterIfAllowed(registry, "TabView");
+                RegisterIfAllowed(registry, "FloatField");
+                RegisterIfAllowed(registry, "IntegerField");
+                RegisterIfAllowed(registry, "LongField");
+                RegisterIfAllowed(registry, "DoubleField");
+                RegisterIfAllowed(registry, "UnsignedIntegerField");
+                RegisterIfAllowed(registry, "UnsignedLongField");
+                RegisterIfAllowed(registry, "Vector2Field");
+                RegisterIfAllowed(registry, "Vector3Field");
+                RegisterIfAllowed(registry, "Vector4Field");
+                
+#if UNITY_EDITOR
+                RegisterIfAllowed(registry, "ColorField");
+#endif
+                RegisterIfAllowed(registry, "Box");
 #if UNITY_EDITOR
                 RegisterIfAllowed(registry, "HelpBox");
 #endif
@@ -67,6 +81,20 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "Foldout", allowedSet);
             RegisterIfAllowed(registry, "Tab", allowedSet);
             RegisterIfAllowed(registry, "TabView", allowedSet);
+            RegisterIfAllowed(registry, "FloatField", allowedSet);
+            RegisterIfAllowed(registry, "IntegerField", allowedSet);
+            RegisterIfAllowed(registry, "LongField", allowedSet);
+            RegisterIfAllowed(registry, "DoubleField", allowedSet);
+            RegisterIfAllowed(registry, "UnsignedIntegerField", allowedSet);
+            RegisterIfAllowed(registry, "UnsignedLongField", allowedSet);
+            RegisterIfAllowed(registry, "Vector2Field", allowedSet);
+            RegisterIfAllowed(registry, "Vector3Field", allowedSet);
+            RegisterIfAllowed(registry, "Vector4Field", allowedSet);
+            
+#if UNITY_EDITOR
+            RegisterIfAllowed(registry, "ColorField", allowedSet);
+#endif
+            RegisterIfAllowed(registry, "Box", allowedSet);
 #if UNITY_EDITOR
             RegisterIfAllowed(registry, "HelpBox", allowedSet);
 #endif
@@ -155,6 +183,48 @@ namespace ReactiveUITK.Elements
                         break;
                     case "TabView":
                         registry.Register("TabView", new TabViewElementAdapter());
+                        break;
+                    case "FloatField":
+                        registry.Register("FloatField", new FloatFieldElementAdapter());
+                        break;
+                    case "IntegerField":
+                        registry.Register("IntegerField", new IntegerFieldElementAdapter());
+                        break;
+                    case "LongField":
+                        registry.Register("LongField", new LongFieldElementAdapter());
+                        break;
+                    case "DoubleField":
+                        registry.Register("DoubleField", new DoubleFieldElementAdapter());
+                        break;
+                    case "UnsignedIntegerField":
+                        registry.Register(
+                            "UnsignedIntegerField",
+                            new UnsignedIntegerFieldElementAdapter()
+                        );
+                        break;
+                    case "UnsignedLongField":
+                        registry.Register(
+                            "UnsignedLongField",
+                            new UnsignedLongFieldElementAdapter()
+                        );
+                        break;
+                    case "Vector2Field":
+                        registry.Register("Vector2Field", new Vector2FieldElementAdapter());
+                        break;
+                    case "Vector3Field":
+                        registry.Register("Vector3Field", new Vector3FieldElementAdapter());
+                        break;
+                    case "Vector4Field":
+                        registry.Register("Vector4Field", new Vector4FieldElementAdapter());
+                        break;
+                    
+#if UNITY_EDITOR
+                    case "ColorField":
+                        registry.Register("ColorField", new ColorFieldElementAdapter());
+                        break;
+#endif
+                    case "Box":
+                        registry.Register("Box", new BoxElementAdapter());
                         break;
 #if UNITY_EDITOR
                     case "HelpBox":
