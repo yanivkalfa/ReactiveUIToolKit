@@ -139,6 +139,35 @@ Delegates may be `Action` or handlers with one parameter (UI Toolkit event).
 ## 8. Context
 Function components can expose context values by calling `Hooks.ProvideContext("themeColor", Color.cyan)` during render; descendants consume them via `Hooks.UseContext<Color>("themeColor")`.
 
+## Router (Experimental)
+Wrap parts of your UI in `V.Router(...)` to enable lightweight, React-Router-style navigation driven by in-memory history. Use `V.Route` components to conditionally render based on the current path, and `V.Link` (or `RouterHooks.UseNavigate`) to trigger navigation.
+
+```csharp
+return V.Router(
+    children: new[]
+    {
+        V.VisualElement(
+            new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 6f) },
+            null,
+            V.Link("/", "Home"),
+            V.Link("/about", "About"),
+            V.Link("/users/42", "User 42")
+        ),
+        V.Route(path: "/", exact: true, element: V.Text("Home route")),
+        V.Route(path: "/about", element: V.Text("About route")),
+        V.Route(
+            path: "/users/:id",
+            children: new[] { V.Func(UserProfileFunc.Render) }
+        ),
+        V.Route(path: "*", element: V.Text("Not found")),
+    }
+);
+```
+
+Inside components rendered by `V.Route`, call `RouterHooks.UseLocation()`, `RouterHooks.UseParams()`, or `RouterHooks.UseNavigate()` to read router state or programmatically change paths.
+
+- Path params are exposed via `RouterHooks.UseParams()`, query-string values via `RouterHooks.UseQuery()`, and any state object you pass when navigating (`V.Link(state: someObject)` or `useNavigate("/path", someObject)`) via `RouterHooks.UseNavigationState()`. Use `RouterHooks.UseLocationInfo()` if you need the combined path/query/state payload.
+
 ## 9. Portals & Suspense
 - Portal: `V.Portal(targetElement, key, childNodes...)` renders children into another `VisualElement` while keeping a placeholder in parent ordering.
 - Suspense: `V.Suspense(() => readyBool, fallbackNode, key, children...)`.
