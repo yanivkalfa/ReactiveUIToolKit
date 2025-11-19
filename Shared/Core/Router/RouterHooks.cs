@@ -33,9 +33,7 @@ namespace ReactiveUITK.Router
 
         public static IReadOnlyDictionary<string, string> UseParams()
         {
-            return Hooks
-                    .UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
-                    ?.Parameters
+            return Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)?.Parameters
                 ?? RouterContextKeys.EmptyParams;
         }
 
@@ -59,6 +57,42 @@ namespace ReactiveUITK.Router
                     ? router.Replace?.Invoke(target, state) ?? false
                     : router.Navigate?.Invoke(target, state) ?? false;
             };
+        }
+
+        public static RouterGoHandler UseGo()
+        {
+            var router = UseRouter();
+            if (router == null)
+            {
+                return _ => false;
+            }
+            return delta => router.Go?.Invoke(delta) ?? false;
+        }
+
+        public static bool UseCanGo(int delta)
+        {
+            var router = UseRouter();
+            return router?.CanGo?.Invoke(delta) ?? false;
+        }
+
+        public static void UseBlocker(
+            Func<RouterLocation, RouterLocation, bool> blocker,
+            bool enabled = true
+        )
+        {
+            var router = UseRouter();
+            Hooks.UseEffect(
+                () =>
+                {
+                    if (!enabled || router?.RegisterBlocker == null || blocker == null)
+                    {
+                        return null;
+                    }
+                    var subscription = router.RegisterBlocker(blocker);
+                    return () => subscription?.Dispose();
+                },
+                new object[] { router, blocker, enabled }
+            );
         }
     }
 }

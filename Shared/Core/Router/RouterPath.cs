@@ -11,9 +11,10 @@ namespace ReactiveUITK.Router
             string working = raw ?? "/";
             int queryIndex = working.IndexOf('?');
             string pathPart = queryIndex >= 0 ? working.Substring(0, queryIndex) : working;
-            string queryPart = queryIndex >= 0 && queryIndex + 1 < working.Length
-                ? working.Substring(queryIndex + 1)
-                : null;
+            string queryPart =
+                queryIndex >= 0 && queryIndex + 1 < working.Length
+                    ? working.Substring(queryIndex + 1)
+                    : null;
 
             string normalizedPath = Normalize(pathPart);
             var query = ParseQuery(queryPart);

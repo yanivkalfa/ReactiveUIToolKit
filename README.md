@@ -167,6 +167,7 @@ return V.Router(
 Inside components rendered by `V.Route`, call `RouterHooks.UseLocation()`, `RouterHooks.UseParams()`, or `RouterHooks.UseNavigate()` to read router state or programmatically change paths.
 
 - Path params are exposed via `RouterHooks.UseParams()`, query-string values via `RouterHooks.UseQuery()`, and any state object you pass when navigating (`V.Link(state: someObject)` or `useNavigate("/path", someObject)`) via `RouterHooks.UseNavigationState()`. Use `RouterHooks.UseLocationInfo()` if you need the combined path/query/state payload.
+- Stack helpers: `RouterHooks.UseGo()` lets you call `go(-1)` / `go(1)` for back/forward, `RouterHooks.UseCanGo(delta)` exposes whether a delta is available, and `RouterHooks.UseBlocker(blocker, enabled)` intercepts transitions to implement confirmation prompts.
 
 ## 9. Portals & Suspense
 - Portal: `V.Portal(targetElement, key, childNodes...)` renders children into another `VisualElement` while keeping a placeholder in parent ordering.

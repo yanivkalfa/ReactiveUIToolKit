@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using ReactiveUITK;
 
 namespace ReactiveUITK.Router
 {
@@ -54,9 +54,27 @@ namespace ReactiveUITK.Router
                         {
                             resolvedHistory.Replace(path, state);
                             return true;
-                        }
+                        },
+                        delta =>
+                        {
+                            if (!resolvedHistory.CanGo(delta))
+                            {
+                                return false;
+                            }
+                            resolvedHistory.Go(delta);
+                            return true;
+                        },
+                        delta => resolvedHistory.CanGo(delta),
+                        blocker => resolvedHistory.RegisterBlocker(blocker)
                     )
-                    : new RouterState(location, (_, __) => false, (_, __) => false);
+                    : new RouterState(
+                        location,
+                        (_, __) => false,
+                        (_, __) => false,
+                        _ => false,
+                        _ => false,
+                        _ => Disposable.Empty
+                    );
 
             Hooks.ProvideContext(RouterContextKeys.RouterState, routerState);
             Hooks.ProvideContext(
@@ -181,5 +199,12 @@ namespace ReactiveUITK.Router
             }
             return V.Fragment(null, buffer);
         }
+    }
+
+    internal sealed class Disposable : IDisposable
+    {
+        public static readonly IDisposable Empty = new Disposable();
+
+        public void Dispose() { }
     }
 }

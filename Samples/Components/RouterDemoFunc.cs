@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
@@ -60,7 +61,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             return state.ToString();
         }
 
-        private static string DescribeObjectDictionary(IEnumerable<KeyValuePair<string, object>> dict)
+        private static string DescribeObjectDictionary(
+            IEnumerable<KeyValuePair<string, object>> dict
+        )
         {
             if (dict == null)
             {
@@ -93,6 +96,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             V.Func(LocationBanner.Render),
                             V.Func(NavigatePanel.Render),
                             V.Func(QuickAccessPanel.Render)
+                        ),
+                        V.VisualElement(
+                            CardStyle,
+                            null,
+                            V.Func(HistoryPanel.Render),
+                            V.Func(NavigationGuardPanel.Render)
                         ),
                         V.VisualElement(
                             CardStyle,
@@ -140,14 +149,13 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             ),
                             V.Route(
                                 path: "/settings/*",
-                                children: new[]
-                                {
-                                    V.Func(SettingsPanel.Render),
-                                }
+                                children: new[] { V.Func(SettingsPanel.Render) }
                             ),
                             V.Route(
                                 path: "*",
-                                element: V.Text("No matching route. Use the nav links above to continue.")
+                                element: V.Text(
+                                    "No matching route. Use the nav links above to continue."
+                                )
                             )
                         )
                     ),
@@ -158,11 +166,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static VirtualNode BuildNavigationBar()
         {
             return V.VisualElement(
-                new Style
-                {
-                    (StyleKeys.FlexDirection, "row"),
-                    (StyleKeys.MarginBottom, 4f),
-                },
+                new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 4f) },
                 null,
                 NavLink.Create("/", "Home", exact: true),
                 NavLink.Create("/about", "About"),
@@ -205,11 +209,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 var navigate = RouterHooks.UseNavigate();
                 var replace = RouterHooks.UseNavigate(replace: true);
                 return V.VisualElement(
-                    new Style
-                    {
-                        (StyleKeys.FlexDirection, "column"),
-                        (StyleKeys.MarginTop, 4f),
-                    },
+                    new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.MarginTop, 4f) },
                     null,
                     V.Text("Jump to any path:"),
                     V.TextField(
@@ -217,7 +217,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Value = path,
                             Placeholder = "/users/42 or /settings/profile",
-                            OnChange = evt => setPath(string.IsNullOrEmpty(evt.newValue) ? "/" : evt.newValue),
+                            OnChange = evt =>
+                                setPath(string.IsNullOrEmpty(evt.newValue) ? "/" : evt.newValue),
                         }
                     ),
                     V.TextField(
@@ -241,7 +242,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             {
                                 Text = "Push",
                                 Style = new Style { (StyleKeys.Width, 80f) },
-                                OnClick = () => navigate(path, string.IsNullOrEmpty(stateValue) ? null : stateValue),
+                                OnClick = () =>
+                                    navigate(
+                                        path,
+                                        string.IsNullOrEmpty(stateValue) ? null : stateValue
+                                    ),
                             }
                         ),
                         V.Button(
@@ -249,7 +254,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             {
                                 Text = "Replace",
                                 Style = new Style { (StyleKeys.Width, 80f) },
-                                OnClick = () => replace(path, string.IsNullOrEmpty(stateValue) ? null : stateValue),
+                                OnClick = () =>
+                                    replace(
+                                        path,
+                                        string.IsNullOrEmpty(stateValue) ? null : stateValue
+                                    ),
                             }
                         )
                     )
@@ -331,8 +340,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         ? value
                         : "(unknown)";
                 string tab =
-                    query != null && query.TryGetValue("tab", out var tabValue) ? tabValue : "(default)";
-                return V.Text($"User route matched with id: {id} (tab={tab}, state={DescribeState(navState)})");
+                    query != null && query.TryGetValue("tab", out var tabValue)
+                        ? tabValue
+                        : "(default)";
+                return V.Text(
+                    $"User route matched with id: {id} (tab={tab}, state={DescribeState(navState)})"
+                );
             }
         }
 
@@ -361,17 +374,19 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         path: "/settings/preferences",
                         element: V.Text("Preferences settings go here.")
                     ),
-                    V.Route(
-                        path: "*",
-                        element: V.Text("Select a settings section above.")
-                    )
+                    V.Route(path: "*", element: V.Text("Select a settings section above."))
                 );
             }
         }
 
         private static class NavLink
         {
-            public static VirtualNode Create(string path, string label, bool exact = false, bool replace = false)
+            public static VirtualNode Create(
+                string path,
+                string label,
+                bool exact = false,
+                bool replace = false
+            )
             {
                 return V.Func(
                     Render,
@@ -391,9 +406,13 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             )
             {
                 string path = props.TryGetValue("path", out var pathObj) ? pathObj as string : "/";
-                string label = props.TryGetValue("label", out var labelObj) ? labelObj as string : path;
+                string label = props.TryGetValue("label", out var labelObj)
+                    ? labelObj as string
+                    : path;
                 bool exact =
-                    props.TryGetValue("exact", out var exactObj) && exactObj is bool exactFlag && exactFlag;
+                    props.TryGetValue("exact", out var exactObj)
+                    && exactObj is bool exactFlag
+                    && exactFlag;
                 bool replace =
                     props.TryGetValue("replace", out var replaceObj)
                     && replaceObj is bool replaceFlag
@@ -402,8 +421,15 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 string normalizedPath = RouterPath.Normalize(path);
                 string location = RouterHooks.UseLocation();
                 bool isActive = exact
-                    ? string.Equals(location, normalizedPath, System.StringComparison.OrdinalIgnoreCase)
-                    : location.StartsWith(normalizedPath, System.StringComparison.OrdinalIgnoreCase);
+                    ? string.Equals(
+                        location,
+                        normalizedPath,
+                        System.StringComparison.OrdinalIgnoreCase
+                    )
+                    : location.StartsWith(
+                        normalizedPath,
+                        System.StringComparison.OrdinalIgnoreCase
+                    );
 
                 var style = new Style { (StyleKeys.MarginRight, 6f) };
                 if (isActive)
@@ -415,6 +441,118 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 }
 
                 return V.Link(normalizedPath, label, replace: replace, style: style);
+            }
+        }
+
+        private static class HistoryPanel
+        {
+            public static VirtualNode Render(
+                Dictionary<string, object> props,
+                IReadOnlyList<VirtualNode> children
+            )
+            {
+                var go = RouterHooks.UseGo();
+                bool canBack = RouterHooks.UseCanGo(-1);
+                bool canForward = RouterHooks.UseCanGo(1);
+                return V.VisualElement(
+                    new Style { (StyleKeys.MarginTop, 4f) },
+                    null,
+                    V.Text("History controls:"),
+                    V.Text($"Can go back: {canBack}, can go forward: {canForward}"),
+                    V.VisualElement(
+                        new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) },
+                        null,
+                        V.Button(
+                            new ButtonProps
+                            {
+                                Text = "Back",
+                                Style = new Style
+                                {
+                                    (StyleKeys.MarginRight, 6f),
+                                    (StyleKeys.Width, 80f),
+                                },
+                                OnClick = () =>
+                                {
+                                    if (canBack)
+                                    {
+                                        go(-1);
+                                    }
+                                },
+                            }
+                        ),
+                        V.Button(
+                            new ButtonProps
+                            {
+                                Text = "Forward",
+                                Style = new Style { (StyleKeys.Width, 80f) },
+                                OnClick = () =>
+                                {
+                                    if (canForward)
+                                    {
+                                        go(1);
+                                    }
+                                },
+                            }
+                        )
+                    )
+                );
+            }
+        }
+
+        private static class NavigationGuardPanel
+        {
+            public static VirtualNode Render(
+                Dictionary<string, object> props,
+                IReadOnlyList<VirtualNode> children
+            )
+            {
+                var (enabled, setEnabled) = Hooks.UseState(false);
+                var (message, setMessage) = Hooks.UseState("No navigation blocked yet.");
+
+                var blocker = Hooks.UseMemo(
+                    () =>
+                        new Func<RouterLocation, RouterLocation, bool>(
+                            (from, to) =>
+                            {
+                                setMessage(
+                                    $"Blocked navigation to {to?.Path ?? "/"} at {DateTime.Now:HH:mm:ss}"
+                                );
+                                return false;
+                            }
+                        ),
+                    Array.Empty<object>()
+                );
+
+                RouterHooks.UseBlocker(blocker, enabled);
+
+                Hooks.UseEffect(
+                    () =>
+                    {
+                        if (!enabled)
+                        {
+                            setMessage("Guard disabled; all navigation allowed.");
+                        }
+                        return null;
+                    },
+                    enabled
+                );
+
+                return V.VisualElement(
+                    new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FlexDirection, "column") },
+                    null,
+                    V.Toggle(
+                        new ToggleProps
+                        {
+                            Text = "Require confirmation before navigation",
+                            Value = enabled,
+                            OnChange = evt => setEnabled(evt.newValue),
+                        }
+                    ),
+                    V.Text(message),
+                    enabled
+                        ? V.Text("Turn off the toggle to allow navigation to proceed.")
+                        : V.Text("Toggle on to block navigation attempts.")
+                );
             }
         }
     }
