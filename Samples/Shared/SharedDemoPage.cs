@@ -95,9 +95,13 @@ namespace ReactiveUITK.Samples.Shared
             static Dictionary<string, T> CloneDict<T>(IReadOnlyDictionary<string, T> source)
             {
                 if (source == null)
+                {
                     return null;
+                }
                 if (source.Count == 0)
+                {
                     return new Dictionary<string, T>();
+                }
                 return new Dictionary<string, T>(source);
             }
 
@@ -107,17 +111,27 @@ namespace ReactiveUITK.Samples.Shared
             )
             {
                 if (ReferenceEquals(left, right))
+                {
                     return true;
+                }
                 if (left == null || right == null)
+                {
                     return false;
+                }
                 if (left.Count != right.Count)
+                {
                     return false;
+                }
                 foreach (var kv in left)
                 {
                     if (!right.TryGetValue(kv.Key, out var rv))
+                    {
                         return false;
+                    }
                     if (!EqualityComparer<T>.Default.Equals(kv.Value, rv))
+                    {
                         return false;
+                    }
                 }
                 return true;
             }
@@ -127,7 +141,9 @@ namespace ReactiveUITK.Samples.Shared
             )
             {
                 if (layout == null)
+                {
                     return null;
+                }
                 return new MultiColumnListViewProps.ColumnLayoutState
                 {
                     ColumnWidths = CloneDict(layout.ColumnWidths),
@@ -151,7 +167,9 @@ namespace ReactiveUITK.Samples.Shared
             )
             {
                 if (layout == null)
+                {
                     return null;
+                }
                 return new MultiColumnTreeViewProps.ColumnLayoutState
                 {
                     ColumnWidths = CloneDict(layout.ColumnWidths),
@@ -174,15 +192,21 @@ namespace ReactiveUITK.Samples.Shared
             {
                 var set = new HashSet<int>();
                 if (rows == null)
+                {
                     return set;
+                }
                 for (int i = 0; i < rows.Count; i++)
                 {
                     var row = rows[i];
                     int baseId = row != null && row.Pid != 0 ? row.Pid : 1000 + (i * 2);
                     if (baseId != 0)
+                    {
                         set.Add(baseId);
+                    }
                     if (row?.HasChild == true)
+                    {
                         set.Add(baseId + 1);
+                    }
                 }
                 return set;
             }
@@ -193,26 +217,36 @@ namespace ReactiveUITK.Samples.Shared
             )
             {
                 if (expanded == null)
+                {
                     return null;
+                }
                 var valid = BuildTreeValidIds(rows);
                 if (expanded.Count == 0)
+                {
                     return expanded as List<int> ?? new List<int>();
+                }
                 var nextSet = new HashSet<int>();
                 bool changed = false;
                 for (int i = 0; i < expanded.Count; i++)
                 {
                     var id = expanded[i];
                     if (valid.Contains(id))
+                    {
                         nextSet.Add(id);
+                    }
                     else
+                    {
                         changed = true;
+                    }
                 }
                 if (
                     !changed
                     && expanded is List<int> existingList
                     && existingList.Count == nextSet.Count
                 )
+                {
                     return existingList;
+                }
                 var nextList = new List<int>(nextSet);
                 nextList.Sort();
                 return nextList;
@@ -603,10 +637,14 @@ namespace ReactiveUITK.Samples.Shared
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[prev.Count - 1];
                     if (source == null)
+                    {
                         return prev;
+                    }
                     var next = new List<TreeViewRowState>(prev);
                     next[next.Count - 1] = new TreeViewRowState
                     {
@@ -637,10 +675,14 @@ namespace ReactiveUITK.Samples.Shared
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[prev.Count - 1];
                     if (source == null)
+                    {
                         return prev;
+                    }
                     var parentItem =
                         source.Parent
                         ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
@@ -658,7 +700,9 @@ namespace ReactiveUITK.Samples.Shared
                     return next;
                 });
                 if (latestRows != null)
+                {
                     setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
             };
 
             Action treeSetChildValue = () =>
@@ -667,10 +711,14 @@ namespace ReactiveUITK.Samples.Shared
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[prev.Count - 1];
                     if (source == null || !source.HasChild)
+                    {
                         return prev;
+                    }
                     var childItem =
                         source.Child
                         ?? new SharedTreeRowItem
@@ -692,7 +740,9 @@ namespace ReactiveUITK.Samples.Shared
                     return next;
                 });
                 if (latestRows != null)
+                {
                     setTreeExpandedIds.Set(prev => PruneTreeExpandedIds(latestRows, prev));
+                }
             };
 
             Action treeDeleteLast = () =>
@@ -701,7 +751,9 @@ namespace ReactiveUITK.Samples.Shared
                 setTreeRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var next = new List<TreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     latestRows = next;
@@ -720,9 +772,13 @@ namespace ReactiveUITK.Samples.Shared
                     if (args != null)
                     {
                         if (args.isExpanded)
+                        {
                             nextSet.Add(args.id);
+                        }
                         else
+                        {
                             nextSet.Remove(args.id);
+                        }
                     }
                     var valid = BuildTreeValidIds(treeRows);
                     if (valid.Count > 0)
@@ -731,10 +787,14 @@ namespace ReactiveUITK.Samples.Shared
                         foreach (var id in nextSet)
                         {
                             if (!valid.Contains(id))
+                            {
                                 removals.Add(id);
+                            }
                         }
                         for (int i = 0; i < removals.Count; i++)
+                        {
                             nextSet.Remove(removals[i]);
+                        }
                     }
                     var nextList = new List<int>(nextSet);
                     nextList.Sort();
@@ -742,7 +802,9 @@ namespace ReactiveUITK.Samples.Shared
                     {
                         var prevSet = new HashSet<int>(prev);
                         if (prevSet.SetEquals(nextSet))
+                        {
                             return prev;
+                        }
                     }
                     return nextList;
                 });
@@ -779,10 +841,14 @@ namespace ReactiveUITK.Samples.Shared
                 setMctvRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[prev.Count - 1];
                     if (source == null)
+                    {
                         return prev;
+                    }
                     var next = new List<MultiColumnTreeViewRowState>(prev);
                     next[next.Count - 1] = new MultiColumnTreeViewRowState
                     {
@@ -807,10 +873,14 @@ namespace ReactiveUITK.Samples.Shared
                 setMctvRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[prev.Count - 1];
                     if (source == null)
+                    {
                         return prev;
+                    }
                     var parentItem =
                         source.Parent
                         ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
@@ -833,10 +903,14 @@ namespace ReactiveUITK.Samples.Shared
                 setMctvRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[prev.Count - 1];
                     if (source == null || !source.HasChild)
+                    {
                         return prev;
+                    }
                     var childItem =
                         source.Child
                         ?? new SharedTreeRowItem
@@ -863,7 +937,9 @@ namespace ReactiveUITK.Samples.Shared
                 setMctvRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var next = new List<MultiColumnTreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     return next;
@@ -874,7 +950,9 @@ namespace ReactiveUITK.Samples.Shared
             {
                 var clone = CloneTreeLayout(layout);
                 if (TreeLayoutEqual(clone, mctvLayout))
+                {
                     return;
+                }
                 setMctvLayout.Set(_ => clone);
             };
 
@@ -909,10 +987,14 @@ namespace ReactiveUITK.Samples.Shared
                 setListRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[0];
                     if (source == null)
+                    {
                         return prev;
+                    }
                     var id = !string.IsNullOrEmpty(source.Id)
                         ? source.Id
                         : Guid.NewGuid().ToString("N");
@@ -932,7 +1014,9 @@ namespace ReactiveUITK.Samples.Shared
                 setListRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var next = new List<ListViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     return next;
@@ -967,10 +1051,14 @@ namespace ReactiveUITK.Samples.Shared
                 setMclvRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var source = prev[0];
                     if (source == null)
+                    {
                         return prev;
+                    }
                     var id = !string.IsNullOrEmpty(source.Id)
                         ? source.Id
                         : Guid.NewGuid().ToString("N");
@@ -990,7 +1078,9 @@ namespace ReactiveUITK.Samples.Shared
                 setMclvRows.Set(prev =>
                 {
                     if (prev == null || prev.Count == 0)
+                    {
                         return prev;
+                    }
                     var next = new List<MultiColumnListViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     return next;
@@ -1001,7 +1091,9 @@ namespace ReactiveUITK.Samples.Shared
             {
                 var clone = CloneListLayout(layout);
                 if (ListLayoutEqual(clone, mclvLayout))
+                {
                     return;
+                }
                 setMclvLayout.Set(_ => clone);
             };
 

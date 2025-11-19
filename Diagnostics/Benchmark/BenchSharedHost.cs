@@ -7,7 +7,6 @@ using UnityEditor;
 
 namespace ReactiveUITK.Bench
 {
-    /// Shared harness for Editor and Runtime.
     public static class BenchSharedHost
     {
         private static IVNodeHostRenderer _renderer;
@@ -19,28 +18,14 @@ namespace ReactiveUITK.Bench
         private static string _currentName;
         private static float _currentDuration;
 
-        // Optional hook to supply your own SharedDemo renderer
         public static Func<VirtualNode> SharedDemoRenderer;
 
-        // Expose for hosts/tools if needed
         public static int CurrentIndex => _scenarioIndex;
         public static string CurrentName => _currentName;
 
 #if UNITY_EDITOR
         private static double _lastEditorNow = -1;
 #endif
-
-        // public static void Init(IVNodeHostRenderer renderer, string _ignoredCsvFileName = null)
-        // {
-        //     _renderer = renderer;
-        //     _metrics = new BenchMetrics();
-
-        //     // Begin structured run (Editor/Runtime noted inside env)
-        //     BenchPerSecondLogger.BeginRun(Application.isEditor ? "ReactiveUITK Bench (Editor)" : "ReactiveUITK Bench (Runtime)");
-
-        //     _scenarioIndex = -1;
-        //     NextScenario(); // will open first scenario
-        // }
 
         public static void Init(
             IVNodeHostRenderer renderer,
@@ -64,27 +49,30 @@ namespace ReactiveUITK.Bench
         public static void Tick()
         {
             if (_currentRender == null)
+            {
                 return;
+            }
 
-            // Render frame
             _currentRender.Invoke();
 
-            // Stable delta (Editor) vs runtime time
 #if UNITY_EDITOR
             double now = EditorApplication.timeSinceStartup;
             if (_lastEditorNow < 0)
+            {
                 _lastEditorNow = now;
+            }
             float dt = (float)(now - _lastEditorNow);
             _lastEditorNow = now;
             if (dt <= 0f || dt > 0.5f)
-                dt = 1f / 60f; // clamp
+            {
+                dt = 1f / 60f;
+            }
 #else
             float dt = Time.unscaledDeltaTime;
 #endif
             _metrics.Sample(dt);
             _timer += dt;
 
-            // Per-second sample (O(1), no allocs)
             BenchPerSecondLogger.SampleFrame(dt);
 
             if (_timer >= _currentDuration)
@@ -103,11 +91,12 @@ namespace ReactiveUITK.Bench
         private static void FlushScenario()
         {
             if (string.IsNullOrEmpty(_currentName))
+            {
                 return;
+            }
 
             try
             {
-                // Keep concise console summary
                 Debug.Log($"[Bench] {_currentName} => {_metrics.SummaryString()}");
             }
             catch (Exception e)
@@ -116,7 +105,6 @@ namespace ReactiveUITK.Bench
             }
             finally
             {
-                // Write compact per-scenario JSON and reset logger
                 BenchPerSecondLogger.EndScenarioAndWriteFile();
                 _metrics.End();
             }
@@ -145,7 +133,6 @@ namespace ReactiveUITK.Bench
 
             _metrics.Begin();
 
-            // Open per-second logger scenario BEFORE first tick
             BenchPerSecondLogger.BeginScenario(_scenarioIndex, _currentName, _currentDuration);
 
             Debug.Log($"[Bench] Start: {_currentName} ({_currentDuration:F1}s)");

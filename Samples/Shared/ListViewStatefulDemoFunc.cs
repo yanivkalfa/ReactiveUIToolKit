@@ -56,10 +56,12 @@ namespace ReactiveUITK.Samples.Shared
                         {
                             var r = obj as ListViewRowState;
                             if (r == null)
+                            {
                                 return V.Label(
                                     new LabelProps { Text = "<invalid>" },
                                     key: $"lv-invalid-{index}"
                                 );
+                            }
                             var id = !string.IsNullOrEmpty(r.Id) ? r.Id : index.ToString();
                             var funcKey = $"lv-row-{id}";
                             var childrenNode = r.ShouldOverrideElement

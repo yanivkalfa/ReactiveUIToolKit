@@ -34,9 +34,13 @@ namespace ReactiveUITK.Elements
         public void Attach(TView view, TState state, IReadOnlyDictionary<string, object> props)
         {
             if (view == null || state == null)
+            {
                 return;
+            }
             if (state.HeaderWired)
+            {
                 return;
+            }
             state.HeaderWired = true;
 
             view.RegisterCallback<PointerDownEvent>(
@@ -54,14 +58,18 @@ namespace ReactiveUITK.Elements
             void End()
             {
                 if (!state.IsAdjusting)
+                {
                     return;
+                }
                 state.IsAdjusting = false;
                 var prev = state.PendingPrev;
                 var next = state.PendingNext;
                 state.PendingPrev = null;
                 state.PendingNext = null;
                 if (_flush == null)
+                {
                     return;
+                }
                 try
                 {
                     _flush(view, state, prev, next);
@@ -77,8 +85,10 @@ namespace ReactiveUITK.Elements
         public void Detach(TView view, TState state)
         {
             if (state == null)
+            {
                 return;
-            // Clear flags and buffers so subsequent attaches start clean
+            }
+
             try
             {
                 state.IsAdjusting = false;
@@ -99,9 +109,6 @@ namespace ReactiveUITK.Elements
                 state.PendingNext = null;
             }
             catch { }
-            // Note: we do not unregister callbacks here because we registered inline delegates.
-            // Adapters typically live for the lifetime of the control; if you need explicit
-            // unregistration, store the delegates in state and remove them here.
         }
 
         public void Reapply(
@@ -112,7 +119,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || state == null)
+            {
                 return;
+            }
             if (state.IsAdjusting)
             {
                 state.PendingPrev = previousProps;

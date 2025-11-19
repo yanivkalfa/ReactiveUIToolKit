@@ -17,7 +17,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("label", out var labelObj)
                 && labelObj is Dictionary<string, object> labelMap
@@ -35,7 +37,9 @@ namespace ReactiveUITK.Elements
             {
                 var input = df.Q<VisualElement>(className: "unity-base-field__input");
                 if (input != null)
+                {
                     PropsApplier.Apply(input, viMap);
+                }
             }
         }
 
@@ -55,7 +59,9 @@ namespace ReactiveUITK.Elements
             )
             {
                 if (df.labelElement != null)
+                {
                     PropsApplier.Apply(df.labelElement, labelMap);
+                }
             }
             previous.TryGetValue("visualInput", out var prevVi);
             next.TryGetValue("visualInput", out var nextVi);
@@ -63,7 +69,9 @@ namespace ReactiveUITK.Elements
             {
                 var input = df.Q<VisualElement>(className: "unity-base-field__input");
                 if (input != null)
+                {
                     PropsApplier.Apply(input, viMap);
+                }
             }
         }
 
@@ -96,7 +104,9 @@ namespace ReactiveUITK.Elements
                 i =>
                 {
                     if (df.choices != null && i >= 0 && i < df.choices.Count)
+                    {
                         df.value = df.choices[i];
+                    }
                 }
             );
 
@@ -139,7 +149,9 @@ namespace ReactiveUITK.Elements
                         i =>
                         {
                             if (df.choices != null && i >= 0 && i < df.choices.Count)
+                            {
                                 df.value = df.choices[i];
+                            }
                         }
                     )
                 ) { }

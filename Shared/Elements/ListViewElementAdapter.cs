@@ -16,7 +16,7 @@ namespace ReactiveUITK.Elements
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
-            public IList LastItems; // track previous items reference
+            public IList LastItems;
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
@@ -55,14 +55,20 @@ namespace ReactiveUITK.Elements
         private static IList NormalizeItems(object itemsObj)
         {
             if (itemsObj == null)
+            {
                 return null;
+            }
             if (itemsObj is IList il)
+            {
                 return il;
+            }
             if (itemsObj is IEnumerable en)
             {
                 var list = new List<object>();
                 foreach (var it in en)
+                {
                     list.Add(it);
+                }
                 return list;
             }
             return null;
@@ -98,7 +104,6 @@ namespace ReactiveUITK.Elements
             }
             else if (parts.LastItems != null)
             {
-                // items prop removed: clear list
                 parts.LastItems = null;
                 listView.itemsSource = null;
                 try
@@ -118,7 +123,6 @@ namespace ReactiveUITK.Elements
                 listView.selectionType = sel;
             }
 
-            // Row renderer wiring
             if (
                 properties.TryGetValue("row", out var rowObj)
                 && rowObj is Func<int, object, VirtualNode> rowFn
@@ -189,7 +193,6 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Allow overrides
             if (properties.TryGetValue("makeItem", out var mi) && mi is Func<VisualElement> make)
             {
                 listView.makeItem = make;
@@ -333,7 +336,6 @@ namespace ReactiveUITK.Elements
                 }
                 else if (changed && parts.LastItems != null)
                 {
-                    // Refresh all realized items so new delegate closure applies
                     int count = parts.LastItems.Count;
                     for (int i = 0; i < count; i++)
                     {
@@ -382,7 +384,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("contentContainer", out var cc)
                 && cc is Dictionary<string, object> ccMap
@@ -397,7 +401,9 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = listView.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
         }
 
@@ -421,7 +427,9 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = listView.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
         }
 
@@ -441,7 +449,9 @@ namespace ReactiveUITK.Elements
                     {
                         var s = f.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                     var p = t.GetProperty(
                         "Id",
@@ -452,7 +462,9 @@ namespace ReactiveUITK.Elements
                     {
                         var s = p.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                 }
             }
@@ -466,7 +478,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null)
+            {
                 return;
+            }
 
             string desired = null;
             if (
@@ -495,10 +509,14 @@ namespace ReactiveUITK.Elements
             }
 
             if (string.IsNullOrEmpty(desired))
+            {
                 return;
+            }
 
             if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+            {
                 return;
+            }
 
             view.viewDataKey = desired;
         }

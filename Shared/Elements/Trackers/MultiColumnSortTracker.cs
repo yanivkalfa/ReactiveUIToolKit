@@ -13,7 +13,6 @@ namespace ReactiveUITK.Elements
     {
         public void Attach(TView tv, TState state, IReadOnlyDictionary<string, object> props)
         {
-            // Read overrides from props: sortedColumns
             if (props != null && props.TryGetValue("sortedColumns", out var sortedObj))
             {
                 var fromProps = CoerceSorted(sortedObj);
@@ -23,13 +22,11 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Wire user-provided notify (optional)
             if (props != null && props.TryGetValue("columnSortingChanged", out var user))
             {
                 state.UserSortNotify = user as Delegate;
             }
 
-            // Attach internal handler once: snapshot then forward to user
             if (state.InternalSortHandler == null)
             {
                 state.InternalSortHandler = () =>
@@ -45,7 +42,9 @@ namespace ReactiveUITK.Elements
                     bool changed = !SortedEqual(prev, snap);
                     state.SortedColumns = snap;
                     if (!changed)
-                        return; // avoid notifying user when nothing actually changed
+                    {
+                        return;
+                    }
                     try
                     {
                         if (state.UserSortNotify != null)
@@ -58,7 +57,9 @@ namespace ReactiveUITK.Elements
                                 try
                                 {
                                     if (!DispatchUserNotify(tv, state.UserSortNotify, defsTree))
+                                    {
                                         DispatchUserNotify(tv, state.UserSortNotify, defsList);
+                                    }
                                 }
                                 catch { }
                             };
@@ -91,7 +92,9 @@ namespace ReactiveUITK.Elements
                                 try
                                 {
                                     if (!DispatchUserNotify(tv, state.UserSortNotify, defsTree))
+                                    {
                                         DispatchUserNotify(tv, state.UserSortNotify, defsList);
+                                    }
                                 }
                                 catch { }
                             }
@@ -115,10 +118,7 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public void Detach(TView tv, TState state)
-        {
-            // No-op; event detachment not strictly necessary across adapter lifetime
-        }
+        public void Detach(TView tv, TState state) { }
 
         public void Reapply(
             TView tv,
@@ -128,9 +128,10 @@ namespace ReactiveUITK.Elements
         )
         {
             if (tv == null || state == null)
+            {
                 return;
+            }
 
-            // Latest from props wins
             if (nextProps != null && nextProps.TryGetValue("sortedColumns", out var sortedObj))
             {
                 var fromProps = CoerceSorted(sortedObj);
@@ -140,13 +141,11 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Also refresh the user-provided notification delegate if it changed
             if (nextProps != null && nextProps.TryGetValue("columnSortingChanged", out var user))
             {
                 state.UserSortNotify = user as Delegate;
             }
 
-            // Apply desired sort via sortColumnDescriptions
             try
             {
                 var desired = state.SortedColumns ?? new List<(string, SortDirection, int)>();
@@ -170,7 +169,9 @@ namespace ReactiveUITK.Elements
                     foreach (var item in desired.OrderBy(x => x.index))
                     {
                         if (string.IsNullOrEmpty(item.name))
+                        {
                             continue;
+                        }
                         var desc = new SortColumnDescription(item.name, item.direction);
                         try
                         {
@@ -182,7 +183,6 @@ namespace ReactiveUITK.Elements
             }
             catch { }
 
-            // Refresh internal snapshot from control in case runtime adjusted order
             try
             {
                 state.SortedColumns = SnapshotSorted(tv);
@@ -195,7 +195,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (obj == null)
+            {
                 return null;
+            }
             var list = new List<(string, SortDirection, int)>();
             try
             {
@@ -212,7 +214,9 @@ namespace ReactiveUITK.Elements
                             var name = n as string;
                             SortDirection dir = SortDirection.Ascending;
                             if (d is SortDirection sd)
+                            {
                                 dir = sd;
+                            }
                             else if (d is string ds)
                             {
                                 if (
@@ -222,11 +226,15 @@ namespace ReactiveUITK.Elements
                                         StringComparison.OrdinalIgnoreCase
                                     )
                                 )
+                                {
                                     dir = SortDirection.Descending;
+                                }
                             }
                             int ord = idx is int ii ? ii : i;
                             if (!string.IsNullOrEmpty(name))
+                            {
                                 list.Add((name, dir, ord));
+                            }
                             i++;
                         }
                     }
@@ -242,7 +250,9 @@ namespace ReactiveUITK.Elements
         {
             var list = new List<(string, SortDirection, int)>();
             if (tv == null)
+            {
                 return list;
+            }
             try
             {
                 var prop = tv.GetType()
@@ -252,7 +262,7 @@ namespace ReactiveUITK.Elements
                             | System.Reflection.BindingFlags.Public
                             | System.Reflection.BindingFlags.NonPublic
                     );
-                var sorted = prop?.GetValue(tv) as System.Collections.IEnumerable; // IReadOnlyList<SortColumnDescription>
+                var sorted = prop?.GetValue(tv) as System.Collections.IEnumerable;
                 if (sorted != null)
                 {
                     int i = 0;
@@ -265,7 +275,9 @@ namespace ReactiveUITK.Elements
                             var dirObj = t.GetProperty("direction")?.GetValue(s);
                             var dir = dirObj is SortDirection sd ? sd : SortDirection.Ascending;
                             if (!string.IsNullOrEmpty(name))
+                            {
                                 list.Add((name, dir, i));
+                            }
                         }
                         catch { }
                         i++;
@@ -283,7 +295,9 @@ namespace ReactiveUITK.Elements
             var list =
                 new List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef>();
             if (src == null)
+            {
                 return list;
+            }
             foreach (var (name, direction, index) in src.OrderBy(x => x.index))
             {
                 list.Add(
@@ -305,7 +319,9 @@ namespace ReactiveUITK.Elements
             var list =
                 new List<ReactiveUITK.Props.Typed.MultiColumnListViewProps.SortedColumnDef>();
             if (src == null)
+            {
                 return list;
+            }
             foreach (var (name, direction, index) in src.OrderBy(x => x.index))
             {
                 list.Add(
@@ -327,7 +343,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (notify == null)
+            {
                 return true;
+            }
             if (
                 notify
                 is Action<
@@ -357,7 +375,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (notify == null)
+            {
                 return true;
+            }
             if (
                 notify
                 is Action<
@@ -396,19 +416,31 @@ namespace ReactiveUITK.Elements
         )
         {
             if (ReferenceEquals(a, b))
+            {
                 return true;
+            }
             if (a == null || b == null)
+            {
                 return false;
+            }
             if (a.Count != b.Count)
+            {
                 return false;
+            }
             for (int i = 0; i < a.Count; i++)
             {
                 if (!string.Equals(a[i].name, b[i].name, StringComparison.Ordinal))
+                {
                     return false;
+                }
                 if (a[i].direction != b[i].direction)
+                {
                     return false;
+                }
                 if (a[i].index != b[i].index)
+                {
                     return false;
+                }
             }
             return true;
         }

@@ -1,4 +1,3 @@
-// Assets/ReactiveUIToolKit/Samples/benchmark/BenchConfig.cs
 using System;
 using System.Collections.Generic;
 
@@ -15,7 +14,7 @@ namespace ReactiveUITK.Bench
     {
         public static readonly List<ScenarioDef> Default = new()
         {
-            new ScenarioDef { Name = "Smoke", DurationSec = 5f }, // NEW first, guaranteed visible
+            new ScenarioDef { Name = "Smoke", DurationSec = 5f },
             new ScenarioDef { Name = "StaticScreen", DurationSec = 8f },
             new ScenarioDef { Name = "PropChurn_500", DurationSec = 10f },
             new ScenarioDef { Name = "ListReorder_200", DurationSec = 10f },

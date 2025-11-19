@@ -17,15 +17,12 @@ namespace ReactiveUITK.Props.Typed
         public Style Style { get; set; }
         public object Ref { get; set; }
 
-        // Nested slot props
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> TextElement { get; set; }
 
-        // Optional UI Toolkit change handler
         public System.Action<ChangeEvent<string>> OnChange { get; set; }
 
-        // Optional label text (adapter currently does not map this; kept for completeness)
         public string LabelText { get; set; }
 
         public Dictionary<string, object> ToDictionary()

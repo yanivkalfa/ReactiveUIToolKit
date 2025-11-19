@@ -20,7 +20,9 @@ namespace ReactiveUITK.Elements
         private static void ApplySlots(Foldout fo, IReadOnlyDictionary<string, object> properties)
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("contentContainer", out var ccObj)
                 && ccObj is Dictionary<string, object> ccMap
@@ -35,7 +37,9 @@ namespace ReactiveUITK.Elements
             {
                 var header = fo.Q<Toggle>();
                 if (header != null)
+                {
                     PropsApplier.Apply(header, headerMap);
+                }
             }
         }
 
@@ -62,7 +66,9 @@ namespace ReactiveUITK.Elements
             {
                 var header = fo.Q<Toggle>();
                 if (header != null)
+                {
                     PropsApplier.Apply(header, headerMap);
+                }
             }
         }
 

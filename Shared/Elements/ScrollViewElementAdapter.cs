@@ -18,7 +18,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("contentContainer", out var ccObj)
                 && ccObj is Dictionary<string, object> ccMap

@@ -27,11 +27,17 @@ namespace ReactiveUITK.Samples.Shared
             static Dictionary<string, T> ExtractDict<T>(object source)
             {
                 if (source is Dictionary<string, T> direct)
+                {
                     return direct;
+                }
                 if (source is IDictionary<string, T> dict)
+                {
                     return new Dictionary<string, T>(dict);
+                }
                 if (source is IReadOnlyDictionary<string, T> ro)
+                {
                     return new Dictionary<string, T>(ro);
+                }
                 if (source is IDictionary<string, object> objMap)
                 {
                     var result = new Dictionary<string, T>();
@@ -161,10 +167,12 @@ namespace ReactiveUITK.Samples.Shared
                             {
                                 var row = obj as SharedTreeRowItem;
                                 if (row == null)
+                                {
                                     return V.Label(
                                         new LabelProps { Text = "<invalid>" },
                                         key: $"mctv-invalid-{i}"
                                     );
+                                }
                                 var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
                                 var funcKey = $"mctv-row-{id}";
                                 var childrenNode = row.ShouldOverrideElement
@@ -212,10 +220,14 @@ namespace ReactiveUITK.Samples.Shared
                 {
                     var row = rows[i];
                     if (row == null)
+                    {
                         continue;
+                    }
                     countValue += 1;
                     if (row.HasChild)
+                    {
                         countValue += 1;
+                    }
                 }
                 Hooks.UseEffect(
                     () =>
@@ -298,12 +310,16 @@ namespace ReactiveUITK.Samples.Shared
 
             var list = new List<TreeViewItemData<object>>();
             if (sortedRows == null)
+            {
                 return list;
+            }
             for (int i = 0; i < sortedRows.Count; i++)
             {
                 var row = sortedRows[i];
                 if (row == null)
+                {
                     continue;
+                }
                 int pid = row.Pid;
                 List<TreeViewItemData<object>> ch = null;
                 if (row.HasChild)

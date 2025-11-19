@@ -9,15 +9,12 @@ namespace ReactiveUITK.Core
     {
         public string Key;
 
-        // Registered wrapper callbacks per event (UI Toolkit EventCallback wrappers)
         public Dictionary<string, Delegate> EventHandlers = new();
 
-        // Latest user-provided handlers per event; wrappers read from here at invoke time
         public Dictionary<string, Delegate> EventHandlerTargets = new();
         public Dictionary<string, string> EventHandlerSignatures = new();
         public object AttachedRef;
 
-        // Restored original System.Func signature for compatibility
         public System.Func<
             Dictionary<string, object>,
             IReadOnlyList<VirtualNode>,
@@ -35,7 +32,7 @@ namespace ReactiveUITK.Core
         public UnityEngine.UIElements.VisualElement PortalTarget;
         public bool PortalDetachWired;
         public EventCallback<DetachFromPanelEvent> PortalDetachHandler;
-        public bool IsFlattened; // true when function component root element is directly mounted without wrapper
+        public bool IsFlattened;
         public bool ErrorBoundaryActive;
         public bool ErrorBoundaryShowingFallback;
         public Exception ErrorBoundaryLastException;

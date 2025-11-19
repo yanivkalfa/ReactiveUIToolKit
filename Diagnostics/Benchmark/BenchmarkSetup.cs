@@ -1,4 +1,4 @@
-// Samples/benchmark/BenchmarkSetup.cs
+
 using System;
 using System.Reflection;
 using ReactiveUITK.Bench;

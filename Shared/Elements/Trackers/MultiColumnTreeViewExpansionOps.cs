@@ -13,12 +13,16 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || handler == null)
+            {
                 return;
+            }
             try
             {
                 view.itemExpandedChanged += handler;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         public void Unsubscribe(
@@ -27,34 +31,46 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || handler == null)
+            {
                 return;
+            }
             try
             {
                 view.itemExpandedChanged -= handler;
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         public void ExpandItem(MultiColumnTreeView view, int id, bool expandAllChildren)
         {
             if (view == null)
+            {
                 return;
+            }
             try
             {
                 view.ExpandItem(id, expandAllChildren, false);
             }
-            catch { }
+            catch
+            {
+            }
         }
 
         public void Refresh(MultiColumnTreeView view)
         {
             if (view == null)
+            {
                 return;
+            }
             try
             {
                 view.RefreshItems();
             }
-            catch { }
+            catch
+            {
+            }
         }
     }
 }

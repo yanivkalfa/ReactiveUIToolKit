@@ -5,6 +5,7 @@ using ReactiveUITK.Core;
 using ReactiveUITK.Core.AnimationComponents;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Props.Typed;
+using ReactiveUITK.Router;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -42,8 +43,6 @@ namespace ReactiveUITK
                 children: children ?? EmptyChildren()
             );
         }
-
-        // Raw dictionary overload removed to enforce typed props usage for Button
 
         public static VirtualNode Button(ButtonProps props, string key = null)
         {
@@ -90,7 +89,6 @@ namespace ReactiveUITK
             );
         }
 
-        // Convenience typed overload for VisualElement styles
         public static VirtualNode VisualElement(
             Style style,
             string key = null,
@@ -105,7 +103,6 @@ namespace ReactiveUITK
             return VisualElement(props, key, children);
         }
 
-        // VisualElementSafe: applies safe-area padding as a minimum, without overriding larger paddings the user specifies.
         public static VirtualNode VisualElementSafe(
             Style style = null,
             string key = null,
@@ -113,13 +110,17 @@ namespace ReactiveUITK
         )
         {
             var insets = SafeAreaUtility.GetInsets();
-            // Build a style where padding = Max(userPadding, safeInset)
+
             float GetUser(string k)
             {
                 if (style == null)
+                {
                     return 0f;
+                }
                 if (style.TryGetValue(k, out var v) && v is float f)
+                {
                     return f;
+                }
                 return 0f;
             }
 
@@ -142,7 +143,7 @@ namespace ReactiveUITK
                     Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom), insets.Bottom)
                 ),
             };
-            // Merge any remaining user styles on top (they can override unrelated keys)
+
             if (style != null)
             {
                 foreach (var kv in style)
@@ -154,7 +155,6 @@ namespace ReactiveUITK
                         || kv.Key == Props.Typed.StyleKeys.PaddingBottom
                     )
                     {
-                        // Keep the max already set
                         continue;
                     }
                     merged[kv.Key] = kv.Value;
@@ -162,8 +162,6 @@ namespace ReactiveUITK
             }
             return VisualElement(merged, key, children);
         }
-
-        // Raw dictionary overload removed to enforce typed props usage for TextField
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)
         {
@@ -179,8 +177,6 @@ namespace ReactiveUITK
                 children: EmptyChildren()
             );
         }
-
-        // Raw dictionary overload removed to enforce typed props usage for ListView
 
         public static VirtualNode ListView(ListViewProps props, string key = null)
         {
@@ -587,7 +583,94 @@ namespace ReactiveUITK
             );
         }
 
-        // Animate wrapper component: applies style animations to a wrapper element and renders children inside.
+        public static VirtualNode Router(
+            IRouterHistory history = null,
+            string initialPath = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            Dictionary<string, object> props = null;
+            if (history != null || !string.IsNullOrEmpty(initialPath))
+            {
+                props = new Dictionary<string, object>();
+                if (history != null)
+                {
+                    props["history"] = history;
+                }
+                if (!string.IsNullOrEmpty(initialPath))
+                {
+                    props["initialPath"] = initialPath;
+                }
+            }
+            return Func(RouterFunc.Render, props, key, false, null, children);
+        }
+
+        public static VirtualNode Route(
+            string path = null,
+            bool exact = false,
+            VirtualNode element = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            Dictionary<string, object> props = null;
+            if (!string.IsNullOrEmpty(path) || exact || element != null)
+            {
+                props = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(path))
+                {
+                    props["path"] = path;
+                }
+                if (exact)
+                {
+                    props["exact"] = true;
+                }
+                if (element != null)
+                {
+                    props["element"] = element;
+                }
+            }
+            return Func(RouteFunc.Render, props, key, false, null, children);
+        }
+
+        public static VirtualNode Link(
+            string to,
+            string label = null,
+            bool replace = false,
+            Style style = null,
+            string key = null,
+            object state = null
+        )
+        {
+            var props = new Dictionary<string, object>();
+            if (!string.IsNullOrEmpty(to))
+            {
+                props["to"] = to;
+            }
+            if (!string.IsNullOrEmpty(label))
+            {
+                props["label"] = label;
+            }
+            if (replace)
+            {
+                props["replace"] = true;
+            }
+            if (style != null)
+            {
+                props["style"] = style;
+            }
+            if (state != null)
+            {
+                props["state"] = state;
+            }
+            if (props.Count == 0)
+            {
+                props = null;
+            }
+            return Func(LinkFunc.Render, props, key);
+        }
+
         public static VirtualNode Animate(
             AnimateProps props,
             string key = null,
@@ -603,8 +686,7 @@ namespace ReactiveUITK
                     enriched[kv.Key] = kv.Value;
                 }
             }
-            // Feed children array by reference into props so function component never shallow-skips
-            // when inner content changes (Reconciler memoizes function components on props+children shape).
+
             enriched["__childRef"] = children;
             return Func(AnimateFunc.Render, enriched, key, false, null, children);
         }

@@ -76,9 +76,13 @@ namespace ReactiveUITK.Elements
                 if (!ReferenceEquals(prevImage, nextImage))
                 {
                     if (nextImage is Texture2D tex)
+                    {
                         img.image = tex;
+                    }
                     else if (nextImage is Sprite sp)
+                    {
                         img.sprite = sp;
+                    }
                 }
 
                 previous.TryGetValue("texture", out var prevTex);

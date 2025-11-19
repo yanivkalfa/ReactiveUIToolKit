@@ -15,12 +15,18 @@ namespace ReactiveUITK.Props.Typed
         {
             var dict = new Dictionary<string, object>();
             if (Tracks != null)
+            {
                 dict["tracks"] = Tracks;
+            }
             dict["autoplay"] = Autoplay;
             if (Style != null)
+            {
                 dict["style"] = Style;
+            }
             if (Ref != null)
+            {
                 dict["ref"] = Ref;
+            }
             return dict;
         }
     }

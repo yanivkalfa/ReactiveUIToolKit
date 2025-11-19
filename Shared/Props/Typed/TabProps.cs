@@ -12,11 +12,17 @@ namespace ReactiveUITK.Props.Typed
         {
             var d = new Dictionary<string, object>();
             if (!string.IsNullOrEmpty(Text))
+            {
                 d["text"] = Text;
+            }
             if (Style != null)
+            {
                 d["style"] = Style;
+            }
             if (Ref != null)
+            {
                 d["ref"] = Ref;
+            }
             return d;
         }
     }

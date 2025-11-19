@@ -15,7 +15,9 @@ namespace ReactiveUITK.Elements
                 try
                 {
                     if (ve.ClassListContains(HeaderClass))
+                    {
                         return true;
+                    }
                 }
                 catch { }
                 ve = ve.parent as VisualElement;

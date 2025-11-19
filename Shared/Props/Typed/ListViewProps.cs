@@ -19,11 +19,9 @@ namespace ReactiveUITK.Props.Typed
         public object Ref { get; set; }
         public string ViewDataKey { get; set; }
 
-        // VNode-based row renderer
         public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
         public SelectionType? Selection { get; set; }
 
-        // Slots
         public Dictionary<string, object> ContentContainer { get; set; }
         public Dictionary<string, object> ScrollView { get; set; }
 
