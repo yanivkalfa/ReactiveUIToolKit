@@ -178,6 +178,76 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode EnumField(EnumFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "EnumField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode ObjectField(ObjectFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "ObjectField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode Scroller(ScrollerProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "Scroller", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode TextElement(TextElementProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "TextElement", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode IMGUIContainer(IMGUIContainerProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "IMGUIContainer", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode Vector2IntField(Vector2IntFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "Vector2IntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode Vector3IntField(Vector3IntFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "Vector3IntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode RectField(RectFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "RectField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode RectIntField(RectIntFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "RectIntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
+        public static VirtualNode BoundsField(BoundsFieldProps props, string key = null)
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(VirtualNodeType.Element, "BoundsField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+        }
+
         public static VirtualNode FloatField(FloatFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();

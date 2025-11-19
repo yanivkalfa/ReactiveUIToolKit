@@ -33,6 +33,19 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "Foldout");
                 RegisterIfAllowed(registry, "Tab");
                 RegisterIfAllowed(registry, "TabView");
+                RegisterIfAllowed(registry, "EnumField");
+                
+#if UNITY_EDITOR
+                RegisterIfAllowed(registry, "ObjectField");
+#endif
+                RegisterIfAllowed(registry, "Scroller");
+                RegisterIfAllowed(registry, "TextElement");
+                RegisterIfAllowed(registry, "IMGUIContainer");
+                RegisterIfAllowed(registry, "Vector2IntField");
+                RegisterIfAllowed(registry, "Vector3IntField");
+                RegisterIfAllowed(registry, "RectField");
+                RegisterIfAllowed(registry, "RectIntField");
+                RegisterIfAllowed(registry, "BoundsField");
                 RegisterIfAllowed(registry, "FloatField");
                 RegisterIfAllowed(registry, "IntegerField");
                 RegisterIfAllowed(registry, "LongField");
@@ -81,6 +94,19 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "Foldout", allowedSet);
             RegisterIfAllowed(registry, "Tab", allowedSet);
             RegisterIfAllowed(registry, "TabView", allowedSet);
+            RegisterIfAllowed(registry, "EnumField", allowedSet);
+            
+#if UNITY_EDITOR
+            RegisterIfAllowed(registry, "ObjectField", allowedSet);
+#endif
+            RegisterIfAllowed(registry, "Scroller", allowedSet);
+            RegisterIfAllowed(registry, "TextElement", allowedSet);
+            RegisterIfAllowed(registry, "IMGUIContainer", allowedSet);
+            RegisterIfAllowed(registry, "Vector2IntField", allowedSet);
+            RegisterIfAllowed(registry, "Vector3IntField", allowedSet);
+            RegisterIfAllowed(registry, "RectField", allowedSet);
+            RegisterIfAllowed(registry, "RectIntField", allowedSet);
+            RegisterIfAllowed(registry, "BoundsField", allowedSet);
             RegisterIfAllowed(registry, "FloatField", allowedSet);
             RegisterIfAllowed(registry, "IntegerField", allowedSet);
             RegisterIfAllowed(registry, "LongField", allowedSet);
@@ -183,6 +209,39 @@ namespace ReactiveUITK.Elements
                         break;
                     case "TabView":
                         registry.Register("TabView", new TabViewElementAdapter());
+                        break;
+                    case "EnumField":
+                        registry.Register("EnumField", new EnumFieldElementAdapter());
+                        break;
+                    
+#if UNITY_EDITOR
+                    case "ObjectField":
+                        registry.Register("ObjectField", new ObjectFieldElementAdapter());
+                        break;
+#endif
+                    case "Scroller":
+                        registry.Register("Scroller", new ScrollerElementAdapter());
+                        break;
+                    case "TextElement":
+                        registry.Register("TextElement", new TextElementAdapter());
+                        break;
+                    case "IMGUIContainer":
+                        registry.Register("IMGUIContainer", new IMGUIContainerElementAdapter());
+                        break;
+                    case "Vector2IntField":
+                        registry.Register("Vector2IntField", new Vector2IntFieldElementAdapter());
+                        break;
+                    case "Vector3IntField":
+                        registry.Register("Vector3IntField", new Vector3IntFieldElementAdapter());
+                        break;
+                    case "RectField":
+                        registry.Register("RectField", new RectFieldElementAdapter());
+                        break;
+                    case "RectIntField":
+                        registry.Register("RectIntField", new RectIntFieldElementAdapter());
+                        break;
+                    case "BoundsField":
+                        registry.Register("BoundsField", new BoundsFieldElementAdapter());
                         break;
                     case "FloatField":
                         registry.Register("FloatField", new FloatFieldElementAdapter());

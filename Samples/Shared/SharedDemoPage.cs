@@ -442,7 +442,6 @@ namespace ReactiveUITK.Samples.Shared
                     setSliderValue.Set(value => Mathf.Clamp01(value + 0.05f));
                     setSliderIntValue.Set(value => (value + 1) % 11);
                     setOptionEnabled(!isOptionEnabled);
-                    setAnimNonce.Set(value => value + 1);
                 },
                 Style = new Style { (MarginLeft, 6f) },
             };
@@ -1371,6 +1370,87 @@ namespace ReactiveUITK.Samples.Shared
                         ReactiveUITK.V.ColorField(
                             new ReactiveUITK.Props.Typed.ColorFieldProps { Value = new UnityEngine.Color(0.2f,0.6f,0.9f,1f) }
                         )
+                    )
+                    ,
+                    V.GroupBox(
+                        new GroupBoxProps
+                        {
+                            Text = "More Fields",
+                            Style = new Style { (MarginTop, 8f) }
+                        },
+                        null,
+                        // EnumField
+                        V.Label(new LabelProps { Text = "EnumField (TextAnchor)" }),
+                        ReactiveUITK.V.EnumField(
+                            new ReactiveUITK.Props.Typed.EnumFieldProps
+                            {
+                                EnumType = typeof(UnityEngine.TextAnchor).AssemblyQualifiedName,
+                                Value = UnityEngine.TextAnchor.MiddleCenter,
+                            }
+                        ),
+                        // Scroller
+                        V.Label(new LabelProps { Text = "Scroller" }),
+                        ReactiveUITK.V.Scroller(
+                            new ReactiveUITK.Props.Typed.ScrollerProps
+                            {
+                                LowValue = 0f,
+                                HighValue = 100f,
+                                Value = 25f,
+                                Style = new Style { (Height, 18f), (Width, 160f) }
+                            }
+                        ),
+                        // TextElement
+                        V.Label(new LabelProps { Text = "TextElement" }),
+                        ReactiveUITK.V.TextElement(
+                            new ReactiveUITK.Props.Typed.TextElementProps
+                            {
+                                Text = "This is a TextElement",
+                                Style = new Style { (FontSize, 13f) }
+                            }
+                        ),
+                        // IMGUIContainer
+                        V.Label(new LabelProps { Text = "IMGUIContainer" }),
+                        ReactiveUITK.V.IMGUIContainer(
+                            new ReactiveUITK.Props.Typed.IMGUIContainerProps
+                            {
+                                OnGUI = () => { UnityEngine.GUILayout.Label("IMGUI says hello"); },
+                                Style = new Style { (Height, 22f) }
+                            }
+                        ),
+                        // Vector2Int/Vector3Int
+                        V.Label(new LabelProps { Text = "Vector2IntField" }),
+                        ReactiveUITK.V.Vector2IntField(
+                            new ReactiveUITK.Props.Typed.Vector2IntFieldProps { Value = new UnityEngine.Vector2Int(3, 7) }
+                        ),
+                        V.Label(new LabelProps { Text = "Vector3IntField" }),
+                        ReactiveUITK.V.Vector3IntField(
+                            new ReactiveUITK.Props.Typed.Vector3IntFieldProps { Value = new UnityEngine.Vector3Int(1, 2, 3) }
+                        ),
+                        // Rect / RectInt / Bounds
+                        V.Label(new LabelProps { Text = "RectField" }),
+                        ReactiveUITK.V.RectField(
+                            new ReactiveUITK.Props.Typed.RectFieldProps { Value = new UnityEngine.Rect(10f, 20f, 80f, 40f) }
+                        ),
+                        V.Label(new LabelProps { Text = "RectIntField" }),
+                        ReactiveUITK.V.RectIntField(
+                            new ReactiveUITK.Props.Typed.RectIntFieldProps { Value = new UnityEngine.RectInt(2, 4, 11, 9) }
+                        ),
+                        V.Label(new LabelProps { Text = "BoundsField" }),
+                        ReactiveUITK.V.BoundsField(
+                            new ReactiveUITK.Props.Typed.BoundsFieldProps { Value = new UnityEngine.Bounds(new UnityEngine.Vector3(0,0,0), new UnityEngine.Vector3(1,2,3)) }
+                        )
+#if UNITY_EDITOR
+                        ,
+                        // ObjectField (Editor only)
+                        V.Label(new LabelProps { Text = "ObjectField (Texture2D)" }),
+                        ReactiveUITK.V.ObjectField(
+                            new ReactiveUITK.Props.Typed.ObjectFieldProps
+                            {
+                                ObjectType = typeof(UnityEngine.Texture2D).AssemblyQualifiedName,
+                                AllowSceneObjects = false,
+                            }
+                        )
+#endif
                     )
                 );
 
