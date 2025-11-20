@@ -676,10 +676,10 @@ namespace ReactiveUITK.Core
             for (int i = managedAfter.Count - 1; i >= 0; i--)
             {
                 var existing = managedAfter[i];
-                if (existing == null)
-                {
-                    continue;
-                }
+                    if (existing == null)
+                    {
+                        continue;
+                    }
                 var md = existing.userData as NodeMetadata;
                 if (md == null)
                 {
@@ -949,10 +949,12 @@ namespace ReactiveUITK.Core
             createdElement.userData = new NodeMetadata { Key = virtualNode.Key };
 
             if (string.IsNullOrEmpty(createdElement.name))
+            {
                 createdElement.name =
                     (elementAdapter != null)
                         ? (virtualNode.ElementTypeName + "Element")
                         : "GenericElement";
+            }
 
             elementAdapter?.ApplyProperties(createdElement, virtualNode.Properties);
 

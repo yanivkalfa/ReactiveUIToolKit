@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
-using ReactiveUITK.Core.Animation;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -276,7 +275,6 @@ namespace ReactiveUITK.Samples.Shared
             var (simpleListCount, setSimpleListCount) = Hooks.UseState(0);
             var (showTreeTabs, setShowTreeTabs) = Hooks.UseState(true);
             var (showListTabs, setShowListTabs) = Hooks.UseState(true);
-            var (animNonce, setAnimNonce) = Hooks.UseState(0);
             var (batchClicks, setBatchClicks) = Hooks.UseState(0);
             var (treeRows, setTreeRows) = Hooks.UseState(new List<TreeViewRowState>());
             var (treeExpandedIds, setTreeExpandedIds) = Hooks.UseState(new List<int>());
@@ -431,53 +429,7 @@ namespace ReactiveUITK.Samples.Shared
                 OnClick = () => setRepeatClickCount(repeatClickCount + 1),
             };
 
-            var repeatPulseTracks = Hooks.UseMemo(
-                () =>
-                    new List<AnimateTrack>
-                    {
-                        new AnimateTrack
-                        {
-                            Property = "opacity",
-                            From = 1f,
-                            To = 0.4f,
-                            Duration = 0.8f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "translateY",
-                            From = 0f,
-                            To = 6f,
-                            Duration = 0.8f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "paddingLeft",
-                            From = 0f,
-                            To = 8f,
-                            Duration = 0.8f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "paddingRight",
-                            From = 0f,
-                            To = 8f,
-                            Duration = 0.8f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                    },
-                0
-            );
+            
 
             var batchTestButtonProps = new ButtonProps
             {
@@ -490,80 +442,13 @@ namespace ReactiveUITK.Samples.Shared
                     setSliderValue.Set(value => Mathf.Clamp01(value + 0.05f));
                     setSliderIntValue.Set(value => (value + 1) % 11);
                     setOptionEnabled(!isOptionEnabled);
-                    setAnimNonce.Set(value => value + 1);
                 },
                 Style = new Style { (MarginLeft, 6f) },
             };
 
-            var multiTracks = Hooks.UseMemo(
-                () =>
-                    new List<AnimateTrack>
-                    {
-                        new AnimateTrack
-                        {
-                            Property = "opacity",
-                            From = 0f,
-                            To = 1f,
-                            Duration = 0.5f,
-                            Ease = Ease.EaseOutCubic,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "translateY",
-                            From = 12f,
-                            To = 0f,
-                            Duration = 0.5f,
-                            Ease = Ease.EaseOutCubic,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "width",
-                            From = 120f,
-                            To = 180f,
-                            Duration = 0.6f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "height",
-                            From = 32f,
-                            To = 44f,
-                            Duration = 0.6f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                        new AnimateTrack
-                        {
-                            Property = "backgroundColor",
-                            From = new UColor(0.75f, 0.85f, 1f, 1f),
-                            To = new UColor(1f, 1f, 1f, 1f),
-                            Duration = 0.5f,
-                            Ease = Ease.EaseOutCubic,
-                        },
-                    },
-                animNonce
-            );
+            
 
-            var flashAnimTracks = Hooks.UseMemo(
-                () =>
-                    new List<AnimateTrack>
-                    {
-                        new AnimateTrack
-                        {
-                            Property = "opacity",
-                            From = 1f,
-                            To = 0.3f,
-                            Duration = 0.8f,
-                            Ease = Ease.EaseInOutSine,
-                            Yoyo = true,
-                            Loop = true,
-                        },
-                    },
-                0
-            );
+            
 
             Hooks.UseEffect(
                 () =>
@@ -1329,12 +1214,7 @@ namespace ReactiveUITK.Samples.Shared
                             V.Label(new LabelProps { Text = "Pick one" })
                         ),
                         V.ProgressBar(progressBarProps),
-                        V.Button(batchTestButtonProps),
-                        V.Animate(
-                            new AnimateProps { Tracks = repeatPulseTracks },
-                            null,
-                            V.RepeatButton(repeatButtonProps)
-                        )
+                        V.Button(batchTestButtonProps)
                     ),
                     V.GroupBox(
                         newComponentsGroupProps,
@@ -1369,8 +1249,7 @@ namespace ReactiveUITK.Samples.Shared
                             }
                         ),
 #endif
-                        V.DropdownField(dropdownProps),
-                        V.Label(new LabelProps { Text = "Multi-Attr Animation" })
+                        V.DropdownField(dropdownProps)
                     ),
                     V.VisualElement(
                         null,
@@ -1442,59 +1321,186 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         showListTabs ? V.Fragment() : V.Text("List tabs hidden")
                     ),
-                    V.Label(new LabelProps { Text = "Animations" }),
-                    V.Animate(
-                        new AnimateProps { Tracks = flashAnimTracks },
+                    
+                    V.Label(new LabelProps { Text = "New Fields" }),
+                    V.GroupBox(
+                        new GroupBoxProps
+                        {
+                            Text = "Numeric, Vector and Color Fields",
+                            Style = new Style { (MarginTop, 8f) }
+                        },
                         null,
-                        V.VisualElement(
-                            new Dictionary<string, object>
-                            {
-                                {
-                                    "style",
-                                    new Style
-                                    {
-                                        (Width, 160f),
-                                        (Height, 60f),
-                                        (BackgroundColor, new UColor(0.3f, 0.6f, 0.9f, 1f)),
-                                        (BorderRadius, 6f),
-                                        (JustifyContent, "center"),
-                                        (AlignItems, "center"),
-                                        (MarginTop, 6f),
-                                    }
-                                },
-                            },
-                            null,
-                            V.Label(
-                                new LabelProps
-                                {
-                                    Text = "Flashing Box",
-                                    Style = new Style { (TextColor, UColor.white) },
-                                }
-                            )
+                        V.Label(new LabelProps { Text = "FloatField" }),
+                        ReactiveUITK.V.FloatField(
+                            new ReactiveUITK.Props.Typed.FloatFieldProps { Value = 1.23f }
+                        ),
+                        V.Label(new LabelProps { Text = "IntegerField" }),
+                        ReactiveUITK.V.IntegerField(
+                            new ReactiveUITK.Props.Typed.IntegerFieldProps { Value = 42 }
+                        ),
+                        V.Label(new LabelProps { Text = "LongField" }),
+                        ReactiveUITK.V.LongField(
+                            new ReactiveUITK.Props.Typed.LongFieldProps { Value = 123456789 }
+                        ),
+                        V.Label(new LabelProps { Text = "DoubleField" }),
+                        ReactiveUITK.V.DoubleField(
+                            new ReactiveUITK.Props.Typed.DoubleFieldProps { Value = 3.14159 }
+                        ),
+                        V.Label(new LabelProps { Text = "UnsignedIntegerField" }),
+                        ReactiveUITK.V.UnsignedIntegerField(
+                            new ReactiveUITK.Props.Typed.UnsignedIntegerFieldProps { Value = 77 }
+                        ),
+                        V.Label(new LabelProps { Text = "UnsignedLongField" }),
+                        ReactiveUITK.V.UnsignedLongField(
+                            new ReactiveUITK.Props.Typed.UnsignedLongFieldProps { Value = 9876543210 }
+                        ),
+                        V.Label(new LabelProps { Text = "Vector2Field" }),
+                        ReactiveUITK.V.Vector2Field(
+                            new ReactiveUITK.Props.Typed.Vector2FieldProps { Value = new UnityEngine.Vector2(1,2) }
+                        ),
+                        V.Label(new LabelProps { Text = "Vector3Field" }),
+                        ReactiveUITK.V.Vector3Field(
+                            new ReactiveUITK.Props.Typed.Vector3FieldProps { Value = new UnityEngine.Vector3(1,2,3) }
+                        ),
+                        V.Label(new LabelProps { Text = "Vector4Field" }),
+                        ReactiveUITK.V.Vector4Field(
+                            new ReactiveUITK.Props.Typed.Vector4FieldProps { Value = new UnityEngine.Vector4(1,2,3,4) }
+                        ),
+                        V.Label(new LabelProps { Text = "ColorField" }),
+                        ReactiveUITK.V.ColorField(
+                            new ReactiveUITK.Props.Typed.ColorFieldProps { Value = new UnityEngine.Color(0.2f,0.6f,0.9f,1f) }
                         )
-                    ),
-                    V.Animate(
-                        new AnimateProps { Tracks = multiTracks },
+                    )
+                    ,
+                    V.GroupBox(
+                        new GroupBoxProps
+                        {
+                            Text = "More Fields",
+                            Style = new Style { (MarginTop, 8f) }
+                        },
                         null,
-                        V.VisualElement(
-                            new Dictionary<string, object>
+                        // EnumField
+                        V.Label(new LabelProps { Text = "EnumField (TextAnchor)" }),
+                        ReactiveUITK.V.EnumField(
+                            new ReactiveUITK.Props.Typed.EnumFieldProps
                             {
-                                {
-                                    "style",
-                                    new Style
-                                    {
-                                        (Width, 200f),
-                                        (Height, 120f),
-                                        (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
-                                        (BorderRadius, 8f),
-                                        (JustifyContent, "center"),
-                                        (AlignItems, "center"),
-                                        (MarginTop, 8f),
-                                    }
-                                },
+                                EnumType = typeof(UnityEngine.TextAnchor).AssemblyQualifiedName,
+                                Value = UnityEngine.TextAnchor.MiddleCenter,
+                            }
+                        ),
+                        // Scroller
+                        V.Label(new LabelProps { Text = "Scroller" }),
+                        ReactiveUITK.V.Scroller(
+                            new ReactiveUITK.Props.Typed.ScrollerProps
+                            {
+                                LowValue = 0f,
+                                HighValue = 100f,
+                                Value = 25f,
+                                Style = new Style { (Height, 18f), (Width, 160f) }
+                            }
+                        ),
+                        // TextElement
+                        V.Label(new LabelProps { Text = "TextElement" }),
+                        ReactiveUITK.V.TextElement(
+                            new ReactiveUITK.Props.Typed.TextElementProps
+                            {
+                                Text = "This is a TextElement",
+                                Style = new Style { (FontSize, 13f) }
+                            }
+                        ),
+                        // IMGUIContainer
+                        V.Label(new LabelProps { Text = "IMGUIContainer" }),
+                        ReactiveUITK.V.IMGUIContainer(
+                            new ReactiveUITK.Props.Typed.IMGUIContainerProps
+                            {
+                                OnGUI = () => { UnityEngine.GUILayout.Label("IMGUI says hello"); },
+                                Style = new Style { (Height, 22f) }
+                            }
+                        ),
+                        // Vector2Int/Vector3Int
+                        V.Label(new LabelProps { Text = "Vector2IntField" }),
+                        ReactiveUITK.V.Vector2IntField(
+                            new ReactiveUITK.Props.Typed.Vector2IntFieldProps { Value = new UnityEngine.Vector2Int(3, 7) }
+                        ),
+                        V.Label(new LabelProps { Text = "Vector3IntField" }),
+                        ReactiveUITK.V.Vector3IntField(
+                            new ReactiveUITK.Props.Typed.Vector3IntFieldProps { Value = new UnityEngine.Vector3Int(1, 2, 3) }
+                        ),
+                        // Rect / RectInt / Bounds
+                        V.Label(new LabelProps { Text = "RectField" }),
+                        ReactiveUITK.V.RectField(
+                            new ReactiveUITK.Props.Typed.RectFieldProps { Value = new UnityEngine.Rect(10f, 20f, 80f, 40f) }
+                        ),
+                        V.Label(new LabelProps { Text = "RectIntField" }),
+                        ReactiveUITK.V.RectIntField(
+                            new ReactiveUITK.Props.Typed.RectIntFieldProps { Value = new UnityEngine.RectInt(2, 4, 11, 9) }
+                        ),
+                        V.Label(new LabelProps { Text = "BoundsField" }),
+                        ReactiveUITK.V.BoundsField(
+                            new ReactiveUITK.Props.Typed.BoundsFieldProps { Value = new UnityEngine.Bounds(new UnityEngine.Vector3(0,0,0), new UnityEngine.Vector3(1,2,3)) }
+                        )
+#if UNITY_EDITOR
+                        ,
+                        // ObjectField (Editor only)
+                        V.Label(new LabelProps { Text = "ObjectField (Texture2D)" }),
+                        ReactiveUITK.V.ObjectField(
+                            new ReactiveUITK.Props.Typed.ObjectFieldProps
+                            {
+                                ObjectType = typeof(UnityEngine.Texture2D).AssemblyQualifiedName,
+                                AllowSceneObjects = false,
+                            }
+                        )
+#endif
+                    )
+                    ,
+                    V.GroupBox(
+                        new GroupBoxProps
+                        {
+                            Text = "Even More Fields",
+                            Style = new Style { (MarginTop, 8f) }
+                        },
+                        null,
+                        // MinMaxSlider
+                        V.Label(new LabelProps { Text = "MinMaxSlider" }),
+                        ReactiveUITK.V.MinMaxSlider(
+                            new ReactiveUITK.Props.Typed.MinMaxSliderProps
+                            {
+                                MinValue = 20f,
+                                MaxValue = 80f,
+                                LowLimit = 0f,
+                                HighLimit = 100f,
+                                Style = new Style { (Width, 200f) }
+                            }
+                        ),
+                        // TemplateContainer
+                        V.Label(new LabelProps { Text = "TemplateContainer" }),
+                        ReactiveUITK.V.TemplateContainer(
+                            new ReactiveUITK.Props.Typed.TemplateContainerProps
+                            {
+                                ContentContainer = new Style { (Padding, 6f), (BackgroundColor, new Color(1f,1f,1f,1f)) },
+                                Style = new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f,0.85f,0.85f,1f)) }
                             },
                             null,
-                            V.Label(new LabelProps { Text = "Animated Card" })
+                            V.Label(new LabelProps { Text = "Inside TemplateContainer" })
+                        ),
+                        // BoundsIntField
+                        V.Label(new LabelProps { Text = "BoundsIntField" }),
+                        ReactiveUITK.V.BoundsIntField(
+                            new ReactiveUITK.Props.Typed.BoundsIntFieldProps { Value = new UnityEngine.BoundsInt(1,2,3, 4,5,6) }
+                        ),
+                        // Hash128Field
+                        V.Label(new LabelProps { Text = "Hash128Field" }),
+                        ReactiveUITK.V.Hash128Field(
+                            new ReactiveUITK.Props.Typed.Hash128FieldProps { Value = new UnityEngine.Hash128(1,2,3,4) }
+                        ),
+                        // ToggleButtonGroup
+                        V.Label(new LabelProps { Text = "ToggleButtonGroup" }),
+                        ReactiveUITK.V.ToggleButtonGroup(
+                            new ReactiveUITK.Props.Typed.ToggleButtonGroupProps { Value = 1 },
+                            null,
+                            V.Button(new ButtonProps { Text = "One" }),
+                            V.Button(new ButtonProps { Text = "Two" }),
+                            V.Button(new ButtonProps { Text = "Three" })
                         )
                     )
                 );
