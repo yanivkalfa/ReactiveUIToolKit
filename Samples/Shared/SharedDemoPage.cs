@@ -1452,6 +1452,57 @@ namespace ReactiveUITK.Samples.Shared
                         )
 #endif
                     )
+                    ,
+                    V.GroupBox(
+                        new GroupBoxProps
+                        {
+                            Text = "Even More Fields",
+                            Style = new Style { (MarginTop, 8f) }
+                        },
+                        null,
+                        // MinMaxSlider
+                        V.Label(new LabelProps { Text = "MinMaxSlider" }),
+                        ReactiveUITK.V.MinMaxSlider(
+                            new ReactiveUITK.Props.Typed.MinMaxSliderProps
+                            {
+                                MinValue = 20f,
+                                MaxValue = 80f,
+                                LowLimit = 0f,
+                                HighLimit = 100f,
+                                Style = new Style { (Width, 200f) }
+                            }
+                        ),
+                        // TemplateContainer
+                        V.Label(new LabelProps { Text = "TemplateContainer" }),
+                        ReactiveUITK.V.TemplateContainer(
+                            new ReactiveUITK.Props.Typed.TemplateContainerProps
+                            {
+                                ContentContainer = new Style { (Padding, 6f), (BackgroundColor, new Color(1f,1f,1f,1f)) },
+                                Style = new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f,0.85f,0.85f,1f)) }
+                            },
+                            null,
+                            V.Label(new LabelProps { Text = "Inside TemplateContainer" })
+                        ),
+                        // BoundsIntField
+                        V.Label(new LabelProps { Text = "BoundsIntField" }),
+                        ReactiveUITK.V.BoundsIntField(
+                            new ReactiveUITK.Props.Typed.BoundsIntFieldProps { Value = new UnityEngine.BoundsInt(1,2,3, 4,5,6) }
+                        ),
+                        // Hash128Field
+                        V.Label(new LabelProps { Text = "Hash128Field" }),
+                        ReactiveUITK.V.Hash128Field(
+                            new ReactiveUITK.Props.Typed.Hash128FieldProps { Value = new UnityEngine.Hash128(1,2,3,4) }
+                        ),
+                        // ToggleButtonGroup
+                        V.Label(new LabelProps { Text = "ToggleButtonGroup" }),
+                        ReactiveUITK.V.ToggleButtonGroup(
+                            new ReactiveUITK.Props.Typed.ToggleButtonGroupProps { Value = 1 },
+                            null,
+                            V.Button(new ButtonProps { Text = "One" }),
+                            V.Button(new ButtonProps { Text = "Two" }),
+                            V.Button(new ButtonProps { Text = "Three" })
+                        )
+                    )
                 );
 
             return V.VisualElement(
