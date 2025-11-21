@@ -25,6 +25,7 @@ namespace ReactiveUITK.CICD
         {
             public EnvVars envVariables;
             public List<string> pathsToOmitFromDist;
+            public string npmPath;
         }
 
         [MenuItem("Window/ReactiveUITK/Publish/Build Dist", priority = 1000)]
@@ -310,6 +311,140 @@ namespace ReactiveUITK.CICD
             Debug.Log("Publish: Store upload not implemented yet. Dist built.");
         }
 
+        [MenuItem("Window/ReactiveUITK/Publish/Build Docs and Push", priority = 1100)]
+        public static void BuildDocsAndPush()
+        {
+            try
+            {
+                string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
+                string docsRoot = Path.Combine(packageRoot, "ReactiveUIToolKitDocs");
+                if (!Directory.Exists(docsRoot))
+                {
+                    Debug.LogError("Publish: docs root not found: " + docsRoot);
+                    return;
+                }
+
+                string docsDist = Path.Combine(docsRoot, "dist");
+                if (!Directory.Exists(docsDist))
+                {
+                    Debug.LogError(
+                        "Publish: docs dist folder not found: "
+                            + docsDist
+                            + ". Run 'npm run build' in ReactiveUIToolKitDocs first."
+                    );
+                    return;
+                }
+
+                var gitTop = RunGit(
+                    "rev-parse --show-toplevel",
+                    packageRoot,
+                    out string repoRoot,
+                    out string err1
+                );
+                if (gitTop != 0 || string.IsNullOrWhiteSpace(repoRoot))
+                {
+                    Debug.LogError("Publish: Could not determine git repo root. " + err1);
+                    return;
+                }
+                repoRoot = repoRoot.Trim();
+
+                string branch = "documentations";
+                string remote = "origin";
+                string worktree = Path.Combine(repoRoot, "_docs_branch");
+
+                if (Directory.Exists(worktree))
+                {
+                    RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _eRm);
+                    RunGit("worktree prune", repoRoot, out var _, out var _ePrune);
+                    try
+                    {
+                        DeleteDirectory(worktree);
+                    }
+                    catch { }
+                }
+
+                RunGit("fetch --tags --prune origin", repoRoot, out var _fOut, out var fErr);
+                if (!string.IsNullOrEmpty(fErr))
+                {
+                    Debug.Log("Publish: fetch note (docs): " + fErr);
+                }
+
+                bool remoteBranchExists =
+                    RunGit(
+                        $"ls-remote --heads {remote} {branch}",
+                        repoRoot,
+                        out var lsOut,
+                        out var lsErr
+                    ) == 0
+                    && !string.IsNullOrWhiteSpace(lsOut);
+
+                bool branchExists =
+                    RunGit(
+                        $"rev-parse --verify --quiet {branch}",
+                        repoRoot,
+                        out var _vOut,
+                        out var _eChk
+                    ) == 0;
+
+                string commitish = remoteBranchExists
+                    ? $"{remote}/{branch}"
+                    : (branchExists ? branch : "HEAD");
+                if (
+                    RunGit(
+                        $"worktree add -B {branch} \"{worktree}\" {commitish}",
+                        repoRoot,
+                        out var _,
+                        out var e2
+                    ) != 0
+                )
+                {
+                    Debug.LogError("Publish: git worktree add (docs) failed: " + e2);
+                    return;
+                }
+
+                DeleteAllExceptGit(worktree);
+
+                CopyDirectory(docsDist, worktree);
+
+                if (RunGit("add -A", worktree, out var _, out var e3) != 0)
+                {
+                    Debug.LogError("Publish: git add (docs) failed: " + e3);
+                    return;
+                }
+                RunGit("status --porcelain", worktree, out var status, out var _);
+                if (!string.IsNullOrWhiteSpace(status))
+                {
+                    const string msg = "docs update";
+                    if (RunGit($"commit -m \"{msg}\"", worktree, out var _, out var e4) != 0)
+                    {
+                        Debug.LogError("Publish: git commit (docs) failed: " + e4);
+                        return;
+                    }
+                }
+                else
+                {
+                    Debug.Log("Publish: no changes to commit on documentations branch");
+                }
+
+                string pushArgs = branchExists
+                    ? $"push {remote} {branch}"
+                    : $"push -u {remote} {branch}";
+                if (RunGit(pushArgs, worktree, out var _, out var e5) != 0)
+                {
+                    Debug.LogError("Publish: git push (docs) failed: " + e5);
+                    return;
+                }
+
+                RunGit($"worktree remove -f \"{worktree}\"", repoRoot, out var _, out var _e7);
+
+                Debug.Log($"[Publish] docs pushed to '{remote}/{branch}'");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("Publish: Build Docs and Push failed: " + ex.Message);
+            }
+        }
+
         [Serializable]
         private class PackageJson
         {
@@ -579,6 +714,129 @@ namespace ReactiveUITK.CICD
             if (!string.IsNullOrEmpty(stderr))
             {
                 Debug.Log($"[git:err] {args}\n{stderr}");
+            }
+            return p.ExitCode;
+        }
+
+        private static int RunNpm(
+            string args,
+            string workingDir,
+            string npmPath,
+            out string stdout,
+            out string stderr
+        )
+        {
+            bool isWindows = Application.platform == RuntimePlatform.WindowsEditor
+                || Application.platform == RuntimePlatform.WindowsPlayer;
+
+            string fileName = string.Empty;
+            string finalArgs = string.Empty;
+            string npmDir = null;
+            if (!string.IsNullOrEmpty(npmPath))
+            {
+                try
+                {
+                    npmDir = Path.GetDirectoryName(npmPath);
+                }
+                catch { }
+
+                if (string.IsNullOrEmpty(npmDir))
+                {
+                    Debug.LogError("[npm] Invalid npmPath in config.json; falling back to PATH.");
+                    npmPath = null;
+                }
+                else
+                {
+                    var nodeExe = Path.Combine(npmDir, "node.exe");
+                    var cliJs = Path.Combine(npmDir, "node_modules", "npm", "bin", "npm-cli.js");
+                    fileName = nodeExe;
+                    finalArgs = $"\"{cliJs}\" {args}";
+                }
+            }
+
+            if (string.IsNullOrEmpty(npmPath))
+            {
+                if (isWindows)
+                {
+                    fileName = "cmd.exe";
+                    finalArgs = "/c npm " + args;
+                }
+                else
+                {
+                    fileName = "npm";
+                    finalArgs = args;
+                }
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = finalArgs,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+            };
+
+            // Ensure the Node folder is on PATH so child scripts (tsc, vite, etc.)
+            // that shell out to "node" can find it.
+            if (!string.IsNullOrEmpty(npmDir))
+            {
+                try
+                {
+                    var pathKey = "PATH";
+                    var existing = psi.EnvironmentVariables[pathKey] ?? string.Empty;
+                    if (!existing.Contains(npmDir))
+                    {
+                        psi.EnvironmentVariables[pathKey] = string.IsNullOrEmpty(existing)
+                            ? npmDir
+                            : (npmDir + ";" + existing);
+                    }
+                }
+                catch { }
+            }
+            var p = new System.Diagnostics.Process { StartInfo = psi };
+            var sbOut = new StringBuilder();
+            var sbErr = new StringBuilder();
+            p.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                {
+                    sbOut.AppendLine(e.Data);
+                }
+            };
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                {
+                    sbErr.AppendLine(e.Data);
+                }
+            };
+            try
+            {
+                p.Start();
+            }
+            catch (Exception ex)
+            {
+                stdout = string.Empty;
+                stderr = ex.Message;
+                Debug.LogError("[npm] failed to start: " + ex.Message);
+                return -1;
+            }
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+            p.WaitForExit();
+            stdout = sbOut.ToString();
+            stderr = sbErr.ToString();
+            if (!string.IsNullOrEmpty(stdout))
+            {
+                Debug.Log($"[npm] {args}\n{stdout}");
+            }
+            if (!string.IsNullOrEmpty(stderr))
+            {
+                Debug.Log($"[npm:err] {args}\n{stderr}");
             }
             return p.ExitCode;
         }

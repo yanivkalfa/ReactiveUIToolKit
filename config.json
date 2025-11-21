@@ -9,6 +9,8 @@
     "CICD/**",
     "dist~/**",
     "Diagnostics/**",
-    "scripts/**"
-  ]
+    "scripts/**",
+    "ReactiveUIToolKitDocs/**"
+  ],
+  "npmPath": "C:\\nvm4w\\nodejs\\npm.cmd"
 }
