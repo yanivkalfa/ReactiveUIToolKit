@@ -10,6 +10,12 @@ using UnityEngine.UIElements;
 // Editor-only usage
 public static class PropertyInspectorExamples
 {
+  private static readonly Style InspectorBoxStyle = new Style
+  {
+    (StyleKeys.FlexDirection, FlexDirection.Row),
+    (StyleKeys.Gap, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -20,11 +26,7 @@ public static class PropertyInspectorExamples
     return V.Box(
       new BoxProps
       {
-        Style = new Style
-        {
-          (StyleKeys.FlexDirection, FlexDirection.Row),
-          (StyleKeys.Gap, 4f),
-        },
+        Style = InspectorBoxStyle,
       },
       V.PropertyField(
         new PropertyFieldProps
@@ -43,4 +45,3 @@ public static class PropertyInspectorExamples
     );
   }
 }`
-

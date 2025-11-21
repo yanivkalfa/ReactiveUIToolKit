@@ -9,6 +9,8 @@ using UnityEngine.UIElements;
 
 public static class Vector3FieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -21,8 +23,6 @@ public static class Vector3FieldExamples
       setValue.Set(evt.newValue);
     }
 
-    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
-
     return V.Vector3Field(
       new Vector3FieldProps
       {
@@ -31,10 +31,9 @@ public static class Vector3FieldExamples
         Label = new LabelProps { Text = "Vector3" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );
   }
 }`
-

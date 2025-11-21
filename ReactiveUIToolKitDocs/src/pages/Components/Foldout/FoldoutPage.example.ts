@@ -9,6 +9,10 @@ using UnityEngine.UIElements;
 
 public static class FoldoutExamples
 {
+  private static readonly Style HeaderStyle = new Style { (StyleKeys.FontSize, 14f) };
+
+  private static readonly Style ContentContainerStyle = new Style { (StyleKeys.PaddingLeft, 12f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -23,12 +27,12 @@ public static class FoldoutExamples
 
     var headerProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.FontSize, 14f) } },
+      { "style", HeaderStyle },
     };
 
     var contentContainerProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.PaddingLeft, 12f) } },
+      { "style", ContentContainerStyle },
     };
 
     return V.Foldout(
@@ -46,4 +50,3 @@ public static class FoldoutExamples
     );
   }
 }`
-

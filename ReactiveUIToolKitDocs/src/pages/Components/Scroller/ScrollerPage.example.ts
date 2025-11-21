@@ -8,6 +8,12 @@ using UnityEngine.UIElements;
 
 public static class ScrollerExamples
 {
+  private static readonly Style ScrollerStyle = new Style
+  {
+    (StyleKeys.Width, 12f),
+    (StyleKeys.Height, 120f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -26,13 +32,8 @@ public static class ScrollerExamples
         LowValue = 0f,
         HighValue = 100f,
         Value = value,
-        Style = new Style
-        {
-          (StyleKeys.Width, 12f),
-          (StyleKeys.Height, 120f),
-        },
+        Style = ScrollerStyle,
       }
     );
   }
 }`
-

@@ -8,6 +8,8 @@ using UnityEngine;
 
 public static class ImageExamples
 {
+  private static readonly Style ImageStyle = new Style { (StyleKeys.Width, 128f), (StyleKeys.Height, 128f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -20,9 +22,8 @@ public static class ImageExamples
       {
         Texture = texture,
         ScaleMode = "ScaleToFit",
-        Style = new Style { (StyleKeys.Width, 128f), (StyleKeys.Height, 128f) },
+        Style = ImageStyle,
       }
     );
   }
 }`
-

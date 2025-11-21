@@ -9,6 +9,11 @@ using UnityEngine.UIElements;
 
 public static class ColorFieldExamples
 {
+  private static readonly Style InputStyle = new Style
+  {
+    (StyleKeys.PaddingLeft, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -21,11 +26,6 @@ public static class ColorFieldExamples
       setColor.Set(evt.newValue);
     }
 
-    var inputStyle = new Style
-    {
-      (StyleKeys.PaddingLeft, 4f),
-    };
-
     return V.ColorField(
       new ColorFieldProps
       {
@@ -33,7 +33,7 @@ public static class ColorFieldExamples
         Label = new LabelProps { Text = "Tint" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );

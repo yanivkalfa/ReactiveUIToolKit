@@ -39,6 +39,29 @@ export const Sidebar: FC = () => {
       <List disablePadding>
         {displaySections.map((sec) => {
           const expanded = !!open[sec.id]
+          const isLeafSection = sec.pages.length === 1
+          const firstPage = sec.pages[0]
+
+          if (isLeafSection) {
+            return (
+              <Box key={sec.id}>
+                <ListItemButton
+                  component={RouterLink}
+                  to={firstPage.path}
+                  selected={location.pathname === firstPage.path}
+                >
+                  <ListItemText
+                    primary={
+                      <Typography sx={Styles.sectionTitle}>
+                        {sec.title}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+                <Divider />
+              </Box>
+            )
+          }
 
           return (
             <Box key={sec.id}>

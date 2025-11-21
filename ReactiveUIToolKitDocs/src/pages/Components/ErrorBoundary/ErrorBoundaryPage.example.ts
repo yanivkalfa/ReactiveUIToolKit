@@ -8,6 +8,12 @@ using ReactiveUITK.Props.Typed;
 
 public static class ErrorBoundaryExamples
 {
+  private static readonly Style FallbackBoxStyle = new Style
+  {
+    (StyleKeys.PaddingLeft, 8f),
+    (StyleKeys.PaddingTop, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -16,11 +22,7 @@ public static class ErrorBoundaryExamples
     var fallback = V.Box(
       new BoxProps
       {
-        Style = new Style
-        {
-          (StyleKeys.PaddingLeft, 8f),
-          (StyleKeys.PaddingTop, 4f),
-        },
+        Style = FallbackBoxStyle,
       },
       V.Label(new LabelProps { Text = "Something went wrong." })
     );
@@ -56,4 +58,3 @@ public static class ErrorBoundaryExamples
     );
   }
 }`
-

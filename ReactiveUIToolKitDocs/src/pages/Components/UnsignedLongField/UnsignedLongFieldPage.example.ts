@@ -8,6 +8,8 @@ using UnityEngine.UIElements;
 
 public static class UnsignedLongFieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -20,8 +22,6 @@ public static class UnsignedLongFieldExamples
       setValue.Set(evt.newValue);
     }
 
-    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
-
     return V.UnsignedLongField(
       new UnsignedLongFieldProps
       {
@@ -30,10 +30,9 @@ public static class UnsignedLongFieldExamples
         Label = new LabelProps { Text = "Unsigned Long" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );
   }
 }`
-

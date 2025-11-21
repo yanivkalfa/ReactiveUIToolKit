@@ -14,6 +14,8 @@ public sealed class TreeItem
 
 public static class TreeViewExamples
 {
+  private static readonly Style TreeViewStyle = new Style { (StyleKeys.FlexGrow, 1f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -40,10 +42,9 @@ public static class TreeViewExamples
       FixedItemHeight = 20f,
       Selection = SelectionType.Single,
       Row = Row,
-      Style = new Style { (StyleKeys.FlexGrow, 1f) },
+      Style = TreeViewStyle,
     };
 
     return V.TreeView(propsTree);
   }
 }`
-

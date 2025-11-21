@@ -9,6 +9,8 @@ using UnityEngine;
 
 public static class ButtonExamples
 {
+  private static readonly Style ButtonStyle = new Style { (StyleKeys.MarginTop, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -27,7 +29,7 @@ public static class ButtonExamples
       {
         Text = $"Click me ({count})",
         OnClick = OnClick,
-        Style = new Style { (StyleKeys.MarginTop, 4f) },
+        Style = ButtonStyle,
       }
     );
   }

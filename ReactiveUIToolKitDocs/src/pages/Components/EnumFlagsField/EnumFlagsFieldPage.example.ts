@@ -18,6 +18,8 @@ public enum ExampleFlags
 
 public static class EnumFlagsFieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -30,8 +32,6 @@ public static class EnumFlagsFieldExamples
       setValue.Set((ExampleFlags)evt.newValue);
     }
 
-    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
-
     return V.EnumFlagsField(
       new EnumFlagsFieldProps
       {
@@ -39,7 +39,7 @@ public static class EnumFlagsFieldExamples
         Value = value,
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );

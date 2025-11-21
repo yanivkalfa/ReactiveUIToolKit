@@ -8,6 +8,8 @@ using UnityEngine.UIElements;
 
 public static class ToggleExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.MarginRight, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -22,7 +24,7 @@ public static class ToggleExamples
 
     var inputProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.MarginRight, 4f) } },
+      { "style", InputStyle },
     };
 
     return V.Toggle(
@@ -35,4 +37,3 @@ public static class ToggleExamples
     );
   }
 }`
-

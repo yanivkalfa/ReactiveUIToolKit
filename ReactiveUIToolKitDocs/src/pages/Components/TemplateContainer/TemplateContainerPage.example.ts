@@ -8,20 +8,20 @@ using UnityEngine.UIElements;
 
 public static class TemplateContainerExamples
 {
+  private static readonly Style ContentStyle = new Style
+  {
+    (StyleKeys.PaddingTop, 4f),
+    (StyleKeys.PaddingBottom, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
   {
-    var contentStyle = new Style
-    {
-      (StyleKeys.PaddingTop, 4f),
-      (StyleKeys.PaddingBottom, 4f),
-    };
-
     var contentContainerProps = new Dictionary<string, object>
     {
-      { "style", contentStyle },
+      { "style", ContentStyle },
     };
 
     return V.TemplateContainer(
@@ -33,4 +33,3 @@ public static class TemplateContainerExamples
     );
   }
 }`
-

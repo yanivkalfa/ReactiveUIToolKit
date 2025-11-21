@@ -8,6 +8,8 @@ using UnityEngine.UIElements;
 
 public static class UnsignedIntegerFieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -20,8 +22,6 @@ public static class UnsignedIntegerFieldExamples
       setValue.Set(evt.newValue);
     }
 
-    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
-
     return V.UnsignedIntegerField(
       new UnsignedIntegerFieldProps
       {
@@ -30,10 +30,9 @@ public static class UnsignedIntegerFieldExamples
         Label = new LabelProps { Text = "Unsigned Int" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );
   }
 }`
-

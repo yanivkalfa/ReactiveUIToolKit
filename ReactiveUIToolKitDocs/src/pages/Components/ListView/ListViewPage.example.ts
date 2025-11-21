@@ -9,6 +9,10 @@ using UnityEngine;
 
 public static class ListViewExamples
 {
+  private static readonly Style ScrollViewStyle = new Style { (StyleKeys.MaxHeight, 200f) };
+
+  private static readonly Style ListStyle = new Style { (StyleKeys.FlexGrow, 1f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -26,7 +30,7 @@ public static class ListViewExamples
 
     var scrollViewProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.MaxHeight, 200f) } },
+      { "style", ScrollViewStyle },
     };
 
     var listProps = new ListViewProps
@@ -36,10 +40,9 @@ public static class ListViewExamples
       Row = Row,
       Selection = SelectionType.None,
       ScrollView = scrollViewProps,
-      Style = new Style { (StyleKeys.FlexGrow, 1f) },
+      Style = ListStyle,
     };
 
     return V.ListView(listProps);
   }
 }`
-

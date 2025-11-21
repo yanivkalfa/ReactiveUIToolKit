@@ -7,6 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class MinMaxSliderExamples
 {
+  private static readonly Style SliderStyle = new Style { (StyleKeys.Width, 200f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -26,9 +28,8 @@ public static class MinMaxSliderExamples
         MaxValue = range.max,
         LowLimit = 0f,
         HighLimit = 100f,
-        Style = new Style { (StyleKeys.Width, 200f) },
+        Style = SliderStyle,
       }
     );
   }
 }`
-

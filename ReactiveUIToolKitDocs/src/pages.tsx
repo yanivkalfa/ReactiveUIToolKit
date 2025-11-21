@@ -62,6 +62,10 @@ import { PropertyInspectorPage } from './pages/Components/PropertyInspector/Prop
 import { TwoPaneSplitViewPage } from './pages/Components/TwoPaneSplitView/TwoPaneSplitViewPage'
 import { KnownIssuesPage } from './pages/KnownIssues/KnownIssuesPage'
 import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
+import { AnimationHooksPage } from './pages/SpecialHooks/AnimationHooksPage'
+import { RouterHooksPage } from './pages/SpecialHooks/RouterHooksPage'
+import { SignalsHooksPage } from './pages/SpecialHooks/SignalsHooksPage'
+import { SafeAreaHooksPage } from './pages/SpecialHooks/SafeAreaHooksPage'
 
 export type Page = {
   id: string
@@ -589,61 +593,39 @@ export const pages: Section[] = [
         group: 'advanced',
         element: () => <TwoPaneSplitViewPage />,
       },
+    ],
+  },
+  {
+    id: 'special-hooks',
+    title: 'Special Hooks',
+    pages: [
       {
-        id: 'component-template-container',
-        title: 'TemplateContainer',
-        path: '/components/template-container',
-        keywords: ['template', 'container'],
-        element: () => <TemplateContainerPage />,
+        id: 'special-hooks-animation',
+        title: 'Animation hooks',
+        path: '/special-hooks/animation',
+        keywords: ['hooks', 'animation', 'UseAnimate', 'UseTweenFloat'],
+        element: () => <AnimationHooksPage />,
       },
       {
-        id: 'component-unsigned-integer-field',
-        title: 'UnsignedIntegerField',
-        path: '/components/unsigned-integer-field',
-        keywords: ['uint', 'field'],
-        element: () => <UnsignedIntegerFieldPage />,
+        id: 'special-hooks-router',
+        title: 'Router hooks',
+        path: '/special-hooks/router',
+        keywords: ['hooks', 'router', 'RouterHooks'],
+        element: () => <RouterHooksPage />,
       },
       {
-        id: 'component-unsigned-long-field',
-        title: 'UnsignedLongField',
-        path: '/components/unsigned-long-field',
-        keywords: ['ulong', 'field'],
-        element: () => <UnsignedLongFieldPage />,
+        id: 'special-hooks-signals',
+        title: 'Signal hooks',
+        path: '/special-hooks/signals',
+        keywords: ['hooks', 'signals', 'UseSignal'],
+        element: () => <SignalsHooksPage />,
       },
       {
-        id: 'component-vector2-field',
-        title: 'Vector2Field',
-        path: '/components/vector2-field',
-        keywords: ['vector2', 'field'],
-        element: () => <Vector2FieldPage />,
-      },
-      {
-        id: 'component-vector2-int-field',
-        title: 'Vector2IntField',
-        path: '/components/vector2-int-field',
-        keywords: ['vector2int', 'field'],
-        element: () => <Vector2IntFieldPage />,
-      },
-      {
-        id: 'component-vector3-field',
-        title: 'Vector3Field',
-        path: '/components/vector3-field',
-        keywords: ['vector3', 'field'],
-        element: () => <Vector3FieldPage />,
-      },
-      {
-        id: 'component-vector3-int-field',
-        title: 'Vector3IntField',
-        path: '/components/vector3-int-field',
-        keywords: ['vector3int', 'field'],
-        element: () => <Vector3IntFieldPage />,
-      },
-      {
-        id: 'component-vector4-field',
-        title: 'Vector4Field',
-        path: '/components/vector4-field',
-        keywords: ['vector4', 'field'],
-        element: () => <Vector4FieldPage />,
+        id: 'special-hooks-safe-area',
+        title: 'Safe area hooks',
+        path: '/special-hooks/safe-area',
+        keywords: ['hooks', 'safe area', 'UseSafeArea', 'VisualElementSafe'],
+        element: () => <SafeAreaHooksPage />,
       },
     ],
   },
@@ -688,4 +670,11 @@ export const pages: Section[] = [
   },
 ]
 
-export const flat: Page[] = pages.flatMap((s) => s.pages)
+export const flat: Page[] = pages.flatMap((s) => {
+  if (s.id === 'components') {
+    const common = s.pages.filter((p) => p.group === 'basic')
+    const uncommon = s.pages.filter((p) => p.group === 'advanced' || !p.group)
+    return [...common, ...uncommon]
+  }
+  return s.pages
+})

@@ -8,6 +8,11 @@ using UnityEngine.UIElements;
 
 public static class TextElementExamples
 {
+  private static readonly Style BoldTextStyle = new Style
+  {
+    (StyleKeys.UnityFontStyleAndWeight, FontStyle.Bold),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -17,12 +22,8 @@ public static class TextElementExamples
       new TextElementProps
       {
         Text = "Inline text element",
-        Style = new Style
-        {
-          (StyleKeys.UnityFontStyleAndWeight, FontStyle.Bold),
-        },
+        Style = BoldTextStyle,
       }
     );
   }
 }`
-

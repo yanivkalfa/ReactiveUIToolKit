@@ -8,27 +8,32 @@ using UnityEngine;
 
 public static class BoxExamples
 {
+  private static readonly Style OuterStyle = new Style
+  {
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.2f, 1f)),
+    (StyleKeys.BorderRadius, 4f),
+  };
+
+  private static readonly Style ContentContainerStyle = new Style
+  {
+    (StyleKeys.MarginTop, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
   {
-    var outerStyle = new Style
-    {
-      (StyleKeys.Padding, 8f),
-      (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.2f, 1f)),
-      (StyleKeys.BorderRadius, 4f),
-    };
-
     var contentContainerProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.MarginTop, 4f) } },
+      { "style", ContentContainerStyle },
     };
 
     return V.Box(
       new BoxProps
       {
-        Style = outerStyle,
+        Style = OuterStyle,
         ContentContainer = contentContainerProps,
       },
       key: null,

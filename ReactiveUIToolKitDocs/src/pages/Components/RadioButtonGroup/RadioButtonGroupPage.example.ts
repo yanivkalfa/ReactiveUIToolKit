@@ -8,6 +8,8 @@ using UnityEngine.UIElements;
 
 public static class RadioButtonGroupExamples
 {
+  private static readonly Style ContentContainerStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 8f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -22,7 +24,7 @@ public static class RadioButtonGroupExamples
 
     var contentContainerProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 8f) } },
+      { "style", ContentContainerStyle },
     };
 
     return V.RadioButtonGroup(
@@ -35,4 +37,3 @@ public static class RadioButtonGroupExamples
     );
   }
 }`
-

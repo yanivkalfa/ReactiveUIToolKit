@@ -8,6 +8,10 @@ using UnityEngine;
 
 public static class ScrollViewExamples
 {
+  private static readonly Style ScrollContentStyle = new Style { (StyleKeys.Padding, 6f), (StyleKeys.RowGap, 4f) };
+
+  private static readonly Style ScrollViewStyle = new Style { (StyleKeys.Height, 200f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -15,14 +19,14 @@ public static class ScrollViewExamples
   {
     var contentProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.Padding, 6f), (StyleKeys.RowGap, 4f) } },
+      { "style", ScrollContentStyle },
     };
 
     var scrollViewProps = new ScrollViewProps
     {
       Mode = "Vertical",
       ContentContainer = contentProps,
-      Style = new Style { (StyleKeys.Height, 200f) },
+      Style = ScrollViewStyle,
     };
 
     return V.ScrollView(
@@ -34,4 +38,3 @@ public static class ScrollViewExamples
     );
   }
 }`
-

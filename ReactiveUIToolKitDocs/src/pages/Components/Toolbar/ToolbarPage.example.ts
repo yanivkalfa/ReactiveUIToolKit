@@ -7,6 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class ToolbarExamples
 {
+  private static readonly Style ToolbarStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -15,7 +17,7 @@ public static class ToolbarExamples
     return V.Toolbar(
       new ToolbarProps
       {
-        Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 4f) },
+        Style = ToolbarStyle,
       },
       key: null,
       V.ToolbarButton(new ToolbarButtonProps { Text = "Action" }),
@@ -26,4 +28,3 @@ public static class ToolbarExamples
     );
   }
 }`
-

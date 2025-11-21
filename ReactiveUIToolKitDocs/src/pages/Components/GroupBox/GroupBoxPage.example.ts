@@ -8,32 +8,42 @@ using UnityEngine;
 
 public static class GroupBoxExamples
 {
+  private static readonly Style OuterStyle = new Style
+  {
+    (StyleKeys.MarginTop, 8f),
+    (StyleKeys.Padding, 6f),
+  };
+
+  private static readonly Style ContentContainerStyle = new Style
+  {
+    (StyleKeys.PaddingTop, 4f),
+  };
+
+  private static readonly Style LabelStyle = new Style
+  {
+    (StyleKeys.FontSize, 14f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
   {
-    var outerStyle = new Style
-    {
-      (StyleKeys.MarginTop, 8f),
-      (StyleKeys.Padding, 6f),
-    };
-
     var contentContainerProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.PaddingTop, 4f) } },
+      { "style", ContentContainerStyle },
     };
 
     var labelProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.FontSize, 14f) } },
+      { "style", LabelStyle },
     };
 
     return V.GroupBox(
       new GroupBoxProps
       {
         Text = "Group title",
-        Style = outerStyle,
+        Style = OuterStyle,
         ContentContainer = contentContainerProps,
         Label = labelProps,
       },
@@ -43,4 +53,3 @@ public static class GroupBoxExamples
     );
   }
 }`
-

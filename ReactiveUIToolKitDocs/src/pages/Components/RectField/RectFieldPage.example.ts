@@ -9,17 +9,17 @@ using UnityEngine.UIElements;
 
 public static class RectFieldExamples
 {
+  private static readonly Style VisualInputStyle = new Style
+  {
+    (StyleKeys.PaddingLeft, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
   {
     var (rect, setRect) = Hooks.UseState(new Rect(0, 0, 128, 64));
-
-    var visualInputStyle = new Style
-    {
-      (StyleKeys.PaddingLeft, 4f),
-    };
 
     return V.RectField(
       new RectFieldProps
@@ -28,10 +28,9 @@ public static class RectFieldExamples
         Label = new LabelProps { Text = "Rect" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", visualInputStyle },
+          { "style", VisualInputStyle },
         },
       }
     );
   }
 }`
-

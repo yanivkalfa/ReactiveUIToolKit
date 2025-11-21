@@ -7,6 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class LabelExamples
 {
+  private static readonly Style LabelStyle = new Style { (StyleKeys.FontSize, 16f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -16,9 +18,8 @@ public static class LabelExamples
       new LabelProps
       {
         Text = "Hello label",
-        Style = new Style { (StyleKeys.FontSize, 16f) },
+        Style = LabelStyle,
       }
     );
   }
 }`
-

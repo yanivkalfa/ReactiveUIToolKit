@@ -9,6 +9,8 @@ using UnityEngine.UIElements;
 
 public static class Hash128FieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -21,8 +23,6 @@ public static class Hash128FieldExamples
       setValue.Set(evt.newValue);
     }
 
-    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
-
     return V.Hash128Field(
       new Hash128FieldProps
       {
@@ -30,10 +30,9 @@ public static class Hash128FieldExamples
         Label = new LabelProps { Text = "Hash128" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );
   }
 }`
-

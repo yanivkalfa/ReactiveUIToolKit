@@ -8,6 +8,8 @@ using UnityEngine.UIElements;
 
 public static class TextFieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -22,7 +24,7 @@ public static class TextFieldExamples
 
     var inputProps = new Dictionary<string, object>
     {
-      { "style", new Style { (StyleKeys.PaddingLeft, 4f) } },
+      { "style", InputStyle },
     };
 
     return V.TextField(
@@ -35,4 +37,3 @@ public static class TextFieldExamples
     );
   }
 }`
-

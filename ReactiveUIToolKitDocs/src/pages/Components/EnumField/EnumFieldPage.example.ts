@@ -16,6 +16,8 @@ public enum ExampleEnum
 
 public static class EnumFieldExamples
 {
+  private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -28,8 +30,6 @@ public static class EnumFieldExamples
       setValue.Set((ExampleEnum)evt.newValue);
     }
 
-    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
-
     return V.EnumField(
       new EnumFieldProps
       {
@@ -38,7 +38,7 @@ public static class EnumFieldExamples
         Label = new LabelProps { Text = "Example enum" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", inputStyle },
+          { "style", InputStyle },
         },
       }
     );

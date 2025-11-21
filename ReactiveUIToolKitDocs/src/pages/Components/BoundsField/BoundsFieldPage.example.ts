@@ -9,6 +9,11 @@ using UnityEngine.UIElements;
 
 public static class BoundsFieldExamples
 {
+  private static readonly Style VisualInputStyle = new Style
+  {
+    (StyleKeys.PaddingLeft, 4f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -21,11 +26,6 @@ public static class BoundsFieldExamples
       setBounds.Set(evt.newValue);
     }
 
-    var visualInputStyle = new Style
-    {
-      (StyleKeys.PaddingLeft, 4f),
-    };
-
     return V.BoundsField(
       new BoundsFieldProps
       {
@@ -33,7 +33,7 @@ public static class BoundsFieldExamples
         Label = new LabelProps { Text = "Bounds" }.ToDictionary(),
         VisualInput = new Dictionary<string, object>
         {
-          { "style", visualInputStyle },
+          { "style", VisualInputStyle },
         },
       }
     );

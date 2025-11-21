@@ -10,6 +10,14 @@ using UnityEngine.UIElements;
 
 public static class AnimateExamples
 {
+  private static readonly Style AnimatedBoxStyle = new Style
+  {
+    (StyleKeys.Width, 120f),
+    (StyleKeys.Height, 32f),
+    (StyleKeys.AlignItems, Align.Center),
+    (StyleKeys.JustifyContent, Justify.Center),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -35,17 +43,10 @@ public static class AnimateExamples
       V.Box(
         new BoxProps
         {
-          Style = new Style
-          {
-            (StyleKeys.Width, 120f),
-            (StyleKeys.Height, 32f),
-            (StyleKeys.AlignItems, Align.Center),
-            (StyleKeys.JustifyContent, Justify.Center),
-          },
+          Style = AnimatedBoxStyle,
         },
         V.Label(new LabelProps { Text = "Animated box" })
       )
     );
   }
 }`
-

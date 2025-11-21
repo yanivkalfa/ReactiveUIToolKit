@@ -8,6 +8,16 @@ using UnityEngine;
 
 public static class ProgressBarExamples
 {
+  private static readonly Style ProgressStyle = new Style
+  {
+    (StyleKeys.BackgroundColor, new Color(0.2f, 0.6f, 0.9f, 1f)),
+  };
+
+  private static readonly Style TitleStyle = new Style
+  {
+    (StyleKeys.FontSize, 12f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -15,24 +25,14 @@ public static class ProgressBarExamples
   {
     var (value, setValue) = Hooks.UseState(0.5f);
 
-    var progressStyle = new Style
-    {
-      (StyleKeys.BackgroundColor, new Color(0.2f, 0.6f, 0.9f, 1f)),
-    };
-
-    var titleStyle = new Style
-    {
-      (StyleKeys.FontSize, 12f),
-    };
-
     var progressProps = new Dictionary<string, object>
     {
-      { "style", progressStyle },
+      { "style", ProgressStyle },
     };
 
     var titleElementProps = new Dictionary<string, object>
     {
-      { "style", titleStyle },
+      { "style", TitleStyle },
     };
 
     return V.ProgressBar(
@@ -46,4 +46,3 @@ public static class ProgressBarExamples
     );
   }
 }`
-
