@@ -51,6 +51,7 @@ import { Vector3FieldPage } from './pages/Components/Vector3Field/Vector3FieldPa
 import { Vector3IntFieldPage } from './pages/Components/Vector3IntField/Vector3IntFieldPage'
 import { Vector4FieldPage } from './pages/Components/Vector4Field/Vector4FieldPage'
 import { TemplateContainerPage } from './pages/Components/TemplateContainer/TemplateContainerPage'
+import { VisualElementPage } from './pages/Components/VisualElement/VisualElementPage'
 import { AnimatePage } from './pages/Components/Animate/AnimatePage'
 import { ErrorBoundaryPage } from './pages/Components/ErrorBoundary/ErrorBoundaryPage'
 import { MultiColumnListViewPage } from './pages/Components/MultiColumnListView/MultiColumnListViewPage'
@@ -412,6 +413,20 @@ export const pages: Section[] = [
         path: '/components/template-container',
         keywords: ['template', 'container'],
         element: () => <TemplateContainerPage />,
+      },
+      {
+        id: 'component-visual-element',
+        title: 'VisualElement',
+        path: '/components/visual-element',
+        keywords: ['visualelement', 'container', 'safe'],
+        element: () => <VisualElementPage />,
+      },
+      {
+        id: 'component-visual-element-safe',
+        title: 'VisualElementSafe',
+        path: '/components/visual-element-safe',
+        keywords: ['visualelementsafe', 'safe-area', 'container'],
+        element: () => <VisualElementPage />,
       },
       {
         id: 'component-unsigned-integer-field',
