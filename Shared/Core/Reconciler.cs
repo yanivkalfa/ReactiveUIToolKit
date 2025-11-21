@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Props;
 using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -165,18 +166,9 @@ namespace ReactiveUITK.Core
             hostElement.Clear();
             if (rootNode != null)
             {
-                if (
-                    rootNode.NodeType == VirtualNodeType.Element
-                    && !string.IsNullOrEmpty(rootNode.ElementTypeName)
-                )
+                if (rootNode.NodeType == VirtualNodeType.Host)
                 {
-                    IElementAdapter adapter = hostContext.ElementRegistry.Resolve(
-                        rootNode.ElementTypeName
-                    );
-                    if (adapter != null)
-                    {
-                        adapter.ApplyProperties(hostElement, rootNode.Properties);
-                    }
+                    PropsApplier.Apply(hostElement, rootNode.Properties);
                     BuildChildren(hostElement, rootNode.Children ?? Array.Empty<VirtualNode>());
                 }
                 else
@@ -212,8 +204,27 @@ namespace ReactiveUITK.Core
             }
 
             if (
+                previousRoot.NodeType == VirtualNodeType.Host
+                && nextRoot.NodeType == VirtualNodeType.Host
+            )
+            {
+                PropsApplier.ApplyDiff(
+                    hostElement,
+                    previousRoot.Properties,
+                    nextRoot.Properties
+                );
+                DiffChildren(
+                    hostElement,
+                    previousRoot.Children ?? Array.Empty<VirtualNode>(),
+                    nextRoot.Children ?? Array.Empty<VirtualNode>()
+                );
+                EndDiffTiming();
+                return;
+            }
+
+            if (
                 previousRoot.NodeType == nextRoot.NodeType
-                && previousRoot.NodeType != VirtualNodeType.Element
+                && previousRoot.NodeType != VirtualNodeType.Host
             )
             {
                 if (hostElement.childCount > 0)
@@ -227,34 +238,9 @@ namespace ReactiveUITK.Core
                 EndDiffTiming();
                 return;
             }
-            if (
-                previousRoot.NodeType == VirtualNodeType.Element
-                && nextRoot.NodeType == VirtualNodeType.Element
-                && previousRoot.ElementTypeName == nextRoot.ElementTypeName
-            )
-            {
-                IElementAdapter adapter = hostContext.ElementRegistry.Resolve(
-                    nextRoot.ElementTypeName
-                );
-                if (adapter != null)
-                {
-                    adapter.ApplyPropertiesDiff(
-                        hostElement,
-                        previousRoot.Properties,
-                        nextRoot.Properties
-                    );
-                }
-                DiffChildren(
-                    hostElement,
-                    previousRoot.Children ?? Array.Empty<VirtualNode>(),
-                    nextRoot.Children ?? Array.Empty<VirtualNode>()
-                );
-            }
-            else
-            {
-                hostElement.Clear();
-                BuildSubtree(hostElement, nextRoot);
-            }
+
+            hostElement.Clear();
+            BuildSubtree(hostElement, nextRoot);
             EndDiffTiming();
         }
 

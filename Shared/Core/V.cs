@@ -827,6 +827,24 @@ namespace ReactiveUITK
             );
         }
 
+        public static VirtualNode Host(
+            IReadOnlyDictionary<string, object> hostProps = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            hostProps = CloneStyleDictionary(hostProps);
+            return new VirtualNode(
+                VirtualNodeType.Host,
+                elementTypeName: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: hostProps ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
         public static VirtualNode Func(
             System.Func<
                 Dictionary<string, object>,
