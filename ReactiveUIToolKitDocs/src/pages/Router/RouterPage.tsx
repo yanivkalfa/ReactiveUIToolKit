@@ -15,7 +15,6 @@ export const RouterPage: FC = () => (
     <Typography variant="h6" component="h3" gutterBottom>
       Usage
     </Typography>
-    <CodeBlock language="tsx" code={ROUTER_USAGE} />
+    <CodeBlock language="tsx" codeRuntime={ROUTER_USAGE} />
   </Box>
 )
-

@@ -2,7 +2,7 @@ import type { FC } from 'react'
 import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../components/CodeBlock/CodeBlock'
 import Styles from './GettingStartedPage.style'
-import { INSTALL_URL, HELLO_WORLD_EDITOR } from './GettingStartedPage.example'
+import { INSTALL_URL, HELLO_WORLD_EDITOR, HELLO_WORLD_RUNTIME } from './GettingStartedPage.example'
 
 export const GettingStartedPage: FC = () => (
   <Box sx={Styles.root}>
@@ -23,11 +23,10 @@ export const GettingStartedPage: FC = () => (
         <ListItemText primary="Add package from Git URL:" />
       </ListItem>
     </List>
-    <CodeBlock language="tsx" code={INSTALL_URL} />
+    <CodeBlock language="tsx" codeRuntime={INSTALL_URL} />
     <Typography variant="h5" component="h2" gutterBottom>
       Hello World (Editor)
     </Typography>
-    <CodeBlock language="tsx" code={HELLO_WORLD_EDITOR} />
+    <CodeBlock language="tsx" codeEditor={HELLO_WORLD_EDITOR} codeRuntime={HELLO_WORLD_RUNTIME} />
   </Box>
 )
-

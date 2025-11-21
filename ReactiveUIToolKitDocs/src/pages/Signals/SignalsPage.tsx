@@ -12,7 +12,6 @@ export const SignalsPage: FC = () => (
     <Typography variant="body1" paragraph>
       Lightweight reactive values for cross-component communication.
     </Typography>
-    <CodeBlock language="tsx" code={SIGNALS_EXAMPLE} />
+    <CodeBlock language="tsx" codeRuntime={SIGNALS_EXAMPLE} />
   </Box>
 )
-

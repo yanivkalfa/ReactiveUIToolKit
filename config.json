@@ -9,6 +9,7 @@
     "CICD/**",
     "dist~/**",
     "Diagnostics/**",
-    "scripts/**"
+    "scripts/**",
+    "ReactiveUIToolKitDocs/**"
   ]
 }
