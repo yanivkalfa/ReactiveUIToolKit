@@ -23,7 +23,7 @@ export const GettingStartedPage: FC = () => (
         <ListItemText primary="Add package from Git URL:" />
       </ListItem>
     </List>
-    <CodeBlock language="tsx" codeRuntime={INSTALL_URL} />
+    <CodeBlock language="tsx" code={INSTALL_URL} />
     <Typography variant="h5" component="h2" gutterBottom>
       Hello World (Editor)
     </Typography>

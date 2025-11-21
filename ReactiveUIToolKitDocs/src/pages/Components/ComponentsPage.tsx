@@ -13,6 +13,6 @@ export const ComponentsPage: FC = () => (
       UI Toolkit controls wrapped with typed props and adapters. Use <code>V.*</code> helpers to
       create virtual nodes.
     </Typography>
-    <CodeBlock language="tsx" codeRuntime={COMPONENTS_BUTTON} />
+    <CodeBlock language="tsx" code={COMPONENTS_BUTTON} />
   </Box>
 )

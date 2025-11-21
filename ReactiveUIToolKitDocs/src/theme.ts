@@ -40,4 +40,19 @@ export const theme = createTheme({
       color: '#e5e9f5',
     },
   },
+  components: {
+    MuiCssBaseline: {
+      styleOverrides: {
+        code: {
+          fontFamily:
+            'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          backgroundColor: '#202532',
+          borderRadius: 4,
+          padding: '2px 6px',
+          border: '1px solid #343a4c',
+          fontSize: '0.85em',
+        },
+      },
+    },
+  },
 })

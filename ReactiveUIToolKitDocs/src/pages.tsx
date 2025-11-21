@@ -5,6 +5,8 @@ import { ToolingOverviewPage } from './pages/Tooling/ToolingOverviewPage'
 import { RouterPage } from './pages/Router/RouterPage'
 import { SignalsPage } from './pages/Signals/SignalsPage'
 import { ComponentsPage } from './pages/Components/ComponentsPage'
+import { DifferencesPage } from './pages/Differences/DifferencesPage'
+import { APIPage } from './pages/API/APIPage'
 
 export type Page = {
   id: string
@@ -48,6 +50,19 @@ export const pages: Section[] = [
     ],
   },
   {
+    id: 'differences',
+    title: 'Different from React',
+    pages: [
+      {
+        id: 'different-from-react',
+        title: 'Different from React',
+        path: '/differences',
+        keywords: ['react', 'usestate', 'signals', 'differences'],
+        element: () => <DifferencesPage />,
+      },
+    ],
+  },
+  {
     id: 'tooling',
     title: 'Tooling',
     pages: [
@@ -84,6 +99,19 @@ export const pages: Section[] = [
         path: '/components',
         keywords: ['elements', 'adapters', 'props'],
         element: () => <ComponentsPage />,
+      },
+    ],
+  },
+  {
+    id: 'api',
+    title: 'API',
+    pages: [
+      {
+        id: 'api-reference',
+        title: 'API Reference',
+        path: '/api',
+        keywords: ['api', 'namespace', 'props', 'hooks', 'router', 'signals'],
+        element: () => <APIPage />,
       },
     ],
   },

@@ -1331,44 +1331,44 @@ namespace ReactiveUITK.Samples.Shared
                         },
                         null,
                         V.Label(new LabelProps { Text = "FloatField" }),
-                        ReactiveUITK.V.FloatField(
-                            new ReactiveUITK.Props.Typed.FloatFieldProps { Value = 1.23f }
+                        V.FloatField(
+                            new FloatFieldProps { Value = 1.23f }
                         ),
                         V.Label(new LabelProps { Text = "IntegerField" }),
-                        ReactiveUITK.V.IntegerField(
-                            new ReactiveUITK.Props.Typed.IntegerFieldProps { Value = 42 }
+                        V.IntegerField(
+                            new IntegerFieldProps { Value = 42 }
                         ),
                         V.Label(new LabelProps { Text = "LongField" }),
-                        ReactiveUITK.V.LongField(
-                            new ReactiveUITK.Props.Typed.LongFieldProps { Value = 123456789 }
+                        V.LongField(
+                            new LongFieldProps { Value = 123456789 }
                         ),
                         V.Label(new LabelProps { Text = "DoubleField" }),
-                        ReactiveUITK.V.DoubleField(
-                            new ReactiveUITK.Props.Typed.DoubleFieldProps { Value = 3.14159 }
+                        V.DoubleField(
+                            new DoubleFieldProps { Value = 3.14159 }
                         ),
                         V.Label(new LabelProps { Text = "UnsignedIntegerField" }),
-                        ReactiveUITK.V.UnsignedIntegerField(
-                            new ReactiveUITK.Props.Typed.UnsignedIntegerFieldProps { Value = 77 }
+                        V.UnsignedIntegerField(
+                            new UnsignedIntegerFieldProps { Value = 77 }
                         ),
                         V.Label(new LabelProps { Text = "UnsignedLongField" }),
-                        ReactiveUITK.V.UnsignedLongField(
-                            new ReactiveUITK.Props.Typed.UnsignedLongFieldProps { Value = 9876543210 }
+                        V.UnsignedLongField(
+                            new UnsignedLongFieldProps { Value = 9876543210 }
                         ),
                         V.Label(new LabelProps { Text = "Vector2Field" }),
-                        ReactiveUITK.V.Vector2Field(
-                            new ReactiveUITK.Props.Typed.Vector2FieldProps { Value = new UnityEngine.Vector2(1,2) }
+                        V.Vector2Field(
+                            new Vector2FieldProps { Value = new UnityEngine.Vector2(1,2) }
                         ),
                         V.Label(new LabelProps { Text = "Vector3Field" }),
-                        ReactiveUITK.V.Vector3Field(
-                            new ReactiveUITK.Props.Typed.Vector3FieldProps { Value = new UnityEngine.Vector3(1,2,3) }
+                        V.Vector3Field(
+                            new Vector3FieldProps { Value = new UnityEngine.Vector3(1,2,3) }
                         ),
                         V.Label(new LabelProps { Text = "Vector4Field" }),
-                        ReactiveUITK.V.Vector4Field(
-                            new ReactiveUITK.Props.Typed.Vector4FieldProps { Value = new UnityEngine.Vector4(1,2,3,4) }
+                        V.Vector4Field(
+                            new Vector4FieldProps { Value = new UnityEngine.Vector4(1,2,3,4) }
                         ),
                         V.Label(new LabelProps { Text = "ColorField" }),
-                        ReactiveUITK.V.ColorField(
-                            new ReactiveUITK.Props.Typed.ColorFieldProps { Value = new UnityEngine.Color(0.2f,0.6f,0.9f,1f) }
+                        V.ColorField(
+                            new ColorFieldProps { Value = new UnityEngine.Color(0.2f,0.6f,0.9f,1f) }
                         )
                     )
                     ,
@@ -1381,8 +1381,8 @@ namespace ReactiveUITK.Samples.Shared
                         null,
                         // EnumField
                         V.Label(new LabelProps { Text = "EnumField (TextAnchor)" }),
-                        ReactiveUITK.V.EnumField(
-                            new ReactiveUITK.Props.Typed.EnumFieldProps
+                        V.EnumField(
+                            new EnumFieldProps
                             {
                                 EnumType = typeof(UnityEngine.TextAnchor).AssemblyQualifiedName,
                                 Value = UnityEngine.TextAnchor.MiddleCenter,
@@ -1390,8 +1390,8 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         // Scroller
                         V.Label(new LabelProps { Text = "Scroller" }),
-                        ReactiveUITK.V.Scroller(
-                            new ReactiveUITK.Props.Typed.ScrollerProps
+                        V.Scroller(
+                            new ScrollerProps
                             {
                                 LowValue = 0f,
                                 HighValue = 100f,
@@ -1401,8 +1401,8 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         // TextElement
                         V.Label(new LabelProps { Text = "TextElement" }),
-                        ReactiveUITK.V.TextElement(
-                            new ReactiveUITK.Props.Typed.TextElementProps
+                        V.TextElement(
+                            new TextElementProps
                             {
                                 Text = "This is a TextElement",
                                 Style = new Style { (FontSize, 13f) }
@@ -1410,8 +1410,8 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         // IMGUIContainer
                         V.Label(new LabelProps { Text = "IMGUIContainer" }),
-                        ReactiveUITK.V.IMGUIContainer(
-                            new ReactiveUITK.Props.Typed.IMGUIContainerProps
+                        V.IMGUIContainer(
+                            new IMGUIContainerProps
                             {
                                 OnGUI = () => { UnityEngine.GUILayout.Label("IMGUI says hello"); },
                                 Style = new Style { (Height, 22f) }
@@ -1419,32 +1419,32 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         // Vector2Int/Vector3Int
                         V.Label(new LabelProps { Text = "Vector2IntField" }),
-                        ReactiveUITK.V.Vector2IntField(
-                            new ReactiveUITK.Props.Typed.Vector2IntFieldProps { Value = new UnityEngine.Vector2Int(3, 7) }
+                        V.Vector2IntField(
+                            new Vector2IntFieldProps { Value = new UnityEngine.Vector2Int(3, 7) }
                         ),
                         V.Label(new LabelProps { Text = "Vector3IntField" }),
-                        ReactiveUITK.V.Vector3IntField(
-                            new ReactiveUITK.Props.Typed.Vector3IntFieldProps { Value = new UnityEngine.Vector3Int(1, 2, 3) }
+                        V.Vector3IntField(
+                            new Vector3IntFieldProps { Value = new UnityEngine.Vector3Int(1, 2, 3) }
                         ),
                         // Rect / RectInt / Bounds
                         V.Label(new LabelProps { Text = "RectField" }),
-                        ReactiveUITK.V.RectField(
-                            new ReactiveUITK.Props.Typed.RectFieldProps { Value = new UnityEngine.Rect(10f, 20f, 80f, 40f) }
+                        V.RectField(
+                            new RectFieldProps { Value = new UnityEngine.Rect(10f, 20f, 80f, 40f) }
                         ),
                         V.Label(new LabelProps { Text = "RectIntField" }),
-                        ReactiveUITK.V.RectIntField(
-                            new ReactiveUITK.Props.Typed.RectIntFieldProps { Value = new UnityEngine.RectInt(2, 4, 11, 9) }
+                        V.RectIntField(
+                            new RectIntFieldProps { Value = new UnityEngine.RectInt(2, 4, 11, 9) }
                         ),
                         V.Label(new LabelProps { Text = "BoundsField" }),
-                        ReactiveUITK.V.BoundsField(
-                            new ReactiveUITK.Props.Typed.BoundsFieldProps { Value = new UnityEngine.Bounds(new UnityEngine.Vector3(0,0,0), new UnityEngine.Vector3(1,2,3)) }
+                        V.BoundsField(
+                            new BoundsFieldProps { Value = new UnityEngine.Bounds(new UnityEngine.Vector3(0,0,0), new UnityEngine.Vector3(1,2,3)) }
                         )
 #if UNITY_EDITOR
                         ,
                         // ObjectField (Editor only)
                         V.Label(new LabelProps { Text = "ObjectField (Texture2D)" }),
-                        ReactiveUITK.V.ObjectField(
-                            new ReactiveUITK.Props.Typed.ObjectFieldProps
+                        V.ObjectField(
+                            new ObjectFieldProps
                             {
                                 ObjectType = typeof(UnityEngine.Texture2D).AssemblyQualifiedName,
                                 AllowSceneObjects = false,
@@ -1462,8 +1462,8 @@ namespace ReactiveUITK.Samples.Shared
                         null,
                         // MinMaxSlider
                         V.Label(new LabelProps { Text = "MinMaxSlider" }),
-                        ReactiveUITK.V.MinMaxSlider(
-                            new ReactiveUITK.Props.Typed.MinMaxSliderProps
+                        V.MinMaxSlider(
+                            new MinMaxSliderProps
                             {
                                 MinValue = 20f,
                                 MaxValue = 80f,
@@ -1474,8 +1474,8 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         // TemplateContainer
                         V.Label(new LabelProps { Text = "TemplateContainer" }),
-                        ReactiveUITK.V.TemplateContainer(
-                            new ReactiveUITK.Props.Typed.TemplateContainerProps
+                        V.TemplateContainer(
+                            new TemplateContainerProps
                             {
                                 ContentContainer = new Style { (Padding, 6f), (BackgroundColor, new Color(1f,1f,1f,1f)) },
                                 Style = new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f,0.85f,0.85f,1f)) }
@@ -1485,18 +1485,18 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         // BoundsIntField
                         V.Label(new LabelProps { Text = "BoundsIntField" }),
-                        ReactiveUITK.V.BoundsIntField(
-                            new ReactiveUITK.Props.Typed.BoundsIntFieldProps { Value = new UnityEngine.BoundsInt(1,2,3, 4,5,6) }
+                        V.BoundsIntField(
+                            new BoundsIntFieldProps { Value = new UnityEngine.BoundsInt(1,2,3, 4,5,6) }
                         ),
                         // Hash128Field
                         V.Label(new LabelProps { Text = "Hash128Field" }),
-                        ReactiveUITK.V.Hash128Field(
-                            new ReactiveUITK.Props.Typed.Hash128FieldProps { Value = new UnityEngine.Hash128(1,2,3,4) }
+                        V.Hash128Field(
+                            new Hash128FieldProps { Value = new UnityEngine.Hash128(1,2,3,4) }
                         ),
                         // ToggleButtonGroup
                         V.Label(new LabelProps { Text = "ToggleButtonGroup" }),
-                        ReactiveUITK.V.ToggleButtonGroup(
-                            new ReactiveUITK.Props.Typed.ToggleButtonGroupProps { Value = 1 },
+                        V.ToggleButtonGroup(
+                            new ToggleButtonGroupProps { Value = 1 },
                             null,
                             V.Button(new ButtonProps { Text = "One" }),
                             V.Button(new ButtonProps { Text = "Two" }),

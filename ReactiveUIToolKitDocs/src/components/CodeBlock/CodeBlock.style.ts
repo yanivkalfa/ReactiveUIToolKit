@@ -19,6 +19,17 @@ const header: SxProps = {
   bgcolor: 'rgba(255,255,255,0.02)',
 }
 
+const headerNoTabs: SxProps = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  px: 1.5,
+  py: 0.5,
+  borderBottom: 1,
+  borderColor: 'divider',
+  bgcolor: 'rgba(255,255,255,0.02)',
+}
+
 const tabs: SxProps = {
   display: 'flex',
   alignItems: 'center',
@@ -56,9 +67,9 @@ const body: SxProps = {
 
 const preCustom = {
   margin: 0,
-  padding: 10
+  padding: 10,
 }
 
-const Styles = { wrapper, header, tabs, tab, tabActive, copyBtn, body, preCustom }
+const Styles = { wrapper, header, headerNoTabs, tabs, tab, tabActive, copyBtn, body, preCustom }
 
 export default Styles

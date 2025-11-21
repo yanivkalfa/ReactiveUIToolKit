@@ -40,7 +40,7 @@ export const CodeBlock: FC<Props> = ({ code, codeRuntime, codeEditor, language =
 
   return (
     <Box sx={Styles.wrapper}>
-      <Box sx={Styles.header}>
+      <Box sx={hasTabbed ? Styles.header : Styles.headerNoTabs}>
         {hasTabbed && (
           <Box sx={Styles.tabs}>
             {codeRuntime && (
