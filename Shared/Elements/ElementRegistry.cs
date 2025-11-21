@@ -26,6 +26,11 @@ namespace ReactiveUITK.Elements
 
         public IElementAdapter Resolve(string elementTypeName)
         {
+            if (string.IsNullOrWhiteSpace(elementTypeName))
+            {
+                return null;
+            }
+
             if (adaptersByType.TryGetValue(elementTypeName, out IElementAdapter adapter))
             {
                 return adapter;

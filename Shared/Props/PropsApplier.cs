@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -17,7 +18,6 @@ namespace ReactiveUITK.Props
         private static int totalEventsRegistered;
         private static int totalEventsRemoved;
 
-        // Centralized style maps to reduce branching and improve maintainability
         private static readonly Dictionary<string, Action<VisualElement, object>> styleSetters =
             new(StringComparer.Ordinal);
         private static readonly Dictionary<string, Action<VisualElement>> styleResetters = new(
@@ -26,7 +26,6 @@ namespace ReactiveUITK.Props
 
         static PropsApplier()
         {
-            // Dimensions
             styleSetters["width"] = (e, v) =>
             {
                 e.style.width = ConvertToLength(v);
@@ -36,7 +35,6 @@ namespace ReactiveUITK.Props
                 e.style.height = ConvertToLength(v);
             };
 
-            // Flex
             styleSetters["flexGrow"] = (e, v) =>
             {
                 e.style.flexGrow = ConvertToFloat(v);
@@ -90,7 +88,6 @@ namespace ReactiveUITK.Props
                 e.style.maxHeight = ConvertToLength(v);
             };
 
-            // Positioning
             styleSetters["position"] = (e, v) =>
             {
                 e.style.position =
@@ -113,7 +110,6 @@ namespace ReactiveUITK.Props
                 e.style.bottom = ConvertToLength(v);
             };
 
-            // Display/visibility/overflow
             styleSetters["display"] = (e, v) =>
             {
                 e.style.display =
@@ -139,7 +135,6 @@ namespace ReactiveUITK.Props
                     v is string ws && ws == "nowrap" ? WhiteSpace.NoWrap : WhiteSpace.Normal;
             };
 
-            // Typography & color
             styleSetters["fontSize"] = (e, v) =>
             {
                 e.style.fontSize = ConvertToFloat(v);
@@ -234,7 +229,6 @@ namespace ReactiveUITK.Props
                 }
             };
 
-            // Background image
             styleSetters["backgroundImage"] = (e, v) =>
             {
                 if (v is Texture2D tex)
@@ -251,7 +245,6 @@ namespace ReactiveUITK.Props
                 e.style.unityBackgroundImageTintColor = ConvertToColor(v);
             };
 
-            // Borders
             styleSetters["borderWidth"] = (e, v) =>
             {
                 var bw = ConvertToFloat(v);
@@ -325,7 +318,6 @@ namespace ReactiveUITK.Props
                 e.style.borderBottomRightRadius = ConvertToLength(v);
             };
 
-            // Spacing
             styleSetters["margin"] = (e, v) =>
             {
                 var len = ConvertToLength(v);
@@ -375,7 +367,6 @@ namespace ReactiveUITK.Props
                 e.style.paddingBottom = ConvertToLength(v);
             };
 
-            // Transforms
             styleSetters["rotate"] = (e, v) =>
             {
                 try
@@ -454,7 +445,6 @@ namespace ReactiveUITK.Props
                 catch { }
             };
 
-            // Composite and other niche keys
             styleSetters["flex"] = (e, v) =>
             {
                 if (v is string flexStr)
@@ -497,7 +487,6 @@ namespace ReactiveUITK.Props
             styleSetters["transitionProperty"] = (e, v) => { };
             styleSetters["transitionTimingFunction"] = (e, v) => { };
 
-            // Resetters for common keys
             styleResetters["width"] = e =>
             {
                 e.style.width = StyleKeyword.Null;
@@ -772,7 +761,6 @@ namespace ReactiveUITK.Props
             };
         }
 
-        // Algorithmic canonicalization helpers (USS dashed -> camelCase) so user can supply pure USS names.
         private static string Canonicalize(string key)
         {
             if (string.IsNullOrEmpty(key))
@@ -834,7 +822,6 @@ namespace ReactiveUITK.Props
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
 
-            // Removed non-style props
             foreach (KeyValuePair<string, object> prevEntry in previous)
             {
                 if (prevEntry.Key == "style")
@@ -848,7 +835,6 @@ namespace ReactiveUITK.Props
                 RemoveProp(element, prevEntry.Key, prevEntry.Value);
             }
 
-            // Added / changed non-style props
             foreach (KeyValuePair<string, object> currentEntry in next)
             {
                 if (currentEntry.Key == "style")
@@ -867,7 +853,6 @@ namespace ReactiveUITK.Props
                 ApplySingle(element, oldValue, currentEntry.Key, currentEntry.Value);
             }
 
-            // Nested style diff if present
             previous.TryGetValue("style", out var prevStyleObj);
             next.TryGetValue("style", out var nextStyleObj);
             if (prevStyleObj != null || nextStyleObj != null)
@@ -950,6 +935,32 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "ref")
+            {
+                var meta = element.userData as NodeMetadata;
+                if (meta == null && element.userData == null)
+                {
+                    meta = new NodeMetadata();
+                    element.userData = meta;
+                }
+                if (meta != null)
+                {
+                    if (!ReferenceEquals(meta.AttachedRef, propertyValue))
+                    {
+                        if (meta.AttachedRef != null)
+                        {
+                            RefUtility.Assign(meta.AttachedRef, null);
+                        }
+                        meta.AttachedRef = propertyValue;
+                    }
+                    RefUtility.Assign(meta.AttachedRef, element);
+                }
+                else if (propertyValue != null)
+                {
+                    RefUtility.Assign(propertyValue, element);
+                }
+                return;
+            }
             if (propertyName == "className" || propertyName == "class")
             {
                 string newClasses = propertyValue as string;
@@ -971,12 +982,16 @@ namespace ReactiveUITK.Props
                     foreach (var cls in oldSet)
                     {
                         if (!newSet.Contains(cls))
+                        {
                             element.RemoveFromClassList(cls);
+                        }
                     }
                     foreach (var cls in newSet)
                     {
                         if (!oldSet.Contains(cls))
+                        {
                             element.AddToClassList(cls);
+                        }
                     }
                 }
                 else
@@ -1028,11 +1043,34 @@ namespace ReactiveUITK.Props
 
         private static void RemoveProp(VisualElement element, string propertyName, object oldValue)
         {
+            if (propertyName == "ref")
+            {
+                var meta = element.userData as NodeMetadata;
+                object target = oldValue;
+                if (meta != null)
+                {
+                    if (target == null)
+                    {
+                        target = meta.AttachedRef;
+                    }
+                    if (ReferenceEquals(meta.AttachedRef, target))
+                    {
+                        meta.AttachedRef = null;
+                    }
+                }
+                if (target != null)
+                {
+                    RefUtility.Assign(target, null);
+                }
+                return;
+            }
             if (propertyName.StartsWith("on") && oldValue is Delegate oldHandler)
             {
                 var meta = element.userData as Core.NodeMetadata;
                 if (meta != null)
+                {
                     RemoveEvent(element, propertyName, oldHandler, meta);
+                }
                 return;
             }
             if (
@@ -1068,7 +1106,9 @@ namespace ReactiveUITK.Props
             if (propertyName == "style" && oldValue is IDictionary<string, object> oldMap)
             {
                 foreach (var kv in oldMap)
+                {
                     ResetStyle(element, kv.Key);
+                }
                 return;
             }
         }
@@ -1088,7 +1128,7 @@ namespace ReactiveUITK.Props
                 totalStyleSets++;
                 return;
             }
-            // Unmapped style key: no-op
+
             return;
         }
 
@@ -1258,7 +1298,7 @@ namespace ReactiveUITK.Props
                 element.style.unityBackgroundImageTintColor = StyleKeyword.Null;
                 return;
             }
-            // gap not supported in current Unity version
+
             if (styleKey == "borderWidth")
             {
                 element.style.borderLeftWidth = StyleKeyword.Null;
@@ -1369,7 +1409,7 @@ namespace ReactiveUITK.Props
                 element.style.paddingBottom = StyleKeyword.Null;
                 return;
             }
-            // Extended resets
+
             if (styleKey == "letterSpacing")
             {
                 try
@@ -1416,10 +1456,9 @@ namespace ReactiveUITK.Props
                 return;
             }
             if (styleKey == "unityTextAutoSize")
-            { /* unsupported; nothing to reset */
+            {
                 return;
             }
-            // aspectRatio reset skipped (not supported)
         }
 
         private static Color ConvertToColor(object value)
@@ -1427,6 +1466,10 @@ namespace ReactiveUITK.Props
             if (value is Color c)
             {
                 return c;
+            }
+            if (value is Color32 c32)
+            {
+                return c32;
             }
             if (value is string s)
             {
@@ -1448,10 +1491,12 @@ namespace ReactiveUITK.Props
             {
                 var m = del.Method;
                 if (m == null)
+                {
                     return null;
+                }
                 string owner = m.DeclaringType != null ? m.DeclaringType.FullName : "<null>";
                 string name = m.Name ?? "<noname>";
-                // Ignore target to avoid churn from fresh closures per render (React-like behavior)
+
                 return owner + "::" + name;
             }
             catch
@@ -1488,7 +1533,6 @@ namespace ReactiveUITK.Props
                 >();
             }
 
-            // Update latest user handler target (even if wrapper already registered)
             meta.EventHandlerTargets[eventPropName] = newHandler;
             string newSig = ComputeHandlerSignature(newHandler);
 
@@ -1511,16 +1555,11 @@ namespace ReactiveUITK.Props
                 return;
             }
 
-            // Register wrapper only once per event; wrapper will read latest target from metadata
             if (eventPropName == "onClick")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<ClickEvent> wrapper = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var targetDel);
-                        InvokeHandler(targetDel, e);
-                    };
+                    EventCallback<ClickEvent> wrapper = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(wrapper);
                     meta.EventHandlers[eventPropName] = wrapper;
                 }
@@ -1528,8 +1567,7 @@ namespace ReactiveUITK.Props
                 {
                     meta.EventHandlerSignatures[eventPropName] = newSig;
                 }
-                // Only count/log when we actually registered a new wrapper
-                // (Not on every render when only the target delegate changes)
+
                 if (
                     ReactiveUITK.Core.Reconciler.TraceLevel
                     == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
@@ -1553,11 +1591,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerDownEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<PointerDownEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1568,11 +1602,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerUpEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<PointerUpEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1583,11 +1613,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerMoveEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<PointerMoveEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1598,11 +1624,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerEnterEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<PointerEnterEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1613,11 +1635,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<PointerLeaveEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<PointerLeaveEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1628,11 +1646,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<WheelEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1643,11 +1657,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<FocusEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<FocusEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1658,11 +1668,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<BlurEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<BlurEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1673,11 +1679,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<KeyDownEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<KeyDownEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1688,11 +1690,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<KeyUpEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<KeyUpEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1706,10 +1704,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<bool>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1721,10 +1716,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<int>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1736,10 +1728,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<bool>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1751,10 +1740,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<int>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1766,10 +1752,7 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<float>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1781,25 +1764,19 @@ namespace ReactiveUITK.Props
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<bool>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
                     meta.EventHandlerSignatures[eventPropName] = newSig;
                     return;
                 }
-                // default to string for TextField and others
+
                 {
                     if (!meta.EventHandlers.ContainsKey(eventPropName))
                     {
                         EventCallback<ChangeEvent<string>> w = e =>
-                        {
-                            meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                            InvokeHandler(t, e);
-                        };
+                            InvokeEvent(meta, eventPropName, e);
                         element.RegisterCallback(w);
                         meta.EventHandlers[eventPropName] = w;
                     }
@@ -1811,11 +1788,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<InputEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<InputEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1827,11 +1800,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<DragEnterEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<DragEnterEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1842,11 +1811,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<DragLeaveEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<DragLeaveEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1858,11 +1823,7 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<WheelEvent> w = e =>
-                    {
-                        meta.EventHandlerTargets.TryGetValue(eventPropName, out var t);
-                        InvokeHandler(t, e);
-                    };
+                    EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1892,7 +1853,7 @@ namespace ReactiveUITK.Props
                     + ", handlerType="
                     + handler.GetType().Name
             );
-            // Attempt to unregister based on event type
+
             if (eventPropName == "onClick" && handler is EventCallback<ClickEvent> clickCb)
             {
                 element.UnregisterCallback(clickCb);
@@ -1905,7 +1866,9 @@ namespace ReactiveUITK.Props
                 element.UnregisterCallback(chi);
                 meta.EventHandlers.Remove(eventPropName);
                 if (meta.EventHandlerSignatures != null)
+                {
                     meta.EventHandlerSignatures.Remove(eventPropName);
+                }
                 totalEventsRemoved++;
                 return;
             }
@@ -1984,7 +1947,9 @@ namespace ReactiveUITK.Props
                 element.UnregisterCallback(ch);
                 meta.EventHandlers.Remove(eventPropName);
                 if (meta.EventHandlerSignatures != null)
+                {
                     meta.EventHandlerSignatures.Remove(eventPropName);
+                }
                 totalEventsRemoved++;
                 return;
             }
@@ -1993,7 +1958,9 @@ namespace ReactiveUITK.Props
                 element.UnregisterCallback(chb);
                 meta.EventHandlers.Remove(eventPropName);
                 if (meta.EventHandlerSignatures != null)
+                {
                     meta.EventHandlerSignatures.Remove(eventPropName);
+                }
                 totalEventsRemoved++;
                 return;
             }
@@ -2002,7 +1969,9 @@ namespace ReactiveUITK.Props
                 element.UnregisterCallback(chf);
                 meta.EventHandlers.Remove(eventPropName);
                 if (meta.EventHandlerSignatures != null)
+                {
                     meta.EventHandlerSignatures.Remove(eventPropName);
+                }
                 totalEventsRemoved++;
                 return;
             }
@@ -2036,7 +2005,7 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
-            // Fallback: if we were given a user delegate instead of wrapper, try to remove stored wrapper
+
             if (meta.EventHandlers.TryGetValue(eventPropName, out var stored))
             {
                 try
@@ -2051,7 +2020,7 @@ namespace ReactiveUITK.Props
                             + ", storedType="
                             + stored?.GetType().Name
                     );
-                    // Recursively attempt removal with the stored wrapper
+
                     RemoveEvent(element, eventPropName, stored, meta);
                     return;
                 }
@@ -2059,6 +2028,57 @@ namespace ReactiveUITK.Props
             }
             meta.EventHandlers.Remove(eventPropName);
             totalEventsRemoved++;
+        }
+
+        private static void InvokeEvent(
+            Core.NodeMetadata metadata,
+            string eventPropName,
+            EventBase evt
+        )
+        {
+            if (metadata == null || string.IsNullOrEmpty(eventPropName))
+            {
+                return;
+            }
+            if (
+                metadata.EventHandlerTargets == null
+                || !metadata.EventHandlerTargets.TryGetValue(eventPropName, out var handler)
+                || handler == null
+            )
+            {
+                return;
+            }
+            var scheduler = ResolveScheduler(metadata);
+            if (scheduler == null)
+            {
+                InvokeHandler(handler, evt);
+                return;
+            }
+            scheduler.BeginBatch();
+            try
+            {
+                InvokeHandler(handler, evt);
+            }
+            finally
+            {
+                scheduler.EndBatch();
+            }
+        }
+
+        private static IScheduler ResolveScheduler(Core.NodeMetadata metadata)
+        {
+            if (metadata?.HostContext?.Environment == null)
+            {
+                return null;
+            }
+            if (
+                metadata.HostContext.Environment.TryGetValue("scheduler", out var schedulerObj)
+                && schedulerObj is IScheduler scheduler
+            )
+            {
+                return scheduler;
+            }
+            return null;
         }
 
         private static void InvokeHandler(Delegate del, EventBase evt)
@@ -2084,6 +2104,11 @@ namespace ReactiveUITK.Props
                 }
             }
             catch { }
+            SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
+            if (syntheticEvent != null)
+            {
+                syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;
+            }
             try
             {
                 if (del is Action action)
@@ -2095,14 +2120,12 @@ namespace ReactiveUITK.Props
                 var method = del.Method;
                 var parameters = method.GetParameters();
 
-                // 0-arg: just call
                 if (parameters.Length == 0)
                 {
                     del.DynamicInvoke();
                     return;
                 }
 
-                // Extract newValue for ChangeEvent<T> if present
                 object newValue = null;
                 var evtObj = evt as object;
                 var evtType = evtObj?.GetType();
@@ -2119,19 +2142,22 @@ namespace ReactiveUITK.Props
                     catch { }
                 }
 
-                // Single-arg handlers
                 if (parameters.Length == 1)
                 {
                     var p0 = parameters[0].ParameterType;
 
-                    // If expects EventBase (or derived) and matches, pass event
                     if (evt != null && p0.IsAssignableFrom(evt.GetType()))
                     {
                         del.DynamicInvoke(evt);
                         return;
                     }
 
-                    // If expects a value type/string and we have newValue, pass it
+                    if (syntheticEvent != null && p0.IsInstanceOfType(syntheticEvent))
+                    {
+                        del.DynamicInvoke(syntheticEvent);
+                        return;
+                    }
+
                     if (newValue != null)
                     {
                         if (p0.IsInstanceOfType(newValue))
@@ -2145,37 +2171,41 @@ namespace ReactiveUITK.Props
                             del.DynamicInvoke(converted);
                             return;
                         }
-                        catch
-                        {
-                            // fall through
-                        }
+                        catch { }
                     }
 
-                    // Fallbacks: object receives newValue or evt
                     if (p0 == typeof(object))
                     {
                         del.DynamicInvoke(newValue ?? (object)evt);
                         return;
                     }
-                    // No compatible argument — do not invoke to avoid type exceptions
+
                     return;
                 }
 
-                // Multi-arg handlers: pass best-effort in first slot
                 {
                     object[] args = new object[parameters.Length];
                     var p0 = parameters[0].ParameterType;
                     if (evt != null && p0.IsAssignableFrom(evt.GetType()))
+                    {
                         args[0] = evt;
+                    }
+                    else if (syntheticEvent != null && p0.IsInstanceOfType(syntheticEvent))
+                    {
+                        args[0] = syntheticEvent;
+                    }
                     else if (newValue != null && p0.IsInstanceOfType(newValue))
+                    {
                         args[0] = newValue;
+                    }
                     else
                     {
-                        // Attempt conversion for value types
                         try
                         {
                             if (newValue != null)
+                            {
                                 args[0] = System.Convert.ChangeType(newValue, p0);
+                            }
                         }
                         catch
                         {
@@ -2305,7 +2335,6 @@ namespace ReactiveUITK.Props
             return Align.Stretch;
         }
 
-        // Called externally when element is removed to prune cache
         public static void NotifyElementRemoved(VisualElement element)
         {
             if (element == null)
@@ -2323,9 +2352,10 @@ namespace ReactiveUITK.Props
         ) GetStyleMetrics() =>
             (totalStyleSets, totalStyleResets, totalEventsRegistered, totalEventsRemoved);
 
-        private static void TrySetStyleField(VisualElement element, string fieldName, object value)
-        {
-            // Removed due to limited runtime reflection safety; kept signature for compatibility.
-        }
+        private static void TrySetStyleField(
+            VisualElement element,
+            string fieldName,
+            object value
+        ) { }
     }
 }

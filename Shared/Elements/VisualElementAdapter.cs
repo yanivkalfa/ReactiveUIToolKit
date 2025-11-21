@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -9,7 +8,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<VisualElement>();
+            return new VisualElement();
         }
 
         public override void ApplyProperties(

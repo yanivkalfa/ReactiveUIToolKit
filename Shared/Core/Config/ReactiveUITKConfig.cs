@@ -4,9 +4,6 @@ using UnityEngine;
 
 namespace ReactiveUITK.Core.Config
 {
-    // Centralized configuration loader for ReactiveUIToolKit.
-    // Defaults are production-safe. If a project-level config.json exists at
-    // Assets/ReactiveUIToolKit/config.json, it overrides these defaults.
     public sealed class ReactiveUITKConfig
     {
         [Serializable]
@@ -15,6 +12,7 @@ namespace ReactiveUITK.Core.Config
             public string env;
             public string traceLevel;
             public bool diffTracing;
+            public bool exceptionControlFlow;
         }
 
         [Serializable]
@@ -27,6 +25,7 @@ namespace ReactiveUITK.Core.Config
         public ReactiveUITK.Core.Reconciler.DiffTraceLevel TraceLevel { get; private set; } =
             ReactiveUITK.Core.Reconciler.DiffTraceLevel.None;
         public bool EnableDiffTracing { get; private set; } = false;
+        public bool UseExceptionBoundaryFlow { get; private set; } = false;
 
         private static ReactiveUITKConfig instance;
         public static ReactiveUITKConfig Current
@@ -62,21 +61,17 @@ namespace ReactiveUITK.Core.Config
                             cfg.TraceLevel = ParseTraceLevel(parsed.envVariables.traceLevel);
                         }
                         cfg.EnableDiffTracing = parsed.envVariables.diffTracing;
+                        cfg.UseExceptionBoundaryFlow = parsed.envVariables.exceptionControlFlow;
                     }
                 }
             }
-            catch
-            {
-                // Swallow and keep defaults; config is optional in consumers
-            }
+            catch { }
             return cfg;
         }
 
         private static string GetDefaultProjectConfigPath()
         {
-            // Package root under Assets is Assets/ReactiveUIToolKit
-            // Config file name: config.json
-            string assets = Application.dataPath; // absolute path to Assets
+            string assets = Application.dataPath;
             return Path.Combine(assets, "ReactiveUIToolKit", "config.json");
         }
 

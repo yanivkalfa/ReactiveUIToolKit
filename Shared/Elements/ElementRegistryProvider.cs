@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReactiveUITK.Elements;
 
 namespace ReactiveUITK.Elements
 {
@@ -33,6 +34,53 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "Foldout");
                 RegisterIfAllowed(registry, "Tab");
                 RegisterIfAllowed(registry, "TabView");
+                RegisterIfAllowed(registry, "EnumField");
+
+#if UNITY_EDITOR
+                RegisterIfAllowed(registry, "ObjectField");
+                RegisterIfAllowed(registry, "TwoPaneSplitView");
+                RegisterIfAllowed(registry, "Toolbar");
+                RegisterIfAllowed(registry, "ToolbarButton");
+                RegisterIfAllowed(registry, "ToolbarMenu");
+                RegisterIfAllowed(registry, "ToolbarToggle");
+                RegisterIfAllowed(registry, "ToolbarBreadcrumbs");
+                RegisterIfAllowed(registry, "ToolbarPopupSearchField");
+                RegisterIfAllowed(registry, "ToolbarSearchField");
+                RegisterIfAllowed(registry, "ToolbarSpacer");
+                RegisterIfAllowed(registry, "PropertyField");
+                RegisterIfAllowed(registry, "InspectorElement");
+#endif
+                RegisterIfAllowed(registry, "Scroller");
+                RegisterIfAllowed(registry, "TextElement");
+                RegisterIfAllowed(registry, "IMGUIContainer");
+                RegisterIfAllowed(registry, "Vector2IntField");
+                RegisterIfAllowed(registry, "Vector3IntField");
+                RegisterIfAllowed(registry, "RectField");
+                RegisterIfAllowed(registry, "RectIntField");
+                RegisterIfAllowed(registry, "BoundsField");
+                RegisterIfAllowed(registry, "MinMaxSlider");
+                RegisterIfAllowed(registry, "TemplateContainer");
+                RegisterIfAllowed(registry, "BoundsIntField");
+                
+#if UNITY_EDITOR
+                RegisterIfAllowed(registry, "EnumFlagsField");
+#endif
+                RegisterIfAllowed(registry, "ToggleButtonGroup");
+                RegisterIfAllowed(registry, "Hash128Field");
+                RegisterIfAllowed(registry, "FloatField");
+                RegisterIfAllowed(registry, "IntegerField");
+                RegisterIfAllowed(registry, "LongField");
+                RegisterIfAllowed(registry, "DoubleField");
+                RegisterIfAllowed(registry, "UnsignedIntegerField");
+                RegisterIfAllowed(registry, "UnsignedLongField");
+                RegisterIfAllowed(registry, "Vector2Field");
+                RegisterIfAllowed(registry, "Vector3Field");
+                RegisterIfAllowed(registry, "Vector4Field");
+                
+#if UNITY_EDITOR
+                RegisterIfAllowed(registry, "ColorField");
+#endif
+                RegisterIfAllowed(registry, "Box");
 #if UNITY_EDITOR
                 RegisterIfAllowed(registry, "HelpBox");
 #endif
@@ -67,6 +115,55 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "Foldout", allowedSet);
             RegisterIfAllowed(registry, "Tab", allowedSet);
             RegisterIfAllowed(registry, "TabView", allowedSet);
+            RegisterIfAllowed(registry, "EnumField", allowedSet);
+            
+#if UNITY_EDITOR
+            RegisterIfAllowed(registry, "ObjectField", allowedSet);
+            RegisterIfAllowed(registry, "TwoPaneSplitView", allowedSet);
+#endif
+            RegisterIfAllowed(registry, "Scroller", allowedSet);
+            RegisterIfAllowed(registry, "TextElement", allowedSet);
+            RegisterIfAllowed(registry, "IMGUIContainer", allowedSet);
+            RegisterIfAllowed(registry, "Vector2IntField", allowedSet);
+            RegisterIfAllowed(registry, "Vector3IntField", allowedSet);
+            RegisterIfAllowed(registry, "RectField", allowedSet);
+            RegisterIfAllowed(registry, "RectIntField", allowedSet);
+            RegisterIfAllowed(registry, "BoundsField", allowedSet);
+            RegisterIfAllowed(registry, "MinMaxSlider", allowedSet);
+            RegisterIfAllowed(registry, "TemplateContainer", allowedSet);
+            RegisterIfAllowed(registry, "BoundsIntField", allowedSet);
+            
+#if UNITY_EDITOR
+            RegisterIfAllowed(registry, "EnumFlagsField", allowedSet);
+#endif
+            RegisterIfAllowed(registry, "ToggleButtonGroup", allowedSet);
+            RegisterIfAllowed(registry, "Hash128Field", allowedSet);
+            RegisterIfAllowed(registry, "FloatField", allowedSet);
+            RegisterIfAllowed(registry, "IntegerField", allowedSet);
+            RegisterIfAllowed(registry, "LongField", allowedSet);
+            RegisterIfAllowed(registry, "DoubleField", allowedSet);
+            RegisterIfAllowed(registry, "UnsignedIntegerField", allowedSet);
+            RegisterIfAllowed(registry, "UnsignedLongField", allowedSet);
+            RegisterIfAllowed(registry, "Vector2Field", allowedSet);
+            RegisterIfAllowed(registry, "Vector3Field", allowedSet);
+            RegisterIfAllowed(registry, "Vector4Field", allowedSet);
+            
+#if UNITY_EDITOR
+            RegisterIfAllowed(registry, "ColorField", allowedSet);
+#endif
+            RegisterIfAllowed(registry, "Box", allowedSet);
+#if UNITY_EDITOR
+            RegisterIfAllowed(registry, "Toolbar", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarButton", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarMenu", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarToggle", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarBreadcrumbs", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarPopupSearchField", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarSearchField", allowedSet);
+            RegisterIfAllowed(registry, "ToolbarSpacer", allowedSet);
+            RegisterIfAllowed(registry, "PropertyField", allowedSet);
+            RegisterIfAllowed(registry, "InspectorElement", allowedSet);
+#endif
 #if UNITY_EDITOR
             RegisterIfAllowed(registry, "HelpBox", allowedSet);
 #endif
@@ -155,6 +252,132 @@ namespace ReactiveUITK.Elements
                         break;
                     case "TabView":
                         registry.Register("TabView", new TabViewElementAdapter());
+                        break;
+                    case "EnumField":
+                        registry.Register("EnumField", new EnumFieldElementAdapter());
+                        break;
+                    
+#if UNITY_EDITOR
+                    case "ObjectField":
+                        registry.Register("ObjectField", new ObjectFieldElementAdapter());
+                        break;
+#endif
+                    case "Scroller":
+                        registry.Register("Scroller", new ScrollerElementAdapter());
+                        break;
+                    case "TextElement":
+                        registry.Register("TextElement", new TextElementAdapter());
+                        break;
+                    case "IMGUIContainer":
+                        registry.Register("IMGUIContainer", new IMGUIContainerElementAdapter());
+                        break;
+                    case "Vector2IntField":
+                        registry.Register("Vector2IntField", new Vector2IntFieldElementAdapter());
+                        break;
+                    case "Vector3IntField":
+                        registry.Register("Vector3IntField", new Vector3IntFieldElementAdapter());
+                        break;
+                    case "RectField":
+                        registry.Register("RectField", new RectFieldElementAdapter());
+                        break;
+                    case "RectIntField":
+                        registry.Register("RectIntField", new RectIntFieldElementAdapter());
+                        break;
+                    case "BoundsField":
+                        registry.Register("BoundsField", new BoundsFieldElementAdapter());
+                        break;
+                    case "MinMaxSlider":
+                        registry.Register("MinMaxSlider", new MinMaxSliderElementAdapter());
+                        break;
+                    case "TemplateContainer":
+                        registry.Register("TemplateContainer", new TemplateContainerElementAdapter());
+                        break;
+                    case "BoundsIntField":
+                        registry.Register("BoundsIntField", new BoundsIntFieldElementAdapter());
+                        break;
+                    case "EnumFlagsField":
+                        registry.Register("EnumFlagsField", new EnumFlagsFieldElementAdapter());
+                        break;
+                    case "ToggleButtonGroup":
+                        registry.Register("ToggleButtonGroup", new ToggleButtonGroupElementAdapter());
+                        break;
+                    case "Hash128Field":
+                        registry.Register("Hash128Field", new Hash128FieldElementAdapter());
+                        break;
+                    case "FloatField":
+                        registry.Register("FloatField", new FloatFieldElementAdapter());
+                        break;
+                    case "IntegerField":
+                        registry.Register("IntegerField", new IntegerFieldElementAdapter());
+                        break;
+                    case "LongField":
+                        registry.Register("LongField", new LongFieldElementAdapter());
+                        break;
+                    case "DoubleField":
+                        registry.Register("DoubleField", new DoubleFieldElementAdapter());
+                        break;
+                    case "UnsignedIntegerField":
+                        registry.Register(
+                            "UnsignedIntegerField",
+                            new UnsignedIntegerFieldElementAdapter()
+                        );
+                        break;
+                    case "UnsignedLongField":
+                        registry.Register(
+                            "UnsignedLongField",
+                            new UnsignedLongFieldElementAdapter()
+                        );
+                        break;
+                    case "Vector2Field":
+                        registry.Register("Vector2Field", new Vector2FieldElementAdapter());
+                        break;
+                    case "Vector3Field":
+                        registry.Register("Vector3Field", new Vector3FieldElementAdapter());
+                        break;
+                    case "Vector4Field":
+                        registry.Register("Vector4Field", new Vector4FieldElementAdapter());
+                        break;
+                    
+#if UNITY_EDITOR
+                    case "ColorField":
+                        registry.Register("ColorField", new ColorFieldElementAdapter());
+                        break;
+                    case "TwoPaneSplitView":
+                        registry.Register("TwoPaneSplitView", new TwoPaneSplitViewElementAdapter());
+                        break;
+                    case "Toolbar":
+                        registry.Register("Toolbar", new ToolbarElementAdapter());
+                        break;
+                    case "ToolbarButton":
+                        registry.Register("ToolbarButton", new ToolbarButtonElementAdapter());
+                        break;
+                    case "ToolbarMenu":
+                        registry.Register("ToolbarMenu", new ToolbarMenuElementAdapter());
+                        break;
+                    case "ToolbarToggle":
+                        registry.Register("ToolbarToggle", new ToolbarToggleElementAdapter());
+                        break;
+                    case "ToolbarBreadcrumbs":
+                        registry.Register("ToolbarBreadcrumbs", new ToolbarBreadcrumbsElementAdapter());
+                        break;
+                    case "ToolbarPopupSearchField":
+                        registry.Register("ToolbarPopupSearchField", new ToolbarPopupSearchFieldElementAdapter());
+                        break;
+                    case "ToolbarSearchField":
+                        registry.Register("ToolbarSearchField", new ToolbarSearchFieldElementAdapter());
+                        break;
+                    case "ToolbarSpacer":
+                        registry.Register("ToolbarSpacer", new ToolbarSpacerElementAdapter());
+                        break;
+                    case "PropertyField":
+                        registry.Register("PropertyField", new PropertyFieldElementAdapter());
+                        break;
+                    case "InspectorElement":
+                        registry.Register("InspectorElement", new InspectorElementAdapter());
+                        break;
+#endif
+                    case "Box":
+                        registry.Register("Box", new BoxElementAdapter());
                         break;
 #if UNITY_EDITOR
                     case "HelpBox":

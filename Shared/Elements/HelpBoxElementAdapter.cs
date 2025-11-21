@@ -1,6 +1,5 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -10,7 +9,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<HelpBox>();
+            return new HelpBox();
         }
 
         public override void ApplyProperties(
@@ -23,7 +22,6 @@ namespace ReactiveUITK.Elements
                 TryApplyProp<string>(properties, "text", v => hb.text = v ?? string.Empty);
                 if (properties.TryGetValue("messageType", out var mt))
                 {
-                    // Accept enum or string ("info","warning","error")
                     if (mt is HelpBoxMessageType t)
                     {
                         hb.messageType = t;
@@ -59,7 +57,9 @@ namespace ReactiveUITK.Elements
                 if (!Equals(pm, nm))
                 {
                     if (nm is HelpBoxMessageType t)
+                    {
                         hb.messageType = t;
+                    }
                     else if (nm is string ms)
                     {
                         ms = ms.ToLowerInvariant();
@@ -77,4 +77,3 @@ namespace ReactiveUITK.Elements
     }
 }
 #endif
-

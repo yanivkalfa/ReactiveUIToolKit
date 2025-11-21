@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -9,7 +8,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<Button>();
+            return new Button();
         }
 
         private static bool IsInsideListView(VisualElement ve)
@@ -18,7 +17,9 @@ namespace ReactiveUITK.Elements
             while (p != null)
             {
                 if (p is BaseVerticalCollectionView)
+                {
                     return true;
+                }
                 p = p.parent;
             }
             return false;
@@ -27,10 +28,14 @@ namespace ReactiveUITK.Elements
         private static void EnsureListViewFriendly(Button button)
         {
             if (button == null)
+            {
                 return;
+            }
             if (!IsInsideListView(button))
+            {
                 return;
-            // Make button act independent inside ListView rows; rely on selectionType=None
+            }
+
             button.focusable = false;
             button.pickingMode = PickingMode.Position;
         }

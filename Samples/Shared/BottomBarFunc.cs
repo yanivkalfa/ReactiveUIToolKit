@@ -95,9 +95,15 @@ namespace ReactiveUITK.Samples.Shared
 
             return V.VisualElement(
                 barProps,
-                null,
-                V.Text(
-                    string.IsNullOrEmpty(inputValue) ? "Type above..." : ("Typed: " + inputValue)
+                key: "bottom-bar-root",
+                V.Label(
+                    new LabelProps
+                    {
+                        Text = string.IsNullOrEmpty(inputValue)
+                            ? "Type above..."
+                            : ("Typed: " + inputValue),
+                    },
+                    key: "bottom-bar-text"
                 ),
                 V.Button(leftButtonProps),
                 V.Button(rightButtonProps)

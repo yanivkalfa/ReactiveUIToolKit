@@ -3,26 +3,23 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    // Minimal, opinion-free adapter for UI Toolkit TreeView
     public sealed class TreeViewElementAdapter
         : StatefulElementAdapter<TreeView, TreeViewElementAdapter.Cached>
     {
-        public sealed class Cached : IExpansionState
+        public sealed class Cached : IExpansionState, IScrollState
         {
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
 
-            // Stable renderer pool by row key
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
-            // Expansion tracking/cache
             internal ExpansionStateTracker<TreeView, Cached> ExpansionTracker =
                 new ExpansionStateTracker<TreeView, Cached>();
             public HashSet<int> DesiredExpanded { get; set; } = new();
@@ -30,13 +27,27 @@ namespace ReactiveUITK.Elements
             public bool OurHandlerAttached { get; set; }
             public Delegate UserExpandedHandler { get; set; }
             public bool TrackUserExpansion { get; set; } = true;
+
+            public bool IsScrolling { get; set; }
+            public bool ScrollWired { get; set; }
+            public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
+            public IReadOnlyDictionary<string, object> PendingNext { get; set; }
+            public float ScrollX { get; set; }
+            public float ScrollY { get; set; }
+            public int ScrollActivityId { get; set; }
+
+            public IElementStateTracker<TreeView, Cached> ScrollTracker =
+                new MultiColumnScrollTracker<TreeView, Cached>(
+                    new MultiColumnScrollOps<TreeView>(),
+                    flush: null
+                );
         }
 
         private static HostContext sharedHost;
         private static HostContext Host =>
             sharedHost ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
-        public override VisualElement Create() => GlobalVisualElementPool.Get<TreeView>();
+        public override VisualElement Create() => new TreeView();
 
         public override void ApplyProperties(
             VisualElement element,
@@ -54,18 +65,16 @@ namespace ReactiveUITK.Elements
                 PropsApplier.Apply(element, properties);
                 return;
             }
+            EnsureViewDataKey(tv, properties);
 
-            // Expansion wiring
-            if (properties.TryGetValue("stopTrackingUserChange", out var stopObj))
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Attach(tv, parts, properties, ops);
-                }
-                catch { }
-            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
-            // User expansion handler wiring is handled by the cooperative tracker
-            // Inline expansion handler removed; cooperative tracker handles subscriptions
+            try
+            {
+                var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Attach(tv, parts, properties, ops);
+            }
+            catch { }
+
+            parts.ScrollTracker.Attach(tv, parts, properties);
 
             if (properties.TryGetValue("expandedItemIds", out var expObj))
             {
@@ -75,38 +84,32 @@ namespace ReactiveUITK.Elements
                 if (ids != null)
                 {
                     foreach (var id in ids)
+                    {
                         parts.DesiredExpanded.Add(id);
+                    }
                 }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, null, properties, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, null, properties);
             }
 
             if (properties.TryGetValue("rootItems", out var roots))
             {
+                var scrollSnapshot = CaptureScrollSnapshot(tv);
                 SetRootItems(tv, roots);
                 try
                 {
                     tv.RefreshItems();
                 }
                 catch { }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, null, properties, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, null, properties, scrollSnapshot);
             }
 
             TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (properties.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+            {
                 tv.selectionType = st;
+            }
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            // Row rendering
             if (
                 properties.TryGetValue("row", out var rowFn)
                 && rowFn is Func<int, object, VirtualNode> rf
@@ -162,12 +165,13 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Slots are user-driven
             if (
                 properties.TryGetValue("contentContainer", out var cc)
                 && cc is Dictionary<string, object> ccMap
             )
+            {
                 PropsApplier.Apply(tv.contentContainer, ccMap);
+            }
             if (
                 properties.TryGetValue("scrollView", out var sv)
                 && sv is Dictionary<string, object> svMap
@@ -175,10 +179,13 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = tv.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
 
             PropsApplier.Apply(element, properties);
+            parts.ScrollTracker.Reapply(tv, parts, null, properties);
         }
 
         public override void ApplyPropertiesDiff(
@@ -195,10 +202,8 @@ namespace ReactiveUITK.Elements
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
             var parts = GetState(tv);
+            EnsureViewDataKey(tv, next);
 
-            // Expansion wiring diff
-            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
-            // Cooperative tracker handles user expansion handler wiring
             try
             {
                 var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
@@ -210,26 +215,23 @@ namespace ReactiveUITK.Elements
             next.TryGetValue("rootItems", out var nr);
             if (!ReferenceEquals(pr, nr))
             {
+                var scrollSnapshot = CaptureScrollSnapshot(tv);
                 SetRootItems(tv, nr);
                 try
                 {
                     tv.RefreshItems();
                 }
                 catch { }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, previous, next, scrollSnapshot);
             }
-            // Apply fixedItemHeight diff regardless of root change
+
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+            {
                 tv.selectionType = st;
+            }
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.SetSelection(i));
 
-            // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
                 var ids = BaseElementAdapter.CoerceIds(nextExp);
@@ -238,30 +240,25 @@ namespace ReactiveUITK.Elements
                 if (ids != null)
                 {
                     foreach (var id in ids)
+                    {
                         parts.DesiredExpanded.Add(id);
+                    }
                 }
-                try
-                {
-                    var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                    parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
-                }
-                catch { }
+                ReapplyExpansion(tv, parts, previous, next);
             }
 
             PropsApplier.ApplyDiff(element, previous, next);
-            // Final cooperative reapply guard
-            try
-            {
-                var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
-                parts.ExpansionTracker.Reapply(tv, parts, previous, next, ops);
-            }
-            catch { }
+
+            ReapplyExpansion(tv, parts, previous, next);
+            parts.ScrollTracker.Reapply(tv, parts, previous, next);
         }
 
         private static void SetRootItems(TreeView tv, object root)
         {
             if (tv == null)
+            {
                 return;
+            }
             try
             {
                 var mi = typeof(TreeView)
@@ -331,14 +328,18 @@ namespace ReactiveUITK.Elements
                     {
                         var s = f.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                     var p = t.GetProperty("Id", BindingFlags.Instance | BindingFlags.Public);
                     if (p?.PropertyType == typeof(string))
                     {
                         var s = p.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                 }
             }
@@ -354,12 +355,234 @@ namespace ReactiveUITK.Elements
                 );
                 var idObj = mi?.Invoke(tv, new object[] { index });
                 if (idObj != null)
+                {
                     return idObj.ToString();
+                }
             }
             catch { }
             return $"row-{index}";
         }
 
-        // Inline expansion helpers removed in favor of cooperative tracker
+        private static void ReapplyExpansion(
+            TreeView view,
+            Cached parts,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next,
+            ScrollSnapshot? snapshotOverride = null
+        )
+        {
+            if (view == null || parts == null)
+            {
+                return;
+            }
+
+            var snapshot = snapshotOverride.HasValue
+                ? snapshotOverride.Value
+                : CaptureScrollSnapshot(view);
+
+            try
+            {
+                var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
+                parts.ExpansionTracker.Reapply(view, parts, previous, next, ops);
+            }
+            catch { }
+
+            RestoreScrollSnapshot(view, snapshot);
+        }
+
+        private static ScrollSnapshot CaptureScrollSnapshot(TreeView view)
+        {
+            if (view == null)
+            {
+                return default;
+            }
+
+            try
+            {
+                var scroll = view.Q<ScrollView>();
+                if (scroll == null)
+                {
+                    return default;
+                }
+
+                var offset = scroll.scrollOffset;
+                var maxX = GetHighValue(scroll.horizontalScroller);
+                var maxY = GetHighValue(scroll.verticalScroller);
+                return new ScrollSnapshot(true, offset, maxX, maxY);
+            }
+            catch
+            {
+                return default;
+            }
+        }
+
+        private static void RestoreScrollSnapshot(TreeView view, ScrollSnapshot snapshot)
+        {
+            if (view == null || !snapshot.IsValid)
+            {
+                return;
+            }
+
+            try
+            {
+                var scroll = view.Q<ScrollView>();
+                if (scroll == null)
+                {
+                    return;
+                }
+
+                var target = new Vector2(
+                    ResolveAxis(
+                        snapshot.Offset.x,
+                        snapshot.MaxX,
+                        GetHighValue(scroll.horizontalScroller)
+                    ),
+                    ResolveAxis(
+                        snapshot.Offset.y,
+                        snapshot.MaxY,
+                        GetHighValue(scroll.verticalScroller)
+                    )
+                );
+
+                ApplyScrollOffset(scroll, target);
+            }
+            catch { }
+        }
+
+        private static void ApplyScrollOffset(ScrollView scroll, Vector2 target)
+        {
+            if (scroll == null)
+            {
+                return;
+            }
+
+            void Apply()
+            {
+                try
+                {
+                    scroll.scrollOffset = target;
+                }
+                catch { }
+            }
+
+            Apply();
+            try
+            {
+                scroll.schedule?.Execute(Apply)?.ExecuteLater(0);
+            }
+            catch { }
+        }
+
+        private static float ResolveAxis(float previousValue, float previousMax, float newMax)
+        {
+            newMax = Math.Max(newMax, 0f);
+            if (previousMax <= 0f)
+            {
+                return Clamp(previousValue, 0f, newMax);
+            }
+
+            var tolerance = Math.Max(previousMax * 0.01f, 2f);
+            var distanceFromEnd = previousMax - previousValue;
+            if (distanceFromEnd <= tolerance)
+            {
+                return newMax;
+            }
+
+            return Clamp(previousValue, 0f, newMax);
+        }
+
+        private static float GetHighValue(Scroller scroller)
+        {
+            if (scroller == null)
+            {
+                return 0f;
+            }
+            try
+            {
+                return scroller.highValue;
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            if (value < min)
+            {
+                return min;
+            }
+            if (value > max)
+            {
+                return max;
+            }
+            return value;
+        }
+
+        private readonly struct ScrollSnapshot
+        {
+            public ScrollSnapshot(bool isValid, Vector2 offset, float maxX, float maxY)
+            {
+                IsValid = isValid;
+                Offset = offset;
+                MaxX = maxX;
+                MaxY = maxY;
+            }
+
+            public bool IsValid { get; }
+            public Vector2 Offset { get; }
+            public float MaxX { get; }
+            public float MaxY { get; }
+        }
+
+        private static void EnsureViewDataKey(
+            TreeView view,
+            IReadOnlyDictionary<string, object> properties
+        )
+        {
+            if (view == null)
+            {
+                return;
+            }
+
+            string desired = null;
+            if (
+                properties != null
+                && properties.TryGetValue("viewDataKey", out var raw)
+                && raw is string explicitKey
+                && !string.IsNullOrEmpty(explicitKey)
+            )
+            {
+                desired = explicitKey;
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
+                {
+                    desired = metadataKey;
+                }
+                else if (!string.IsNullOrEmpty(view.name))
+                {
+                    desired = view.name;
+                }
+            }
+
+            if (string.IsNullOrEmpty(desired))
+            {
+                return;
+            }
+
+            if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            view.viewDataKey = desired;
+        }
     }
 }

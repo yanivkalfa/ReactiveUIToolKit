@@ -38,7 +38,7 @@ namespace ReactiveUITK.Samples.Shared
                         Content = () => V.Func(MultiColumnTreeViewStatefulDemoFunc.Render),
                     },
                 },
-                // Give the TabView a visible content area
+
                 Style = new Style { (Props.Typed.StyleKeys.Height, 240f) },
             };
 
@@ -61,7 +61,8 @@ namespace ReactiveUITK.Samples.Shared
                         Text = "Intro",
                         OnClick = () => setTabIndex(0),
                         Style = new Style { (Props.Typed.StyleKeys.Width, 80f) },
-                    }
+                    },
+                    key: "tabs-btn-intro"
                 ),
                 V.Button(
                     new ButtonProps
@@ -73,7 +74,8 @@ namespace ReactiveUITK.Samples.Shared
                             (Props.Typed.StyleKeys.MarginLeft, 6f),
                             (Props.Typed.StyleKeys.Width, 80f),
                         },
-                    }
+                    },
+                    key: "tabs-btn-tree"
                 ),
                 V.Button(
                     new ButtonProps
@@ -85,7 +87,8 @@ namespace ReactiveUITK.Samples.Shared
                             (Props.Typed.StyleKeys.MarginLeft, 6f),
                             (Props.Typed.StyleKeys.Width, 90f),
                         },
-                    }
+                    },
+                    key: "tabs-btn-columns"
                 )
             );
 

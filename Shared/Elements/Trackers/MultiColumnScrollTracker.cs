@@ -34,15 +34,20 @@ namespace ReactiveUITK.Elements
         public void Attach(TView view, TState state, IReadOnlyDictionary<string, object> props)
         {
             if (view == null || state == null || _ops == null)
+            {
                 return;
+            }
             if (state.ScrollWired)
+            {
                 return;
+            }
             var sv = _ops.GetScrollView(view);
             if (sv == null)
+            {
                 return;
+            }
             state.ScrollWired = true;
 
-            // Save changes during scroll
             try
             {
                 if (sv.verticalScroller != null)
@@ -70,7 +75,6 @@ namespace ReactiveUITK.Elements
             }
             catch { }
 
-            // Pointer wheel inside the scroll view
             sv.RegisterCallback<WheelEvent>(
                 _ =>
                 {
@@ -83,14 +87,18 @@ namespace ReactiveUITK.Elements
             void End()
             {
                 if (!state.IsScrolling)
+                {
                     return;
+                }
                 state.IsScrolling = false;
                 var prev = state.PendingPrev;
                 var next = state.PendingNext;
                 state.PendingPrev = null;
                 state.PendingNext = null;
                 if (_flush == null)
+                {
                     return;
+                }
                 try
                 {
                     _flush(view, state, prev, next);
@@ -98,7 +106,6 @@ namespace ReactiveUITK.Elements
                 catch { }
             }
 
-            // Consider scroll ends on pointer up/cancel leaving the view
             view.RegisterCallback<PointerUpEvent>(_ => End(), TrickleDown.TrickleDown);
             view.RegisterCallback<PointerCancelEvent>(_ => End(), TrickleDown.TrickleDown);
             view.RegisterCallback<MouseCaptureOutEvent>(_ => End());
@@ -124,7 +131,9 @@ namespace ReactiveUITK.Elements
         public void Detach(TView view, TState state)
         {
             if (state == null)
+            {
                 return;
+            }
             try
             {
                 state.IsScrolling = false;
@@ -155,17 +164,21 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || state == null)
+            {
                 return;
+            }
             if (state.IsScrolling)
             {
                 state.PendingPrev = previousProps;
                 state.PendingNext = nextProps;
                 return;
             }
-            // Restore scroll offset after updates
+
             var sv = _ops.GetScrollView(view);
             if (sv == null)
+            {
                 return;
+            }
             try
             {
                 var off = sv.scrollOffset;
