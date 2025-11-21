@@ -6,6 +6,7 @@ namespace ReactiveUITK.Elements
         where TView : VisualElement
     {
         private const string HeaderClass = "unity-multi-column-header";
+
         public bool IsHeaderElement(VisualElement e)
         {
             var ve = e;
@@ -14,7 +15,9 @@ namespace ReactiveUITK.Elements
                 try
                 {
                     if (ve.ClassListContains(HeaderClass))
+                    {
                         return true;
+                    }
                 }
                 catch { }
                 ve = ve.parent as VisualElement;

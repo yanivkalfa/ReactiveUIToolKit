@@ -51,32 +51,47 @@ namespace ReactiveUITK.Core
                 {
                     Debug.LogWarning($"ReactiveUITK: ref assignment failed: {ex}");
                 }
-                catch
-                {
-                    // ignore logging failures
-                }
+                catch { }
             }
         }
 
         private static bool TrySetGenericMutableRef(object refTarget, VisualElement element)
         {
             Type type = refTarget.GetType();
-            if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(Hooks.MutableRef<>))
+            if (
+                !type.IsGenericType
+                || type.GetGenericTypeDefinition() != typeof(Hooks.MutableRef<>)
+            )
             {
                 return false;
             }
 
-            if (TryAssignProperty(type.GetProperty("Value", BindingFlags.Instance | BindingFlags.Public)))
+            if (
+                TryAssignProperty(
+                    type.GetProperty("Value", BindingFlags.Instance | BindingFlags.Public)
+                )
+            )
             {
                 return true;
             }
 
-            if (TryAssignProperty(type.GetProperty("Current", BindingFlags.Instance | BindingFlags.Public)))
+            if (
+                TryAssignProperty(
+                    type.GetProperty("Current", BindingFlags.Instance | BindingFlags.Public)
+                )
+            )
             {
                 return true;
             }
 
-            if (TryAssignField(type.GetField("Value", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)))
+            if (
+                TryAssignField(
+                    type.GetField(
+                        "Value",
+                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                    )
+                )
+            )
             {
                 return true;
             }
@@ -93,7 +108,10 @@ namespace ReactiveUITK.Core
                 Type expectedType = property.PropertyType;
                 if (element == null)
                 {
-                    if (!expectedType.IsValueType || Nullable.GetUnderlyingType(expectedType) != null)
+                    if (
+                        !expectedType.IsValueType
+                        || Nullable.GetUnderlyingType(expectedType) != null
+                    )
                     {
                         property.SetValue(refTarget, null);
                         return true;
@@ -101,7 +119,10 @@ namespace ReactiveUITK.Core
                     return false;
                 }
 
-                if (expectedType.IsInstanceOfType(element) || expectedType.IsAssignableFrom(typeof(VisualElement)))
+                if (
+                    expectedType.IsInstanceOfType(element)
+                    || expectedType.IsAssignableFrom(typeof(VisualElement))
+                )
                 {
                     property.SetValue(refTarget, element);
                     return true;
@@ -120,7 +141,10 @@ namespace ReactiveUITK.Core
                 Type expectedType = field.FieldType;
                 if (element == null)
                 {
-                    if (!expectedType.IsValueType || Nullable.GetUnderlyingType(expectedType) != null)
+                    if (
+                        !expectedType.IsValueType
+                        || Nullable.GetUnderlyingType(expectedType) != null
+                    )
                     {
                         field.SetValue(refTarget, null);
                         return true;
@@ -128,7 +152,10 @@ namespace ReactiveUITK.Core
                     return false;
                 }
 
-                if (expectedType.IsInstanceOfType(element) || expectedType.IsAssignableFrom(typeof(VisualElement)))
+                if (
+                    expectedType.IsInstanceOfType(element)
+                    || expectedType.IsAssignableFrom(typeof(VisualElement))
+                )
                 {
                     field.SetValue(refTarget, element);
                     return true;
@@ -151,8 +178,8 @@ namespace ReactiveUITK.Core
             {
                 Type parameterType = parameters[0].ParameterType;
                 object argument = null;
-                bool canAssignNull = !parameterType.IsValueType
-                    || Nullable.GetUnderlyingType(parameterType) != null;
+                bool canAssignNull =
+                    !parameterType.IsValueType || Nullable.GetUnderlyingType(parameterType) != null;
 
                 if (element == null)
                 {

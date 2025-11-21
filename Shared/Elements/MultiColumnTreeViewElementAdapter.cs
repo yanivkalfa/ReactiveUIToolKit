@@ -23,7 +23,6 @@ namespace ReactiveUITK.Elements
             internal List<ColumnSignature> ColSig;
             public List<Func<int, object, VirtualNode>> CellFns;
 
-            // Expansion tracking
             public HashSet<int> DesiredExpanded { get; set; } = new();
             public Dictionary<int, bool> ExpandAllById { get; set; } = new();
             public bool OurHandlerAttached { get; set; }
@@ -32,11 +31,9 @@ namespace ReactiveUITK.Elements
             internal ExpansionStateTracker<MultiColumnTreeView, Cached> ExpansionTracker =
                 new ExpansionStateTracker<MultiColumnTreeView, Cached>();
 
-            // Stable renderer pool for cells: key = rowKey|c=colIndex
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
-            // Column layout persistence (by column name)
             public Dictionary<string, float> ColumnWidths { get; set; } = new();
             public Dictionary<string, bool> ColumnVisibility { get; set; } = new();
             public Dictionary<string, int> ColumnDisplayIndex { get; set; } = new();
@@ -45,7 +42,6 @@ namespace ReactiveUITK.Elements
             public Delegate ColumnLayoutChanged { get; set; }
             internal ColumnLayoutSnapshot LastLayoutSnapshot { get; set; }
 
-            // Sorting persistence
             public List<(
                 string name,
                 SortDirection direction,
@@ -56,9 +52,6 @@ namespace ReactiveUITK.Elements
             public Delegate UserSortNotify { get; set; }
             public Action InternalSortHandler { get; set; }
 
-            // (removed) unused layout/order polling fields
-
-            // Interaction guard: suspend heavy updates during user adjustments (resize/reorder)
             public bool IsAdjusting { get; set; }
             public bool HeaderWired { get; set; }
             public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
@@ -70,7 +63,6 @@ namespace ReactiveUITK.Elements
                 );
             public bool DetachWired { get; set; }
 
-            // Scroll tracking/persist
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
             public float ScrollX { get; set; }
@@ -82,7 +74,6 @@ namespace ReactiveUITK.Elements
                     ApplyAdjustmentFlush
                 );
 
-            // Commit coordination for snapshot -> apply -> restore
             public bool CommitQueued { get; set; }
             public bool IsCommitting { get; set; }
             public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
@@ -92,31 +83,36 @@ namespace ReactiveUITK.Elements
         private static HostContext Host =>
             host ??= new HostContext(ElementRegistryProvider.GetDefaultRegistry());
 
-    internal sealed class ColumnLayoutSnapshot
+        internal sealed class ColumnLayoutSnapshot
         {
             public Dictionary<string, float> Widths;
             public Dictionary<string, bool> Visibility;
             public Dictionary<string, int> DisplayIndex;
 
-            public ColumnLayoutSnapshot Clone() => new ColumnLayoutSnapshot
-            {
-                Widths = CloneDict(Widths),
-                Visibility = CloneDict(Visibility),
-                DisplayIndex = CloneDict(DisplayIndex),
-            };
+            public ColumnLayoutSnapshot Clone() =>
+                new ColumnLayoutSnapshot
+                {
+                    Widths = CloneDict(Widths),
+                    Visibility = CloneDict(Visibility),
+                    DisplayIndex = CloneDict(DisplayIndex),
+                };
         }
 
         private static Dictionary<string, T> CloneDict<T>(Dictionary<string, T> source)
         {
             if (source == null || source.Count == 0)
+            {
                 return new Dictionary<string, T>();
+            }
             return new Dictionary<string, T>(source);
         }
 
         private static ColumnLayoutSnapshot CaptureLayoutSnapshot(Cached parts)
         {
             if (parts == null)
+            {
                 return new ColumnLayoutSnapshot();
+            }
             return new ColumnLayoutSnapshot
             {
                 Widths = CloneDict(parts.ColumnWidths),
@@ -135,17 +131,27 @@ namespace ReactiveUITK.Elements
         private static bool DictEqual<T>(Dictionary<string, T> left, Dictionary<string, T> right)
         {
             if (ReferenceEquals(left, right))
+            {
                 return true;
+            }
             if (left == null || right == null)
+            {
                 return false;
+            }
             if (left.Count != right.Count)
+            {
                 return false;
+            }
             foreach (var kv in left)
             {
                 if (!right.TryGetValue(kv.Key, out var rv))
+                {
                     return false;
+                }
                 if (!EqualityComparer<T>.Default.Equals(kv.Value, rv))
+                {
                     return false;
+                }
             }
             return true;
         }
@@ -153,7 +159,9 @@ namespace ReactiveUITK.Elements
         private static void DispatchLayoutChanged(MultiColumnTreeView view, Cached parts)
         {
             if (view == null || parts == null)
+            {
                 return;
+            }
 
             var snapshot = CaptureLayoutSnapshot(parts);
             var changed = !LayoutEqual(parts.LastLayoutSnapshot, snapshot);
@@ -161,7 +169,9 @@ namespace ReactiveUITK.Elements
 
             var callback = parts.ColumnLayoutChanged;
             if (callback == null || !changed)
+            {
                 return;
+            }
 
             var payload = new MultiColumnTreeViewProps.ColumnLayoutState
             {
@@ -210,20 +220,29 @@ namespace ReactiveUITK.Elements
         )
         {
             if (callback == null || payload == null)
+            {
                 return true;
+            }
 
             switch (callback)
             {
                 case Action<MultiColumnTreeViewProps.ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<VisualElement, MultiColumnTreeViewProps.ColumnLayoutState> typedWithView:
+                case Action<
+                    VisualElement,
+                    MultiColumnTreeViewProps.ColumnLayoutState
+                > typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:
                     widthsOnly(payload.ColumnWidths);
                     return true;
-                case Action<Dictionary<string, float>, Dictionary<string, bool>, Dictionary<string, int>> triple:
+                case Action<
+                    Dictionary<string, float>,
+                    Dictionary<string, bool>,
+                    Dictionary<string, int>
+                > triple:
                     triple(
                         payload.ColumnWidths,
                         payload.ColumnVisibility,
@@ -257,20 +276,26 @@ namespace ReactiveUITK.Elements
                         args[i] = payload;
                         continue;
                     }
-                    if (typeof(Dictionary<string, float>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, float>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnWidths;
                         continue;
                     }
-                    if (typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnVisibility;
                         continue;
                     }
-                    if (typeof(Dictionary<string, int>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, int>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnDisplayIndex;
                         continue;
@@ -291,13 +316,14 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public override VisualElement Create() =>
-                new MultiColumnTreeView();
+        public override VisualElement Create() => new MultiColumnTreeView();
 
         private static void SetRootItems(MultiColumnTreeView tv, object root)
         {
             if (tv == null || root == null)
+            {
                 return;
+            }
             var mi = typeof(MultiColumnTreeView)
                 .GetMethods()
                 .FirstOrDefault(m => m.Name == "SetRootItems" && m.IsGenericMethodDefinition);
@@ -341,7 +367,9 @@ namespace ReactiveUITK.Elements
         private static void ApplySortingMode(MultiColumnTreeView tv, object mode)
         {
             if (tv == null || mode == null)
+            {
                 return;
+            }
             try
             {
                 var pi = typeof(MultiColumnTreeView).GetProperty(
@@ -351,11 +379,15 @@ namespace ReactiveUITK.Elements
                         | System.Reflection.BindingFlags.NonPublic
                 );
                 if (pi == null)
+                {
                     return;
+                }
                 var enumType = pi.PropertyType;
                 object val = null;
                 if (mode.GetType().IsEnum && mode.GetType().Name == enumType.Name)
+                {
                     val = mode;
+                }
                 else if (mode is string s)
                 {
                     try
@@ -373,7 +405,9 @@ namespace ReactiveUITK.Elements
                     catch { }
                 }
                 if (val != null)
+                {
                     pi.SetValue(tv, val);
+                }
             }
             catch { }
         }
@@ -394,7 +428,9 @@ namespace ReactiveUITK.Elements
                     {
                         var s = f.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                     var p = t.GetProperty(
                         "Id",
@@ -405,7 +441,9 @@ namespace ReactiveUITK.Elements
                     {
                         var s = p.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                 }
             }
@@ -425,7 +463,9 @@ namespace ReactiveUITK.Elements
                 {
                     var id = mi.Invoke(tv, new object[] { index });
                     if (id != null)
+                    {
                         return id.ToString();
+                    }
                 }
             }
             catch { }
@@ -449,7 +489,10 @@ namespace ReactiveUITK.Elements
             parts.ScrollTracker.Attach(tv, parts, properties);
             parts.LayoutTracker.Attach(tv, parts, properties);
             Delegate layoutCallback = null;
-            if (properties != null && properties.TryGetValue("columnLayoutChanged", out var layoutObj))
+            if (
+                properties != null
+                && properties.TryGetValue("columnLayoutChanged", out var layoutObj)
+            )
             {
                 layoutCallback = layoutObj as Delegate;
             }
@@ -460,7 +503,6 @@ namespace ReactiveUITK.Elements
             }
             if (parts.IsAdjusting || parts.IsScrolling)
             {
-                // During active adjust/scroll, just let trackers handle buffering; do not queue commit here
                 parts.AdjustmentTracker.Reapply(tv, parts, null, properties);
                 parts.ScrollTracker.Reapply(tv, parts, null, properties);
                 return;
@@ -473,7 +515,7 @@ namespace ReactiveUITK.Elements
                     parts.ExpansionTracker.Attach(tv, parts, properties, ops);
                 }
                 catch { }
-                // Expansion wiring is handled inline below
+
                 if (properties.TryGetValue("rootItems", out var r))
                 {
                     var nextList = r as IList;
@@ -500,7 +542,9 @@ namespace ReactiveUITK.Elements
                 }
                 TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
                 if (properties.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+                {
                     tv.selectionType = st;
+                }
                 TryApplyProp<int>(properties, "selectedIndex", i => tv.selectedIndex = i);
                 TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(tv, m));
             }
@@ -544,7 +588,7 @@ namespace ReactiveUITK.Elements
                 if (!same)
                 {
                     RebuildColumnsPreservingState(tv, list, parts);
-                    // Reapply layout after columns are rebuilt so order/width/visibility persist
+
                     parts.LayoutTracker.Reapply(tv, parts, null, properties);
                 }
             }
@@ -589,12 +633,11 @@ namespace ReactiveUITK.Elements
             }
             if (parts.IsAdjusting || parts.IsScrolling)
             {
-                // During active adjust/scroll, just let trackers handle buffering; do not queue commit here
                 parts.AdjustmentTracker.Reapply(tv, parts, previous, next);
                 parts.ScrollTracker.Reapply(tv, parts, previous, next);
                 return;
             }
-            // Ensure cooperative tracker is attached with latest props
+
             try
             {
                 var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
@@ -622,7 +665,9 @@ namespace ReactiveUITK.Elements
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+            {
                 tv.selectionType = st;
+            }
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.selectedIndex = i);
             TryDiffProp<object>(previous, next, "sortingMode", m => ApplySortingMode(tv, m));
 
@@ -634,14 +679,11 @@ namespace ReactiveUITK.Elements
                 parts.ColSig = sig;
                 parts.CellFns = fns;
                 RebuildColumnsPreservingState(tv, list, parts);
-                // Reapply layout after columns are rebuilt so order/width/visibility persist
+
                 parts.LayoutTracker.Reapply(tv, parts, previous, next);
             }
             ApplySlotsDiff(tv, previous, next);
 
-            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
-
-            // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
                 var ids = BaseElementAdapter.CoerceIds(nextExp);
@@ -650,7 +692,9 @@ namespace ReactiveUITK.Elements
                 if (ids != null)
                 {
                     foreach (var id in ids)
+                    {
                         parts.DesiredExpanded.Add(id);
+                    }
                 }
                 try
                 {
@@ -681,7 +725,6 @@ namespace ReactiveUITK.Elements
         {
             tv.columns.Clear();
 
-            // Materialize and sort incoming column descriptors by saved display index (if any)
             var colList = cols?.ToList() ?? new List<Dictionary<string, object>>();
             var withKey = new List<(Dictionary<string, object> c, string name, int orig)>();
             for (int i = 0; i < colList.Count; i++)
@@ -689,7 +732,9 @@ namespace ReactiveUITK.Elements
                 var c = colList[i];
                 object nObj = null;
                 if (c != null)
+                {
                     c.TryGetValue("name", out nObj);
+                }
                 var name = nObj as string;
                 withKey.Add((c, string.IsNullOrEmpty(name) ? null : name, i));
             }
@@ -711,20 +756,24 @@ namespace ReactiveUITK.Elements
                             var biVal = parts.ColumnDisplayIndex[b.name];
                             int cmp = aiVal.CompareTo(biVal);
                             if (cmp != 0)
+                            {
                                 return cmp;
+                            }
                             return a.orig.CompareTo(b.orig);
                         }
                         if (ah && !bh)
+                        {
                             return -1;
+                        }
                         if (!ah && bh)
+                        {
                             return 1;
+                        }
                         return a.orig.CompareTo(b.orig);
                     }
                 );
             }
 
-            // Build a name -> cell function map to keep cell rendering bound to column name,
-            // regardless of visual reordering.
             var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
             if (
                 parts?.ColSig != null
@@ -739,7 +788,9 @@ namespace ReactiveUITK.Elements
                     {
                         var fn = parts.CellFns[i];
                         if (fn != null)
+                        {
                             cellFnByName[keyName] = fn;
+                        }
                     }
                 }
             }
@@ -752,9 +803,13 @@ namespace ReactiveUITK.Elements
                 c.TryGetValue("name", out var n);
                 var col = new Column { title = t as string };
                 if (n is string ns && !string.IsNullOrEmpty(ns))
+                {
                     col.name = ns;
+                }
                 else if (string.IsNullOrEmpty(col.name))
+                {
                     col.name = $"col{idx}";
+                }
                 if (c.TryGetValue("width", out var w))
                 {
                     try
@@ -780,11 +835,17 @@ namespace ReactiveUITK.Elements
                     catch { }
                 }
                 if (c.TryGetValue("resizable", out var rz) && rz is bool rb)
+                {
                     col.resizable = rb;
+                }
                 if (c.TryGetValue("stretchable", out var st) && st is bool sb)
+                {
                     col.stretchable = sb;
+                }
                 if (c.TryGetValue("sortable", out var so) && so is bool srt)
+                {
                     col.sortable = srt;
+                }
 
                 col.makeCell = () => new VisualElement();
                 int captured = idx;
@@ -814,7 +875,7 @@ namespace ReactiveUITK.Elements
                         ve.Add(entry.mount);
                     }
                     Func<int, object, VirtualNode> fn = null;
-                    // Prefer binding by column name to keep stable after reordering
+
                     if (
                         !string.IsNullOrEmpty(col.name)
                         && cellFnByName.TryGetValue(col.name, out var byName)
@@ -848,7 +909,7 @@ namespace ReactiveUITK.Elements
                         }
                     }
                 };
-                // Apply persisted width (by name) if present
+
                 if (
                     !string.IsNullOrEmpty(col.name)
                     && parts.ColumnWidths != null
@@ -861,7 +922,7 @@ namespace ReactiveUITK.Elements
                     }
                     catch { }
                 }
-                // Apply persisted visibility (by name) if present
+
                 if (
                     !string.IsNullOrEmpty(col.name)
                     && parts.ColumnVisibility != null
@@ -888,7 +949,6 @@ namespace ReactiveUITK.Elements
                 parts.ExpansionTracker.Reapply(tv, parts, null, null, ops);
             }
             catch { }
-            // Expansion state applied via cooperative tracker above
         }
 
         private static void ApplySlots(
@@ -897,12 +957,16 @@ namespace ReactiveUITK.Elements
         )
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("contentContainer", out var cc)
                 && cc is Dictionary<string, object> ccMap
             )
+            {
                 PropsApplier.Apply(tv.contentContainer, ccMap);
+            }
             if (
                 properties.TryGetValue("scrollView", out var sv)
                 && sv is Dictionary<string, object> svMap
@@ -910,7 +974,9 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = tv.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
         }
 
@@ -925,18 +991,20 @@ namespace ReactiveUITK.Elements
             previous.TryGetValue("contentContainer", out var pcc);
             next.TryGetValue("contentContainer", out var ncc);
             if (!ReferenceEquals(pcc, ncc) && ncc is Dictionary<string, object> ccMap)
+            {
                 PropsApplier.Apply(tv.contentContainer, ccMap);
+            }
             previous.TryGetValue("scrollView", out var psv);
             next.TryGetValue("scrollView", out var nsv);
             if (!ReferenceEquals(psv, nsv) && nsv is Dictionary<string, object> svMap)
             {
                 var scroll = tv.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
         }
-
-        // Inline expansion helpers removed in favor of cooperative tracker
 
         private static void ApplyAdjustmentFlush(
             MultiColumnTreeView tv,
@@ -946,8 +1014,10 @@ namespace ReactiveUITK.Elements
         )
         {
             if (tv == null || parts == null)
+            {
                 return;
-            // Defer full state application to a single commit after idle
+            }
+
             parts.PendingCommit = next ?? parts.PendingCommit;
             ScheduleCommit(tv, parts);
         }
@@ -955,9 +1025,13 @@ namespace ReactiveUITK.Elements
         private static void ScheduleCommit(MultiColumnTreeView tv, Cached parts)
         {
             if (tv == null || parts == null)
+            {
                 return;
+            }
             if (parts.CommitQueued)
+            {
                 return;
+            }
             parts.CommitQueued = true;
             try
             {
@@ -977,17 +1051,22 @@ namespace ReactiveUITK.Elements
         {
             parts.CommitQueued = false;
             if (tv == null || parts == null)
+            {
                 return;
+            }
             if (parts.IsCommitting)
+            {
                 return;
+            }
             var n = parts.PendingCommit;
             parts.PendingCommit = null;
             if (n == null)
+            {
                 return;
+            }
             parts.IsCommitting = true;
             try
             {
-                // Root items
                 if (n.TryGetValue("rootItems", out var nr))
                 {
                     var nextList = nr as IList;
@@ -1003,7 +1082,6 @@ namespace ReactiveUITK.Elements
                     }
                 }
 
-                // Columns
                 if (
                     n.TryGetValue("columns", out var colsObj)
                     && colsObj is IEnumerable<Dictionary<string, object>> list
@@ -1020,25 +1098,28 @@ namespace ReactiveUITK.Elements
                     }
                 }
 
-                // Layout persistence (width/visibility)
                 parts.LayoutTracker.Reapply(tv, parts, null, n);
                 DispatchLayoutChanged(tv, parts);
 
-                // Scalars
                 if (n.TryGetValue("fixedItemHeight", out var fih) && fih is float fh)
+                {
                     tv.fixedItemHeight = fh;
+                }
                 if (n.TryGetValue("selectionType", out var st) && st is SelectionType sel)
+                {
                     tv.selectionType = sel;
+                }
                 if (n.TryGetValue("selectedIndex", out var si) && si is int idx)
+                {
                     tv.selectedIndex = idx;
+                }
                 if (n.TryGetValue("sortingMode", out var sm))
+                {
                     ApplySortingMode(tv, sm);
+                }
 
-                // Slots
                 ApplySlotsDiff(tv, new Dictionary<string, object>(), n);
 
-                // Expansion (once): always reapply DesiredExpanded; if expandedItemIds present in 'n',
-                // the tracker will override DesiredExpanded from it.
                 try
                 {
                     var ops = ReactiveUITK.Elements.MultiColumnTreeViewExpansionOps.Instance;
@@ -1046,7 +1127,6 @@ namespace ReactiveUITK.Elements
                 }
                 catch { }
 
-                // Sort + Scroll restore
                 parts.SortTracker.Reapply(tv, parts, null, n);
                 parts.ScrollTracker.Reapply(tv, parts, null, n);
             }
@@ -1080,7 +1160,10 @@ namespace ReactiveUITK.Elements
 
             if (string.IsNullOrEmpty(desired))
             {
-                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
                 {
                     desired = metadataKey;
                 }
@@ -1106,7 +1189,9 @@ namespace ReactiveUITK.Elements
         private static void EnsureDetachHook(MultiColumnTreeView tv, Cached parts)
         {
             if (tv == null || parts == null || parts.DetachWired)
+            {
                 return;
+            }
             parts.DetachWired = true;
             tv.RegisterCallback<DetachFromPanelEvent>(_ =>
             {

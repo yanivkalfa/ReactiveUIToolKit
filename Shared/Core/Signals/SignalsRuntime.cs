@@ -37,7 +37,9 @@ namespace ReactiveUITK.Signals
         {
             lock (gate)
             {
-                if (signals.TryGetValue(key, out SignalBase existing) && existing is Signal<T> typed)
+                if (
+                    signals.TryGetValue(key, out SignalBase existing) && existing is Signal<T> typed
+                )
                 {
                     signal = typed;
                     return true;

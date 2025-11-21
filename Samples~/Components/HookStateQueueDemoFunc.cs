@@ -146,19 +146,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (StyleKeys.MarginBottom, 6f),
                     },
                     null,
+                    V.Label(new LabelProps { Text = $"Value: {value}", Style = badgeStyle }),
                     V.Label(
-                        new LabelProps
-                        {
-                            Text = $"Value: {value}",
-                            Style = badgeStyle,
-                        }
-                    ),
-                    V.Label(
-                        new LabelProps
-                        {
-                            Text = $"Flush count: {flushCount}",
-                            Style = badgeStyle,
-                        }
+                        new LabelProps { Text = $"Flush count: {flushCount}", Style = badgeStyle }
                     )
                 ),
                 V.VisualElement(

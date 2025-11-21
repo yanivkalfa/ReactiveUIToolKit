@@ -34,7 +34,7 @@ namespace ReactiveUITK.Core
                 sharedHostContext = new HostContext(elementRegistry);
                 sharedHostContext.Environment["scheduler"] = RenderScheduler.Instance;
                 sharedHostContext.Environment["isEditor"] = false;
-                // Apply build-define derived configuration
+
                 sharedHostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
@@ -60,7 +60,6 @@ namespace ReactiveUITK.Core
             rootElement = uiRootElement;
         }
 
-        // Consistent, explicit API: always pass a VirtualNode (from V.Func, V.Fragment, etc.)
         public void Render(VirtualNode rootNode)
         {
             EnsureSetup();

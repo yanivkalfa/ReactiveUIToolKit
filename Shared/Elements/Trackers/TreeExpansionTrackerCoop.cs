@@ -4,7 +4,6 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    // Cooperative generic tracker: adapters call Attach/Reapply at exact lifecycle points
     internal sealed class ExpansionStateTracker<TView, TState>
         where TView : VisualElement
         where TState : IExpansionState
@@ -17,14 +16,16 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || state == null || hooks == null)
+            {
                 return;
+            }
 
-            // stopTrackingUserChange
             state.TrackUserExpansion = true;
             if (props != null && props.TryGetValue("stopTrackingUserChange", out var stopObj))
+            {
                 state.TrackUserExpansion = !(stopObj is bool b && b);
+            }
 
-            // User-provided handler
             if (props != null && props.TryGetValue("itemExpandedChanged", out var userHandler))
             {
                 if (!ReferenceEquals(state.UserExpandedHandler, userHandler))
@@ -49,7 +50,6 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Our internal tracker only when no user handler
             bool shouldAttach = state.TrackUserExpansion && !state.OurHandlerAttached;
             if (shouldAttach)
             {
@@ -58,9 +58,13 @@ namespace ReactiveUITK.Elements
                     try
                     {
                         if (e.isExpanded)
+                        {
                             state.DesiredExpanded.Add(e.id);
+                        }
                         else
+                        {
                             state.DesiredExpanded.Remove(e.id);
+                        }
                         state.ExpandAllById[e.id] = e.isAppliedToAllChildren;
                     }
                     catch { }
@@ -83,9 +87,10 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || state == null || hooks == null)
+            {
                 return;
+            }
 
-            // expandedItemIds override
             if (next != null && next.TryGetValue("expandedItemIds", out var expObj))
             {
                 try
@@ -96,13 +101,14 @@ namespace ReactiveUITK.Elements
                     if (ids != null)
                     {
                         foreach (var id in ids)
+                        {
                             state.DesiredExpanded.Add(id);
+                        }
                     }
                 }
                 catch { }
             }
 
-            // Apply desired expansion
             try
             {
                 foreach (var id in state.DesiredExpanded)

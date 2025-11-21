@@ -11,11 +11,19 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var d = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Text)) d["text"] = Text;
-            if (Style != null) d["style"] = Style;
-            if (Ref != null) d["ref"] = Ref;
+            if (!string.IsNullOrEmpty(Text))
+            {
+                d["text"] = Text;
+            }
+            if (Style != null)
+            {
+                d["style"] = Style;
+            }
+            if (Ref != null)
+            {
+                d["ref"] = Ref;
+            }
             return d;
         }
     }
 }
-

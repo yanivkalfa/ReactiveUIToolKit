@@ -24,9 +24,18 @@ namespace ReactiveUITK.Props.Typed
             public Dictionary<string, object> ToDictionary()
             {
                 var d = new Dictionary<string, object>();
-                if (!string.IsNullOrEmpty(Title)) d["title"] = Title;
-                if (Content != null) d["content"] = Content;
-                if (StaticContent != null) d["staticContent"] = StaticContent;
+                if (!string.IsNullOrEmpty(Title))
+                {
+                    d["title"] = Title;
+                }
+                if (Content != null)
+                {
+                    d["content"] = Content;
+                }
+                if (StaticContent != null)
+                {
+                    d["staticContent"] = StaticContent;
+                }
                 return d;
             }
         }
@@ -42,10 +51,16 @@ namespace ReactiveUITK.Props.Typed
             if (Tabs != null)
             {
                 var list = new List<Dictionary<string, object>>(Tabs.Count);
-                foreach (var t in Tabs) list.Add(t?.ToDictionary());
+                foreach (var t in Tabs)
+                {
+                    list.Add(t?.ToDictionary());
+                }
                 d["tabs"] = list;
             }
-            if (Style != null) d["style"] = Style;
+            if (Style != null)
+            {
+                d["style"] = Style;
+            }
             if (SelectedIndexChanged != null)
             {
                 if (SelectedIndexChanged is Hooks.StateSetter<int> setter)
@@ -80,9 +95,11 @@ namespace ReactiveUITK.Props.Typed
                     d["activeTabChanged"] = generic;
                 }
             }
-            if (Ref != null) d["ref"] = Ref;
+            if (Ref != null)
+            {
+                d["ref"] = Ref;
+            }
             return d;
         }
     }
 }
-

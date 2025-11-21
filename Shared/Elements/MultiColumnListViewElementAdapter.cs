@@ -22,7 +22,6 @@ namespace ReactiveUITK.Elements
             internal List<ColumnSignature> LastColSignature;
             public List<Func<int, object, VirtualNode>> CellFns;
 
-            // Stable renderer pool for cells: key = rowKey|c=colIndex
             internal Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
@@ -44,7 +43,6 @@ namespace ReactiveUITK.Elements
             public Delegate ColumnLayoutChanged { get; set; }
             internal ColumnLayoutSnapshot LastLayoutSnapshot { get; set; }
 
-            // Suspend heavy updates during header interactions
             public bool IsAdjusting { get; set; }
             public bool HeaderWired { get; set; }
             public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
@@ -56,7 +54,6 @@ namespace ReactiveUITK.Elements
                 );
             public bool DetachWired { get; set; }
 
-            // Scroll tracking/persist
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
             public float ScrollX { get; set; }
@@ -68,7 +65,6 @@ namespace ReactiveUITK.Elements
                     ApplyAdjustmentFlush
                 );
 
-            // Commit coordination for snapshot -> apply -> restore
             public bool CommitQueued { get; set; }
             public bool IsCommitting { get; set; }
             public IReadOnlyDictionary<string, object> PendingCommit { get; set; }
@@ -86,36 +82,43 @@ namespace ReactiveUITK.Elements
             return sharedHostContext;
         }
 
-    internal sealed class ColumnLayoutSnapshot
+        internal sealed class ColumnLayoutSnapshot
         {
             public Dictionary<string, float> Widths;
             public Dictionary<string, bool> Visibility;
             public Dictionary<string, int> DisplayIndex;
 
-            public ColumnLayoutSnapshot Clone() => new ColumnLayoutSnapshot
-            {
-                Widths = CloneDict(Widths),
-                Visibility = CloneDict(Visibility),
-                DisplayIndex = CloneDict(DisplayIndex),
-            };
+            public ColumnLayoutSnapshot Clone() =>
+                new ColumnLayoutSnapshot
+                {
+                    Widths = CloneDict(Widths),
+                    Visibility = CloneDict(Visibility),
+                    DisplayIndex = CloneDict(DisplayIndex),
+                };
         }
 
         private static Dictionary<string, T> CloneDict<T>(Dictionary<string, T> source)
         {
             if (source == null || source.Count == 0)
+            {
                 return new Dictionary<string, T>();
+            }
             return new Dictionary<string, T>(source);
         }
 
         private static VirtualNode EnsureVisualRoot(VirtualNode node)
         {
             if (node == null)
+            {
                 return null;
+            }
             if (
                 node.NodeType == VirtualNodeType.Element
                 && string.Equals(node.ElementTypeName, "VisualElement", StringComparison.Ordinal)
             )
+            {
                 return node;
+            }
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
@@ -130,14 +133,20 @@ namespace ReactiveUITK.Elements
         private static IList NormalizeItems(object itemsObj)
         {
             if (itemsObj == null)
+            {
                 return null;
+            }
             if (itemsObj is IList il)
+            {
                 return il;
+            }
             if (itemsObj is IEnumerable en)
             {
                 var list = new List<object>();
                 foreach (var it in en)
+                {
                     list.Add(it);
+                }
                 return list;
             }
             return null;
@@ -146,7 +155,9 @@ namespace ReactiveUITK.Elements
         private static ColumnLayoutSnapshot CaptureLayoutSnapshot(Cached parts)
         {
             if (parts == null)
+            {
                 return new ColumnLayoutSnapshot();
+            }
             return new ColumnLayoutSnapshot
             {
                 Widths = CloneDict(parts.ColumnWidths),
@@ -165,17 +176,27 @@ namespace ReactiveUITK.Elements
         private static bool DictEqual<T>(Dictionary<string, T> left, Dictionary<string, T> right)
         {
             if (ReferenceEquals(left, right))
+            {
                 return true;
+            }
             if (left == null || right == null)
+            {
                 return false;
+            }
             if (left.Count != right.Count)
+            {
                 return false;
+            }
             foreach (var kv in left)
             {
                 if (!right.TryGetValue(kv.Key, out var rv))
+                {
                     return false;
+                }
                 if (!EqualityComparer<T>.Default.Equals(kv.Value, rv))
+                {
                     return false;
+                }
             }
             return true;
         }
@@ -183,7 +204,9 @@ namespace ReactiveUITK.Elements
         private static void DispatchLayoutChanged(MultiColumnListView view, Cached parts)
         {
             if (view == null || parts == null)
+            {
                 return;
+            }
 
             var snapshot = CaptureLayoutSnapshot(parts);
             var changed = !LayoutEqual(parts.LastLayoutSnapshot, snapshot);
@@ -191,7 +214,9 @@ namespace ReactiveUITK.Elements
 
             var callback = parts.ColumnLayoutChanged;
             if (callback == null || !changed)
+            {
                 return;
+            }
 
             var payload = new MultiColumnListViewProps.ColumnLayoutState
             {
@@ -240,20 +265,29 @@ namespace ReactiveUITK.Elements
         )
         {
             if (callback == null || payload == null)
+            {
                 return true;
+            }
 
             switch (callback)
             {
                 case Action<MultiColumnListViewProps.ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<VisualElement, MultiColumnListViewProps.ColumnLayoutState> typedWithView:
+                case Action<
+                    VisualElement,
+                    MultiColumnListViewProps.ColumnLayoutState
+                > typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:
                     widthsOnly(payload.ColumnWidths);
                     return true;
-                case Action<Dictionary<string, float>, Dictionary<string, bool>, Dictionary<string, int>> triple:
+                case Action<
+                    Dictionary<string, float>,
+                    Dictionary<string, bool>,
+                    Dictionary<string, int>
+                > triple:
                     triple(
                         payload.ColumnWidths,
                         payload.ColumnVisibility,
@@ -287,20 +321,26 @@ namespace ReactiveUITK.Elements
                         args[i] = payload;
                         continue;
                     }
-                    if (typeof(Dictionary<string, float>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, float>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, float>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnWidths;
                         continue;
                     }
-                    if (typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, bool>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, bool>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnVisibility;
                         continue;
                     }
-                    if (typeof(Dictionary<string, int>).IsAssignableFrom(pt)
-                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt))
+                    if (
+                        typeof(Dictionary<string, int>).IsAssignableFrom(pt)
+                        || typeof(IReadOnlyDictionary<string, int>).IsAssignableFrom(pt)
+                    )
                     {
                         args[i] = payload.ColumnDisplayIndex;
                         continue;
@@ -321,8 +361,7 @@ namespace ReactiveUITK.Elements
             }
         }
 
-        public override VisualElement Create() =>
-                new MultiColumnListView();
+        public override VisualElement Create() => new MultiColumnListView();
 
         public override void ApplyProperties(
             VisualElement element,
@@ -341,7 +380,10 @@ namespace ReactiveUITK.Elements
             parts.ScrollTracker.Attach(view, parts, properties);
             parts.LayoutTracker.Attach(view, parts, properties);
             Delegate layoutCallback = null;
-            if (properties != null && properties.TryGetValue("columnLayoutChanged", out var layoutObj))
+            if (
+                properties != null
+                && properties.TryGetValue("columnLayoutChanged", out var layoutObj)
+            )
             {
                 layoutCallback = layoutObj as Delegate;
             }
@@ -394,23 +436,19 @@ namespace ReactiveUITK.Elements
                 view.selectionType = sel;
             }
 
-            // sortingMode (optional)
             TryApplyProp<object>(properties, "sortingMode", m => ApplySortingMode(view, m));
 
-            // Columns: rebuild only if semantic signature changes
             if (properties.TryGetValue("columns", out var colsObj) && colsObj is IEnumerable cols)
             {
                 var (newSig, newFns) = ColumnSignatureUtil.Extract(cols);
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
-                    parts.LastColSignature = newSig; // update before rebuild so name-based binding is correct
+                    parts.LastColSignature = newSig;
                     RebuildColumnsPreservingState(view, cols, parts);
                 }
                 else
                 {
-                    // Update cell delegates and refresh realized rows to pick up new closures
-                    // Preserve state by not unmounting during unbindCell
                     parts.CellFns = newFns;
                     try
                     {
@@ -421,7 +459,7 @@ namespace ReactiveUITK.Elements
             }
 
             ApplySlots(view, properties);
-            // trackers
+
             parts.LayoutTracker.Reapply(view, parts, null, properties);
             DispatchLayoutChanged(view, parts);
             parts.SortTracker.Attach(view, parts, properties);
@@ -506,12 +544,11 @@ namespace ReactiveUITK.Elements
                 if (!SignaturesEqual(parts.LastColSignature, newSig))
                 {
                     parts.CellFns = newFns;
-                    parts.LastColSignature = newSig; // update before rebuild
+                    parts.LastColSignature = newSig;
                     RebuildColumnsPreservingState(view, ncols, parts);
                 }
                 else
                 {
-                    // Update delegate references and refresh realized rows so closures update
                     parts.CellFns = newFns;
                     try
                     {
@@ -523,7 +560,6 @@ namespace ReactiveUITK.Elements
 
             ApplySlotsDiff(view, previous, next);
 
-            // trackers
             parts.LayoutTracker.Reapply(view, parts, previous, next);
             DispatchLayoutChanged(view, parts);
             parts.SortTracker.Reapply(view, parts, previous, next);
@@ -534,7 +570,9 @@ namespace ReactiveUITK.Elements
         private static void ApplySortingMode(MultiColumnListView view, object mode)
         {
             if (view == null || mode == null)
+            {
                 return;
+            }
             try
             {
                 var pi = typeof(MultiColumnListView).GetProperty(
@@ -544,11 +582,15 @@ namespace ReactiveUITK.Elements
                         | System.Reflection.BindingFlags.NonPublic
                 );
                 if (pi == null)
+                {
                     return;
+                }
                 var enumType = pi.PropertyType;
                 object val = null;
                 if (mode.GetType().IsEnum && mode.GetType().Name == enumType.Name)
+                {
                     val = mode;
+                }
                 else if (mode is string s)
                 {
                     try
@@ -566,7 +608,9 @@ namespace ReactiveUITK.Elements
                     catch { }
                 }
                 if (val != null)
+                {
                     pi.SetValue(view, val);
+                }
             }
             catch { }
         }
@@ -577,7 +621,6 @@ namespace ReactiveUITK.Elements
             Cached parts
         )
         {
-            // Capture existing columns by name and index
             var existingByName = new Dictionary<string, Column>();
             var existingByIndex = new List<Column>();
             for (int ci = 0; ci < view.columns.Count; ci++)
@@ -592,8 +635,6 @@ namespace ReactiveUITK.Elements
 
             view.columns.Clear();
 
-            // Build a name -> cell function map to keep cell rendering bound to column name,
-            // regardless of visual reordering.
             var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
             if (
                 parts?.LastColSignature != null
@@ -608,19 +649,26 @@ namespace ReactiveUITK.Elements
                     {
                         var fn = parts.CellFns[i];
                         if (fn != null)
+                        {
                             cellFnByName[keyName] = fn;
+                        }
                     }
                 }
             }
 
-            var normalized = new List<(IDictionary<string, object> map, string name, int originalIndex)>();
+            var normalized =
+                new List<(IDictionary<string, object> map, string name, int originalIndex)>();
             int original = 0;
             foreach (var co in newCols)
             {
                 if (co is IDictionary<string, object> cm)
                 {
                     string nm = null;
-                    if (cm.TryGetValue("name", out var nameObj) && nameObj is string ns && !string.IsNullOrEmpty(ns))
+                    if (
+                        cm.TryGetValue("name", out var nameObj)
+                        && nameObj is string ns
+                        && !string.IsNullOrEmpty(ns)
+                    )
                     {
                         nm = ns;
                     }
@@ -636,19 +684,27 @@ namespace ReactiveUITK.Elements
                     {
                         int ai = 0;
                         int bi = 0;
-                        bool aHas = a.name != null && parts.ColumnDisplayIndex.TryGetValue(a.name, out ai);
-                        bool bHas = b.name != null && parts.ColumnDisplayIndex.TryGetValue(b.name, out bi);
+                        bool aHas =
+                            a.name != null && parts.ColumnDisplayIndex.TryGetValue(a.name, out ai);
+                        bool bHas =
+                            b.name != null && parts.ColumnDisplayIndex.TryGetValue(b.name, out bi);
                         if (aHas && bHas)
                         {
                             var cmp = ai.CompareTo(bi);
                             if (cmp != 0)
+                            {
                                 return cmp;
+                            }
                             return a.originalIndex.CompareTo(b.originalIndex);
                         }
                         if (aHas && !bHas)
+                        {
                             return -1;
+                        }
                         if (!aHas && bHas)
+                        {
                             return 1;
+                        }
                         return a.originalIndex.CompareTo(b.originalIndex);
                     }
                 );
@@ -727,36 +783,64 @@ namespace ReactiveUITK.Elements
 
                 var column = new Column { title = title };
                 if (!string.IsNullOrEmpty(name))
+                {
                     column.name = name;
+                }
 
                 Column prev = null;
                 if (!string.IsNullOrEmpty(name))
+                {
                     existingByName.TryGetValue(name, out prev);
+                }
                 if (prev == null && index < existingByIndex.Count)
+                {
                     prev = existingByIndex[index];
+                }
 
                 if (widthProvided)
+                {
                     column.width = width;
+                }
                 else if (prev != null)
+                {
                     column.width = prev.width;
+                }
                 if (minWidthProvided)
+                {
                     column.minWidth = minWidth;
+                }
                 else if (prev != null)
+                {
                     column.minWidth = prev.minWidth;
+                }
                 if (maxWidthProvided)
+                {
                     column.maxWidth = maxWidth;
+                }
                 else if (prev != null)
+                {
                     column.maxWidth = prev.maxWidth;
+                }
                 if (resizableProvided)
+                {
                     column.resizable = resizable;
+                }
                 else if (prev != null)
+                {
                     column.resizable = prev.resizable;
+                }
                 if (stretchableProvided)
+                {
                     column.stretchable = stretchable;
+                }
                 else if (prev != null)
+                {
                     column.stretchable = prev.stretchable;
+                }
                 if (colMap.TryGetValue("sortable", out var so) && so is bool srt)
+                {
                     column.sortable = srt;
+                }
 
                 column.makeCell = () => new VisualElement();
                 int capturedIndex = colIndex;
@@ -767,7 +851,7 @@ namespace ReactiveUITK.Elements
                     {
                         item = il[rowIndex];
                     }
-                    // Stable pool entry per (row, columnIndex)
+
                     var rowKey = DeriveRowKeyList(view, rowIndex, item);
                     var key = rowKey + "|c=" + capturedIndex;
                     if (!parts.Pool.TryGetValue(key, out var entry))
@@ -791,18 +875,22 @@ namespace ReactiveUITK.Elements
                         catch { }
                         ve.Add(entry.mount);
                     }
-                    // Resolve cell function (prefer by column name)
+
                     Func<int, object, VirtualNode> activeFn = null;
                     if (
                         !string.IsNullOrEmpty(column.name)
                         && cellFnByName.TryGetValue(column.name, out var byName)
                     )
+                    {
                         activeFn = byName;
+                    }
                     else
                     {
                         var fnList = parts.CellFns;
                         if (fnList != null && capturedIndex >= 0 && capturedIndex < fnList.Count)
+                        {
                             activeFn = fnList[capturedIndex];
+                        }
                     }
                     if (activeFn != null)
                     {
@@ -810,7 +898,7 @@ namespace ReactiveUITK.Elements
                         entry.renderer.Render(vnode);
                     }
                 };
-                // Preserve renderers; only detach pooled mounts from recycled VE
+
                 column.unbindCell = (ve, i) =>
                 {
                     foreach (var kv in parts.Pool)
@@ -826,7 +914,7 @@ namespace ReactiveUITK.Elements
                         }
                     }
                 };
-                // Apply persisted width (by name) if present
+
                 if (
                     !string.IsNullOrEmpty(column.name)
                     && parts.ColumnWidths != null
@@ -839,7 +927,7 @@ namespace ReactiveUITK.Elements
                     }
                     catch { }
                 }
-                // Apply persisted visibility (by name) if present
+
                 if (
                     !string.IsNullOrEmpty(column.name)
                     && parts.ColumnVisibility != null
@@ -876,7 +964,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("contentContainer", out var cc)
                 && cc is Dictionary<string, object> ccMap
@@ -891,7 +981,9 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = view.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
         }
 
@@ -915,7 +1007,9 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = view.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
         }
 
@@ -927,7 +1021,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || parts == null)
+            {
                 return;
+            }
             parts.PendingCommit = next ?? parts.PendingCommit;
             ScheduleCommit(view, parts);
         }
@@ -935,9 +1031,13 @@ namespace ReactiveUITK.Elements
         private static void ScheduleCommit(MultiColumnListView view, Cached parts)
         {
             if (view == null || parts == null)
+            {
                 return;
+            }
             if (parts.CommitQueued)
+            {
                 return;
+            }
             parts.CommitQueued = true;
             try
             {
@@ -957,17 +1057,22 @@ namespace ReactiveUITK.Elements
         {
             parts.CommitQueued = false;
             if (view == null || parts == null)
+            {
                 return;
+            }
             if (parts.IsCommitting)
+            {
                 return;
+            }
             var n = parts.PendingCommit;
             parts.PendingCommit = null;
             if (n == null)
+            {
                 return;
+            }
             parts.IsCommitting = true;
             try
             {
-                // Items
                 if (n.TryGetValue("items", out var nextItemsObj))
                 {
                     var nextItems = NormalizeItems(nextItemsObj);
@@ -983,7 +1088,6 @@ namespace ReactiveUITK.Elements
                     }
                 }
 
-                // Columns
                 if (n.TryGetValue("columns", out var nextCols) && nextCols is IEnumerable ncols)
                 {
                     var (newSig, newFns) = ColumnSignatureUtil.Extract(ncols);
@@ -1004,24 +1108,28 @@ namespace ReactiveUITK.Elements
                     }
                 }
 
-                // Layout persistence
                 parts.LayoutTracker.Reapply(view, parts, null, n);
                 DispatchLayoutChanged(view, parts);
 
-                // Scalars
                 if (n.TryGetValue("fixedItemHeight", out var fv) && fv is float ff)
+                {
                     view.fixedItemHeight = ff;
+                }
                 if (n.TryGetValue("selectionType", out var selObj) && selObj is SelectionType sel)
+                {
                     view.selectionType = sel;
+                }
                 if (n.TryGetValue("selectedIndex", out var si) && si is int idx)
+                {
                     view.selectedIndex = idx;
+                }
                 if (n.TryGetValue("sortingMode", out var sm))
+                {
                     ApplySortingMode(view, sm);
+                }
 
-                // Slots
                 ApplySlotsDiff(view, new Dictionary<string, object>(), n);
 
-                // Sort + Scroll restore
                 parts.SortTracker.Reapply(view, parts, null, n);
                 parts.ScrollTracker.Reapply(view, parts, null, n);
             }
@@ -1048,7 +1156,9 @@ namespace ReactiveUITK.Elements
                     {
                         var s = f.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                     var p = t.GetProperty(
                         "Id",
@@ -1059,7 +1169,9 @@ namespace ReactiveUITK.Elements
                     {
                         var s = p.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                 }
             }
@@ -1070,7 +1182,9 @@ namespace ReactiveUITK.Elements
         private static void EnsureDetachHook(MultiColumnListView view, Cached parts)
         {
             if (view == null || parts == null || parts.DetachWired)
+            {
                 return;
+            }
             parts.DetachWired = true;
             view.RegisterCallback<DetachFromPanelEvent>(_ =>
             {
@@ -1103,7 +1217,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null)
+            {
                 return;
+            }
 
             string desired = null;
             if (
@@ -1118,7 +1234,10 @@ namespace ReactiveUITK.Elements
 
             if (string.IsNullOrEmpty(desired))
             {
-                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
                 {
                     desired = metadataKey;
                 }
@@ -1129,10 +1248,14 @@ namespace ReactiveUITK.Elements
             }
 
             if (string.IsNullOrEmpty(desired))
+            {
                 return;
+            }
 
             if (string.Equals(view.viewDataKey, desired, StringComparison.Ordinal))
+            {
                 return;
+            }
 
             view.viewDataKey = desired;
         }

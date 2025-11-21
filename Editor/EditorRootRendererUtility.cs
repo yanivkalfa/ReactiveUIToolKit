@@ -25,7 +25,7 @@ namespace ReactiveUITK.EditorSupport
                 hostContext.Environment["scheduler"] = EditorRenderScheduler.Instance;
                 hostContext.Environment["isEditor"] = true;
                 SignalsRuntime.EnsureInitialized();
-                // Apply build-define derived configuration for editor host
+
                 hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
@@ -37,13 +37,10 @@ namespace ReactiveUITK.EditorSupport
             renderer.Render(root);
         }
 
-        // Back-compat and convenience: Render overloads redirect to Mount
         public static void Render(VisualElement hostElement, VirtualNode root)
         {
             Mount(hostElement, root);
         }
-
-        // Note: Only VirtualNode input is supported to enforce explicit V.Func usage.
 
         public static void Unmount(VisualElement hostElement)
         {

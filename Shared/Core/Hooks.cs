@@ -18,8 +18,6 @@ namespace ReactiveUITK.Core
         public static bool EnableHookValidation { get; set; } = true;
         public static bool EnableStrictDiagnostics { get; set; } = false;
 
-        // When true, a first-time hook order mismatch will realign the stored signature instead of continually erroring.
-        // This helps during iterative hot-edit sessions where hook ordering changes legitimately.
         public static bool EnableHookAutoRealign { get; set; } = true;
 
         public sealed class MutableRef<T>
@@ -33,30 +31,8 @@ namespace ReactiveUITK.Core
             }
         }
 
-        /// <summary>
-        /// React-style state setter delegate. Accepts a <see cref="StateUpdate{T}"/> wrapper which can be implicitly
-        /// constructed from either a direct value of <typeparamref name="T"/> or a functional updater <c>Func&lt;T,T&gt;</c>.
-        ///
-        /// Usage patterns (finalized API):
-        /// <code>
-        /// var (count, setCount) = Hooks.UseState(0);
-        /// setCount(5);                // direct value update
-        /// setCount.Set(c => c + 1);    // functional updater via extension method (lambda cannot target struct param directly)
-        /// </code>
-        ///
-        /// C# Limitation (CS1660): A lambda expression cannot directly convert to a user-defined struct parameter type even when
-        /// that struct declares an implicit conversion from the corresponding delegate type. Because this delegate's parameter
-        /// type is <see cref="StateUpdate{T}"/> (a struct) the form <c>setCount(c => c + 1)</c> will NOT compile.
-        /// We intentionally keep the extension method <c>StateSetterExtensions.Set(Func&lt;T,T&gt;)</c> to enable functional updates.
-        ///
-        /// Do NOT attempt further unification; this is the settled design to avoid recurring churn.
-        /// </summary>
         public delegate T StateSetter<T>(StateUpdate<T> update);
 
-        /// <summary>
-        /// Wrapper representing either a direct value assignment or a functional updater for state of type <typeparamref name="T"/>.
-        /// Instances are produced implicitly from <typeparamref name="T"/> or <c>Func&lt;T,T&gt;</c> when passed to <see cref="StateSetter{T}"/>.
-        /// </summary>
         public readonly struct StateUpdate<T>
         {
             internal readonly T Value;
@@ -83,11 +59,9 @@ namespace ReactiveUITK.Core
                 return Updater(previous);
             }
 
-            /// <summary>Create a value update.</summary>
             public static implicit operator StateUpdate<T>(T value) =>
                 new StateUpdate<T>(value, null, false);
 
-            /// <summary>Create a functional update. Note: lambdas only bind here when the receiver is an extension method expecting Func&lt;T,T&gt;.</summary>
             public static implicit operator StateUpdate<T>(Func<T, T> updater) =>
                 new StateUpdate<T>(default, updater, true);
         }
@@ -98,7 +72,11 @@ namespace ReactiveUITK.Core
             private readonly object directValue;
             private readonly Func<object, object> updater;
 
-            private PendingStateUpdate(bool usesUpdater, object directValue, Func<object, object> updater)
+            private PendingStateUpdate(
+                bool usesUpdater,
+                object directValue,
+                Func<object, object> updater
+            )
             {
                 this.usesUpdater = usesUpdater;
                 this.directValue = directValue;
@@ -196,10 +174,7 @@ namespace ReactiveUITK.Core
                 {
                     return projected;
                 }
-                if (
-                    state.HookStates == null
-                    || index >= state.HookStates.Count
-                )
+                if (state.HookStates == null || index >= state.HookStates.Count)
                 {
                     return default;
                 }
@@ -373,26 +348,19 @@ namespace ReactiveUITK.Core
                 );
                 return;
             }
-            if (
-                !string.Equals(
-                    state.HookOrderSignatures[index],
-                    hookId,
-                    StringComparison.Ordinal
-                )
-            )
+            if (!string.Equals(state.HookOrderSignatures[index], hookId, StringComparison.Ordinal))
             {
                 Debug.LogError(
                     $"[Hooks] Hook order mismatch: expected {state.HookOrderSignatures[index]} but saw {hookId} for component {DescribeComponent(metadata)}"
                 );
                 if (EnableHookAutoRealign)
                 {
-                    // Aggressive realign: clear entire signature list to fully re-prime on next render to avoid cascading mismatches.
                     try
                     {
                         state.HookOrderSignatures.Clear();
                     }
                     catch { }
-                    state.HookOrderSignatures.Add(hookId); // seed with current
+                    state.HookOrderSignatures.Add(hookId);
                     state.HookOrderPrimed = false;
                 }
             }
@@ -494,7 +462,8 @@ namespace ReactiveUITK.Core
             {
                 return;
             }
-            FunctionComponentState state = metadata.ComponentState ?? metadata.EnsureComponentState();
+            FunctionComponentState state =
+                metadata.ComponentState ?? metadata.EnsureComponentState();
             if (state?.IsRendering == true)
             {
                 state.PendingUpdate = true;
@@ -508,7 +477,7 @@ namespace ReactiveUITK.Core
                 return;
             }
             metadata.SyncComponentState(state);
-            // Frame batching: enqueue component for end-of-frame flush instead of immediate render
+
             ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
         }
 
@@ -534,8 +503,7 @@ namespace ReactiveUITK.Core
                     continue;
                 }
                 int slot = kvp.Key;
-                object current =
-                    slot < state.HookStates.Count ? state.HookStates[slot] : null;
+                object current = slot < state.HookStates.Count ? state.HookStates[slot] : null;
                 var node = queue.ConsumeAll();
                 while (node != null)
                 {
@@ -554,7 +522,6 @@ namespace ReactiveUITK.Core
 
         public static SafeAreaInsets UseSafeArea(float tolerance = 0.5f)
         {
-            // Lightweight read; no re-render trigger. Caller can combine with other state to refresh on orientation/resize.
             var current = SafeAreaUtility.GetInsets();
             FunctionComponentState state = HookContext.Current;
             NodeMetadata metadata = state?.Owner;
@@ -568,7 +535,7 @@ namespace ReactiveUITK.Core
             {
                 state.HookStates.Add(current);
             }
-            // Keep last value for potential future change detection
+
             state.HookStates[state.HookIndex] = current;
             state.HookIndex++;
             metadata.SyncComponentState(state);
@@ -654,8 +621,7 @@ namespace ReactiveUITK.Core
                 state.LayoutEffectIndex,
                 dependencies
             );
-            state.FunctionLayoutEffects ??=
-                new List<(Func<Action>, object[], object[], Action)>();
+            state.FunctionLayoutEffects ??= new List<(Func<Action>, object[], object[], Action)>();
             int index = state.LayoutEffectIndex;
             if (index >= state.FunctionLayoutEffects.Count)
             {
@@ -778,7 +744,7 @@ namespace ReactiveUITK.Core
             {
                 state.HookStates.Add((factory(), dependencies));
             }
-            // Guard against transient mismatch
+
             if (state.HookIndex >= state.HookStates.Count)
             {
                 state.HookStates.Add((factory(), dependencies));
@@ -993,8 +959,6 @@ namespace ReactiveUITK.Core
             metadata.SyncComponentState(state);
         }
 
-        // Animate the current function component container using tracks.
-        // Imperative per-frame updates; avoids re-rendering for animation frames.
         public static void UseAnimate(
             System.Collections.Generic.IReadOnlyList<ReactiveUITK.Core.Animation.AnimateTrack> tracks,
             bool autoplay = true,
@@ -1008,7 +972,7 @@ namespace ReactiveUITK.Core
                 return;
             }
             RecordHook(metadata, state, HookIdAnimate);
-            // Store last handles in hook state slot
+
             state.HookStates ??= new System.Collections.Generic.List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
@@ -1017,11 +981,10 @@ namespace ReactiveUITK.Core
             int index = state.HookIndex;
             state.HookIndex++;
             metadata.SyncComponentState(state);
-            // Run effect when deps change
+
             UseEffect(
                 () =>
                 {
-                    // stop previous if any
                     var prev =
                         state.HookStates[index]
                         as System.Collections.Generic.List<ReactiveUITK.Core.Animation.AnimationHandle>;
@@ -1071,7 +1034,6 @@ namespace ReactiveUITK.Core
             );
         }
 
-        // Tween a float value without re-rendering; invokes onUpdate each frame.
         public static void UseTweenFloat(
             float from,
             float to,
@@ -1267,15 +1229,11 @@ namespace ReactiveUITK.Core
             metadata.PendingProvidedContext[key] = value;
         }
 
-        /// <summary>
-        /// React-style flushSync helper: run <paramref name="action"/> and immediately process any queued component updates.
-        /// </summary>
         public static void FlushSync(Action action)
         {
             FrameBatcher.FlushSync(action);
         }
 
-        /// <summary>Flush any queued updates immediately without running additional code.</summary>
         public static void FlushSync() => FrameBatcher.FlushSync();
 
         private static readonly Func<object, object> IdentitySelector = value => value;

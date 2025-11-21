@@ -4,9 +4,6 @@ using UnityEngine;
 
 namespace ReactiveUITK.Core.Config
 {
-    // Centralized configuration loader for ReactiveUIToolKit.
-    // Defaults are production-safe. If a project-level config.json exists at
-    // Assets/ReactiveUIToolKit/config.json, it overrides these defaults.
     public sealed class ReactiveUITKConfig
     {
         [Serializable]
@@ -68,18 +65,13 @@ namespace ReactiveUITK.Core.Config
                     }
                 }
             }
-            catch
-            {
-                // Swallow and keep defaults; config is optional in consumers
-            }
+            catch { }
             return cfg;
         }
 
         private static string GetDefaultProjectConfigPath()
         {
-            // Package root under Assets is Assets/ReactiveUIToolKit
-            // Config file name: config.json
-            string assets = Application.dataPath; // absolute path to Assets
+            string assets = Application.dataPath;
             return Path.Combine(assets, "ReactiveUIToolKit", "config.json");
         }
 

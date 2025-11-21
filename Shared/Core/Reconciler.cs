@@ -33,7 +33,6 @@ namespace ReactiveUITK.Core
             return null;
         }
 
-        // Returns only the children this reconciler created (those tagged with NodeMetadata)
         private static void GetManagedChildren(VisualElement parent, List<VisualElement> buffer)
         {
             buffer.Clear();
@@ -41,7 +40,9 @@ namespace ReactiveUITK.Core
             {
                 var ve = parent.ElementAt(i);
                 if (ve.userData is NodeMetadata)
+                {
                     buffer.Add(ve);
+                }
             }
         }
 
@@ -64,9 +65,7 @@ namespace ReactiveUITK.Core
         private int portalBuildCount;
         private int portalUpdateCount;
         private Stopwatch diffStopwatch = new();
-        private long lastDiffDurationMs; // restored: used in EndDiffTiming + GetMetrics
-
-        // Re-added caches & counters lost during previous refactor
+        private long lastDiffDurationMs;
 
         private readonly Dictionary<VirtualNodeType, int> nodeTypeBuildCounts = new();
 
@@ -88,7 +87,6 @@ namespace ReactiveUITK.Core
         private int metricsSampleCounter;
         private long lastMetricsEmitTimestamp;
 
-        // Profiling metric stubs
         public readonly struct ReconcilerMetrics
         {
             public readonly long LastDiffMs;
@@ -121,7 +119,6 @@ namespace ReactiveUITK.Core
 
         public static event Action<ReconcilerMetrics> MetricsEmitted;
 
-        // Profiler markers (used in DiffNode & RenderFunctionComponent)
         private static readonly ProfilerMarker DiffNodeMarker = new ProfilerMarker(
             "ReactiveUITK.DiffNode"
         );
@@ -129,13 +126,11 @@ namespace ReactiveUITK.Core
             "ReactiveUITK.RenderFunctionComponent"
         );
 
-        // Constructor restored (referenced by VNodeHostRenderer, etc.)
         public Reconciler(HostContext hostContext)
         {
             this.hostContext = hostContext;
         }
 
-        // External trigger for queued component updates (referenced by Hooks)
         internal void ForceFunctionComponentUpdate(NodeMetadata metadata)
         {
             if (metadata == null || metadata.FuncRender == null || metadata.Container == null)
@@ -164,12 +159,6 @@ namespace ReactiveUITK.Core
             }
         }
 
-        // NOTE: Previous patch accidentally injected a raw BuildChildren fingerprint/warning block
-        // directly into the class body here, causing 100+ syntax errors. That logic duplicated
-        // the real BuildChildren implementation below and sat outside any method. Removed to
-        // restore valid class structure. If adaptive fingerprint warnings are desired again,
-        // reintroduce them inside the proper BuildChildren method.
-
         public void BuildSubtree(VisualElement hostElement, VirtualNode rootNode)
         {
             BeginDiffTiming();
@@ -181,7 +170,6 @@ namespace ReactiveUITK.Core
                     && !string.IsNullOrEmpty(rootNode.ElementTypeName)
                 )
                 {
-                    // Apply properties to the existing host element instead of creating a nested wrapper.
                     IElementAdapter adapter = hostContext.ElementRegistry.Resolve(
                         rootNode.ElementTypeName
                     );
@@ -193,7 +181,6 @@ namespace ReactiveUITK.Core
                 }
                 else
                 {
-                    // Non-element root: create as child
                     BuildNode(hostElement, rootNode);
                 }
             }
@@ -212,7 +199,7 @@ namespace ReactiveUITK.Core
                 hostElement.Clear();
                 if (nextRoot != null)
                 {
-                    BuildSubtree(hostElement, nextRoot); // reuse build logic
+                    BuildSubtree(hostElement, nextRoot);
                 }
                 EndDiffTiming();
                 return;
@@ -223,8 +210,7 @@ namespace ReactiveUITK.Core
                 EndDiffTiming();
                 return;
             }
-            // Special-case non-element roots (e.g., FunctionComponent, Fragment, Text):
-            // Diff against the first child element instead of clearing the host.
+
             if (
                 previousRoot.NodeType == nextRoot.NodeType
                 && previousRoot.NodeType != VirtualNodeType.Element
@@ -247,7 +233,6 @@ namespace ReactiveUITK.Core
                 && previousRoot.ElementTypeName == nextRoot.ElementTypeName
             )
             {
-                // Diff applied directly on hostElement
                 IElementAdapter adapter = hostContext.ElementRegistry.Resolve(
                     nextRoot.ElementTypeName
                 );
@@ -267,7 +252,6 @@ namespace ReactiveUITK.Core
             }
             else
             {
-                // Replace whole subtree
                 hostElement.Clear();
                 BuildSubtree(hostElement, nextRoot);
             }
@@ -292,12 +276,16 @@ namespace ReactiveUITK.Core
                 var currentChild = childNodes[index];
                 if (currentChild == null)
                 {
-                    continue; // skip null vnode safely
+                    continue;
                 }
                 if (string.IsNullOrEmpty(currentChild.Key))
+                {
                     anyUnkeyed = true;
+                }
                 else
+                {
                     anyKeyed = true;
+                }
                 if (
                     currentChild.NodeType == VirtualNodeType.Fragment
                     && !string.IsNullOrEmpty(currentChild.Key)
@@ -314,7 +302,6 @@ namespace ReactiveUITK.Core
                 BuildNode(parentElement, currentChild);
             }
 
-            // React-style: only warn when mixing keyed + unkeyed siblings.
             if (WarnOnMixedKeySiblings && anyKeyed && anyUnkeyed)
             {
                 try
@@ -337,13 +324,11 @@ namespace ReactiveUITK.Core
         private static HashSet<int> _warnedMixedKeyParents;
         private static HashSet<int> _warnedMissingElementTypes;
 
-        // Removed strict missing-key heuristic; React-like behavior implemented in BuildChildren.
-
         private void BuildNode(VisualElement parentElement, VirtualNode virtualNode)
         {
             if (parentElement == null || virtualNode == null)
             {
-                return; // defensive guard
+                return;
             }
             switch (virtualNode.NodeType)
             {
@@ -355,7 +340,7 @@ namespace ReactiveUITK.Core
                     parentElement.Add(textLabel);
                     return;
                 case VirtualNodeType.Fragment:
-                    // Create a container for fragment to aid styling/debugging.
+
                     VisualElement fragmentRoot = new()
                     {
                         name = string.IsNullOrEmpty(virtualNode.Key)
@@ -389,10 +374,10 @@ namespace ReactiveUITK.Core
                     }
                     portalBuildCount++;
                     return;
-                // Class component nodes removed
+
                 case VirtualNodeType.FunctionComponent when virtualNode.FunctionRender != null:
                     string funcName = virtualNode.FunctionRender.Method.Name;
-                    // Always use wrapper container; no pre-render flattening
+
                     VisualElement functionComponentContainer = new()
                     {
                         name = string.IsNullOrEmpty(funcName)
@@ -540,10 +525,14 @@ namespace ReactiveUITK.Core
             int shared = Math.Min(Math.Min(previousCount, nextCount), managedCount);
 
             for (int i = 0; i < shared; i++)
+            {
                 DiffNode(managed[i], previousChildren[i], nextChildren[i]);
+            }
 
             for (int i = shared; i < nextCount; i++)
+            {
                 BuildNode(parentElement, nextChildren[i]);
+            }
 
             for (int i = managedCount - 1; i >= nextCount; i--)
             {
@@ -589,7 +578,9 @@ namespace ReactiveUITK.Core
                 if (!string.IsNullOrEmpty(key))
                 {
                     if (!previousChildrenByKey.ContainsKey(key))
+                    {
                         previousChildrenByKey.Add(key, (prevNode, prevElement));
+                    }
                 }
                 else
                 {
@@ -606,7 +597,7 @@ namespace ReactiveUITK.Core
                 var nextChildNode = nextChildren[i];
                 if (nextChildNode == null)
                 {
-                    continue; // skip null vnode
+                    continue;
                 }
                 var key = nextChildNode.Key;
 
@@ -631,7 +622,9 @@ namespace ReactiveUITK.Core
                             }
                         }
                         if (replacement != null)
+                        {
                             resolved = replacement;
+                        }
                     }
 
                     orderedElements.Add(resolved);
@@ -647,7 +640,6 @@ namespace ReactiveUITK.Core
                         VisualElement resolved;
                         if (pv == null)
                         {
-                            // Cannot diff null previous node; build fresh
                             BuildNode(parentElement, nextChildNode);
                             resolved = parentElement.ElementAt(parentElement.childCount - 1);
                         }
@@ -658,7 +650,6 @@ namespace ReactiveUITK.Core
                         }
                         if (resolved.parent != parentElement)
                         {
-                            // Replaced; best-effort: pick element now at old index
                             resolved =
                                 (oldIndex >= 0 && oldIndex < parentElement.childCount)
                                     ? parentElement.ElementAt(oldIndex)
@@ -678,18 +669,17 @@ namespace ReactiveUITK.Core
                 }
             }
 
-            // Remove any managed visual child not reused
             var managedAfter = new List<VisualElement>(
                 Math.Max(managed.Count, orderedElements.Count)
             );
             GetManagedChildren(parentElement, managedAfter);
             for (int i = managedAfter.Count - 1; i >= 0; i--)
             {
-                var existing = managedAfter[i]; // managed => has NodeMetadata
-                if (existing == null)
-                {
-                    continue;
-                }
+                var existing = managedAfter[i];
+                    if (existing == null)
+                    {
+                        continue;
+                    }
                 var md = existing.userData as NodeMetadata;
                 if (md == null)
                 {
@@ -751,7 +741,9 @@ namespace ReactiveUITK.Core
 
             var stableElements = new HashSet<VisualElement>();
             if (existing.Count == 0)
+            {
                 return stableElements;
+            }
 
             var lisIndexes = ComputeLisPositions(positions);
             foreach (var idx in lisIndexes)
@@ -772,7 +764,9 @@ namespace ReactiveUITK.Core
         )
         {
             if (element == null)
+            {
                 return;
+            }
 
             void InsertAt(int index)
             {
@@ -828,12 +822,16 @@ namespace ReactiveUITK.Core
         private static VisualElement GetFirstManagedChild(VisualElement parent)
         {
             if (parent == null)
+            {
                 return null;
+            }
             for (int i = 0; i < parent.childCount; i++)
             {
                 var child = parent.ElementAt(i);
                 if (child?.userData is NodeMetadata)
+                {
                     return child;
+                }
             }
             return null;
         }
@@ -942,7 +940,6 @@ namespace ReactiveUITK.Core
                 }
             }
 
-            // ---- Element case (build into child host) ----
             IElementAdapter elementAdapter = hostContext.ElementRegistry.Resolve(
                 virtualNode.ElementTypeName
             );
@@ -952,17 +949,20 @@ namespace ReactiveUITK.Core
             createdElement.userData = new NodeMetadata { Key = virtualNode.Key };
 
             if (string.IsNullOrEmpty(createdElement.name))
+            {
                 createdElement.name =
                     (elementAdapter != null)
                         ? (virtualNode.ElementTypeName + "Element")
                         : "GenericElement";
+            }
 
             elementAdapter?.ApplyProperties(createdElement, virtualNode.Properties);
 
-            // Build vnode children into the adapter's stable child host
             var childrenHost = elementAdapter?.ResolveChildHost(createdElement) ?? createdElement;
             if (childrenHost == null)
-                childrenHost = createdElement; // robust fallback
+            {
+                childrenHost = createdElement;
+            }
 
             BuildChildren(childrenHost, virtualNode.Children);
 
@@ -1282,8 +1282,8 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            IReadOnlyList<VirtualNode> targetChildren = suspenseNode.Children
-                ?? Array.Empty<VirtualNode>();
+            IReadOnlyList<VirtualNode> targetChildren =
+                suspenseNode.Children ?? Array.Empty<VirtualNode>();
 
             ClearHostElement(hostElement);
             if (targetChildren.Count > 0)
@@ -1306,9 +1306,10 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            IReadOnlyList<VirtualNode> fallbackChildren = suspenseNode.Fallback != null
-                ? new[] { suspenseNode.Fallback }
-                : Array.Empty<VirtualNode>();
+            IReadOnlyList<VirtualNode> fallbackChildren =
+                suspenseNode.Fallback != null
+                    ? new[] { suspenseNode.Fallback }
+                    : Array.Empty<VirtualNode>();
 
             ClearHostElement(hostElement);
             if (fallbackChildren.Count > 0)
@@ -1479,9 +1480,13 @@ namespace ReactiveUITK.Core
                 }
                 string newTextContent = nextNode.TextContent ?? string.Empty;
                 if (labelElement.text != newTextContent)
+                {
                     labelElement.text = newTextContent;
+                }
                 else
+                {
                     skippedNodeCount++;
+                }
                 return;
             }
 
@@ -1495,9 +1500,11 @@ namespace ReactiveUITK.Core
                         portalMetadata?.PortalPreviousChildren ?? new List<VirtualNode>();
                     DiffChildren(nextNode.PortalTarget, previousPortalChildren, nextNode.Children);
                     if (portalMetadata != null)
+                    {
                         portalMetadata.PortalPreviousChildren = new List<VirtualNode>(
                             nextNode.Children
                         );
+                    }
                     portalUpdateCount++;
                 }
                 else
@@ -1545,7 +1552,6 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            // Function component
             if (nextNode.NodeType == VirtualNodeType.FunctionComponent)
             {
                 NodeMetadata functionMetadata = hostElement.userData as NodeMetadata;
@@ -1555,7 +1561,6 @@ namespace ReactiveUITK.Core
                     return;
                 }
 
-                // React-style memo: shallow props AND shallow children
                 bool childrenEq = ShallowChildrenEqual(previousNode.Children, nextNode.Children);
                 bool skip;
                 if (nextNode.MemoCompare != null)
@@ -1633,15 +1638,12 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            // Element
             if (nextNode.NodeType == VirtualNodeType.Element)
             {
                 var elementAdapter = hostContext.ElementRegistry.Resolve(nextNode.ElementTypeName);
 
-                // Resolve child host BEFORE updating props (ApplyPropertiesDiff may swap the container)
                 var oldChildHost = elementAdapter?.ResolveChildHost(hostElement) ?? hostElement;
 
-                // Minor fast-path: if no vnode children at all, just patch props and return
                 var prevKids = previousNode.Children ?? Array.Empty<VirtualNode>();
                 var nextKids = nextNode.Children ?? Array.Empty<VirtualNode>();
                 bool bothEmpty = (prevKids.Count == 0 && nextKids.Count == 0);
@@ -1652,19 +1654,18 @@ namespace ReactiveUITK.Core
                     nextNode.Properties
                 );
 
-                // Resolve AGAIN AFTER props — container might have changed
                 var newChildHost = elementAdapter?.ResolveChildHost(hostElement) ?? hostElement;
 
-                // If the container changed, reparent ONLY our visuals (those we created), not template internals
                 if (!ReferenceEquals(newChildHost, oldChildHost))
                 {
-                    // collect managed kids
                     var buffer = new List<VisualElement>();
                     for (int i = 0; i < oldChildHost.childCount; i++)
                     {
                         var ch = oldChildHost.ElementAt(i);
                         if (ch.userData is NodeMetadata)
+                        {
                             buffer.Add(ch);
+                        }
                     }
 
                     if (buffer.Count > 0)
@@ -1692,60 +1693,77 @@ namespace ReactiveUITK.Core
             }
         }
 
-        // Shallow compare of props: count, keys, Equals(value)
         private static bool ShallowPropsEqual(
             IReadOnlyDictionary<string, object> a,
             IReadOnlyDictionary<string, object> b
         )
         {
             if (ReferenceEquals(a, b))
+            {
                 return true;
+            }
             int ac = a?.Count ?? 0,
                 bc = b?.Count ?? 0;
             if (ac != bc)
+            {
                 return false;
+            }
             if (ac == 0)
+            {
                 return true;
+            }
 
             foreach (var kv in a)
             {
                 if (!b.TryGetValue(kv.Key, out var bv))
+                {
                     return false;
+                }
                 if (!Equals(kv.Value, bv))
-                    return false; // shallow
+                {
+                    return false;
+                }
             }
             return true;
         }
 
-        // Treat "children" like React's props.children: shallow identity/shape check.
-        // 1) Fast path: same reference.
-        // 2) Same length and each slot is the same instance OR has same key+type signature.
         private static bool ShallowChildrenEqual(
             IReadOnlyList<VirtualNode> a,
             IReadOnlyList<VirtualNode> b
         )
         {
             if (ReferenceEquals(a, b))
+            {
                 return true;
+            }
             int ac = a?.Count ?? 0,
                 bc = b?.Count ?? 0;
             if (ac != bc)
+            {
                 return false;
+            }
             if (ac == 0)
+            {
                 return true;
+            }
 
             for (int i = 0; i < ac; i++)
             {
                 var an = a[i];
                 var bn = b[i];
                 if (ReferenceEquals(an, bn))
+                {
                     continue;
+                }
                 if (an == null || bn == null)
+                {
                     return false;
+                }
 
-                // Compare a light identity signature (like React's key+type)
                 if (an.NodeType != bn.NodeType)
+                {
                     return false;
+                }
                 if (
                     !string.Equals(
                         an.Key ?? string.Empty,
@@ -1753,7 +1771,9 @@ namespace ReactiveUITK.Core
                         StringComparison.Ordinal
                     )
                 )
+                {
                     return false;
+                }
                 if (
                     an.NodeType == VirtualNodeType.Element
                     && !string.Equals(
@@ -1762,7 +1782,9 @@ namespace ReactiveUITK.Core
                         StringComparison.Ordinal
                     )
                 )
+                {
                     return false;
+                }
                 if (
                     an.NodeType == VirtualNodeType.Text
                     && !string.Equals(
@@ -1771,12 +1793,13 @@ namespace ReactiveUITK.Core
                         StringComparison.Ordinal
                     )
                 )
+                {
                     return false;
+                }
             }
             return true;
         }
 
-        // === USE THIS as your ShouldSkipMemo ===
         private static bool ShouldSkipMemo(
             VirtualNode previousNode,
             VirtualNode nextNode,
@@ -1785,10 +1808,14 @@ namespace ReactiveUITK.Core
         )
         {
             if (!ShallowPropsEqual(prevProps, nextProps))
+            {
                 return false;
+            }
             if (!ShallowChildrenEqual(previousNode.Children, nextNode.Children))
+            {
                 return false;
-            return true; // props AND children look the same -> skip render
+            }
+            return true;
         }
 
         private void ReplaceNode(VisualElement hostElement, VirtualNode nextNode)
@@ -1870,12 +1897,12 @@ namespace ReactiveUITK.Core
                 var componentState =
                     functionComponentMetadata.ComponentState
                     ?? functionComponentMetadata.EnsureComponentState();
-                // Reset hook indices before render
+
                 componentState.HookIndex = 0;
                 componentState.EffectIndex = 0;
                 componentState.LayoutEffectIndex = 0;
                 functionComponentMetadata.PendingProvidedContext = null;
-                // Preserve existing HookOrderPrimed value (auto-realign may have set it false). Do not force true just because signatures exist.
+
                 if (componentState.HookOrderPrimed)
                 {
                     componentState.HookOrderPrimed =
@@ -1939,12 +1966,11 @@ namespace ReactiveUITK.Core
                         );
                         providerApplied = true;
                     }
-                    // Unified handling: build/diff then continue to effect phase (no early returns) so first render runs effects.
+
                     try
                     {
                         if (nextSubtree == null)
                         {
-                            // Clear any existing child and mark as empty
                             targetContainer.Clear();
                             functionComponentMetadata.LastRenderedSubtree = null;
                         }
@@ -1956,7 +1982,6 @@ namespace ReactiveUITK.Core
                         }
                         else
                         {
-                            // Diff against previous cached subtree
                             VisualElement existingRootElement =
                                 targetContainer.childCount > 0
                                     ? targetContainer.ElementAt(0)
@@ -2021,7 +2046,7 @@ namespace ReactiveUITK.Core
                     return;
                 }
                 HandleContextNotifications(functionComponentMetadata, providerSnapshot);
-                // Layout effects phase
+
                 if (componentState.FunctionLayoutEffects != null)
                 {
                     for (int i = 0; i < componentState.FunctionLayoutEffects.Count; i++)
@@ -2056,7 +2081,7 @@ namespace ReactiveUITK.Core
                         }
                     }
                 }
-                // Passive effects phase
+
                 if (componentState.FunctionEffects != null)
                 {
                     for (int i = 0; i < componentState.FunctionEffects.Count; i++)
@@ -2067,7 +2092,6 @@ namespace ReactiveUITK.Core
                             || DepsChangedInternal(entry.lastDeps, entry.deps);
                         if (shouldRun)
                         {
-                            // Pre-stamp lastDeps to avoid duplicate scheduling across rapid renders
                             componentState.FunctionEffects[i] = (
                                 entry.factory,
                                 entry.deps,
@@ -2113,7 +2137,7 @@ namespace ReactiveUITK.Core
                         }
                     }
                 }
-                // Flush one pending update if requested during render
+
                 if (componentState.PendingUpdate)
                 {
                     componentState.PendingUpdate = false;
@@ -2268,7 +2292,7 @@ namespace ReactiveUITK.Core
                 Hooks.DisposeSignalSubscriptions(metadata);
             }
             catch { }
-            // Unregister all registered event wrappers to avoid duplicate invocations on reused visuals
+
             if (metadata.EventHandlers != null && metadata.EventHandlers.Count > 0)
             {
                 var snapshot = new List<KeyValuePair<string, Delegate>>(metadata.EventHandlers);
@@ -2278,7 +2302,7 @@ namespace ReactiveUITK.Core
                     {
                         string eventPropName = kv.Key;
                         Delegate wrapper = kv.Value;
-                        // Reuse removal helper to unregister by type
+
                         try
                         {
                             Props.PropsApplier.NotifyElementRemoved(element);
@@ -2286,93 +2310,128 @@ namespace ReactiveUITK.Core
                         catch { }
                         try
                         {
-                            // Local remove mirrors RemoveEvent logic
                             if (
                                 eventPropName == "onClick"
                                 && wrapper is EventCallback<ClickEvent> clickCb
                             )
+                            {
                                 element.UnregisterCallback(clickCb);
+                            }
                             else if (
                                 eventPropName == "onPointerDown"
                                 && wrapper is EventCallback<PointerDownEvent> pd
                             )
+                            {
                                 element.UnregisterCallback(pd);
+                            }
                             else if (
                                 eventPropName == "onPointerUp"
                                 && wrapper is EventCallback<PointerUpEvent> pu
                             )
+                            {
                                 element.UnregisterCallback(pu);
+                            }
                             else if (
                                 eventPropName == "onPointerMove"
                                 && wrapper is EventCallback<PointerMoveEvent> pm
                             )
+                            {
                                 element.UnregisterCallback(pm);
+                            }
                             else if (
                                 eventPropName == "onPointerEnter"
                                 && wrapper is EventCallback<PointerEnterEvent> pe
                             )
+                            {
                                 element.UnregisterCallback(pe);
+                            }
                             else if (
                                 eventPropName == "onPointerLeave"
                                 && wrapper is EventCallback<PointerLeaveEvent> pl
                             )
+                            {
                                 element.UnregisterCallback(pl);
+                            }
                             else if (
                                 eventPropName == "onWheel"
                                 && wrapper is EventCallback<WheelEvent> we
                             )
+                            {
                                 element.UnregisterCallback(we);
+                            }
                             else if (
                                 eventPropName == "onFocus"
                                 && wrapper is EventCallback<FocusEvent> fe
                             )
+                            {
                                 element.UnregisterCallback(fe);
+                            }
                             else if (
                                 eventPropName == "onBlur"
                                 && wrapper is EventCallback<BlurEvent> be
                             )
+                            {
                                 element.UnregisterCallback(be);
+                            }
                             else if (
                                 eventPropName == "onKeyDown"
                                 && wrapper is EventCallback<KeyDownEvent> kd
                             )
+                            {
                                 element.UnregisterCallback(kd);
+                            }
                             else if (
                                 eventPropName == "onKeyUp"
                                 && wrapper is EventCallback<KeyUpEvent> ku
                             )
+                            {
                                 element.UnregisterCallback(ku);
+                            }
                             else if (eventPropName == "onChange")
                             {
                                 if (wrapper is EventCallback<ChangeEvent<string>> chs)
+                                {
                                     element.UnregisterCallback(chs);
+                                }
                                 if (wrapper is EventCallback<ChangeEvent<bool>> chb)
+                                {
                                     element.UnregisterCallback(chb);
+                                }
                                 if (wrapper is EventCallback<ChangeEvent<int>> chi)
+                                {
                                     element.UnregisterCallback(chi);
+                                }
                             }
                             else if (
                                 eventPropName == "onInput"
                                 && wrapper is EventCallback<InputEvent> ie
                             )
+                            {
                                 element.UnregisterCallback(ie);
+                            }
 #if UNITY_EDITOR
                             else if (
                                 eventPropName == "onDragEnter"
                                 && wrapper is EventCallback<DragEnterEvent> de
                             )
+                            {
                                 element.UnregisterCallback(de);
+                            }
                             else if (
                                 eventPropName == "onDragLeave"
                                 && wrapper is EventCallback<DragLeaveEvent> dle
                             )
+                            {
                                 element.UnregisterCallback(dle);
+                            }
 #endif
                             else if (
                                 eventPropName == "onScroll"
                                 && wrapper is EventCallback<WheelEvent> se
                             )
+                            {
                                 element.UnregisterCallback(se);
+                            }
                         }
                         catch { }
                     }
@@ -2380,11 +2439,15 @@ namespace ReactiveUITK.Core
                 }
                 metadata.EventHandlers.Clear();
                 if (metadata.EventHandlerTargets != null)
+                {
                     metadata.EventHandlerTargets.Clear();
+                }
                 if (metadata.EventHandlerSignatures != null)
+                {
                     metadata.EventHandlerSignatures.Clear();
+                }
             }
-            // No class component cleanup needed
+
             var state = metadata.ComponentState ?? metadata.EnsureComponentState();
             if (state?.FunctionEffects != null)
             {
@@ -2656,8 +2719,6 @@ namespace ReactiveUITK.Core
             return true;
         }
 
-        // (Converters removed – styles no longer applied directly here.)
-
         private sealed class ErrorBoundaryCapturedException : Exception
         {
             public Exception CapturedException { get; }
@@ -2680,9 +2741,7 @@ namespace ReactiveUITK.Core
         private sealed class SuspenseSuspendException : Exception
         {
             public SuspenseSuspendException()
-                : base("ReactiveUITK suspense control flow")
-            {
-            }
+                : base("ReactiveUITK suspense control flow") { }
         }
     }
 }

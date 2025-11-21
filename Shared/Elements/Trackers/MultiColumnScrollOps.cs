@@ -8,12 +8,16 @@ namespace ReactiveUITK.Elements
         public ScrollView GetScrollView(TView view)
         {
             if (view == null)
+            {
                 return null;
+            }
             try
             {
                 return view.Q<ScrollView>();
             }
-            catch { }
+            catch
+            {
+            }
             return null;
         }
     }

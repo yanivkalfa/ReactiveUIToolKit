@@ -9,7 +9,6 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
-    // Minimal, opinion-free adapter for UI Toolkit TreeView
     public sealed class TreeViewElementAdapter
         : StatefulElementAdapter<TreeView, TreeViewElementAdapter.Cached>
     {
@@ -18,11 +17,9 @@ namespace ReactiveUITK.Elements
             public bool RowWired;
             public Func<int, object, VirtualNode> RowFn;
 
-            // Stable renderer pool by row key
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
 
-            // Expansion tracking/cache
             internal ExpansionStateTracker<TreeView, Cached> ExpansionTracker =
                 new ExpansionStateTracker<TreeView, Cached>();
             public HashSet<int> DesiredExpanded { get; set; } = new();
@@ -31,7 +28,6 @@ namespace ReactiveUITK.Elements
             public Delegate UserExpandedHandler { get; set; }
             public bool TrackUserExpansion { get; set; } = true;
 
-            // Scroll persistence
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
             public IReadOnlyDictionary<string, object> PendingPrev { get; set; }
@@ -71,7 +67,6 @@ namespace ReactiveUITK.Elements
             }
             EnsureViewDataKey(tv, properties);
 
-            // Expansion wiring
             try
             {
                 var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
@@ -80,9 +75,6 @@ namespace ReactiveUITK.Elements
             catch { }
 
             parts.ScrollTracker.Attach(tv, parts, properties);
-            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
-            // User expansion handler wiring is handled by the cooperative tracker
-            // Inline expansion handler removed; cooperative tracker handles subscriptions
 
             if (properties.TryGetValue("expandedItemIds", out var expObj))
             {
@@ -92,7 +84,9 @@ namespace ReactiveUITK.Elements
                 if (ids != null)
                 {
                     foreach (var id in ids)
+                    {
                         parts.DesiredExpanded.Add(id);
+                    }
                 }
                 ReapplyExpansion(tv, parts, null, properties);
             }
@@ -111,10 +105,11 @@ namespace ReactiveUITK.Elements
 
             TryApplyProp<float>(properties, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (properties.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+            {
                 tv.selectionType = st;
+            }
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            // Row rendering
             if (
                 properties.TryGetValue("row", out var rowFn)
                 && rowFn is Func<int, object, VirtualNode> rf
@@ -170,12 +165,13 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            // Slots are user-driven
             if (
                 properties.TryGetValue("contentContainer", out var cc)
                 && cc is Dictionary<string, object> ccMap
             )
+            {
                 PropsApplier.Apply(tv.contentContainer, ccMap);
+            }
             if (
                 properties.TryGetValue("scrollView", out var sv)
                 && sv is Dictionary<string, object> svMap
@@ -183,7 +179,9 @@ namespace ReactiveUITK.Elements
             {
                 var scroll = tv.Q<ScrollView>();
                 if (scroll != null)
+                {
                     PropsApplier.Apply(scroll, svMap);
+                }
             }
 
             PropsApplier.Apply(element, properties);
@@ -206,9 +204,6 @@ namespace ReactiveUITK.Elements
             var parts = GetState(tv);
             EnsureViewDataKey(tv, next);
 
-            // Expansion wiring diff
-            // Tracker.Attach handles stopTrackingUserChange -> TrackUserExpansion
-            // Cooperative tracker handles user expansion handler wiring
             try
             {
                 var ops = ReactiveUITK.Elements.TreeViewExpansionOps.Instance;
@@ -229,13 +224,14 @@ namespace ReactiveUITK.Elements
                 catch { }
                 ReapplyExpansion(tv, parts, previous, next, scrollSnapshot);
             }
-            // Apply fixedItemHeight diff regardless of root change
+
             TryDiffProp<float>(previous, next, "fixedItemHeight", f => tv.fixedItemHeight = f);
             if (next.TryGetValue("selectionType", out var sel) && sel is SelectionType st)
+            {
                 tv.selectionType = st;
+            }
             TryDiffProp<int>(previous, next, "selectedIndex", i => tv.SetSelection(i));
 
-            // expandedItemIds diff
             if (next.TryGetValue("expandedItemIds", out var nextExp))
             {
                 var ids = BaseElementAdapter.CoerceIds(nextExp);
@@ -244,13 +240,15 @@ namespace ReactiveUITK.Elements
                 if (ids != null)
                 {
                     foreach (var id in ids)
+                    {
                         parts.DesiredExpanded.Add(id);
+                    }
                 }
                 ReapplyExpansion(tv, parts, previous, next);
             }
 
             PropsApplier.ApplyDiff(element, previous, next);
-            // Final cooperative reapply guard
+
             ReapplyExpansion(tv, parts, previous, next);
             parts.ScrollTracker.Reapply(tv, parts, previous, next);
         }
@@ -258,7 +256,9 @@ namespace ReactiveUITK.Elements
         private static void SetRootItems(TreeView tv, object root)
         {
             if (tv == null)
+            {
                 return;
+            }
             try
             {
                 var mi = typeof(TreeView)
@@ -328,14 +328,18 @@ namespace ReactiveUITK.Elements
                     {
                         var s = f.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                     var p = t.GetProperty("Id", BindingFlags.Instance | BindingFlags.Public);
                     if (p?.PropertyType == typeof(string))
                     {
                         var s = p.GetValue(item) as string;
                         if (!string.IsNullOrEmpty(s))
+                        {
                             return s;
+                        }
                     }
                 }
             }
@@ -351,13 +355,13 @@ namespace ReactiveUITK.Elements
                 );
                 var idObj = mi?.Invoke(tv, new object[] { index });
                 if (idObj != null)
+                {
                     return idObj.ToString();
+                }
             }
             catch { }
             return $"row-{index}";
         }
-
-        // Inline expansion helpers removed in favor of cooperative tracker
 
         private static void ReapplyExpansion(
             TreeView view,
@@ -368,7 +372,9 @@ namespace ReactiveUITK.Elements
         )
         {
             if (view == null || parts == null)
+            {
                 return;
+            }
 
             var snapshot = snapshotOverride.HasValue
                 ? snapshotOverride.Value
@@ -387,13 +393,17 @@ namespace ReactiveUITK.Elements
         private static ScrollSnapshot CaptureScrollSnapshot(TreeView view)
         {
             if (view == null)
+            {
                 return default;
+            }
 
             try
             {
                 var scroll = view.Q<ScrollView>();
                 if (scroll == null)
+                {
                     return default;
+                }
 
                 var offset = scroll.scrollOffset;
                 var maxX = GetHighValue(scroll.horizontalScroller);
@@ -409,13 +419,17 @@ namespace ReactiveUITK.Elements
         private static void RestoreScrollSnapshot(TreeView view, ScrollSnapshot snapshot)
         {
             if (view == null || !snapshot.IsValid)
+            {
                 return;
+            }
 
             try
             {
                 var scroll = view.Q<ScrollView>();
                 if (scroll == null)
+                {
                     return;
+                }
 
                 var target = new Vector2(
                     ResolveAxis(
@@ -438,7 +452,9 @@ namespace ReactiveUITK.Elements
         private static void ApplyScrollOffset(ScrollView scroll, Vector2 target)
         {
             if (scroll == null)
+            {
                 return;
+            }
 
             void Apply()
             {
@@ -461,12 +477,16 @@ namespace ReactiveUITK.Elements
         {
             newMax = Math.Max(newMax, 0f);
             if (previousMax <= 0f)
+            {
                 return Clamp(previousValue, 0f, newMax);
+            }
 
             var tolerance = Math.Max(previousMax * 0.01f, 2f);
             var distanceFromEnd = previousMax - previousValue;
             if (distanceFromEnd <= tolerance)
+            {
                 return newMax;
+            }
 
             return Clamp(previousValue, 0f, newMax);
         }
@@ -474,7 +494,9 @@ namespace ReactiveUITK.Elements
         private static float GetHighValue(Scroller scroller)
         {
             if (scroller == null)
+            {
                 return 0f;
+            }
             try
             {
                 return scroller.highValue;
@@ -488,9 +510,13 @@ namespace ReactiveUITK.Elements
         private static float Clamp(float value, float min, float max)
         {
             if (value < min)
+            {
                 return min;
+            }
             if (value > max)
+            {
                 return max;
+            }
             return value;
         }
 
@@ -533,7 +559,10 @@ namespace ReactiveUITK.Elements
 
             if (string.IsNullOrEmpty(desired))
             {
-                if ((view.userData as NodeMetadata)?.Key is string metadataKey && !string.IsNullOrEmpty(metadataKey))
+                if (
+                    (view.userData as NodeMetadata)?.Key is string metadataKey
+                    && !string.IsNullOrEmpty(metadataKey)
+                )
                 {
                     desired = metadataKey;
                 }
