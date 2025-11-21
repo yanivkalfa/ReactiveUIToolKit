@@ -13,6 +13,12 @@ export const TopBar: FC<TopBarProps> = ({ onOpenSearch }) => (
     <Toolbar sx={Styles.toolbar}>
       <Box sx={Styles.left}>
         <Link component={RouterLink} to="/" underline="none" sx={Styles.titleLink}>
+          <Box
+            component="img"
+            src="/logo.png"
+            alt="ReactiveUIToolKit logo"
+            sx={Styles.logo}
+          />
           <Typography variant="h6" sx={Styles.title}>
             ReactiveUIToolKit
           </Typography>

@@ -3,6 +3,7 @@ import { IntroductionPage } from './pages/Introduction/IntroductionPage'
 import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
 import { RouterPage } from './pages/Router/RouterPage'
 import { SignalsPage } from './pages/Signals/SignalsPage'
+import { ConceptsPage } from './pages/Concepts/ConceptsPage'
 import { DifferencesPage } from './pages/Differences/DifferencesPage'
 import { APIPage } from './pages/API/APIPage'
 import { BoundsFieldPage } from './pages/Components/BoundsField/BoundsFieldPage'
@@ -106,6 +107,19 @@ export const pages: Section[] = [
         path: '/getting-started',
         keywords: ['install', 'setup', 'unity package manager', 'dist'],
         element: () => <GettingStartedPage />,
+      },
+    ],
+  },
+  {
+    id: 'concepts',
+    title: 'Concepts & Environment',
+    pages: [
+      {
+        id: 'concepts-and-environment',
+        title: 'Concepts & Environment',
+        path: '/concepts',
+        keywords: ['concepts', 'environment', 'defines', 'trace', 'react differences'],
+        element: () => <ConceptsPage />,
       },
     ],
   },
