@@ -47,6 +47,12 @@ using ReactiveUITK.Router;
 // Function component using Router in runtime
 public static class RouterDemoFunc
 {
+  private static readonly Style LinkBarStyle = new Style
+  {
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginBottom, 6f),
+  };
+
   public static VirtualNode Render(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
@@ -56,7 +62,7 @@ public static class RouterDemoFunc
       children: new[]
       {
         V.VisualElement(
-          new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 6f) },
+          LinkBarStyle,
           null,
           V.Link("/", "Home"),
           V.Link("/about", "About"),

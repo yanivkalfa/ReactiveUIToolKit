@@ -24,8 +24,8 @@ export const APIPage: FC = () => (
               <>
                 <code>ReactiveUITK.Core.V</code> – static factory for building{' '}
                 <code>VirtualNode</code> trees (for example <code>V.VisualElement</code>,{' '}
-                <code>V.Label</code>, <code>V.Button</code>, <code>V.Router</code>,{' '}
-                <code>V.TabView</code>).
+                <code>V.VisualElementSafe</code>, <code>V.Label</code>, <code>V.Button</code>,{' '}
+                <code>V.Router</code>, <code>V.TabView</code>).
               </>
             }
           />
