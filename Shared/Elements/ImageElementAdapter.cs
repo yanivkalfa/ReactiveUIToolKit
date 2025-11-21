@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -10,7 +9,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<Image>();
+            return new Image();
         }
 
         public override void ApplyProperties(
@@ -77,9 +76,13 @@ namespace ReactiveUITK.Elements
                 if (!ReferenceEquals(prevImage, nextImage))
                 {
                     if (nextImage is Texture2D tex)
+                    {
                         img.image = tex;
+                    }
                     else if (nextImage is Sprite sp)
+                    {
                         img.sprite = sp;
+                    }
                 }
 
                 previous.TryGetValue("texture", out var prevTex);

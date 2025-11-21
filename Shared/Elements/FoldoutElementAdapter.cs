@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -9,7 +8,7 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<Foldout>();
+            return new Foldout();
         }
 
         public override VisualElement ResolveChildHost(VisualElement element)
@@ -21,7 +20,9 @@ namespace ReactiveUITK.Elements
         private static void ApplySlots(Foldout fo, IReadOnlyDictionary<string, object> properties)
         {
             if (properties == null)
+            {
                 return;
+            }
             if (
                 properties.TryGetValue("contentContainer", out var ccObj)
                 && ccObj is Dictionary<string, object> ccMap
@@ -36,7 +37,9 @@ namespace ReactiveUITK.Elements
             {
                 var header = fo.Q<Toggle>();
                 if (header != null)
+                {
                     PropsApplier.Apply(header, headerMap);
+                }
             }
         }
 
@@ -63,7 +66,9 @@ namespace ReactiveUITK.Elements
             {
                 var header = fo.Q<Toggle>();
                 if (header != null)
+                {
                     PropsApplier.Apply(header, headerMap);
+                }
             }
         }
 

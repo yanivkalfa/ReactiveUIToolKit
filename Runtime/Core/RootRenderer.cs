@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Signals;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -29,13 +30,16 @@ namespace ReactiveUITK.Core
                     go.hideFlags = HideFlags.DontSave;
                     go.AddComponent<RenderScheduler>();
                 }
+                SignalsRuntime.EnsureInitialized();
                 sharedHostContext = new HostContext(elementRegistry);
                 sharedHostContext.Environment["scheduler"] = RenderScheduler.Instance;
                 sharedHostContext.Environment["isEditor"] = false;
-                // Apply build-define derived configuration
+
                 sharedHostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                Reconciler.UseExceptionBoundaryFlow =
+                    BuildDefinesConfig.ResolveExceptionBoundaryFlow();
             }
         }
 
@@ -56,7 +60,6 @@ namespace ReactiveUITK.Core
             rootElement = uiRootElement;
         }
 
-        // Consistent, explicit API: always pass a VirtualNode (from V.Func, V.Fragment, etc.)
         public void Render(VirtualNode rootNode)
         {
             EnsureSetup();

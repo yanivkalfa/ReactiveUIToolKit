@@ -18,5 +18,10 @@ namespace ReactiveUITK.Core
         {
             return ReactiveUITKConfig.Current.EnableDiffTracing;
         }
+
+        public static bool ResolveExceptionBoundaryFlow()
+        {
+            return ReactiveUITKConfig.Current.UseExceptionBoundaryFlow;
+        }
     }
 }

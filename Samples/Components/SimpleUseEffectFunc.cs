@@ -16,7 +16,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             Hooks.UseEffect(
                 () =>
                 {
-                    setMessage("Effect ran!");
+                    setMessage.Set("Effect ran!");
                     return null;
                 },
                 System.Array.Empty<object>()

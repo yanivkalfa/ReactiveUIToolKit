@@ -1,4 +1,3 @@
-// Assets/ReactiveUIToolKit/Samples/benchmark/BenchScenarios.cs
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
@@ -11,7 +10,6 @@ namespace ReactiveUITK.Bench
 {
     internal static class BenchScenarios
     {
-        // Loud row with padding + background so it's visible in dark UI
         private static VirtualNode Row(string text, string key = null, bool last = false)
         {
             var style = new Style
@@ -26,11 +24,7 @@ namespace ReactiveUITK.Bench
                 (MinHeight, 50f),
             };
 
-            // Make label bright for runtime (editor unaffected)
-            var labelStyle = new Style
-            {
-                (TextColor, UColor.white), // or UColor.yellow if you prefer
-            };
+            var labelStyle = new Style { (TextColor, UColor.white) };
 
             return V.VisualElement(
                 style,
@@ -48,26 +42,26 @@ namespace ReactiveUITK.Bench
                 (PaddingRight, padding),
                 (PaddingTop, padding),
                 (PaddingBottom, padding),
-                (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)), // strong contrast
+                (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
             };
 
         public static Action Build(string name) =>
             name switch
             {
-                "Smoke" => Smoke(), // NEW: guaranteed visible
+                "Smoke" => Smoke(),
                 "StaticScreen" => StaticScreen(),
                 "PropChurn_500" => PropChurn(500),
                 "ListReorder_200" => ListReorder(200),
                 "MountUnmount_50x20" => MountUnmount(50, 20),
+                "ErrorBoundaryTrip" => ErrorBoundaryTrip(),
                 "BigListManual_3000" => BigListManual(3000),
                 "SharedDemo" => SharedDemo(),
                 _ => null,
             };
 
-        // NEW: Big colored bars + big label so you immediately see something
         public static Action Smoke()
         {
-            var headerStyle = new Style { (TextColor, UColor.white) }; // or yellow
+            var headerStyle = new Style { (TextColor, UColor.white) };
             var vnode = V.VisualElement(
                 Column(),
                 null,
@@ -114,7 +108,7 @@ namespace ReactiveUITK.Bench
 
         public static Action StaticScreen()
         {
-            var headerStyle = new Style { (TextColor, UColor.white) }; // or yellow
+            var headerStyle = new Style { (TextColor, UColor.white) };
             var vnode = V.VisualElement(
                 Column(),
                 null,
@@ -134,7 +128,9 @@ namespace ReactiveUITK.Bench
                 tick++;
                 var children = new List<VirtualNode>(n);
                 for (int i = 0; i < n; i++)
+                {
                     children.Add(Row($"Row {i} :: {tick % 1000}", key: $"k{i}", last: i == n - 1));
+                }
                 var vnode = V.VisualElement(
                     new Style
                     {
@@ -153,7 +149,9 @@ namespace ReactiveUITK.Bench
         {
             var order = new List<int>(n);
             for (int i = 0; i < n; i++)
+            {
                 order.Add(i);
+            }
             float t = 0;
             return () =>
             {
@@ -198,7 +196,9 @@ namespace ReactiveUITK.Bench
                     for (int i = 0; i < perGroup; i++)
                     {
                         if (show)
+                        {
                             children.Add(Row($"G{g} I{i}", key: $"g{g}_i{i}"));
+                        }
                     }
                 }
                 var vnode = V.VisualElement(
@@ -211,6 +211,77 @@ namespace ReactiveUITK.Bench
                     null,
                     children.ToArray()
                 );
+                BenchSharedHost.Render(vnode);
+            };
+        }
+
+        public static Action ErrorBoundaryTrip()
+        {
+            int frame = 0;
+            bool lastShouldThrow = false;
+            string resetKey = Guid.NewGuid().ToString("N");
+
+            return () =>
+            {
+                frame++;
+                bool shouldThrow = (frame / 120) % 2 == 0;
+                if (lastShouldThrow && !shouldThrow)
+                {
+                    resetKey = Guid.NewGuid().ToString("N");
+                }
+                lastShouldThrow = shouldThrow;
+
+                VirtualNode guardedChild = V.Func(
+                    (props, children) =>
+                    {
+                        if (shouldThrow)
+                        {
+                            throw new InvalidOperationException("Synthetic benchmark error");
+                        }
+                        return V.Label(
+                            new LabelProps
+                            {
+                                Text = $"Frame {frame}: all good",
+                                Style = new Style { (TextColor, UColor.green) },
+                            }
+                        );
+                    },
+                    null,
+                    "bench_guarded"
+                );
+
+                VirtualNode fallback = V.Label(
+                    new LabelProps
+                    {
+                        Text = "Fallback active",
+                        Style = new Style { (TextColor, UColor.red) },
+                    }
+                );
+
+                VirtualNode boundary = V.ErrorBoundary(
+                    new ErrorBoundaryProps
+                    {
+                        Fallback = fallback,
+                        OnError = ex =>
+                        {
+                            Debug.LogWarning("Bench ErrorBoundary captured: " + ex?.Message);
+                        },
+                        ResetKey = resetKey,
+                    },
+                    "bench_error_boundary",
+                    guardedChild
+                );
+
+                var statusLabel = V.Label(
+                    new LabelProps
+                    {
+                        Text = shouldThrow ? "Phase: throwing" : "Phase: stable",
+                        Style = new Style { (TextColor, shouldThrow ? UColor.red : UColor.white) },
+                    }
+                );
+
+                var vnode = V.VisualElement(Column(), null, statusLabel, boundary);
+
                 BenchSharedHost.Render(vnode);
             };
         }
@@ -241,7 +312,6 @@ namespace ReactiveUITK.Bench
             };
         }
 
-        // Uses hook if provided, else a visible placeholder
         public static Action SharedDemo()
         {
             return () =>

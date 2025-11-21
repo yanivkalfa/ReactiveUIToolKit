@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using ReactiveUITK.Elements.Pools;
 using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
@@ -18,7 +17,7 @@ namespace ReactiveUITK.Elements
 
         public override VisualElement Create()
         {
-            return GlobalVisualElementPool.Get<RadioButtonGroup>();
+            return new RadioButtonGroup();
         }
 
         public override void ApplyProperties(

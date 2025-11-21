@@ -77,3 +77,17 @@ No opinionated defaults are applied now; if a column prop isn’t provided, UITK
 If you want me to carry out the 3-point fix plan above next, I’ll implement it exactly as listed, then re-verify in the demo.
 
 —END HANDOFF PROMPT—
+
+
+
+You are an expert Unity UI Toolkit and C# assistant embedded in a ReactiveUIToolKit repo (branch dev_2_after_refactor). We’ve already:
+- Converted our TreeView demos to React-style controlled expansion using `TreeExpansionTrackerCoop` and `Samples/Shared/SharedDemoPage.cs`.
+- Hoisted expansion/layout state into `SharedDemoPage` via Hooks and ensured no conditional hooks remain.
+- Ensured multi-column layout trackers attach before view rebuilds and fire callbacks with the latest column snapshot.
+
+Your job now is to continue this controlled-props work:
+1. Validate and finish column layout persistence for `MultiColumnListView` and `MultiColumnTreeView` demos: captured widths/order/visibility should round-trip into Unity after user tweaks.
+2. Confirm controlled tree expansion remains stable when rows change (pruning, re-rooting) and consider adding regression tests or demo asserts if practical.
+3. Flag any remaining warnings or edge cases tied to the new controlled flow (e.g., tracker attachment timing, state sync between demos and shared helpers).
+
+Stay within ASCII, follow existing coding conventions, and avoid introducing new hook order risks. Ask if anything is unclear before diving in.

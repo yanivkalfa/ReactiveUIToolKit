@@ -125,7 +125,7 @@ Use `onClick`, `onPointerDown`, `onPointerUp`, `onPointerMove`, `onPointerEnter`
 Delegates may be `Action` or handlers with one parameter (UI Toolkit event).
 
 ## 7. Hooks (Function Components)
-- State: `Hooks.UseState<T>(initial)`
+- State: `Hooks.UseState<T>(initial)` — call the returned setter like React (`set(value)` / `set(prev => next)`); both forms are supported via implicit conversions.
 - Reducer: `Hooks.UseReducer<TState,TAction>(reducer, initial)`
 - Memo: `Hooks.UseMemo(() => value, deps...)`
 - Callback: `Hooks.UseCallback(fn, deps...)`
@@ -137,8 +137,37 @@ Delegates may be `Action` or handlers with one parameter (UI Toolkit event).
 - Imperative handle: `Hooks.UseImperativeHandle(() => handleObj, deps...)`
 
 ## 8. Context
-Class components: `ProvideContext("themeColor", Color.cyan);` and consumers call `ConsumeContext<Color>("themeColor")`.
-Function components: `Hooks.UseContext<Color>("themeColor")`.
+Function components can expose context values by calling `Hooks.ProvideContext("themeColor", Color.cyan)` during render; descendants consume them via `Hooks.UseContext<Color>("themeColor")`.
+
+## Router (Experimental)
+Wrap parts of your UI in `V.Router(...)` to enable lightweight, React-Router-style navigation driven by in-memory history. Use `V.Route` components to conditionally render based on the current path, and `V.Link` (or `RouterHooks.UseNavigate`) to trigger navigation.
+
+```csharp
+return V.Router(
+    children: new[]
+    {
+        V.VisualElement(
+            new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 6f) },
+            null,
+            V.Link("/", "Home"),
+            V.Link("/about", "About"),
+            V.Link("/users/42", "User 42")
+        ),
+        V.Route(path: "/", exact: true, element: V.Text("Home route")),
+        V.Route(path: "/about", element: V.Text("About route")),
+        V.Route(
+            path: "/users/:id",
+            children: new[] { V.Func(UserProfileFunc.Render) }
+        ),
+        V.Route(path: "*", element: V.Text("Not found")),
+    }
+);
+```
+
+Inside components rendered by `V.Route`, call `RouterHooks.UseLocation()`, `RouterHooks.UseParams()`, or `RouterHooks.UseNavigate()` to read router state or programmatically change paths.
+
+- Path params are exposed via `RouterHooks.UseParams()`, query-string values via `RouterHooks.UseQuery()`, and any state object you pass when navigating (`V.Link(state: someObject)` or `useNavigate("/path", someObject)`) via `RouterHooks.UseNavigationState()`. Use `RouterHooks.UseLocationInfo()` if you need the combined path/query/state payload.
+- Stack helpers: `RouterHooks.UseGo()` lets you call `go(-1)` / `go(1)` for back/forward, `RouterHooks.UseCanGo(delta)` exposes whether a delta is available, and `RouterHooks.UseBlocker(blocker, enabled)` intercepts transitions to implement confirmation prompts.
 
 ## 9. Portals & Suspense
 - Portal: `V.Portal(targetElement, key, childNodes...)` renders children into another `VisualElement` while keeping a placeholder in parent ordering.
@@ -150,7 +179,7 @@ Metrics: `Reconciler.GetMetrics()` / `PropsApplier.GetStyleMetrics()` for perfor
 
 ## 11. Updating State
 Class: `SetState(() => { /* mutate fields */ });` or `SetState(ref field, newValue);` / functional updater.
-Function: capture setters from `Hooks.UseState` / dispatch from `Hooks.UseReducer`.
+Function: capture setters from `Hooks.UseState` / dispatch from `Hooks.UseReducer`; invoke setters directly (`set(next)` / `set(prev => next)`).
 
 ## 12. Unmount
 Call `RootRenderer.Unmount()` or destroy the `RootRenderer` GameObject to clean up.

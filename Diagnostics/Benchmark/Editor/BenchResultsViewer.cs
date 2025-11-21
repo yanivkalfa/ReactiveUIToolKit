@@ -8,7 +8,6 @@ using UnityEngine;
 
 namespace ReactiveUITK.Bench.EditorTools
 {
-    // uses BenchScenarioFile types from BenchPerSecondLogger.cs
     public class BenchResultsViewer : EditorWindow
     {
         [MenuItem("Window/ReactiveUITK/Diagnostics/Benchmark/Results Viewer")]
@@ -20,23 +19,19 @@ namespace ReactiveUITK.Bench.EditorTools
             w.Show();
         }
 
-        // ---------- prefs ----------
         private const string Pref_LastRunFolder = "RUITK_BenchViewer_LastRunFolder";
 
-        // ---------- data ----------
         private readonly List<RunEntry> _runs = new();
-        private readonly List<Item> _items = new(); // all scenarios from selected runs
+        private readonly List<Item> _items = new();
         private Vector2 _leftScroll,
             _summaryScroll;
 
-        // display
         private bool _autoY = true;
         private float _yMax = 200f;
         private bool _showMinMaxBands = true;
         private bool _showP95 = true;
         private bool _normalizeXToDuration = true;
 
-        // filters
         private bool _onlyEditor = false;
         private bool _onlyRuntime = false;
         private string _search = "";
@@ -70,13 +65,12 @@ namespace ReactiveUITK.Bench.EditorTools
             new(0.56f, 0.56f, 0.56f),
         };
 
-        // ---------- gui ----------
         private void OnGUI()
         {
             using (new EditorGUILayout.HorizontalScope())
             {
-                DrawLeftPanel(); // runs + display options
-                DrawRightPanel(); // chart + one scenario list (like before)
+                DrawLeftPanel();
+                DrawRightPanel();
             }
         }
 
@@ -97,7 +91,9 @@ namespace ReactiveUITK.Bench.EditorTools
                             ""
                         );
                         if (!string.IsNullOrEmpty(folder))
+                        {
                             TryAddRun(folder);
+                        }
                     }
                     if (GUILayout.Button("Clear", GUILayout.Width(80)))
                     {
@@ -128,7 +124,9 @@ namespace ReactiveUITK.Bench.EditorTools
                             {
                                 var obj = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(rel);
                                 if (obj)
+                                {
                                     EditorGUIUtility.PingObject(obj);
+                                }
                             }
                         }
                     }
@@ -176,7 +174,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 );
                 EditorGUI.DrawRect(rect, new Color(0.10f, 0.10f, 0.10f));
 
-                // ranges
                 float maxX = 1f,
                     globalYMax = 60f;
                 foreach (var it in _items.Where(VisibleAndPasses))
@@ -184,30 +181,36 @@ namespace ReactiveUITK.Bench.EditorTools
                     var s = it.file.scenario;
                     var secs = it.file.perSecond;
                     if (secs == null || secs.Count == 0)
+                    {
                         continue;
+                    }
 
                     var lastX = _normalizeXToDuration ? s.durationSec : (secs.Count - 1);
                     if (lastX > maxX)
+                    {
                         maxX = lastX;
+                    }
 
                     var localMax = Mathf.Max(
                         it.file.scenarioSummary.fpsMax,
                         secs.Max(ps => Mathf.Max(ps.fpsAvg, ps.fpsMax))
                     );
                     if (localMax > globalYMax)
+                    {
                         globalYMax = localMax;
+                    }
                 }
                 float yMax = _autoY ? NeatCeil(globalYMax) : _yMax;
 
                 DrawAxes(rect, maxX, yMax);
 
-                // series
                 foreach (var it in _items.Where(VisibleAndPasses))
+                {
                     Plot(rect, it, maxX, yMax);
+                }
 
                 GUILayout.Space(8);
 
-                // single scenario list with summaries; supports double-click solo
                 _summaryScroll = EditorGUILayout.BeginScrollView(_summaryScroll);
                 foreach (var it in _items.Where(PassesFilters))
                 {
@@ -258,12 +261,16 @@ namespace ReactiveUITK.Bench.EditorTools
                 if (alreadySolo)
                 {
                     foreach (var x in _items.Where(PassesFilters))
+                    {
                         x.visible = true;
+                    }
                 }
                 else
                 {
                     foreach (var x in _items)
+                    {
                         x.visible = false;
+                    }
                     it.visible = true;
                 }
                 e.Use();
@@ -271,13 +278,13 @@ namespace ReactiveUITK.Bench.EditorTools
             }
         }
 
-        // ---------- drawing ----------
-
         private void Plot(Rect rect, Item it, float maxX, float yMax)
         {
             var secs = it.file.perSecond;
             if (secs == null || secs.Count == 0)
+            {
                 return;
+            }
 
             Handles.BeginGUI();
 
@@ -304,7 +311,9 @@ namespace ReactiveUITK.Bench.EditorTools
                 var ps = secs[i];
                 var p = new Vector3(MapX(rect, i + 0.5f, maxX), MapY(rect, ps.fpsAvg, yMax), 0);
                 if (prev.HasValue)
+                {
                     Handles.DrawAAPolyLine(2f, new[] { prev.Value, p });
+                }
                 prev = p;
             }
 
@@ -334,7 +343,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 }
             );
 
-            // y grid
             int yTicks = 5;
             for (int i = 0; i <= yTicks; i++)
             {
@@ -345,7 +353,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 GUI.Label(new Rect(r.x + 4, y - 8, 80, 16), $"{v:F0}", EditorStyles.miniLabel);
             }
 
-            // x grid (seconds)
             Handles.color = new Color(1, 1, 1, 0.06f);
             int xTicks = 10;
             for (int i = 0; i <= xTicks; i++)
@@ -358,11 +365,12 @@ namespace ReactiveUITK.Bench.EditorTools
             Handles.EndGUI();
         }
 
-        // ---------- helpers ----------
         private void TryAddRun(string folder)
         {
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+            {
                 return;
+            }
 
             var jsons = Directory.GetFiles(folder, "*.json", SearchOption.TopDirectoryOnly);
             if (jsons.Length == 0)
@@ -376,7 +384,9 @@ namespace ReactiveUITK.Bench.EditorTools
             }
 
             if (_runs.Any(r => string.Equals(r.path, folder, StringComparison.OrdinalIgnoreCase)))
+            {
                 return;
+            }
 
             _runs.Add(
                 new RunEntry
@@ -388,7 +398,6 @@ namespace ReactiveUITK.Bench.EditorTools
                 }
             );
 
-            // remember for next time
             EditorPrefs.SetString(Pref_LastRunFolder, folder);
 
             RebuildItems();
@@ -411,7 +420,9 @@ namespace ReactiveUITK.Bench.EditorTools
                         var json = File.ReadAllText(f);
                         var data = JsonUtility.FromJson<BenchScenarioFile>(json);
                         if (data?.scenario == null || data.perSecond == null)
+                        {
                             continue;
+                        }
 
                         _items.Add(
                             new Item
@@ -438,14 +449,20 @@ namespace ReactiveUITK.Bench.EditorTools
         private bool PassesFilters(Item it)
         {
             if (_onlyEditor && !it.file.env.isEditor)
+            {
                 return false;
+            }
             if (_onlyRuntime && it.file.env.isEditor)
+            {
                 return false;
+            }
             if (!string.IsNullOrEmpty(_search))
             {
                 var n = it.file.scenario.name ?? "";
                 if (n.IndexOf(_search, StringComparison.OrdinalIgnoreCase) < 0)
+                {
                     return false;
+                }
             }
             return true;
         }
@@ -464,11 +481,17 @@ namespace ReactiveUITK.Bench.EditorTools
             var pow = Mathf.Pow(10, Mathf.Floor(Mathf.Log10(Mathf.Max(1f, v))));
             var n = Mathf.Ceil(v / (float)pow);
             if (n > 5)
+            {
                 n = 10;
+            }
             else if (n > 2)
+            {
                 n = 5;
+            }
             else
+            {
                 n = 2;
+            }
             return (float)(n * pow);
         }
 
@@ -477,14 +500,18 @@ namespace ReactiveUITK.Bench.EditorTools
             abs = abs.Replace('\\', '/');
             var root = Application.dataPath.Replace('\\', '/');
             if (abs.StartsWith(root))
+            {
                 return "Assets" + abs.Substring(root.Length);
+            }
             return null;
         }
 
         private static string Fmt(long bytes)
         {
             if (bytes <= 0)
+            {
                 return "0B";
+            }
             string[] units = { "B", "KB", "MB", "GB" };
             int unitIndex = (int)Math.Min(units.Length - 1, Math.Log(bytes, 1024));
             double val = bytes / Math.Pow(1024, unitIndex);
@@ -493,17 +520,18 @@ namespace ReactiveUITK.Bench.EditorTools
 
         private string GetDefaultStartFolder()
         {
-            // 1) last successful folder
             var last = EditorPrefs.GetString(Pref_LastRunFolder, null);
             if (!string.IsNullOrEmpty(last) && Directory.Exists(last))
+            {
                 return last;
+            }
 
-            // 2) if runs exist, use the first selected run’s folder
             var sel = _runs.FirstOrDefault(r => r.selected);
             if (sel != null && Directory.Exists(sel.path))
+            {
                 return sel.path;
+            }
 
-            // 3) typical project location for editor results
             var guess = Path.Combine(
                 Application.dataPath,
                 "ReactiveUIToolKit",
@@ -512,9 +540,10 @@ namespace ReactiveUITK.Bench.EditorTools
                 "results_editor"
             );
             if (Directory.Exists(guess))
+            {
                 return guess;
+            }
 
-            // 4) fallback to project root
             return Application.dataPath;
         }
     }

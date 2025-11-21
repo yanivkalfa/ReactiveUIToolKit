@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Signals;
 using UnityEditor;
 using UnityEngine.UIElements;
 
@@ -23,23 +24,23 @@ namespace ReactiveUITK.EditorSupport
                 HostContext hostContext = new(registry);
                 hostContext.Environment["scheduler"] = EditorRenderScheduler.Instance;
                 hostContext.Environment["isEditor"] = true;
-                // Apply build-define derived configuration for editor host
+                SignalsRuntime.EnsureInitialized();
+
                 hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
                 Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
                 Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                Reconciler.UseExceptionBoundaryFlow =
+                    BuildDefinesConfig.ResolveExceptionBoundaryFlow();
                 renderer = new VNodeHostRenderer(hostContext, hostElement);
                 renderersByHost[hostElement] = renderer;
             }
             renderer.Render(root);
         }
 
-        // Back-compat and convenience: Render overloads redirect to Mount
         public static void Render(VisualElement hostElement, VirtualNode root)
         {
             Mount(hostElement, root);
         }
-
-        // Note: Only VirtualNode input is supported to enforce explicit V.Func usage.
 
         public static void Unmount(VisualElement hostElement)
         {

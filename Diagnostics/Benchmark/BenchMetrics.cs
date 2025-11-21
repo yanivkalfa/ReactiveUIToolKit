@@ -1,4 +1,3 @@
-// Samples/benchmark/BenchMetrics.cs
 using System;
 using UnityEngine;
 #if UNITY_2022_2_OR_NEWER
@@ -43,7 +42,9 @@ namespace ReactiveUITK.Bench
         {
 #if UNITY_2022_2_OR_NEWER
             if (gcAllocRecorder.Valid)
+            {
                 gcAllocRecorder.Dispose();
+            }
 #endif
         }
 
@@ -51,19 +52,27 @@ namespace ReactiveUITK.Bench
         {
             var dt = Math.Max(1e-6f, deltaTime);
             if (count < MaxFrames)
+            {
                 samples[count] = dt;
+            }
             count++;
             sumDt += dt;
             if (dt < minDt)
+            {
                 minDt = dt;
+            }
             if (dt > maxDt)
+            {
                 maxDt = dt;
+            }
         }
 
         private static double Percentile(double[] arr, int n, double p)
         {
             if (n == 0)
+            {
                 return 0;
+            }
             var idx = (int)Math.Clamp(Math.Round(p * (n - 1)), 0, n - 1);
             return arr[idx];
         }
