@@ -18,24 +18,52 @@ export const Sidebar: FC = () => {
   return (
     <Box sx={Styles.root}>
       <List disablePadding>
-        {sections.map((sec) => (
-          <Box key={sec.id}>
-            <ListItemButton onClick={() => setOpen({ ...open, [sec.id]: !open[sec.id] })}>
-              <ListItemText primaryTypographyProps={{ fontWeight: 700 }} primary={sec.title} />
-              {open[sec.id] ? <ExpandLess /> : <ExpandMore />}
-            </ListItemButton>
-            <Collapse in={!!open[sec.id]} timeout="auto" unmountOnExit>
-              <List disablePadding>
-                {sec.pages.map((p) => (
-                  <ListItemButton key={p.id} component={RouterLink} to={p.path} selected={location.pathname === p.path} sx={Styles.childItem}>
-                    <ListItemText primary={p.title} />
-                  </ListItemButton>
-                ))}
-              </List>
-            </Collapse>
-            <Divider />
-          </Box>
-        ))}
+        {sections.map((sec) => {
+          const hasActivePage = sec.pages.some((p) => p.path === location.pathname)
+          const isSingle = sec.pages.length === 1
+          if (isSingle) {
+            const page = sec.pages[0]
+            return (
+              <Box key={sec.id}>
+                <ListItemButton
+                  component={RouterLink}
+                  to={page.path}
+                  selected={location.pathname === page.path}
+                >
+                  <ListItemText primaryTypographyProps={{ fontWeight: 700 }} primary={sec.title} />
+                </ListItemButton>
+                <Divider />
+              </Box>
+            )
+          }
+
+          const expanded = hasActivePage || open[sec.id]
+
+          return (
+            <Box key={sec.id}>
+              <ListItemButton onClick={() => setOpen({ ...open, [sec.id]: !open[sec.id] })}>
+                <ListItemText primaryTypographyProps={{ fontWeight: 700 }} primary={sec.title} />
+                {expanded ? <ExpandLess /> : <ExpandMore />}
+              </ListItemButton>
+              <Collapse in={!!expanded} timeout="auto" unmountOnExit>
+                <List disablePadding>
+                  {sec.pages.map((p) => (
+                    <ListItemButton
+                      key={p.id}
+                      component={RouterLink}
+                      to={p.path}
+                      selected={location.pathname === p.path}
+                      sx={Styles.childItem}
+                    >
+                      <ListItemText primary={p.title} />
+                    </ListItemButton>
+                  ))}
+                </List>
+              </Collapse>
+              <Divider />
+            </Box>
+          )
+        })}
       </List>
     </Box>
   )

@@ -19,6 +19,18 @@ export const EnumFlagsFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={ENUM_FLAGS_FIELD_BASIC} />
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>EnumFlagsFieldProps.Label</code> and <code>EnumFlagsFieldProps.VisualInput</code>
+        behave the same as on <code>EnumFieldProps</code>, allowing you to style the label element
+        and the embedded input area via dictionaries that can contain nested <code>Style</code>{' '}
+        objects.
+      </Typography>
+    </Box>
   </Box>
 )
 

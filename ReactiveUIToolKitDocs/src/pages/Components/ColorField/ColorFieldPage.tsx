@@ -19,6 +19,18 @@ export const ColorFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={COLOR_FIELD_BASIC} />
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        Use <code>ColorFieldProps.Label</code> to configure the label element, and{' '}
+        <code>ColorFieldProps.VisualInput</code> to style the input container (for example, padding
+        or background). Both properties accept dictionaries; in most cases you construct them from
+        other typed props or by nesting a <code>Style</code> instance.
+      </Typography>
+    </Box>
   </Box>
 )
 

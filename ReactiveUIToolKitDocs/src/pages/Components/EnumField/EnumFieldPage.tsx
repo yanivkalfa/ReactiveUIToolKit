@@ -19,6 +19,18 @@ export const EnumFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={ENUM_FIELD_BASIC} />
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>EnumFieldProps.Label</code> and <code>EnumFieldProps.VisualInput</code> configure the
+        label and input slots respectively. As with other fields, both expect dictionaries; label
+        dictionaries are often created from <code>LabelProps.ToDictionary()</code>, while visual
+        input dictionaries typically wrap a <code>Style</code> instance.
+      </Typography>
+    </Box>
   </Box>
 )
 

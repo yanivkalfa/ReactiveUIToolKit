@@ -1,0 +1,38 @@
+export const SCROLLER_BASIC = `// Example namespace: ReactiveUITK.Samples.Components
+
+using System.Collections.Generic;
+using ReactiveUITK;
+using ReactiveUITK.Core;
+using ReactiveUITK.Props.Typed;
+using UnityEngine.UIElements;
+
+public static class ScrollerExamples
+{
+  public static VirtualNode Render(
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
+  )
+  {
+    var (value, setValue) = Hooks.UseState(0f);
+
+    void OnChange(ChangeEvent<float> evt)
+    {
+      setValue.Set(evt.newValue);
+    }
+
+    return V.Scroller(
+      new ScrollerProps
+      {
+        LowValue = 0f,
+        HighValue = 100f,
+        Value = value,
+        Style = new Style
+        {
+          (StyleKeys.Width, 12f),
+          (StyleKeys.Height, 120f),
+        },
+      }
+    );
+  }
+}`
+

@@ -34,6 +34,18 @@ export const BoxPage: FC = () => (
         your UI that share common styling.
       </Typography>
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (contentContainer)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        Use the <code>ContentContainer</code> property on <code>BoxProps</code> to style or configure
+        the box&apos;s <code>contentContainer</code>. This property expects a dictionary, allowing you
+        to pass a nested <code>Style</code> or additional props that should be applied to the content
+        container element.
+      </Typography>
+    </Box>
   </Box>
 )
 

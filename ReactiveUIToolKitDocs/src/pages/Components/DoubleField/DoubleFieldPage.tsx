@@ -19,6 +19,18 @@ export const DoubleFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={DOUBLE_FIELD_BASIC} />
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>DoubleFieldProps.Label</code> and <code>DoubleFieldProps.VisualInput</code> follow the
+        same pattern as other numeric fields. Use a label dictionary (often built from{' '}
+        <code>LabelProps</code>) and a visual input dictionary that can contain a nested{' '}
+        <code>Style</code> for the inner input container.
+      </Typography>
+    </Box>
   </Box>
 )
 

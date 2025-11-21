@@ -1,15 +1,17 @@
 export const DROPDOWN_FIELD_BASIC = `// Example namespace: ReactiveUITK.Samples.Components
 
 using System.Collections;
+using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
+using UnityEngine.UIElements;
 
 public static class DropdownFieldExamples
 {
   public static VirtualNode Render(
-    System.Collections.Generic.Dictionary<string, object> props,
-    System.Collections.Generic.IReadOnlyList<VirtualNode> children
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
   )
   {
     var (index, setIndex) = Hooks.UseState(0);
@@ -21,12 +23,18 @@ public static class DropdownFieldExamples
       setIndex.Set(previous => choices.IndexOf(evt.newValue));
     }
 
+    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
     return V.DropdownField(
       new DropdownFieldProps
       {
         Choices = choices,
-        Index = index,
+        SelectedIndex = index,
         Label = new LabelProps { Text = "Color" }.ToDictionary(),
+        VisualInput = new Dictionary<string, object>
+        {
+          { "style", inputStyle },
+        },
       }
     );
   }

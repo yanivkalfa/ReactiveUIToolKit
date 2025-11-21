@@ -1,6 +1,7 @@
 export const BUTTON_BASIC = `// Example namespace: ReactiveUITK.Samples.Components
 
 using System;
+using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
@@ -9,8 +10,8 @@ using UnityEngine;
 public static class ButtonExamples
 {
   public static VirtualNode Render(
-    System.Collections.Generic.Dictionary<string, object> props,
-    System.Collections.Generic.IReadOnlyList<VirtualNode> children
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
   )
   {
     var (count, setCount) = Hooks.UseState(0);

@@ -19,6 +19,18 @@ export const FloatFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={FLOAT_FIELD_BASIC} />
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>FloatFieldProps.Label</code> and <code>FloatFieldProps.VisualInput</code> let you
+        customize the label element and the inner input container. Both accept dictionaries: build a
+        label via <code>LabelProps.ToDictionary()</code> and pass a dictionary with a nested{' '}
+        <code>Style</code> object to <code>VisualInput</code> to style the input.
+      </Typography>
+    </Box>
   </Box>
 )
 

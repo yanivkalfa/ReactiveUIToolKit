@@ -11,8 +11,8 @@ export const BoundsFieldPage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       <code>V.BoundsField</code> wraps the Unity <code>BoundsField</code> control using{' '}
-      <code>BoundsFieldProps</code>. It is useful for editing <code>Bounds</code> values in
-      inspectors and tools.
+      <code>BoundsFieldProps</code>. It is useful for editing <code>Bounds</code> values in both
+      runtime UI and editor tools.
     </Typography>
 
     <Box sx={Styles.section}>

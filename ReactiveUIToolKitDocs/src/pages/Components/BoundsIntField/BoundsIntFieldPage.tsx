@@ -11,7 +11,8 @@ export const BoundsIntFieldPage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       <code>V.BoundsIntField</code> wraps the Unity <code>BoundsIntField</code> control using{' '}
-      <code>BoundsIntFieldProps</code> for working with integer bounds.
+      <code>BoundsIntFieldProps</code> for working with integer bounds in both runtime UI and editor
+      tools.
     </Typography>
 
     <Box sx={Styles.section}>
@@ -31,6 +32,19 @@ export const BoundsIntFieldPage: FC = () => (
       </Typography>
       <Typography variant="body1">
         <code>BoundsIntField</code> does not support child nodes. Use the label slot to add context.
+      </Typography>
+    </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        Use the <code>Label</code> and <code>VisualInput</code> properties on{' '}
+        <code>BoundsIntFieldProps</code> to configure the label and the internal input container.
+        Both expect dictionaries; for example, you can build a label with{' '}
+        <code>new LabelProps &#123; Text = "BoundsInt" &#125;.ToDictionary()</code> or provide a
+        <code>VisualInput</code> dictionary that contains a nested <code>Style</code>.
       </Typography>
     </Box>
   </Box>

@@ -18,6 +18,18 @@ export const DropdownFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={DROPDOWN_FIELD_BASIC} />
     </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Slots (label / visual input)
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>DropdownFieldProps.Label</code> and <code>DropdownFieldProps.VisualInput</code> mirror
+        the slots on the underlying UI Toolkit control. Use <code>Label</code> to configure the label
+        element, and <code>VisualInput</code> to style the internal input area via a dictionary that
+        can contain a nested <code>Style</code>.
+      </Typography>
+    </Box>
   </Box>
 )
 

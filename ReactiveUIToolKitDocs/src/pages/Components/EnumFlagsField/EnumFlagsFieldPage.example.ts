@@ -1,9 +1,11 @@
 export const ENUM_FLAGS_FIELD_BASIC = `// Example namespace: ReactiveUITK.Samples.Components
 
 using System;
+using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
+using UnityEngine.UIElements;
 
 [Flags]
 public enum ExampleFlags
@@ -17,8 +19,8 @@ public enum ExampleFlags
 public static class EnumFlagsFieldExamples
 {
   public static VirtualNode Render(
-    System.Collections.Generic.Dictionary<string, object> props,
-    System.Collections.Generic.IReadOnlyList<VirtualNode> children
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
   )
   {
     var (value, setValue) = Hooks.UseState(ExampleFlags.A | ExampleFlags.C);
@@ -28,11 +30,17 @@ public static class EnumFlagsFieldExamples
       setValue.Set((ExampleFlags)evt.newValue);
     }
 
+    var inputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
+
     return V.EnumFlagsField(
       new EnumFlagsFieldProps
       {
         EnumType = typeof(ExampleFlags).AssemblyQualifiedName,
         Value = value,
+        VisualInput = new Dictionary<string, object>
+        {
+          { "style", inputStyle },
+        },
       }
     );
   }
