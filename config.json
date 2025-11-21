@@ -11,5 +11,6 @@
     "Diagnostics/**",
     "scripts/**",
     "ReactiveUIToolKitDocs/**"
-  ]
+  ],
+  "npmPath": "C:\\nvm4w\\nodejs\\npm.cmd"
 }
