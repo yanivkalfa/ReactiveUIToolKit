@@ -1,6 +1,6 @@
 import type { FC } from 'react'
 import { useLocation, Link as RouterLink } from 'react-router-dom'
-import { Box, List, ListItemButton, ListItemText, Collapse, Divider } from '@mui/material'
+import { Box, List, ListItemButton, ListItemText, Collapse, Divider, Typography } from '@mui/material'
 import ExpandLess from '@mui/icons-material/ExpandLess'
 import ExpandMore from '@mui/icons-material/ExpandMore'
 import { useState } from 'react'
@@ -8,44 +8,51 @@ import { pages as sections } from '../../pages'
 import Styles from './Sidebar.style'
 
 export const Sidebar: FC = () => {
+  const displaySections = sections.flatMap((sec) =>
+    sec.id === 'components'
+      ? [
+          {
+            ...sec,
+            id: 'components-common',
+            title: 'Common Components',
+            pages: sec.pages.filter((p) => p.group === 'basic'),
+          },
+          {
+            ...sec,
+            id: 'components-uncommon',
+            title: 'Uncommon Components',
+            pages: sec.pages.filter((p) => p.group === 'advanced' || !p.group),
+          },
+        ]
+      : [sec],
+  )
+
   const location = useLocation()
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
-    sections.forEach((sec, idx) => (init[sec.id] = idx === 0))
+    displaySections.forEach((sec, idx) => (init[sec.id] = idx === 0))
     return init
   })
 
   return (
     <Box sx={Styles.root}>
       <List disablePadding>
-        {sections.map((sec) => {
-          const hasActivePage = sec.pages.some((p) => p.path === location.pathname)
-          const isSingle = sec.pages.length === 1
-          if (isSingle) {
-            const page = sec.pages[0]
-            return (
-              <Box key={sec.id}>
-                <ListItemButton
-                  component={RouterLink}
-                  to={page.path}
-                  selected={location.pathname === page.path}
-                >
-                  <ListItemText primaryTypographyProps={{ fontWeight: 700 }} primary={sec.title} />
-                </ListItemButton>
-                <Divider />
-              </Box>
-            )
-          }
-
-          const expanded = hasActivePage || open[sec.id]
+        {displaySections.map((sec) => {
+          const expanded = !!open[sec.id]
 
           return (
             <Box key={sec.id}>
               <ListItemButton onClick={() => setOpen({ ...open, [sec.id]: !open[sec.id] })}>
-                <ListItemText primaryTypographyProps={{ fontWeight: 700 }} primary={sec.title} />
+                <ListItemText
+                  primary={
+                    <Typography sx={Styles.sectionTitle}>
+                      {sec.title}
+                    </Typography>
+                  }
+                />
                 {expanded ? <ExpandLess /> : <ExpandMore />}
               </ListItemButton>
-              <Collapse in={!!expanded} timeout="auto" unmountOnExit>
+              <Collapse in={expanded} timeout="auto" unmountOnExit>
                 <List disablePadding>
                   {sec.pages.map((p) => (
                     <ListItemButton

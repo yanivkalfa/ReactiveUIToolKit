@@ -68,6 +68,7 @@ export type Page = {
   title: string
   path: string
   keywords?: string[]
+  group?: 'basic' | 'advanced'
   element: () => ReactElement
 }
 
@@ -146,6 +147,7 @@ export const pages: Section[] = [
         title: 'BoundsField',
         path: '/components/bounds-field',
         keywords: ['bounds', 'field', 'BoundsField'],
+        group: 'advanced',
         element: () => <BoundsFieldPage />,
       },
       {
@@ -160,6 +162,7 @@ export const pages: Section[] = [
         title: 'Box',
         path: '/components/box',
         keywords: ['box', 'container'],
+        group: 'basic',
         element: () => <BoxPage />,
       },
       {
@@ -167,6 +170,7 @@ export const pages: Section[] = [
         title: 'Button',
         path: '/components/button',
         keywords: ['button', 'click'],
+        group: 'basic',
         element: () => <ButtonPage />,
       },
       {
@@ -174,6 +178,7 @@ export const pages: Section[] = [
         title: 'ColorField',
         path: '/components/color-field',
         keywords: ['color', 'field', 'ColorField'],
+        group: 'advanced',
         element: () => <ColorFieldPage />,
       },
       {
@@ -181,6 +186,7 @@ export const pages: Section[] = [
         title: 'DoubleField',
         path: '/components/double-field',
         keywords: ['double', 'field', 'DoubleField'],
+        group: 'advanced',
         element: () => <DoubleFieldPage />,
       },
       {
@@ -188,6 +194,7 @@ export const pages: Section[] = [
         title: 'DropdownField',
         path: '/components/dropdown-field',
         keywords: ['dropdown', 'field', 'choices'],
+        group: 'basic',
         element: () => <DropdownFieldPage />,
       },
       {
@@ -195,6 +202,7 @@ export const pages: Section[] = [
         title: 'EnumField',
         path: '/components/enum-field',
         keywords: ['enum', 'field', 'EnumField'],
+        group: 'basic',
         element: () => <EnumFieldPage />,
       },
       {
@@ -202,6 +210,7 @@ export const pages: Section[] = [
         title: 'EnumFlagsField',
         path: '/components/enum-flags-field',
         keywords: ['enum', 'flags', 'EnumFlagsField'],
+        group: 'advanced',
         element: () => <EnumFlagsFieldPage />,
       },
       {
@@ -209,6 +218,7 @@ export const pages: Section[] = [
         title: 'FloatField',
         path: '/components/float-field',
         keywords: ['float', 'field', 'FloatField'],
+        group: 'basic',
         element: () => <FloatFieldPage />,
       },
       {
@@ -216,6 +226,7 @@ export const pages: Section[] = [
         title: 'Foldout',
         path: '/components/foldout',
         keywords: ['foldout', 'toggle', 'collapsible'],
+        group: 'basic',
         element: () => <FoldoutPage />,
       },
       {
@@ -223,6 +234,7 @@ export const pages: Section[] = [
         title: 'GroupBox',
         path: '/components/group-box',
         keywords: ['group', 'groupbox'],
+        group: 'basic',
         element: () => <GroupBoxPage />,
       },
       {
@@ -230,6 +242,7 @@ export const pages: Section[] = [
         title: 'Hash128Field',
         path: '/components/hash128-field',
         keywords: ['hash128', 'field'],
+        group: 'advanced',
         element: () => <Hash128FieldPage />,
       },
       {
@@ -237,6 +250,7 @@ export const pages: Section[] = [
         title: 'HelpBox',
         path: '/components/help-box',
         keywords: ['helpbox', 'message'],
+        group: 'basic',
         element: () => <HelpBoxPage />,
       },
       {
@@ -244,6 +258,7 @@ export const pages: Section[] = [
         title: 'IMGUIContainer',
         path: '/components/imgui-container',
         keywords: ['imgui', 'editor'],
+        group: 'advanced',
         element: () => <IMGUIContainerPage />,
       },
       {
@@ -251,6 +266,7 @@ export const pages: Section[] = [
         title: 'Image',
         path: '/components/image',
         keywords: ['image', 'texture', 'sprite'],
+        group: 'basic',
         element: () => <ImagePage />,
       },
       {
@@ -258,6 +274,7 @@ export const pages: Section[] = [
         title: 'IntegerField',
         path: '/components/integer-field',
         keywords: ['integer', 'field', 'int'],
+        group: 'basic',
         element: () => <IntegerFieldPage />,
       },
       {
@@ -265,6 +282,7 @@ export const pages: Section[] = [
         title: 'Label',
         path: '/components/label',
         keywords: ['label', 'text'],
+        group: 'basic',
         element: () => <LabelPage />,
       },
       {
@@ -272,6 +290,7 @@ export const pages: Section[] = [
         title: 'LongField',
         path: '/components/long-field',
         keywords: ['long', 'field', 'LongField'],
+        group: 'advanced',
         element: () => <LongFieldPage />,
       },
       {
@@ -279,6 +298,7 @@ export const pages: Section[] = [
         title: 'ProgressBar',
         path: '/components/progress-bar',
         keywords: ['progress', 'bar'],
+        group: 'basic',
         element: () => <ProgressBarPage />,
       },
       {
@@ -286,6 +306,7 @@ export const pages: Section[] = [
         title: 'ListView',
         path: '/components/list-view',
         keywords: ['list', 'ListView'],
+        group: 'basic',
         element: () => <ListViewPage />,
       },
       {
@@ -293,6 +314,7 @@ export const pages: Section[] = [
         title: 'MinMaxSlider',
         path: '/components/minmax-slider',
         keywords: ['minmax', 'slider'],
+        group: 'advanced',
         element: () => <MinMaxSliderPage />,
       },
       {
@@ -300,6 +322,7 @@ export const pages: Section[] = [
         title: 'ObjectField',
         path: '/components/object-field',
         keywords: ['object', 'field'],
+        group: 'advanced',
         element: () => <ObjectFieldPage />,
       },
       {
@@ -307,6 +330,7 @@ export const pages: Section[] = [
         title: 'RadioButton',
         path: '/components/radio-button',
         keywords: ['radio', 'button'],
+        group: 'basic',
         element: () => <RadioButtonPage />,
       },
       {
@@ -314,6 +338,7 @@ export const pages: Section[] = [
         title: 'RadioButtonGroup',
         path: '/components/radio-button-group',
         keywords: ['radio', 'group'],
+        group: 'basic',
         element: () => <RadioButtonGroupPage />,
       },
       {
@@ -321,6 +346,7 @@ export const pages: Section[] = [
         title: 'RectField',
         path: '/components/rect-field',
         keywords: ['rect', 'field'],
+        group: 'advanced',
         element: () => <RectFieldPage />,
       },
       {
@@ -328,6 +354,7 @@ export const pages: Section[] = [
         title: 'RectIntField',
         path: '/components/rect-int-field',
         keywords: ['rectint', 'field'],
+        group: 'advanced',
         element: () => <RectIntFieldPage />,
       },
       {
@@ -335,6 +362,7 @@ export const pages: Section[] = [
         title: 'RepeatButton',
         path: '/components/repeat-button',
         keywords: ['repeat', 'button'],
+        group: 'basic',
         element: () => <RepeatButtonPage />,
       },
       {
@@ -342,6 +370,7 @@ export const pages: Section[] = [
         title: 'ScrollView',
         path: '/components/scroll-view',
         keywords: ['scroll', 'view'],
+        group: 'basic',
         element: () => <ScrollViewPage />,
       },
       {
@@ -349,6 +378,7 @@ export const pages: Section[] = [
         title: 'Slider',
         path: '/components/slider',
         keywords: ['slider', 'float'],
+        group: 'basic',
         element: () => <SliderPage />,
       },
       {
@@ -356,6 +386,7 @@ export const pages: Section[] = [
         title: 'SliderInt',
         path: '/components/slider-int',
         keywords: ['slider', 'int'],
+        group: 'basic',
         element: () => <SliderIntPage />,
       },
       {
@@ -363,6 +394,7 @@ export const pages: Section[] = [
         title: 'Toggle',
         path: '/components/toggle',
         keywords: ['toggle', 'checkbox'],
+        group: 'basic',
         element: () => <TogglePage />,
       },
       {
@@ -370,6 +402,7 @@ export const pages: Section[] = [
         title: 'TreeView',
         path: '/components/tree-view',
         keywords: ['tree', 'TreeView'],
+        group: 'basic',
         element: () => <TreeViewPage />,
       },
       {
@@ -377,6 +410,7 @@ export const pages: Section[] = [
         title: 'Tab',
         path: '/components/tab',
         keywords: ['tab'],
+        group: 'basic',
         element: () => <TabPage />,
       },
       {
@@ -384,6 +418,7 @@ export const pages: Section[] = [
         title: 'TabView',
         path: '/components/tab-view',
         keywords: ['tab', 'TabView'],
+        group: 'basic',
         element: () => <TabViewPage />,
       },
       {
@@ -391,6 +426,7 @@ export const pages: Section[] = [
         title: 'ToggleButtonGroup',
         path: '/components/toggle-button-group',
         keywords: ['toggle', 'buttons', 'group'],
+        group: 'advanced',
         element: () => <ToggleButtonGroupPage />,
       },
       {
@@ -398,6 +434,7 @@ export const pages: Section[] = [
         title: 'TextField',
         path: '/components/text-field',
         keywords: ['text', 'field'],
+        group: 'basic',
         element: () => <TextFieldPage />,
       },
       {
@@ -405,6 +442,7 @@ export const pages: Section[] = [
         title: 'Toolbar',
         path: '/components/toolbar',
         keywords: ['toolbar', 'editor'],
+        group: 'advanced',
         element: () => <ToolbarPage />,
       },
       {
@@ -412,6 +450,7 @@ export const pages: Section[] = [
         title: 'TemplateContainer',
         path: '/components/template-container',
         keywords: ['template', 'container'],
+        group: 'advanced',
         element: () => <TemplateContainerPage />,
       },
       {
@@ -419,6 +458,7 @@ export const pages: Section[] = [
         title: 'VisualElement',
         path: '/components/visual-element',
         keywords: ['visualelement', 'container', 'safe'],
+        group: 'basic',
         element: () => <VisualElementPage />,
       },
       {
@@ -426,6 +466,7 @@ export const pages: Section[] = [
         title: 'VisualElementSafe',
         path: '/components/visual-element-safe',
         keywords: ['visualelementsafe', 'safe-area', 'container'],
+        group: 'basic',
         element: () => <VisualElementPage />,
       },
       {
@@ -433,6 +474,7 @@ export const pages: Section[] = [
         title: 'UnsignedIntegerField',
         path: '/components/unsigned-integer-field',
         keywords: ['uint', 'field'],
+        group: 'advanced',
         element: () => <UnsignedIntegerFieldPage />,
       },
       {
@@ -440,6 +482,7 @@ export const pages: Section[] = [
         title: 'UnsignedLongField',
         path: '/components/unsigned-long-field',
         keywords: ['ulong', 'field'],
+        group: 'advanced',
         element: () => <UnsignedLongFieldPage />,
       },
       {
@@ -447,6 +490,7 @@ export const pages: Section[] = [
         title: 'Vector2Field',
         path: '/components/vector2-field',
         keywords: ['vector2', 'field'],
+        group: 'advanced',
         element: () => <Vector2FieldPage />,
       },
       {
@@ -454,6 +498,7 @@ export const pages: Section[] = [
         title: 'Vector2IntField',
         path: '/components/vector2-int-field',
         keywords: ['vector2int', 'field'],
+        group: 'advanced',
         element: () => <Vector2IntFieldPage />,
       },
       {
@@ -461,6 +506,7 @@ export const pages: Section[] = [
         title: 'Vector3Field',
         path: '/components/vector3-field',
         keywords: ['vector3', 'field'],
+        group: 'advanced',
         element: () => <Vector3FieldPage />,
       },
       {
@@ -468,6 +514,7 @@ export const pages: Section[] = [
         title: 'Vector3IntField',
         path: '/components/vector3-int-field',
         keywords: ['vector3int', 'field'],
+        group: 'advanced',
         element: () => <Vector3IntFieldPage />,
       },
       {
@@ -475,6 +522,7 @@ export const pages: Section[] = [
         title: 'Vector4Field',
         path: '/components/vector4-field',
         keywords: ['vector4', 'field'],
+        group: 'advanced',
         element: () => <Vector4FieldPage />,
       },
       {
@@ -482,6 +530,7 @@ export const pages: Section[] = [
         title: 'Animate',
         path: '/components/animate',
         keywords: ['animate', 'animation'],
+        group: 'basic',
         element: () => <AnimatePage />,
       },
       {
@@ -489,6 +538,7 @@ export const pages: Section[] = [
         title: 'ErrorBoundary',
         path: '/components/error-boundary',
         keywords: ['error', 'boundary'],
+        group: 'advanced',
         element: () => <ErrorBoundaryPage />,
       },
       {
@@ -496,6 +546,7 @@ export const pages: Section[] = [
         title: 'MultiColumnListView',
         path: '/components/multi-column-list-view',
         keywords: ['list', 'multi', 'columns'],
+        group: 'basic',
         element: () => <MultiColumnListViewPage />,
       },
       {
@@ -503,6 +554,7 @@ export const pages: Section[] = [
         title: 'MultiColumnTreeView',
         path: '/components/multi-column-tree-view',
         keywords: ['tree', 'multi', 'columns'],
+        group: 'basic',
         element: () => <MultiColumnTreeViewPage />,
       },
       {
@@ -510,6 +562,7 @@ export const pages: Section[] = [
         title: 'Scroller',
         path: '/components/scroller',
         keywords: ['scroller'],
+        group: 'advanced',
         element: () => <ScrollerPage />,
       },
       {
@@ -517,6 +570,7 @@ export const pages: Section[] = [
         title: 'TextElement',
         path: '/components/text-element',
         keywords: ['text', 'TextElement'],
+        group: 'advanced',
         element: () => <TextElementPage />,
       },
       {
@@ -524,6 +578,7 @@ export const pages: Section[] = [
         title: 'PropertyField & InspectorElement',
         path: '/components/property-inspector',
         keywords: ['propertyfield', 'inspectorelement', 'editor'],
+        group: 'advanced',
         element: () => <PropertyInspectorPage />,
       },
       {
@@ -531,6 +586,7 @@ export const pages: Section[] = [
         title: 'TwoPaneSplitView',
         path: '/components/two-pane-split-view',
         keywords: ['split', 'editor'],
+        group: 'advanced',
         element: () => <TwoPaneSplitViewPage />,
       },
       {
