@@ -2018,9 +2018,6 @@ namespace ReactiveUITK.Core
                         componentState.HookOrderPrimed = true;
                     }
                     else if (!renderCompleted)
-                    {
-                        componentState.HookOrderPrimed = false;
-                    }
                     if (restoreAncestorContext && originalFrame.IsValid)
                     {
                         hostContext.RestoreFrame(originalFrame);

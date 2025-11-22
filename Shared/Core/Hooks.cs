@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core.Fiber;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Signals;
 using UnityEngine;
@@ -183,6 +184,7 @@ namespace ReactiveUITK.Core
 
             private void EnqueuePendingUpdate(StateUpdate<T> update, T computed)
             {
+              UnityEngine.Debug.Log($"[Hooks] EnqueuePendingUpdate called! metadata is {(metadata == null ? "NULL" : "SET")}");
                 state.HookStateQueues ??= new Dictionary<int, HookStateUpdateQueue>();
                 if (!state.HookStateQueues.TryGetValue(index, out var queue))
                 {
@@ -478,6 +480,15 @@ namespace ReactiveUITK.Core
             }
             metadata.SyncComponentState(state);
 
+            // Fiber integration: If we have a callback, use it
+            UnityEngine.Debug.Log($"[Hooks] RequestComponentRerender - state instance: {state.GetHashCode()}, OnStateUpdated is {(state.OnStateUpdated == null ? "NULL" : "SET")}");
+            if (state.OnStateUpdated != null)
+            {
+                state.OnStateUpdated.Invoke();
+                return;
+            }
+
+            // Legacy path
             ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
         }
 

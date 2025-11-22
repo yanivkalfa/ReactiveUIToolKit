@@ -139,6 +139,7 @@ namespace ReactiveUITK.Core
         public HashSet<ContextKey> SubscribedContextKeys;
         public bool PendingUpdate;
         public bool UpdateQueued;
+        public Action OnStateUpdated; // Bridge for Fiber reconciler
         public List<string> HookOrderSignatures;
         public bool HookOrderPrimed;
         public bool IsRendering;
