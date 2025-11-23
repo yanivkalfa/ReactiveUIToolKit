@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
-using UnityEngine.UIElements;
+using UnityEngine;
 using UnityEngine.Profiling;
+using UnityEngine.UIElements;
 using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Core.Fiber
@@ -17,6 +18,9 @@ namespace ReactiveUITK.Core.Fiber
         private FiberNode _nextUnitOfWork;
         private HostContext _hostContext;
         private FiberHostConfig _hostConfig;
+        private IScheduler _scheduler;
+        private bool _workScheduled;
+        private const float TimeSliceMs = 2.0f;
         
         // Stats
         private static readonly CustomSampler RenderPhaseSampler = CustomSampler.Create("Fiber.RenderPhase");
@@ -26,6 +30,13 @@ namespace ReactiveUITK.Core.Fiber
         {
             _hostContext = hostContext;
             _hostConfig = new FiberHostConfig(hostContext.ElementRegistry);
+
+            if (hostContext?.Environment != null
+                && hostContext.Environment.TryGetValue("scheduler", out var schedObj)
+                && schedObj is IScheduler scheduler)
+            {
+                _scheduler = scheduler;
+            }
         }
 
         /// <summary>
@@ -78,8 +89,15 @@ namespace ReactiveUITK.Core.Fiber
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
             
-            // Start work loop
-            WorkLoop();
+            // Start work loop (scheduler-based when available)
+            if (_scheduler != null)
+            {
+                ScheduleRootWork(IScheduler.Priority.Normal);
+            }
+            else
+            {
+                WorkLoop();
+            }
         }
 
         /// <summary>
@@ -103,6 +121,73 @@ namespace ReactiveUITK.Core.Fiber
 
             // Render phase complete, commit the changes
             if (_workInProgressRoot != null)
+            {
+                CommitRoot();
+            }
+        }
+
+        /// <summary>
+        /// Schedule a slice of work on the scheduler.
+        /// </summary>
+        private void ScheduleRootWork(IScheduler.Priority priority)
+        {
+            if (_scheduler == null)
+            {
+                WorkLoop();
+                return;
+            }
+            if (_workScheduled)
+            {
+                return;
+            }
+            _workScheduled = true;
+
+            void Slice()
+            {
+                _workScheduled = false;
+                ProcessWorkUntilDeadline();
+
+                if (_nextUnitOfWork != null)
+                {
+                    ScheduleRootWork(priority);
+                }
+            }
+
+            _scheduler.Enqueue(Slice, priority);
+        }
+
+        /// <summary>
+        /// Process work units until the time slice budget is exhausted.
+        /// </summary>
+        private void ProcessWorkUntilDeadline()
+        {
+            if (_nextUnitOfWork == null)
+            {
+                return;
+            }
+
+            RenderPhaseSampler.Begin();
+            try
+            {
+                float startMs = Time.realtimeSinceStartup * 1000f;
+                while (_nextUnitOfWork != null)
+                {
+                    _nextUnitOfWork = PerformUnitOfWork(_nextUnitOfWork);
+
+                    float nowMs = Time.realtimeSinceStartup * 1000f;
+                    if (nowMs - startMs >= TimeSliceMs)
+                    {
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                RenderPhaseSampler.End();
+            }
+
+            // Render phase complete, commit the changes
+            if (_nextUnitOfWork == null && _workInProgressRoot != null)
             {
                 CommitRoot();
             }
@@ -471,6 +556,12 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitDeletion(FiberNode fiber)
         {
+            // Cleanup signal subscriptions for function components
+            if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
+            {
+                Hooks.DisposeSignalSubscriptions(fiber.ComponentState);
+            }
+
             if (fiber.HostElement != null)
             {
                 var parent = _hostConfig.GetParent(fiber.HostElement);

@@ -72,7 +72,7 @@ namespace ReactiveUITK.Core.Fiber
         // ==== Context ====
         internal HostContext.ContextFrameHandle ContextFrame;
         public int ContextProviderId;
-        public IReadOnlyDictionary<string, object> ProvidedContext;
+        public Dictionary<string, object> ProvidedContext;
 
         // ==== Refs ====
         /// <summary>For Portal nodes</summary>

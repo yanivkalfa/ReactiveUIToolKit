@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine.UIElements;
+using ReactiveUITK.Core.Fiber;
 
 namespace ReactiveUITK.Core
 {
@@ -51,6 +52,7 @@ namespace ReactiveUITK.Core
             if (ComponentState == null)
             {
                 ComponentState = new FunctionComponentState(this);
+                ComponentState.HostContext = HostContext;
             }
             return ComponentState;
         }
@@ -120,6 +122,8 @@ namespace ReactiveUITK.Core
         }
 
         public NodeMetadata Owner { get; }
+        public HostContext HostContext;
+        public FiberNode Fiber;
         public List<object> HookStates = new();
         public int HookIndex;
         public List<(

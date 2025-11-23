@@ -8,7 +8,7 @@ namespace ReactiveUITK.Samples.Showcase.Editor
 {
     public class FiberSimpleTest : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Fiber/Simple Test")]
+        [MenuItem("ReactiveUITK/Demos/Simple Test")]
         public static void ShowWindow()
         {
             GetWindow<FiberSimpleTest>("Fiber Simple");
@@ -18,8 +18,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
 
         private void CreateGUI()
         {
-            FiberConfig.UseFiberReconciler = true;
-            
             var registry = ReactiveUITK.Elements.ElementRegistryProvider.GetDefaultRegistry();
             renderer = new VNodeHostRenderer(new HostContext(registry), rootVisualElement);
             

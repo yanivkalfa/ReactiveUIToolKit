@@ -10,7 +10,7 @@ namespace ReactiveUITK.Samples.Showcase.Editor
 {
     public class FiberMultiComponentDemo : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Fiber/Multi-Component Demo")]
+        [MenuItem("ReactiveUITK/Demos/Multi-Component Demo")]
         public static void ShowWindow()
         {
             GetWindow<FiberMultiComponentDemo>("Fiber Multi Demo");
@@ -20,9 +20,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
 
         private void CreateGUI()
         {
-            // Ensure Fiber is enabled
-            FiberConfig.UseFiberReconciler = true;
-            
             var registry = ReactiveUITK.Elements.ElementRegistryProvider.GetDefaultRegistry();
             renderer = new VNodeHostRenderer(new HostContext(registry), rootVisualElement);
             renderer.Render(V.Func(MultiComponentApp));
@@ -50,8 +47,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             var id = props["id"];
             var (count, setCount) = Hooks.UseState(0);
 
-            UnityEngine.Debug.Log($"[Counter] id={id} render, count={count}");
-
             var containerStyle = new Dictionary<string, object> 
             { 
                 { "style", "border-width: 1px; border-color: #666; margin: 5px; padding: 5px;" } 
@@ -64,7 +59,6 @@ namespace ReactiveUITK.Samples.Showcase.Editor
                     Text = "Increment", 
                     OnClick = () => 
                     {
-                        UnityEngine.Debug.Log($"[DEMO] Button clicked for Counter {id}!");
                         Func<int, int> inc = c => c + 1;
                         setCount(inc);
                     }

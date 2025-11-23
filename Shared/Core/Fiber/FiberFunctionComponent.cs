@@ -25,6 +25,8 @@ namespace ReactiveUITK.Core.Fiber
 
             // Get or create component state
             var componentState = wipFiber.ComponentState ?? new FunctionComponentState(null);
+            componentState.HostContext = hostContext;
+            componentState.Fiber = wipFiber;
             wipFiber.ComponentState = componentState;
 
             // Apply any queued state updates before rendering
@@ -38,22 +40,8 @@ namespace ReactiveUITK.Core.Fiber
             // Wire up state updates to Fiber reconciler
             componentState.OnStateUpdated = () =>
             {
-                UnityEngine.Debug.Log("[Fiber] OnStateUpdated invoked!");
                 reconciler.ScheduleUpdateOnFiber(wipFiber, null);
             };
-
-            // Debug which component state is wired to which function fiber
-            {
-                var fnName = wipFiber.Render?.Method?.Name ?? "<unknown>";
-                string idStr = "";
-                if (wipFiber.PendingProps != null && wipFiber.PendingProps.TryGetValue("id", out var idVal))
-                {
-                    idStr = $" id={idVal}";
-                }
-                UnityEngine.Debug.Log(
-                    $"[Fiber] Wired OnStateUpdated for function '{fnName}'{idStr}, state instance: {componentState.GetHashCode()}"
-                );
-            }
 
             // Set hook context
             HookContext.Current = componentState;
@@ -67,23 +55,7 @@ namespace ReactiveUITK.Core.Fiber
                 var propsDict = wipFiber.PendingProps as Dictionary<string, object>
                     ?? new Dictionary<string, object>(wipFiber.PendingProps ?? new Dictionary<string, object>());
 
-                // Debug which component is rendering with which state
-                {
-                    var fnName = wipFiber.Render?.Method?.Name ?? "<unknown>";
-                    string idStr = "";
-                    if (propsDict != null && propsDict.TryGetValue("id", out var idVal))
-                    {
-                        idStr = $" id={idVal}";
-                    }
-                    UnityEngine.Debug.Log(
-                        $"[Fiber] RenderFunctionComponent '{fnName}'{idStr} using state instance: {componentState.GetHashCode()}"
-                    );
-                }
-
-                childVNode = wipFiber.Render(
-                    propsDict,
-                    wipFiber.Children
-                );
+                childVNode = wipFiber.Render(propsDict, wipFiber.Children);
 
                 // Store rendered vnode
                 wipFiber.LastRenderedVNode = childVNode;
@@ -92,6 +64,19 @@ namespace ReactiveUITK.Core.Fiber
             {
                 componentState.IsRendering = false;
                 HookContext.Current = null;
+            }
+
+            // Mark effect flags so the commit phase can run effects.
+            if (componentState.FunctionLayoutEffects != null &&
+                componentState.FunctionLayoutEffects.Count > 0)
+            {
+                wipFiber.EffectTag |= EffectFlags.LayoutEffect;
+            }
+
+            if (componentState.FunctionEffects != null &&
+                componentState.FunctionEffects.Count > 0)
+            {
+                wipFiber.EffectTag |= EffectFlags.PassiveEffect;
             }
 
             // Reconcile single child
