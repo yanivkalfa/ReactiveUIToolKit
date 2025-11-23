@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -78,6 +79,9 @@ namespace ReactiveUITK.Core.Fiber
                     continue;
                 }
 
+                // Ensure parent pointer is correct for reused fibers
+                newFiber.Parent = wipFiber;
+
                 PlaceChild(newFiber, newIdx);
                 
                 if (previousNewFiber == null)
@@ -106,6 +110,9 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     newFiber = CreateFiber(newChildren[newIdx], wipFiber, newIdx);
                     if (newFiber == null) continue;
+
+                    // Ensure parent pointer is correct
+                    newFiber.Parent = wipFiber;
 
                     PlaceChild(newFiber, newIdx);
                     
@@ -157,6 +164,9 @@ namespace ReactiveUITK.Core.Fiber
                 }
 
                 if (newFiber == null) continue;
+
+                // Ensure parent pointer is correct for reused fibers
+                newFiber.Parent = wipFiber;
 
                 PlaceChild(newFiber, newIdx);
                 
@@ -276,6 +286,7 @@ namespace ReactiveUITK.Core.Fiber
                 Key = fiber.Key,
                 Render = fiber.Render,
                 HostElement = fiber.HostElement,
+                ComponentState = fiber.ComponentState,
                 Alternate = fiber,
                 Props = fiber.Props
             };

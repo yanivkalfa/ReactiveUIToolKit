@@ -50,6 +50,8 @@ namespace ReactiveUITK.Samples.Showcase.Editor
             var id = props["id"];
             var (count, setCount) = Hooks.UseState(0);
 
+            UnityEngine.Debug.Log($"[Counter] id={id} render, count={count}");
+
             var containerStyle = new Dictionary<string, object> 
             { 
                 { "style", "border-width: 1px; border-color: #666; margin: 5px; padding: 5px;" } 
@@ -63,7 +65,8 @@ namespace ReactiveUITK.Samples.Showcase.Editor
                     OnClick = () => 
                     {
                         UnityEngine.Debug.Log($"[DEMO] Button clicked for Counter {id}!");
-                        setCount(15);
+                        Func<int, int> inc = c => c + 1;
+                        setCount(inc);
                     }
                 })
             );

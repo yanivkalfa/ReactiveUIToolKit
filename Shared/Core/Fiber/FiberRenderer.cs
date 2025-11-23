@@ -1,4 +1,6 @@
 using UnityEngine.UIElements;
+using ReactiveUITK.Core;
+using ReactiveUITK.Elements;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -15,7 +17,14 @@ namespace ReactiveUITK.Core.Fiber
         public FiberRenderer(VisualElement container, HostContext context = null)
         {
             _container = container;
-            _reconciler = new FiberReconciler(context ?? new HostContext(null));
+
+            if (context == null)
+            {
+                var registry = ElementRegistryProvider.GetDefaultRegistry();
+                context = new HostContext(registry);
+            }
+
+            _reconciler = new FiberReconciler(context);
         }
 
         /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 using UnityEngine.Profiling;
+using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -45,7 +46,8 @@ namespace ReactiveUITK.Core.Fiber
                 ContainerElement = container,
                 Current = rootFiber,
                 Context = _hostContext,
-                Reconciler = this
+                Reconciler = this,
+                RootVNode = vnode
             };
 
             _root = root;
@@ -63,8 +65,16 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_root == null) return;
 
+            // If a new root vnode is provided (top-level render), record it;
+            // otherwise reuse the last one (for state updates).
+            if (vnode != null)
+            {
+                _root.RootVNode = vnode;
+            }
+            var rootVNode = _root.RootVNode;
+
             // Create work-in-progress root
-            _workInProgressRoot = CreateWorkInProgress(_root.Current, vnode);
+            _workInProgressRoot = CreateWorkInProgress(_root.Current, rootVNode);
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
             
@@ -427,6 +437,25 @@ namespace ReactiveUITK.Core.Fiber
         private void CommitUpdate(FiberNode fiber)
         {
             if (fiber.HostElement == null) return;
+
+            if (fiber.ElementType == "Label")
+            {
+                string oldText = null;
+                string newText = null;
+
+                if (fiber.Props != null && fiber.Props.TryGetValue("text", out var ov) && ov is string os)
+                {
+                    oldText = os;
+                }
+                if (fiber.PendingProps != null && fiber.PendingProps.TryGetValue("text", out var nv) && nv is string ns)
+                {
+                    newText = ns;
+                }
+
+                UnityEngine.Debug.Log(
+                    $"[Fiber] CommitUpdate Label oldText='{oldText}' newText='{newText}'"
+                );
+            }
 
             // Apply property changes using HostConfig
             _hostConfig.ApplyProperties(

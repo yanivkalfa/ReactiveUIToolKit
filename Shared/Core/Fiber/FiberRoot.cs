@@ -30,5 +30,8 @@ namespace ReactiveUITK.Core.Fiber
         
         /// <summary>Reconciler instance</summary>
         public FiberReconciler Reconciler;
+
+        /// <summary>The last rendered root VirtualNode (for updates)</summary>
+        public VirtualNode RootVNode;
     }
 }

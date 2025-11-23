@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Core.Fiber
 {
