@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.UIElements;
@@ -21,10 +22,46 @@ namespace ReactiveUITK.Core.Fiber
         private IScheduler _scheduler;
         private bool _workScheduled;
         private const float TimeSliceMs = 2.0f;
+
+        // Metrics
+        private int _workUnitCount;
+        private int _sliceCount;
+        private int _yieldCount;
+        private int _commitCount;
+        private int _effectsCommitted;
+        private readonly Stopwatch _renderStopwatch = new Stopwatch();
         
         // Stats
         private static readonly CustomSampler RenderPhaseSampler = CustomSampler.Create("Fiber.RenderPhase");
         private static readonly CustomSampler CommitPhaseSampler = CustomSampler.Create("Fiber.CommitPhase");
+
+        public readonly struct FiberReconcilerMetrics
+        {
+            public readonly long LastRenderMs;
+            public readonly int WorkUnits;
+            public readonly int Commits;
+            public readonly int Slices;
+            public readonly int Yields;
+            public readonly int EffectsCommitted;
+
+            public FiberReconcilerMetrics(
+                long lastRenderMs,
+                int workUnits,
+                int commits,
+                int slices,
+                int yields,
+                int effectsCommitted)
+            {
+                LastRenderMs = lastRenderMs;
+                WorkUnits = workUnits;
+                Commits = commits;
+                Slices = slices;
+                Yields = yields;
+                EffectsCommitted = effectsCommitted;
+            }
+        }
+
+        public static event Action<FiberReconcilerMetrics> MetricsEmitted;
 
         public FiberReconciler(HostContext hostContext)
         {
@@ -76,6 +113,13 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_root == null) return;
 
+            // Reset metrics for this render
+            _workUnitCount = 0;
+            _sliceCount = 0;
+            _yieldCount = 0;
+            _effectsCommitted = 0;
+            _renderStopwatch.Restart();
+
             // If a new root vnode is provided (top-level render), record it;
             // otherwise reuse the last one (for state updates).
             if (vnode != null)
@@ -88,6 +132,17 @@ namespace ReactiveUITK.Core.Fiber
             _workInProgressRoot = CreateWorkInProgress(_root.Current, rootVNode);
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
+
+            if (FiberConfig.EnableFiberLogging)
+            {
+                try
+                {
+                    UnityEngine.Debug.Log(
+                        $"[Fiber] ScheduleUpdateOnFiber: rootVNode={rootVNode?.NodeType} fiber={fiber?.ElementType} key={fiber?.Key}"
+                    );
+                }
+                catch { }
+            }
             
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
@@ -166,10 +221,13 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
+            _sliceCount++;
+
             RenderPhaseSampler.Begin();
             try
             {
                 float startMs = Time.realtimeSinceStartup * 1000f;
+                bool yielded = false;
                 while (_nextUnitOfWork != null)
                 {
                     _nextUnitOfWork = PerformUnitOfWork(_nextUnitOfWork);
@@ -177,8 +235,14 @@ namespace ReactiveUITK.Core.Fiber
                     float nowMs = Time.realtimeSinceStartup * 1000f;
                     if (nowMs - startMs >= TimeSliceMs)
                     {
+                        yielded = true;
                         break;
                     }
+                }
+
+                if (yielded && _nextUnitOfWork != null)
+                {
+                    _yieldCount++;
                 }
             }
             finally
@@ -199,6 +263,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private FiberNode PerformUnitOfWork(FiberNode unitOfWork)
         {
+            _workUnitCount++;
+
             // BeginWork: reconcile this fiber's children
             var next = BeginWork(unitOfWork);
 
@@ -225,19 +291,53 @@ namespace ReactiveUITK.Core.Fiber
                 UnityEngine.Debug.Log($"[Fiber] BeginWork: {fiber.ElementType} ({fiber.Tag})");
             }
 
-            switch (fiber.Tag)
+            try
             {
-                case FiberTag.HostComponent:
-                    return UpdateHostComponent(fiber);
-                
-                case FiberTag.FunctionComponent:
-                    return UpdateFunctionComponent(fiber);
-                
-                case FiberTag.Fragment:
-                    return UpdateFragment(fiber);
-                
-                default:
-                    return null;
+                switch (fiber.Tag)
+                {
+                    case FiberTag.HostComponent:
+                        return UpdateHostComponent(fiber);
+                    
+                    case FiberTag.FunctionComponent:
+                        return UpdateFunctionComponent(fiber);
+                    
+                    case FiberTag.Fragment:
+                        return UpdateFragment(fiber);
+
+                    case FiberTag.HostPortal:
+                        return UpdatePortal(fiber);
+
+                    case FiberTag.ErrorBoundary:
+                        return UpdateErrorBoundary(fiber);
+                    
+                    default:
+                        return null;
+                }
+            }
+            catch (FiberSuspenseSuspendException)
+            {
+                // Suspense control-flow: rendering for this branch is
+                // intentionally suspended. A re-render has already been
+                // scheduled via Hooks.SuspendUntil / Suspense, so we just
+                // stop traversing this subtree for the current render.
+                return null;
+            }
+            catch (Exception ex)
+            {
+                var boundary = FindNearestErrorBoundary(fiber);
+                var boundaryVNode = boundary?.LastRenderedVNode;
+
+                if (boundary != null && boundaryVNode != null)
+                {
+                    if (TryActivateErrorBoundary(boundary, boundaryVNode, ex))
+                    {
+                        // Re-run work for the boundary using its updated state.
+                        return UpdateErrorBoundary(boundary);
+                    }
+                }
+
+                // No boundary handled the error - rethrow so it surfaces clearly.
+                throw;
             }
         }
 
@@ -369,6 +469,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitRoot()
         {
+            _commitCount++;
+
             CommitPhaseSampler.Begin();
             try
             {
@@ -390,6 +492,8 @@ namespace ReactiveUITK.Core.Fiber
                 _root.WorkInProgress = null;
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
+
+                EmitMetrics();
             }
             finally
             {
@@ -454,6 +558,11 @@ namespace ReactiveUITK.Core.Fiber
             {
                 SchedulePassiveEffects(fiber);
             }
+
+            if ((fiber.EffectTag & (EffectFlags.LayoutEffect | EffectFlags.PassiveEffect)) != 0)
+            {
+                _effectsCommitted++;
+            }
         }
 
         /// <summary>
@@ -461,6 +570,13 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitPlacement(FiberNode fiber)
         {
+            // Portals use an existing VisualElement as their host and
+            // should not be inserted into the normal parent hierarchy.
+            if (fiber.Tag == FiberTag.HostPortal)
+            {
+                return;
+            }
+
             if (fiber.HostElement == null) return;
 
             // Find parent host fiber
@@ -562,6 +678,12 @@ namespace ReactiveUITK.Core.Fiber
                 Hooks.DisposeSignalSubscriptions(fiber.ComponentState);
             }
 
+            // Portals do not own the portal target element.
+            if (fiber.Tag == FiberTag.HostPortal)
+            {
+                return;
+            }
+
             if (fiber.HostElement != null)
             {
                 var parent = _hostConfig.GetParent(fiber.HostElement);
@@ -617,6 +739,163 @@ namespace ReactiveUITK.Core.Fiber
         private FiberNode UpdateFragment(FiberNode fiber)
         {
             return FiberFragment.UpdateFragment(fiber);
+        }
+
+        private FiberNode UpdatePortal(FiberNode fiber)
+        {
+            if (fiber.Children != null && fiber.Children.Count > 0)
+            {
+                ReconcileChildren(fiber, fiber.Children);
+            }
+
+            return fiber.Child;
+        }
+
+        private FiberNode UpdateErrorBoundary(FiberNode fiber)
+        {
+            var boundaryNode = fiber.LastRenderedVNode;
+            if (boundaryNode == null)
+            {
+                return null;
+            }
+
+            bool resetRequested = !string.Equals(
+                fiber.ErrorBoundaryResetKey,
+                boundaryNode.ErrorResetToken,
+                StringComparison.Ordinal
+            );
+
+            if (resetRequested)
+            {
+                fiber.ErrorBoundaryActive = false;
+                fiber.ErrorBoundaryShowingFallback = false;
+                fiber.ErrorBoundaryLastException = null;
+                fiber.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
+            }
+
+            IReadOnlyList<VirtualNode> targetChildren;
+
+            if (fiber.ErrorBoundaryActive && !resetRequested)
+            {
+                if (boundaryNode.ErrorFallback != null)
+                {
+                    targetChildren = new[] { boundaryNode.ErrorFallback };
+                }
+                else
+                {
+                    targetChildren = Array.Empty<VirtualNode>();
+                }
+
+                fiber.ErrorBoundaryShowingFallback = true;
+            }
+            else
+            {
+                targetChildren = boundaryNode.Children ?? Array.Empty<VirtualNode>();
+                fiber.ErrorBoundaryShowingFallback = false;
+            }
+
+            fiber.Children = targetChildren;
+
+            if (targetChildren.Count > 0)
+            {
+                ReconcileChildren(fiber, targetChildren);
+            }
+            else
+            {
+                // Ensure any previous children are deleted.
+                ReconcileChildren(fiber, Array.Empty<VirtualNode>());
+            }
+
+            return fiber.Child;
+        }
+
+        private FiberNode FindNearestErrorBoundary(FiberNode fiber)
+        {
+            var current = fiber;
+            while (current != null)
+            {
+                if (current.Tag == FiberTag.ErrorBoundary)
+                {
+                    return current;
+                }
+                current = current.Parent;
+            }
+
+            return null;
+        }
+
+        private bool TryActivateErrorBoundary(
+            FiberNode boundary,
+            VirtualNode boundaryNode,
+            Exception exception)
+        {
+            if (boundary == null || boundaryNode == null)
+            {
+                return false;
+            }
+
+            // Avoid recursive activation if fallback itself throws.
+            if (boundary.ErrorBoundaryActive)
+            {
+                return false;
+            }
+
+            boundary.ErrorBoundaryActive = true;
+            boundary.ErrorBoundaryShowingFallback = true;
+            boundary.ErrorBoundaryLastException = exception;
+            boundary.ErrorBoundaryResetKey = boundaryNode.ErrorResetToken;
+
+            bool handled = false;
+
+            if (boundaryNode.ErrorFallback != null)
+            {
+                handled = true;
+            }
+
+            if (boundaryNode.ErrorHandler != null)
+            {
+                try
+                {
+                    boundaryNode.ErrorHandler(exception);
+                    handled = true;
+                }
+                catch (Exception handlerEx)
+                {
+                    try
+                    {
+                        UnityEngine.Debug.LogError(
+                            $"ReactiveUITK Fiber: Error boundary handler threw: {handlerEx}"
+                        );
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+
+            if (!handled)
+            {
+                // Reset flags so the boundary doesn't stay in an inconsistent state.
+                boundary.ErrorBoundaryActive = false;
+                boundary.ErrorBoundaryShowingFallback = false;
+                boundary.ErrorBoundaryLastException = null;
+                return false;
+            }
+
+            try
+            {
+                if (exception != null)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"ReactiveUITK Fiber: Error boundary captured exception: {exception}"
+                    );
+                }
+            }
+            catch
+            {
+            }
+
+            return true;
         }
 
         // ===== Child reconciliation (The heart of the reconciler) =====
@@ -682,7 +961,60 @@ namespace ReactiveUITK.Core.Fiber
 
         private IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
         {
-            return vnode?.Properties ?? new Dictionary<string, object>();
+            if (vnode == null)
+            {
+                return new Dictionary<string, object>();
+            }
+
+            switch (vnode.NodeType)
+            {
+                case VirtualNodeType.Suspense:
+                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+
+                case VirtualNodeType.Text:
+                    return new Dictionary<string, object>
+                    {
+                        { "text", vnode.TextContent ?? string.Empty }
+                    };
+
+                default:
+                    return vnode.Properties ?? new Dictionary<string, object>();
+            }
         }
+
+        private void EmitMetrics()
+        {
+            if (!MetricsEmittedHasSubscribers())
+            {
+                _renderStopwatch.Reset();
+                return;
+            }
+
+            _renderStopwatch.Stop();
+            long elapsedMs = _renderStopwatch.ElapsedMilliseconds;
+
+            var snapshot = new FiberReconcilerMetrics(
+                elapsedMs,
+                _workUnitCount,
+                _commitCount,
+                _sliceCount,
+                _yieldCount,
+                _effectsCommitted);
+
+            try
+            {
+                MetricsEmitted?.Invoke(snapshot);
+            }
+            catch
+            {
+                // Swallow listener exceptions to avoid breaking rendering.
+            }
+            finally
+            {
+                _renderStopwatch.Reset();
+            }
+        }
+
+        private static bool MetricsEmittedHasSubscribers() => MetricsEmitted != null;
     }
 }

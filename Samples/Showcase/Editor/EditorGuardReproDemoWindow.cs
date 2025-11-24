@@ -7,15 +7,19 @@ using ReactiveUITK.Samples.FunctionalComponents;
 
 namespace ReactiveUITK.Samples.Editor
 {
-    public sealed class EditorSimpleTextFieldDemoWindow : EditorWindow
+    /// <summary>
+    /// Editor window that hosts the standalone GuardReproFunc demo
+    /// without any router involvement.
+    /// </summary>
+    public sealed class EditorGuardReproDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Simple TextField")]
+        [MenuItem("ReactiveUITK/Demos/Fiber Guard Repro (No Router)")]
         public static void ShowWindow()
         {
-            EditorSimpleTextFieldDemoWindow window = GetWindow<EditorSimpleTextFieldDemoWindow>(
-                "Simple TextField Demo"
+            EditorGuardReproDemoWindow window = GetWindow<EditorGuardReproDemoWindow>(
+                "Guard Repro (No Router)"
             );
-            window.minSize = new Vector2(420, 320);
+            window.minSize = new Vector2(360, 200);
             window.Show();
         }
 
@@ -23,7 +27,7 @@ namespace ReactiveUITK.Samples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(hostElement, V.Func(SimpleTextFieldFunc.Render));
+            EditorRootRendererUtility.Render(hostElement, V.Func(GuardReproFunc.Render));
         }
 
         private void OnDisable()
@@ -33,3 +37,4 @@ namespace ReactiveUITK.Samples.Editor
     }
 }
 #endif
+

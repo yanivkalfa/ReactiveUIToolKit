@@ -6,12 +6,6 @@ namespace ReactiveUITK.Core.Fiber
     public static class FiberConfig
     {
         /// <summary>
-        /// Enable Fiber reconciler (default: true)
-        /// Set to true to use new Fiber implementation
-        /// </summary>
-        public static bool UseFiberReconciler { get; set; } = true;
-
-        /// <summary>
         /// Enable verbose fiber logging
         /// </summary>
         public static bool EnableFiberLogging { get; set; } = true;

@@ -152,5 +152,9 @@ namespace ReactiveUITK.Core
         public Dictionary<ContextKey, int> ContextVersions;
         public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
         public Dictionary<int, object> PendingHookStatePreviews;
+        public SuspenseRenderState SuspenseState;
+        public Task SuspensePendingTask;
+        public object SuspenseTaskLock;
+        public int SuspenseTaskVersion;
     }
 }

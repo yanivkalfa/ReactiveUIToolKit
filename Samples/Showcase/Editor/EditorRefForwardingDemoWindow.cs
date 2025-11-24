@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorRefForwardingDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Ref Forwarding + useRef")]
+        [MenuItem("ReactiveUITK/Demos/Ref Forwarding + useRef")]
         public static void ShowWindow()
         {
             EditorRefForwardingDemoWindow window = GetWindow<EditorRefForwardingDemoWindow>(

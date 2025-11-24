@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using ReactiveUITK.Core.Fiber;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Signals;
@@ -194,6 +195,36 @@ namespace ReactiveUITK.Core
 
             private void EnqueuePendingUpdate(StateUpdate<T> update, T computed)
             {
+                // Fiber path: if the component state has an update callback,
+                // update the hook state immediately and trigger Fiber to
+                // schedule a re-render. This avoids relying on the legacy
+                // queued-update mechanism, which is primarily for the
+                // old reconciler.
+                if (state.OnStateUpdated != null)
+                {
+                    state.HookStates ??= new List<object>();
+                    while (state.HookStates.Count <= index)
+                    {
+                        state.HookStates.Add(null);
+                    }
+                    state.HookStates[index] = computed;
+                    state.PendingHookStatePreviews?.Remove(index);
+                    metadata?.SyncComponentState(state);
+
+                    try
+                    {
+                        UnityEngine.Debug.Log(
+                            $"[Hooks] EnqueuePendingUpdate (Fiber immediate) state={state?.GetHashCode() ?? 0} slot={index} computed={computed}"
+                        );
+                    }
+                    catch { }
+
+                    state.OnStateUpdated.Invoke();
+                    return;
+                }
+
+                // Legacy reconciler path: enqueue into a pending queue that
+                // will be flushed before the next render.
                 state.HookStateQueues ??= new Dictionary<int, HookStateUpdateQueue>();
                 if (!state.HookStateQueues.TryGetValue(index, out var queue))
                 {
@@ -208,20 +239,12 @@ namespace ReactiveUITK.Core
                 try
                 {
                     UnityEngine.Debug.Log(
-                        $"[Hooks] EnqueuePendingUpdate state={state?.GetHashCode() ?? 0} slot={index} computed={computed}"
+                        $"[Hooks] EnqueuePendingUpdate state={state?.GetHashCode() ?? 0} slot={index} computed={computed} hasUpdateCb={(state?.OnStateUpdated != null ? "true" : "false")}"
                     );
                 }
                 catch { }
 
-                // Fiber path: if the component state has an update callback,
-                // invoke it directly instead of going through the legacy path.
-                if (state.OnStateUpdated != null)
-                {
-                    state.OnStateUpdated.Invoke();
-                    return;
-                }
-
-                // Legacy reconciler path
+                // Legacy reconciler path: use the old metadata+FrameBatcher.
                 Hooks.RequestComponentRerender(metadata);
             }
 
@@ -562,6 +585,15 @@ namespace ReactiveUITK.Core
                 state.PendingHookStatePreviews?.Clear();
                 return;
             }
+
+            try
+            {
+                Debug.Log(
+                    $"[Hooks] FlushQueuedStateUpdates state={state.GetHashCode()} queues={state.HookStateQueues.Count}"
+                );
+            }
+            catch { }
+
             state.HookStates ??= new List<object>();
             foreach (var kvp in state.HookStateQueues)
             {
@@ -575,8 +607,16 @@ namespace ReactiveUITK.Core
                 var node = queue.ConsumeAll();
                 while (node != null)
                 {
+                    var before = current;
                     current = node.Update.Apply(current);
                     node = node.Next;
+                    try
+                    {
+                        Debug.Log(
+                            $"[Hooks] Flush slot={slot} before={before} after={current}"
+                        );
+                    }
+                    catch { }
                 }
                 while (state.HookStates.Count <= slot)
                 {
@@ -1399,12 +1439,12 @@ namespace ReactiveUITK.Core
         public static void ProvideContext<T>(string key, T value) =>
             ProvideContext(key, (object)value);
 
-        public static void ProvideContext(string key, object value)
-        {
-            if (string.IsNullOrEmpty(key))
-            {
-                return;
-            }
+          public static void ProvideContext(string key, object value)
+          {
+              if (string.IsNullOrEmpty(key))
+              {
+                  return;
+              }
 
             // Legacy path: use NodeMetadata pending context
             NodeMetadata metadata = HookContext.Current?.Owner;
@@ -1427,8 +1467,31 @@ namespace ReactiveUITK.Core
             {
                 fiber.ProvidedContext = new Dictionary<string, object>();
             }
-            fiber.ProvidedContext[key] = value;
-        }
+              fiber.ProvidedContext[key] = value;
+          }
+
+          /// <summary>
+          /// Suspend the current Fiber function component until the given task
+          /// completes, using Suspense. If the task is already completed, this
+          /// is a no-op. Otherwise it schedules a re-render and throws a
+          /// FiberSuspenseSuspendException to abort the current render pass.
+          /// </summary>
+          public static void SuspendUntil(Task task)
+          {
+              if (task == null || task.IsCompleted)
+              {
+                  return;
+              }
+
+              var state = HookContext.Current;
+              if (state != null)
+              {
+                  state.SuspensePendingTask = task;
+                  state.OnStateUpdated?.Invoke();
+              }
+
+              throw new FiberSuspenseSuspendException(task);
+          }
 
         public static void FlushSync(Action action)
         {

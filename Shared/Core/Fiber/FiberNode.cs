@@ -81,6 +81,12 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>For tracking rendered output</summary>
         public VirtualNode LastRenderedVNode;
 
+        // ==== Error Boundary State ====
+        public bool ErrorBoundaryActive;
+        public bool ErrorBoundaryShowingFallback;
+        public Exception ErrorBoundaryLastException;
+        public string ErrorBoundaryResetKey;
+
         // ==== Lifecycle ====
         /// <summary>List of layout effects to run</summary>
         public List<(Func<Action> factory, object[] deps, object[] lastDeps, Action cleanup)> LayoutEffects;

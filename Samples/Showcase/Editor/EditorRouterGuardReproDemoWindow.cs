@@ -3,19 +3,22 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Samples.Shared;
+using ReactiveUITK.Samples.FunctionalComponents;
 
 namespace ReactiveUITK.Samples.Editor
 {
-    public sealed class EditorAppExampleWindow : EditorWindow
+    /// <summary>
+    /// Editor window that hosts the RouterGuardReproFunc demo,
+    /// i.e., GuardReproFunc nested under a Router.
+    /// </summary>
+    public sealed class EditorRouterGuardReproDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Showcase All")]
+        [MenuItem("ReactiveUITK/Demos/Fiber Guard Repro (Router)")]
         public static void ShowWindow()
         {
-            EditorAppExampleWindow window = GetWindow<EditorAppExampleWindow>(
-                "ReactiveUITK Showcase Demo"
-            );
-            window.minSize = new Vector2(420, 320);
+            EditorRouterGuardReproDemoWindow window =
+                GetWindow<EditorRouterGuardReproDemoWindow>("Guard Repro (Router)");
+            window.minSize = new Vector2(360, 220);
             window.Show();
         }
 
@@ -25,7 +28,7 @@ namespace ReactiveUITK.Samples.Editor
             hostElement.style.flexGrow = 1f;
             EditorRootRendererUtility.Render(
                 hostElement,
-                V.Func(SharedDemoPage.Render, key: "shared-demo-page")
+                V.Func(RouterGuardReproFunc.Render)
             );
         }
 
@@ -36,3 +39,4 @@ namespace ReactiveUITK.Samples.Editor
     }
 }
 #endif
+

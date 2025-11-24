@@ -40,6 +40,16 @@ namespace ReactiveUITK.Core.Fiber
             // Wire up state updates to Fiber reconciler
             componentState.OnStateUpdated = () =>
             {
+                if (FiberConfig.EnableFiberLogging)
+                {
+                    try
+                    {
+                        UnityEngine.Debug.Log(
+                            $"[Fiber] OnStateUpdated invoked for fiber {wipFiber.ElementType} key={wipFiber.Key}"
+                        );
+                    }
+                    catch { }
+                }
                 reconciler.ScheduleUpdateOnFiber(wipFiber, null);
             };
 
@@ -113,6 +123,14 @@ namespace ReactiveUITK.Core.Fiber
                     ComponentState = currentChild.ComponentState,
                     Alternate = currentChild,
                     Props = currentChild.Props,
+                    ContextFrame = currentChild.ContextFrame,
+                    ContextProviderId = currentChild.ContextProviderId,
+                    ProvidedContext = currentChild.ProvidedContext,
+                    PortalTarget = currentChild.PortalTarget,
+                    ErrorBoundaryActive = currentChild.ErrorBoundaryActive,
+                    ErrorBoundaryShowingFallback = currentChild.ErrorBoundaryShowingFallback,
+                    ErrorBoundaryLastException = currentChild.ErrorBoundaryLastException,
+                    ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
                     Parent = parent,
                     Index = 0
                 };
@@ -120,6 +138,7 @@ namespace ReactiveUITK.Core.Fiber
                 clone.PendingProps = ExtractProps(newVNode);
                 clone.Children = newVNode.Children;
                 clone.EffectTag = EffectFlags.Update;
+                clone.LastRenderedVNode = newVNode;
 
                 // Delete remaining siblings
                 var sibling = currentChild.Sibling;
@@ -167,6 +186,16 @@ namespace ReactiveUITK.Core.Fiber
                     return fiber.Tag == FiberTag.FunctionComponent &&
                            fiber.Render == vnode.FunctionRender;
 
+                case VirtualNodeType.Suspense:
+                    return fiber.Tag == FiberTag.FunctionComponent &&
+                           fiber.Render == FiberIntrinsicComponents.SuspenseRender;
+
+                case VirtualNodeType.Portal:
+                    return fiber.Tag == FiberTag.HostPortal;
+
+                case VirtualNodeType.ErrorBoundary:
+                    return fiber.Tag == FiberTag.ErrorBoundary;
+
                 case VirtualNodeType.Fragment:
                     return fiber.Tag == FiberTag.Fragment;
 
@@ -199,9 +228,38 @@ namespace ReactiveUITK.Core.Fiber
                     fiber.ElementType = vnode.ElementTypeName;
                     break;
 
+                case VirtualNodeType.Text:
+                    fiber.Tag = FiberTag.HostComponent;
+                    fiber.ElementType = "Label";
+                    break;
+
                 case VirtualNodeType.FunctionComponent:
                     fiber.Tag = FiberTag.FunctionComponent;
                     fiber.Render = vnode.FunctionRender;
+                    break;
+
+                case VirtualNodeType.Suspense:
+                    fiber.Tag = FiberTag.FunctionComponent;
+                    fiber.Render = FiberIntrinsicComponents.SuspenseRender;
+                    fiber.PendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    fiber.EffectTag = EffectFlags.None;
+                    break;
+
+                case VirtualNodeType.Portal:
+                    fiber.Tag = FiberTag.HostPortal;
+                    fiber.PortalTarget = vnode.PortalTarget;
+                    fiber.HostElement = vnode.PortalTarget;
+                    fiber.EffectTag = EffectFlags.None;
+                    break;
+
+                case VirtualNodeType.ErrorBoundary:
+                    fiber.Tag = FiberTag.ErrorBoundary;
+                    fiber.LastRenderedVNode = vnode;
+                    fiber.ErrorBoundaryResetKey = vnode.ErrorResetToken;
+                    fiber.ErrorBoundaryActive = false;
+                    fiber.ErrorBoundaryShowingFallback = false;
+                    fiber.ErrorBoundaryLastException = null;
+                    fiber.EffectTag = EffectFlags.None;
                     break;
 
                 case VirtualNodeType.Fragment:
@@ -231,7 +289,25 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
         {
-            return vnode?.Properties ?? new Dictionary<string, object>();
+            if (vnode == null)
+            {
+                return new Dictionary<string, object>();
+            }
+
+            switch (vnode.NodeType)
+            {
+                case VirtualNodeType.Suspense:
+                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+
+                case VirtualNodeType.Text:
+                    return new Dictionary<string, object>
+                    {
+                        { "text", vnode.TextContent ?? string.Empty }
+                    };
+
+                default:
+                    return vnode.Properties ?? new Dictionary<string, object>();
+            }
         }
 
         /// <summary>
