@@ -111,7 +111,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
-            if (_root == null) return;
+            if (_root == null)
+            {
+                return;
+            }
 
             // Reset metrics for this render
             _workUnitCount = 0;
@@ -128,8 +131,25 @@ namespace ReactiveUITK.Core.Fiber
             }
             var rootVNode = _root.RootVNode;
 
+            // Find the root fiber for this update by walking up the
+            // parent chain. Fall back to the current root if needed.
+            FiberNode rootCurrent = fiber;
+            while (rootCurrent != null && rootCurrent.Parent != null)
+            {
+                rootCurrent = rootCurrent.Parent;
+            }
+            if (rootCurrent == null)
+            {
+                rootCurrent = _root.Current;
+            }
+            if (rootCurrent == null)
+            {
+                // No valid root to update; safely bail out.
+                return;
+            }
+
             // Create work-in-progress root
-            _workInProgressRoot = CreateWorkInProgress(_root.Current, rootVNode);
+            _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
 

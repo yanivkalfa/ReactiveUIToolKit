@@ -429,8 +429,6 @@ namespace ReactiveUITK.Samples.Shared
                 OnClick = () => setRepeatClickCount(repeatClickCount + 1),
             };
 
-            
-
             var batchTestButtonProps = new ButtonProps
             {
                 Text = $"Batch Test ({batchClicks})",
@@ -445,10 +443,6 @@ namespace ReactiveUITK.Samples.Shared
                 },
                 Style = new Style { (MarginLeft, 6f) },
             };
-
-            
-
-            
 
             Hooks.UseEffect(
                 () =>
@@ -1321,62 +1315,51 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         showListTabs ? V.Fragment() : V.Text("List tabs hidden")
                     ),
-                    
                     V.Label(new LabelProps { Text = "New Fields" }),
                     V.GroupBox(
                         new GroupBoxProps
                         {
                             Text = "Numeric, Vector and Color Fields",
-                            Style = new Style { (MarginTop, 8f) }
+                            Style = new Style { (MarginTop, 8f) },
                         },
                         null,
                         V.Label(new LabelProps { Text = "FloatField" }),
-                        V.FloatField(
-                            new FloatFieldProps { Value = 1.23f }
-                        ),
+                        V.FloatField(new FloatFieldProps { Value = 1.23f }),
                         V.Label(new LabelProps { Text = "IntegerField" }),
-                        V.IntegerField(
-                            new IntegerFieldProps { Value = 42 }
-                        ),
+                        V.IntegerField(new IntegerFieldProps { Value = 42 }),
                         V.Label(new LabelProps { Text = "LongField" }),
-                        V.LongField(
-                            new LongFieldProps { Value = 123456789 }
-                        ),
+                        V.LongField(new LongFieldProps { Value = 123456789 }),
                         V.Label(new LabelProps { Text = "DoubleField" }),
-                        V.DoubleField(
-                            new DoubleFieldProps { Value = 3.14159 }
-                        ),
+                        V.DoubleField(new DoubleFieldProps { Value = 3.14159 }),
                         V.Label(new LabelProps { Text = "UnsignedIntegerField" }),
-                        V.UnsignedIntegerField(
-                            new UnsignedIntegerFieldProps { Value = 77 }
-                        ),
+                        V.UnsignedIntegerField(new UnsignedIntegerFieldProps { Value = 77 }),
                         V.Label(new LabelProps { Text = "UnsignedLongField" }),
-                        V.UnsignedLongField(
-                            new UnsignedLongFieldProps { Value = 9876543210 }
-                        ),
+                        V.UnsignedLongField(new UnsignedLongFieldProps { Value = 9876543210 }),
                         V.Label(new LabelProps { Text = "Vector2Field" }),
                         V.Vector2Field(
-                            new Vector2FieldProps { Value = new UnityEngine.Vector2(1,2) }
+                            new Vector2FieldProps { Value = new UnityEngine.Vector2(1, 2) }
                         ),
                         V.Label(new LabelProps { Text = "Vector3Field" }),
                         V.Vector3Field(
-                            new Vector3FieldProps { Value = new UnityEngine.Vector3(1,2,3) }
+                            new Vector3FieldProps { Value = new UnityEngine.Vector3(1, 2, 3) }
                         ),
                         V.Label(new LabelProps { Text = "Vector4Field" }),
                         V.Vector4Field(
-                            new Vector4FieldProps { Value = new UnityEngine.Vector4(1,2,3,4) }
+                            new Vector4FieldProps { Value = new UnityEngine.Vector4(1, 2, 3, 4) }
                         ),
                         V.Label(new LabelProps { Text = "ColorField" }),
                         V.ColorField(
-                            new ColorFieldProps { Value = new UnityEngine.Color(0.2f,0.6f,0.9f,1f) }
+                            new ColorFieldProps
+                            {
+                                Value = new UnityEngine.Color(0.2f, 0.6f, 0.9f, 1f),
+                            }
                         )
-                    )
-                    ,
+                    ),
                     V.GroupBox(
                         new GroupBoxProps
                         {
                             Text = "More Fields",
-                            Style = new Style { (MarginTop, 8f) }
+                            Style = new Style { (MarginTop, 8f) },
                         },
                         null,
                         // EnumField
@@ -1396,7 +1379,7 @@ namespace ReactiveUITK.Samples.Shared
                                 LowValue = 0f,
                                 HighValue = 100f,
                                 Value = 25f,
-                                Style = new Style { (Height, 18f), (Width, 160f) }
+                                Style = new Style { (Height, 18f), (Width, 160f) },
                             }
                         ),
                         // TextElement
@@ -1405,7 +1388,7 @@ namespace ReactiveUITK.Samples.Shared
                             new TextElementProps
                             {
                                 Text = "This is a TextElement",
-                                Style = new Style { (FontSize, 13f) }
+                                Style = new Style { (FontSize, 13f) },
                             }
                         ),
                         // IMGUIContainer
@@ -1413,8 +1396,11 @@ namespace ReactiveUITK.Samples.Shared
                         V.IMGUIContainer(
                             new IMGUIContainerProps
                             {
-                                OnGUI = () => { UnityEngine.GUILayout.Label("IMGUI says hello"); },
-                                Style = new Style { (Height, 22f) }
+                                OnGUI = () =>
+                                {
+                                    UnityEngine.GUILayout.Label("IMGUI says hello");
+                                },
+                                Style = new Style { (Height, 22f) },
                             }
                         ),
                         // Vector2Int/Vector3Int
@@ -1437,7 +1423,13 @@ namespace ReactiveUITK.Samples.Shared
                         ),
                         V.Label(new LabelProps { Text = "BoundsField" }),
                         V.BoundsField(
-                            new BoundsFieldProps { Value = new UnityEngine.Bounds(new UnityEngine.Vector3(0,0,0), new UnityEngine.Vector3(1,2,3)) }
+                            new BoundsFieldProps
+                            {
+                                Value = new UnityEngine.Bounds(
+                                    new UnityEngine.Vector3(0, 0, 0),
+                                    new UnityEngine.Vector3(1, 2, 3)
+                                ),
+                            }
                         )
 #if UNITY_EDITOR
                         ,
@@ -1451,13 +1443,12 @@ namespace ReactiveUITK.Samples.Shared
                             }
                         )
 #endif
-                    )
-                    ,
+                    ),
                     V.GroupBox(
                         new GroupBoxProps
                         {
                             Text = "Even More Fields",
-                            Style = new Style { (MarginTop, 8f) }
+                            Style = new Style { (MarginTop, 8f) },
                         },
                         null,
                         // MinMaxSlider
@@ -1469,7 +1460,7 @@ namespace ReactiveUITK.Samples.Shared
                                 MaxValue = 80f,
                                 LowLimit = 0f,
                                 HighLimit = 100f,
-                                Style = new Style { (Width, 200f) }
+                                Style = new Style { (Width, 200f) },
                             }
                         ),
                         // TemplateContainer
@@ -1477,8 +1468,16 @@ namespace ReactiveUITK.Samples.Shared
                         V.TemplateContainer(
                             new TemplateContainerProps
                             {
-                                ContentContainer = new Style { (Padding, 6f), (BackgroundColor, new Color(1f,1f,1f,1f)) },
-                                Style = new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f,0.85f,0.85f,1f)) }
+                                ContentContainer = new Style
+                                {
+                                    (Padding, 6f),
+                                    (BackgroundColor, new Color(1f, 1f, 1f, 1f)),
+                                },
+                                Style = new Style
+                                {
+                                    (BorderWidth, 1f),
+                                    (BorderColor, new Color(0.85f, 0.85f, 0.85f, 1f)),
+                                },
                             },
                             null,
                             V.Label(new LabelProps { Text = "Inside TemplateContainer" })
@@ -1486,12 +1485,15 @@ namespace ReactiveUITK.Samples.Shared
                         // BoundsIntField
                         V.Label(new LabelProps { Text = "BoundsIntField" }),
                         V.BoundsIntField(
-                            new BoundsIntFieldProps { Value = new UnityEngine.BoundsInt(1,2,3, 4,5,6) }
+                            new BoundsIntFieldProps
+                            {
+                                Value = new UnityEngine.BoundsInt(1, 2, 3, 4, 5, 6),
+                            }
                         ),
                         // Hash128Field
                         V.Label(new LabelProps { Text = "Hash128Field" }),
                         V.Hash128Field(
-                            new Hash128FieldProps { Value = new UnityEngine.Hash128(1,2,3,4) }
+                            new Hash128FieldProps { Value = new UnityEngine.Hash128(1, 2, 3, 4) }
                         ),
                         // ToggleButtonGroup
                         V.Label(new LabelProps { Text = "ToggleButtonGroup" }),

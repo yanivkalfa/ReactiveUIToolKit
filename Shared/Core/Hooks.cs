@@ -381,8 +381,19 @@ namespace ReactiveUITK.Core
                 return metadata.Container;
             }
 
-            // Fiber path: find the nearest ancestor host element from the current fiber.
+            // Fiber path: first try to find a host element in the current
+            // function component's subtree (for headless wrappers like
+            // Animate), then fall back to walking ancestor fibers.
             var fiber = state?.Fiber;
+            if (fiber != null)
+            {
+                var descendantHost = FindFirstHostElement(fiber.Child);
+                if (descendantHost != null)
+                {
+                    return descendantHost;
+                }
+            }
+
             while (fiber != null)
             {
                 if (fiber.HostElement != null)
@@ -390,6 +401,25 @@ namespace ReactiveUITK.Core
                     return fiber.HostElement;
                 }
                 fiber = fiber.Parent;
+            }
+            return null;
+        }
+
+        private static UnityEngine.UIElements.VisualElement FindFirstHostElement(Fiber.FiberNode node)
+        {
+            var current = node;
+            while (current != null)
+            {
+                if (current.HostElement != null)
+                {
+                    return current.HostElement;
+                }
+                var childResult = FindFirstHostElement(current.Child);
+                if (childResult != null)
+                {
+                    return childResult;
+                }
+                current = current.Sibling;
             }
             return null;
         }
@@ -1073,23 +1103,41 @@ namespace ReactiveUITK.Core
         {
             NodeMetadata metadata = HookContext.Current?.Owner;
             var state = EnsureState(metadata);
-            if (metadata == null || state == null)
+            if (state == null)
             {
                 return null;
             }
+
+            // Fiber path: prefer the current fiber's host element or
+            // its first host-descendant as the ref target.
+            VisualElement target = null;
+            var fiber = state.Fiber;
+            if (fiber != null)
+            {
+                target = ResolveAnimationTarget(metadata, state);
+            }
+
+            // Legacy path: fall back to metadata.Container when available.
+            target ??= metadata?.Container;
+
+            if (target == null)
+            {
+                return null;
+            }
+
             RecordHook(metadata, state, HookIdElementRef);
             state.HookStates ??= new List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
-                state.HookStates.Add(metadata.Container);
+                state.HookStates.Add(target);
             }
             else
             {
-                state.HookStates[state.HookIndex] = metadata.Container;
+                state.HookStates[state.HookIndex] = target;
             }
             state.HookIndex++;
-            metadata?.SyncComponentState(state);
-            return metadata.Container;
+            SyncState(metadata, state);
+            return target;
         }
 
         public static void UseEffect(Func<Action> effectFactory, params object[] dependencies)

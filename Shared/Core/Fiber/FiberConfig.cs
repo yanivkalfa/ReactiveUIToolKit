@@ -8,7 +8,8 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Enable verbose fiber logging
         /// </summary>
-        public static bool EnableFiberLogging { get; set; } = true;
+        public static bool EnableFiberLogging { get; set; } = false;
+
         /// <summary>
         /// Enable to see which reconciler is being used
         /// </summary>

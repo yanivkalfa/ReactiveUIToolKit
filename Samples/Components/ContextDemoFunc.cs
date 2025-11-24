@@ -72,6 +72,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     (StyleKeys.Color, Color.black),
                 };
 
+                // Add extra spacing between primary and secondary panels
+                if (label == "Secondary Panel")
+                {
+                    style[StyleKeys.MarginTop] = 10f;
+                }
+
                 return V.VisualElement(
                     style,
                     null,
