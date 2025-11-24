@@ -93,15 +93,15 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         V.VisualElement(
                             CardStyle,
                             null,
-                            V.Func(LocationBanner.Render),
-                            V.Func(NavigatePanel.Render),
+                            V.Func(LocationBanner),
+                            V.Func(NavigatePanel),
                             V.Func(QuickAccessPanel.Render)
                         ),
                         V.VisualElement(
                             CardStyle,
                             null,
-                            V.Func(HistoryPanel.Render),
-                            V.Func(NavigationGuardPanel.Render)
+                            V.Func(HistoryPanel),
+                            V.Func(NavigationGuardPanel)
                         ),
                         V.VisualElement(
                             CardStyle,
@@ -137,7 +137,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                             (StyleKeys.FlexDirection, "column"),
                                         },
                                         null,
-                                        V.Func(UserDetails.Render),
+                                        V.Func(UserDetails),
                                         V.Route(
                                             path: "/users/:id/details",
                                             element: V.Text(
@@ -149,7 +149,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             ),
                             V.Route(
                                 path: "/settings/*",
-                                children: new[] { V.Func(SettingsPanel.Render) }
+                                children: new[] { V.Func(SettingsPanel) }
                             ),
                             V.Route(
                                 path: "*",
@@ -176,94 +176,102 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
         }
 
-        private static class LocationBanner
+        private static VirtualNode LocationBanner(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
-            )
-            {
-                var location = RouterHooks.UseLocationInfo();
-                var query = RouterHooks.UseQuery();
-                var navState = RouterHooks.UseNavigationState();
+            var location = RouterHooks.UseLocationInfo();
+            var query = RouterHooks.UseQuery();
+            var navState = RouterHooks.UseNavigationState();
 
-                return V.VisualElement(
-                    new Style { (StyleKeys.FlexDirection, "column") },
-                    null,
-                    V.Text($"Current path: {location?.Path ?? "/"}"),
-                    V.Text($"Query params: {DescribeQuery(query)}"),
-                    V.Text($"Navigation state: {DescribeState(navState)}")
-                );
-            }
+            return V.VisualElement(
+                new Style { (StyleKeys.FlexDirection, "column") },
+                null,
+                V.Text($"Current path: {location?.Path ?? "/"}"),
+                V.Text($"Query params: {DescribeQuery(query)}"),
+                V.Text($"Navigation state: {DescribeState(navState)}")
+            );
         }
 
-        private static class NavigatePanel
+        private static VirtualNode NavigatePanel(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
-            )
-            {
-                var (path, setPath) = Hooks.UseState("/users/42?tab=overview");
-                var (stateValue, setStateValue) = Hooks.UseState(string.Empty);
-                var navigate = RouterHooks.UseNavigate();
-                var replace = RouterHooks.UseNavigate(replace: true);
-                return V.VisualElement(
-                    new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.MarginTop, 4f) },
+            Hooks.MutableRef<TextField> pathRef = Hooks.UseRef<TextField>();
+            Hooks.MutableRef<TextField> stateRef = Hooks.UseRef<TextField>();
+
+            var navigate = RouterHooks.UseNavigate();
+            var replace = RouterHooks.UseNavigate(replace: true);
+            return V.VisualElement(
+                new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.MarginTop, 4f) },
+                null,
+                V.Text("Jump to any path:"),
+                V.TextField(
+                    new TextFieldProps
+                    {
+                        // Initial suggestion; field is otherwise uncontrolled.
+                        Value = "/users/42?tab=overview",
+                        Placeholder = "/users/42 or /settings/profile",
+                        Ref = pathRef,
+                    }
+                ),
+                V.TextField(
+                    new TextFieldProps
+                    {
+                        Placeholder = "Optional state payload (stored with navigation)",
+                        Ref = stateRef,
+                    }
+                ),
+                V.VisualElement(
+                    new Style
+                    {
+                        (StyleKeys.FlexDirection, "row"),
+                        (StyleKeys.MarginTop, 4f),
+                        (StyleKeys.MarginBottom, 2f),
+                    },
                     null,
-                    V.Text("Jump to any path:"),
-                    V.TextField(
-                        new TextFieldProps
+                    V.Button(
+                        new ButtonProps
                         {
-                            Value = path,
-                            Placeholder = "/users/42 or /settings/profile",
-                            OnChange = evt =>
-                                setPath(string.IsNullOrEmpty(evt.newValue) ? "/" : evt.newValue),
+                            Text = "Push",
+                            Style = new Style { (StyleKeys.Width, 80f) },
+                            OnClick = () =>
+                            {
+                                string rawPath = pathRef?.Value?.value;
+                                string effectivePath =
+                                    string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
+
+                                string rawState = stateRef?.Value?.value;
+                                object statePayload =
+                                    string.IsNullOrEmpty(rawState) ? null : rawState;
+
+                                navigate(effectivePath, statePayload);
+                            },
                         }
                     ),
-                    V.TextField(
-                        new TextFieldProps
+                    V.Button(
+                        new ButtonProps
                         {
-                            Value = stateValue,
-                            Placeholder = "Optional state payload (stored with navigation)",
-                            OnChange = evt => setStateValue(evt.newValue),
+                            Text = "Replace",
+                            Style = new Style { (StyleKeys.Width, 80f) },
+                            OnClick = () =>
+                            {
+                                string rawPath = pathRef?.Value?.value;
+                                string effectivePath =
+                                    string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
+
+                                string rawState = stateRef?.Value?.value;
+                                object statePayload =
+                                    string.IsNullOrEmpty(rawState) ? null : rawState;
+
+                                replace(effectivePath, statePayload);
+                            },
                         }
-                    ),
-                    V.VisualElement(
-                        new Style
-                        {
-                            (StyleKeys.FlexDirection, "row"),
-                            (StyleKeys.MarginTop, 4f),
-                            (StyleKeys.MarginBottom, 2f),
-                        },
-                        null,
-                        V.Button(
-                            new ButtonProps
-                            {
-                                Text = "Push",
-                                Style = new Style { (StyleKeys.Width, 80f) },
-                                OnClick = () =>
-                                    navigate(
-                                        path,
-                                        string.IsNullOrEmpty(stateValue) ? null : stateValue
-                                    ),
-                            }
-                        ),
-                        V.Button(
-                            new ButtonProps
-                            {
-                                Text = "Replace",
-                                Style = new Style { (StyleKeys.Width, 80f) },
-                                OnClick = () =>
-                                    replace(
-                                        path,
-                                        string.IsNullOrEmpty(stateValue) ? null : stateValue
-                                    ),
-                            }
-                        )
                     )
-                );
-            }
+                )
+            );
         }
 
         private static class QuickAccessPanel
@@ -325,58 +333,70 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
         }
 
-        private static class UserDetails
+        private static VirtualNode UserDetails(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
-            )
-            {
-                var match = RouterHooks.UseRouteMatch();
-                var query = RouterHooks.UseQuery();
-                var navState = RouterHooks.UseNavigationState();
-                string id =
-                    match?.Parameters != null && match.Parameters.TryGetValue("id", out var value)
-                        ? value
-                        : "(unknown)";
-                string tab =
-                    query != null && query.TryGetValue("tab", out var tabValue)
-                        ? tabValue
-                        : "(default)";
-                return V.Text(
-                    $"User route matched with id: {id} (tab={tab}, state={DescribeState(navState)})"
-                );
-            }
+            var match = RouterHooks.UseRouteMatch();
+            var query = RouterHooks.UseQuery();
+            var navState = RouterHooks.UseNavigationState();
+            string id =
+                match?.Parameters != null && match.Parameters.TryGetValue("id", out var value)
+                    ? value
+                    : "(unknown)";
+            string tab =
+                query != null && query.TryGetValue("tab", out var tabValue)
+                    ? tabValue
+                    : "(default)";
+            return V.Text(
+                $"User route matched with id: {id} (tab={tab}, state={DescribeState(navState)})"
+            );
         }
 
-        private static class SettingsPanel
+        private static VirtualNode SettingsPanel(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
+            var locationPath = RouterHooks.UseLocation();
+
+            string settingsContent;
+            if (
+                locationPath.StartsWith(
+                    "/settings/profile",
+                    StringComparison.OrdinalIgnoreCase
+                )
             )
             {
-                return V.VisualElement(
-                    new Style { (StyleKeys.MarginTop, 6f) },
-                    null,
-                    V.Text("Settings route (demonstrates nested sub-routes):"),
-                    V.VisualElement(
-                        new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) },
-                        null,
-                        NavLink.Create("/settings/profile", "Profile", exact: true),
-                        NavLink.Create("/settings/preferences", "Preferences", exact: true)
-                    ),
-                    V.Route(
-                        path: "/settings/profile",
-                        element: V.Text("Profile settings go here.")
-                    ),
-                    V.Route(
-                        path: "/settings/preferences",
-                        element: V.Text("Preferences settings go here.")
-                    ),
-                    V.Route(path: "*", element: V.Text("Select a settings section above."))
-                );
+                settingsContent = "Profile settings go here.";
             }
+            else if (
+                locationPath.StartsWith(
+                    "/settings/preferences",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
+            {
+                settingsContent = "Preferences settings go here.";
+            }
+            else
+            {
+                settingsContent = "Select a settings section above.";
+            }
+
+            return V.VisualElement(
+                new Style { (StyleKeys.MarginTop, 6f) },
+                null,
+                V.Text("Settings route (demonstrates nested sub-routes):"),
+                V.VisualElement(
+                    new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) },
+                    null,
+                    NavLink.Create("/settings/profile", "Profile", exact: true),
+                    NavLink.Create("/settings/preferences", "Preferences", exact: true)
+                ),
+                V.Text(settingsContent)
+            );
         }
 
         private static class NavLink
@@ -444,116 +464,109 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
         }
 
-        private static class HistoryPanel
+        private static VirtualNode HistoryPanel(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
-            )
-            {
-                var go = RouterHooks.UseGo();
-                bool canBack = RouterHooks.UseCanGo(-1);
-                bool canForward = RouterHooks.UseCanGo(1);
-                return V.VisualElement(
-                    new Style { (StyleKeys.MarginTop, 4f) },
+            var go = RouterHooks.UseGo();
+            bool canBack = RouterHooks.UseCanGo(-1);
+            bool canForward = RouterHooks.UseCanGo(1);
+            return V.VisualElement(
+                new Style { (StyleKeys.MarginTop, 4f) },
+                null,
+                V.Text("History controls:"),
+                V.Text($"Can go back: {canBack}, can go forward: {canForward}"),
+                V.VisualElement(
+                    new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) },
                     null,
-                    V.Text("History controls:"),
-                    V.Text($"Can go back: {canBack}, can go forward: {canForward}"),
-                    V.VisualElement(
-                        new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) },
-                        null,
-                        V.Button(
-                            new ButtonProps
-                            {
-                                Text = "Back",
-                                Style = new Style
-                                {
-                                    (StyleKeys.MarginRight, 6f),
-                                    (StyleKeys.Width, 80f),
-                                },
-                                OnClick = () =>
-                                {
-                                    if (canBack)
-                                    {
-                                        go(-1);
-                                    }
-                                },
-                            }
-                        ),
-                        V.Button(
-                            new ButtonProps
-                            {
-                                Text = "Forward",
-                                Style = new Style { (StyleKeys.Width, 80f) },
-                                OnClick = () =>
-                                {
-                                    if (canForward)
-                                    {
-                                        go(1);
-                                    }
-                                },
-                            }
-                        )
-                    )
-                );
-            }
-        }
-
-        private static class NavigationGuardPanel
-        {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
-            )
-            {
-                var (enabled, setEnabled) = Hooks.UseState(false);
-                var (message, setMessage) = Hooks.UseState("No navigation blocked yet.");
-
-                var blocker = Hooks.UseMemo(
-                    () =>
-                        new Func<RouterLocation, RouterLocation, bool>(
-                            (from, to) =>
-                            {
-                                setMessage(
-                                    $"Blocked navigation to {to?.Path ?? "/"} at {DateTime.Now:HH:mm:ss}"
-                                );
-                                return false;
-                            }
-                        ),
-                    Array.Empty<object>()
-                );
-
-                RouterHooks.UseBlocker(blocker, enabled);
-
-                Hooks.UseEffect(
-                    () =>
-                    {
-                        if (!enabled)
+                    V.Button(
+                        new ButtonProps
                         {
-                            setMessage("Guard disabled; all navigation allowed.");
-                        }
-                        return null;
-                    },
-                    enabled
-                );
-
-                return V.VisualElement(
-                    new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FlexDirection, "column") },
-                    null,
-                    V.Toggle(
-                        new ToggleProps
-                        {
-                            Text = "Require confirmation before navigation",
-                            Value = enabled,
-                            OnChange = evt => setEnabled(evt.newValue),
+                            Text = "Back",
+                            Style = new Style
+                            {
+                                (StyleKeys.MarginRight, 6f),
+                                (StyleKeys.Width, 80f),
+                            },
+                            OnClick = () =>
+                            {
+                                if (canBack)
+                                {
+                                    go(-1);
+                                }
+                            },
                         }
                     ),
-                    V.Text(message),
-                    enabled
-                        ? V.Text("Turn off the toggle to allow navigation to proceed.")
-                        : V.Text("Toggle on to block navigation attempts.")
-                );
-            }
+                    V.Button(
+                        new ButtonProps
+                        {
+                            Text = "Forward",
+                            Style = new Style { (StyleKeys.Width, 80f) },
+                            OnClick = () =>
+                            {
+                                if (canForward)
+                                {
+                                    go(1);
+                                }
+                            },
+                        }
+                    )
+                )
+            );
+        }
+
+        private static VirtualNode NavigationGuardPanel(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
+        {
+            var (enabled, setEnabled) = Hooks.UseState(false);
+            var (message, setMessage) =
+                Hooks.UseState("Guard disabled; all navigation allowed.");
+            var (clicks, setClicks) = Hooks.UseState(0);
+
+            // Temporary diagnostics: observe whether this component re-renders
+            // with updated hook state when events fire.
+            UnityEngine.Debug.Log(
+                $"[RouterDemoGuard] Render enabled={enabled} clicks={clicks} message='{message}'"
+            );
+
+            return V.VisualElement(
+                new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FlexDirection, "column") },
+                null,
+                V.Toggle(
+                    new ToggleProps
+                    {
+                        Text = "Require confirmation before navigation",
+                        Value = enabled,
+                        OnChange = evt =>
+                        {
+                            bool next = evt.newValue;
+                            setEnabled(next);
+                            if (next)
+                            {
+                                setMessage("Toggle on to block navigation attempts.");
+                            }
+                            else
+                            {
+                                setMessage("Guard disabled; all navigation allowed.");
+                            }
+                        },
+                    }
+                ),
+                V.Button(
+                    new ButtonProps
+                    {
+                        Text = $"Test clicks: {clicks}",
+                        OnClick = () => setClicks(clicks + 1),
+                        Style = new Style { (StyleKeys.MarginTop, 4f) },
+                    }
+                ),
+                V.Text($"Guard enabled: {enabled}"),
+                V.Text(message),
+                V.Text("Use the button above to require confirmation before navigation.")
+            );
         }
     }
 }
