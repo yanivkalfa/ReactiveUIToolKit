@@ -101,7 +101,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             CardStyle,
                             null,
                             V.Func(HistoryPanel),
-                            V.Func(NavigationGuardPanel)
+                            V.Func(NavigationGuardPanel, key: "navigation-guard")
                         ),
                         V.VisualElement(
                             CardStyle,
@@ -147,10 +147,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                     ),
                                 }
                             ),
-                            V.Route(
-                                path: "/settings/*",
-                                children: new[] { V.Func(SettingsPanel) }
-                            ),
+                            V.Route(path: "/settings/*", children: new[] { V.Func(SettingsPanel) }),
                             V.Route(
                                 path: "*",
                                 element: V.Text(
@@ -240,12 +237,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             OnClick = () =>
                             {
                                 string rawPath = pathRef?.Value?.value;
-                                string effectivePath =
-                                    string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
+                                string effectivePath = string.IsNullOrEmpty(rawPath)
+                                    ? "/"
+                                    : rawPath;
 
                                 string rawState = stateRef?.Value?.value;
-                                object statePayload =
-                                    string.IsNullOrEmpty(rawState) ? null : rawState;
+                                object statePayload = string.IsNullOrEmpty(rawState)
+                                    ? null
+                                    : rawState;
 
                                 navigate(effectivePath, statePayload);
                             },
@@ -259,12 +258,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             OnClick = () =>
                             {
                                 string rawPath = pathRef?.Value?.value;
-                                string effectivePath =
-                                    string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
+                                string effectivePath = string.IsNullOrEmpty(rawPath)
+                                    ? "/"
+                                    : rawPath;
 
                                 string rawState = stateRef?.Value?.value;
-                                object statePayload =
-                                    string.IsNullOrEmpty(rawState) ? null : rawState;
+                                object statePayload = string.IsNullOrEmpty(rawState)
+                                    ? null
+                                    : rawState;
 
                                 replace(effectivePath, statePayload);
                             },
@@ -362,20 +363,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var locationPath = RouterHooks.UseLocation();
 
             string settingsContent;
-            if (
-                locationPath.StartsWith(
-                    "/settings/profile",
-                    StringComparison.OrdinalIgnoreCase
-                )
-            )
+            if (locationPath.StartsWith("/settings/profile", StringComparison.OrdinalIgnoreCase))
             {
                 settingsContent = "Profile settings go here.";
             }
             else if (
-                locationPath.StartsWith(
-                    "/settings/preferences",
-                    StringComparison.OrdinalIgnoreCase
-                )
+                locationPath.StartsWith("/settings/preferences", StringComparison.OrdinalIgnoreCase)
             )
             {
                 settingsContent = "Preferences settings go here.";
@@ -522,14 +515,42 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         )
         {
             var (enabled, setEnabled) = Hooks.UseState(false);
-            var (message, setMessage) =
-                Hooks.UseState("Guard disabled; all navigation allowed.");
+            var (message, setMessage) = Hooks.UseState("Guard disabled; all navigation allowed.");
             var (clicks, setClicks) = Hooks.UseState(0);
+            var (lastBlockedFrom, setLastBlockedFrom) = Hooks.UseState<RouterLocation>(null);
+            var (lastBlockedTo, setLastBlockedTo) = Hooks.UseState<RouterLocation>(null);
 
             // Temporary diagnostics: observe whether this component re-renders
             // with updated hook state when events fire.
             UnityEngine.Debug.Log(
                 $"[RouterDemoGuard] Render enabled={enabled} clicks={clicks} message='{message}'"
+            );
+
+            // When enabled, register a router blocker that prevents navigation
+            // and updates the guard message whenever a transition is blocked.
+            RouterHooks.UseBlocker(
+                (from, to) =>
+                {
+                    if (!enabled)
+                    {
+                        return true;
+                    }
+
+                    setLastBlockedFrom(from);
+                    setLastBlockedTo(to);
+                    string fromPath = from?.Path ?? "(unknown)";
+                    string toPath = to?.Path ?? "(unknown)";
+                    setMessage(
+                        $"Blocked navigation from '{fromPath}' to '{toPath}'. Disable the guard to allow navigation."
+                    );
+
+                    UnityEngine.Debug.Log(
+                        $"[RouterDemoGuard] Blocked navigation from '{fromPath}' to '{toPath}'"
+                    );
+
+                    return false;
+                },
+                enabled: enabled
             );
 
             return V.VisualElement(

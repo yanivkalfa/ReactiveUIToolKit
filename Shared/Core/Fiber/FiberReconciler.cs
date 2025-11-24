@@ -672,10 +672,26 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitDeletion(FiberNode fiber)
         {
-            // Cleanup signal subscriptions for function components
+            if (fiber == null)
+            {
+                return;
+            }
+
+            // Depth-first delete: clean up subtree before removing the current node.
+
+            // If this is a function component, dispose any signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
             {
                 Hooks.DisposeSignalSubscriptions(fiber.ComponentState);
+            }
+
+            // Recurse into children so that all host descendants are removed.
+            var child = fiber.Child;
+            while (child != null)
+            {
+                var nextSibling = child.Sibling;
+                CommitDeletion(child);
+                child = nextSibling;
             }
 
             // Portals do not own the portal target element.

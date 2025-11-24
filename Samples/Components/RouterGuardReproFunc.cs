@@ -29,13 +29,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.Padding, 10f),
                             (StyleKeys.FlexGrow, 1f),
                         },
-                        null,
-                        V.Text("Router + Guard repro"),
-                        V.Func(GuardReproFunc.Render)
+                        "router-guard-root",
+                        V.Text("Router + Guard repro", "label"),
+                        V.Func(GuardReproFunc.Render, key: "guard")
                     ),
                 }
             );
         }
     }
 }
-

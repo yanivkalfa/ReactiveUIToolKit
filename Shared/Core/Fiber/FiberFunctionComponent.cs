@@ -98,6 +98,20 @@ namespace ReactiveUITK.Core.Fiber
                 return newChild;
             }
 
+            // If the function component now returns null, ensure any
+            // previously rendered child fibers are marked for deletion.
+            var existingChild = wipFiber.Alternate?.Child;
+            if (existingChild != null)
+            {
+                var child = existingChild;
+                while (child != null)
+                {
+                    DeleteChild(wipFiber, child);
+                    child = child.Sibling;
+                }
+            }
+
+            wipFiber.Child = null;
             return null;
         }
 
@@ -181,6 +195,12 @@ namespace ReactiveUITK.Core.Fiber
                 case VirtualNodeType.Element:
                     return fiber.Tag == FiberTag.HostComponent &&
                            fiber.ElementType == vnode.ElementTypeName;
+
+                case VirtualNodeType.Text:
+                    // Text nodes are modeled as host "Label" elements.
+                    // Reuse when the host element type matches.
+                    return fiber.Tag == FiberTag.HostComponent &&
+                           fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
                     return fiber.Tag == FiberTag.FunctionComponent &&

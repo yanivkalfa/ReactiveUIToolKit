@@ -148,16 +148,22 @@ namespace ReactiveUITK.Core.Fiber
             {
                 var newChild = newChildren[newIdx];
                 var key = newChild.Key ?? newIdx.ToString();
-                
+            
                 FiberNode newFiber = null;
-                
+            
                 // Try to find existing fiber with same key
                 if (existingChildren.TryGetValue(key, out var oldFiber))
                 {
-                    existingChildren.Remove(key);
+                    // Attempt to reuse the old fiber for this key.
+                    // Only remove from the lookup map if reuse succeeds;
+                    // otherwise keep it so that it can be deleted later.
                     newFiber = UpdateSlot(oldFiber, newChild);
+                    if (newFiber != null)
+                    {
+                        existingChildren.Remove(key);
+                    }
                 }
-                
+            
                 // If can't reuse, create new
                 if (newFiber == null)
                 {
@@ -226,6 +232,12 @@ namespace ReactiveUITK.Core.Fiber
                 case VirtualNodeType.Element:
                     return fiber.Tag == FiberTag.HostComponent && 
                            fiber.ElementType == vnode.ElementTypeName;
+
+                case VirtualNodeType.Text:
+                    // Text nodes are represented as host "Label" elements.
+                    // Treat them as reusable when the host element type matches.
+                    return fiber.Tag == FiberTag.HostComponent &&
+                           fiber.ElementType == "Label";
                 
                 case VirtualNodeType.FunctionComponent:
                     return fiber.Tag == FiberTag.FunctionComponent &&
