@@ -77,6 +77,31 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             return string.Join(", ", parts);
         }
 
+        private static string BuildPathWithQuery(RouterLocation location)
+        {
+            if (location == null)
+            {
+                return "/";
+            }
+
+            string path = string.IsNullOrEmpty(location.Path) ? "/" : location.Path;
+            var query = location.Query;
+            if (query == null || query.Count == 0)
+            {
+                return path;
+            }
+
+            var parts = new List<string>(query.Count);
+            foreach (var kv in query)
+            {
+                string key = Uri.EscapeDataString(kv.Key ?? string.Empty);
+                string value = Uri.EscapeDataString(kv.Value ?? string.Empty);
+                parts.Add($"{key}={value}");
+            }
+
+            return parts.Count == 0 ? path : $"{path}?{string.Join("&", parts)}";
+        }
+
         public static VirtualNode Render(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
@@ -520,11 +545,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var (lastBlockedFrom, setLastBlockedFrom) = Hooks.UseState<RouterLocation>(null);
             var (lastBlockedTo, setLastBlockedTo) = Hooks.UseState<RouterLocation>(null);
 
-            // Temporary diagnostics: observe whether this component re-renders
-            // with updated hook state when events fire.
-            UnityEngine.Debug.Log(
-                $"[RouterDemoGuard] Render enabled={enabled} clicks={clicks} message='{message}'"
-            );
+            // Used to allow a single navigation to bypass the guard
+            Hooks.MutableRef<bool> allowNextRef = Hooks.UseRef<bool>();
+
+            // For re-issuing confirmed navigations
+            var navigate = RouterHooks.UseNavigate();
 
             // When enabled, register a router blocker that prevents navigation
             // and updates the guard message whenever a transition is blocked.
@@ -536,16 +561,20 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         return true;
                     }
 
+                    // If a confirmation just set allowNextRef, let this
+                    // transition pass and reset the flag.
+                    if (allowNextRef.Value)
+                    {
+                        allowNextRef.Value = false;
+                        return true;
+                    }
+
                     setLastBlockedFrom(from);
                     setLastBlockedTo(to);
                     string fromPath = from?.Path ?? "(unknown)";
                     string toPath = to?.Path ?? "(unknown)";
                     setMessage(
                         $"Blocked navigation from '{fromPath}' to '{toPath}'. Disable the guard to allow navigation."
-                    );
-
-                    UnityEngine.Debug.Log(
-                        $"[RouterDemoGuard] Blocked navigation from '{fromPath}' to '{toPath}'"
                     );
 
                     return false;
@@ -567,7 +596,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             setEnabled(next);
                             if (next)
                             {
-                                setMessage("Toggle on to block navigation attempts.");
+                                setMessage("Guard enabled; navigation requires confirmation.");
                             }
                             else
                             {
@@ -586,7 +615,59 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 ),
                 V.Text($"Guard enabled: {enabled}"),
                 V.Text(message),
-                V.Text("Use the button above to require confirmation before navigation.")
+                V.Text("Use the button above to require confirmation before navigation."),
+                V.VisualElement(
+                    new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.FlexDirection, "row") },
+                    null,
+                    V.Button(
+                        new ButtonProps
+                        {
+                            Text =
+                                lastBlockedTo != null
+                                    ? $"Allow last: {lastBlockedFrom?.Path ?? "(unknown)"} → {lastBlockedTo.Path}"
+                                    : "Allow last blocked",
+                            Enabled = lastBlockedTo != null,
+                            OnClick = () =>
+                            {
+                                if (lastBlockedTo == null)
+                                {
+                                    return;
+                                }
+
+                                string targetPath = BuildPathWithQuery(lastBlockedTo);
+                                allowNextRef.Value = true;
+
+                                navigate(targetPath, lastBlockedTo.State);
+                                setLastBlockedFrom(default);
+                                setLastBlockedTo(default);
+                                setMessage("Guard enabled; last navigation was allowed.");
+                            },
+                            Style = new Style { (StyleKeys.Width, 180f) },
+                        }
+                    ),
+                    V.Button(
+                        new ButtonProps
+                        {
+                            Text = "Dismiss",
+                            Enabled = lastBlockedTo != null,
+                            OnClick = () =>
+                            {
+                                setLastBlockedFrom(default);
+                                setLastBlockedTo(default);
+                                setMessage(
+                                    enabled
+                                        ? "Guard enabled; navigation requires confirmation."
+                                        : "Guard disabled; all navigation allowed."
+                                );
+                            },
+                            Style = new Style
+                            {
+                                (StyleKeys.MarginLeft, 4f),
+                                (StyleKeys.Width, 100f),
+                            },
+                        }
+                    )
+                )
             );
         }
     }
