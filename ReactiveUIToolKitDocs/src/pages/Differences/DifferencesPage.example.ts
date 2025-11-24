@@ -11,10 +11,10 @@ public static VirtualNode CounterFunc(
   var (count, setCount) = Hooks.UseState(0);
 
   // Direct value update
-  void Reset() => setCount.Set(0);
+  void Reset() => setCount(0);
 
   // Functional update using previous value
-  void Increment() => setCount.Set(previous => previous + 1);
+  void Increment() => setCount(previous => previous + 1);
 
   return V.Column(
     key: null,

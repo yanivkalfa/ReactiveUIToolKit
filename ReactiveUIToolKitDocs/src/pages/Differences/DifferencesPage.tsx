@@ -25,17 +25,19 @@ export const DifferencesPage: FC = () => (
       </Typography>
       <Typography variant="body1" paragraph>
         <code>Hooks.UseState</code> returns a value and a state setter delegate. The setter is a
-        function that returns the new value and works together with{' '}
-        <code>StateSetterExtensions.Set</code>. Instead of calling <code>set(value)</code> or{' '}
-        <code>set(prev =&gt; next)</code> like in React, you call{' '}
-        <code>set.Set(value)</code> or <code>set.Set(prev =&gt; next)</code>.
+        delegate (<code>StateSetter&lt;T&gt;</code>) that you can invoke directly, just like
+        React&apos;s <code>setState</code> �?" for example <code>set(value)</code> or{' '}
+        <code>set(prev =&gt; next)</code>. There is also an optional helper{' '}
+        <code>StateSetterExtensions.Set</code> if you prefer method syntax (
+        <code>set.Set(value)</code> / <code>set.Set(prev =&gt; next)</code>).
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
           <ListItemText
             primary={
               <>
-                <code>StateSetter&lt;T&gt;</code> instances are delegates (not methods on an object).
+                <code>StateSetter&lt;T&gt;</code> instances are delegates (function values), not
+                instance methods, but you call them with the same syntax as a normal function.
               </>
             }
           />
@@ -44,9 +46,10 @@ export const DifferencesPage: FC = () => (
           <ListItemText
             primary={
               <>
-                Use <code>StateSetterExtensions.Set(value)</code> or{' '}
-                <code>Set(prev =&gt; next)</code> instead of calling <code>set(value)</code> /{' '}
-                <code>set(prev =&gt; next)</code> like in React.
+                You can either call <code>set(value)</code> / <code>set(prev =&gt; next)</code>{' '}
+                (React-style) or use the extension helpers{' '}
+                <code>StateSetterExtensions.Set(value)</code> /{' '}
+                <code>StateSetterExtensions.Set(prev =&gt; next)</code> if you prefer a fluent style.
               </>
             }
           />
