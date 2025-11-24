@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.Profiling;
 using UnityEngine.UIElements;
-using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -30,10 +30,14 @@ namespace ReactiveUITK.Core.Fiber
         private int _commitCount;
         private int _effectsCommitted;
         private readonly Stopwatch _renderStopwatch = new Stopwatch();
-        
+
         // Stats
-        private static readonly CustomSampler RenderPhaseSampler = CustomSampler.Create("Fiber.RenderPhase");
-        private static readonly CustomSampler CommitPhaseSampler = CustomSampler.Create("Fiber.CommitPhase");
+        private static readonly CustomSampler RenderPhaseSampler = CustomSampler.Create(
+            "Fiber.RenderPhase"
+        );
+        private static readonly CustomSampler CommitPhaseSampler = CustomSampler.Create(
+            "Fiber.CommitPhase"
+        );
 
         public readonly struct FiberReconcilerMetrics
         {
@@ -50,7 +54,8 @@ namespace ReactiveUITK.Core.Fiber
                 int commits,
                 int slices,
                 int yields,
-                int effectsCommitted)
+                int effectsCommitted
+            )
             {
                 LastRenderMs = lastRenderMs;
                 WorkUnits = workUnits;
@@ -68,9 +73,11 @@ namespace ReactiveUITK.Core.Fiber
             _hostContext = hostContext;
             _hostConfig = new FiberHostConfig(hostContext.ElementRegistry);
 
-            if (hostContext?.Environment != null
+            if (
+                hostContext?.Environment != null
                 && hostContext.Environment.TryGetValue("scheduler", out var schedObj)
-                && schedObj is IScheduler scheduler)
+                && schedObj is IScheduler scheduler
+            )
             {
                 _scheduler = scheduler;
             }
@@ -86,7 +93,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 Tag = FiberTag.HostComponent,
                 HostElement = container,
-                ElementType = "root"
+                ElementType = "root",
             };
 
             var root = new FiberRoot
@@ -95,14 +102,14 @@ namespace ReactiveUITK.Core.Fiber
                 Current = rootFiber,
                 Context = _hostContext,
                 Reconciler = this,
-                RootVNode = vnode
+                RootVNode = vnode,
             };
 
             _root = root;
 
             // Schedule initial render
             ScheduleUpdateOnFiber(rootFiber, vnode);
-            
+
             return root;
         }
 
@@ -163,7 +170,7 @@ namespace ReactiveUITK.Core.Fiber
                 }
                 catch { }
             }
-            
+
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
             {
@@ -317,10 +324,10 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     case FiberTag.HostComponent:
                         return UpdateHostComponent(fiber);
-                    
+
                     case FiberTag.FunctionComponent:
                         return UpdateFunctionComponent(fiber);
-                    
+
                     case FiberTag.Fragment:
                         return UpdateFragment(fiber);
 
@@ -329,7 +336,7 @@ namespace ReactiveUITK.Core.Fiber
 
                     case FiberTag.ErrorBoundary:
                         return UpdateErrorBoundary(fiber);
-                    
+
                     default:
                         return null;
                 }
@@ -377,7 +384,9 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     if (FiberConfig.EnableFiberLogging)
                     {
-                        UnityEngine.Debug.Log($"[Fiber] {completedWork.ElementType} has sibling: {siblingFiber.ElementType} ({siblingFiber.Tag})");
+                        UnityEngine.Debug.Log(
+                            $"[Fiber] {completedWork.ElementType} has sibling: {siblingFiber.ElementType} ({siblingFiber.Tag})"
+                        );
                     }
                     // Work on sibling next
                     _nextUnitOfWork = siblingFiber;
@@ -386,7 +395,9 @@ namespace ReactiveUITK.Core.Fiber
 
                 if (FiberConfig.EnableFiberLogging)
                 {
-                    UnityEngine.Debug.Log($"[Fiber] {completedWork.ElementType} has NO sibling, moving to parent: {completedWork.Parent?.ElementType}");
+                    UnityEngine.Debug.Log(
+                        $"[Fiber] {completedWork.ElementType} has NO sibling, moving to parent: {completedWork.Parent?.ElementType}"
+                    );
                 }
 
                 // No more siblings, go back to parent
@@ -416,7 +427,9 @@ namespace ReactiveUITK.Core.Fiber
                         fiber.HostElement = _hostConfig.CreateElement(fiber.ElementType);
                         if (FiberConfig.EnableFiberLogging)
                         {
-                            UnityEngine.Debug.Log($"[Fiber] Created host element for {fiber.ElementType}: {fiber.HostElement}");
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] Created host element for {fiber.ElementType}: {fiber.HostElement}"
+                            );
                         }
                         fiber.EffectTag |= EffectFlags.Placement;
                     }
@@ -450,7 +463,7 @@ namespace ReactiveUITK.Core.Fiber
                     Tag = current.Tag,
                     ElementType = current.ElementType,
                     HostElement = current.HostElement,
-                    Alternate = current
+                    Alternate = current,
                 };
                 current.Alternate = workInProgress;
             }
@@ -526,7 +539,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitDeletions(FiberNode fiber)
         {
-            if (fiber == null) return;
+            if (fiber == null)
+                return;
 
             // Process deletions on this fiber
             if (fiber.Deletions != null)
@@ -597,7 +611,8 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            if (fiber.HostElement == null) return;
+            if (fiber.HostElement == null)
+                return;
 
             // Find parent host fiber
             var parentFiber = fiber.Parent;
@@ -612,18 +627,22 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     if (FiberConfig.EnableFiberLogging)
                     {
-                        UnityEngine.Debug.Log($"[Fiber] Appending {fiber.ElementType} to {parentFiber.ElementType}");
+                        UnityEngine.Debug.Log(
+                            $"[Fiber] Appending {fiber.ElementType} to {parentFiber.ElementType}"
+                        );
                     }
-                    
+
                     // Apply initial properties before appending
                     if (fiber.PendingProps != null)
                     {
                         if (FiberConfig.EnableFiberLogging)
                         {
                             var propsStr = string.Join(", ", fiber.PendingProps.Keys);
-                            UnityEngine.Debug.Log($"[Fiber] Applying props to {fiber.ElementType}: [{propsStr}]");
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] Applying props to {fiber.ElementType}: [{propsStr}]"
+                            );
                         }
-                        
+
                         _hostConfig.ApplyProperties(
                             fiber.HostElement,
                             fiber.ElementType,
@@ -636,10 +655,12 @@ namespace ReactiveUITK.Core.Fiber
                     {
                         if (FiberConfig.EnableFiberLogging)
                         {
-                            UnityEngine.Debug.LogWarning($"[Fiber] NO props for {fiber.ElementType}");
+                            UnityEngine.Debug.LogWarning(
+                                $"[Fiber] NO props for {fiber.ElementType}"
+                            );
                         }
                     }
-                    
+
                     _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
                 }
             }
@@ -647,7 +668,9 @@ namespace ReactiveUITK.Core.Fiber
             {
                 if (FiberConfig.EnableFiberLogging)
                 {
-                    UnityEngine.Debug.LogWarning($"[Fiber] Could not find host parent for {fiber.ElementType}");
+                    UnityEngine.Debug.LogWarning(
+                        $"[Fiber] Could not find host parent for {fiber.ElementType}"
+                    );
                 }
             }
         }
@@ -657,18 +680,27 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitUpdate(FiberNode fiber)
         {
-            if (fiber.HostElement == null) return;
+            if (fiber.HostElement == null)
+                return;
 
             if (fiber.ElementType == "Label")
             {
                 string oldText = null;
                 string newText = null;
 
-                if (fiber.Props != null && fiber.Props.TryGetValue("text", out var ov) && ov is string os)
+                if (
+                    fiber.Props != null
+                    && fiber.Props.TryGetValue("text", out var ov)
+                    && ov is string os
+                )
                 {
                     oldText = os;
                 }
-                if (fiber.PendingProps != null && fiber.PendingProps.TryGetValue("text", out var nv) && nv is string ns)
+                if (
+                    fiber.PendingProps != null
+                    && fiber.PendingProps.TryGetValue("text", out var nv)
+                    && nv is string ns
+                )
                 {
                     newText = ns;
                 }
@@ -680,10 +712,11 @@ namespace ReactiveUITK.Core.Fiber
 
             // Apply property changes using HostConfig
             _hostConfig.ApplyProperties(
-                fiber.HostElement, 
+                fiber.HostElement,
                 fiber.ElementType,
-                fiber.Props, 
-                fiber.PendingProps);
+                fiber.Props,
+                fiber.PendingProps
+            );
             fiber.Props = fiber.PendingProps;
         }
 
@@ -740,7 +773,7 @@ namespace ReactiveUITK.Core.Fiber
                 FiberFunctionComponent.CommitLayoutEffects(fiber);
             }
         }
-        
+
         /// <summary>
         /// Schedule passive effects
         /// </summary>
@@ -863,7 +896,8 @@ namespace ReactiveUITK.Core.Fiber
         private bool TryActivateErrorBoundary(
             FiberNode boundary,
             VirtualNode boundaryNode,
-            Exception exception)
+            Exception exception
+        )
         {
             if (boundary == null || boundaryNode == null)
             {
@@ -903,9 +937,7 @@ namespace ReactiveUITK.Core.Fiber
                             $"ReactiveUITK Fiber: Error boundary handler threw: {handlerEx}"
                         );
                     }
-                    catch
-                    {
-                    }
+                    catch { }
                 }
             }
 
@@ -927,9 +959,7 @@ namespace ReactiveUITK.Core.Fiber
                     );
                 }
             }
-            catch
-            {
-            }
+            catch { }
 
             return true;
         }
@@ -940,12 +970,14 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (FiberConfig.EnableFiberLogging)
             {
-                UnityEngine.Debug.Log($"[Fiber] ReconcileChildren for {wipFiber.ElementType}: {vnodes?.Count ?? 0} children");
+                UnityEngine.Debug.Log(
+                    $"[Fiber] ReconcileChildren for {wipFiber.ElementType}: {vnodes?.Count ?? 0} children"
+                );
             }
 
             // Get current children from alternate (if exists)
             var currentFirstChild = wipFiber.Alternate?.Child;
-            
+
             // Use the full reconciliation algorithm
             FiberChildReconciliation.ReconcileChildren(wipFiber, currentFirstChild, vnodes);
 
@@ -958,19 +990,22 @@ namespace ReactiveUITK.Core.Fiber
                     childCount++;
                     child = child.Sibling;
                 }
-                UnityEngine.Debug.Log($"[Fiber] After reconciliation: {wipFiber.ElementType} has {childCount} child fibers");
+                UnityEngine.Debug.Log(
+                    $"[Fiber] After reconciliation: {wipFiber.ElementType} has {childCount} child fibers"
+                );
             }
         }
 
         private FiberNode CreateFiberFromVNode(VirtualNode vnode)
         {
-            if (vnode == null) return null;
+            if (vnode == null)
+                return null;
 
             var fiber = new FiberNode
             {
                 Key = vnode.Key,
                 PendingProps = ExtractProps(vnode),
-                Children = vnode.Children
+                Children = vnode.Children,
             };
 
             switch (vnode.NodeType)
@@ -1010,7 +1045,7 @@ namespace ReactiveUITK.Core.Fiber
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
                     {
-                        { "text", vnode.TextContent ?? string.Empty }
+                        { "text", vnode.TextContent ?? string.Empty },
                     };
 
                 default:
@@ -1035,7 +1070,8 @@ namespace ReactiveUITK.Core.Fiber
                 _commitCount,
                 _sliceCount,
                 _yieldCount,
-                _effectsCommitted);
+                _effectsCommitted
+            );
 
             try
             {
