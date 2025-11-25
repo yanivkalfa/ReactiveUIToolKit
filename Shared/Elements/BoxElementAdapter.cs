@@ -19,7 +19,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
             ApplySlots(box, properties);
-            PropsApplier.Apply(elemenst, properties);
+            PropsApplier.Apply(element, properties);
         }
 
         public override void ApplyPropertiesDiff(
