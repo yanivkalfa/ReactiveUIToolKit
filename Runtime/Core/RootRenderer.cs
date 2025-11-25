@@ -54,6 +54,15 @@ namespace ReactiveUITK.Core
             EnsureSetup();
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+            Unmount();
+        }
+
         public void Initialize(VisualElement uiRootElement)
         {
             EnsureSetup();

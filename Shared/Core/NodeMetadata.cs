@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using ReactiveUITK.Core.Fiber;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
@@ -51,6 +52,7 @@ namespace ReactiveUITK.Core
             if (ComponentState == null)
             {
                 ComponentState = new FunctionComponentState(this);
+                ComponentState.HostContext = HostContext;
             }
             return ComponentState;
         }
@@ -120,6 +122,8 @@ namespace ReactiveUITK.Core
         }
 
         public NodeMetadata Owner { get; }
+        public HostContext HostContext;
+        public FiberNode Fiber;
         public List<object> HookStates = new();
         public int HookIndex;
         public List<(
@@ -139,6 +143,7 @@ namespace ReactiveUITK.Core
         public HashSet<ContextKey> SubscribedContextKeys;
         public bool PendingUpdate;
         public bool UpdateQueued;
+        public Action OnStateUpdated; // Bridge for Fiber reconciler
         public List<string> HookOrderSignatures;
         public bool HookOrderPrimed;
         public bool IsRendering;
@@ -147,5 +152,9 @@ namespace ReactiveUITK.Core
         public Dictionary<ContextKey, int> ContextVersions;
         public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
         public Dictionary<int, object> PendingHookStatePreviews;
+        public SuspenseRenderState SuspenseState;
+        public Task SuspensePendingTask;
+        public object SuspenseTaskLock;
+        public int SuspenseTaskVersion;
     }
 }

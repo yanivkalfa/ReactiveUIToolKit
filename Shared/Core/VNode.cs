@@ -13,6 +13,7 @@ namespace ReactiveUITK.Core
         Portal,
         Suspense,
         ErrorBoundary,
+        Host,
     }
 
     public sealed class VirtualNode

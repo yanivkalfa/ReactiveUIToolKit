@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorPropTypesDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Tests-(35-37-40)/PropTypes Validation")]
+        [MenuItem("ReactiveUITK/Demos/Tests-(35-37-40)/PropTypes Validation")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorPropTypesDemoWindow>("PropTypes Demo");

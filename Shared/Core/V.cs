@@ -182,191 +182,432 @@ namespace ReactiveUITK
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "EnumField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "EnumField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode ObjectField(ObjectFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ObjectField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ObjectField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode Scroller(ScrollerProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "Scroller", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "Scroller",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode TextElement(TextElementProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "TextElement", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "TextElement",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode IMGUIContainer(IMGUIContainerProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "IMGUIContainer", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "IMGUIContainer",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode Vector2IntField(Vector2IntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "Vector2IntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "Vector2IntField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode Vector3IntField(Vector3IntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "Vector3IntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "Vector3IntField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode RectField(RectFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "RectField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "RectField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode RectIntField(RectIntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "RectIntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "RectIntField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode BoundsField(BoundsFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "BoundsField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "BoundsField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode MinMaxSlider(MinMaxSliderProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "MinMaxSlider", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "MinMaxSlider",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
-        public static VirtualNode TemplateContainer(TemplateContainerProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode TemplateContainer(
+            TemplateContainerProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "TemplateContainer", null, null, key, map ?? EmptyProps(), children ?? EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "TemplateContainer",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                children ?? EmptyChildren()
+            );
         }
 
         public static VirtualNode BoundsIntField(BoundsIntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "BoundsIntField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "BoundsIntField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode EnumFlagsField(EnumFlagsFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "EnumFlagsField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "EnumFlagsField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
-        public static VirtualNode ToggleButtonGroup(ToggleButtonGroupProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode ToggleButtonGroup(
+            ToggleButtonGroupProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToggleButtonGroup", null, null, key, map ?? EmptyProps(), children ?? EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToggleButtonGroup",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                children ?? EmptyChildren()
+            );
         }
 
         public static VirtualNode Hash128Field(Hash128FieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "Hash128Field", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "Hash128Field",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         // Editor-only elements are registered behind UNITY_EDITOR; these helpers are safe to call.
-        public static VirtualNode Toolbar(ToolbarProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode Toolbar(
+            ToolbarProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "Toolbar", null, null, key, map ?? EmptyProps(), children ?? EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "Toolbar",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                children ?? EmptyChildren()
+            );
         }
 
         public static VirtualNode ToolbarButton(ToolbarButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarButton", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarButton",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode ToolbarToggle(ToolbarToggleProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarToggle", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarToggle",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode ToolbarMenu(ToolbarMenuProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarMenu", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarMenu",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
-        public static VirtualNode ToolbarBreadcrumbs(ToolbarBreadcrumbsProps props, string key = null)
+        public static VirtualNode ToolbarBreadcrumbs(
+            ToolbarBreadcrumbsProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarBreadcrumbs", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarBreadcrumbs",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
-        public static VirtualNode ToolbarPopupSearchField(ToolbarPopupSearchFieldProps props, string key = null)
+        public static VirtualNode ToolbarPopupSearchField(
+            ToolbarPopupSearchFieldProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarPopupSearchField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarPopupSearchField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
-        public static VirtualNode ToolbarSearchField(ToolbarSearchFieldProps props, string key = null)
+        public static VirtualNode ToolbarSearchField(
+            ToolbarSearchFieldProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarSearchField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarSearchField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode ToolbarSpacer(ToolbarSpacerProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "ToolbarSpacer", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "ToolbarSpacer",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode PropertyField(PropertyFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "PropertyField", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "PropertyField",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
         public static VirtualNode InspectorElement(InspectorElementProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "InspectorElement", null, null, key, map ?? EmptyProps(), EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "InspectorElement",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                EmptyChildren()
+            );
         }
 
 #if UNITY_EDITOR
-        public static VirtualNode TwoPaneSplitView(TwoPaneSplitViewProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode TwoPaneSplitView(
+            TwoPaneSplitViewProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
-            return new VirtualNode(VirtualNodeType.Element, "TwoPaneSplitView", null, null, key, map ?? EmptyProps(), children ?? EmptyChildren());
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                "TwoPaneSplitView",
+                null,
+                null,
+                key,
+                map ?? EmptyProps(),
+                children ?? EmptyChildren()
+            );
         }
 #endif
 
@@ -430,7 +671,10 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode UnsignedIntegerField(UnsignedIntegerFieldProps props, string key = null)
+        public static VirtualNode UnsignedIntegerField(
+            UnsignedIntegerFieldProps props,
+            string key = null
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -520,7 +764,11 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode Box(BoxProps props, string key = null, params VirtualNode[] children)
+        public static VirtualNode Box(
+            BoxProps props,
+            string key = null,
+            params VirtualNode[] children
+        )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
             map = CloneStyleDictionary(map);
@@ -823,6 +1071,24 @@ namespace ReactiveUITK
                 textContent: null,
                 key: key,
                 properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
+        public static VirtualNode Host(
+            IReadOnlyDictionary<string, object> hostProps = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            hostProps = CloneStyleDictionary(hostProps);
+            return new VirtualNode(
+                VirtualNodeType.Host,
+                elementTypeName: null,
+                functionRender: null,
+                textContent: null,
+                key: key,
+                properties: hostProps ?? EmptyProps(),
                 children: children ?? EmptyChildren()
             );
         }

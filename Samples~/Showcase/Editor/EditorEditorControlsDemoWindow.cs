@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorEditorControlsDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Editor Controls")]
+        [MenuItem("ReactiveUITK/Demos/Editor Controls")]
         public static void Open()
         {
             var w = GetWindow<EditorEditorControlsDemoWindow>("RUITK Editor Controls");
@@ -21,7 +21,10 @@ namespace ReactiveUITK.Samples.Editor
         {
             var host = rootVisualElement;
             host.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(host, V.Func(EditorControlsDemoPage.Render, key: "editor-controls-demo"));
+            EditorRootRendererUtility.Render(
+                host,
+                V.Func(EditorControlsDemoPage.Render, key: "editor-controls-demo")
+            );
         }
 
         private void OnDisable()
@@ -31,4 +34,3 @@ namespace ReactiveUITK.Samples.Editor
     }
 }
 #endif
-

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Diagnostics;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -101,13 +102,16 @@ namespace ReactiveUITK.Elements
                 && string.Equals(vnode.ElementTypeName, "VisualElement", StringComparison.Ordinal);
             if (!isRootVE)
             {
-                _rootWrapWarned ??= new HashSet<string>();
-                string tag = contextTag ?? "Adapter";
-                if (_rootWrapWarned.Add(tag))
+                if (InternalLogOptions.EnableInternalLogs)
                 {
-                    Debug.LogWarning(
-                        $"[ReactiveUITK][{tag}] Root was not a 'VisualElement'. Wrapping automatically (further wraps suppressed)."
-                    );
+                    _rootWrapWarned ??= new HashSet<string>();
+                    string tag = contextTag ?? "Adapter";
+                    if (_rootWrapWarned.Add(tag))
+                    {
+                        Debug.LogWarning(
+                            $"[ReactiveUITK][{tag}] Root was not a 'VisualElement'. Wrapping automatically (further wraps suppressed)."
+                        );
+                    }
                 }
                 return ReactiveUITK.V.VisualElement(null, null, vnode);
             }

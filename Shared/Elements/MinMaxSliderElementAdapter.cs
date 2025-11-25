@@ -47,4 +47,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-

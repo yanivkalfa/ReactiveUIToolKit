@@ -18,15 +18,15 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private sealed class MetricsSnapshot
         {
-            public long LastDiffMs;
-            public int Reconciled;
-            public int Skipped;
-            public int Effects;
-            public int PortalsBuilt;
-            public int PortalsUpdated;
+            public long LastRenderMs;
+            public int WorkUnits;
+            public int Commits;
+            public int Slices;
+            public int Yields;
+            public int EffectsCommitted;
         }
 
-        public static VirtualNode Render(
+        public static VirtualNode LatestFeaturesDemo(
             Dictionary<string, object> props,
             IReadOnlyList<VirtualNode> children
         )
@@ -39,30 +39,34 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
             var (metricsSnapshot, setMetricsSnapshot) = Hooks.UseState<MetricsSnapshot>(null);
 
+            // Capture a single Fiber metrics snapshot so we can show
+            // some numbers without causing a render loop.
             Hooks.UseEffect(
                 () =>
                 {
-                    void OnMetrics(Reconciler.ReconcilerMetrics metrics)
+                    void OnMetrics(Core.Fiber.FiberReconciler.FiberReconcilerMetrics metrics)
                     {
-                        setMetricsSnapshot(
-                            new MetricsSnapshot
+                        setMetricsSnapshot.Set(prev =>
+                            prev
+                            ?? new MetricsSnapshot
                             {
-                                LastDiffMs = metrics.LastDiffMs,
-                                Reconciled = metrics.Reconciled,
-                                Skipped = metrics.Skipped,
-                                Effects = metrics.EffectsRan,
-                                PortalsBuilt = metrics.PortalsBuilt,
-                                PortalsUpdated = metrics.PortalsUpdated,
+                                LastRenderMs = metrics.LastRenderMs,
+                                WorkUnits = metrics.WorkUnits,
+                                Commits = metrics.Commits,
+                                Slices = metrics.Slices,
+                                Yields = metrics.Yields,
+                                EffectsCommitted = metrics.EffectsCommitted,
                             }
                         );
                     }
 
-                    Reconciler.MetricsEmitted += OnMetrics;
-                    return () => Reconciler.MetricsEmitted -= OnMetrics;
+                    Core.Fiber.FiberReconciler.MetricsEmitted += OnMetrics;
+                    return () => Core.Fiber.FiberReconciler.MetricsEmitted -= OnMetrics;
                 },
                 Array.Empty<object>()
             );
 
+            // Wire async task completion back into state (items + status).
             Hooks.UseEffect(
                 () =>
                 {
@@ -173,6 +177,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
                 setStatus("Loading sample data...");
                 setItems(new List<string>());
+
                 Task loadTask = Task.Run(async () =>
                 {
                     await Task.Delay(1500);
@@ -212,30 +217,16 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             VirtualNode fallbackContent = V.VisualElement(
                 null,
                 "suspense-fallback",
-                V.Text("Loading sample content...", key: "fallback-line-1"),
-                V.Text("This fallback disappears once the Task finishes.", key: "fallback-line-2")
+                V.Label(new LabelProps { Text = "Loading sample content..." }),
+                V.Label(
+                    new LabelProps { Text = "This fallback disappears once the Task finishes." }
+                )
             );
 
-            List<VirtualNode> itemNodes = new List<VirtualNode>(items.Count);
-            foreach (string item in items)
-            {
-                itemNodes.Add(
-                    V.VisualElement(
-                        null,
-                        $"lis-item-{item}",
-                        V.Text($"• {item}", key: $"lis-text-{item}")
-                    )
-                );
-            }
-            if (itemNodes.Count == 0)
-            {
-                itemNodes.Add(
-                    V.Text(
-                        "No items loaded yet. Click the button above to fetch sample data.",
-                        key: "lis-empty"
-                    )
-                );
-            }
+            string orderText =
+                items.Count == 0
+                    ? "No items loaded yet. Click the button above to fetch sample data."
+                    : string.Join(", ", items);
 
             VirtualNode reorderControls = V.VisualElement(
                 new Dictionary<string, object>
@@ -254,30 +245,32 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             VirtualNode listSection = V.VisualElement(
                 null,
                 "lis-section",
-                V.Text(
-                    "Keyed diff demo (Point 13): use the controls to reorder.",
-                    key: "lis-heading"
+                V.Label(
+                    new LabelProps
+                    {
+                        Text = "Keyed diff demo (Point 13): use the controls to reorder.",
+                    }
                 ),
                 reorderControls,
-                V.VisualElement(null, "lis-items-host", itemNodes.ToArray())
+                V.Label(new LabelProps { Text = $"Current order: {orderText}" })
             );
 
             string metricsLine =
                 metricsSnapshot == null
-                    ? "Waiting for diff metrics..."
-                    : $"Last diff {metricsSnapshot.LastDiffMs} ms | reconciled {metricsSnapshot.Reconciled}, skipped {metricsSnapshot.Skipped}, effects {metricsSnapshot.Effects}.";
+                    ? "Waiting for Fiber metrics..."
+                    : $"Last render {metricsSnapshot.LastRenderMs} ms | work units {metricsSnapshot.WorkUnits}, commits {metricsSnapshot.Commits}, slices {metricsSnapshot.Slices}, yields {metricsSnapshot.Yields}, effects {metricsSnapshot.EffectsCommitted}.";
 
             VirtualNode metricsSection = V.VisualElement(
                 null,
                 "metrics-section",
-                V.Text("Diff metrics throttle (Point 12):", key: "metrics-heading"),
-                V.Text(metricsLine, key: "metrics-line")
+                V.Label(new LabelProps { Text = "Diff metrics throttle (Point 12):" }),
+                V.Label(new LabelProps { Text = metricsLine })
             );
 
             VirtualNode suspenseContent = V.VisualElement(
                 null,
                 "suspense-content",
-                V.Text($"Completed async loads: {loadCount}", key: "load-count-line"),
+                V.Label(new LabelProps { Text = $"Completed async loads: {loadCount}" }),
                 metricsSection,
                 listSection
             );
@@ -291,9 +284,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     },
                 },
                 "latest-demo-root",
-                V.Text("ReactiveUITK Latest Changes Showcase", key: "latest-heading"),
+                V.Label(new LabelProps { Text = "ReactiveUITK Latest Changes Showcase" }),
                 controlsRow,
-                V.Text(status, key: "status-line"),
+                V.Label(new LabelProps { Text = status }),
                 V.Suspense(
                     SuspenseReady,
                     pendingTask,

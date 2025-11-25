@@ -8,6 +8,7 @@ namespace ReactiveUITK.Props.Typed
         public string Name { get; set; }
         public string ClassName { get; set; }
         public string Text { get; set; }
+        public bool? Enabled { get; set; }
         public Action OnClick { get; set; }
         public Style Style { get; set; }
         public object Ref { get; set; }
@@ -26,6 +27,10 @@ namespace ReactiveUITK.Props.Typed
             if (!string.IsNullOrEmpty(Text))
             {
                 dict["text"] = Text;
+            }
+            if (Enabled.HasValue)
+            {
+                dict["enabled"] = Enabled.Value;
             }
             if (OnClick != null)
             {

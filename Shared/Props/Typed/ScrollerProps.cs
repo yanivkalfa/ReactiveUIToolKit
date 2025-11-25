@@ -14,13 +14,17 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var map = new Dictionary<string, object>();
-            if (LowValue.HasValue) map["lowValue"] = LowValue.Value;
-            if (HighValue.HasValue) map["highValue"] = HighValue.Value;
-            if (Value.HasValue) map["value"] = Value.Value;
-            if (Style != null) map["style"] = Style;
-            if (Ref != null) map["ref"] = Ref;
+            if (LowValue.HasValue)
+                map["lowValue"] = LowValue.Value;
+            if (HighValue.HasValue)
+                map["highValue"] = HighValue.Value;
+            if (Value.HasValue)
+                map["value"] = Value.Value;
+            if (Style != null)
+                map["style"] = Style;
+            if (Ref != null)
+                map["ref"] = Ref;
             return map;
         }
     }
 }
-

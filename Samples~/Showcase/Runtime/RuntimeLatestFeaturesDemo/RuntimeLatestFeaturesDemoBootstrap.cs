@@ -25,7 +25,7 @@ namespace ReactiveUITK.Samples.Showcase.Runtime
             }
 
             rootRenderer.Initialize(uiDocument.rootVisualElement);
-            rootRenderer.Render(V.Func(LatestFeaturesDemoFunc.Render));
+            rootRenderer.Render(V.Func(LatestFeaturesDemoFunc.LatestFeaturesDemo));
         }
     }
 }

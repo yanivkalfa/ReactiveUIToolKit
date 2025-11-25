@@ -127,8 +127,16 @@ namespace ReactiveUITK.Samples.Shared
             return V.VisualElement(
                 new Style { (StyleKeys.FlexDirection, "column"), (Padding, 12f) },
                 null,
-                V.Label(new LabelProps { Text = "Animations", Style = new Style { (FontSize, 18f) } }),
-                V.Animate(new AnimateProps { Tracks = flashAnimTracks }, null,
+                V.Label(
+                    new LabelProps
+                    {
+                        Text = "Animations",
+                        Style = new Style { (FontSize, 18f) },
+                    }
+                ),
+                V.Animate(
+                    new AnimateProps { Tracks = flashAnimTracks },
+                    null,
                     V.VisualElement(
                         new Dictionary<string, object>
                         {
@@ -147,10 +155,18 @@ namespace ReactiveUITK.Samples.Shared
                             },
                         },
                         null,
-                        V.Label(new LabelProps { Text = "Flashing Box", Style = new Style { (TextColor, UColor.white) } })
+                        V.Label(
+                            new LabelProps
+                            {
+                                Text = "Flashing Box",
+                                Style = new Style { (TextColor, UColor.white) },
+                            }
+                        )
                     )
                 ),
-                V.Animate(new AnimateProps { Tracks = multiTracks }, null,
+                V.Animate(
+                    new AnimateProps { Tracks = multiTracks },
+                    null,
                     V.VisualElement(
                         new Dictionary<string, object>
                         {
@@ -173,8 +189,18 @@ namespace ReactiveUITK.Samples.Shared
                     )
                 ),
                 V.Label(new LabelProps { Text = "Animated Repeat Button" }),
-                V.Animate(new AnimateProps { Tracks = repeatPulseTracks }, null, V.RepeatButton(repeatButtonProps)),
-                V.Button(new ButtonProps { Text = "Re-seed Multi-track", OnClick = () => setAnimNonce(animNonce + 1) })
+                V.Animate(
+                    new AnimateProps { Tracks = repeatPulseTracks },
+                    null,
+                    V.RepeatButton(repeatButtonProps)
+                ),
+                V.Button(
+                    new ButtonProps
+                    {
+                        Text = "Re-seed Multi-track",
+                        OnClick = () => setAnimNonce(animNonce + 1),
+                    }
+                )
             );
         }
     }
