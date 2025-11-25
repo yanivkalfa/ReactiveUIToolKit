@@ -145,8 +145,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 }
 
                 // Read the latest input value via the forwarded ref when available.
-                string currentValue =
-                    typedForwardedRef?.Value?.value ?? "Hello ReactiveUITK refs!";
+                string currentValue = typedForwardedRef?.Value?.value ?? "Hello ReactiveUITK refs!";
 
                 return V.VisualElement(
                     new Style

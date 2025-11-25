@@ -1,6 +1,6 @@
 using System.Collections.Generic;
-using UnityEngine.UIElements;
 using ReactiveUITK.Elements;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -39,7 +39,8 @@ namespace ReactiveUITK.Core.Fiber
             VisualElement element,
             string elementType,
             IReadOnlyDictionary<string, object> oldProps,
-            IReadOnlyDictionary<string, object> newProps)
+            IReadOnlyDictionary<string, object> newProps
+        )
         {
             var adapter = _registry.Resolve(elementType);
             if (adapter != null && newProps != null)
@@ -66,7 +67,11 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Insert child before reference child
         /// </summary>
-        public void InsertBefore(VisualElement parent, VisualElement child, VisualElement beforeChild)
+        public void InsertBefore(
+            VisualElement parent,
+            VisualElement child,
+            VisualElement beforeChild
+        )
         {
             if (beforeChild == null)
             {

@@ -301,10 +301,7 @@ namespace ReactiveUITK.CICD
             }
         }
 
-        [MenuItem(
-                "ReactiveUITK/Publish/Build Dist and Push to Store (stub)",
-            priority = 1002
-        )]
+        [MenuItem("ReactiveUITK/Publish/Build Dist and Push to Store (stub)", priority = 1002)]
         public static void BuildDistAndPushToStore()
         {
             BuildDist();
@@ -726,7 +723,8 @@ namespace ReactiveUITK.CICD
             out string stderr
         )
         {
-            bool isWindows = Application.platform == RuntimePlatform.WindowsEditor
+            bool isWindows =
+                Application.platform == RuntimePlatform.WindowsEditor
                 || Application.platform == RuntimePlatform.WindowsPlayer;
 
             string fileName = string.Empty;

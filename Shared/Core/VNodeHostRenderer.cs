@@ -21,7 +21,9 @@ namespace ReactiveUITK.Core
 
             if (FiberConfig.ShowReconcilerInfo)
             {
-                UnityEngine.Debug.Log($"[VNodeHostRenderer] Using FIBER reconciler for {host.name}");
+                UnityEngine.Debug.Log(
+                    $"[VNodeHostRenderer] Using FIBER reconciler for {host.name}"
+                );
             }
         }
 

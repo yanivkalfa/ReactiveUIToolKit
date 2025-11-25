@@ -16,7 +16,8 @@ namespace ReactiveUITK.Core.Fiber
         public static FiberNode RenderFunctionComponent(
             FiberNode wipFiber,
             HostContext hostContext,
-            FiberReconciler reconciler)
+            FiberReconciler reconciler
+        )
         {
             if (wipFiber.Render == null)
             {
@@ -49,8 +50,11 @@ namespace ReactiveUITK.Core.Fiber
             try
             {
                 // Call the render function
-                var propsDict = wipFiber.PendingProps as Dictionary<string, object>
-                    ?? new Dictionary<string, object>(wipFiber.PendingProps ?? new Dictionary<string, object>());
+                var propsDict =
+                    wipFiber.PendingProps as Dictionary<string, object>
+                    ?? new Dictionary<string, object>(
+                        wipFiber.PendingProps ?? new Dictionary<string, object>()
+                    );
 
                 childVNode = wipFiber.Render(propsDict, wipFiber.Children);
 
@@ -64,14 +68,15 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Mark effect flags so the commit phase can run effects.
-            if (componentState.FunctionLayoutEffects != null &&
-                componentState.FunctionLayoutEffects.Count > 0)
+            if (
+                componentState.FunctionLayoutEffects != null
+                && componentState.FunctionLayoutEffects.Count > 0
+            )
             {
                 wipFiber.EffectTag |= EffectFlags.LayoutEffect;
             }
 
-            if (componentState.FunctionEffects != null &&
-                componentState.FunctionEffects.Count > 0)
+            if (componentState.FunctionEffects != null && componentState.FunctionEffects.Count > 0)
             {
                 wipFiber.EffectTag |= EffectFlags.PassiveEffect;
             }
@@ -108,7 +113,8 @@ namespace ReactiveUITK.Core.Fiber
         private static FiberNode ReconcileSingleChild(
             FiberNode parent,
             FiberNode currentChild,
-            VirtualNode newVNode)
+            VirtualNode newVNode
+        )
         {
             // Try to reuse existing fiber
             if (currentChild != null && CanReuseFiber(currentChild, newVNode))
@@ -133,7 +139,7 @@ namespace ReactiveUITK.Core.Fiber
                     ErrorBoundaryLastException = currentChild.ErrorBoundaryLastException,
                     ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
                     Parent = parent,
-                    Index = 0
+                    Index = 0,
                 };
 
                 clone.PendingProps = ExtractProps(newVNode);
@@ -154,7 +160,7 @@ namespace ReactiveUITK.Core.Fiber
 
             // Can't reuse, create new fiber
             var newFiber = CreateFiber(newVNode, parent, 0);
-            
+
             // Delete all old children
             if (currentChild != null)
             {
@@ -180,22 +186,21 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Element:
-                    return fiber.Tag == FiberTag.HostComponent &&
-                           fiber.ElementType == vnode.ElementTypeName;
+                    return fiber.Tag == FiberTag.HostComponent
+                        && fiber.ElementType == vnode.ElementTypeName;
 
                 case VirtualNodeType.Text:
                     // Text nodes are modeled as host "Label" elements.
                     // Reuse when the host element type matches.
-                    return fiber.Tag == FiberTag.HostComponent &&
-                           fiber.ElementType == "Label";
+                    return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
-                    return fiber.Tag == FiberTag.FunctionComponent &&
-                           fiber.Render == vnode.FunctionRender;
+                    return fiber.Tag == FiberTag.FunctionComponent
+                        && fiber.Render == vnode.FunctionRender;
 
                 case VirtualNodeType.Suspense:
-                    return fiber.Tag == FiberTag.FunctionComponent &&
-                           fiber.Render == FiberIntrinsicComponents.SuspenseRender;
+                    return fiber.Tag == FiberTag.FunctionComponent
+                        && fiber.Render == FiberIntrinsicComponents.SuspenseRender;
 
                 case VirtualNodeType.Portal:
                     return fiber.Tag == FiberTag.HostPortal;
@@ -216,7 +221,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static FiberNode CreateFiber(VirtualNode vnode, FiberNode parent, int index)
         {
-            if (vnode == null) return null;
+            if (vnode == null)
+                return null;
 
             var fiber = new FiberNode
             {
@@ -225,7 +231,7 @@ namespace ReactiveUITK.Core.Fiber
                 Index = index,
                 PendingProps = ExtractProps(vnode),
                 Children = vnode.Children,
-                EffectTag = EffectFlags.Placement
+                EffectTag = EffectFlags.Placement,
             };
 
             switch (vnode.NodeType)
@@ -309,7 +315,7 @@ namespace ReactiveUITK.Core.Fiber
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
                     {
-                        { "text", vnode.TextContent ?? string.Empty }
+                        { "text", vnode.TextContent ?? string.Empty },
                     };
 
                 default:
@@ -323,13 +329,14 @@ namespace ReactiveUITK.Core.Fiber
         public static void CommitLayoutEffects(FiberNode fiber)
         {
             var componentState = fiber.ComponentState;
-            if (componentState?.FunctionLayoutEffects == null) return;
+            if (componentState?.FunctionLayoutEffects == null)
+                return;
 
             for (int i = 0; i < componentState.FunctionLayoutEffects.Count; i++)
             {
                 var effect = componentState.FunctionLayoutEffects[i];
-                bool shouldRun = effect.lastDeps == null ||
-                                DepsChanged(effect.lastDeps, effect.deps);
+                bool shouldRun =
+                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
 
                 if (shouldRun)
                 {
@@ -374,14 +381,15 @@ namespace ReactiveUITK.Core.Fiber
         public static void SchedulePassiveEffects(FiberNode fiber)
         {
             var componentState = fiber.ComponentState;
-            if (componentState?.FunctionEffects == null) return;
+            if (componentState?.FunctionEffects == null)
+                return;
 
             // For now, run effects immediately (React schedules these)
             for (int i = 0; i < componentState.FunctionEffects.Count; i++)
             {
                 var effect = componentState.FunctionEffects[i];
-                bool shouldRun = effect.lastDeps == null ||
-                                DepsChanged(effect.lastDeps, effect.deps);
+                bool shouldRun =
+                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
 
                 if (shouldRun)
                 {

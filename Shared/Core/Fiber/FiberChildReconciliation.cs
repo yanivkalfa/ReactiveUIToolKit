@@ -16,7 +16,8 @@ namespace ReactiveUITK.Core.Fiber
         public static void ReconcileChildren(
             FiberNode wipFiber,
             FiberNode currentFirstChild,
-            IReadOnlyList<VirtualNode> newChildren)
+            IReadOnlyList<VirtualNode> newChildren
+        )
         {
             if (newChildren == null || newChildren.Count == 0)
             {
@@ -42,7 +43,8 @@ namespace ReactiveUITK.Core.Fiber
         private static void ReconcileChildrenByIndex(
             FiberNode wipFiber,
             FiberNode currentFirstChild,
-            IReadOnlyList<VirtualNode> newChildren)
+            IReadOnlyList<VirtualNode> newChildren
+        )
         {
             FiberNode oldFiber = currentFirstChild;
             FiberNode previousNewFiber = null;
@@ -53,7 +55,7 @@ namespace ReactiveUITK.Core.Fiber
             for (; oldFiber != null && newIdx < newChildren.Count; newIdx++)
             {
                 var newChild = newChildren[newIdx];
-                
+
                 if (oldFiber.Index > newIdx)
                 {
                     // Old fiber is ahead, insert new one
@@ -84,7 +86,7 @@ namespace ReactiveUITK.Core.Fiber
                 newFiber.Parent = wipFiber;
 
                 PlaceChild(newFiber, newIdx);
-                
+
                 if (previousNewFiber == null)
                 {
                     wipFiber.Child = newFiber;
@@ -93,7 +95,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     previousNewFiber.Sibling = newFiber;
                 }
-                
+
                 previousNewFiber = newFiber;
             }
 
@@ -110,13 +112,14 @@ namespace ReactiveUITK.Core.Fiber
                 for (; newIdx < newChildren.Count; newIdx++)
                 {
                     newFiber = CreateFiber(newChildren[newIdx], wipFiber, newIdx);
-                    if (newFiber == null) continue;
+                    if (newFiber == null)
+                        continue;
 
                     // Ensure parent pointer is correct
                     newFiber.Parent = wipFiber;
 
                     PlaceChild(newFiber, newIdx);
-                    
+
                     if (previousNewFiber == null)
                     {
                         wipFiber.Child = newFiber;
@@ -125,7 +128,7 @@ namespace ReactiveUITK.Core.Fiber
                     {
                         previousNewFiber.Sibling = newFiber;
                     }
-                    
+
                     previousNewFiber = newFiber;
                 }
             }
@@ -137,20 +140,21 @@ namespace ReactiveUITK.Core.Fiber
         private static void ReconcileChildrenWithKeys(
             FiberNode wipFiber,
             FiberNode currentFirstChild,
-            IReadOnlyList<VirtualNode> newChildren)
+            IReadOnlyList<VirtualNode> newChildren
+        )
         {
             // Build map of keyed old children
             var existingChildren = MapRemainingChildren(currentFirstChild);
-            
+
             FiberNode previousNewFiber = null;
-            
+
             for (int newIdx = 0; newIdx < newChildren.Count; newIdx++)
             {
                 var newChild = newChildren[newIdx];
                 var key = newChild.Key ?? newIdx.ToString();
-            
+
                 FiberNode newFiber = null;
-            
+
                 // Try to find existing fiber with same key
                 if (existingChildren.TryGetValue(key, out var oldFiber))
                 {
@@ -163,20 +167,21 @@ namespace ReactiveUITK.Core.Fiber
                         existingChildren.Remove(key);
                     }
                 }
-            
+
                 // If can't reuse, create new
                 if (newFiber == null)
                 {
                     newFiber = CreateFiber(newChild, wipFiber, newIdx);
                 }
 
-                if (newFiber == null) continue;
+                if (newFiber == null)
+                    continue;
 
                 // Ensure parent pointer is correct for reused fibers
                 newFiber.Parent = wipFiber;
 
                 PlaceChild(newFiber, newIdx);
-                
+
                 if (previousNewFiber == null)
                 {
                     wipFiber.Child = newFiber;
@@ -185,7 +190,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     previousNewFiber.Sibling = newFiber;
                 }
-                
+
                 previousNewFiber = newFiber;
             }
 
@@ -214,7 +219,7 @@ namespace ReactiveUITK.Core.Fiber
             newFiber.Children = newVNode.Children;
             newFiber.EffectTag = EffectFlags.Update;
             newFiber.LastRenderedVNode = newVNode;
-            
+
             return newFiber;
         }
 
@@ -230,22 +235,21 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Element:
-                    return fiber.Tag == FiberTag.HostComponent && 
-                           fiber.ElementType == vnode.ElementTypeName;
+                    return fiber.Tag == FiberTag.HostComponent
+                        && fiber.ElementType == vnode.ElementTypeName;
 
                 case VirtualNodeType.Text:
                     // Text nodes are represented as host "Label" elements.
                     // Treat them as reusable when the host element type matches.
-                    return fiber.Tag == FiberTag.HostComponent &&
-                           fiber.ElementType == "Label";
-                
+                    return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
+
                 case VirtualNodeType.FunctionComponent:
-                    return fiber.Tag == FiberTag.FunctionComponent &&
-                           fiber.Render == vnode.FunctionRender;
-                
+                    return fiber.Tag == FiberTag.FunctionComponent
+                        && fiber.Render == vnode.FunctionRender;
+
                 case VirtualNodeType.Suspense:
-                    return fiber.Tag == FiberTag.FunctionComponent &&
-                           fiber.Render == FiberIntrinsicComponents.SuspenseRender;
+                    return fiber.Tag == FiberTag.FunctionComponent
+                        && fiber.Render == FiberIntrinsicComponents.SuspenseRender;
 
                 case VirtualNodeType.Portal:
                     return fiber.Tag == FiberTag.HostPortal;
@@ -255,7 +259,7 @@ namespace ReactiveUITK.Core.Fiber
 
                 case VirtualNodeType.Fragment:
                     return fiber.Tag == FiberTag.Fragment;
-                
+
                 default:
                     return false;
             }
@@ -266,7 +270,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static FiberNode CreateFiber(VirtualNode vnode, FiberNode parent, int index)
         {
-            if (vnode == null) return null;
+            if (vnode == null)
+                return null;
 
             var fiber = new FiberNode
             {
@@ -275,7 +280,7 @@ namespace ReactiveUITK.Core.Fiber
                 Index = index,
                 PendingProps = ExtractProps(vnode),
                 Children = vnode.Children,
-                EffectTag = EffectFlags.Placement
+                EffectTag = EffectFlags.Placement,
             };
 
             switch (vnode.NodeType)
@@ -347,7 +352,7 @@ namespace ReactiveUITK.Core.Fiber
                 ErrorBoundaryActive = fiber.ErrorBoundaryActive,
                 ErrorBoundaryShowingFallback = fiber.ErrorBoundaryShowingFallback,
                 ErrorBoundaryLastException = fiber.ErrorBoundaryLastException,
-                ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey
+                ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey,
             };
         }
 
@@ -373,7 +378,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 parentFiber.Deletions = new List<FiberNode>();
             }
-            
+
             childFiber.EffectTag |= EffectFlags.Deletion;
             parentFiber.Deletions.Add(childFiber);
         }
@@ -399,7 +404,7 @@ namespace ReactiveUITK.Core.Fiber
             var map = new Dictionary<string, FiberNode>();
             var child = firstChild;
             int index = 0;
-            
+
             while (child != null)
             {
                 var key = child.Key ?? index.ToString();
@@ -407,7 +412,7 @@ namespace ReactiveUITK.Core.Fiber
                 child = child.Sibling;
                 index++;
             }
-            
+
             return map;
         }
 
@@ -442,7 +447,7 @@ namespace ReactiveUITK.Core.Fiber
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
                     {
-                        { "text", vnode.TextContent ?? string.Empty }
+                        { "text", vnode.TextContent ?? string.Empty },
                     };
 
                 default:

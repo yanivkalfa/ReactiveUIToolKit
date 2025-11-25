@@ -9,7 +9,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new IMGUIContainer();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not IMGUIContainer c || properties == null)
             {
@@ -23,7 +26,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not IMGUIContainer c)
             {
@@ -38,4 +45,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-

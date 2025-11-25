@@ -21,7 +21,10 @@ namespace ReactiveUITK.Samples.Editor
         {
             var host = rootVisualElement;
             host.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(host, V.Func(AnimationsDemoPage.Render, key: "animations-demo"));
+            EditorRootRendererUtility.Render(
+                host,
+                V.Func(AnimationsDemoPage.Render, key: "animations-demo")
+            );
         }
 
         private void OnDisable()

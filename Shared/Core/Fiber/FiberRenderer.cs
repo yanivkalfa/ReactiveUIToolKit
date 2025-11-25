@@ -1,6 +1,6 @@
-using UnityEngine.UIElements;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core.Fiber
 {

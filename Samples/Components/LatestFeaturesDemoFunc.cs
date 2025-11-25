@@ -47,8 +47,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     void OnMetrics(Core.Fiber.FiberReconciler.FiberReconcilerMetrics metrics)
                     {
                         setMetricsSnapshot.Set(prev =>
-                            prev ??
-                            new MetricsSnapshot
+                            prev
+                            ?? new MetricsSnapshot
                             {
                                 LastRenderMs = metrics.LastRenderMs,
                                 WorkUnits = metrics.WorkUnits,
@@ -219,10 +219,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 "suspense-fallback",
                 V.Label(new LabelProps { Text = "Loading sample content..." }),
                 V.Label(
-                    new LabelProps
-                    {
-                        Text = "This fallback disappears once the Task finishes."
-                    }
+                    new LabelProps { Text = "This fallback disappears once the Task finishes." }
                 )
             );
 
@@ -251,16 +248,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Label(
                     new LabelProps
                     {
-                        Text = "Keyed diff demo (Point 13): use the controls to reorder."
+                        Text = "Keyed diff demo (Point 13): use the controls to reorder.",
                     }
                 ),
                 reorderControls,
-                V.Label(
-                    new LabelProps
-                    {
-                        Text = $"Current order: {orderText}"
-                    }
-                )
+                V.Label(new LabelProps { Text = $"Current order: {orderText}" })
             );
 
             string metricsLine =
@@ -278,9 +270,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             VirtualNode suspenseContent = V.VisualElement(
                 null,
                 "suspense-content",
-                V.Label(
-                    new LabelProps { Text = $"Completed async loads: {loadCount}" }
-                ),
+                V.Label(new LabelProps { Text = $"Completed async loads: {loadCount}" }),
                 metricsSection,
                 listSection
             );
@@ -294,9 +284,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     },
                 },
                 "latest-demo-root",
-                V.Label(
-                    new LabelProps { Text = "ReactiveUITK Latest Changes Showcase" }
-                ),
+                V.Label(new LabelProps { Text = "ReactiveUITK Latest Changes Showcase" }),
                 controlsRow,
                 V.Label(new LabelProps { Text = status }),
                 V.Suspense(

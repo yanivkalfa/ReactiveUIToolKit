@@ -20,17 +20,25 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var map = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name)) map["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName)) map["className"] = ClassName;
-            if (Value != null) map["value"] = Value;
-            if (!string.IsNullOrEmpty(ObjectType)) map["objectType"] = ObjectType;
-            if (AllowSceneObjects.HasValue) map["allowSceneObjects"] = AllowSceneObjects.Value;
-            if (Label != null) map["label"] = Label;
-            if (VisualInput != null) map["visualInput"] = VisualInput;
-            if (Style != null) map["style"] = Style;
-            if (Ref != null) map["ref"] = Ref;
+            if (!string.IsNullOrEmpty(Name))
+                map["name"] = Name;
+            if (!string.IsNullOrEmpty(ClassName))
+                map["className"] = ClassName;
+            if (Value != null)
+                map["value"] = Value;
+            if (!string.IsNullOrEmpty(ObjectType))
+                map["objectType"] = ObjectType;
+            if (AllowSceneObjects.HasValue)
+                map["allowSceneObjects"] = AllowSceneObjects.Value;
+            if (Label != null)
+                map["label"] = Label;
+            if (VisualInput != null)
+                map["visualInput"] = VisualInput;
+            if (Style != null)
+                map["style"] = Style;
+            if (Ref != null)
+                map["ref"] = Ref;
             return map;
         }
     }
 }
-

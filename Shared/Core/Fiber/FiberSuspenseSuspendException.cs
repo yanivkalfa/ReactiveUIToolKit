@@ -19,4 +19,3 @@ namespace ReactiveUITK.Core.Fiber
         }
     }
 }
-

@@ -15,14 +15,19 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> ToDictionary()
         {
             var map = new Dictionary<string, object>();
-            if (MinValue.HasValue) map["minValue"] = MinValue.Value;
-            if (MaxValue.HasValue) map["maxValue"] = MaxValue.Value;
-            if (LowLimit.HasValue) map["lowLimit"] = LowLimit.Value;
-            if (HighLimit.HasValue) map["highLimit"] = HighLimit.Value;
-            if (Style != null) map["style"] = Style;
-            if (Ref != null) map["ref"] = Ref;
+            if (MinValue.HasValue)
+                map["minValue"] = MinValue.Value;
+            if (MaxValue.HasValue)
+                map["maxValue"] = MaxValue.Value;
+            if (LowLimit.HasValue)
+                map["lowLimit"] = LowLimit.Value;
+            if (HighLimit.HasValue)
+                map["highLimit"] = HighLimit.Value;
+            if (Style != null)
+                map["style"] = Style;
+            if (Ref != null)
+                map["ref"] = Ref;
             return map;
         }
     }
 }
-

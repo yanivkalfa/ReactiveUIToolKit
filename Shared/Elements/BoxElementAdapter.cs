@@ -8,7 +8,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new Box();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not Box box || properties == null)
             {
@@ -16,10 +19,14 @@ namespace ReactiveUITK.Elements
                 return;
             }
             ApplySlots(box, properties);
-            PropsApplier.Apply(element, properties);
+            PropsApplier.Apply(elemenst, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not Box box)
             {
@@ -34,14 +41,22 @@ namespace ReactiveUITK.Elements
 
         private static void ApplySlots(Box box, IReadOnlyDictionary<string, object> properties)
         {
-            if (properties == null) return;
-            if (properties.TryGetValue("contentContainer", out var cc) && cc is Dictionary<string, object> ccMap)
+            if (properties == null)
+                return;
+            if (
+                properties.TryGetValue("contentContainer", out var cc)
+                && cc is Dictionary<string, object> ccMap
+            )
             {
                 PropsApplier.Apply(box.contentContainer, ccMap);
             }
         }
 
-        private static void ApplySlotsDiff(Box box, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        private static void ApplySlotsDiff(
+            Box box,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             previous ??= new Dictionary<string, object>();
             next ??= new Dictionary<string, object>();
@@ -54,4 +69,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-

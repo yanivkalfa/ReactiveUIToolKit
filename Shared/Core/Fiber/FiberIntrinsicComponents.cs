@@ -23,11 +23,14 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public static VirtualNode SuspenseRender(
             Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children)
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            if (props == null ||
-                !props.TryGetValue(SuspenseNodePropKey, out var raw) ||
-                raw is not VirtualNode suspenseNode)
+            if (
+                props == null
+                || !props.TryGetValue(SuspenseNodePropKey, out var raw)
+                || raw is not VirtualNode suspenseNode
+            )
             {
                 // Fallback: behave like a fragment over the children.
                 return WrapChildrenAsFragment(children);
@@ -54,9 +57,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     Debug.LogWarning($"ReactiveUITK Fiber: Suspense ready function threw: {ex}");
                 }
-                catch
-                {
-                }
+                catch { }
             }
 
             Task suspenderTask = suspenseNode.SuspenseReadyTask;
@@ -68,8 +69,7 @@ namespace ReactiveUITK.Core.Fiber
             // If there is a pending task stored on the component state, treat
             // the boundary as not ready until it completes (even if no
             // explicit SuspenseReady delegate was provided).
-            if (state?.SuspensePendingTask != null &&
-                !state.SuspensePendingTask.IsCompleted)
+            if (state?.SuspensePendingTask != null && !state.SuspensePendingTask.IsCompleted)
             {
                 suspenderTask ??= state.SuspensePendingTask;
                 ready = false;
@@ -135,9 +135,7 @@ namespace ReactiveUITK.Core.Fiber
                         $"ReactiveUITK Fiber: Suspense task faulted: {suspenderTask.Exception}"
                     );
                 }
-                catch
-                {
-                }
+                catch { }
                 return true;
             }
 
@@ -163,7 +161,8 @@ namespace ReactiveUITK.Core.Fiber
 
         private static void RegisterPendingSuspenseTask(
             FunctionComponentState state,
-            Task suspenderTask)
+            Task suspenderTask
+        )
         {
             if (state == null || suspenderTask == null)
             {
@@ -222,9 +221,7 @@ namespace ReactiveUITK.Core.Fiber
                             scheduler.Enqueue(Publish, IScheduler.Priority.Normal);
                             return;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
 
                     if (syncContext != null)
@@ -234,9 +231,7 @@ namespace ReactiveUITK.Core.Fiber
                             syncContext.Post(static s => ((Action)s)(), (Action)Publish);
                             return;
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
 
                     Publish();
@@ -255,8 +250,10 @@ namespace ReactiveUITK.Core.Fiber
                 return null;
             }
 
-            if (hostContext.Environment.TryGetValue("scheduler", out var obj)
-                && obj is IScheduler scheduler)
+            if (
+                hostContext.Environment.TryGetValue("scheduler", out var obj)
+                && obj is IScheduler scheduler
+            )
             {
                 return scheduler;
             }

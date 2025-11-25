@@ -412,7 +412,9 @@ namespace ReactiveUITK.Core
             return null;
         }
 
-        private static UnityEngine.UIElements.VisualElement FindFirstHostElement(Fiber.FiberNode node)
+        private static UnityEngine.UIElements.VisualElement FindFirstHostElement(
+            Fiber.FiberNode node
+        )
         {
             var current = node;
             while (current != null)
@@ -574,9 +576,7 @@ namespace ReactiveUITK.Core
         {
             // Resolve state from either the current hook context (Fiber) or metadata (legacy).
             FunctionComponentState state =
-                HookContext.Current
-                ?? metadata?.ComponentState
-                ?? metadata?.EnsureComponentState();
+                HookContext.Current ?? metadata?.ComponentState ?? metadata?.EnsureComponentState();
             if (state?.IsRendering == true)
             {
                 state.PendingUpdate = true;
@@ -654,9 +654,7 @@ namespace ReactiveUITK.Core
                     {
                         try
                         {
-                            Debug.Log(
-                                $"[Hooks] Flush slot={slot} before={before} after={current}"
-                            );
+                            Debug.Log($"[Hooks] Flush slot={slot} before={before} after={current}");
                         }
                         catch { }
                     }
@@ -989,52 +987,52 @@ namespace ReactiveUITK.Core
             {
                 state.HookStates.Add((value, dependencies));
             }
-              var tuple = ((T val, object[] d))state.HookStates[state.HookIndex];
-              bool changed = DepsChanged(tuple.d, dependencies);
-              if (changed && !Equals(tuple.val, value))
-              {
-                  T newVal = value;
-                  int index = state.HookIndex;
-                  var scheduler = ResolveScheduler(metadata);
-                  if (scheduler != null)
-                  {
-                      scheduler.EnqueueBatchedEffect(() =>
-                      {
-                          state.HookStates[index] = (newVal, dependencies);
-                          SyncState(metadata, state);
-                      });
-                  }
-                  else
-                  {
-                      state.HookStates[index] = (newVal, dependencies);
-                  }
-              }
-              state.HookIndex++;
-              SyncState(metadata, state);
+            var tuple = ((T val, object[] d))state.HookStates[state.HookIndex];
+            bool changed = DepsChanged(tuple.d, dependencies);
+            if (changed && !Equals(tuple.val, value))
+            {
+                T newVal = value;
+                int index = state.HookIndex;
+                var scheduler = ResolveScheduler(metadata);
+                if (scheduler != null)
+                {
+                    scheduler.EnqueueBatchedEffect(() =>
+                    {
+                        state.HookStates[index] = (newVal, dependencies);
+                        SyncState(metadata, state);
+                    });
+                }
+                else
+                {
+                    state.HookStates[index] = (newVal, dependencies);
+                }
+            }
+            state.HookIndex++;
+            SyncState(metadata, state);
             var latest = ((T val, object[] d))state.HookStates[state.HookIndex - 1];
             return latest.val;
         }
 
         public static Func<T> UseCallback<T>(Func<T> callback, params object[] dependencies)
-          {
-              NodeMetadata metadata = HookContext.Current?.Owner;
-              var state = EnsureState(metadata);
-              if (state == null)
-              {
-                  return callback;
-              }
-              RecordHook(metadata, state, HookIdCallback);
-              if (metadata != null)
-              {
-                  WarnMissingDependencies(
-                      metadata,
-                      state,
-                      HookIdCallback,
-                      state.HookIndex,
-                      dependencies,
-                      treatEmptyAsMissing: true
-                  );
-              }
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null)
+            {
+                return callback;
+            }
+            RecordHook(metadata, state, HookIdCallback);
+            if (metadata != null)
+            {
+                WarnMissingDependencies(
+                    metadata,
+                    state,
+                    HookIdCallback,
+                    state.HookIndex,
+                    dependencies,
+                    treatEmptyAsMissing: true
+                );
+            }
             state.HookStates ??= new List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
@@ -1047,35 +1045,35 @@ namespace ReactiveUITK.Core
                 tuple = (callback, dependencies);
                 state.HookStates[state.HookIndex] = tuple;
             }
-              state.HookIndex++;
-              SyncState(metadata, state);
-              return tuple.cb;
-          }
+            state.HookIndex++;
+            SyncState(metadata, state);
+            return tuple.cb;
+        }
 
         public static THandle UseImperativeHandle<THandle>(
-              Func<THandle> factory,
-              params object[] dependencies
-          )
-              where THandle : class
-          {
-              NodeMetadata metadata = HookContext.Current?.Owner;
-              var state = EnsureState(metadata);
-              if (state == null)
-              {
-                  return factory();
-              }
-              RecordHook(metadata, state, HookIdImperative);
-              if (metadata != null)
-              {
-                  WarnMissingDependencies(
-                      metadata,
-                      state,
-                      HookIdImperative,
-                      state.HookIndex,
-                      dependencies,
-                      treatEmptyAsMissing: true
-                  );
-              }
+            Func<THandle> factory,
+            params object[] dependencies
+        )
+            where THandle : class
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null)
+            {
+                return factory();
+            }
+            RecordHook(metadata, state, HookIdImperative);
+            if (metadata != null)
+            {
+                WarnMissingDependencies(
+                    metadata,
+                    state,
+                    HookIdImperative,
+                    state.HookIndex,
+                    dependencies,
+                    treatEmptyAsMissing: true
+                );
+            }
             state.HookStates ??= new List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
@@ -1087,30 +1085,30 @@ namespace ReactiveUITK.Core
                 tuple = (factory(), dependencies);
                 state.HookStates[state.HookIndex] = tuple;
             }
-              state.HookIndex++;
-              SyncState(metadata, state);
-              return tuple.handle;
-          }
+            state.HookIndex++;
+            SyncState(metadata, state);
+            return tuple.handle;
+        }
 
         public static MutableRef<T> UseRef<T>(T initial = default)
-          {
-              NodeMetadata metadata = HookContext.Current?.Owner;
-              var state = EnsureState(metadata);
-              if (state == null)
-              {
-                  return new MutableRef<T> { Value = initial };
-              }
-              RecordHook(metadata, state, HookIdMutableRef);
-              state.HookStates ??= new List<object>();
-              if (state.HookIndex >= state.HookStates.Count)
-              {
-                  state.HookStates.Add(new MutableRef<T> { Value = initial });
-              }
-              var stored = (MutableRef<T>)state.HookStates[state.HookIndex];
-              state.HookIndex++;
-              SyncState(metadata, state);
-              return stored;
-          }
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null)
+            {
+                return new MutableRef<T> { Value = initial };
+            }
+            RecordHook(metadata, state, HookIdMutableRef);
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
+            {
+                state.HookStates.Add(new MutableRef<T> { Value = initial });
+            }
+            var stored = (MutableRef<T>)state.HookStates[state.HookIndex];
+            state.HookIndex++;
+            SyncState(metadata, state);
+            return stored;
+        }
 
         public static VisualElement UseRef()
         {
@@ -1280,49 +1278,50 @@ namespace ReactiveUITK.Core
         }
 
         public static void UseTweenFloat(
-              float from,
-              float to,
-              float duration,
-              ReactiveUITK.Core.Animation.Ease ease,
-              float delay,
-              System.Action<float> onUpdate,
-              System.Action onComplete,
-              params object[] dependencies
-          )
-          {
-              NodeMetadata metadata = HookContext.Current?.Owner;
-              var state = EnsureState(metadata);
-              if (state == null)
-              {
-                  return;
-              }
-              RecordHook(metadata, state, HookIdTween);
-              state.HookStates ??= new System.Collections.Generic.List<object>();
-              if (state.HookIndex >= state.HookStates.Count)
-              {
-                  state.HookStates.Add(null);
-              }
-              int index = state.HookIndex;
-              state.HookIndex++;
-              SyncState(metadata, state);
-  
-              UseEffect(
-                  () =>
-                  {
-                      UnityEngine.UIElements.IVisualElementScheduledItem item = null;
-                      double start = 0;
-                      bool started = false;
-                      var target = ResolveAnimationTarget(metadata, state);
-                      if (target == null)
-                      {
-                          return null;
-                      }
-                      item = target.schedule.Execute(() =>
-                          {
-                              if (target.panel == null)
-                              {
-                                  try
-                                  {
+            float from,
+            float to,
+            float duration,
+            ReactiveUITK.Core.Animation.Ease ease,
+            float delay,
+            System.Action<float> onUpdate,
+            System.Action onComplete,
+            params object[] dependencies
+        )
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null)
+            {
+                return;
+            }
+            RecordHook(metadata, state, HookIdTween);
+            state.HookStates ??= new System.Collections.Generic.List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
+            {
+                state.HookStates.Add(null);
+            }
+            int index = state.HookIndex;
+            state.HookIndex++;
+            SyncState(metadata, state);
+
+            UseEffect(
+                () =>
+                {
+                    UnityEngine.UIElements.IVisualElementScheduledItem item = null;
+                    double start = 0;
+                    bool started = false;
+                    var target = ResolveAnimationTarget(metadata, state);
+                    if (target == null)
+                    {
+                        return null;
+                    }
+                    item = target
+                        .schedule.Execute(() =>
+                        {
+                            if (target.panel == null)
+                            {
+                                try
+                                {
                                     item?.Pause();
                                 }
                                 catch { }
@@ -1389,56 +1388,61 @@ namespace ReactiveUITK.Core
         }
 
         public static T UseContext<T>(string key)
-          {
-              NodeMetadata metadata = HookContext.Current?.Owner;
-              var state = EnsureState(metadata);
-              if (state == null || string.IsNullOrEmpty(key))
-              {
-                  return default;
-              }
+        {
+            NodeMetadata metadata = HookContext.Current?.Owner;
+            var state = EnsureState(metadata);
+            if (state == null || string.IsNullOrEmpty(key))
+            {
+                return default;
+            }
 
-              RecordHook(metadata, state, HookIdContext);
+            RecordHook(metadata, state, HookIdContext);
 
-              // Resolve context value
-              object resolved = default;
+            // Resolve context value
+            object resolved = default;
 
-              // Legacy path: use HostContext with metadata + provider frames
-              if (metadata != null && metadata.HostContext != null)
-              {
-                  int version;
-                  int providerId;
-                  resolved = metadata.HostContext.ResolveContext(key, out version, out providerId);
-                  metadata.HostContext.RegisterContextConsumer(metadata, key, providerId);
-              }
-              else
-              {
-                  // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
-                  var fiber = state.Fiber;
-                  while (fiber != null)
-                  {
-                      if (fiber.ProvidedContext != null && fiber.ProvidedContext.TryGetValue(key, out resolved))
-                      {
-                          break;
-                      }
-                      fiber = fiber.Parent;
-                  }
+            // Legacy path: use HostContext with metadata + provider frames
+            if (metadata != null && metadata.HostContext != null)
+            {
+                int version;
+                int providerId;
+                resolved = metadata.HostContext.ResolveContext(key, out version, out providerId);
+                metadata.HostContext.RegisterContextConsumer(metadata, key, providerId);
+            }
+            else
+            {
+                // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
+                var fiber = state.Fiber;
+                while (fiber != null)
+                {
+                    if (
+                        fiber.ProvidedContext != null
+                        && fiber.ProvidedContext.TryGetValue(key, out resolved)
+                    )
+                    {
+                        break;
+                    }
+                    fiber = fiber.Parent;
+                }
 
-                  if (resolved == null && state.HostContext != null)
-                  {
-                      // Fallback to global environment
-                      if (state.HostContext.Environment != null
-                          && state.HostContext.Environment.TryGetValue(key, out var envVal))
-                      {
-                          resolved = envVal;
-                      }
-                  }
-              }
+                if (resolved == null && state.HostContext != null)
+                {
+                    // Fallback to global environment
+                    if (
+                        state.HostContext.Environment != null
+                        && state.HostContext.Environment.TryGetValue(key, out var envVal)
+                    )
+                    {
+                        resolved = envVal;
+                    }
+                }
+            }
 
-              state.HookStates ??= new List<object>();
-              if (state.HookIndex >= state.HookStates.Count)
-              {
-                  state.HookStates.Add(default(T));
-              }
+            state.HookStates ??= new List<object>();
+            if (state.HookIndex >= state.HookStates.Count)
+            {
+                state.HookStates.Add(default(T));
+            }
             if (resolved is T typed)
             {
                 state.HookStates[state.HookIndex] = typed;
@@ -1500,12 +1504,12 @@ namespace ReactiveUITK.Core
         public static void ProvideContext<T>(string key, T value) =>
             ProvideContext(key, (object)value);
 
-          public static void ProvideContext(string key, object value)
-          {
-              if (string.IsNullOrEmpty(key))
-              {
-                  return;
-              }
+        public static void ProvideContext(string key, object value)
+        {
+            if (string.IsNullOrEmpty(key))
+            {
+                return;
+            }
 
             // Legacy path: use NodeMetadata pending context
             NodeMetadata metadata = HookContext.Current?.Owner;
@@ -1528,31 +1532,31 @@ namespace ReactiveUITK.Core
             {
                 fiber.ProvidedContext = new Dictionary<string, object>();
             }
-              fiber.ProvidedContext[key] = value;
-          }
+            fiber.ProvidedContext[key] = value;
+        }
 
-          /// <summary>
-          /// Suspend the current Fiber function component until the given task
-          /// completes, using Suspense. If the task is already completed, this
-          /// is a no-op. Otherwise it schedules a re-render and throws a
-          /// FiberSuspenseSuspendException to abort the current render pass.
-          /// </summary>
-          public static void SuspendUntil(Task task)
-          {
-              if (task == null || task.IsCompleted)
-              {
-                  return;
-              }
+        /// <summary>
+        /// Suspend the current Fiber function component until the given task
+        /// completes, using Suspense. If the task is already completed, this
+        /// is a no-op. Otherwise it schedules a re-render and throws a
+        /// FiberSuspenseSuspendException to abort the current render pass.
+        /// </summary>
+        public static void SuspendUntil(Task task)
+        {
+            if (task == null || task.IsCompleted)
+            {
+                return;
+            }
 
-              var state = HookContext.Current;
-              if (state != null)
-              {
-                  state.SuspensePendingTask = task;
-                  state.OnStateUpdated?.Invoke();
-              }
+            var state = HookContext.Current;
+            if (state != null)
+            {
+                state.SuspensePendingTask = task;
+                state.OnStateUpdated?.Invoke();
+            }
 
-              throw new FiberSuspenseSuspendException(task);
-          }
+            throw new FiberSuspenseSuspendException(task);
+        }
 
         public static void FlushSync(Action action)
         {
@@ -1627,21 +1631,21 @@ namespace ReactiveUITK.Core
         }
 
         private sealed class SignalSubscriptionState : IDisposable
-          {
-              private readonly NodeMetadata owner;
-              private readonly FunctionComponentState state;
-              private SignalBase signal;
-              private IDisposable subscription;
-              private Func<object, object> selector = IdentitySelector;
-              private IEqualityComparer<object> comparer = EqualityComparer<object>.Default;
-              private object lastValue;
-              private bool initialized;
-  
-              internal SignalSubscriptionState(NodeMetadata owner, FunctionComponentState state)
-              {
-                  this.owner = owner;
-                  this.state = state;
-              }
+        {
+            private readonly NodeMetadata owner;
+            private readonly FunctionComponentState state;
+            private SignalBase signal;
+            private IDisposable subscription;
+            private Func<object, object> selector = IdentitySelector;
+            private IEqualityComparer<object> comparer = EqualityComparer<object>.Default;
+            private object lastValue;
+            private bool initialized;
+
+            internal SignalSubscriptionState(NodeMetadata owner, FunctionComponentState state)
+            {
+                this.owner = owner;
+                this.state = state;
+            }
 
             public object Bind(
                 SignalBase nextSignal,
@@ -1680,36 +1684,36 @@ namespace ReactiveUITK.Core
                 return lastValue;
             }
 
-              private void OnSignalChanged(object rawValue)
-              {
-                  var next = selector(rawValue);
-                  if (comparer.Equals(next, lastValue))
-                  {
-                      return;
-                  }
-                  lastValue = next;
+            private void OnSignalChanged(object rawValue)
+            {
+                var next = selector(rawValue);
+                if (comparer.Equals(next, lastValue))
+                {
+                    return;
+                }
+                lastValue = next;
 
-                  // Fiber path: prefer FunctionComponentState.OnStateUpdated when available.
-                  if (state?.OnStateUpdated != null)
-                  {
-                      try
-                      {
-                          state.OnStateUpdated.Invoke();
-                      }
-                      catch (Exception ex)
-                      {
-                          try
-                          {
-                              Debug.LogException(ex);
-                          }
-                          catch { }
-                      }
-                      return;
-                  }
+                // Fiber path: prefer FunctionComponentState.OnStateUpdated when available.
+                if (state?.OnStateUpdated != null)
+                {
+                    try
+                    {
+                        state.OnStateUpdated.Invoke();
+                    }
+                    catch (Exception ex)
+                    {
+                        try
+                        {
+                            Debug.LogException(ex);
+                        }
+                        catch { }
+                    }
+                    return;
+                }
 
-                  // Legacy path: fall back to metadata-based rerender.
-                  RequestComponentRerender(owner);
-              }
+                // Legacy path: fall back to metadata-based rerender.
+                RequestComponentRerender(owner);
+            }
 
             private void DisposeSubscription()
             {

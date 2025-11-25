@@ -208,11 +208,7 @@ namespace ReactiveUITK.Core
                 && nextRoot.NodeType == VirtualNodeType.Host
             )
             {
-                PropsApplier.ApplyDiff(
-                    hostElement,
-                    previousRoot.Properties,
-                    nextRoot.Properties
-                );
+                PropsApplier.ApplyDiff(hostElement, previousRoot.Properties, nextRoot.Properties);
                 DiffChildren(
                     hostElement,
                     previousRoot.Children ?? Array.Empty<VirtualNode>(),
@@ -662,10 +658,10 @@ namespace ReactiveUITK.Core
             for (int i = managedAfter.Count - 1; i >= 0; i--)
             {
                 var existing = managedAfter[i];
-                    if (existing == null)
-                    {
-                        continue;
-                    }
+                if (existing == null)
+                {
+                    continue;
+                }
                 var md = existing.userData as NodeMetadata;
                 if (md == null)
                 {
@@ -2018,10 +2014,10 @@ namespace ReactiveUITK.Core
                         componentState.HookOrderPrimed = true;
                     }
                     else if (!renderCompleted)
-                    if (restoreAncestorContext && originalFrame.IsValid)
-                    {
-                        hostContext.RestoreFrame(originalFrame);
-                    }
+                        if (restoreAncestorContext && originalFrame.IsValid)
+                        {
+                            hostContext.RestoreFrame(originalFrame);
+                        }
                 }
                 functionComponentMetadata.SyncComponentState(componentState);
                 if (!renderCompleted)

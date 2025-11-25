@@ -18,12 +18,12 @@ namespace ReactiveUITK.Core.Fiber
             {
                 var currentFirstChild = wipFiber.Alternate?.Child;
                 FiberChildReconciliation.ReconcileChildren(
-                    wipFiber, 
-                    currentFirstChild, 
+                    wipFiber,
+                    currentFirstChild,
                     wipFiber.Children
                 );
             }
-            
+
             return wipFiber.Child;
         }
 

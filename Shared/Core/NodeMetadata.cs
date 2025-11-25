@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using UnityEngine.UIElements;
 using ReactiveUITK.Core.Fiber;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
 {

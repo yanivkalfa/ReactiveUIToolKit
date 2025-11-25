@@ -26,18 +26,22 @@ namespace ReactiveUITK.Tests
             var nested = V.VisualElement(
                 elementProperties: null,
                 key: null,
-                children: new[] {
+                children: new[]
+                {
                     V.Label(new LabelProps { Text = "Hello" }),
-                    V.Button(new ButtonProps { Text = "World" })
+                    V.Button(new ButtonProps { Text = "World" }),
                 }
             );
             renderer.Render(nested);
             Debug.Log("[FiberTest] Nested elements rendered");
 
             // Test 3: Function component
-            var funcComp = V.Func((props, children) => {
-                return V.Button(new ButtonProps { Text = "From Function Component" });
-            });
+            var funcComp = V.Func(
+                (props, children) =>
+                {
+                    return V.Button(new ButtonProps { Text = "From Function Component" });
+                }
+            );
             renderer.Render(funcComp);
             Debug.Log("[FiberTest] Function component rendered");
 
@@ -49,26 +53,32 @@ namespace ReactiveUITK.Tests
             Debug.Log("[FiberTest] Starting counter test...");
 
             // Test with stateful function component
-            var counterFunc = V.Func((props, children) =>
-            {
-                var (count, setCount) = Hooks.UseState(0);
+            var counterFunc = V.Func(
+                (props, children) =>
+                {
+                    var (count, setCount) = Hooks.UseState(0);
 
-                return V.VisualElement(
-                    elementProperties: null,
-                    key: null,
-                    children: new[] {
-                        V.Label(new LabelProps { Text = $"Count: {count}" }),
-                        V.Button(new ButtonProps { 
-                            Text = "Increment", 
-                            OnClick = () => setCount(count + 1) 
-                        })
-                    }
-                );
-            });
+                    return V.VisualElement(
+                        elementProperties: null,
+                        key: null,
+                        children: new[]
+                        {
+                            V.Label(new LabelProps { Text = $"Count: {count}" }),
+                            V.Button(
+                                new ButtonProps
+                                {
+                                    Text = "Increment",
+                                    OnClick = () => setCount(count + 1),
+                                }
+                            ),
+                        }
+                    );
+                }
+            );
 
             var renderer = new FiberRenderer(container);
             renderer.Render(counterFunc);
-            
+
             Debug.Log("[FiberTest] Counter component rendered");
         }
 
@@ -124,7 +134,7 @@ namespace ReactiveUITK.Tests
                         new ButtonProps
                         {
                             Text = $"Signal: {value}",
-                            OnClick = () => signal.Set(value + 1)
+                            OnClick = () => signal.Set(value + 1),
                         }
                     );
                 }
