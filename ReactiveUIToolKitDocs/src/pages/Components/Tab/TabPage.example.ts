@@ -7,7 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class TabExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TabExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

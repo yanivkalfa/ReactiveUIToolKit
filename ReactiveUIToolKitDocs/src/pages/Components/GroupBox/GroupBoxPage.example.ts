@@ -24,7 +24,8 @@ public static class GroupBoxExamples
     (StyleKeys.FontSize, 14f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass GroupBoxExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

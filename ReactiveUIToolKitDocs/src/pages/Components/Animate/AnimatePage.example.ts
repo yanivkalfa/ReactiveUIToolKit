@@ -18,7 +18,8 @@ public static class AnimateExamples
     (StyleKeys.JustifyContent, Justify.Center),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass AnimateExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

@@ -9,7 +9,8 @@ public static class MinMaxSliderExamples
 {
   private static readonly Style SliderStyle = new Style { (StyleKeys.Width, 200f) };
 
-  public static VirtualNode Render(
+  // Function component – pass MinMaxSliderExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -18,7 +19,7 @@ public static class MinMaxSliderExamples
 
     void Update(float min, float max)
     {
-      setRange.Set(_ => (min, max));
+      setRange(_ => (min, max));
     }
 
     return V.MinMaxSlider(

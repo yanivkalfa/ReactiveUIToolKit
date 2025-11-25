@@ -11,7 +11,8 @@ using ReactiveUITK.Router;
 // Demonstrates RouterHooks.UseNavigate, UseParams, and UseQuery.
 public static class RouterHooksDemoFunc
 {
-  public static VirtualNode Render(
+  // Function component – pass RouterHooksDemoFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

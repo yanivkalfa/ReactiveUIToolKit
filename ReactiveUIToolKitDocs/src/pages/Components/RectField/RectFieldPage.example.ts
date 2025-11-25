@@ -14,7 +14,8 @@ public static class RectFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass RectFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

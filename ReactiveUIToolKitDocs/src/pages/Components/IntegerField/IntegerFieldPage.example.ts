@@ -10,7 +10,8 @@ public static class IntegerFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass IntegerFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -19,7 +20,7 @@ public static class IntegerFieldExamples
 
     void OnChange(ChangeEvent<int> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.IntegerField(

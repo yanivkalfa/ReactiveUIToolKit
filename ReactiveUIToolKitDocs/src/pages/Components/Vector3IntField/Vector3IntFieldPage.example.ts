@@ -11,7 +11,8 @@ public static class Vector3IntFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector3IntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

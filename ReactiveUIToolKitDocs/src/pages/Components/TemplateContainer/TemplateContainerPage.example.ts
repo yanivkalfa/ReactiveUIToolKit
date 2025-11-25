@@ -14,7 +14,8 @@ public static class TemplateContainerExamples
     (StyleKeys.PaddingBottom, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass TemplateContainerExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

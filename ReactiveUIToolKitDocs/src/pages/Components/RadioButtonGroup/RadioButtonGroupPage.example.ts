@@ -10,7 +10,8 @@ public static class RadioButtonGroupExamples
 {
   private static readonly Style ContentContainerStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 8f) };
 
-  public static VirtualNode Render(
+  // Function component – pass RadioButtonGroupExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -19,7 +20,7 @@ public static class RadioButtonGroupExamples
 
     void OnChange(ChangeEvent<int> evt)
     {
-      setIndex.Set(evt.newValue);
+      setIndex(evt.newValue);
     }
 
     var contentContainerProps = new Dictionary<string, object>

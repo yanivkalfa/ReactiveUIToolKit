@@ -54,8 +54,9 @@ export const BoundsFieldPage: FC = () => (
       </Typography>
       <Typography variant="body1">
         Use <code>Hooks.UseState</code> (or a signal) to hold the current <code>Bounds</code> and
-        update it from a change handler. The example above shows using a local state tuple and
-        updating via <code>setBounds.Set(evt.newValue)</code>.
+        update it from a change handler. The example above uses a local state tuple and updates the
+        value via <code>setBounds(evt.newValue)</code> (you can also use the optional{' '}
+        <code>StateSetterExtensions.Set</code> helper if you prefer method syntax).
       </Typography>
     </Box>
   </Box>

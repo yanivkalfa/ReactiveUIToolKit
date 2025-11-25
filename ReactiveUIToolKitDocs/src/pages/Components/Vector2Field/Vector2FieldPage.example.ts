@@ -11,7 +11,8 @@ public static class Vector2FieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector2FieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -20,7 +21,7 @@ public static class Vector2FieldExamples
 
     void OnChange(ChangeEvent<Vector2> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Vector2Field(

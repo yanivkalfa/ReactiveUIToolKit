@@ -38,20 +38,7 @@ namespace ReactiveUITK.Core.Fiber
             componentState.LayoutEffectIndex = 0;
 
             // Wire up state updates to Fiber reconciler
-            componentState.OnStateUpdated = () =>
-            {
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    try
-                    {
-                        UnityEngine.Debug.Log(
-                            $"[Fiber] OnStateUpdated invoked for fiber {wipFiber.ElementType} key={wipFiber.Key}"
-                        );
-                    }
-                    catch { }
-                }
-                reconciler.ScheduleUpdateOnFiber(wipFiber, null);
-            };
+            componentState.OnStateUpdated = () => reconciler.ScheduleUpdateOnFiber(wipFiber, null);
 
             // Set hook context
             HookContext.Current = componentState;

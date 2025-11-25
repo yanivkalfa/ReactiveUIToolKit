@@ -11,7 +11,9 @@ public static class ButtonExamples
 {
   private static readonly Style ButtonStyle = new Style { (StyleKeys.MarginTop, 4f) };
 
-  public static VirtualNode Render(
+  // Function component �?" no Render method wrapper; pass this
+  // function to V.Func when mounting.
+  public static VirtualNode BasicButton(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -20,7 +22,7 @@ public static class ButtonExamples
 
     void OnClick()
     {
-      setCount.Set(previous => previous + 1);
+      setCount(previous => previous + 1);
       Debug.Log($"Clicked {count + 1} times");
     }
 

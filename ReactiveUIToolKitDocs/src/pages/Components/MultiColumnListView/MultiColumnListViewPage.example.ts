@@ -15,7 +15,8 @@ public static class MultiColumnListViewExamples
     public int Value;
   }
 
-  public static VirtualNode Render(
+  // Function component – pass MultiColumnListViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

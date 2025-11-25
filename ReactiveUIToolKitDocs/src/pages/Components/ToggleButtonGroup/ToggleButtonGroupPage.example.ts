@@ -7,7 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class ToggleButtonGroupExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass ToggleButtonGroupExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

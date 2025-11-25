@@ -11,7 +11,8 @@ public static class Hash128FieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Hash128FieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -20,7 +21,7 @@ public static class Hash128FieldExamples
 
     void OnChange(ChangeEvent<Hash128> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Hash128Field(

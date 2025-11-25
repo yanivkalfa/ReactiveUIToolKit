@@ -160,17 +160,6 @@ namespace ReactiveUITK.Core.Fiber
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
 
-            if (FiberConfig.EnableFiberLogging)
-            {
-                try
-                {
-                    UnityEngine.Debug.Log(
-                        $"[Fiber] ScheduleUpdateOnFiber: rootVNode={rootVNode?.NodeType} fiber={fiber?.ElementType} key={fiber?.Key}"
-                    );
-                }
-                catch { }
-            }
-
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
             {
@@ -313,11 +302,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private FiberNode BeginWork(FiberNode fiber)
         {
-            if (FiberConfig.EnableFiberLogging)
-            {
-                UnityEngine.Debug.Log($"[Fiber] BeginWork: {fiber.ElementType} ({fiber.Tag})");
-            }
-
             try
             {
                 switch (fiber.Tag)
@@ -382,22 +366,9 @@ namespace ReactiveUITK.Core.Fiber
                 var siblingFiber = completedWork.Sibling;
                 if (siblingFiber != null)
                 {
-                    if (FiberConfig.EnableFiberLogging)
-                    {
-                        UnityEngine.Debug.Log(
-                            $"[Fiber] {completedWork.ElementType} has sibling: {siblingFiber.ElementType} ({siblingFiber.Tag})"
-                        );
-                    }
                     // Work on sibling next
                     _nextUnitOfWork = siblingFiber;
                     return;
-                }
-
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    UnityEngine.Debug.Log(
-                        $"[Fiber] {completedWork.ElementType} has NO sibling, moving to parent: {completedWork.Parent?.ElementType}"
-                    );
                 }
 
                 // No more siblings, go back to parent
@@ -413,11 +384,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CompleteWork(FiberNode fiber)
         {
-            if (FiberConfig.EnableFiberLogging)
-            {
-                UnityEngine.Debug.Log($"[Fiber] CompleteWork: {fiber.ElementType}");
-            }
-
             switch (fiber.Tag)
             {
                 case FiberTag.HostComponent:
@@ -425,12 +391,6 @@ namespace ReactiveUITK.Core.Fiber
                     {
                         // Create the element using HostConfig
                         fiber.HostElement = _hostConfig.CreateElement(fiber.ElementType);
-                        if (FiberConfig.EnableFiberLogging)
-                        {
-                            UnityEngine.Debug.Log(
-                                $"[Fiber] Created host element for {fiber.ElementType}: {fiber.HostElement}"
-                            );
-                        }
                         fiber.EffectTag |= EffectFlags.Placement;
                     }
                     else if (fiber.PendingProps != fiber.Props)
@@ -968,32 +928,14 @@ namespace ReactiveUITK.Core.Fiber
 
         private void ReconcileChildren(FiberNode wipFiber, IReadOnlyList<VirtualNode> vnodes)
         {
-            if (FiberConfig.EnableFiberLogging)
-            {
-                UnityEngine.Debug.Log(
-                    $"[Fiber] ReconcileChildren for {wipFiber.ElementType}: {vnodes?.Count ?? 0} children"
-                );
-            }
-
             // Get current children from alternate (if exists)
             var currentFirstChild = wipFiber.Alternate?.Child;
 
             // Use the full reconciliation algorithm
             FiberChildReconciliation.ReconcileChildren(wipFiber, currentFirstChild, vnodes);
 
-            if (FiberConfig.EnableFiberLogging)
-            {
-                int childCount = 0;
-                var child = wipFiber.Child;
-                while (child != null)
-                {
-                    childCount++;
-                    child = child.Sibling;
-                }
-                UnityEngine.Debug.Log(
-                    $"[Fiber] After reconciliation: {wipFiber.ElementType} has {childCount} child fibers"
-                );
-            }
+            // Optional debug metrics (child counts, etc.) can be added here
+            // behind FiberConfig.EnableFiberLogging if needed.
         }
 
         private FiberNode CreateFiberFromVNode(VirtualNode vnode)

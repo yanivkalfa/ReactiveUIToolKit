@@ -10,7 +10,8 @@ public static class ImageExamples
 {
   private static readonly Style ImageStyle = new Style { (StyleKeys.Width, 128f), (StyleKeys.Height, 128f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ImageExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

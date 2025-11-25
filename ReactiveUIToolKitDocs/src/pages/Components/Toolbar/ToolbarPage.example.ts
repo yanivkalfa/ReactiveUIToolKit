@@ -9,7 +9,8 @@ public static class ToolbarExamples
 {
   private static readonly Style ToolbarStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ToolbarExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

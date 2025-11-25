@@ -8,10 +8,12 @@ using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Core.Util;
+using UnityEngine;
 
 public static class SafeAreaHooksDemoFunc
 {
-  public static VirtualNode Render(
+  // Function component – pass SafeAreaHooksDemoFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

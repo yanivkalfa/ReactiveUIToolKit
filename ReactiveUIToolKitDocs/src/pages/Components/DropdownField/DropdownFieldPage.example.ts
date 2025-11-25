@@ -11,7 +11,8 @@ public static class DropdownFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass DropdownFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -22,7 +23,7 @@ public static class DropdownFieldExamples
 
     void OnChange(ChangeEvent<string> evt)
     {
-      setIndex.Set(previous => choices.IndexOf(evt.newValue));
+      setIndex(previous => choices.IndexOf(evt.newValue));
     }
 
     return V.DropdownField(

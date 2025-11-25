@@ -16,7 +16,8 @@ public static class MultiColumnTreeViewExamples
     public IList<Node> Children;
   }
 
-  public static VirtualNode Render(
+  // Function component – pass MultiColumnTreeViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

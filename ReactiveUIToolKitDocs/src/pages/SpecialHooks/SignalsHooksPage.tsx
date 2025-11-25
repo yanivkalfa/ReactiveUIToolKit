@@ -14,7 +14,8 @@ public static class SignalHooksDemoFunc
   private static readonly Signal<int> CounterSignal =
     Signals.Get<int>("demo.counter", 0);
 
-  public static VirtualNode Render(
+  // Function component – pass SignalHooksDemoFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

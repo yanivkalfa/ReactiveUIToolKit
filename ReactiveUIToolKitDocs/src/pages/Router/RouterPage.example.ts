@@ -53,7 +53,9 @@ public static class RouterDemoFunc
     (StyleKeys.MarginBottom, 6f),
   };
 
-  public static VirtualNode Render(
+  // Function component entrypoint �?" pass RouterDemoFunc.Render
+  // directly to V.Func when mounting.
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -72,7 +74,7 @@ public static class RouterDemoFunc
         V.Route(path: "/about", element: V.Text("About route")),
         V.Route(
           path: "/users/:id",
-          children: new[] { V.Func(UserProfileFunc.Render) }
+          children: new[] { V.Func(UserProfile) }
         ),
         V.Route(path: "*", element: V.Text("Not found")),
       }
@@ -81,7 +83,7 @@ public static class RouterDemoFunc
 }
 
 // Mounted through RootRenderer elsewhere:
-// rootRenderer.Render(V.Func(RouterDemoFunc.Render));`
+// rootRenderer.Render(V.Func(RouterDemoFunc.Example));`
 
 export const ROUTER_LINKS_AND_NAV_EXAMPLE = `using System.Collections.Generic;
 using ReactiveUITK.Core;
@@ -91,7 +93,7 @@ using ReactiveUITK.Router;
 // Demonstrates links, programmatic navigation, params, query, and state.
 public static class RouterLinksFunc
 {
-  public static VirtualNode Render(
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

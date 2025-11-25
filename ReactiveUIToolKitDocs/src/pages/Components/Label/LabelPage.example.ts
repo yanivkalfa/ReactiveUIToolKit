@@ -9,7 +9,8 @@ public static class LabelExamples
 {
   private static readonly Style LabelStyle = new Style { (StyleKeys.FontSize, 16f) };
 
-  public static VirtualNode Render(
+  // Function component – pass LabelExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

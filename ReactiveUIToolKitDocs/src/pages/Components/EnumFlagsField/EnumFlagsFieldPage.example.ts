@@ -20,7 +20,8 @@ public static class EnumFlagsFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass EnumFlagsFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -29,7 +30,7 @@ public static class EnumFlagsFieldExamples
 
     void OnChange(ChangeEvent<System.Enum> evt)
     {
-      setValue.Set((ExampleFlags)evt.newValue);
+      setValue((ExampleFlags)evt.newValue);
     }
 
     return V.EnumFlagsField(

@@ -14,7 +14,8 @@ public static class ScrollerExamples
     (StyleKeys.Height, 120f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ScrollerExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -23,7 +24,7 @@ public static class ScrollerExamples
 
     void OnChange(ChangeEvent<float> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Scroller(
