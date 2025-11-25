@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine.UIElements;
 using ReactiveUITK.Props.Typed;
+using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
 {
@@ -293,8 +293,7 @@ namespace ReactiveUITK.Elements
             List<(string name, SortDirection direction, int index)> src
         )
         {
-            var list =
-                new List<MultiColumnTreeViewProps.SortedColumnDef>();
+            var list = new List<MultiColumnTreeViewProps.SortedColumnDef>();
             if (src == null)
             {
                 return list;
@@ -317,8 +316,7 @@ namespace ReactiveUITK.Elements
             List<(string name, SortDirection direction, int index)> src
         )
         {
-            var list =
-                new List<MultiColumnListViewProps.SortedColumnDef>();
+            var list = new List<MultiColumnListViewProps.SortedColumnDef>();
             if (src == null)
             {
                 return list;
@@ -349,16 +347,16 @@ namespace ReactiveUITK.Elements
             }
             if (
                 notify
-                is Action<UnityEngine.UIElements.VisualElement, List<MultiColumnTreeViewProps.SortedColumnDef>> a2
+                is Action<
+                    UnityEngine.UIElements.VisualElement,
+                    List<MultiColumnTreeViewProps.SortedColumnDef>
+                > a2
             )
             {
                 a2.Invoke(tv, defsTree);
                 return true;
             }
-            if (
-                notify
-                is Action<List<MultiColumnTreeViewProps.SortedColumnDef>> a
-            )
+            if (notify is Action<List<MultiColumnTreeViewProps.SortedColumnDef>> a)
             {
                 a.Invoke(defsTree);
                 return true;
@@ -378,16 +376,16 @@ namespace ReactiveUITK.Elements
             }
             if (
                 notify
-                is Action<UnityEngine.UIElements.VisualElement, List<MultiColumnListViewProps.SortedColumnDef>> a2
+                is Action<
+                    UnityEngine.UIElements.VisualElement,
+                    List<MultiColumnListViewProps.SortedColumnDef>
+                > a2
             )
             {
                 a2.Invoke(tv, defsList);
                 return true;
             }
-            if (
-                notify
-                is Action<List<MultiColumnListViewProps.SortedColumnDef>> a
-            )
+            if (notify is Action<List<MultiColumnListViewProps.SortedColumnDef>> a)
             {
                 a.Invoke(defsList);
                 return true;

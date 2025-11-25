@@ -10,7 +10,8 @@ using UnityEngine.UIElements;
 
 public static class IMGUIContainerExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass IMGUIContainerExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

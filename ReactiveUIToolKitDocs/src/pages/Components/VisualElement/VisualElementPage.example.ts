@@ -5,6 +5,7 @@ using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
+using UnityEngine;
 
 public static class VisualElementExamples
 {
@@ -16,7 +17,8 @@ public static class VisualElementExamples
     (StyleKeys.Gap, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass VisualElementExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -37,6 +39,7 @@ using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
+using UnityEngine;
 
 public static class VisualElementSafeExamples
 {
@@ -45,7 +48,8 @@ public static class VisualElementSafeExamples
     (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 1f)),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass VisualElementSafeExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

@@ -10,7 +10,8 @@ public static class UnsignedIntegerFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass UnsignedIntegerFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -19,7 +20,7 @@ public static class UnsignedIntegerFieldExamples
 
     void OnChange(ChangeEvent<uint> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.UnsignedIntegerField(

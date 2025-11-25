@@ -12,7 +12,8 @@ using UnityEngine;
 
 public static class AnimateWithHook
 {
-  public static VirtualNode Render(
+  // Function component – pass AnimateWithHook.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -49,7 +50,8 @@ using UnityEngine;
 
 public static class TweenFloatExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TweenFloatExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

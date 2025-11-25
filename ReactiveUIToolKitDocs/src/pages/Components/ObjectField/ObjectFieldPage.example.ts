@@ -8,7 +8,8 @@ using UnityEngine;
 
 public static class ObjectFieldExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass ObjectFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -17,7 +18,7 @@ public static class ObjectFieldExamples
 
     void OnChange(ChangeEvent<Object> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.ObjectField(

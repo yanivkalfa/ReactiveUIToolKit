@@ -15,9 +15,7 @@ namespace ReactiveUITK.Elements
             {
                 return view.Q<ScrollView>();
             }
-            catch
-            {
-            }
+            catch { }
             return null;
         }
     }

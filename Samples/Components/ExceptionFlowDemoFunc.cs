@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine;
@@ -16,6 +17,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             (StyleKeys.Color, Color.black),
             (StyleKeys.BorderRadius, 6f),
         };
+
         private const float SimulatedLoadSeconds = 1.2f;
 
         public static VirtualNode Render(
@@ -24,45 +26,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         )
         {
             var (shouldThrow, setShouldThrow) = Hooks.UseState(false);
-            var (suspenseReady, setSuspenseReady) = Hooks.UseState(true);
-            var scheduler = Hooks.UseContext<IScheduler>("scheduler");
-
-            Hooks.UseEffect(
-                () =>
-                {
-                    if (suspenseReady || scheduler == null)
-                    {
-                        return null;
-                    }
-
-                    bool cancelled = false;
-                    float resumeAt = Time.realtimeSinceStartup + SimulatedLoadSeconds;
-
-                    void Pump()
-                    {
-                        if (cancelled)
-                        {
-                            return;
-                        }
-                        if (Time.realtimeSinceStartup >= resumeAt)
-                        {
-                            Hooks.FlushSync(() => setSuspenseReady(true));
-                        }
-                        else
-                        {
-                            scheduler.Enqueue(Pump, IScheduler.Priority.Low);
-                        }
-                    }
-
-                    scheduler.Enqueue(Pump, IScheduler.Priority.Low);
-
-                    return () =>
-                    {
-                        cancelled = true;
-                    };
-                },
-                new object[] { suspenseReady }
-            );
+            var (pendingTask, setPendingTask) = Hooks.UseState<Task>(null);
 
             void ToggleError()
             {
@@ -71,17 +35,22 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
             void StartSimulatedLoad()
             {
-                if (!suspenseReady)
+                if (pendingTask != null && !pendingTask.IsCompleted)
                 {
                     return;
                 }
 
-                setSuspenseReady(false);
-
-                if (scheduler == null)
+                int delayMs = (int)(SimulatedLoadSeconds * 1000f);
+                if (delayMs < 0)
                 {
-                    Hooks.FlushSync(() => setSuspenseReady(true));
+                    delayMs = 0;
                 }
+
+                Task loadTask = Task.Run(async () =>
+                {
+                    await Task.Delay(delayMs);
+                });
+                setPendingTask(loadTask);
             }
 
             var actionRow = V.VisualElement(
@@ -104,7 +73,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Button(
                     new ButtonProps
                     {
-                        Text = suspenseReady ? "Simulate Async Load" : "Loading…",
+                        Text =
+                            pendingTask != null && !pendingTask.IsCompleted
+                                ? "Loading…"
+                                : "Simulate Async Load",
                         OnClick = StartSimulatedLoad,
                         Style = new Style { (StyleKeys.Width, 180f) },
                     }
@@ -157,9 +129,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
             VirtualNode ThrowingChild() =>
                 V.Func(
-                    UnstableChild.Render,
+                    UnstableChild,
                     new Dictionary<string, object> { { "shouldThrow", shouldThrow } }
                 );
+
+            bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
 
             return V.VisualElement(
                 new Dictionary<string, object>
@@ -190,7 +164,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         },
                         "demo-boundary",
                         V.Suspense(
-                            () => suspenseReady,
+                            SuspenseReady,
+                            pendingTask,
                             suspenseFallback,
                             "demo-suspense",
                             ThrowingChild()
@@ -200,25 +175,22 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
         }
 
-        private static class UnstableChild
+        private static VirtualNode UnstableChild(
+            Dictionary<string, object> props,
+            IReadOnlyList<VirtualNode> children
+        )
         {
-            public static VirtualNode Render(
-                Dictionary<string, object> props,
-                IReadOnlyList<VirtualNode> children
-            )
+            bool shouldThrow =
+                props != null
+                && props.TryGetValue("shouldThrow", out var raw)
+                && raw is bool flag
+                && flag;
+            if (shouldThrow)
             {
-                bool shouldThrow =
-                    props != null
-                    && props.TryGetValue("shouldThrow", out var raw)
-                    && raw is bool flag
-                    && flag;
-                if (shouldThrow)
-                {
-                    throw new InvalidOperationException("Simulated child exception.");
-                }
-
-                return V.Text("Child content rendered successfully.");
+                throw new InvalidOperationException("Simulated child exception.");
             }
+
+            return V.Text("Child content rendered successfully.");
         }
     }
 }

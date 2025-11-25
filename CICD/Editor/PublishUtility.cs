@@ -28,7 +28,7 @@ namespace ReactiveUITK.CICD
             public string npmPath;
         }
 
-        [MenuItem("Window/ReactiveUITK/Publish/Build Dist", priority = 1000)]
+        [MenuItem("ReactiveUITK/Publish/Build Dist", priority = 1000)]
         public static void BuildDist()
         {
             try
@@ -143,7 +143,7 @@ namespace ReactiveUITK.CICD
             }
         }
 
-        [MenuItem("Window/ReactiveUITK/Publish/Build Dist and Push", priority = 1001)]
+        [MenuItem("ReactiveUITK/Publish/Build Dist and Push", priority = 1001)]
         public static void BuildDistAndPush()
         {
             try
@@ -301,17 +301,14 @@ namespace ReactiveUITK.CICD
             }
         }
 
-        [MenuItem(
-            "Window/ReactiveUITK/Publish/Build Dist and Push to Store (stub)",
-            priority = 1002
-        )]
+        [MenuItem("ReactiveUITK/Publish/Build Dist and Push to Store (stub)", priority = 1002)]
         public static void BuildDistAndPushToStore()
         {
             BuildDist();
             Debug.Log("Publish: Store upload not implemented yet. Dist built.");
         }
 
-        [MenuItem("Window/ReactiveUITK/Publish/Build Docs and Push", priority = 1100)]
+        [MenuItem("ReactiveUITK/Publish/Build Docs and Push", priority = 1100)]
         public static void BuildDocsAndPush()
         {
             try
@@ -726,7 +723,8 @@ namespace ReactiveUITK.CICD
             out string stderr
         )
         {
-            bool isWindows = Application.platform == RuntimePlatform.WindowsEditor
+            bool isWindows =
+                Application.platform == RuntimePlatform.WindowsEditor
                 || Application.platform == RuntimePlatform.WindowsPlayer;
 
             string fileName = string.Empty;

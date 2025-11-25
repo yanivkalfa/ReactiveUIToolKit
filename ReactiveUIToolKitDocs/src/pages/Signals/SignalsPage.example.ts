@@ -37,7 +37,8 @@ using ReactiveUITK.Signals;
 // Function component bound to a signal
 public static class SignalCounterFunc
 {
-  public static VirtualNode Render(
+  // Function component – pass SignalCounterFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

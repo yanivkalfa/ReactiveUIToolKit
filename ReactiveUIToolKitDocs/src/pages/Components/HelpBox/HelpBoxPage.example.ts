@@ -7,7 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class HelpBoxExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass HelpBoxExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

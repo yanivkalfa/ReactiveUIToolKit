@@ -13,7 +13,8 @@ public static class TextElementExamples
     (StyleKeys.UnityFontStyleAndWeight, FontStyle.Bold),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass TextElementExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

@@ -15,7 +15,10 @@ namespace ReactiveUITK.Elements
             return element;
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not ToggleButtonGroup g || properties == null)
             {
@@ -26,7 +29,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not ToggleButtonGroup g)
             {
@@ -47,7 +54,8 @@ namespace ReactiveUITK.Elements
             }
             try
             {
-                var prop = g.GetType().GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
+                var prop = g.GetType()
+                    .GetProperty("value", BindingFlags.Public | BindingFlags.Instance);
                 if (prop == null)
                 {
                     return;
@@ -59,7 +67,8 @@ namespace ReactiveUITK.Elements
                     return;
                 }
                 // Try to construct UnityEngine.UIElements.ToggleButtonGroupState(int)
-                var stateType = g.GetType().Assembly.GetType("UnityEngine.UIElements.ToggleButtonGroupState");
+                var stateType = g.GetType()
+                    .Assembly.GetType("UnityEngine.UIElements.ToggleButtonGroupState");
                 if (stateType != null)
                 {
                     object state = null;
@@ -73,7 +82,10 @@ namespace ReactiveUITK.Elements
                     {
                         // Fallback: parameterless then try set SelectedIndex property
                         state = Activator.CreateInstance(stateType);
-                        var si = stateType.GetProperty("selectedIndex", BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                        var si = stateType.GetProperty(
+                            "selectedIndex",
+                            BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase
+                        );
                         si?.SetValue(state, index);
                     }
                     if (state != null && prop.PropertyType.IsAssignableFrom(stateType))

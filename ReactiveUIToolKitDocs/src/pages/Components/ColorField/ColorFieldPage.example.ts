@@ -14,7 +14,8 @@ public static class ColorFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ColorFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -23,7 +24,7 @@ public static class ColorFieldExamples
 
     void OnChange(ChangeEvent<Color> evt)
     {
-      setColor.Set(evt.newValue);
+      setColor(evt.newValue);
     }
 
     return V.ColorField(

@@ -13,7 +13,8 @@ public static class FoldoutExamples
 
   private static readonly Style ContentContainerStyle = new Style { (StyleKeys.PaddingLeft, 12f) };
 
-  public static VirtualNode Render(
+  // Function component – pass FoldoutExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -22,7 +23,7 @@ public static class FoldoutExamples
 
     void OnChange(ChangeEvent<bool> evt)
     {
-      setIsOpen.Set(evt.newValue);
+      setIsOpen(evt.newValue);
     }
 
     var headerProps = new Dictionary<string, object>

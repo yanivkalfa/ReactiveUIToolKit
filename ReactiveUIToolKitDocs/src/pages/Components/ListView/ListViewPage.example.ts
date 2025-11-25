@@ -13,7 +13,8 @@ public static class ListViewExamples
 
   private static readonly Style ListStyle = new Style { (StyleKeys.FlexGrow, 1f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ListViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

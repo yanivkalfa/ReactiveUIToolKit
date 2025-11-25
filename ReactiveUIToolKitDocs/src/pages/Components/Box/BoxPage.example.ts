@@ -20,7 +20,8 @@ public static class BoxExamples
     (StyleKeys.MarginTop, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass BoxExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

@@ -14,7 +14,8 @@ public static class ErrorBoundaryExamples
     (StyleKeys.PaddingTop, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ErrorBoundaryExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -50,7 +51,7 @@ public static class ErrorBoundaryExamples
             new ButtonProps
             {
               Text = $"Clicks: {value}",
-              OnClick = _ => setValue.Set(prev => prev + 1),
+              OnClick = _ => setValue(prev => prev + 1),
             }
           );
         }

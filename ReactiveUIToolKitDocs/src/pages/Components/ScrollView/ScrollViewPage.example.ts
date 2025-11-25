@@ -12,7 +12,8 @@ public static class ScrollViewExamples
 
   private static readonly Style ScrollViewStyle = new Style { (StyleKeys.Height, 200f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ScrollViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

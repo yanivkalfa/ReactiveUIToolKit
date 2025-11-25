@@ -8,7 +8,8 @@ using UnityEngine.UIElements;
 
 public static class SliderIntExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass SliderIntExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -17,7 +18,7 @@ public static class SliderIntExamples
 
     void OnChange(ChangeEvent<int> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.SliderInt(

@@ -192,6 +192,15 @@ namespace ReactiveUITK.Router
                 return V.Fragment();
             }
 
+            // Optimization / compatibility: if there is only a single child,
+            // return it directly instead of wrapping in an extra Fragment.
+            // This avoids exercising Fragment handling in Fiber for the
+            // common Router case where there is exactly one root element.
+            if (children.Count == 1)
+            {
+                return children[0];
+            }
+
             var buffer = new VirtualNode[children.Count];
             for (int i = 0; i < children.Count; i++)
             {

@@ -91,7 +91,10 @@ namespace ReactiveUITK.Router
                     var subscription = router.RegisterBlocker(blocker);
                     return () => subscription?.Dispose();
                 },
-                new object[] { router, blocker, enabled }
+                // Depend only on router + enabled so that we
+                // register/unregister when those change. The blocker
+                // delegate is free to close over local state.
+                new object[] { router, enabled }
             );
         }
     }

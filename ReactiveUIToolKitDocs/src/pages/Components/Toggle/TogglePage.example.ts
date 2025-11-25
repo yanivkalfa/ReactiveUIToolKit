@@ -10,7 +10,8 @@ public static class ToggleExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.MarginRight, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ToggleExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -19,7 +20,7 @@ public static class ToggleExamples
 
     void OnChange(ChangeEvent<bool> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     var inputProps = new Dictionary<string, object>

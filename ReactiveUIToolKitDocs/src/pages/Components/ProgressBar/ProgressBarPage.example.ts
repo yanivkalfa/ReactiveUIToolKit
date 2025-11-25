@@ -18,7 +18,8 @@ public static class ProgressBarExamples
     (StyleKeys.FontSize, 12f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ProgressBarExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

@@ -17,7 +17,6 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             Hooks.MutableRef<TextField> inputRef = Hooks.UseRef<TextField>();
             Hooks.MutableRef<Label> labelRef = Hooks.UseRef<Label>();
-            var (inputValue, setInputValue) = Hooks.UseState("Hello ReactiveUITK refs!");
             var (snapshot, setSnapshot) = Hooks.UseState(
                 "Click \"Read refs\" to inspect ref.current assignments."
             );
@@ -65,8 +64,6 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             {
                 { "ref", inputRef },
                 { "labelRef", labelRef },
-                { "value", inputValue },
-                { "onChange", (Action<string>)(newValue => setInputValue(newValue)) },
                 { "onChildSnapshot", (Action)UpdateSnapshot },
             };
 
@@ -128,8 +125,6 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             )
             {
                 Hooks.MutableRef<Label> labelRef = null;
-                string value = string.Empty;
-                Action<string> onChange = null;
                 Action onChildSnapshot = null;
                 Hooks.MutableRef<TextField> typedForwardedRef =
                     forwardedRef as Hooks.MutableRef<TextField>;
@@ -140,17 +135,6 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         labelRef = labelObj as Hooks.MutableRef<Label>;
                     }
-                    if (props.TryGetValue("value", out object rawValue) && rawValue is string s)
-                    {
-                        value = s;
-                    }
-                    if (
-                        props.TryGetValue("onChange", out object changeObj)
-                        && changeObj is Action<string> change
-                    )
-                    {
-                        onChange = change;
-                    }
                     if (
                         props.TryGetValue("onChildSnapshot", out object snapshotObj)
                         && snapshotObj is Action snap
@@ -159,6 +143,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         onChildSnapshot = snap;
                     }
                 }
+
+                // Read the latest input value via the forwarded ref when available.
+                string currentValue = typedForwardedRef?.Value?.value ?? "Hello ReactiveUITK refs!";
 
                 return V.VisualElement(
                     new Style
@@ -171,14 +158,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     },
                     "ref-forward-child-root",
                     V.Label(
-                        new LabelProps { Text = $"Child sees value: {value}", Ref = labelRef },
+                        new LabelProps
+                        {
+                            Text = $"Child sees value: {currentValue}",
+                            Ref = labelRef,
+                        },
                         key: "child-label"
                     ),
                     V.TextField(
                         new TextFieldProps
                         {
-                            Value = value,
-                            OnChange = evt => onChange?.Invoke(evt.newValue),
+                            Value = currentValue,
                             Ref = forwardedRef,
                             Style = new Style { (SK.MarginTop, 6f) },
                         },

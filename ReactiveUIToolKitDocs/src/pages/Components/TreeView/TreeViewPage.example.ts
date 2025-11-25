@@ -16,7 +16,8 @@ public static class TreeViewExamples
 {
   private static readonly Style TreeViewStyle = new Style { (StyleKeys.FlexGrow, 1f) };
 
-  public static VirtualNode Render(
+  // Function component – pass TreeViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )

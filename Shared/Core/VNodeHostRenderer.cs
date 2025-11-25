@@ -1,4 +1,6 @@
-using ReactiveUITK.Core;
+using System.Collections.Generic;
+using ReactiveUITK.Core.Fiber;
+using ReactiveUITK.Props;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
@@ -11,33 +13,92 @@ namespace ReactiveUITK.Core
 
     public sealed class VNodeHostRenderer : IVNodeHostRenderer
     {
-        private readonly Reconciler reconciler;
+        private readonly FiberRenderer fiberRenderer;
         private readonly VisualElement hostElement;
-        private VirtualNode lastVNode;
+        private IReadOnlyDictionary<string, object> lastHostProps;
 
         public VNodeHostRenderer(HostContext hostContext, VisualElement host)
         {
             hostElement = host;
-            reconciler = new Reconciler(hostContext);
+            fiberRenderer = new FiberRenderer(host, hostContext);
+
+            if (FiberConfig.ShowReconcilerInfo)
+            {
+                UnityEngine.Debug.Log(
+                    $"[VNodeHostRenderer] Using FIBER reconciler for {host.name}"
+                );
+            }
         }
 
         public void Render(VirtualNode vnode)
         {
-            if (lastVNode == null)
-            {
-                reconciler.BuildSubtree(hostElement, vnode);
-            }
-            else
-            {
-                reconciler.DiffSubtree(hostElement, lastVNode, vnode);
-            }
-            lastVNode = vnode;
+            fiberRenderer.Render(NormalizeHostRoot(vnode));
         }
 
         public void Unmount()
         {
-            hostElement.Clear();
-            lastVNode = null;
+            ClearHostProps();
+            fiberRenderer?.Clear();
+        }
+
+        private VirtualNode NormalizeHostRoot(VirtualNode vnode)
+        {
+            if (vnode == null)
+            {
+                ClearHostProps();
+                return null;
+            }
+
+            if (vnode.NodeType != VirtualNodeType.Host)
+            {
+                ClearHostProps();
+                return vnode;
+            }
+
+            ApplyHostProps(vnode.Properties ?? VirtualNode.EmptyProps);
+            return WrapHostChildren(vnode);
+        }
+
+        private void ApplyHostProps(IReadOnlyDictionary<string, object> nextProps)
+        {
+            if (lastHostProps == null)
+            {
+                PropsApplier.Apply(hostElement, nextProps);
+            }
+            else
+            {
+                PropsApplier.ApplyDiff(hostElement, lastHostProps, nextProps);
+            }
+
+            lastHostProps = nextProps;
+        }
+
+        private void ClearHostProps()
+        {
+            if (lastHostProps == null)
+            {
+                return;
+            }
+
+            PropsApplier.ApplyDiff(hostElement, lastHostProps, VirtualNode.EmptyProps);
+            lastHostProps = null;
+        }
+
+        private static VirtualNode WrapHostChildren(VirtualNode hostNode)
+        {
+            var children = hostNode.Children;
+            int count = children?.Count ?? 0;
+            if (count == 0)
+            {
+                return ReactiveUITK.V.Fragment(hostNode.Key);
+            }
+
+            var buffer = new VirtualNode[count];
+            for (int i = 0; i < count; i++)
+            {
+                buffer[i] = children[i];
+            }
+            return ReactiveUITK.V.Fragment(hostNode.Key, buffer);
         }
     }
 }

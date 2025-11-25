@@ -14,7 +14,8 @@ public static class BoundsIntFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass BoundsIntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -23,7 +24,7 @@ public static class BoundsIntFieldExamples
 
     void OnChange(ChangeEvent<BoundsInt> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.BoundsIntField(

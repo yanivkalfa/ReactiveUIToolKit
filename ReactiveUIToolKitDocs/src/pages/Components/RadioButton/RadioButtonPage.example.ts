@@ -8,7 +8,8 @@ using UnityEngine.UIElements;
 
 public static class RadioButtonExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass RadioButtonExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -17,7 +18,7 @@ public static class RadioButtonExamples
 
     void OnChange(ChangeEvent<bool> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.RadioButton(

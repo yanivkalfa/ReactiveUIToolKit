@@ -10,7 +10,8 @@ public static class DoubleFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass DoubleFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -18,8 +19,8 @@ public static class DoubleFieldExamples
     var (value, setValue) = Hooks.UseState(3.14159);
 
     void OnChange(ChangeEvent<double> evt)
-    {
-      setValue.Set(evt.newValue);
+  {
+      setValue(evt.newValue);
     }
 
     return V.DoubleField(

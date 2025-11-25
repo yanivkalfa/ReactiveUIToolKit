@@ -7,7 +7,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class RepeatButtonExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass RepeatButtonExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -16,7 +17,7 @@ public static class RepeatButtonExamples
 
     void OnClick()
     {
-      setCount.Set(prev => prev + 1);
+      setCount(prev => prev + 1);
     }
 
     return V.RepeatButton(

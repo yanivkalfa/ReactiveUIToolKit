@@ -9,7 +9,8 @@ using UnityEngine.UIElements;
 // Editor-only usage
 public static class TwoPaneSplitViewExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TwoPaneSplitViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
