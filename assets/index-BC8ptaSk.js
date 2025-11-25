@@ -254,7 +254,9 @@ public static class RouterDemoFunc
     (StyleKeys.MarginBottom, 6f),
   };
 
-  public static VirtualNode Render(
+  // Function component entrypoint �?" pass RouterDemoFunc.Render
+  // directly to V.Func when mounting.
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -273,7 +275,7 @@ public static class RouterDemoFunc
         V.Route(path: "/about", element: V.Text("About route")),
         V.Route(
           path: "/users/:id",
-          children: new[] { V.Func(UserProfileFunc.Render) }
+          children: new[] { V.Func(UserProfile) }
         ),
         V.Route(path: "*", element: V.Text("Not found")),
       }
@@ -282,7 +284,7 @@ public static class RouterDemoFunc
 }
 
 // Mounted through RootRenderer elsewhere:
-// rootRenderer.Render(V.Func(RouterDemoFunc.Render));`}),(0,R.jsx)(q,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Navigation and history`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`By default `,(0,R.jsx)(`code`,{children:`V.Router`}),` uses an in-memory history implementation. You can provide a custom `,(0,R.jsx)(`code`,{children:`IRouterHistory`}),` instance if you want to control how locations are stored or synchronized. Inside components, use `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigate()`}),` to push or replace locations, and `,(0,R.jsx)(`code`,{children:`RouterHooks.UseGo()`}),` / `,(0,R.jsx)(`code`,{children:`RouterHooks.UseCanGo()`}),` to implement back/forward UI. You can also use `,(0,R.jsx)(`code`,{children:`RouterHooks.UseBlocker()`}),` to prevent navigation while a confirmation dialog is open.`]}),(0,R.jsx)(q,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Links and route data`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Use `,(0,R.jsx)(`code`,{children:`V.Link`}),` to render navigation buttons bound to specific paths. Inside routed components, use `,(0,R.jsx)(`code`,{children:`RouterHooks.UseLocationInfo()`}),` for the full location payload,`,(0,R.jsx)(`code`,{children:`RouterHooks.UseParams()`}),` for path parameters, `,(0,R.jsx)(`code`,{children:`RouterHooks.UseQuery()`}),` `,`for query-string values, and `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigationState()`}),` for any state object passed when navigating.`]}),(0,R.jsx)(q,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Links, params, query, and state (example)`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`The example below demonstrates how to combine `,(0,R.jsx)(`code`,{children:`V.Link`}),`,`,` `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigate()`}),`, `,(0,R.jsx)(`code`,{children:`RouterHooks.UseGo()`}),`,`,` `,(0,R.jsx)(`code`,{children:`RouterHooks.UseParams()`}),`, `,(0,R.jsx)(`code`,{children:`RouterHooks.UseQuery()`}),`, and`,` `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigationState()`}),` to build a small navigation bar that can move back and forth and read route data.`]}),(0,R.jsx)($,{language:`tsx`,code:`using System.Collections.Generic;
+// rootRenderer.Render(V.Func(RouterDemoFunc.Example));`}),(0,R.jsx)(q,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Navigation and history`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`By default `,(0,R.jsx)(`code`,{children:`V.Router`}),` uses an in-memory history implementation. You can provide a custom `,(0,R.jsx)(`code`,{children:`IRouterHistory`}),` instance if you want to control how locations are stored or synchronized. Inside components, use `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigate()`}),` to push or replace locations, and `,(0,R.jsx)(`code`,{children:`RouterHooks.UseGo()`}),` / `,(0,R.jsx)(`code`,{children:`RouterHooks.UseCanGo()`}),` to implement back/forward UI. You can also use `,(0,R.jsx)(`code`,{children:`RouterHooks.UseBlocker()`}),` to prevent navigation while a confirmation dialog is open.`]}),(0,R.jsx)(q,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Links and route data`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Use `,(0,R.jsx)(`code`,{children:`V.Link`}),` to render navigation buttons bound to specific paths. Inside routed components, use `,(0,R.jsx)(`code`,{children:`RouterHooks.UseLocationInfo()`}),` for the full location payload,`,(0,R.jsx)(`code`,{children:`RouterHooks.UseParams()`}),` for path parameters, `,(0,R.jsx)(`code`,{children:`RouterHooks.UseQuery()`}),` `,`for query-string values, and `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigationState()`}),` for any state object passed when navigating.`]}),(0,R.jsx)(q,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Links, params, query, and state (example)`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`The example below demonstrates how to combine `,(0,R.jsx)(`code`,{children:`V.Link`}),`,`,` `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigate()`}),`, `,(0,R.jsx)(`code`,{children:`RouterHooks.UseGo()`}),`,`,` `,(0,R.jsx)(`code`,{children:`RouterHooks.UseParams()`}),`, `,(0,R.jsx)(`code`,{children:`RouterHooks.UseQuery()`}),`, and`,` `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigationState()`}),` to build a small navigation bar that can move back and forth and read route data.`]}),(0,R.jsx)($,{language:`tsx`,code:`using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Router;
@@ -290,7 +292,7 @@ using ReactiveUITK.Router;
 // Demonstrates links, programmatic navigation, params, query, and state.
 public static class RouterLinksFunc
 {
-  public static VirtualNode Render(
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -374,7 +376,8 @@ using ReactiveUITK.Signals;
 // Function component bound to a signal
 public static class SignalCounterFunc
 {
-  public static VirtualNode Render(
+  // Function component – pass SignalCounterFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -394,7 +397,7 @@ public static class SignalCounterFunc
       V.Button(new ButtonProps { Text = "Increment", OnClick = Increment })
     );
   }
-}`})]});var sv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},list:{pl:2}};const cv=()=>(0,R.jsxs)(Y,{sx:sv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Concepts & Environment`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`ReactiveUIToolKit aims to feel familiar if you know React, while still fitting naturally into Unity's UI Toolkit and C# ecosystem. You build trees from `,(0,R.jsx)(`code`,{children:`V.*`}),` helpers and function components, use hooks to manage state, and let the reconciler diff and update the underlying `,(0,R.jsx)(`code`,{children:`VisualElement`}),` hierarchy for you.`]}),(0,R.jsx)(q,{variant:`body1`,paragraph:!0,children:`Where Unity or UI Toolkit impose different constraints (for example: layout system, event model, or platform concerns), the library deliberately diverges from React to provide a more idiomatic Unity experience. The routing, signals, and safe-area helpers are examples of features that don't exist in core React but are important here.`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`The package also ships with a rich demo set under `,(0,R.jsx)(`code`,{children:`Assets/ReactiveUIToolKit/Samples`}),` `,`(editor windows and runtime scenes) that you can import into your project. These demos show real-world usage of components, hooks, routing, signals, and more, and are a great way to see the concepts on this page in action.`]}),(0,R.jsxs)(Y,{sx:sv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Scripting define symbols (environment & tracing)`}),(0,R.jsxs)(q,{variant:`body2`,paragraph:!0,children:[`Set these in `,(0,R.jsx)(`strong`,{children:`Project Settings → Player → Scripting Define Symbols`}),`. They control environment labels and diagnostics at compile time.`]}),(0,R.jsxs)(yg,{sx:sv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ENV_DEV`}),` — development environment. Enables dev-oriented defaults such as Basic trace level and compiles editor diagnostics helpers.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ENV_STAGING`}),` — staging environment label (no implicit tracing changes).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ENV_PROD`}),` — production environment label. This is the implied default if no `,(0,R.jsx)(`code`,{children:`ENV_*`}),` symbol is defined.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`RUITK_TRACE_VERBOSE`}),` — force reconciler trace level to`,` `,(0,R.jsx)(`strong`,{children:`Verbose`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`RUITK_TRACE_BASIC`}),` — force reconciler trace level to`,` `,(0,R.jsx)(`strong`,{children:`Basic`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`RUITK_DIFF_TRACING`}),` — force `,(0,R.jsx)(`code`,{children:`Reconciler.EnableDiffTracing`}),` `,`to `,(0,R.jsx)(`code`,{children:`true`}),` for detailed diff diagnostics.`]})})})]}),(0,R.jsx)(q,{variant:`body2`,paragraph:!0,sx:sv.section,children:(0,R.jsx)(`strong`,{children:`Behavior summary`})}),(0,R.jsxs)(yg,{sx:sv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Environment is resolved to `,(0,R.jsx)(`code`,{children:`development`}),`, `,(0,R.jsx)(`code`,{children:`staging`}),`, or`,` `,(0,R.jsx)(`code`,{children:`production`}),` via the `,(0,R.jsx)(`code`,{children:`ENV_*`}),` defines and is exposed at runtime as `,(0,R.jsx)(`code`,{children:`HostContext.Environment["env"]`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Trace level resolution priority:`,` `,(0,R.jsx)(`code`,{children:`RUITK_TRACE_VERBOSE`}),` > `,(0,R.jsx)(`code`,{children:`RUITK_TRACE_BASIC`}),` >`,` `,(0,R.jsx)(`code`,{children:`ENV_DEV`}),` (Basic) > none.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:`Editor-only diagnostic utilities are compiled only when ENV_DEV is defined.`})})]})]})]});var lv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},list:{pl:2}};const uv=()=>(0,R.jsxs)(Y,{sx:lv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Different from React`}),(0,R.jsx)(q,{variant:`body1`,paragraph:!0,children:`ReactiveUIToolKit feels familiar if you know React, but there are important differences in how state and updates behave when you are working in C# and Unity instead of JavaScript and the browser. This section focuses on the places where your mental model should be adjusted rather than re-explaining core concepts.`}),(0,R.jsxs)(Y,{sx:lv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`State updates with UseState`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`Hooks.UseState`}),` returns a value and a state setter delegate. The setter is a function that returns the new value and works together with`,` `,(0,R.jsx)(`code`,{children:`StateSetterExtensions.Set`}),`. Instead of calling `,(0,R.jsx)(`code`,{children:`set(value)`}),` or`,` `,(0,R.jsx)(`code`,{children:`set(prev => next)`}),` like in React, you call`,` `,(0,R.jsx)(`code`,{children:`set.Set(value)`}),` or `,(0,R.jsx)(`code`,{children:`set.Set(prev => next)`}),`.`]}),(0,R.jsxs)(yg,{sx:lv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`StateSetter<T>`}),` instances are delegates (not methods on an object).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Use `,(0,R.jsx)(`code`,{children:`StateSetterExtensions.Set(value)`}),` or`,` `,(0,R.jsx)(`code`,{children:`Set(prev => next)`}),` instead of calling `,(0,R.jsx)(`code`,{children:`set(value)`}),` /`,` `,(0,R.jsx)(`code`,{children:`set(prev => next)`}),` like in React.`]})})})]}),(0,R.jsx)($,{language:`tsx`,code:`using System.Collections.Generic;
+}`})]});var sv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},list:{pl:2}};const cv=()=>(0,R.jsxs)(Y,{sx:sv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Concepts & Environment`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`ReactiveUIToolKit aims to feel familiar if you know React, while still fitting naturally into Unity's UI Toolkit and C# ecosystem. You build trees from `,(0,R.jsx)(`code`,{children:`V.*`}),` helpers and function components, use hooks to manage state, and let the reconciler diff and update the underlying `,(0,R.jsx)(`code`,{children:`VisualElement`}),` hierarchy for you.`]}),(0,R.jsx)(q,{variant:`body1`,paragraph:!0,children:`Where Unity or UI Toolkit impose different constraints (for example: layout system, event model, or platform concerns), the library deliberately diverges from React to provide a more idiomatic Unity experience. The routing, signals, and safe-area helpers are examples of features that don't exist in core React but are important here.`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`The package also ships with a rich demo set under `,(0,R.jsx)(`code`,{children:`Assets/ReactiveUIToolKit/Samples`}),` `,`(editor windows and runtime scenes) that you can import into your project. These demos show real-world usage of components, hooks, routing, signals, and more, and are a great way to see the concepts on this page in action.`]}),(0,R.jsxs)(Y,{sx:sv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Scripting define symbols (environment & tracing)`}),(0,R.jsxs)(q,{variant:`body2`,paragraph:!0,children:[`Set these in `,(0,R.jsx)(`strong`,{children:`Project Settings → Player → Scripting Define Symbols`}),`. They control environment labels and diagnostics at compile time.`]}),(0,R.jsxs)(yg,{sx:sv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ENV_DEV`}),` — development environment. Enables dev-oriented defaults such as Basic trace level and compiles editor diagnostics helpers.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ENV_STAGING`}),` — staging environment label (no implicit tracing changes).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ENV_PROD`}),` — production environment label. This is the implied default if no `,(0,R.jsx)(`code`,{children:`ENV_*`}),` symbol is defined.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`RUITK_TRACE_VERBOSE`}),` — force reconciler trace level to`,` `,(0,R.jsx)(`strong`,{children:`Verbose`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`RUITK_TRACE_BASIC`}),` — force reconciler trace level to`,` `,(0,R.jsx)(`strong`,{children:`Basic`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`RUITK_DIFF_TRACING`}),` — force `,(0,R.jsx)(`code`,{children:`Reconciler.EnableDiffTracing`}),` `,`to `,(0,R.jsx)(`code`,{children:`true`}),` for detailed diff diagnostics.`]})})})]}),(0,R.jsx)(q,{variant:`body2`,paragraph:!0,sx:sv.section,children:(0,R.jsx)(`strong`,{children:`Behavior summary`})}),(0,R.jsxs)(yg,{sx:sv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Environment is resolved to `,(0,R.jsx)(`code`,{children:`development`}),`, `,(0,R.jsx)(`code`,{children:`staging`}),`, or`,` `,(0,R.jsx)(`code`,{children:`production`}),` via the `,(0,R.jsx)(`code`,{children:`ENV_*`}),` defines and is exposed at runtime as `,(0,R.jsx)(`code`,{children:`HostContext.Environment["env"]`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Trace level resolution priority:`,` `,(0,R.jsx)(`code`,{children:`RUITK_TRACE_VERBOSE`}),` > `,(0,R.jsx)(`code`,{children:`RUITK_TRACE_BASIC`}),` >`,` `,(0,R.jsx)(`code`,{children:`ENV_DEV`}),` (Basic) > none.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:`Editor-only diagnostic utilities are compiled only when ENV_DEV is defined.`})})]})]})]});var lv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},list:{pl:2}};const uv=()=>(0,R.jsxs)(Y,{sx:lv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Different from React`}),(0,R.jsx)(q,{variant:`body1`,paragraph:!0,children:`ReactiveUIToolKit feels familiar if you know React, but there are important differences in how rendering and scheduling behave when you are working in C# and Unity instead of JavaScript and the browser. This section focuses on the places where your mental model should be adjusted rather than re-explaining core concepts.`}),(0,R.jsxs)(Y,{sx:lv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`State updates with UseState (parity)`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`Hooks.UseState`}),` matches React's mental model: you get a value and a setter, and you can call the setter with either a value or a function of the previous value (for example `,(0,R.jsx)(`code`,{children:`set(value)`}),` or `,(0,R.jsx)(`code`,{children:`set(prev => next)`}),`).`]}),(0,R.jsxs)(yg,{sx:lv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`The setter is a delegate (`,(0,R.jsx)(`code`,{children:`StateSetter<T>`}),`), not an instance method, but you call it just like a normal function.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`You can either call `,(0,R.jsx)(`code`,{children:`set(value)`}),` / `,(0,R.jsx)(`code`,{children:`set(prev => next)`}),` `,`(React-style) or use the optional extension helpers`,` `,(0,R.jsx)(`code`,{children:`StateSetterExtensions.Set(value)`}),` /`,` `,(0,R.jsx)(`code`,{children:`StateSetterExtensions.Set(prev => next)`}),` if you prefer a fluent style.`]})})})]}),(0,R.jsx)($,{language:`tsx`,code:`using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 
@@ -407,10 +410,10 @@ public static VirtualNode CounterFunc(
   var (count, setCount) = Hooks.UseState(0);
 
   // Direct value update
-  void Reset() => setCount.Set(0);
+  void Reset() => setCount(0);
 
   // Functional update using previous value
-  void Increment() => setCount.Set(previous => previous + 1);
+  void Increment() => setCount(previous => previous + 1);
 
   return V.Column(
     key: null,
@@ -418,7 +421,7 @@ public static VirtualNode CounterFunc(
     V.Button(new ButtonProps { Text = "Increment", OnClick = Increment }),
     V.Button(new ButtonProps { Text = "Reset", OnClick = Reset })
   );
-}`})]})]});var dv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},list:{pl:2}};const fv=()=>(0,R.jsxs)(Y,{sx:dv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`API Reference`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`This section gives a high-level map of the main namespaces and types you will use when working with ReactiveUIToolKit. Use it as a guide when you are looking for where a particular class (for example `,(0,R.jsx)(`code`,{children:`ButtonProps`}),`) lives.`]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Core`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.V`}),` – static factory for building`,` `,(0,R.jsx)(`code`,{children:`VirtualNode`}),` trees (for example `,(0,R.jsx)(`code`,{children:`V.VisualElement`}),`,`,` `,(0,R.jsx)(`code`,{children:`V.VisualElementSafe`}),`, `,(0,R.jsx)(`code`,{children:`V.Label`}),`, `,(0,R.jsx)(`code`,{children:`V.Button`}),`,`,` `,(0,R.jsx)(`code`,{children:`V.Router`}),`, `,(0,R.jsx)(`code`,{children:`V.TabView`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.Hooks`}),` – hook functions for function components, such as `,(0,R.jsx)(`code`,{children:`UseState`}),`, `,(0,R.jsx)(`code`,{children:`UseReducer`}),`, `,(0,R.jsx)(`code`,{children:`UseEffect`}),`,`,` `,(0,R.jsx)(`code`,{children:`UseMemo`}),`, `,(0,R.jsx)(`code`,{children:`UseSignal`}),`, and context helpers.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.StateSetterExtensions`}),` – helpers for working with state setters (for example `,(0,R.jsx)(`code`,{children:`set.Set(value)`}),` /`,` `,(0,R.jsx)(`code`,{children:`set.Set(prev => next)`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.RootRenderer`}),` – runtime component that mounts a`,` `,(0,R.jsx)(`code`,{children:`VirtualNode`}),` tree into a `,(0,R.jsx)(`code`,{children:`UIDocument`}),` root.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.RenderScheduler`}),` – runtime scheduler used by the reconciler to batch updates per frame.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Props & Styles`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Props.Typed`}),` – typed props for UI Toolkit controls. Each control has a corresponding `,(0,R.jsx)(`code`,{children:`*Props`}),` class (for example`,` `,(0,R.jsx)(`code`,{children:`ButtonProps`}),`, `,(0,R.jsx)(`code`,{children:`LabelProps`}),`, `,(0,R.jsx)(`code`,{children:`ListViewProps`}),`,`,` `,(0,R.jsx)(`code`,{children:`ScrollViewProps`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Props.Typed.Style`}),` – strongly typed wrapper around a style dictionary used by many props (`,(0,R.jsx)(`code`,{children:`Style`}),` is often passed as`,` `,(0,R.jsx)(`code`,{children:`props.Style`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Props.Typed.StyleKeys`}),` – constants used as keys inside`,` `,(0,R.jsx)(`code`,{children:`Style`}),` (for example `,(0,R.jsx)(`code`,{children:`StyleKeys.MarginTop`}),`,`,` `,(0,R.jsx)(`code`,{children:`StyleKeys.FlexDirection`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Most field and layout controls follow the same pattern:`,(0,R.jsx)(`code`,{children:`V.FloatField(new FloatFieldProps { ... })`}),`,`,` `,(0,R.jsx)(`code`,{children:`V.ListView(new ListViewProps { ... })`}),`, and so on.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Router`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Router.RouterHooks`}),` – hook helpers for routing:`,` `,(0,R.jsx)(`code`,{children:`UseRouter()`}),`, `,(0,R.jsx)(`code`,{children:`UseLocation()`}),`, `,(0,R.jsx)(`code`,{children:`UseLocationInfo()`}),`, `,(0,R.jsx)(`code`,{children:`UseParams()`}),`, `,(0,R.jsx)(`code`,{children:`UseQuery()`}),`,`,` `,(0,R.jsx)(`code`,{children:`UseNavigationState()`}),`, `,(0,R.jsx)(`code`,{children:`UseNavigate()`}),`, `,(0,R.jsx)(`code`,{children:`UseGo()`}),`, `,(0,R.jsx)(`code`,{children:`UseCanGo()`}),`, `,(0,R.jsx)(`code`,{children:`UseBlocker()`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Router.IRouterHistory`}),`, `,(0,R.jsx)(`code`,{children:`MemoryHistory`}),` – the history abstraction used by `,(0,R.jsx)(`code`,{children:`V.Router`}),`. You can supply your own history implementation by passing an `,(0,R.jsx)(`code`,{children:`IRouterHistory`}),` instance to`,` `,(0,R.jsx)(`code`,{children:`V.Router`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Router.RouterLocation`}),`, `,(0,R.jsx)(`code`,{children:`RouterPath`}),`,`,` `,(0,R.jsx)(`code`,{children:`RouteMatch`}),` – types that describe the current location, parsed path, and the result of route matching.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Signals`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Signals.Signals`}),` – entry point for working with signals via`,` `,(0,R.jsx)(`code`,{children:`Signals.Get<T>(key, initialValue)`}),` and`,` `,(0,R.jsx)(`code`,{children:`Signals.TryGet<T>(key, out signal)`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Signals.Signal<T>`}),` – concrete signal type with`,` `,(0,R.jsx)(`code`,{children:`Value`}),`, `,(0,R.jsx)(`code`,{children:`Subscribe(...)`}),`, `,(0,R.jsx)(`code`,{children:`Set(value)`}),`, and`,` `,(0,R.jsx)(`code`,{children:`Dispatch(update)`}),` methods.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Signals.SignalsRuntime`}),` – bootstraps the runtime registry and hidden host GameObject. Call `,(0,R.jsx)(`code`,{children:`SignalsRuntime.EnsureInitialized()`}),` at startup if you are using signals outside of components.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Editor support`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.EditorSupport.EditorRootRendererUtility`}),` – helper for mounting a `,(0,R.jsx)(`code`,{children:`VirtualNode`}),` tree into an EditorWindow`,` `,(0,R.jsx)(`code`,{children:`VisualElement`}),`. Used from editor samples and your own tools.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.EditorSupport.EditorRenderScheduler`}),` – scheduler used in the editor for batched updates.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Elements & registry`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Elements.ElementRegistry`}),` – maps element names (for example`,` `,(0,R.jsx)(`code`,{children:`"Button"`}),`, `,(0,R.jsx)(`code`,{children:`"ListView"`}),`) to concrete adapters and is used by the reconciler when creating and updating UI Toolkit elements.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Elements.ElementRegistryProvider`}),` – static helpers for obtaining the default registry used by both runtime and editor hosts.`]})})})]})]})]});var pv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const mv=()=>(0,R.jsxs)(Y,{sx:pv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`BoundsField`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`V.BoundsField`}),` wraps the Unity `,(0,R.jsx)(`code`,{children:`BoundsField`}),` control using`,` `,(0,R.jsx)(`code`,{children:`BoundsFieldProps`}),`. It is useful for editing `,(0,R.jsx)(`code`,{children:`Bounds`}),` values in both runtime UI and editor tools.`]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Pass a `,(0,R.jsx)(`code`,{children:`BoundsFieldProps`}),` instance to `,(0,R.jsx)(`code`,{children:`V.BoundsField`}),`. The`,` `,(0,R.jsx)(`code`,{children:`Value`}),` property controls the current bounds.`]}),(0,R.jsx)($,{language:`tsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
+}`})]}),(0,R.jsxs)(Y,{sx:lv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Sync rendering vs React concurrent mode`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`ReactiveUIToolKit's Fiber reconciler currently runs in a single, synchronous mode per Unity frame. There is no React 18-style concurrent rendering yet: no`,` `,(0,R.jsx)(`code`,{children:`startTransition`}),`, no transition priorities, and no cooperative time-slicing of large trees.`]}),(0,R.jsxs)(yg,{sx:lv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsx)(R.Fragment,{children:`All updates scheduled in a frame are processed synchronously; there is no partial rendering or preemption between high- and low-priority updates.`})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsx)(R.Fragment,{children:`This behaves like legacy React (pre-18) "sync mode": your components and hooks logic are the same, but you should not expect concurrent features such as transitions or suspenseful background rendering.`})})})]})]})]});var dv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},list:{pl:2}};const fv=()=>(0,R.jsxs)(Y,{sx:dv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`API Reference`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`This section gives a high-level map of the main namespaces and types you will use when working with ReactiveUIToolKit. Use it as a guide when you are looking for where a particular class (for example `,(0,R.jsx)(`code`,{children:`ButtonProps`}),`) lives.`]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Core`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.V`}),` – static factory for building`,` `,(0,R.jsx)(`code`,{children:`VirtualNode`}),` trees (for example `,(0,R.jsx)(`code`,{children:`V.VisualElement`}),`,`,` `,(0,R.jsx)(`code`,{children:`V.VisualElementSafe`}),`, `,(0,R.jsx)(`code`,{children:`V.Label`}),`, `,(0,R.jsx)(`code`,{children:`V.Button`}),`,`,` `,(0,R.jsx)(`code`,{children:`V.Router`}),`, `,(0,R.jsx)(`code`,{children:`V.TabView`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.Hooks`}),` – hook functions for function components, such as `,(0,R.jsx)(`code`,{children:`UseState`}),`, `,(0,R.jsx)(`code`,{children:`UseReducer`}),`, `,(0,R.jsx)(`code`,{children:`UseEffect`}),`,`,` `,(0,R.jsx)(`code`,{children:`UseMemo`}),`, `,(0,R.jsx)(`code`,{children:`UseSignal`}),`, and context helpers.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.StateSetterExtensions`}),` – helpers for working with state setters (for example `,(0,R.jsx)(`code`,{children:`set.Set(value)`}),` /`,` `,(0,R.jsx)(`code`,{children:`set.Set(prev => next)`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.RootRenderer`}),` – runtime component that mounts a`,` `,(0,R.jsx)(`code`,{children:`VirtualNode`}),` tree into a `,(0,R.jsx)(`code`,{children:`UIDocument`}),` root.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Core.RenderScheduler`}),` – runtime scheduler used by the reconciler to batch updates per frame.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Props & Styles`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Props.Typed`}),` – typed props for UI Toolkit controls. Each control has a corresponding `,(0,R.jsx)(`code`,{children:`*Props`}),` class (for example`,` `,(0,R.jsx)(`code`,{children:`ButtonProps`}),`, `,(0,R.jsx)(`code`,{children:`LabelProps`}),`, `,(0,R.jsx)(`code`,{children:`ListViewProps`}),`,`,` `,(0,R.jsx)(`code`,{children:`ScrollViewProps`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Props.Typed.Style`}),` – strongly typed wrapper around a style dictionary used by many props (`,(0,R.jsx)(`code`,{children:`Style`}),` is often passed as`,` `,(0,R.jsx)(`code`,{children:`props.Style`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Props.Typed.StyleKeys`}),` – constants used as keys inside`,` `,(0,R.jsx)(`code`,{children:`Style`}),` (for example `,(0,R.jsx)(`code`,{children:`StyleKeys.MarginTop`}),`,`,` `,(0,R.jsx)(`code`,{children:`StyleKeys.FlexDirection`}),`).`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[`Most field and layout controls follow the same pattern:`,(0,R.jsx)(`code`,{children:`V.FloatField(new FloatFieldProps { ... })`}),`,`,` `,(0,R.jsx)(`code`,{children:`V.ListView(new ListViewProps { ... })`}),`, and so on.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Router`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Router.RouterHooks`}),` – hook helpers for routing:`,` `,(0,R.jsx)(`code`,{children:`UseRouter()`}),`, `,(0,R.jsx)(`code`,{children:`UseLocation()`}),`, `,(0,R.jsx)(`code`,{children:`UseLocationInfo()`}),`, `,(0,R.jsx)(`code`,{children:`UseParams()`}),`, `,(0,R.jsx)(`code`,{children:`UseQuery()`}),`,`,` `,(0,R.jsx)(`code`,{children:`UseNavigationState()`}),`, `,(0,R.jsx)(`code`,{children:`UseNavigate()`}),`, `,(0,R.jsx)(`code`,{children:`UseGo()`}),`, `,(0,R.jsx)(`code`,{children:`UseCanGo()`}),`, `,(0,R.jsx)(`code`,{children:`UseBlocker()`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Router.IRouterHistory`}),`, `,(0,R.jsx)(`code`,{children:`MemoryHistory`}),` – the history abstraction used by `,(0,R.jsx)(`code`,{children:`V.Router`}),`. You can supply your own history implementation by passing an `,(0,R.jsx)(`code`,{children:`IRouterHistory`}),` instance to`,` `,(0,R.jsx)(`code`,{children:`V.Router`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Router.RouterLocation`}),`, `,(0,R.jsx)(`code`,{children:`RouterPath`}),`,`,` `,(0,R.jsx)(`code`,{children:`RouteMatch`}),` – types that describe the current location, parsed path, and the result of route matching.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Signals`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Signals.Signals`}),` – entry point for working with signals via`,` `,(0,R.jsx)(`code`,{children:`Signals.Get<T>(key, initialValue)`}),` and`,` `,(0,R.jsx)(`code`,{children:`Signals.TryGet<T>(key, out signal)`}),`.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Signals.Signal<T>`}),` – concrete signal type with`,` `,(0,R.jsx)(`code`,{children:`Value`}),`, `,(0,R.jsx)(`code`,{children:`Subscribe(...)`}),`, `,(0,R.jsx)(`code`,{children:`Set(value)`}),`, and`,` `,(0,R.jsx)(`code`,{children:`Dispatch(update)`}),` methods.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Signals.SignalsRuntime`}),` – bootstraps the runtime registry and hidden host GameObject. Call `,(0,R.jsx)(`code`,{children:`SignalsRuntime.EnsureInitialized()`}),` at startup if you are using signals outside of components.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Editor support`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.EditorSupport.EditorRootRendererUtility`}),` – helper for mounting a `,(0,R.jsx)(`code`,{children:`VirtualNode`}),` tree into an EditorWindow`,` `,(0,R.jsx)(`code`,{children:`VisualElement`}),`. Used from editor samples and your own tools.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.EditorSupport.EditorRenderScheduler`}),` – scheduler used in the editor for batched updates.`]})})})]})]}),(0,R.jsxs)(Y,{sx:dv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Elements & registry`}),(0,R.jsxs)(yg,{sx:dv.list,children:[(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Elements.ElementRegistry`}),` – maps element names (for example`,` `,(0,R.jsx)(`code`,{children:`"Button"`}),`, `,(0,R.jsx)(`code`,{children:`"ListView"`}),`) to concrete adapters and is used by the reconciler when creating and updating UI Toolkit elements.`]})})}),(0,R.jsx)(X,{disablePadding:!0,children:(0,R.jsx)(Z,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`ReactiveUITK.Elements.ElementRegistryProvider`}),` – static helpers for obtaining the default registry used by both runtime and editor hosts.`]})})})]})]})]});var pv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const mv=()=>(0,R.jsxs)(Y,{sx:pv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`BoundsField`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`V.BoundsField`}),` wraps the Unity `,(0,R.jsx)(`code`,{children:`BoundsField`}),` control using`,` `,(0,R.jsx)(`code`,{children:`BoundsFieldProps`}),`. It is useful for editing `,(0,R.jsx)(`code`,{children:`Bounds`}),` values in both runtime UI and editor tools.`]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Pass a `,(0,R.jsx)(`code`,{children:`BoundsFieldProps`}),` instance to `,(0,R.jsx)(`code`,{children:`V.BoundsField`}),`. The`,` `,(0,R.jsx)(`code`,{children:`Value`}),` property controls the current bounds.`]}),(0,R.jsx)($,{language:`tsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
 
 using System.Collections.Generic;
 using ReactiveUITK;
@@ -434,7 +437,8 @@ public static class BoundsFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass BoundsFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -443,7 +447,7 @@ public static class BoundsFieldExamples
 
     void OnChange(ChangeEvent<Bounds> evt)
     {
-      setBounds.Set(evt.newValue);
+      setBounds(evt.newValue);
     }
 
     return V.BoundsField(
@@ -458,7 +462,7 @@ public static class BoundsFieldExamples
       }
     );
   }
-}`})]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Children`}),(0,R.jsxs)(q,{variant:`body1`,children:[(0,R.jsx)(`code`,{children:`BoundsField`}),` does not accept child nodes; all configuration is done through`,` `,(0,R.jsx)(`code`,{children:`BoundsFieldProps`}),`.`]})]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Slots (label / visual input)`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Use the `,(0,R.jsx)(`code`,{children:`Label`}),` and `,(0,R.jsx)(`code`,{children:`VisualInput`}),` properties to style the label and the internal input container. Both expect dictionaries – you can compose them using other typed props (for example `,(0,R.jsx)(`code`,{children:`LabelProps.ToDictionary()`}),`) or by building a`,` `,(0,R.jsx)(`code`,{children:`Style`}),` instance.`]})]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Controlled value`}),(0,R.jsxs)(q,{variant:`body1`,children:[`Use `,(0,R.jsx)(`code`,{children:`Hooks.UseState`}),` (or a signal) to hold the current `,(0,R.jsx)(`code`,{children:`Bounds`}),` and update it from a change handler. The example above shows using a local state tuple and updating via `,(0,R.jsx)(`code`,{children:`setBounds.Set(evt.newValue)`}),`.`]})]})]});var hv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const gv=()=>(0,R.jsxs)(Y,{sx:hv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`BoundsIntField`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`V.BoundsIntField`}),` wraps the Unity `,(0,R.jsx)(`code`,{children:`BoundsIntField`}),` control using`,` `,(0,R.jsx)(`code`,{children:`BoundsIntFieldProps`}),` for working with integer bounds in both runtime UI and editor tools.`]}),(0,R.jsxs)(Y,{sx:hv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Pass a `,(0,R.jsx)(`code`,{children:`BoundsIntFieldProps`}),` with an initial `,(0,R.jsx)(`code`,{children:`BoundsInt`}),` to render the field. Combine it with `,(0,R.jsx)(`code`,{children:`Hooks.UseState`}),` or signals to keep the value controlled.`]}),(0,R.jsx)($,{language:`tsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
+}`})]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Children`}),(0,R.jsxs)(q,{variant:`body1`,children:[(0,R.jsx)(`code`,{children:`BoundsField`}),` does not accept child nodes; all configuration is done through`,` `,(0,R.jsx)(`code`,{children:`BoundsFieldProps`}),`.`]})]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Slots (label / visual input)`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Use the `,(0,R.jsx)(`code`,{children:`Label`}),` and `,(0,R.jsx)(`code`,{children:`VisualInput`}),` properties to style the label and the internal input container. Both expect dictionaries – you can compose them using other typed props (for example `,(0,R.jsx)(`code`,{children:`LabelProps.ToDictionary()`}),`) or by building a`,` `,(0,R.jsx)(`code`,{children:`Style`}),` instance.`]})]}),(0,R.jsxs)(Y,{sx:pv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Controlled value`}),(0,R.jsxs)(q,{variant:`body1`,children:[`Use `,(0,R.jsx)(`code`,{children:`Hooks.UseState`}),` (or a signal) to hold the current `,(0,R.jsx)(`code`,{children:`Bounds`}),` and update it from a change handler. The example above uses a local state tuple and updates the value via `,(0,R.jsx)(`code`,{children:`setBounds(evt.newValue)`}),` (you can also use the optional`,` `,(0,R.jsx)(`code`,{children:`StateSetterExtensions.Set`}),` helper if you prefer method syntax).`]})]})]});var hv={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const gv=()=>(0,R.jsxs)(Y,{sx:hv.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`BoundsIntField`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`V.BoundsIntField`}),` wraps the Unity `,(0,R.jsx)(`code`,{children:`BoundsIntField`}),` control using`,` `,(0,R.jsx)(`code`,{children:`BoundsIntFieldProps`}),` for working with integer bounds in both runtime UI and editor tools.`]}),(0,R.jsxs)(Y,{sx:hv.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Pass a `,(0,R.jsx)(`code`,{children:`BoundsIntFieldProps`}),` with an initial `,(0,R.jsx)(`code`,{children:`BoundsInt`}),` to render the field. Combine it with `,(0,R.jsx)(`code`,{children:`Hooks.UseState`}),` or signals to keep the value controlled.`]}),(0,R.jsx)($,{language:`tsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
 
 using System.Collections.Generic;
 using ReactiveUITK;
@@ -474,7 +478,8 @@ public static class BoundsIntFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass BoundsIntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -483,7 +488,7 @@ public static class BoundsIntFieldExamples
 
     void OnChange(ChangeEvent<BoundsInt> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.BoundsIntField(
@@ -520,7 +525,8 @@ public static class BoxExamples
     (StyleKeys.MarginTop, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass BoxExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -553,7 +559,9 @@ public static class ButtonExamples
 {
   private static readonly Style ButtonStyle = new Style { (StyleKeys.MarginTop, 4f) };
 
-  public static VirtualNode Render(
+  // Function component �?" no Render method wrapper; pass this
+  // function to V.Func when mounting.
+  public static VirtualNode BasicButton(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -562,7 +570,7 @@ public static class ButtonExamples
 
     void OnClick()
     {
-      setCount.Set(previous => previous + 1);
+      setCount(previous => previous + 1);
       Debug.Log($"Clicked {count + 1} times");
     }
 
@@ -591,7 +599,8 @@ public static class ColorFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ColorFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -600,7 +609,7 @@ public static class ColorFieldExamples
 
     void OnChange(ChangeEvent<Color> evt)
     {
-      setColor.Set(evt.newValue);
+      setColor(evt.newValue);
     }
 
     return V.ColorField(
@@ -627,7 +636,8 @@ public static class DoubleFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass DoubleFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -635,8 +645,8 @@ public static class DoubleFieldExamples
     var (value, setValue) = Hooks.UseState(3.14159);
 
     void OnChange(ChangeEvent<double> evt)
-    {
-      setValue.Set(evt.newValue);
+  {
+      setValue(evt.newValue);
     }
 
     return V.DoubleField(
@@ -664,7 +674,8 @@ public static class DropdownFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass DropdownFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -675,7 +686,7 @@ public static class DropdownFieldExamples
 
     void OnChange(ChangeEvent<string> evt)
     {
-      setIndex.Set(previous => choices.IndexOf(evt.newValue));
+      setIndex(previous => choices.IndexOf(evt.newValue));
     }
 
     return V.DropdownField(
@@ -711,7 +722,8 @@ public static class EnumFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass EnumFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -720,7 +732,7 @@ public static class EnumFieldExamples
 
     void OnChange(ChangeEvent<System.Enum> evt)
     {
-      setValue.Set((ExampleEnum)evt.newValue);
+      setValue((ExampleEnum)evt.newValue);
     }
 
     return V.EnumField(
@@ -758,7 +770,8 @@ public static class EnumFlagsFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass EnumFlagsFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -767,7 +780,7 @@ public static class EnumFlagsFieldExamples
 
     void OnChange(ChangeEvent<System.Enum> evt)
     {
-      setValue.Set((ExampleFlags)evt.newValue);
+      setValue((ExampleFlags)evt.newValue);
     }
 
     return V.EnumFlagsField(
@@ -794,7 +807,8 @@ public static class FloatFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass FloatFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -803,7 +817,7 @@ public static class FloatFieldExamples
 
     void OnChange(ChangeEvent<float> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.FloatField(
@@ -833,7 +847,8 @@ public static class FoldoutExamples
 
   private static readonly Style ContentContainerStyle = new Style { (StyleKeys.PaddingLeft, 12f) };
 
-  public static VirtualNode Render(
+  // Function component – pass FoldoutExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -842,7 +857,7 @@ public static class FoldoutExamples
 
     void OnChange(ChangeEvent<bool> evt)
     {
-      setIsOpen.Set(evt.newValue);
+      setIsOpen(evt.newValue);
     }
 
     var headerProps = new Dictionary<string, object>
@@ -895,7 +910,8 @@ public static class GroupBoxExamples
     (StyleKeys.FontSize, 14f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass GroupBoxExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -936,7 +952,8 @@ public static class Hash128FieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Hash128FieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -945,7 +962,7 @@ public static class Hash128FieldExamples
 
     void OnChange(ChangeEvent<Hash128> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Hash128Field(
@@ -969,7 +986,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class HelpBoxExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass HelpBoxExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -994,7 +1012,8 @@ using UnityEngine.UIElements;
 
 public static class IMGUIContainerExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass IMGUIContainerExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1023,7 +1042,8 @@ public static class ImageExamples
 {
   private static readonly Style ImageStyle = new Style { (StyleKeys.Width, 128f), (StyleKeys.Height, 128f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ImageExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1051,7 +1071,8 @@ public static class IntegerFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass IntegerFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1060,7 +1081,7 @@ public static class IntegerFieldExamples
 
     void OnChange(ChangeEvent<int> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.IntegerField(
@@ -1086,7 +1107,8 @@ public static class LabelExamples
 {
   private static readonly Style LabelStyle = new Style { (StyleKeys.FontSize, 16f) };
 
-  public static VirtualNode Render(
+  // Function component – pass LabelExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1111,7 +1133,8 @@ public static class LongFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass LongFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1120,7 +1143,7 @@ public static class LongFieldExamples
 
     void OnChange(ChangeEvent<long> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.LongField(
@@ -1155,7 +1178,8 @@ public static class ProgressBarExamples
     (StyleKeys.FontSize, 12f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ProgressBarExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1197,7 +1221,8 @@ public static class ListViewExamples
 
   private static readonly Style ListStyle = new Style { (StyleKeys.FlexGrow, 1f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ListViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1240,7 +1265,8 @@ public static class MinMaxSliderExamples
 {
   private static readonly Style SliderStyle = new Style { (StyleKeys.Width, 200f) };
 
-  public static VirtualNode Render(
+  // Function component – pass MinMaxSliderExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1249,7 +1275,7 @@ public static class MinMaxSliderExamples
 
     void Update(float min, float max)
     {
-      setRange.Set(_ => (min, max));
+      setRange(_ => (min, max));
     }
 
     return V.MinMaxSlider(
@@ -1273,7 +1299,8 @@ using UnityEngine;
 
 public static class ObjectFieldExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass ObjectFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1282,7 +1309,7 @@ public static class ObjectFieldExamples
 
     void OnChange(ChangeEvent<Object> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.ObjectField(
@@ -1305,7 +1332,8 @@ using UnityEngine.UIElements;
 
 public static class RadioButtonExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass RadioButtonExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1314,7 +1342,7 @@ public static class RadioButtonExamples
 
     void OnChange(ChangeEvent<bool> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.RadioButton(
@@ -1338,7 +1366,8 @@ public static class RadioButtonGroupExamples
 {
   private static readonly Style ContentContainerStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 8f) };
 
-  public static VirtualNode Render(
+  // Function component – pass RadioButtonGroupExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1347,7 +1376,7 @@ public static class RadioButtonGroupExamples
 
     void OnChange(ChangeEvent<int> evt)
     {
-      setIndex.Set(evt.newValue);
+      setIndex(evt.newValue);
     }
 
     var contentContainerProps = new Dictionary<string, object>
@@ -1373,7 +1402,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class RepeatButtonExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass RepeatButtonExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1382,7 +1412,7 @@ public static class RepeatButtonExamples
 
     void OnClick()
     {
-      setCount.Set(prev => prev + 1);
+      setCount(prev => prev + 1);
     }
 
     return V.RepeatButton(
@@ -1407,7 +1437,8 @@ public static class ScrollViewExamples
 
   private static readonly Style ScrollViewStyle = new Style { (StyleKeys.Height, 200f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ScrollViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1442,7 +1473,8 @@ using UnityEngine.UIElements;
 
 public static class SliderExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass SliderExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1451,7 +1483,7 @@ public static class SliderExamples
 
     void OnChange(ChangeEvent<float> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Slider(
@@ -1474,7 +1506,8 @@ using UnityEngine.UIElements;
 
 public static class SliderIntExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass SliderIntExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1483,7 +1516,7 @@ public static class SliderIntExamples
 
     void OnChange(ChangeEvent<int> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.SliderInt(
@@ -1508,7 +1541,8 @@ public static class ToggleExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.MarginRight, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ToggleExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1517,7 +1551,7 @@ public static class ToggleExamples
 
     void OnChange(ChangeEvent<bool> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     var inputProps = new Dictionary<string, object>
@@ -1552,7 +1586,8 @@ public static class TreeViewExamples
 {
   private static readonly Style TreeViewStyle = new Style { (StyleKeys.FlexGrow, 1f) };
 
-  public static VirtualNode Render(
+  // Function component – pass TreeViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1592,7 +1627,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class TabExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TabExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1613,7 +1649,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class TabViewExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TabViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1652,7 +1689,8 @@ using ReactiveUITK.Props.Typed;
 
 public static class ToggleButtonGroupExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass ToggleButtonGroupExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1679,7 +1717,8 @@ public static class TextFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass TextFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1688,7 +1727,7 @@ public static class TextFieldExamples
 
     void OnChange(ChangeEvent<string> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     var inputProps = new Dictionary<string, object>
@@ -1716,7 +1755,8 @@ public static class ToolbarExamples
 {
   private static readonly Style ToolbarStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Gap, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass ToolbarExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1750,7 +1790,8 @@ public static class RectFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass RectFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1785,7 +1826,8 @@ public static class RectIntFieldExamples
     (StyleKeys.PaddingLeft, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass RectIntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1816,7 +1858,8 @@ public static class UnsignedIntegerFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass UnsignedIntegerFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1825,7 +1868,7 @@ public static class UnsignedIntegerFieldExamples
 
     void OnChange(ChangeEvent<uint> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.UnsignedIntegerField(
@@ -1853,7 +1896,8 @@ public static class UnsignedLongFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass UnsignedLongFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1862,7 +1906,7 @@ public static class UnsignedLongFieldExamples
 
     void OnChange(ChangeEvent<ulong> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.UnsignedLongField(
@@ -1891,7 +1935,8 @@ public static class Vector2FieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector2FieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1900,7 +1945,7 @@ public static class Vector2FieldExamples
 
     void OnChange(ChangeEvent<Vector2> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Vector2Field(
@@ -1929,7 +1974,8 @@ public static class Vector2IntFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector2IntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1961,7 +2007,8 @@ public static class Vector3FieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector3FieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -1970,7 +2017,7 @@ public static class Vector3FieldExamples
 
     void OnChange(ChangeEvent<Vector3> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Vector3Field(
@@ -1999,7 +2046,8 @@ public static class Vector3IntFieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector3IntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2031,7 +2079,8 @@ public static class Vector4FieldExamples
 {
   private static readonly Style InputStyle = new Style { (StyleKeys.PaddingLeft, 4f) };
 
-  public static VirtualNode Render(
+  // Function component – pass Vector4FieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2040,7 +2089,7 @@ public static class Vector4FieldExamples
 
     void OnChange(ChangeEvent<Vector4> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Vector4Field(
@@ -2072,7 +2121,8 @@ public static class TemplateContainerExamples
     (StyleKeys.PaddingBottom, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass TemplateContainerExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2097,6 +2147,7 @@ using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
+using UnityEngine;
 
 public static class VisualElementExamples
 {
@@ -2108,7 +2159,8 @@ public static class VisualElementExamples
     (StyleKeys.Gap, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass VisualElementExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2127,6 +2179,7 @@ using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
+using UnityEngine;
 
 public static class VisualElementSafeExamples
 {
@@ -2135,7 +2188,8 @@ public static class VisualElementSafeExamples
     (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 1f)),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass VisualElementSafeExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2167,7 +2221,8 @@ public static class AnimateExamples
     (StyleKeys.JustifyContent, Justify.Center),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass AnimateExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2214,7 +2269,8 @@ public static class ErrorBoundaryExamples
     (StyleKeys.PaddingTop, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ErrorBoundaryExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2250,7 +2306,7 @@ public static class ErrorBoundaryExamples
             new ButtonProps
             {
               Text = $"Clicks: {value}",
-              OnClick = _ => setValue.Set(prev => prev + 1),
+              OnClick = _ => setValue(prev => prev + 1),
             }
           );
         }
@@ -2274,7 +2330,8 @@ public static class MultiColumnListViewExamples
     public int Value;
   }
 
-  public static VirtualNode Render(
+  // Function component – pass MultiColumnListViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2328,7 +2385,8 @@ public static class MultiColumnTreeViewExamples
     public IList<Node> Children;
   }
 
-  public static VirtualNode Render(
+  // Function component – pass MultiColumnTreeViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2386,7 +2444,8 @@ public static class ScrollerExamples
     (StyleKeys.Height, 120f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass ScrollerExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2395,7 +2454,7 @@ public static class ScrollerExamples
 
     void OnChange(ChangeEvent<float> evt)
     {
-      setValue.Set(evt.newValue);
+      setValue(evt.newValue);
     }
 
     return V.Scroller(
@@ -2423,7 +2482,8 @@ public static class TextElementExamples
     (StyleKeys.UnityFontStyleAndWeight, FontStyle.Bold),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass TextElementExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2454,7 +2514,8 @@ public static class PropertyInspectorExamples
     (StyleKeys.Gap, 4f),
   };
 
-  public static VirtualNode Render(
+  // Function component – pass PropertyInspectorExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2493,7 +2554,8 @@ using UnityEngine.UIElements;
 // Editor-only usage
 public static class TwoPaneSplitViewExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TwoPaneSplitViewExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2518,7 +2580,8 @@ using UnityEngine;
 
 public static class AnimateWithHook
 {
-  public static VirtualNode Render(
+  // Function component – pass AnimateWithHook.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2553,7 +2616,8 @@ using UnityEngine;
 
 public static class TweenFloatExamples
 {
-  public static VirtualNode Render(
+  // Function component – pass TweenFloatExamples.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2580,7 +2644,8 @@ using ReactiveUITK.Router;
 // Demonstrates RouterHooks.UseNavigate, UseParams, and UseQuery.
 public static class RouterHooksDemoFunc
 {
-  public static VirtualNode Render(
+  // Function component – pass RouterHooksDemoFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2617,7 +2682,8 @@ public static class SignalHooksDemoFunc
   private static readonly Signal<int> CounterSignal =
     Signals.Get<int>("demo.counter", 0);
 
-  public static VirtualNode Render(
+  // Function component – pass SignalHooksDemoFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
@@ -2640,10 +2706,12 @@ using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Core.Util;
+using UnityEngine;
 
 public static class SafeAreaHooksDemoFunc
 {
-  public static VirtualNode Render(
+  // Function component – pass SafeAreaHooksDemoFunc.Example to V.Func(...)
+  public static VirtualNode Example(
     Dictionary<string, object> props,
     IReadOnlyList<VirtualNode> children
   )
