@@ -643,7 +643,7 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber.HostElement == null)
                 return;
 
-            if (fiber.ElementType == "Label")
+            if (FiberConfig.EnableFiberLogging && fiber.ElementType == "Label")
             {
                 string oldText = null;
                 string newText = null;

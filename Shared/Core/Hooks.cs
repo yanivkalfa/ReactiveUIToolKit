@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using ReactiveUITK.Core.Diagnostics;
 using ReactiveUITK.Core.Fiber;
 using ReactiveUITK.Core.Util;
 using ReactiveUITK.Signals;
@@ -211,13 +212,16 @@ namespace ReactiveUITK.Core
                     state.PendingHookStatePreviews?.Remove(index);
                     metadata?.SyncComponentState(state);
 
-                    try
+                    if (InternalLogOptions.EnableInternalLogs)
                     {
-                        UnityEngine.Debug.Log(
-                            $"[Hooks] EnqueuePendingUpdate (Fiber immediate) state={state?.GetHashCode() ?? 0} slot={index} computed={computed}"
-                        );
+                        try
+                        {
+                            UnityEngine.Debug.Log(
+                                $"[Hooks] EnqueuePendingUpdate (Fiber immediate) state={state?.GetHashCode() ?? 0} slot={index} computed={computed}"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
 
                     state.OnStateUpdated.Invoke();
                     return;
@@ -236,13 +240,16 @@ namespace ReactiveUITK.Core
                 state.PendingHookStatePreviews[index] = computed;
                 metadata?.SyncComponentState(state);
 
-                try
+                if (InternalLogOptions.EnableInternalLogs)
                 {
-                    UnityEngine.Debug.Log(
-                        $"[Hooks] EnqueuePendingUpdate state={state?.GetHashCode() ?? 0} slot={index} computed={computed} hasUpdateCb={(state?.OnStateUpdated != null ? "true" : "false")}"
-                    );
+                    try
+                    {
+                        UnityEngine.Debug.Log(
+                            $"[Hooks] EnqueuePendingUpdate state={state?.GetHashCode() ?? 0} slot={index} computed={computed} hasUpdateCb={(state?.OnStateUpdated != null ? "true" : "false")}"
+                        );
+                    }
+                    catch { }
                 }
-                catch { }
 
                 // Legacy reconciler path: use the old metadata+FrameBatcher.
                 Hooks.RequestComponentRerender(metadata);
@@ -616,13 +623,16 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            try
+            if (InternalLogOptions.EnableInternalLogs)
             {
-                Debug.Log(
-                    $"[Hooks] FlushQueuedStateUpdates state={state.GetHashCode()} queues={state.HookStateQueues.Count}"
-                );
+                try
+                {
+                    Debug.Log(
+                        $"[Hooks] FlushQueuedStateUpdates state={state.GetHashCode()} queues={state.HookStateQueues.Count}"
+                    );
+                }
+                catch { }
             }
-            catch { }
 
             state.HookStates ??= new List<object>();
             foreach (var kvp in state.HookStateQueues)
@@ -640,13 +650,16 @@ namespace ReactiveUITK.Core
                     var before = current;
                     current = node.Update.Apply(current);
                     node = node.Next;
-                    try
+                    if (InternalLogOptions.EnableInternalLogs)
                     {
-                        Debug.Log(
-                            $"[Hooks] Flush slot={slot} before={before} after={current}"
-                        );
+                        try
+                        {
+                            Debug.Log(
+                                $"[Hooks] Flush slot={slot} before={before} after={current}"
+                            );
+                        }
+                        catch { }
                     }
-                    catch { }
                 }
                 while (state.HookStates.Count <= slot)
                 {

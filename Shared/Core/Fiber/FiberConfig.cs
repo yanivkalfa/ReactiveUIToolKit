@@ -13,6 +13,6 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Enable to see which reconciler is being used
         /// </summary>
-        public static bool ShowReconcilerInfo { get; set; } = true;
+        public static bool ShowReconcilerInfo { get; set; } = false;
     }
 }
