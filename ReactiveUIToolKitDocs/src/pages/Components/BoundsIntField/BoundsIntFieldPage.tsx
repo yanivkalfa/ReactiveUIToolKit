@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './BoundsIntFieldPage.style'
 import { BOUNDS_INT_FIELD_BASIC } from './BoundsIntFieldPage.example'
 
@@ -14,6 +15,13 @@ export const BoundsIntFieldPage: FC = () => (
       <code>BoundsIntFieldProps</code> for working with integer bounds in both runtime UI and editor
       tools.
     </Typography>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('BoundsIntFieldProps')} />
+    </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>

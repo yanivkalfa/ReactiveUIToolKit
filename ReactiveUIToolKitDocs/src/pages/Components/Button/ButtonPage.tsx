@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ButtonPage.style'
 import { BUTTON_BASIC } from './ButtonPage.example'
 
@@ -13,6 +14,13 @@ export const ButtonPage: FC = () => (
       <code>V.Button</code> wraps the UI Toolkit <code>Button</code> element with{' '}
       <code>ButtonProps</code>. Use it for clickable actions.
     </Typography>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('ButtonProps')} />
+    </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>

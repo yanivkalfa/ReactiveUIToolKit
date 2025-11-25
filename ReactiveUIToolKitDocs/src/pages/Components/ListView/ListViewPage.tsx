@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ListViewPage.style'
 import { LIST_VIEW_BASIC } from './ListViewPage.example'
 
@@ -14,6 +15,12 @@ export const ListViewPage: FC = () => (
       <code>ListViewProps</code>. It can use either the standard <code>makeItem/bindItem</code>{' '}
       properties or the higher-level <code>Row</code> function that returns a <code>VirtualNode</code>.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('ListViewProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage

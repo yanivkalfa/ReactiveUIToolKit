@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './BoundsFieldPage.style'
 import { BOUNDS_FIELD_BASIC } from './BoundsFieldPage.example'
 
@@ -14,6 +15,13 @@ export const BoundsFieldPage: FC = () => (
       <code>BoundsFieldProps</code>. It is useful for editing <code>Bounds</code> values in both
       runtime UI and editor tools.
     </Typography>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('BoundsFieldProps')} />
+    </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>

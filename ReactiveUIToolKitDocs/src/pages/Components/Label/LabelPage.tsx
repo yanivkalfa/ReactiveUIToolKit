@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './LabelPage.style'
 import { LABEL_BASIC } from './LabelPage.example'
 
@@ -13,6 +14,12 @@ export const LabelPage: FC = () => (
       <code>V.Label</code> wraps the UI Toolkit <code>Label</code> element via <code>LabelProps</code>.
       It is the primary way to render text in your component trees.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('LabelProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage

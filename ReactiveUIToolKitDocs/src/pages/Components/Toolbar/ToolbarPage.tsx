@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ToolbarPage.style'
 import { TOOLBAR_BASIC } from './ToolbarPage.example'
 
@@ -14,6 +15,12 @@ export const ToolbarPage: FC = () => (
       <code>V.ToolbarToggle</code>, <code>V.ToolbarMenu</code>, etc.) wrap the UI Toolkit editor
       toolbar elements using the <code>ToolbarProps</code> family.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('ToolbarProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage (Editor)

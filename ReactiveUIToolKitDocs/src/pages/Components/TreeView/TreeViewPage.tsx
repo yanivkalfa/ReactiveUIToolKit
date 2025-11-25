@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TreeViewPage.style'
 import { TREE_VIEW_BASIC } from './TreeViewPage.example'
 
@@ -14,6 +15,12 @@ export const TreeViewPage: FC = () => (
       <code>TreeViewProps</code>, allowing you to render hierarchical data with a{' '}
       <code>Row</code> function that returns <code>VirtualNode</code> instances.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('TreeViewProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
