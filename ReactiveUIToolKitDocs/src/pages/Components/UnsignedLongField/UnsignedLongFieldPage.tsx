@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './UnsignedLongFieldPage.style'
 import { UNSIGNED_LONG_FIELD_BASIC } from './UnsignedLongFieldPage.example'
 
@@ -13,6 +14,12 @@ export const UnsignedLongFieldPage: FC = () => (
       <code>V.UnsignedLongField</code> represents a <code>ulong</code> numeric field using{' '}
       <code>UnsignedLongFieldProps</code>.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('UnsignedLongFieldProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage

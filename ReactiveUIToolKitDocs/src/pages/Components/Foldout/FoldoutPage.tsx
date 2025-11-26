@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './FoldoutPage.style'
 import { FOLDOUT_BASIC } from './FoldoutPage.example'
 
@@ -14,6 +15,13 @@ export const FoldoutPage: FC = () => (
       <code>FoldoutProps</code>. It is useful for expandable sections of UI that reveal more content
       when open.
     </Typography>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('FoldoutProps')} />
+    </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>

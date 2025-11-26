@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './AnimatePage.style'
 import { ANIMATE_BASIC } from './AnimatePage.example'
 
@@ -14,6 +15,12 @@ export const AnimatePage: FC = () => (
       root <code>VisualElement</code>. It is a thin, declarative wrapper around{' '}
       <code>Hooks.UseAnimate</code> and the underlying <code>Animator</code> helpers.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('AnimateProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Concepts

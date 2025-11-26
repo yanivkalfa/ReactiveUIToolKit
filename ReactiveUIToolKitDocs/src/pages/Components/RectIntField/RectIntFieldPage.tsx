@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './RectIntFieldPage.style'
 import { RECT_INT_FIELD_BASIC } from './RectIntFieldPage.example'
 
@@ -13,6 +14,12 @@ export const RectIntFieldPage: FC = () => (
       <code>V.RectIntField</code> wraps the UI Toolkit <code>RectIntField</code> control using{' '}
       <code>RectIntFieldProps</code>. It is available in both runtime and editor UIs.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('RectIntFieldProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage

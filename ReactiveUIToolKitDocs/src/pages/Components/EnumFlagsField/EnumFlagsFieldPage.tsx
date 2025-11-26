@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './EnumFlagsFieldPage.style'
 import { ENUM_FLAGS_FIELD_BASIC } from './EnumFlagsFieldPage.example'
 
@@ -13,6 +14,12 @@ export const EnumFlagsFieldPage: FC = () => (
       <code>V.EnumFlagsField</code> is similar to <code>V.EnumField</code> but supports{' '}
       <code>[Flags]</code> enums.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('EnumFlagsFieldProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage

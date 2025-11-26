@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './MultiColumnTreeViewPage.style'
 import { MULTI_COLUMN_TREE_VIEW_BASIC } from './MultiColumnTreeViewPage.example'
 
@@ -14,6 +15,12 @@ export const MultiColumnTreeViewPage: FC = () => (
       <code>MultiColumnTreeViewProps</code>. It is backed by Unity&apos;s{' '}
       <code>MultiColumnTreeView</code> control and is suitable for project browser–style views.
     </Typography>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('MultiColumnTreeViewProps')} />
+    </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Concepts

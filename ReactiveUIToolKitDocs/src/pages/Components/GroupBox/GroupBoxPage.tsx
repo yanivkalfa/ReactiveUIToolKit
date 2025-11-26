@@ -1,6 +1,7 @@
 import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
+import { getPropsDoc } from '../../../propsDocs'
 import Styles from './GroupBoxPage.style'
 import { GROUP_BOX_BASIC } from './GroupBoxPage.example'
 
@@ -13,6 +14,13 @@ export const GroupBoxPage: FC = () => (
       <code>V.GroupBox</code> wraps the UI Toolkit <code>GroupBox</code> element using{' '}
       <code>GroupBoxProps</code>. It is useful for grouping related controls under a titled header.
     </Typography>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Props
+      </Typography>
+      <CodeBlock language="tsx" code={getPropsDoc('GroupBoxProps')} />
+    </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
