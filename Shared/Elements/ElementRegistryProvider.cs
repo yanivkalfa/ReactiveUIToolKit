@@ -298,9 +298,11 @@ namespace ReactiveUITK.Elements
                     case "BoundsIntField":
                         registry.Register("BoundsIntField", new BoundsIntFieldElementAdapter());
                         break;
+#if UNITY_EDITOR
                     case "EnumFlagsField":
                         registry.Register("EnumFlagsField", new EnumFlagsFieldElementAdapter());
                         break;
+#endif
                     case "ToggleButtonGroup":
                         registry.Register(
                             "ToggleButtonGroup",
