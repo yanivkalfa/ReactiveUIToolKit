@@ -5,8 +5,5 @@ dist~/*
 
 /.vscode/*
 
-ReactiveUIToolKitDocs~/**/*.meta
-ReactiveUIToolKitDocs~/dist/*
-ReactiveUIToolKitDocs~/node_modules/*
-
+ReactiveUIToolKitDocs/**/*.meta
 
