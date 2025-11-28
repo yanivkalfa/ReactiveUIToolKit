@@ -2325,14 +2325,29 @@ using UnityEngine;
 
 public static class ProgressBarExamples
 {
-  private static readonly Style ProgressStyle = new Style
+  private static readonly Style TrackStyle = new Style
   {
-    (StyleKeys.BackgroundColor, new Color(0.2f, 0.6f, 0.9f, 1f)),
+    (StyleKeys.BackgroundColor, new Color(0.02f, 0.2f, 0.02f, 0.7f)),
+    (StyleKeys.BorderColor, new Color(0.07f, 0.9f, 0.22f, 1f)),
+    (StyleKeys.BorderWidth, 2f),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.Height, 30f),
+  };
+
+  private static readonly Style ProgressFillStyle = new Style
+  {
+    (StyleKeys.BackgroundColor, new Color(0.4f, 0.95f, 0.4f, 0.7f)),
+    (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.MarginLeft, 2f),
+    (StyleKeys.MarginRight, 2f),
+    (StyleKeys.MarginTop, 2f),
+    (StyleKeys.MarginBottom, 2f),
   };
 
   private static readonly Style TitleStyle = new Style
   {
-    (StyleKeys.FontSize, 12f),
+    (StyleKeys.FontSize, 13f),
+    (StyleKeys.TextAlign, "center"),
   };
 
   // Function component – pass ProgressBarExamples.Example to V.Func(...)
@@ -2341,11 +2356,11 @@ public static class ProgressBarExamples
     IReadOnlyList<VirtualNode> children
   )
   {
-    var (value, setValue) = Hooks.UseState(0.5f);
+    var (value, setValue) = Hooks.UseState(0.65f);
 
     var progressProps = new Dictionary<string, object>
     {
-      { "style", ProgressStyle },
+      { "style", ProgressFillStyle },
     };
 
     var titleElementProps = new Dictionary<string, object>
@@ -2356,14 +2371,15 @@ public static class ProgressBarExamples
     return V.ProgressBar(
       new ProgressBarProps
       {
-        Title = "Loading...",
+        Title = $"Downloading - {(value * 100f):0}%",
         Value = value,
+        Style = TrackStyle,
         Progress = progressProps,
         TitleElement = titleElementProps,
       }
     );
   }
-}`})]})]});var ty={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const ny=()=>(0,R.jsxs)(J,{sx:ty.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`ListView`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`V.ListView`}),` wraps the UI Toolkit `,(0,R.jsx)(`code`,{children:`ListView`}),` control using`,` `,(0,R.jsx)(`code`,{children:`ListViewProps`}),`. It can use either the standard `,(0,R.jsx)(`code`,{children:`makeItem/bindItem`}),` `,`properties or the higher-level `,(0,R.jsx)(`code`,{children:`Row`}),` function that returns a `,(0,R.jsx)(`code`,{children:`VirtualNode`}),`.`]}),(0,R.jsxs)(J,{sx:ty.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Props`}),(0,R.jsx)(Q,{language:`tsx`,code:$(`ListViewProps`)})]}),(0,R.jsxs)(J,{sx:ty.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,R.jsx)(Q,{language:`tsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
+}`})]}),(0,R.jsxs)(J,{sx:$v.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Styling track and fill`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`The`,` `,(0,R.jsx)(`a`,{href:`https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ProgressBar.html`,target:`_blank`,rel:`noreferrer`,children:`Unity ProgressBar documentation`}),` `,`highlights that the root element is the visible track, while the inner`,` `,(0,R.jsx)(`code`,{children:`.unity-progress-bar__progress`}),` child renders the filled portion.`]}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[`Assign styles to the track via `,(0,R.jsx)(`code`,{children:`ProgressBarProps.Style`}),` (for border, unfilled background, size, etc.) and target the fill through the `,(0,R.jsx)(`code`,{children:`Progress`}),` slot. You can also style the caption by populating `,(0,R.jsx)(`code`,{children:`TitleElement`}),`. The example above uses this pattern to create a progress bar with a dark green track, a lighter fill, and centered text.`]})]})]});var ty={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const ny=()=>(0,R.jsxs)(J,{sx:ty.root,children:[(0,R.jsx)(q,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`ListView`}),(0,R.jsxs)(q,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`V.ListView`}),` wraps the UI Toolkit `,(0,R.jsx)(`code`,{children:`ListView`}),` control using`,` `,(0,R.jsx)(`code`,{children:`ListViewProps`}),`. It can use either the standard `,(0,R.jsx)(`code`,{children:`makeItem/bindItem`}),` `,`properties or the higher-level `,(0,R.jsx)(`code`,{children:`Row`}),` function that returns a `,(0,R.jsx)(`code`,{children:`VirtualNode`}),`.`]}),(0,R.jsxs)(J,{sx:ty.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Props`}),(0,R.jsx)(Q,{language:`tsx`,code:$(`ListViewProps`)})]}),(0,R.jsxs)(J,{sx:ty.section,children:[(0,R.jsx)(q,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,R.jsx)(Q,{language:`tsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
 
 using System.Collections;
 using System.Collections.Generic;
