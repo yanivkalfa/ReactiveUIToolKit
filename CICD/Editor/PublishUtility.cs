@@ -314,7 +314,7 @@ namespace ReactiveUITK.CICD
             try
             {
                 string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
-                string docsRoot = Path.Combine(packageRoot, "ReactiveUIToolKitDocs");
+                string docsRoot = Path.Combine(packageRoot, "ReactiveUIToolKitDocs~");
                 if (!Directory.Exists(docsRoot))
                 {
                     Debug.LogError("Publish: docs root not found: " + docsRoot);
@@ -327,7 +327,7 @@ namespace ReactiveUITK.CICD
                     Debug.LogError(
                         "Publish: docs dist folder not found: "
                             + docsDist
-                            + ". Run 'npm run build' in ReactiveUIToolKitDocs first."
+                            + ". Run 'npm run build' in ReactiveUIToolKitDocs~ first."
                     );
                     return;
                 }
