@@ -1,15 +1,17 @@
+#if UNITY_EDITOR
+using UnityEditor;
 using UnityEngine;
 using ReactiveUITK.Elements;
 using ReactiveUITK.Core;
 
 public static class RegistryDebug
 {
-    [UnityEditor.MenuItem("ReactiveUITK/Debug/Check Registry")]
+    [MenuItem("ReactiveUITK/Debug/Check Registry")]
     public static void CheckRegistry()
     {
         var registry = ElementRegistryProvider.GetDefaultRegistry();
         Debug.Log($"[RegistryDebug] Registry instance: {registry}");
-        
+
         string[] typesToCheck = new[] { "Button", "Label", "VisualElement" };
         foreach (var type in typesToCheck)
         {
@@ -18,3 +20,4 @@ public static class RegistryDebug
         }
     }
 }
+#endif
