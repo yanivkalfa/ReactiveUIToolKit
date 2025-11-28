@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ScrollerPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { SCROLLER_BASIC } from './ScrollerPage.example'
 
 export const ScrollerPage: FC = () => (
@@ -26,6 +27,7 @@ export const ScrollerPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={SCROLLER_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Scroller" />
   </Box>
 )
 

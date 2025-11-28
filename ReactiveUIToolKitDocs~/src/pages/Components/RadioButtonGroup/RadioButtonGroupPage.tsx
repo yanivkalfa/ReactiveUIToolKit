@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './RadioButtonGroupPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { RADIO_BUTTON_GROUP_BASIC } from './RadioButtonGroupPage.example'
 
 export const RadioButtonGroupPage: FC = () => (
@@ -26,6 +27,7 @@ export const RadioButtonGroupPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={RADIO_BUTTON_GROUP_BASIC} />
     </Box>
+    <UnityDocsSection componentName="RadioButtonGroup" />
   </Box>
 )
 

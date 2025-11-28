@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './IMGUIContainerPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { IMGUI_CONTAINER_BASIC } from './IMGUIContainerPage.example'
 
 export const IMGUIContainerPage: FC = () => (
@@ -27,6 +28,7 @@ export const IMGUIContainerPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={IMGUI_CONTAINER_BASIC} />
     </Box>
+    <UnityDocsSection componentName="IMGUIContainer" />
   </Box>
 )
 

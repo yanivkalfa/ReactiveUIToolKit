@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './RepeatButtonPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { REPEAT_BUTTON_BASIC } from './RepeatButtonPage.example'
 
 export const RepeatButtonPage: FC = () => (
@@ -26,6 +27,7 @@ export const RepeatButtonPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={REPEAT_BUTTON_BASIC} />
     </Box>
+    <UnityDocsSection componentName="RepeatButton" />
   </Box>
 )
 

@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './BoundsIntFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { BOUNDS_INT_FIELD_BASIC } from './BoundsIntFieldPage.example'
 
 export const BoundsIntFieldPage: FC = () => (
@@ -55,6 +56,7 @@ export const BoundsIntFieldPage: FC = () => (
         <code>VisualInput</code> dictionary that contains a nested <code>Style</code>.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="BoundsIntField" />
   </Box>
 )
 

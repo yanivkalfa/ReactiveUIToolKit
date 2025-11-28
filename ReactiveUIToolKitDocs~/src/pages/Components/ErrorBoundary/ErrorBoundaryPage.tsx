@@ -28,4 +28,3 @@ export const ErrorBoundaryPage: FC = () => (
     </Box>
   </Box>
 )
-

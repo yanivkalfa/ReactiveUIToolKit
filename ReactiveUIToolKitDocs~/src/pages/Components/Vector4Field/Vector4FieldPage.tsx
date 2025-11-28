@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './Vector4FieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { VECTOR4_FIELD_BASIC } from './Vector4FieldPage.example'
 
 export const Vector4FieldPage: FC = () => (
@@ -26,6 +27,7 @@ export const Vector4FieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={VECTOR4_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Vector4Field" />
   </Box>
 )
 

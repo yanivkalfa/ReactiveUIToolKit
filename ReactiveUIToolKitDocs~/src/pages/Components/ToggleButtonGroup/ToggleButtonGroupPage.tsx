@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ToggleButtonGroupPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TOGGLE_BUTTON_GROUP_BASIC } from './ToggleButtonGroupPage.example'
 
 export const ToggleButtonGroupPage: FC = () => (
@@ -26,6 +27,7 @@ export const ToggleButtonGroupPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TOGGLE_BUTTON_GROUP_BASIC} />
     </Box>
+    <UnityDocsSection componentName="ToggleButtonGroup" />
   </Box>
 )
 

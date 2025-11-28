@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './IntegerFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { INTEGER_FIELD_BASIC } from './IntegerFieldPage.example'
 
 export const IntegerFieldPage: FC = () => (
@@ -25,6 +26,7 @@ export const IntegerFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={INTEGER_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="IntegerField" />
   </Box>
 )
 

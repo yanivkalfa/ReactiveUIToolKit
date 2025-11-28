@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ProgressBarPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { PROGRESS_BAR_BASIC } from './ProgressBarPage.example'
 
 export const ProgressBarPage: FC = () => (
@@ -49,5 +50,6 @@ export const ProgressBarPage: FC = () => (
         pattern to create a progress bar with a dark green track, a lighter fill, and centered text.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="ProgressBar" />
   </Box>
 )

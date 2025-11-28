@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ListViewPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { LIST_VIEW_BASIC } from './ListViewPage.example'
 
 export const ListViewPage: FC = () => (
@@ -27,6 +28,7 @@ export const ListViewPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={LIST_VIEW_BASIC} />
     </Box>
+    <UnityDocsSection componentName="ListView" />
   </Box>
 )
 

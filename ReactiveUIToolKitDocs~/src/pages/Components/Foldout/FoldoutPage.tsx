@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './FoldoutPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { FOLDOUT_BASIC } from './FoldoutPage.example'
 
 export const FoldoutPage: FC = () => (
@@ -66,6 +67,7 @@ export const FoldoutPage: FC = () => (
         always reflect your source of truth.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="Foldout" />
   </Box>
 )
 

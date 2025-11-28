@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ToolbarPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TOOLBAR_BASIC } from './ToolbarPage.example'
 
 export const ToolbarPage: FC = () => (
@@ -27,6 +28,7 @@ export const ToolbarPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TOOLBAR_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Toolbar" />
   </Box>
 )
 

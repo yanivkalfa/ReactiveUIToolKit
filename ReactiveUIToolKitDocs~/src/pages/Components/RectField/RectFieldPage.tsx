@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './RectFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { RECT_FIELD_BASIC } from './RectFieldPage.example'
 
 export const RectFieldPage: FC = () => (
@@ -26,6 +27,7 @@ export const RectFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={RECT_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="RectField" />
   </Box>
 )
 

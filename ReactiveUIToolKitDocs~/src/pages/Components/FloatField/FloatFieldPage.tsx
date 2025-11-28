@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './FloatFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { FLOAT_FIELD_BASIC } from './FloatFieldPage.example'
 
 export const FloatFieldPage: FC = () => (
@@ -38,6 +39,7 @@ export const FloatFieldPage: FC = () => (
         <code>Style</code> object to <code>VisualInput</code> to style the input.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="FloatField" />
   </Box>
 )
 

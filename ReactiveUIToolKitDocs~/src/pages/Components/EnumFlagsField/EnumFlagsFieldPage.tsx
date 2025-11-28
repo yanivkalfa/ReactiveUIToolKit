@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './EnumFlagsFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { ENUM_FLAGS_FIELD_BASIC } from './EnumFlagsFieldPage.example'
 
 export const EnumFlagsFieldPage: FC = () => (
@@ -38,6 +39,7 @@ export const EnumFlagsFieldPage: FC = () => (
         objects.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="EnumFlagsField" />
   </Box>
 )
 

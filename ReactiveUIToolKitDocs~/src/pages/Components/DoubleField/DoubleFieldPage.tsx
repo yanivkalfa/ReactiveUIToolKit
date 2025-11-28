@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './DoubleFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { DOUBLE_FIELD_BASIC } from './DoubleFieldPage.example'
 
 export const DoubleFieldPage: FC = () => (
@@ -38,6 +39,7 @@ export const DoubleFieldPage: FC = () => (
         <code>Style</code> for the inner input container.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="DoubleField" />
   </Box>
 )
 

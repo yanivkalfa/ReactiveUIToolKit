@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TemplateContainerPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TEMPLATE_CONTAINER_BASIC } from './TemplateContainerPage.example'
 
 export const TemplateContainerPage: FC = () => (
@@ -26,6 +27,7 @@ export const TemplateContainerPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TEMPLATE_CONTAINER_BASIC} />
     </Box>
+    <UnityDocsSection componentName="TemplateContainer" />
   </Box>
 )
 

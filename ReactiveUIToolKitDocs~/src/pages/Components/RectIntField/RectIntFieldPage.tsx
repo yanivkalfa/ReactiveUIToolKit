@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './RectIntFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { RECT_INT_FIELD_BASIC } from './RectIntFieldPage.example'
 
 export const RectIntFieldPage: FC = () => (
@@ -26,6 +27,7 @@ export const RectIntFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={RECT_INT_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="RectIntField" />
   </Box>
 )
 

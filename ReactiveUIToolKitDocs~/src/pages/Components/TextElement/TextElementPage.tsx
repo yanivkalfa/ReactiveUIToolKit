@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TextElementPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TEXT_ELEMENT_BASIC } from './TextElementPage.example'
 
 export const TextElementPage: FC = () => (
@@ -25,6 +26,7 @@ export const TextElementPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TEXT_ELEMENT_BASIC} />
     </Box>
+    <UnityDocsSection componentName="TextElement" />
   </Box>
 )
 

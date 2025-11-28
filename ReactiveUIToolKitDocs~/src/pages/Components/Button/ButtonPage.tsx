@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ButtonPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { BUTTON_BASIC } from './ButtonPage.example'
 
 export const ButtonPage: FC = () => (
@@ -33,6 +34,7 @@ export const ButtonPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={BUTTON_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Button" />
   </Box>
 )
 

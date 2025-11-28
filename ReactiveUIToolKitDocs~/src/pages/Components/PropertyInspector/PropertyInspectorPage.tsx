@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './PropertyInspectorPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { PROPERTY_INSPECTOR_BASIC } from './PropertyInspectorPage.example'
 
 export const PropertyInspectorPage: FC = () => (
@@ -26,6 +27,7 @@ export const PropertyInspectorPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={PROPERTY_INSPECTOR_BASIC} />
     </Box>
+    <UnityDocsSection componentName="PropertyInspector" />
   </Box>
 )
 

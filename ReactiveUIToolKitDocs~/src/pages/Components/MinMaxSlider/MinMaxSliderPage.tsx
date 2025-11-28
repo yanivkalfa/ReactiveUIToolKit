@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './MinMaxSliderPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { MIN_MAX_SLIDER_BASIC } from './MinMaxSliderPage.example'
 
 export const MinMaxSliderPage: FC = () => (
@@ -26,6 +27,7 @@ export const MinMaxSliderPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={MIN_MAX_SLIDER_BASIC} />
     </Box>
+    <UnityDocsSection componentName="MinMaxSlider" />
   </Box>
 )
 
