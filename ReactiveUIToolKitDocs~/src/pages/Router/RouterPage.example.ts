@@ -141,3 +141,109 @@ public static class RouterLinksFunc
     );
   }
 }`
+
+export const ROUTER_SPLIT_LAYOUT_EXAMPLE = `using System.Collections.Generic;
+using ReactiveUITK.Core;
+using ReactiveUITK.Props.Typed;
+using ReactiveUITK.Router;
+
+public static class SplitShellDemo
+{
+  private static readonly Style Shell = new()
+  {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 12f),
+  };
+
+  private static readonly Style ContentRow = new()
+  {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginTop, 8f),
+  };
+
+  private static readonly Style Sidebar = new()
+  {
+    (StyleKeys.Width, 220f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderRadius, 6f),
+  };
+
+  private static readonly Style Outlet = new()
+  {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.MarginLeft, 12f),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderRadius, 6f),
+  };
+
+  public static VirtualNode Render(
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
+  )
+  {
+    return V.Router(
+      children: new[]
+      {
+        BuildNavRow(),
+        V.Route(path: "/", exact: true, element: V.Text("Landing route")),
+        V.Route(path: "/mainMenu/*", children: new[] { V.Func(MainMenuLayout) }),
+        V.Route(path: "*", element: V.Text("Not found")),
+      }
+    );
+  }
+
+  private static VirtualNode BuildNavRow()
+  {
+    var navigate = RouterHooks.UseNavigate();
+    return V.VisualElement(
+      new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 4f) },
+      null,
+      V.Button(new ButtonProps { Text = "Home (/)", OnClick = () => navigate("/") }),
+      V.Button(new ButtonProps { Text = "Open Main Menu", OnClick = () => navigate("/mainMenu") })
+    );
+  }
+
+  private static VirtualNode MainMenuLayout(
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
+  )
+  {
+    var location = RouterHooks.UseLocationInfo();
+    var navigate = RouterHooks.UseNavigate();
+    var routeMatch = RouterHooks.UseRouteMatch();
+
+    string ToChild(string child)
+    {
+      return RouterPath.Combine(routeMatch?.Pattern ?? "/", child);
+    }
+
+    return V.VisualElement(
+      ContentRow,
+      null,
+      V.VisualElement(
+        Sidebar,
+        null,
+        V.Text("Sidebar"),
+        V.Button(new ButtonProps { Text = "Home", OnClick = () => navigate(ToChild(string.Empty)) }),
+        V.Button(new ButtonProps { Text = "Profile", OnClick = () => navigate(ToChild("profile")) }),
+        V.Button(new ButtonProps { Text = "Store", OnClick = () => navigate(ToChild("store")) }),
+        V.Button(new ButtonProps { Text = "Settings", OnClick = () => navigate(ToChild("settings")) })
+      ),
+      V.VisualElement(
+        Outlet,
+        null,
+        V.Text($"Outlet (current path: {location?.Path ?? "/"})"),
+        V.Route(path: string.Empty, exact: true, element: V.Text("Pick a submenu from the left.")),
+        V.Route(path: "profile", element: V.Text("Profile content")),
+        V.Route(path: "store", element: V.Text("Store content")),
+        V.Route(path: "settings", element: V.Text("Settings content"))
+      )
+    );
+  }
+}
+`;
