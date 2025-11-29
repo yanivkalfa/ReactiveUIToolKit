@@ -215,13 +215,6 @@ public static class SplitShellDemo
   {
     var location = RouterHooks.UseLocationInfo();
     var navigate = RouterHooks.UseNavigate();
-    var routeMatch = RouterHooks.UseRouteMatch();
-
-    string ToChild(string child)
-    {
-      return RouterPath.Combine(routeMatch?.Pattern ?? "/", child);
-    }
-
     return V.VisualElement(
       ContentRow,
       null,
@@ -229,16 +222,17 @@ public static class SplitShellDemo
         Sidebar,
         null,
         V.Text("Sidebar"),
-        V.Button(new ButtonProps { Text = "Home", OnClick = () => navigate(ToChild(string.Empty)) }),
-        V.Button(new ButtonProps { Text = "Profile", OnClick = () => navigate(ToChild("profile")) }),
-        V.Button(new ButtonProps { Text = "Store", OnClick = () => navigate(ToChild("store")) }),
-        V.Button(new ButtonProps { Text = "Settings", OnClick = () => navigate(ToChild("settings")) })
+        V.Button(new ButtonProps { Text = "Home", OnClick = () => navigate(string.Empty) }),
+        V.Button(new ButtonProps { Text = "Profile", OnClick = () => navigate("profile") }),
+        V.Button(new ButtonProps { Text = "Store", OnClick = () => navigate("store") }),
+        V.Button(new ButtonProps { Text = "Settings", OnClick = () => navigate("settings") })
       ),
       V.VisualElement(
         Outlet,
         null,
         V.Text($"Outlet (current path: {location?.Path ?? "/"})"),
         V.Route(path: string.Empty, exact: true, element: V.Text("Pick a submenu from the left.")),
+        V.Route(path: ":id/edit", element: V.Text("Editing view with route params")),
         V.Route(path: "profile", element: V.Text("Profile content")),
         V.Route(path: "store", element: V.Text("Store content")),
         V.Route(path: "settings", element: V.Text("Settings content"))

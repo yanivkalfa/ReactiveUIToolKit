@@ -45,6 +45,9 @@ namespace ReactiveUITK.Router
         public static RouterNavigateHandler UseNavigate(bool replace = false)
         {
             var router = UseRouter();
+            var routeMatch =
+                Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
+                ?? RouteMatch.CreateRoot(router?.Location?.Path ?? "/");
             if (router == null)
             {
                 return (_, __) => false;
@@ -52,7 +55,10 @@ namespace ReactiveUITK.Router
 
             return (path, state) =>
             {
-                string target = string.IsNullOrWhiteSpace(path) ? "/" : path;
+                string target =
+                    path == null
+                        ? "/"
+                        : RouterPath.Combine(routeMatch?.Pattern ?? "/", path);
                 return replace
                     ? router.Replace?.Invoke(target, state) ?? false
                     : router.Navigate?.Invoke(target, state) ?? false;
