@@ -112,7 +112,13 @@ namespace ReactiveUITK.Router
                 Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
                 ?? RouteMatch.CreateRoot(router.Location.Path);
 
-            var match = RouteMatcher.Match(router.Location.Path, path, exact, parentMatch);
+            string resolvedPath = path;
+            if (!string.IsNullOrEmpty(path))
+            {
+                resolvedPath = RouterPath.Combine(parentMatch?.Pattern ?? "/", path);
+            }
+
+            var match = RouteMatcher.Match(router.Location.Path, resolvedPath, exact, parentMatch);
             if (match == null)
             {
                 return null;
