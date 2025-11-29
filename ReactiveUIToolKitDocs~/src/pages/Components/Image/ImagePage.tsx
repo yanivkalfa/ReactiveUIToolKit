@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ImagePage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { IMAGE_BASIC } from './ImagePage.example'
 
 export const ImagePage: FC = () => (
@@ -26,6 +27,7 @@ export const ImagePage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={IMAGE_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Image" />
   </Box>
 )
 

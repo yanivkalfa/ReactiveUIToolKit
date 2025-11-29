@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './HelpBoxPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { HELP_BOX_BASIC } from './HelpBoxPage.example'
 
 export const HelpBoxPage: FC = () => (
@@ -26,6 +27,7 @@ export const HelpBoxPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={HELP_BOX_BASIC} />
     </Box>
+    <UnityDocsSection componentName="HelpBox" />
   </Box>
 )
 

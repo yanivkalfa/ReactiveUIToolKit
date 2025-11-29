@@ -3,6 +3,7 @@ import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './MultiColumnListViewPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { MULTI_COLUMN_LIST_VIEW_BASIC } from './MultiColumnListViewPage.example'
 
 export const MultiColumnListViewPage: FC = () => (
@@ -43,5 +44,6 @@ export const MultiColumnListViewPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={MULTI_COLUMN_LIST_VIEW_BASIC} />
     </Box>
+    <UnityDocsSection componentName="MultiColumnListView" />
   </Box>
 )

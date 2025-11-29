@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './LongFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { LONG_FIELD_BASIC } from './LongFieldPage.example'
 
 export const LongFieldPage: FC = () => (
@@ -25,6 +26,7 @@ export const LongFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={LONG_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="LongField" />
   </Box>
 )
 

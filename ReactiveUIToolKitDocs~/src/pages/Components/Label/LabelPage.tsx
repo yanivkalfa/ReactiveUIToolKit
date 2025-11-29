@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './LabelPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { LABEL_BASIC } from './LabelPage.example'
 
 export const LabelPage: FC = () => (
@@ -26,6 +27,7 @@ export const LabelPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={LABEL_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Label" />
   </Box>
 )
 

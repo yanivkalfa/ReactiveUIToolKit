@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './Hash128FieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { HASH128_FIELD_BASIC } from './Hash128FieldPage.example'
 
 export const Hash128FieldPage: FC = () => (
@@ -26,6 +27,7 @@ export const Hash128FieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={HASH128_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Hash128Field" />
   </Box>
 )
 

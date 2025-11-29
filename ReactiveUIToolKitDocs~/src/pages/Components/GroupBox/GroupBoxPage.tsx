@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './GroupBoxPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { GROUP_BOX_BASIC } from './GroupBoxPage.example'
 
 export const GroupBoxPage: FC = () => (
@@ -53,6 +54,7 @@ export const GroupBoxPage: FC = () => (
         often containing nested <code>Style</code> objects.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="GroupBox" />
   </Box>
 )
 

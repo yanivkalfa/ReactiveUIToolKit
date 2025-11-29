@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './EnumFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { ENUM_FIELD_BASIC } from './EnumFieldPage.example'
 
 export const EnumFieldPage: FC = () => (
@@ -38,6 +39,7 @@ export const EnumFieldPage: FC = () => (
         input dictionaries typically wrap a <code>Style</code> instance.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="EnumField" />
   </Box>
 )
 

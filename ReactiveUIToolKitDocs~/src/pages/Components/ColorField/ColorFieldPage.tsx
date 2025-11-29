@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ColorFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { COLOR_FIELD_BASIC } from './ColorFieldPage.example'
 
 export const ColorFieldPage: FC = () => (
@@ -38,6 +39,7 @@ export const ColorFieldPage: FC = () => (
         other typed props or by nesting a <code>Style</code> instance.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="ColorField" />
   </Box>
 )
 

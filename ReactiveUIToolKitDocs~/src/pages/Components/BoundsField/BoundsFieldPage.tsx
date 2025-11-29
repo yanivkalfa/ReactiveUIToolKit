@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './BoundsFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { BOUNDS_FIELD_BASIC } from './BoundsFieldPage.example'
 
 export const BoundsFieldPage: FC = () => (
@@ -67,6 +68,7 @@ export const BoundsFieldPage: FC = () => (
         <code>StateSetterExtensions.Set</code> helper if you prefer method syntax).
       </Typography>
     </Box>
+    <UnityDocsSection componentName="BoundsField" />
   </Box>
 )
 

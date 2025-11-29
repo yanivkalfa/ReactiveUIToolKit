@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './BoxPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { BOX_BASIC } from './BoxPage.example'
 
 export const BoxPage: FC = () => (
@@ -54,6 +55,7 @@ export const BoxPage: FC = () => (
         container element.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="Box" />
   </Box>
 )
 

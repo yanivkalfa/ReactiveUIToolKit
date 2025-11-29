@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TogglePage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TOGGLE_BASIC } from './TogglePage.example'
 
 export const TogglePage: FC = () => (
@@ -25,6 +26,7 @@ export const TogglePage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TOGGLE_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Toggle" />
   </Box>
 )
 

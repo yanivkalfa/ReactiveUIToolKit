@@ -2,6 +2,7 @@ import type { FC } from 'react'
 import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from './VisualElementPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { VISUAL_ELEMENT_BASIC, VISUAL_ELEMENT_SIGNATURE } from './VisualElementPage.example'
 
 export const VisualElementPage: FC = () => (
@@ -27,6 +28,7 @@ export const VisualElementPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={VISUAL_ELEMENT_BASIC} />
     </Box>
+    <UnityDocsSection componentName="VisualElement" />
   </Box>
 )
 

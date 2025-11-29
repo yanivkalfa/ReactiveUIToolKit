@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './Vector2IntFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { VECTOR2_INT_FIELD_BASIC } from './Vector2IntFieldPage.example'
 
 export const Vector2IntFieldPage: FC = () => (
@@ -26,6 +27,7 @@ export const Vector2IntFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={VECTOR2_INT_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Vector2IntField" />
   </Box>
 )
 

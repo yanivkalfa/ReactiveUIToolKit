@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './DropdownFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { DROPDOWN_FIELD_BASIC } from './DropdownFieldPage.example'
 
 export const DropdownFieldPage: FC = () => (
@@ -37,6 +38,7 @@ export const DropdownFieldPage: FC = () => (
         can contain a nested <code>Style</code>.
       </Typography>
     </Box>
+    <UnityDocsSection componentName="DropdownField" />
   </Box>
 )
 

@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TabPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TAB_BASIC } from './TabPage.example'
 
 export const TabPage: FC = () => (
@@ -27,6 +28,7 @@ export const TabPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TAB_BASIC} />
     </Box>
+    <UnityDocsSection componentName="Tab" />
   </Box>
 )
 

@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './ScrollViewPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { SCROLL_VIEW_BASIC } from './ScrollViewPage.example'
 
 export const ScrollViewPage: FC = () => (
@@ -26,6 +27,7 @@ export const ScrollViewPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={SCROLL_VIEW_BASIC} />
     </Box>
+    <UnityDocsSection componentName="ScrollView" />
   </Box>
 )
 

@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TwoPaneSplitViewPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TWO_PANE_SPLIT_VIEW_BASIC } from './TwoPaneSplitViewPage.example'
 
 export const TwoPaneSplitViewPage: FC = () => (
@@ -26,6 +27,7 @@ export const TwoPaneSplitViewPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TWO_PANE_SPLIT_VIEW_BASIC} />
     </Box>
+    <UnityDocsSection componentName="TwoPaneSplitView" />
   </Box>
 )
 

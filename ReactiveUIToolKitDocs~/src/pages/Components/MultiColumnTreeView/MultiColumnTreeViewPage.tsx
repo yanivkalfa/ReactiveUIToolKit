@@ -3,6 +3,7 @@ import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './MultiColumnTreeViewPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { MULTI_COLUMN_TREE_VIEW_BASIC } from './MultiColumnTreeViewPage.example'
 
 export const MultiColumnTreeViewPage: FC = () => (
@@ -43,5 +44,6 @@ export const MultiColumnTreeViewPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={MULTI_COLUMN_TREE_VIEW_BASIC} />
     </Box>
+    <UnityDocsSection componentName="MultiColumnTreeView" />
   </Box>
 )

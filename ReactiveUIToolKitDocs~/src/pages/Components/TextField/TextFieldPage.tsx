@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TextFieldPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TEXT_FIELD_BASIC } from './TextFieldPage.example'
 
 export const TextFieldPage: FC = () => (
@@ -27,6 +28,7 @@ export const TextFieldPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TEXT_FIELD_BASIC} />
     </Box>
+    <UnityDocsSection componentName="TextField" />
   </Box>
 )
 

@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './SliderIntPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { SLIDER_INT_BASIC } from './SliderIntPage.example'
 
 export const SliderIntPage: FC = () => (
@@ -25,6 +26,7 @@ export const SliderIntPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={SLIDER_INT_BASIC} />
     </Box>
+    <UnityDocsSection componentName="SliderInt" />
   </Box>
 )
 

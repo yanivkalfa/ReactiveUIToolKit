@@ -3,6 +3,7 @@ import { Box, Typography } from '@mui/material'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsDoc } from '../../../propsDocs'
 import Styles from './TreeViewPage.style'
+import { UnityDocsSection } from '../../../components/UnityDocsSection/UnityDocsSection'
 import { TREE_VIEW_BASIC } from './TreeViewPage.example'
 
 export const TreeViewPage: FC = () => (
@@ -27,6 +28,7 @@ export const TreeViewPage: FC = () => (
       </Typography>
       <CodeBlock language="tsx" code={TREE_VIEW_BASIC} />
     </Box>
+    <UnityDocsSection componentName="TreeView" />
   </Box>
 )
 
