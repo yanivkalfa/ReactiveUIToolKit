@@ -127,9 +127,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     null,
                     V.Text($"Outlet (current: {location?.Path ?? "/"})"),
                     V.Route(
-                        path: "/:id/edit",
+                        path: ":id/edit",
                         exact: true,
-                        element: V.Text("this will be /mainmenu/15/edit")
+                        element: V.Text("this will be /mainMenu/15/edit")
                     ),
                     V.Route(
                         path: "profile",
@@ -150,12 +150,6 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static VirtualNode BuildSidebar()
         {
             var navigate = RouterHooks.UseNavigate();
-            var currentMatch = RouterHooks.UseRouteMatch();
-
-            string ToChild(string child)
-            {
-                return RouterPath.Combine(currentMatch?.Pattern ?? "/", child);
-            }
 
             return V.VisualElement(
                 SidebarStyle,
@@ -165,7 +159,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Home",
-                        OnClick = () => navigate(ToChild(string.Empty)),
+                        OnClick = () => navigate(string.Empty),
                         Style = SidebarButtonStyle,
                     }
                 ),
@@ -173,7 +167,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Profile",
-                        OnClick = () => navigate(ToChild("profile")),
+                        OnClick = () => navigate("profile"),
                         Style = SidebarButtonStyle,
                     }
                 ),
@@ -181,7 +175,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Store",
-                        OnClick = () => navigate(ToChild("store")),
+                        OnClick = () => navigate("store"),
                         Style = SidebarButtonStyle,
                     }
                 ),
@@ -189,7 +183,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Settings",
-                        OnClick = () => navigate(ToChild("settings")),
+                        OnClick = () => navigate("settings"),
                         Style = SidebarButtonStyle,
                     }
                 )

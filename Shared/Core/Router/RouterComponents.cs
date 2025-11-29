@@ -152,6 +152,9 @@ namespace ReactiveUITK.Router
             {
                 return null;
             }
+            var routeMatch =
+                Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
+                ?? RouteMatch.CreateRoot(router.Location?.Path ?? "/");
 
             props ??= new Dictionary<string, object>();
             props.TryGetValue("to", out var toObj);
@@ -167,7 +170,10 @@ namespace ReactiveUITK.Router
 
             Action navigate = () =>
             {
-                string target = string.IsNullOrWhiteSpace(to) ? "/" : to;
+                string target =
+                    to == null
+                        ? "/"
+                        : RouterPath.Combine(routeMatch?.Pattern ?? "/", to);
                 if (replace)
                 {
                     router.Replace?.Invoke(target, stateObj);
