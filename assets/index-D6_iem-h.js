@@ -339,7 +339,111 @@ public static class RouterLinksFunc
       V.Label(new LabelProps { Text = $"Nav state type: {navState?.GetType().Name ?? "(none)"}" })
     );
   }
-}`})]});var sv={root:{display:`flex`,flexDirection:`column`,gap:2},list:{pl:2}};const cv=()=>(0,R.jsxs)(q,{sx:sv.root,children:[(0,R.jsx)(K,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Signals`}),(0,R.jsxs)(K,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`Signals`}),` are lightweight, named reactive values that live in a process-wide registry. They behave like a small observable store with a simple API and are ideal whenever you want a single source of truth with a single point of entry for reading and updating state (for example: selection, filters, or global preferences).`]}),(0,R.jsxs)(q,{children:[(0,R.jsx)(K,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Concepts`}),(0,R.jsxs)(xg,{sx:sv.list,children:[(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`Signals`}),` live in a global registry keyed by `,(0,R.jsx)(`code`,{children:`string`}),`.`]})})}),(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[`Call `,(0,R.jsx)(`code`,{children:`Signals.Get<T>(key, initialValue)`}),` to create or return a`,` `,(0,R.jsx)(`code`,{children:`Signal<T>`}),` instance.`]})})}),(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[`Call `,(0,R.jsx)(`code`,{children:`signal.Subscribe(...)`}),` to watch changes outside of components; use`,` `,(0,R.jsx)(`code`,{children:`Hooks.UseSignal(...)`}),` inside function components.`]})})}),(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[`Use `,(0,R.jsx)(`code`,{children:`Dispatch(prev => next)`}),` or `,(0,R.jsx)(`code`,{children:`Dispatch(value)`}),` to update the value and notify listeners.`]})})})]})]}),(0,R.jsx)(K,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Runtime usage`}),(0,R.jsx)(Z,{language:`tsx`,code:`using System;
+}`}),(0,R.jsx)(K,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Split layouts with nested routes`}),(0,R.jsxs)(K,{variant:`body1`,paragraph:!0,children:[`You can keep a single router history while nesting routes to act like “outlets”. Child routes may use relative paths (for example “profile”), which we resolve against the parent match via`,(0,R.jsx)(`code`,{children:`RouterPath.Combine`}),`. When you use a relative route, we automatically prefix it with the parent route’s path before matching. That means patterns like`,` `,(0,R.jsx)(`code`,{children:`:id/edit`}),` work the same way they do in React Router—no need to repeat the parent prefix.`]}),(0,R.jsxs)(K,{variant:`body1`,paragraph:!0,children:[`The example below matches `,(0,R.jsx)(`code`,{children:`/mainMenu/*`}),`, renders a sidebar, and nests additional`,` `,(0,R.jsx)(`code`,{children:`V.Route`}),` elements so the right-hand panel switches content as the path changes. The sidebar buttons call `,(0,R.jsx)(`code`,{children:`RouterHooks.UseNavigate()`}),` with relative targets via`,` `,(0,R.jsx)(`code`,{children:`RouterPath.Combine`}),`, so everything stays in sync without spinning up another router.`]}),(0,R.jsx)(Z,{language:`tsx`,code:`using System.Collections.Generic;
+using ReactiveUITK.Core;
+using ReactiveUITK.Props.Typed;
+using ReactiveUITK.Router;
+
+public static class SplitShellDemo
+{
+  private static readonly Style Shell = new()
+  {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 12f),
+  };
+
+  private static readonly Style ContentRow = new()
+  {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginTop, 8f),
+  };
+
+  private static readonly Style Sidebar = new()
+  {
+    (StyleKeys.Width, 220f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderRadius, 6f),
+  };
+
+  private static readonly Style Outlet = new()
+  {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.MarginLeft, 12f),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderRadius, 6f),
+  };
+
+  public static VirtualNode Render(
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
+  )
+  {
+    return V.Router(
+      children: new[]
+      {
+        BuildNavRow(),
+        V.Route(path: "/", exact: true, element: V.Text("Landing route")),
+        V.Route(path: "/mainMenu/*", children: new[] { V.Func(MainMenuLayout) }),
+        V.Route(path: "*", element: V.Text("Not found")),
+      }
+    );
+  }
+
+  private static VirtualNode BuildNavRow()
+  {
+    var navigate = RouterHooks.UseNavigate();
+    return V.VisualElement(
+      new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 4f) },
+      null,
+      V.Button(new ButtonProps { Text = "Home (/)", OnClick = () => navigate("/") }),
+      V.Button(new ButtonProps { Text = "Open Main Menu", OnClick = () => navigate("/mainMenu") })
+    );
+  }
+
+  private static VirtualNode MainMenuLayout(
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
+  )
+  {
+    var location = RouterHooks.UseLocationInfo();
+    var navigate = RouterHooks.UseNavigate();
+    var routeMatch = RouterHooks.UseRouteMatch();
+
+    string ToChild(string child)
+    {
+      return RouterPath.Combine(routeMatch?.Pattern ?? "/", child);
+    }
+
+    return V.VisualElement(
+      ContentRow,
+      null,
+      V.VisualElement(
+        Sidebar,
+        null,
+        V.Text("Sidebar"),
+        V.Button(new ButtonProps { Text = "Home", OnClick = () => navigate(ToChild(string.Empty)) }),
+        V.Button(new ButtonProps { Text = "Profile", OnClick = () => navigate(ToChild("profile")) }),
+        V.Button(new ButtonProps { Text = "Store", OnClick = () => navigate(ToChild("store")) }),
+        V.Button(new ButtonProps { Text = "Settings", OnClick = () => navigate(ToChild("settings")) })
+      ),
+      V.VisualElement(
+        Outlet,
+        null,
+        V.Text($"Outlet (current path: {location?.Path ?? "/"})"),
+        V.Route(path: string.Empty, exact: true, element: V.Text("Pick a submenu from the left.")),
+        V.Route(path: "profile", element: V.Text("Profile content")),
+        V.Route(path: "store", element: V.Text("Store content")),
+        V.Route(path: "settings", element: V.Text("Settings content"))
+      )
+    );
+  }
+}
+`})]});var sv={root:{display:`flex`,flexDirection:`column`,gap:2},list:{pl:2}};const cv=()=>(0,R.jsxs)(q,{sx:sv.root,children:[(0,R.jsx)(K,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Signals`}),(0,R.jsxs)(K,{variant:`body1`,paragraph:!0,children:[(0,R.jsx)(`code`,{children:`Signals`}),` are lightweight, named reactive values that live in a process-wide registry. They behave like a small observable store with a simple API and are ideal whenever you want a single source of truth with a single point of entry for reading and updating state (for example: selection, filters, or global preferences).`]}),(0,R.jsxs)(q,{children:[(0,R.jsx)(K,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Concepts`}),(0,R.jsxs)(xg,{sx:sv.list,children:[(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[(0,R.jsx)(`code`,{children:`Signals`}),` live in a global registry keyed by `,(0,R.jsx)(`code`,{children:`string`}),`.`]})})}),(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[`Call `,(0,R.jsx)(`code`,{children:`Signals.Get<T>(key, initialValue)`}),` to create or return a`,` `,(0,R.jsx)(`code`,{children:`Signal<T>`}),` instance.`]})})}),(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[`Call `,(0,R.jsx)(`code`,{children:`signal.Subscribe(...)`}),` to watch changes outside of components; use`,` `,(0,R.jsx)(`code`,{children:`Hooks.UseSignal(...)`}),` inside function components.`]})})}),(0,R.jsx)(J,{disablePadding:!0,children:(0,R.jsx)(Y,{primary:(0,R.jsxs)(R.Fragment,{children:[`Use `,(0,R.jsx)(`code`,{children:`Dispatch(prev => next)`}),` or `,(0,R.jsx)(`code`,{children:`Dispatch(value)`}),` to update the value and notify listeners.`]})})})]})]}),(0,R.jsx)(K,{variant:`h5`,component:`h3`,gutterBottom:!0,children:`Runtime usage`}),(0,R.jsx)(Z,{language:`tsx`,code:`using System;
 using ReactiveUITK.Signals;
 using UnityEngine;
 
