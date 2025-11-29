@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -28,11 +29,11 @@ namespace ReactiveUITK.Props
         {
             styleSetters["width"] = (e, v) =>
             {
-                e.style.width = ConvertToLength(v);
+                e.style.width = ConvertToStyleLength(v);
             };
             styleSetters["height"] = (e, v) =>
             {
-                e.style.height = ConvertToLength(v);
+                e.style.height = ConvertToStyleLength(v);
             };
 
             styleSetters["flexGrow"] = (e, v) =>
@@ -69,23 +70,23 @@ namespace ReactiveUITK.Props
             };
             styleSetters["flexBasis"] = (e, v) =>
             {
-                e.style.flexBasis = ConvertToLength(v);
+                e.style.flexBasis = ConvertToStyleLength(v);
             };
             styleSetters["minWidth"] = (e, v) =>
             {
-                e.style.minWidth = ConvertToLength(v);
+                e.style.minWidth = ConvertToStyleLength(v);
             };
             styleSetters["minHeight"] = (e, v) =>
             {
-                e.style.minHeight = ConvertToLength(v);
+                e.style.minHeight = ConvertToStyleLength(v);
             };
             styleSetters["maxWidth"] = (e, v) =>
             {
-                e.style.maxWidth = ConvertToLength(v);
+                e.style.maxWidth = ConvertToStyleLength(v);
             };
             styleSetters["maxHeight"] = (e, v) =>
             {
-                e.style.maxHeight = ConvertToLength(v);
+                e.style.maxHeight = ConvertToStyleLength(v);
             };
 
             styleSetters["position"] = (e, v) =>
@@ -95,19 +96,19 @@ namespace ReactiveUITK.Props
             };
             styleSetters["left"] = (e, v) =>
             {
-                e.style.left = ConvertToLength(v);
+                e.style.left = ConvertToStyleLength(v);
             };
             styleSetters["top"] = (e, v) =>
             {
-                e.style.top = ConvertToLength(v);
+                e.style.top = ConvertToStyleLength(v);
             };
             styleSetters["right"] = (e, v) =>
             {
-                e.style.right = ConvertToLength(v);
+                e.style.right = ConvertToStyleLength(v);
             };
             styleSetters["bottom"] = (e, v) =>
             {
-                e.style.bottom = ConvertToLength(v);
+                e.style.bottom = ConvertToStyleLength(v);
             };
 
             styleSetters["display"] = (e, v) =>
@@ -336,35 +337,35 @@ namespace ReactiveUITK.Props
             };
             styleSetters["marginLeft"] = (e, v) =>
             {
-                e.style.marginLeft = ConvertToLength(v);
+                e.style.marginLeft = ConvertToStyleLength(v);
             };
             styleSetters["marginRight"] = (e, v) =>
             {
-                e.style.marginRight = ConvertToLength(v);
+                e.style.marginRight = ConvertToStyleLength(v);
             };
             styleSetters["marginTop"] = (e, v) =>
             {
-                e.style.marginTop = ConvertToLength(v);
+                e.style.marginTop = ConvertToStyleLength(v);
             };
             styleSetters["marginBottom"] = (e, v) =>
             {
-                e.style.marginBottom = ConvertToLength(v);
+                e.style.marginBottom = ConvertToStyleLength(v);
             };
             styleSetters["paddingLeft"] = (e, v) =>
             {
-                e.style.paddingLeft = ConvertToLength(v);
+                e.style.paddingLeft = ConvertToStyleLength(v);
             };
             styleSetters["paddingRight"] = (e, v) =>
             {
-                e.style.paddingRight = ConvertToLength(v);
+                e.style.paddingRight = ConvertToStyleLength(v);
             };
             styleSetters["paddingTop"] = (e, v) =>
             {
-                e.style.paddingTop = ConvertToLength(v);
+                e.style.paddingTop = ConvertToStyleLength(v);
             };
             styleSetters["paddingBottom"] = (e, v) =>
             {
-                e.style.paddingBottom = ConvertToLength(v);
+                e.style.paddingBottom = ConvertToStyleLength(v);
             };
 
             styleSetters["rotate"] = (e, v) =>
@@ -2241,16 +2242,108 @@ namespace ReactiveUITK.Props
             return 0f;
         }
 
+        private static StyleLength ConvertToStyleLength(object value)
+        {
+            if (value is StyleLength styleLength)
+            {
+                return styleLength;
+            }
+
+            if (value is StyleKeyword keyword)
+            {
+                return new StyleLength(keyword);
+            }
+
+            if (value is string s)
+            {
+                string trimmed = s.Trim().ToLowerInvariant();
+                if (trimmed == "auto")
+                {
+                    return new StyleLength(StyleKeyword.Auto);
+                }
+
+                if (trimmed == "initial")
+                {
+                    return new StyleLength(StyleKeyword.Initial);
+                }
+
+                if (trimmed == "none")
+                {
+                    return new StyleLength(StyleKeyword.None);
+                }
+            }
+
+            return new StyleLength(ConvertToLength(value));
+        }
+
         private static Length ConvertToLength(object value)
         {
+            if (value is Length existingLength)
+            {
+                return existingLength;
+            }
+
+            if (value is StyleLength styleLength)
+            {
+                return styleLength.value;
+            }
+
             if (value is float f)
             {
                 return new Length(f, LengthUnit.Pixel);
             }
 
+            if (value is double d)
+            {
+                return new Length((float)d, LengthUnit.Pixel);
+            }
+
             if (value is int i)
             {
                 return new Length(i, LengthUnit.Pixel);
+            }
+
+            if (value is string s)
+            {
+                string trimmed = s.Trim();
+                if (trimmed.EndsWith("%", StringComparison.Ordinal))
+                {
+                    string number = trimmed.Substring(0, trimmed.Length - 1);
+                    if (
+                        float.TryParse(
+                            number,
+                            NumberStyles.Float,
+                            CultureInfo.InvariantCulture,
+                            out float percent
+                        )
+                    )
+                    {
+                        return new Length(percent, LengthUnit.Percent);
+                    }
+                }
+                else if (
+                    trimmed.EndsWith("px", StringComparison.OrdinalIgnoreCase)
+                    && float.TryParse(
+                        trimmed[..^2],
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out float pixelsWithUnit
+                    )
+                )
+                {
+                    return new Length(pixelsWithUnit, LengthUnit.Pixel);
+                }
+                else if (
+                    float.TryParse(
+                        trimmed,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out float pixels
+                    )
+                )
+                {
+                    return new Length(pixels, LengthUnit.Pixel);
+                }
             }
 
             return new Length(0f, LengthUnit.Pixel);
