@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Diagnostics;
 using ReactiveUITK.Props.Typed;
+using UnityEngine;
 
 namespace ReactiveUITK.Router
 {
@@ -77,10 +79,11 @@ namespace ReactiveUITK.Router
                     );
 
             Hooks.ProvideContext(RouterContextKeys.RouterState, routerState);
-            Hooks.ProvideContext(
-                RouterContextKeys.RouteMatch,
-                RouteMatch.CreateRoot(location?.Path ?? "/")
-            );
+            var rootMatch = RouteMatch.CreateRoot(location?.Path ?? "/");
+            Hooks.ProvideContext(RouterContextKeys.RouteMatch, rootMatch);
+            Hooks.ProvideContext(RouterContextKeys.RoutePattern, "/");
+            var rootEntry = new RouteContextEntry(rootMatch, "/", null, HookContext.Current);
+            Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, rootEntry);
 
             return RouterRenderUtils.Fragment(children);
         }
@@ -107,10 +110,10 @@ namespace ReactiveUITK.Router
 
             string path = pathObj as string;
             bool exact = exactObj is bool flag && flag;
-
-            var parentMatch =
-                Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
-                ?? RouteMatch.CreateRoot(router.Location.Path);
+            var parentEntry = RouteContextEntryHelper.ResolveCurrentEntry();
+            string parentNavigationBase = parentEntry?.NavigationBase ?? "/";
+            var parentMatch = parentEntry?.Match ?? RouteMatch.CreateRoot(router.Location.Path);
+            string parentPattern = parentMatch?.Pattern ?? "/";
 
             string resolvedPath = path;
             if (!string.IsNullOrEmpty(path))
@@ -125,6 +128,21 @@ namespace ReactiveUITK.Router
             }
 
             Hooks.ProvideContext(RouterContextKeys.RouteMatch, match);
+            string providedPattern = string.IsNullOrEmpty(resolvedPath)
+                ? match?.Pattern ?? parentPattern
+                : resolvedPath;
+            Hooks.ProvideContext(RouterContextKeys.RoutePattern, providedPattern);
+            string baseSeed = string.IsNullOrEmpty(resolvedPath)
+                ? parentNavigationBase
+                : resolvedPath;
+            string navigationBase = RouterPath.Combine(baseSeed ?? "/", string.Empty);
+            var routeEntry = new RouteContextEntry(
+                match,
+                navigationBase,
+                parentEntry,
+                HookContext.Current
+            );
+            Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, routeEntry);
 
             if (renderObj is Func<RouteMatch, VirtualNode> renderFunc)
             {
@@ -155,6 +173,7 @@ namespace ReactiveUITK.Router
             var routeMatch =
                 Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
                 ?? RouteMatch.CreateRoot(router.Location?.Path ?? "/");
+            var routeEntry = RouteContextEntryHelper.ResolveCurrentEntry();
 
             props ??= new Dictionary<string, object>();
             props.TryGetValue("to", out var toObj);
@@ -167,13 +186,23 @@ namespace ReactiveUITK.Router
             string label = labelObj as string ?? to;
             bool replace = replaceObj is bool replaceFlag && replaceFlag;
             Style style = styleObj as Style;
+            string navigationBase = routeEntry?.NavigationBase ?? routeMatch?.Pattern;
 
             Action navigate = () =>
             {
-                string target =
-                    to == null
-                        ? "/"
-                        : RouterPath.Combine(routeMatch?.Pattern ?? "/", to);
+                string target;
+                if (string.IsNullOrEmpty(to))
+                {
+                    target = navigationBase ?? "/";
+                }
+                else if (to.StartsWith("/"))
+                {
+                    target = RouterPath.Normalize(to);
+                }
+                else
+                {
+                    target = RouterPath.Combine(navigationBase ?? "/", to);
+                }
                 if (replace)
                 {
                     router.Replace?.Invoke(target, stateObj);
@@ -219,6 +248,50 @@ namespace ReactiveUITK.Router
                 buffer[i] = children[i];
             }
             return V.Fragment(null, buffer);
+        }
+    }
+
+    internal sealed class RouteContextEntry
+    {
+        public static readonly RouteContextEntry Root = new RouteContextEntry(
+            RouteMatch.CreateRoot("/"),
+            "/",
+            null,
+            owner: null
+        );
+
+        public RouteContextEntry(
+            RouteMatch match,
+            string navigationBase,
+            RouteContextEntry parent,
+            FunctionComponentState owner
+        )
+        {
+            Match = match;
+            NavigationBase = string.IsNullOrEmpty(navigationBase) ? "/" : navigationBase;
+            Parent = parent;
+            Owner = owner;
+        }
+
+        public RouteMatch Match { get; }
+        public string NavigationBase { get; }
+        public RouteContextEntry Parent { get; }
+        public FunctionComponentState Owner { get; }
+    }
+
+    internal static class RouteContextEntryHelper
+    {
+        public static RouteContextEntry ResolveCurrentEntry()
+        {
+            var entry =
+                Hooks.UseContext<RouteContextEntry>(RouterContextKeys.RouteContextEntry)
+                ?? RouteContextEntry.Root;
+            var state = HookContext.Current;
+            if (entry != null && ReferenceEquals(entry.Owner, state))
+            {
+                return entry.Parent ?? RouteContextEntry.Root;
+            }
+            return entry ?? RouteContextEntry.Root;
         }
     }
 

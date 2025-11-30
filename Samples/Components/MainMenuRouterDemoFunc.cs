@@ -118,6 +118,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         )
         {
             var location = RouterHooks.UseLocationInfo();
+            var navigationBase = RouterHooks.UseNavigationBase();
             return V.VisualElement(
                 LayoutRow,
                 null,
@@ -150,6 +151,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static VirtualNode BuildSidebar()
         {
             var navigate = RouterHooks.UseNavigate();
+            var navigationBase = RouterHooks.UseNavigationBase();
+            var currentPath = RouterHooks.UseLocation();
 
             return V.VisualElement(
                 SidebarStyle,
