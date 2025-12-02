@@ -38,11 +38,11 @@ namespace ReactiveUITK.Props
 
             styleSetters["flexGrow"] = (e, v) =>
             {
-                e.style.flexGrow = ConvertToFloat(v);
+                e.style.flexGrow = ConvertToStyleFloat(v);
             };
             styleSetters["flexShrink"] = (e, v) =>
             {
-                e.style.flexShrink = ConvertToFloat(v);
+                e.style.flexShrink = ConvertToStyleFloat(v);
             };
             styleSetters["flexDirection"] = (e, v) =>
             {
@@ -128,7 +128,7 @@ namespace ReactiveUITK.Props
             };
             styleSetters["opacity"] = (e, v) =>
             {
-                e.style.opacity = ConvertToFloat(v);
+                e.style.opacity = ConvertToStyleFloat(v);
             };
             styleSetters["whiteSpace"] = (e, v) =>
             {
@@ -138,7 +138,7 @@ namespace ReactiveUITK.Props
 
             styleSetters["fontSize"] = (e, v) =>
             {
-                e.style.fontSize = ConvertToFloat(v);
+                e.style.fontSize = ConvertToStyleLength(v);
             };
             styleSetters["textAlign"] = (e, v) =>
             {
@@ -181,7 +181,7 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    e.style.letterSpacing = ConvertToFloat(v);
+                    e.style.letterSpacing = ConvertToStyleLength(v);
                 }
                 catch { }
             };
@@ -209,7 +209,7 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    e.style.unityTextOutlineWidth = ConvertToFloat(v);
+                    e.style.unityTextOutlineWidth = ConvertToStyleFloat(v);
                 }
                 catch { }
             };
@@ -248,7 +248,7 @@ namespace ReactiveUITK.Props
 
             styleSetters["borderWidth"] = (e, v) =>
             {
-                var bw = ConvertToFloat(v);
+                var bw = ConvertToStyleFloat(v);
                 e.style.borderLeftWidth = bw;
                 e.style.borderRightWidth = bw;
                 e.style.borderTopWidth = bw;
@@ -264,19 +264,19 @@ namespace ReactiveUITK.Props
             };
             styleSetters["borderLeftWidth"] = (e, v) =>
             {
-                e.style.borderLeftWidth = ConvertToFloat(v);
+                e.style.borderLeftWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderRightWidth"] = (e, v) =>
             {
-                e.style.borderRightWidth = ConvertToFloat(v);
+                e.style.borderRightWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderTopWidth"] = (e, v) =>
             {
-                e.style.borderTopWidth = ConvertToFloat(v);
+                e.style.borderTopWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderBottomWidth"] = (e, v) =>
             {
-                e.style.borderBottomWidth = ConvertToFloat(v);
+                e.style.borderBottomWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderLeftColor"] = (e, v) =>
             {
@@ -296,7 +296,7 @@ namespace ReactiveUITK.Props
             };
             styleSetters["borderRadius"] = (e, v) =>
             {
-                var len = ConvertToLength(v);
+                var len = ConvertToStyleLength(v);
                 e.style.borderTopLeftRadius = len;
                 e.style.borderTopRightRadius = len;
                 e.style.borderBottomLeftRadius = len;
@@ -304,24 +304,24 @@ namespace ReactiveUITK.Props
             };
             styleSetters["borderTopLeftRadius"] = (e, v) =>
             {
-                e.style.borderTopLeftRadius = ConvertToLength(v);
+                e.style.borderTopLeftRadius = ConvertToStyleLength(v);
             };
             styleSetters["borderTopRightRadius"] = (e, v) =>
             {
-                e.style.borderTopRightRadius = ConvertToLength(v);
+                e.style.borderTopRightRadius = ConvertToStyleLength(v);
             };
             styleSetters["borderBottomLeftRadius"] = (e, v) =>
             {
-                e.style.borderBottomLeftRadius = ConvertToLength(v);
+                e.style.borderBottomLeftRadius = ConvertToStyleLength(v);
             };
             styleSetters["borderBottomRightRadius"] = (e, v) =>
             {
-                e.style.borderBottomRightRadius = ConvertToLength(v);
+                e.style.borderBottomRightRadius = ConvertToStyleLength(v);
             };
 
             styleSetters["margin"] = (e, v) =>
             {
-                var len = ConvertToLength(v);
+                var len = ConvertToStyleLength(v);
                 e.style.marginLeft = len;
                 e.style.marginRight = len;
                 e.style.marginTop = len;
@@ -329,7 +329,7 @@ namespace ReactiveUITK.Props
             };
             styleSetters["padding"] = (e, v) =>
             {
-                var len = ConvertToLength(v);
+                var len = ConvertToStyleLength(v);
                 e.style.paddingLeft = len;
                 e.style.paddingRight = len;
                 e.style.paddingTop = len;
@@ -464,7 +464,7 @@ namespace ReactiveUITK.Props
                     }
                     if (parts.Length > 2)
                     {
-                        e.style.flexBasis = ConvertToLength(parts[2]);
+                        e.style.flexBasis = ConvertToStyleLength(parts[2]);
                     }
                 }
             };
@@ -2242,6 +2242,16 @@ namespace ReactiveUITK.Props
             return 0f;
         }
 
+        private static StyleFloat ConvertToStyleFloat(object value)
+        {
+            if (TryConvertToStyleKeyword(value, out var keyword))
+            {
+                return new StyleFloat(keyword);
+            }
+
+            return new StyleFloat(ConvertToFloat(value));
+        }
+
         private static StyleLength ConvertToStyleLength(object value)
         {
             if (value is StyleLength styleLength)
@@ -2249,31 +2259,51 @@ namespace ReactiveUITK.Props
                 return styleLength;
             }
 
-            if (value is StyleKeyword keyword)
+            if (TryConvertToStyleKeyword(value, out var keyword))
             {
                 return new StyleLength(keyword);
             }
 
-            if (value is string s)
+            return new StyleLength(ConvertToLength(value));
+        }
+
+        private static bool TryConvertToStyleKeyword(object value, out StyleKeyword keyword)
+        {
+            if (value is StyleKeyword direct && direct != StyleKeyword.Undefined)
             {
-                string trimmed = s.Trim().ToLowerInvariant();
-                if (trimmed == "auto")
-                {
-                    return new StyleLength(StyleKeyword.Auto);
-                }
+                keyword = direct;
+                return true;
+            }
 
-                if (trimmed == "initial")
+            if (value is string s && !string.IsNullOrWhiteSpace(s))
+            {
+                switch (s.Trim().ToLowerInvariant())
                 {
-                    return new StyleLength(StyleKeyword.Initial);
-                }
-
-                if (trimmed == "none")
-                {
-                    return new StyleLength(StyleKeyword.None);
+                    case "auto":
+                        keyword = StyleKeyword.Auto;
+                        return true;
+                    case "none":
+                        keyword = StyleKeyword.None;
+                        return true;
+                    case "initial":
+                        keyword = StyleKeyword.Initial;
+                        return true;
+                    case "null":
+                    case "unset":
+                    case "default":
+                        keyword = StyleKeyword.Null;
+                        return true;
                 }
             }
 
-            return new StyleLength(ConvertToLength(value));
+            if (value == null)
+            {
+                keyword = StyleKeyword.Null;
+                return true;
+            }
+
+            keyword = StyleKeyword.Undefined;
+            return false;
         }
 
         private static Length ConvertToLength(object value)
