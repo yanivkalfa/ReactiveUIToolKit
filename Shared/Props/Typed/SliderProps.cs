@@ -15,6 +15,15 @@ namespace ReactiveUITK.Props.Typed
         public Style Style { get; set; }
         public object Ref { get; set; }
 
+        // Optional slot-style props for inner parts of the slider.
+        // These maps can contain "style", "className", etc., which are
+        // applied directly to the corresponding UI Toolkit elements.
+        public Dictionary<string, object> Input { get; set; }
+        public Dictionary<string, object> Track { get; set; }
+        public Dictionary<string, object> DragContainer { get; set; }
+        public Dictionary<string, object> Handle { get; set; }
+        public Dictionary<string, object> HandleBorder { get; set; }
+
         public Action<ChangeEvent<float>> OnChange { get; set; }
 
         public Dictionary<string, object> ToDictionary()
@@ -43,6 +52,26 @@ namespace ReactiveUITK.Props.Typed
             if (!string.IsNullOrEmpty(Direction))
             {
                 dict["direction"] = Direction;
+            }
+            if (Input != null)
+            {
+                dict["input"] = Input;
+            }
+            if (Track != null)
+            {
+                dict["track"] = Track;
+            }
+            if (DragContainer != null)
+            {
+                dict["dragContainer"] = DragContainer;
+            }
+            if (Handle != null)
+            {
+                dict["handle"] = Handle;
+            }
+            if (HandleBorder != null)
+            {
+                dict["handleBorder"] = HandleBorder;
             }
             if (OnChange != null)
             {
