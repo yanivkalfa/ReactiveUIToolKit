@@ -692,10 +692,46 @@ namespace ReactiveUITK.Core.Fiber
 
             // Depth-first delete: clean up subtree before removing the current node.
 
-            // If this is a function component, dispose any signal subscriptions.
+            // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
             {
-                Hooks.DisposeSignalSubscriptions(fiber.ComponentState);
+                var state = fiber.ComponentState;
+
+                // Run and clear passive effects (UseEffect)
+                if (state.FunctionEffects != null)
+                {
+                    for (int i = 0; i < state.FunctionEffects.Count; i++)
+                    {
+                        var effect = state.FunctionEffects[i];
+                        try
+                        {
+                            effect.cleanup?.Invoke();
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    state.FunctionEffects.Clear();
+                }
+
+                // Run and clear layout effects (UseLayoutEffect)
+                if (state.FunctionLayoutEffects != null)
+                {
+                    for (int i = 0; i < state.FunctionLayoutEffects.Count; i++)
+                    {
+                        var effect = state.FunctionLayoutEffects[i];
+                        try
+                        {
+                            effect.cleanup?.Invoke();
+                        }
+                        catch
+                        {
+                        }
+                    }
+                    state.FunctionLayoutEffects.Clear();
+                }
+
+                Hooks.DisposeSignalSubscriptions(state);
             }
 
             // Recurse into children so that all host descendants are removed.
