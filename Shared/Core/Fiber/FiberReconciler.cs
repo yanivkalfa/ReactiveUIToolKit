@@ -138,6 +138,11 @@ namespace ReactiveUITK.Core.Fiber
             }
             var rootVNode = _root.RootVNode;
 
+            if (rootVNode == null)
+            {
+                return;
+            }
+
             // Find the root fiber for this update by walking up the
             // parent chain. Fall back to the current root if needed.
             FiberNode rootCurrent = fiber;
@@ -377,6 +382,8 @@ namespace ReactiveUITK.Core.Fiber
 
             // Reached root, we're done
             _nextUnitOfWork = null;
+            // Reached root, we're done
+            _nextUnitOfWork = null;
         }
 
         /// <summary>
@@ -482,7 +489,17 @@ namespace ReactiveUITK.Core.Fiber
 
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
-                _root.WorkInProgress = null;
+
+                // Only clear WIP if it hasn't been updated by a synchronous effect (e.g. navigate)
+                if (_root.WorkInProgress == finishedWork)
+                {
+                    _root.WorkInProgress = null;
+                }
+
+                if (_workInProgressRoot == finishedWork)
+                {
+                    _workInProgressRoot = null;
+                }
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
 
@@ -707,9 +724,7 @@ namespace ReactiveUITK.Core.Fiber
                         {
                             effect.cleanup?.Invoke();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     state.FunctionEffects.Clear();
                 }
@@ -724,9 +739,7 @@ namespace ReactiveUITK.Core.Fiber
                         {
                             effect.cleanup?.Invoke();
                         }
-                        catch
-                        {
-                        }
+                        catch { }
                     }
                     state.FunctionLayoutEffects.Clear();
                 }
