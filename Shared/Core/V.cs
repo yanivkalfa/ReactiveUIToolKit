@@ -104,63 +104,46 @@ namespace ReactiveUITK
         }
 
         public static VirtualNode VisualElementSafe(
-            Style style = null,
+            object elementPropsOrStyle = null,
             string key = null,
             params VirtualNode[] children
         )
         {
-            var insets = SafeAreaUtility.GetInsets();
+            Dictionary<string, object> props;
+            Style userStyle = null;
 
-            float GetUser(string k)
+            switch (elementPropsOrStyle)
             {
-                if (style == null)
-                {
-                    return 0f;
-                }
-                if (style.TryGetValue(k, out var v) && v is float f)
-                {
-                    return f;
-                }
-                return 0f;
-            }
+                case null:
+                    props = new Dictionary<string, object>();
+                    break;
 
-            var merged = new Style
-            {
-                (
-                    Props.Typed.StyleKeys.PaddingLeft,
-                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingLeft), insets.Left)
-                ),
-                (
-                    Props.Typed.StyleKeys.PaddingRight,
-                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingRight), insets.Right)
-                ),
-                (
-                    Props.Typed.StyleKeys.PaddingTop,
-                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingTop), insets.Top)
-                ),
-                (
-                    Props.Typed.StyleKeys.PaddingBottom,
-                    Mathf.Max(GetUser(Props.Typed.StyleKeys.PaddingBottom), insets.Bottom)
-                ),
-            };
+                case Style style:
+                    props = new Dictionary<string, object>();
+                    userStyle = style;
+                    break;
 
-            if (style != null)
-            {
-                foreach (var kv in style)
-                {
+                case IReadOnlyDictionary<string, object> dictionary:
+                    props = new Dictionary<string, object>(dictionary);
                     if (
-                        kv.Key == Props.Typed.StyleKeys.PaddingLeft
-                        || kv.Key == Props.Typed.StyleKeys.PaddingRight
-                        || kv.Key == Props.Typed.StyleKeys.PaddingTop
-                        || kv.Key == Props.Typed.StyleKeys.PaddingBottom
+                        props.TryGetValue("style", out var styleObj)
+                        && styleObj is Style existingStyle
                     )
                     {
-                        continue;
+                        userStyle = existingStyle;
                     }
-                    merged[kv.Key] = kv.Value;
-                }
+                    break;
+
+                default:
+                    throw new ArgumentException(
+                        "VisualElementSafe expects either a Style or a props dictionary as the first argument.",
+                        nameof(elementPropsOrStyle)
+                    );
             }
-            return VisualElement(merged, key, children);
+
+            props["style"] = BuildSafeAreaStyle(userStyle);
+
+            return VisualElement(props, key, children);
         }
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)
@@ -191,6 +174,63 @@ namespace ReactiveUITK
                 map ?? EmptyProps(),
                 EmptyChildren()
             );
+        }
+
+        private static Style BuildSafeAreaStyle(Style originalStyle)
+        {
+            var insets = SafeAreaUtility.GetInsets();
+
+            float GetUserValue(string key)
+            {
+                if (
+                    originalStyle != null
+                    && originalStyle.TryGetValue(key, out var value)
+                    && value is float f
+                )
+                {
+                    return f;
+                }
+                return 0f;
+            }
+
+            var merged = new Style
+            {
+                (
+                    Props.Typed.StyleKeys.PaddingLeft,
+                    Mathf.Max(GetUserValue(Props.Typed.StyleKeys.PaddingLeft), insets.Left)
+                ),
+                (
+                    Props.Typed.StyleKeys.PaddingRight,
+                    Mathf.Max(GetUserValue(Props.Typed.StyleKeys.PaddingRight), insets.Right)
+                ),
+                (
+                    Props.Typed.StyleKeys.PaddingTop,
+                    Mathf.Max(GetUserValue(Props.Typed.StyleKeys.PaddingTop), insets.Top)
+                ),
+                (
+                    Props.Typed.StyleKeys.PaddingBottom,
+                    Mathf.Max(GetUserValue(Props.Typed.StyleKeys.PaddingBottom), insets.Bottom)
+                ),
+            };
+
+            if (originalStyle != null)
+            {
+                foreach (var kv in originalStyle)
+                {
+                    if (
+                        kv.Key == Props.Typed.StyleKeys.PaddingLeft
+                        || kv.Key == Props.Typed.StyleKeys.PaddingRight
+                        || kv.Key == Props.Typed.StyleKeys.PaddingTop
+                        || kv.Key == Props.Typed.StyleKeys.PaddingBottom
+                    )
+                    {
+                        continue;
+                    }
+                    merged[kv.Key] = kv.Value;
+                }
+            }
+
+            return merged;
         }
 
         public static VirtualNode ObjectField(ObjectFieldProps props, string key = null)
