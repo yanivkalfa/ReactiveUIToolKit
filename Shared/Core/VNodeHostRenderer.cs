@@ -16,11 +16,13 @@ namespace ReactiveUITK.Core
         private readonly FiberRenderer fiberRenderer;
         private readonly VisualElement hostElement;
         private IReadOnlyDictionary<string, object> lastHostProps;
+        public event System.Action OnCommit;
 
         public VNodeHostRenderer(HostContext hostContext, VisualElement host)
         {
             hostElement = host;
             fiberRenderer = new FiberRenderer(host, hostContext);
+            fiberRenderer.OnCommit += HandleCommit;
 
             if (FiberConfig.ShowReconcilerInfo)
             {
@@ -38,6 +40,7 @@ namespace ReactiveUITK.Core
         public void Unmount()
         {
             ClearHostProps();
+            fiberRenderer.OnCommit -= HandleCommit;
             fiberRenderer?.Clear();
         }
 
@@ -99,6 +102,11 @@ namespace ReactiveUITK.Core
                 buffer[i] = children[i];
             }
             return ReactiveUITK.V.Fragment(hostNode.Key, buffer);
+        }
+
+        private void HandleCommit()
+        {
+            OnCommit?.Invoke();
         }
     }
 }

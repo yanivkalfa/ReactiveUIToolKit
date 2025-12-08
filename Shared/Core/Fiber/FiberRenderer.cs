@@ -13,6 +13,7 @@ namespace ReactiveUITK.Core.Fiber
         private FiberRoot _root;
         private FiberReconciler _reconciler;
         private VisualElement _container;
+        public event System.Action OnCommit;
 
         public FiberRenderer(VisualElement container, HostContext context = null)
         {
@@ -25,6 +26,7 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             _reconciler = new FiberReconciler(context);
+            _reconciler.Committed += HandleCommitted;
         }
 
         /// <summary>
@@ -50,7 +52,13 @@ namespace ReactiveUITK.Core.Fiber
         public void Clear()
         {
             _container.Clear();
+            _reconciler.Committed -= HandleCommitted;
             _root = null;
+        }
+
+        private void HandleCommitted()
+        {
+            OnCommit?.Invoke();
         }
     }
 }

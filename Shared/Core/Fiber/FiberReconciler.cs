@@ -68,6 +68,8 @@ namespace ReactiveUITK.Core.Fiber
 
         public static event Action<FiberReconcilerMetrics> MetricsEmitted;
 
+        public event Action Committed;
+
         public FiberReconciler(HostContext hostContext)
         {
             _hostContext = hostContext;
@@ -504,6 +506,7 @@ namespace ReactiveUITK.Core.Fiber
                 _root.LastEffect = null;
 
                 EmitMetrics();
+                Committed?.Invoke();
             }
             finally
             {
