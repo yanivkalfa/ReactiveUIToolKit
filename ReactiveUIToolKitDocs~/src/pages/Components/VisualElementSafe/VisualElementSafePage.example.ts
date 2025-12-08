@@ -1,5 +1,5 @@
 export const VISUAL_ELEMENT_SAFE_SIGNATURE = `public static VirtualNode VisualElementSafe(
-  Style style = null,
+  object elementPropsOrStyle = null,
   string key = null,
   params VirtualNode[] children
 );`
@@ -27,8 +27,12 @@ public static class VisualElementSafeExamples
   )
   {
     // VisualElementSafe merges user padding with safe-area insets.
-    return V.VisualElementSafe(
-      SafeStyle,
+    // You can pass either a Style or a props dictionary.
+    return V.VisualElementSafe(new Dictionary<string, object>
+      {
+        { "pickingMode", PickingMode.Ignore },
+        { "style", SafeStyle },
+      },
       null,
       V.Label(new LabelProps { Text = "Safe-area aware root" })
     );

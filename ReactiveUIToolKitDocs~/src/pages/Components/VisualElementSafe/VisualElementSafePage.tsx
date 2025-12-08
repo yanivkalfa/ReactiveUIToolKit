@@ -14,6 +14,12 @@ export const VisualElementSafePage: FC = () => (
       that merges its padding with safe-area insets from <code>SafeAreaUtility</code>. Use it as a
       top-level container on devices with notches or system UI overlays.
     </Typography>
+    <Typography variant="body1" paragraph>
+      Pass either a <code>Style</code> or the same props dictionary you would send to{' '}
+      <code>V.VisualElement</code> (e.g., <code>pickingMode</code>, <code>name</code>, refs, event
+      handlers). The helper clones those props, replaces/merges the <code>style</code> entry, and
+      leaves everything else untouched.
+    </Typography>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
