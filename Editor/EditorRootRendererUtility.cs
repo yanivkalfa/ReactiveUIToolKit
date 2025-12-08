@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
@@ -12,7 +11,6 @@ namespace ReactiveUITK.EditorSupport
     {
         private static readonly Dictionary<VisualElement, VNodeHostRenderer> renderersByHost =
             new();
-        private static readonly Dictionary<VisualElement, Action> commitHandlers = new();
 
         public static void Mount(VisualElement hostElement, VirtualNode root)
         {
@@ -34,10 +32,6 @@ namespace ReactiveUITK.EditorSupport
                 Reconciler.UseExceptionBoundaryFlow =
                     BuildDefinesConfig.ResolveExceptionBoundaryFlow();
                 renderer = new VNodeHostRenderer(hostContext, hostElement);
-                if (commitHandlers.TryGetValue(hostElement, out var handlers) && handlers != null)
-                {
-                    renderer.OnCommit += handlers;
-                }
                 renderersByHost[hostElement] = renderer;
             }
             renderer.Render(root);
@@ -56,65 +50,8 @@ namespace ReactiveUITK.EditorSupport
             }
             if (renderersByHost.TryGetValue(hostElement, out VNodeHostRenderer renderer))
             {
-                if (commitHandlers.TryGetValue(hostElement, out var handlers) && handlers != null)
-                {
-                    renderer.OnCommit -= handlers;
-                }
                 renderer.Unmount();
                 renderersByHost.Remove(hostElement);
-                commitHandlers.Remove(hostElement);
-            }
-        }
-
-        public static void RegisterOnCommit(VisualElement hostElement, Action callback)
-        {
-            if (hostElement == null || callback == null)
-            {
-                return;
-            }
-
-            if (commitHandlers.TryGetValue(hostElement, out var handlers))
-            {
-                handlers += callback;
-                commitHandlers[hostElement] = handlers;
-            }
-            else
-            {
-                commitHandlers[hostElement] = callback;
-            }
-
-            if (renderersByHost.TryGetValue(hostElement, out var renderer))
-            {
-                renderer.OnCommit += callback;
-            }
-        }
-
-        public static void UnregisterOnCommit(VisualElement hostElement, Action callback)
-        {
-            if (hostElement == null || callback == null)
-            {
-                return;
-            }
-
-            if (!commitHandlers.TryGetValue(hostElement, out var handlers) || handlers == null)
-            {
-                return;
-            }
-
-            handlers -= callback;
-
-            if (handlers == null)
-            {
-                commitHandlers.Remove(hostElement);
-            }
-            else
-            {
-                commitHandlers[hostElement] = handlers;
-            }
-
-            if (renderersByHost.TryGetValue(hostElement, out var renderer))
-            {
-                renderer.OnCommit -= callback;
             }
         }
     }

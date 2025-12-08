@@ -11,7 +11,6 @@ namespace ReactiveUITK.Core
     public sealed class RootRenderer : MonoBehaviour
     {
         public static RootRenderer Instance { get; private set; }
-        public event Action OnCommit;
         private HostContext sharedHostContext;
         private ElementRegistry elementRegistry;
         private VisualElement rootElement;
@@ -81,7 +80,6 @@ namespace ReactiveUITK.Core
             if (vnodeHostRenderer == null)
             {
                 vnodeHostRenderer = new VNodeHostRenderer(sharedHostContext, rootElement);
-                vnodeHostRenderer.OnCommit += HandleCommit;
             }
             vnodeHostRenderer.Render(rootNode);
         }
@@ -90,15 +88,9 @@ namespace ReactiveUITK.Core
         {
             if (vnodeHostRenderer != null)
             {
-                vnodeHostRenderer.OnCommit -= HandleCommit;
                 vnodeHostRenderer.Unmount();
                 vnodeHostRenderer = null;
             }
-        }
-
-        private void HandleCommit()
-        {
-            OnCommit?.Invoke();
         }
     }
 }
