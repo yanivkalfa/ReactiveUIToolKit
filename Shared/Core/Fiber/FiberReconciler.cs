@@ -163,14 +163,25 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // If we walked up and found a root, check if it matches the active root OR its alternate.
-            // This allows updates on "stale" fibers that are still part of the double-buffering loop,
-            // but blocks updates on fibers that are completely detached/lost.
-            if (rootCurrent != null && 
-                rootCurrent != _root.Current && 
-                (rootCurrent.Alternate == null || rootCurrent.Alternate != _root.Current))
+            if (rootCurrent != null)
             {
-                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on detached fiber (root mismatch). Ignoring.");
-                return;
+                if (rootCurrent == _root.Current)
+                {
+                    // Found the active root. Good.
+                }
+                else if (rootCurrent == _root.Current.Alternate)
+                {
+                    // Found the alternate root (stale). Switch to the active root.
+                    // This ensures we always create WorkInProgress from the active tree,
+                    // preventing us from diffing against a stale tree and causing duplication.
+                    rootCurrent = _root.Current;
+                }
+                else
+                {
+                    // This fiber is detached from the current tree (and its alternate)
+                    UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on detached fiber. Ignoring.");
+                    return;
+                }
             }
 
             if (rootCurrent == null)
