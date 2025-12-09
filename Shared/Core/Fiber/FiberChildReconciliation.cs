@@ -68,6 +68,7 @@ namespace ReactiveUITK.Core.Fiber
                     if (newFiber == null)
                     {
                         // Can't reuse, create new
+                        UnityEngine.Debug.LogWarning($"[DuplicationTest][FiberChildReconciliation] Failed to reuse fiber. oldType={oldFiber.ElementType} newType={newChild.ElementTypeName} oldKey={oldFiber.Key} newKey={newChild.Key}");
                         newFiber = CreateFiber(newChild, wipFiber, newIdx);
                     }
                     else
