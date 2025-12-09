@@ -170,24 +170,24 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            // If we walked up and found a root, check if it matches the active root OR its alternate.
+            // If we walked up and found a root, check if it matches the active root.
             if (rootCurrent != null)
             {
                 if (rootCurrent == _root.Current)
                 {
                     // Found the active root. Good.
                 }
-                else if (rootCurrent == _root.Current.Alternate)
-                {
-                    // Found the alternate root. This is valid during a commit phase (cascading update)
-                    // or if we are interacting with a tree that is being committed.
-                    // We allow it to proceed, as it will create a WIP from this root.
-                }
                 else
                 {
-                    // This fiber is detached from the current tree (and its alternate)
-                    UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
-                    return;
+                    // Found a different root (Alternate or Detached).
+                    // We must switch to the active root to ensure we create WorkInProgress from the active tree.
+                    // This prevents reconciling against a stale/detached tree which causes duplication (CommitPlacement).
+                    // It also ensures double-buffering works correctly (WIP is created from Current, targeting Alternate).
+                    var alt = _root.Current.Alternate;
+                    bool isAlternate = (rootCurrent == alt);
+                    UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] Switching from {(isAlternate ? "Alternate" : "Detached")} root to Active root. rootCurrent={rootCurrent.GetHashCode()} Active={_root.Current.GetHashCode()} Alt={(alt != null ? alt.GetHashCode().ToString() : "null")}");
+                    
+                    rootCurrent = _root.Current;
                 }
             }
 
@@ -203,7 +203,7 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Inspect state
-            UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] State Inspection: rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()} _root.Current.Child={(_root.Current.Child != null ? "set" : "null")} WIP={(_root.WorkInProgress != null ? "set" : "null")}");
+            // UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] State Inspection: rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()} _root.Current.Child={(_root.Current.Child != null ? "set" : "null")} WIP={(_root.WorkInProgress != null ? "set" : "null")}");
 
             // Create work-in-progress root
             _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
