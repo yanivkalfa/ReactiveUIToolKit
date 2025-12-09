@@ -118,10 +118,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] ScheduleUpdateOnFiber");
             if (_root == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No root");
                 return;
             }
 
@@ -140,6 +138,35 @@ namespace ReactiveUITK.Core.Fiber
             }
             var rootVNode = _root.RootVNode;
 
+            // Find the root fiber for this update by walking up the
+            // parent chain. Fall back to the current root if needed.
+            FiberNode rootCurrent = fiber;
+            while (rootCurrent != null && rootCurrent.Parent != null)
+            {
+                rootCurrent = rootCurrent.Parent;
+            }
+
+            // If we walked up and found a root, check if it matches the active root
+            if (rootCurrent != null && rootCurrent != _root.Current)
+            {
+                // This fiber is detached from the current tree
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on detached fiber. Ignoring.");
+                return;
+            }
+
+            if (rootCurrent == null)
+            {
+                rootCurrent = _root.Current;
+            }
+            if (rootCurrent == null)
+            {
+                // No valid root to update; safely bail out.
+                return;
+            }
+
+            // Create work-in-progress root
+            _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+            _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
 
             // Start work loop (scheduler-based when available)
@@ -149,9 +176,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                UnityEngine.Debug.Log(
-                    "[DuplicationTest][FiberReconciler] Running WorkLoop synchronously"
-                );
                 WorkLoop();
             }
         }
@@ -162,7 +186,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void WorkLoop()
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop begin");
             RenderPhaseSampler.Begin();
             try
             {
@@ -181,7 +204,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 CommitRoot();
             }
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop end");
         }
 
         /// <summary>
@@ -221,7 +243,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_nextUnitOfWork == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No work for deadline");
                 return;
             }
 
