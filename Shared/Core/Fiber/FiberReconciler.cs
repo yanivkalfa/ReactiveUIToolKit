@@ -179,11 +179,9 @@ namespace ReactiveUITK.Core.Fiber
                 }
                 else if (rootCurrent == _root.Current.Alternate)
                 {
-                    // Found the alternate root (stale). Switch to the active root.
-                    // This ensures we always create WorkInProgress from the active tree,
-                    // preventing us from diffing against a stale tree and causing duplication.
-                    UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Switching from stale alternate to active root");
-                    rootCurrent = _root.Current;
+                    // Found the alternate root. This is valid during a commit phase (cascading update)
+                    // or if we are interacting with a tree that is being committed.
+                    // We allow it to proceed, as it will create a WIP from this root.
                 }
                 else
                 {
