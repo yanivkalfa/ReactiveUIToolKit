@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core.Fiber;
 using ReactiveUITK.Props;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
@@ -19,6 +21,7 @@ namespace ReactiveUITK.Core
 
         public VNodeHostRenderer(HostContext hostContext, VisualElement host)
         {
+            UnityEngine.Debug.Log("[VNodeHostRenderer] ctor");
             hostElement = host;
             fiberRenderer = new FiberRenderer(host, hostContext);
 
@@ -32,11 +35,13 @@ namespace ReactiveUITK.Core
 
         public void Render(VirtualNode vnode)
         {
+            UnityEngine.Debug.Log("[VNodeHostRenderer] Render");
             fiberRenderer.Render(NormalizeHostRoot(vnode));
         }
 
         public void Unmount()
         {
+            UnityEngine.Debug.Log("[VNodeHostRenderer] Unmount");
             ClearHostProps();
             fiberRenderer?.Clear();
         }
@@ -45,16 +50,19 @@ namespace ReactiveUITK.Core
         {
             if (vnode == null)
             {
+                UnityEngine.Debug.Log("[VNodeHostRenderer] Normalize null vnode");
                 ClearHostProps();
                 return null;
             }
 
             if (vnode.NodeType != VirtualNodeType.Host)
             {
+                UnityEngine.Debug.Log("[VNodeHostRenderer] vnode not host");
                 ClearHostProps();
                 return vnode;
             }
 
+            UnityEngine.Debug.Log("[VNodeHostRenderer] vnode host apply props");
             ApplyHostProps(vnode.Properties ?? VirtualNode.EmptyProps);
             return WrapHostChildren(vnode);
         }

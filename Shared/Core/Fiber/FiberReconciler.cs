@@ -118,8 +118,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
+            UnityEngine.Debug.Log("[FiberReconciler] ScheduleUpdateOnFiber");
             if (_root == null)
             {
+                UnityEngine.Debug.Log("[FiberReconciler] No root");
                 return;
             }
 
@@ -140,6 +142,7 @@ namespace ReactiveUITK.Core.Fiber
 
             if (rootVNode == null)
             {
+                UnityEngine.Debug.Log("[FiberReconciler] rootVNode null");
                 return;
             }
 
@@ -157,6 +160,7 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
+                UnityEngine.Debug.Log("[FiberReconciler] rootCurrent null");
                 return;
             }
 
@@ -172,6 +176,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
+                UnityEngine.Debug.Log("[FiberReconciler] Running WorkLoop synchronously");
                 WorkLoop();
             }
         }
@@ -182,6 +187,7 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void WorkLoop()
         {
+            UnityEngine.Debug.Log("[FiberReconciler] WorkLoop begin");
             RenderPhaseSampler.Begin();
             try
             {
@@ -200,6 +206,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 CommitRoot();
             }
+            UnityEngine.Debug.Log("[FiberReconciler] WorkLoop end");
         }
 
         /// <summary>
@@ -239,6 +246,7 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_nextUnitOfWork == null)
             {
+                UnityEngine.Debug.Log("[FiberReconciler] No work for deadline");
                 return;
             }
 
@@ -470,6 +478,7 @@ namespace ReactiveUITK.Core.Fiber
         private void CommitRoot()
         {
             _commitCount++;
+            UnityEngine.Debug.Log("[FiberReconciler] CommitRoot start");
 
             CommitPhaseSampler.Begin();
             try
@@ -504,6 +513,7 @@ namespace ReactiveUITK.Core.Fiber
                 _root.LastEffect = null;
 
                 EmitMetrics();
+                UnityEngine.Debug.Log("[FiberReconciler] CommitRoot completed");
             }
             finally
             {

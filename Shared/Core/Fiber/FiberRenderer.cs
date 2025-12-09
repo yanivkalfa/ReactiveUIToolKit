@@ -1,5 +1,6 @@
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core.Fiber
@@ -16,6 +17,7 @@ namespace ReactiveUITK.Core.Fiber
 
         public FiberRenderer(VisualElement container, HostContext context = null)
         {
+            UnityEngine.Debug.Log("[FiberRenderer] ctor");
             _container = container;
 
             if (context == null)
@@ -32,6 +34,7 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void Render(VirtualNode vnode)
         {
+            UnityEngine.Debug.Log("[FiberRenderer] Render");
             if (_root == null)
             {
                 // Initial mount
@@ -49,6 +52,7 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void Clear()
         {
+            UnityEngine.Debug.Log("[FiberRenderer] Clear");
             _container.Clear();
             _root = null;
         }

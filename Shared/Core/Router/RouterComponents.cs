@@ -15,6 +15,7 @@ namespace ReactiveUITK.Router
             IReadOnlyList<VirtualNode> children
         )
         {
+            UnityEngine.Debug.Log("[RouterFunc] Render start");
             props ??= new Dictionary<string, object>();
             props.TryGetValue("history", out var historyObj);
             props.TryGetValue("initialPath", out var initialPathObj);
@@ -85,7 +86,9 @@ namespace ReactiveUITK.Router
             var rootEntry = new RouteContextEntry(rootMatch, "/", null, HookContext.Current);
             Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, rootEntry);
 
-            return RouterRenderUtils.Fragment(children);
+            var fragment = RouterRenderUtils.Fragment(children);
+            UnityEngine.Debug.Log($"[RouterFunc] Render end - {fragment}");
+            return fragment;
         }
     }
 
@@ -96,9 +99,11 @@ namespace ReactiveUITK.Router
             IReadOnlyList<VirtualNode> children
         )
         {
+            UnityEngine.Debug.Log("[RouteFunc] Render start");
             var router = RouterHooks.UseRouter();
             if (router == null)
             {
+                UnityEngine.Debug.Log("[RouteFunc] router null");
                 return null;
             }
 
@@ -120,10 +125,14 @@ namespace ReactiveUITK.Router
             {
                 resolvedPath = RouterPath.Combine(parentMatch?.Pattern ?? "/", path);
             }
+            UnityEngine.Debug.Log(
+                $"[RouteFunc] path={path} resolved={resolvedPath} exact={exact} location={router.Location.Path}"
+            );
 
             var match = RouteMatcher.Match(router.Location.Path, resolvedPath, exact, parentMatch);
             if (match == null)
             {
+                UnityEngine.Debug.Log("[RouteFunc] no match");
                 return null;
             }
 
@@ -146,14 +155,18 @@ namespace ReactiveUITK.Router
 
             if (renderObj is Func<RouteMatch, VirtualNode> renderFunc)
             {
-                return renderFunc(match);
+                var someNode = renderFunc(match);
+                UnityEngine.Debug.Log("[RouteFunc] render delegate used");
+                return someNode;
             }
 
             if (elementObj is VirtualNode vnode)
             {
+                UnityEngine.Debug.Log("[RouteFunc] element vnode return");
                 return vnode;
             }
 
+            UnityEngine.Debug.Log("[RouteFunc] returning fragment children");
             return RouterRenderUtils.Fragment(children);
         }
     }
@@ -165,9 +178,11 @@ namespace ReactiveUITK.Router
             IReadOnlyList<VirtualNode> children
         )
         {
+            UnityEngine.Debug.Log("[LinkFunc] Render start");
             var router = RouterHooks.UseRouter();
             if (router == null)
             {
+                UnityEngine.Debug.Log("[LinkFunc] router null");
                 return null;
             }
             var routeMatch =
@@ -187,6 +202,7 @@ namespace ReactiveUITK.Router
             bool replace = replaceObj is bool replaceFlag && replaceFlag;
             Style style = styleObj as Style;
             string navigationBase = routeEntry?.NavigationBase ?? routeMatch?.Pattern;
+            UnityEngine.Debug.Log($"[LinkFunc] to={to} replace={replace} base={navigationBase}");
 
             Action navigate = () =>
             {
@@ -203,6 +219,7 @@ namespace ReactiveUITK.Router
                 {
                     target = RouterPath.Combine(navigationBase ?? "/", to);
                 }
+                UnityEngine.Debug.Log($"[LinkFunc] navigate target={target}");
                 if (replace)
                 {
                     router.Replace?.Invoke(target, stateObj);
@@ -213,7 +230,7 @@ namespace ReactiveUITK.Router
                 }
             };
 
-            return V.Button(
+            var button = V.Button(
                 new ButtonProps
                 {
                     Text = label,
@@ -221,6 +238,8 @@ namespace ReactiveUITK.Router
                     OnClick = navigate,
                 }
             );
+            UnityEngine.Debug.Log($"[LinkFunc] Render end: {button}");
+            return button;
         }
     }
 
