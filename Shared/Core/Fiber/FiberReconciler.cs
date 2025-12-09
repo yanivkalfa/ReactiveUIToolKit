@@ -118,10 +118,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
-            UnityEngine.Debug.Log("[FiberReconciler] ScheduleUpdateOnFiber");
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] ScheduleUpdateOnFiber");
             if (_root == null)
             {
-                UnityEngine.Debug.Log("[FiberReconciler] No root");
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No root");
                 return;
             }
 
@@ -142,7 +142,7 @@ namespace ReactiveUITK.Core.Fiber
 
             if (rootVNode == null)
             {
-                UnityEngine.Debug.Log("[FiberReconciler] rootVNode null");
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootVNode null");
                 return;
             }
 
@@ -160,7 +160,7 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
-                UnityEngine.Debug.Log("[FiberReconciler] rootCurrent null");
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
                 return;
             }
 
@@ -176,7 +176,9 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                UnityEngine.Debug.Log("[FiberReconciler] Running WorkLoop synchronously");
+                UnityEngine.Debug.Log(
+                    "[DuplicationTest][FiberReconciler] Running WorkLoop synchronously"
+                );
                 WorkLoop();
             }
         }
@@ -187,7 +189,7 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void WorkLoop()
         {
-            UnityEngine.Debug.Log("[FiberReconciler] WorkLoop begin");
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop begin");
             RenderPhaseSampler.Begin();
             try
             {
@@ -206,7 +208,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 CommitRoot();
             }
-            UnityEngine.Debug.Log("[FiberReconciler] WorkLoop end");
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop end");
         }
 
         /// <summary>
@@ -246,7 +248,7 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_nextUnitOfWork == null)
             {
-                UnityEngine.Debug.Log("[FiberReconciler] No work for deadline");
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No work for deadline");
                 return;
             }
 
@@ -478,7 +480,7 @@ namespace ReactiveUITK.Core.Fiber
         private void CommitRoot()
         {
             _commitCount++;
-            UnityEngine.Debug.Log("[FiberReconciler] CommitRoot start");
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot start");
 
             CommitPhaseSampler.Begin();
             try
@@ -513,7 +515,7 @@ namespace ReactiveUITK.Core.Fiber
                 _root.LastEffect = null;
 
                 EmitMetrics();
-                UnityEngine.Debug.Log("[FiberReconciler] CommitRoot completed");
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot completed");
             }
             finally
             {
