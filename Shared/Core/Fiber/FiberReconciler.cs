@@ -21,6 +21,8 @@ namespace ReactiveUITK.Core.Fiber
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
         private bool _workScheduled;
+        private bool _isCommitting; // Track if we're in the commit phase
+        private VirtualNode _pendingRootVNode; // Deferred update scheduled during commit
         private const float TimeSliceMs = 2.0f;
 
         // Metrics
@@ -205,6 +207,15 @@ namespace ReactiveUITK.Core.Fiber
             {
                 // No valid root to update; safely bail out.
                 UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
+                return;
+            }
+
+            // If we're in the commit phase, defer this update until commit completes.
+            // Resetting Child=null during commit would corrupt the tree being committed.
+            if (_isCommitting)
+            {
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Deferring update during commit");
+                _pendingRootVNode = rootVNode ?? _pendingRootVNode;
                 return;
             }
 
@@ -552,6 +563,7 @@ namespace ReactiveUITK.Core.Fiber
         private void CommitRoot()
         {
             _commitCount++;
+            _isCommitting = true; // Prevent ScheduleUpdateOnFiber from corrupting WIP
             UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot start");
 
             CommitPhaseSampler.Begin();
@@ -592,6 +604,16 @@ namespace ReactiveUITK.Core.Fiber
             finally
             {
                 CommitPhaseSampler.End();
+                _isCommitting = false;
+
+                // Process any deferred updates scheduled during commit
+                if (_pendingRootVNode != null)
+                {
+                    var pendingVNode = _pendingRootVNode;
+                    _pendingRootVNode = null;
+                    UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Processing deferred update after commit");
+                    ScheduleUpdateOnFiber(_root.Current, pendingVNode);
+                }
             }
         }
 
