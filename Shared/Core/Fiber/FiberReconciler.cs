@@ -1070,6 +1070,14 @@ namespace ReactiveUITK.Core.Fiber
             // Get current children from alternate (if exists)
             var currentFirstChild = wipFiber.Alternate?.Child;
 
+            UnityEngine.Debug.Log(
+                $"[DuplicationTest][FiberReconciler] ReconcileChildren wip={wipFiber.ElementType} " +
+                $"alternate={(wipFiber.Alternate != null ? "set" : "null")} " +
+                $"alternateChild={(wipFiber.Alternate?.Child != null ? wipFiber.Alternate.Child.ElementType : "null")} " +
+                $"currentFirstChild={(currentFirstChild != null ? currentFirstChild.ElementType : "null")} " +
+                $"vnodeCount={(vnodes?.Count ?? 0)}"
+            );
+
             // Use the full reconciliation algorithm
             FiberChildReconciliation.ReconcileChildren(wipFiber, currentFirstChild, vnodes);
 
