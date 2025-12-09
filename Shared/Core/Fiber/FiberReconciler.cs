@@ -141,8 +141,75 @@ namespace ReactiveUITK.Core.Fiber
             var rootVNode = _root.RootVNode;
 
             if (rootVNode == null)
+            {
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootVNode null");
+                return;
+            }
+
+            // Find the root fiber for this update by walking up the
+            // parent chain. Also check for deletion flags along the way.
+            FiberNode rootCurrent = fiber;
+            bool isDeleted = false;
+            while (rootCurrent != null)
+            {
+                if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
+                {
+                    isDeleted = true;
+                    break;
+                }
+                if (rootCurrent.Parent == null)
+                {
+                    break;
+                }
+                rootCurrent = rootCurrent.Parent;
+            }
+
+            if (isDeleted)
+            {
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on deleted fiber. Ignoring.");
+                return;
+            }
+
+            // If we walked up and found a root, check if it matches the active root OR its alternate.
+            if (rootCurrent != null)
+            {
+                if (rootCurrent == _root.Current)
+                {
+                    // Found the active root. Good.
+                }
+                else if (rootCurrent == _root.Current.Alternate)
+                {
+                    // Found the alternate root (stale). Switch to the active root.
+                    // This ensures we always create WorkInProgress from the active tree,
+                    // preventing us from diffing against a stale tree and causing duplication.
+                    UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Switching from stale alternate to active root");
+                    rootCurrent = _root.Current;
+                }
+                else
+                {
+                    // This fiber is detached from the current tree (and its alternate)
+                    UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
+                    return;
+                }
+            }
+
+            if (rootCurrent == null)
+            {
+                rootCurrent = _root.Current;
+            }
+            if (rootCurrent == null)
+            {
+                // No valid root to update; safely bail out.
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
+                return;
+            }
+
+            // Create work-in-progress root
+            _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
+            
+            UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] Work scheduled. _nextUnitOfWork={(_nextUnitOfWork != null ? "set" : "null")}");
 
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
