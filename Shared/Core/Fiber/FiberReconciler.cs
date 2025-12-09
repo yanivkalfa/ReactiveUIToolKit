@@ -177,17 +177,23 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     // Found the active root. Good.
                 }
+                else if (rootCurrent == _root.WorkInProgress)
+                {
+                    // Found the WorkInProgress root.
+                    // This means we are scheduling an update on a tree that is currently being built (cascading update).
+                    // We should continue using this root as the WIP.
+                }
+                else if (rootCurrent == _root.Current.Alternate)
+                {
+                    // Found the alternate root (which is not currently set as WIP).
+                    // This is valid during a commit phase or if we are interacting with a tree that is being committed.
+                    // We allow it to proceed, as it will create a WIP from this root.
+                }
                 else
                 {
-                    // Found a different root (Alternate or Detached).
-                    // We must switch to the active root to ensure we create WorkInProgress from the active tree.
-                    // This prevents reconciling against a stale/detached tree which causes duplication (CommitPlacement).
-                    // It also ensures double-buffering works correctly (WIP is created from Current, targeting Alternate).
-                    var alt = _root.Current.Alternate;
-                    bool isAlternate = (rootCurrent == alt);
-                    UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] Switching from {(isAlternate ? "Alternate" : "Detached")} root to Active root. rootCurrent={rootCurrent.GetHashCode()} Active={_root.Current.GetHashCode()} Alt={(alt != null ? alt.GetHashCode().ToString() : "null")}");
-                    
-                    rootCurrent = _root.Current;
+                    // This fiber is detached from the current tree (and its alternate)
+                    UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
+                    return;
                 }
             }
 
@@ -202,11 +208,26 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            // Inspect state
-            // UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] State Inspection: rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()} _root.Current.Child={(_root.Current.Child != null ? "set" : "null")} WIP={(_root.WorkInProgress != null ? "set" : "null")}");
-
             // Create work-in-progress root
-            _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+            if (rootCurrent == _root.WorkInProgress)
+            {
+                // If we are updating the WIP, we don't need to create it.
+                // We just need to ensure it has the latest props/vnode if provided.
+                _workInProgressRoot = rootCurrent;
+                if (rootVNode != null)
+                {
+                    _workInProgressRoot.PendingProps = ExtractProps(rootVNode);
+                    _workInProgressRoot.Children = new[] { rootVNode };
+                    _workInProgressRoot.Child = null; // Reset child to force reconciliation
+                    _workInProgressRoot.EffectTag = EffectFlags.None;
+                    _workInProgressRoot.NextEffect = null;
+                    _workInProgressRoot.Deletions = null;
+                }
+            }
+            else
+            {
+                _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+            }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
             
