@@ -651,6 +651,28 @@ namespace ReactiveUITK.Core.Fiber
                     }
 
                     _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
+
+                    try
+                    {
+                        if (
+                            fiber.ElementType == "Slider"
+                            || fiber.ElementType == "Label"
+                            || fiber.ElementType == "VisualElement"
+                        )
+                        {
+                            UnityEngine.Debug.Log(
+                                "[DuplicationTest][FiberReconciler] CommitPlacement "
+                                    + $"type={fiber.ElementType} "
+                                    + $"name={fiber.HostElement?.name} "
+                                    + $"parentType={parentFiber.ElementType} "
+                                    + $"parentName={parentFiber.HostElement?.name}"
+                            );
+                        }
+                    }
+                    catch
+                    {
+                        // Logging should never break rendering.
+                    }
                 }
             }
             else
@@ -779,6 +801,27 @@ namespace ReactiveUITK.Core.Fiber
                 var parent = _hostConfig.GetParent(fiber.HostElement);
                 if (parent != null)
                 {
+                    try
+                    {
+                        if (
+                            fiber.ElementType == "Slider"
+                            || fiber.ElementType == "Label"
+                            || fiber.ElementType == "VisualElement"
+                        )
+                        {
+                            UnityEngine.Debug.Log(
+                                "[DuplicationTest][FiberReconciler] CommitDeletion "
+                                    + $"type={fiber.ElementType} "
+                                    + $"name={fiber.HostElement?.name} "
+                                    + $"parentName={parent.name}"
+                            );
+                        }
+                    }
+                    catch
+                    {
+                        // Logging should never break rendering.
+                    }
+
                     _hostConfig.RemoveChild(parent, fiber.HostElement);
                 }
             }
