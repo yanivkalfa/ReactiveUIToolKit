@@ -298,6 +298,12 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static void DeleteChild(FiberNode parentFiber, FiberNode childFiber)
         {
+            UnityEngine.Debug.Log(
+                $"[DuplicationTest][FiberFunctionComponent] DeleteChild " +
+                $"parent={parentFiber.ElementType} child={childFiber.ElementType} " +
+                $"childHostElement={(childFiber.HostElement != null ? childFiber.HostElement.name : "null")}"
+            );
+
             if (parentFiber.Deletions == null)
             {
                 parentFiber.Deletions = new List<FiberNode>();
