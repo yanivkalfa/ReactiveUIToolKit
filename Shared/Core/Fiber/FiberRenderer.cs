@@ -37,7 +37,8 @@ namespace ReactiveUITK.Core.Fiber
             UnityEngine.Debug.Log("[DuplicationTest][FiberRenderer] Render");
             if (_root == null)
             {
-                // Initial mount
+                // Initial mount - ensure container is clean
+                _container.Clear();
                 _root = _reconciler.CreateRoot(_container, vnode);
             }
             else
