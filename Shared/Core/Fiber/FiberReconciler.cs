@@ -508,6 +508,14 @@ namespace ReactiveUITK.Core.Fiber
                 };
                 current.Alternate = workInProgress;
             }
+            else
+            {
+                // When reusing the alternate, ensure Alternate points back to current.
+                // This is critical: after a commit, Current becomes the finished tree,
+                // and its Alternate (which we're reusing) must point to Current so
+                // reconciliation can find the children via wipFiber.Alternate.Child.
+                workInProgress.Alternate = current;
+            }
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);

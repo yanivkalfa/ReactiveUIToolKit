@@ -117,57 +117,45 @@ namespace ReactiveUITK.Core.Fiber
         )
         {
             // Try to reuse existing fiber
-            if (currentChild != null)
+            if (currentChild != null && CanReuseFiber(currentChild, newVNode))
             {
-                if (CanReuseFiber(currentChild, newVNode))
+                // Clone and update
+                var clone = new FiberNode
                 {
-                    // UnityEngine.Debug.Log($"[DuplicationTest][FiberFunctionComponent] ReconcileSingleChild Reuse SUCCESS. parent={parent.ElementType} child={currentChild.ElementType}");
-                    // Clone and update
-                    var clone = new FiberNode
-                    {
-                        Tag = currentChild.Tag,
-                        ElementType = currentChild.ElementType,
-                        Key = currentChild.Key,
-                        Render = currentChild.Render,
-                        HostElement = currentChild.HostElement,
-                        ComponentState = currentChild.ComponentState,
-                        Alternate = currentChild,
-                        Props = currentChild.Props,
-                        ContextFrame = currentChild.ContextFrame,
-                        ContextProviderId = currentChild.ContextProviderId,
-                        ProvidedContext = currentChild.ProvidedContext,
-                        PortalTarget = currentChild.PortalTarget,
-                        ErrorBoundaryActive = currentChild.ErrorBoundaryActive,
-                        ErrorBoundaryShowingFallback = currentChild.ErrorBoundaryShowingFallback,
-                        ErrorBoundaryLastException = currentChild.ErrorBoundaryLastException,
-                        ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
-                        Parent = parent,
-                        Index = 0,
-                    };
+                    Tag = currentChild.Tag,
+                    ElementType = currentChild.ElementType,
+                    Key = currentChild.Key,
+                    Render = currentChild.Render,
+                    HostElement = currentChild.HostElement,
+                    ComponentState = currentChild.ComponentState,
+                    Alternate = currentChild,
+                    Props = currentChild.Props,
+                    ContextFrame = currentChild.ContextFrame,
+                    ContextProviderId = currentChild.ContextProviderId,
+                    ProvidedContext = currentChild.ProvidedContext,
+                    PortalTarget = currentChild.PortalTarget,
+                    ErrorBoundaryActive = currentChild.ErrorBoundaryActive,
+                    ErrorBoundaryShowingFallback = currentChild.ErrorBoundaryShowingFallback,
+                    ErrorBoundaryLastException = currentChild.ErrorBoundaryLastException,
+                    ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
+                    Parent = parent,
+                    Index = 0,
+                };
 
-                    clone.PendingProps = ExtractProps(newVNode);
-                    clone.Children = newVNode.Children;
-                    clone.EffectTag = EffectFlags.Update;
-                    clone.LastRenderedVNode = newVNode;
+                clone.PendingProps = ExtractProps(newVNode);
+                clone.Children = newVNode.Children;
+                clone.EffectTag = EffectFlags.Update;
+                clone.LastRenderedVNode = newVNode;
 
-                    // Delete remaining siblings
-                    var sibling = currentChild.Sibling;
-                    while (sibling != null)
-                    {
-                        DeleteChild(parent, sibling);
-                        sibling = sibling.Sibling;
-                    }
-
-                    return clone;
-                }
-                else
+                // Delete remaining siblings
+                var sibling = currentChild.Sibling;
+                while (sibling != null)
                 {
-                     UnityEngine.Debug.LogWarning($"[DuplicationTest][FiberFunctionComponent] ReconcileSingleChild Reuse FAILED. parent={parent.ElementType} oldType={currentChild.ElementType} newType={newVNode.ElementTypeName} oldKey={currentChild.Key} newKey={newVNode.Key}");
+                    DeleteChild(parent, sibling);
+                    sibling = sibling.Sibling;
                 }
-            }
-            else
-            {
-                 // UnityEngine.Debug.Log($"[DuplicationTest][FiberFunctionComponent] ReconcileSingleChild Reuse SKIPPED (currentChild is null). parent={parent.ElementType}");
+
+                return clone;
             }
 
             // Can't reuse, create new fiber

@@ -19,9 +19,6 @@ namespace ReactiveUITK.Core.Fiber
             IReadOnlyList<VirtualNode> newChildren
         )
         {
-            // Debug log for entry
-            UnityEngine.Debug.Log($"[DuplicationTest][FiberChildReconciliation] ReconcileChildren wip={wipFiber.ElementType} currentFirstChild={(currentFirstChild != null ? "set" : "null")} newChildrenCount={(newChildren != null ? newChildren.Count : 0)}");
-
             if (newChildren == null || newChildren.Count == 0)
             {
                 // Delete all existing children
@@ -71,7 +68,6 @@ namespace ReactiveUITK.Core.Fiber
                     if (newFiber == null)
                     {
                         // Can't reuse, create new
-                        UnityEngine.Debug.LogWarning($"[DuplicationTest][FiberChildReconciliation] Failed to reuse fiber (Index). oldType={oldFiber.ElementType} newType={newChild.ElementTypeName} oldKey={oldFiber.Key} newKey={newChild.Key}");
                         newFiber = CreateFiber(newChild, wipFiber, newIdx);
                     }
                     else
@@ -170,20 +166,6 @@ namespace ReactiveUITK.Core.Fiber
                     {
                         existingChildren.Remove(key);
                     }
-                    else
-                    {
-                         UnityEngine.Debug.LogWarning($"[DuplicationTest][FiberChildReconciliation] Failed to reuse fiber (Keys). Key found but UpdateSlot failed. key={key} oldType={oldFiber.ElementType} newType={newChild.ElementTypeName}");
-                    }
-                }
-                else
-                {
-                     // Key not found in existing children
-                     // This is expected for new items, but if we expect reuse, this is where it fails.
-                     // Only log if we had existing children (otherwise it's just initial render or empty parent)
-                     if (currentFirstChild != null)
-                     {
-                         UnityEngine.Debug.Log($"[DuplicationTest][FiberChildReconciliation] Key not found in existing children. key={key} existingCount={existingChildren.Count}");
-                     }
                 }
 
                 // If can't reuse, create new
