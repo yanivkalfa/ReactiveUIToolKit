@@ -796,6 +796,28 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
+        /// Commit layout effects
+        /// </summary>
+        private void CommitLayoutEffects(FiberNode fiber)
+        {
+            if (fiber.Tag == FiberTag.FunctionComponent)
+            {
+                FiberFunctionComponent.CommitLayoutEffects(fiber);
+            }
+        }
+
+        /// <summary>
+        /// Schedule passive effects
+        /// </summary>
+        private void SchedulePassiveEffects(FiberNode fiber)
+        {
+            if (fiber.Tag == FiberTag.FunctionComponent)
+            {
+                FiberFunctionComponent.SchedulePassiveEffects(fiber);
+            }
+        }
+
+        /// <summary>
         /// Commit deletion - remove element from DOM
         /// </summary>
         private void CommitDeletion(FiberNode fiber)
@@ -804,6 +826,9 @@ namespace ReactiveUITK.Core.Fiber
             {
                 return;
             }
+
+            // Debug log for deletion entry
+            // UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] CommitDeletion Entry type={fiber.ElementType} name={fiber.HostElement?.name}");
 
             // Depth-first delete: clean up subtree before removing the current node.
 
@@ -849,67 +874,6 @@ namespace ReactiveUITK.Core.Fiber
             var child = fiber.Child;
             while (child != null)
             {
-                var nextSibling = child.Sibling;
-                CommitDeletion(child);
-                child = nextSibling;
-            }
-
-            // Portals do not own the portal target element.
-            if (fiber.Tag == FiberTag.HostPortal)
-            {
-                return;
-            }
-
-            if (fiber.HostElement != null)
-            {
-                var parent = _hostConfig.GetParent(fiber.HostElement);
-                if (parent != null)
-                {
-                    try
-                    {
-                        if (
-                            fiber.ElementType == "Slider"
-                            || fiber.ElementType == "Label"
-                            || fiber.ElementType == "VisualElement"
-                        )
-                        {
-                            UnityEngine.Debug.Log(
-                                "[DuplicationTest][FiberReconciler] CommitDeletion "
-                                    + $"type={fiber.ElementType} "
-                                    + $"name={fiber.HostElement?.name} "
-                                    + $"parentName={parent.name}"
-                            );
-                        }
-                    }
-                    catch
-                    {
-                        // Logging should never break rendering.
-                    }
-
-                    _hostConfig.RemoveChild(parent, fiber.HostElement);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Commit layout effects
-        /// </summary>
-        private void CommitLayoutEffects(FiberNode fiber)
-        {
-            if (fiber.Tag == FiberTag.FunctionComponent)
-            {
-                FiberFunctionComponent.CommitLayoutEffects(fiber);
-            }
-        }
-
-        /// <summary>
-        /// Schedule passive effects
-        /// </summary>
-        private void SchedulePassiveEffects(FiberNode fiber)
-        {
-            if (fiber.Tag == FiberTag.FunctionComponent)
-            {
-                FiberFunctionComponent.SchedulePassiveEffects(fiber);
             }
         }
 
