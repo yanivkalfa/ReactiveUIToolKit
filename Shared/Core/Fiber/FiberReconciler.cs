@@ -118,8 +118,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] ScheduleUpdateOnFiber");
             if (_root == null)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No root");
                 return;
             }
 
@@ -138,52 +140,19 @@ namespace ReactiveUITK.Core.Fiber
             }
             var rootVNode = _root.RootVNode;
 
-            // Find the root fiber for this update by walking up the
-            // parent chain. Also check for deletion flags along the way.
-            FiberNode rootCurrent = fiber;
-            bool isDeleted = false;
-            while (rootCurrent != null)
+            if (rootVNode == null)
             {
-                if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
-                {
-                    isDeleted = true;
-                    break;
-                }
-                if (rootCurrent.Parent == null)
-                {
-                    break;
-                }
-                rootCurrent = rootCurrent.Parent;
-            }
-
-            if (isDeleted)
-            {
-                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on deleted fiber. Ignoring.");
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootVNode null");
                 return;
             }
 
-            // If we walked up and found a root, check if it matches the active root OR its alternate.
-            if (rootCurrent != null)
+            // Find the root fiber for this update by walking up the
+            // parent chain. Fall back to the current root if needed.
+            FiberNode rootCurrent = fiber;
+            while (rootCurrent != null && rootCurrent.Parent != null)
             {
-                if (rootCurrent == _root.Current)
-                {
-                    // Found the active root. Good.
-                }
-                else if (rootCurrent == _root.Current.Alternate)
-                {
-                    // Found the alternate root (stale). Switch to the active root.
-                    // This ensures we always create WorkInProgress from the active tree,
-                    // preventing us from diffing against a stale tree and causing duplication.
-                    rootCurrent = _root.Current;
-                }
-                else
-                {
-                    // This fiber is detached from the current tree (and its alternate)
-                    UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on detached fiber. Ignoring.");
-                    return;
-                }
+                rootCurrent = rootCurrent.Parent;
             }
-
             if (rootCurrent == null)
             {
                 rootCurrent = _root.Current;
@@ -191,6 +160,7 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
                 return;
             }
 
@@ -206,6 +176,9 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
+                UnityEngine.Debug.Log(
+                    "[DuplicationTest][FiberReconciler] Running WorkLoop synchronously"
+                );
                 WorkLoop();
             }
         }
@@ -216,6 +189,7 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void WorkLoop()
         {
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop begin");
             RenderPhaseSampler.Begin();
             try
             {
@@ -234,6 +208,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 CommitRoot();
             }
+            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop end");
         }
 
         /// <summary>
@@ -273,6 +248,7 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_nextUnitOfWork == null)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No work for deadline");
                 return;
             }
 
@@ -675,6 +651,28 @@ namespace ReactiveUITK.Core.Fiber
                     }
 
                     _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
+
+                    try
+                    {
+                        if (
+                            fiber.ElementType == "Slider"
+                            || fiber.ElementType == "Label"
+                            || fiber.ElementType == "VisualElement"
+                        )
+                        {
+                            UnityEngine.Debug.Log(
+                                "[DuplicationTest][FiberReconciler] CommitPlacement "
+                                    + $"type={fiber.ElementType} "
+                                    + $"name={fiber.HostElement?.name} "
+                                    + $"parentType={parentFiber.ElementType} "
+                                    + $"parentName={parentFiber.HostElement?.name}"
+                            );
+                        }
+                    }
+                    catch
+                    {
+                        // Logging should never break rendering.
+                    }
                 }
             }
             else
