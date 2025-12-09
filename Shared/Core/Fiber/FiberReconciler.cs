@@ -853,35 +853,6 @@ namespace ReactiveUITK.Core.Fiber
 
         private FiberNode UpdateHostComponent(FiberNode fiber)
         {
-            // Guard against DOM/fiber desync: if the alternate fiber has no
-            // child pointer but the host element may still have children,
-            // clear the VisualElement children so we don't accumulate
-            // duplicates when re-mounting this subtree.
-            if (
-                fiber.HostElement != null
-                && fiber.ElementType == "VisualElement" // Only clear container elements we own
-            )
-            {
-                var alternate = fiber.Alternate;
-                if (alternate != null && alternate.Child == null)
-                {
-                    try
-                    {
-                        UnityEngine.Debug.Log(
-                            "[DuplicationTest][FiberReconciler] ClearChildren fallback "
-                                + $"type={fiber.ElementType} "
-                                + $"name={fiber.HostElement?.name}"
-                        );
-                    }
-                    catch
-                    {
-                        // Logging must not break rendering.
-                    }
-
-                    _hostConfig.ClearChildren(fiber.HostElement);
-                }
-            }
-
             // Reconcile children for this host element.
             if (fiber.Children != null && fiber.Children.Count > 0)
             {
