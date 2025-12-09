@@ -20,7 +20,7 @@ namespace ReactiveUITK.Core.Fiber
         )
         {
             // Debug log for entry
-            // UnityEngine.Debug.Log($"[DuplicationTest][FiberChildReconciliation] ReconcileChildren wip={wipFiber.ElementType} currentFirstChild={(currentFirstChild != null ? "set" : "null")} newChildrenCount={(newChildren != null ? newChildren.Count : 0)}");
+            UnityEngine.Debug.Log($"[DuplicationTest][FiberChildReconciliation] ReconcileChildren wip={wipFiber.ElementType} currentFirstChild={(currentFirstChild != null ? "set" : "null")} newChildrenCount={(newChildren != null ? newChildren.Count : 0)}");
 
             if (newChildren == null || newChildren.Count == 0)
             {
