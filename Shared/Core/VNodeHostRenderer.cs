@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core.Fiber;
 using ReactiveUITK.Props;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
@@ -19,24 +21,27 @@ namespace ReactiveUITK.Core
 
         public VNodeHostRenderer(HostContext hostContext, VisualElement host)
         {
+            UnityEngine.Debug.Log("[DuplicationTest][VNodeHostRenderer] ctor");
             hostElement = host;
             fiberRenderer = new FiberRenderer(host, hostContext);
 
             if (FiberConfig.ShowReconcilerInfo)
             {
                 UnityEngine.Debug.Log(
-                    $"[VNodeHostRenderer] Using FIBER reconciler for {host.name}"
+                    $"[DuplicationTest][VNodeHostRenderer] Using FIBER reconciler for {host.name}"
                 );
             }
         }
 
         public void Render(VirtualNode vnode)
         {
+            UnityEngine.Debug.Log("[DuplicationTest][VNodeHostRenderer] Render");
             fiberRenderer.Render(NormalizeHostRoot(vnode));
         }
 
         public void Unmount()
         {
+            UnityEngine.Debug.Log("[DuplicationTest][VNodeHostRenderer] Unmount");
             ClearHostProps();
             fiberRenderer?.Clear();
         }
@@ -45,16 +50,19 @@ namespace ReactiveUITK.Core
         {
             if (vnode == null)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][VNodeHostRenderer] Normalize null vnode");
                 ClearHostProps();
                 return null;
             }
 
             if (vnode.NodeType != VirtualNodeType.Host)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][VNodeHostRenderer] vnode not host");
                 ClearHostProps();
                 return vnode;
             }
 
+            UnityEngine.Debug.Log("[DuplicationTest][VNodeHostRenderer] vnode host apply props");
             ApplyHostProps(vnode.Properties ?? VirtualNode.EmptyProps);
             return WrapHostChildren(vnode);
         }

@@ -18,14 +18,20 @@ namespace ReactiveUITK.Core
 
         private void EnsureSetup()
         {
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] EnsureSetup start");
             if (elementRegistry == null)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Creating ElementRegistry");
                 elementRegistry = ElementRegistryProvider.GetDefaultRegistry();
             }
             if (sharedHostContext == null)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Creating HostContext");
                 if (RenderScheduler.Instance == null)
                 {
+                    UnityEngine.Debug.Log(
+                        "[DuplicationTest][RootRenderer] Creating RenderScheduler"
+                    );
                     var go = new GameObject("RenderScheduler");
                     go.hideFlags = HideFlags.DontSave;
                     go.AddComponent<RenderScheduler>();
@@ -41,12 +47,17 @@ namespace ReactiveUITK.Core
                 Reconciler.UseExceptionBoundaryFlow =
                     BuildDefinesConfig.ResolveExceptionBoundaryFlow();
             }
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] EnsureSetup end");
         }
 
         private void Awake()
         {
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Awake");
             if (Instance != null && Instance != this)
             {
+                UnityEngine.Debug.Log(
+                    "[DuplicationTest][RootRenderer] Duplicate instance destroyed"
+                );
                 Destroy(gameObject);
                 return;
             }
@@ -56,6 +67,7 @@ namespace ReactiveUITK.Core
 
         private void OnDestroy()
         {
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] OnDestroy");
             if (Instance == this)
             {
                 Instance = null;
@@ -65,20 +77,23 @@ namespace ReactiveUITK.Core
 
         public void Initialize(VisualElement uiRootElement)
         {
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Initialize");
             EnsureSetup();
             rootElement = uiRootElement;
         }
 
         public void Render(VirtualNode rootNode)
         {
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Render invoked");
             EnsureSetup();
             if (rootElement == null)
             {
-                Debug.LogError("RootRenderer: root not initialized");
+                UnityEngine.Debug.LogError("[DuplicationTest][RootRenderer] root not initialized");
                 return;
             }
             if (vnodeHostRenderer == null)
             {
+                UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Creating VNodeHostRenderer");
                 vnodeHostRenderer = new VNodeHostRenderer(sharedHostContext, rootElement);
             }
             vnodeHostRenderer.Render(rootNode);
@@ -86,6 +101,7 @@ namespace ReactiveUITK.Core
 
         public void Unmount()
         {
+            UnityEngine.Debug.Log("[DuplicationTest][RootRenderer] Unmount");
             if (vnodeHostRenderer != null)
             {
                 vnodeHostRenderer.Unmount();
