@@ -177,11 +177,20 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     // Found the active root. Good.
                 }
+                else if (rootCurrent == _root.WorkInProgress)
+                {
+                    // Found the WIP root. This is a cascading update during render/commit.
+                    // We allow it to proceed, as it will create a new WIP from this root (swapping roles).
+                }
                 else if (rootCurrent == _root.Current.Alternate)
                 {
-                    // Found the alternate root. This is valid during a commit phase (cascading update)
-                    // or if we are interacting with a tree that is being committed.
-                    // We allow it to proceed, as it will create a WIP from this root.
+                    // Found the alternate root (stale), AND it is NOT the WIP.
+                    // This means it is truly stale (from a previous frame, and not currently being worked on).
+                    // Switch to the active root.
+                    // This ensures we always create WorkInProgress from the active tree,
+                    // preventing us from diffing against a stale/empty tree and causing duplication.
+                    UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Switching from stale alternate to active root");
+                    rootCurrent = _root.Current;
                 }
                 else
                 {
