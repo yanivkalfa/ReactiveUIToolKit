@@ -858,7 +858,7 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Debug log for deletion entry
-            // UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] CommitDeletion Entry type={fiber.ElementType} name={fiber.HostElement?.name}");
+            UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] CommitDeletion type={fiber.ElementType} hostElement={(fiber.HostElement != null ? "set" : "null")}");
 
             // Depth-first delete: clean up subtree before removing the current node.
 
@@ -904,6 +904,24 @@ namespace ReactiveUITK.Core.Fiber
             var child = fiber.Child;
             while (child != null)
             {
+                CommitDeletion(child);
+                child = child.Sibling;
+            }
+
+            // If this fiber has a HostElement, remove it from its parent
+            if (fiber.HostElement != null)
+            {
+                var parentFiber = fiber.Parent;
+                while (parentFiber != null && parentFiber.HostElement == null)
+                {
+                    parentFiber = parentFiber.Parent;
+                }
+
+                if (parentFiber?.HostElement != null)
+                {
+                    UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] Removing {fiber.ElementType} from {parentFiber.ElementType}");
+                    _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
+                }
             }
         }
 
