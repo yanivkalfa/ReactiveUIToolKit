@@ -139,18 +139,37 @@ namespace ReactiveUITK.Core.Fiber
             var rootVNode = _root.RootVNode;
 
             // Find the root fiber for this update by walking up the
-            // parent chain. Fall back to the current root if needed.
+            // parent chain. Also check for deletion flags along the way.
             FiberNode rootCurrent = fiber;
-            while (rootCurrent != null && rootCurrent.Parent != null)
+            bool isDeleted = false;
+            while (rootCurrent != null)
             {
+                if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
+                {
+                    isDeleted = true;
+                    break;
+                }
+                if (rootCurrent.Parent == null)
+                {
+                    break;
+                }
                 rootCurrent = rootCurrent.Parent;
             }
 
-            // If we walked up and found a root, check if it matches the active root
-            if (rootCurrent != null && rootCurrent != _root.Current)
+            if (isDeleted)
             {
-                // This fiber is detached from the current tree
-                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on detached fiber. Ignoring.");
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on deleted fiber. Ignoring.");
+                return;
+            }
+
+            // If we walked up and found a root, check if it matches the active root OR its alternate.
+            // This allows updates on "stale" fibers that are still part of the double-buffering loop,
+            // but blocks updates on fibers that are completely detached/lost.
+            if (rootCurrent != null && 
+                rootCurrent != _root.Current && 
+                (rootCurrent.Alternate == null || rootCurrent.Alternate != _root.Current))
+            {
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on detached fiber (root mismatch). Ignoring.");
                 return;
             }
 
