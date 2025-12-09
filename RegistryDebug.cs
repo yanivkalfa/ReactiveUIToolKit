@@ -19,5 +19,13 @@ public static class RegistryDebug
             Debug.Log($"[RegistryDebug] Resolve('{type}') -> {adapter?.GetType().Name ?? "NULL"}");
         }
     }
+
+
+    [MenuItem("ReactiveUITK/Debug/Run Duplication Test")]
+    public static void RunDuplicationTest()
+    {
+        var container = new UnityEngine.UIElements.VisualElement();
+        ReactiveUITK.Tests.FiberTest.RunDetachedUpdateTest(container);
+    }
 }
 #endif

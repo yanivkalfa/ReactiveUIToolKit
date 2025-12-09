@@ -140,33 +140,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             var rootVNode = _root.RootVNode;
 
-            if (rootVNode == null)
-            {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootVNode null");
-                return;
-            }
-
-            // Find the root fiber for this update by walking up the
-            // parent chain. Fall back to the current root if needed.
-            FiberNode rootCurrent = fiber;
-            while (rootCurrent != null && rootCurrent.Parent != null)
-            {
-                rootCurrent = rootCurrent.Parent;
-            }
-            if (rootCurrent == null)
-            {
-                rootCurrent = _root.Current;
-            }
-            if (rootCurrent == null)
-            {
-                // No valid root to update; safely bail out.
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
-                return;
-            }
-
-            // Create work-in-progress root
-            _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
-            _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
 
             // Start work loop (scheduler-based when available)
