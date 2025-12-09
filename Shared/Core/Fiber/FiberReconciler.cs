@@ -675,28 +675,6 @@ namespace ReactiveUITK.Core.Fiber
                     }
 
                     _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
-
-                    try
-                    {
-                        if (
-                            fiber.ElementType == "Slider"
-                            || fiber.ElementType == "Label"
-                            || fiber.ElementType == "VisualElement"
-                        )
-                        {
-                            UnityEngine.Debug.Log(
-                                "[DuplicationTest][FiberReconciler] CommitPlacement "
-                                    + $"type={fiber.ElementType} "
-                                    + $"name={fiber.HostElement?.name} "
-                                    + $"parentType={parentFiber.ElementType} "
-                                    + $"parentName={parentFiber.HostElement?.name}"
-                            );
-                        }
-                    }
-                    catch
-                    {
-                        // Logging should never break rendering.
-                    }
                 }
             }
             else
