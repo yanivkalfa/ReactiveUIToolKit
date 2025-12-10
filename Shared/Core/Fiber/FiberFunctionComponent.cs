@@ -195,8 +195,18 @@ namespace ReactiveUITK.Core.Fiber
                     return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
-                    return fiber.Tag == FiberTag.FunctionComponent
-                        && fiber.Render == vnode.FunctionRender;
+                    if (fiber.Tag != FiberTag.FunctionComponent) return false;
+                    
+                    // Check delegate equality
+                    if (fiber.Render == vnode.FunctionRender) return true;
+                    
+                    // Handle method group conversion (creates new delegate instance)
+                    if (fiber.Render != null && vnode.FunctionRender != null)
+                    {
+                        return fiber.Render.Method == vnode.FunctionRender.Method 
+                            && fiber.Render.Target == vnode.FunctionRender.Target;
+                    }
+                    return false;
 
                 case VirtualNodeType.Suspense:
                     return fiber.Tag == FiberTag.FunctionComponent

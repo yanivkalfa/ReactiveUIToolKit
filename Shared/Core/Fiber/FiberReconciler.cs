@@ -21,6 +21,8 @@ namespace ReactiveUITK.Core.Fiber
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
         private bool _workScheduled;
+        private bool _isCommitting; // Track if we're in the commit phase
+        private VirtualNode _pendingRootVNode; // Deferred update scheduled during commit
         private const float TimeSliceMs = 2.0f;
 
         // Metrics
@@ -118,10 +120,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] ScheduleUpdateOnFiber");
             if (_root == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No root");
                 return;
             }
 
@@ -142,17 +142,60 @@ namespace ReactiveUITK.Core.Fiber
 
             if (rootVNode == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootVNode null");
                 return;
             }
 
             // Find the root fiber for this update by walking up the
-            // parent chain. Fall back to the current root if needed.
+            // parent chain. Also check for deletion flags along the way.
             FiberNode rootCurrent = fiber;
-            while (rootCurrent != null && rootCurrent.Parent != null)
+            bool isDeleted = false;
+            while (rootCurrent != null)
             {
+                if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
+                {
+                    isDeleted = true;
+                    break;
+                }
+                if (rootCurrent.Parent == null)
+                {
+                    break;
+                }
                 rootCurrent = rootCurrent.Parent;
             }
+
+            if (isDeleted)
+            {
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on deleted fiber. Ignoring.");
+                return;
+            }
+
+            // If we walked up and found a root, check if it matches the active root.
+            if (rootCurrent != null)
+            {
+                if (rootCurrent == _root.Current)
+                {
+                    // Found the active root. Good.
+                }
+                else if (rootCurrent == _root.WorkInProgress)
+                {
+                    // Found the WorkInProgress root.
+                    // This means we are scheduling an update on a tree that is currently being built (cascading update).
+                    // We should continue using this root as the WIP.
+                }
+                else if (rootCurrent == _root.Current.Alternate)
+                {
+                    // Found the alternate root (which is not currently set as WIP).
+                    // This is valid during a commit phase or if we are interacting with a tree that is being committed.
+                    // We allow it to proceed, as it will create a WIP from this root.
+                }
+                else
+                {
+                    // This fiber is detached from the current tree (and its alternate)
+                    UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
+                    return;
+                }
+            }
+
             if (rootCurrent == null)
             {
                 rootCurrent = _root.Current;
@@ -160,12 +203,37 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
+                return;
+            }
+
+            // If we're in the commit phase, defer this update until commit completes.
+            // Resetting Child=null during commit would corrupt the tree being committed.
+            if (_isCommitting)
+            {
+                _pendingRootVNode = rootVNode ?? _pendingRootVNode;
                 return;
             }
 
             // Create work-in-progress root
-            _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+            if (rootCurrent == _root.WorkInProgress)
+            {
+                // If we are updating the WIP, we don't need to create it.
+                // We just need to ensure it has the latest props/vnode if provided.
+                _workInProgressRoot = rootCurrent;
+                if (rootVNode != null)
+                {
+                    _workInProgressRoot.PendingProps = ExtractProps(rootVNode);
+                    _workInProgressRoot.Children = new[] { rootVNode };
+                    _workInProgressRoot.Child = null; // Reset child to force reconciliation
+                    _workInProgressRoot.EffectTag = EffectFlags.None;
+                    _workInProgressRoot.NextEffect = null;
+                    _workInProgressRoot.Deletions = null;
+                }
+            }
+            else
+            {
+                _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+            }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
 
@@ -176,9 +244,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                UnityEngine.Debug.Log(
-                    "[DuplicationTest][FiberReconciler] Running WorkLoop synchronously"
-                );
                 WorkLoop();
             }
         }
@@ -189,7 +254,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void WorkLoop()
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop begin");
             RenderPhaseSampler.Begin();
             try
             {
@@ -208,7 +272,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 CommitRoot();
             }
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop end");
         }
 
         /// <summary>
@@ -248,7 +311,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_nextUnitOfWork == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No work for deadline");
                 return;
             }
 
@@ -444,6 +506,14 @@ namespace ReactiveUITK.Core.Fiber
                 };
                 current.Alternate = workInProgress;
             }
+            else
+            {
+                // When reusing the alternate, ensure Alternate points back to current.
+                // This is critical: after a commit, Current becomes the finished tree,
+                // and its Alternate (which we're reusing) must point to Current so
+                // reconciliation can find the children via wipFiber.Alternate.Child.
+                workInProgress.Alternate = current;
+            }
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
@@ -480,7 +550,7 @@ namespace ReactiveUITK.Core.Fiber
         private void CommitRoot()
         {
             _commitCount++;
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot start");
+            _isCommitting = true; // Prevent ScheduleUpdateOnFiber from corrupting WIP
 
             CommitPhaseSampler.Begin();
             try
@@ -515,11 +585,19 @@ namespace ReactiveUITK.Core.Fiber
                 _root.LastEffect = null;
 
                 EmitMetrics();
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot completed");
             }
             finally
             {
                 CommitPhaseSampler.End();
+                _isCommitting = false;
+
+                // Process any deferred updates scheduled during commit
+                if (_pendingRootVNode != null)
+                {
+                    var pendingVNode = _pendingRootVNode;
+                    _pendingRootVNode = null;
+                    ScheduleUpdateOnFiber(_root.Current, pendingVNode);
+                }
             }
         }
 
@@ -710,6 +788,28 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
+        /// Commit layout effects
+        /// </summary>
+        private void CommitLayoutEffects(FiberNode fiber)
+        {
+            if (fiber.Tag == FiberTag.FunctionComponent)
+            {
+                FiberFunctionComponent.CommitLayoutEffects(fiber);
+            }
+        }
+
+        /// <summary>
+        /// Schedule passive effects
+        /// </summary>
+        private void SchedulePassiveEffects(FiberNode fiber)
+        {
+            if (fiber.Tag == FiberTag.FunctionComponent)
+            {
+                FiberFunctionComponent.SchedulePassiveEffects(fiber);
+            }
+        }
+
+        /// <summary>
         /// Commit deletion - remove element from DOM
         /// </summary>
         private void CommitDeletion(FiberNode fiber)
@@ -763,46 +863,23 @@ namespace ReactiveUITK.Core.Fiber
             var child = fiber.Child;
             while (child != null)
             {
-                var nextSibling = child.Sibling;
                 CommitDeletion(child);
-                child = nextSibling;
+                child = child.Sibling;
             }
 
-            // Portals do not own the portal target element.
-            if (fiber.Tag == FiberTag.HostPortal)
-            {
-                return;
-            }
-
+            // If this fiber has a HostElement, remove it from its parent
             if (fiber.HostElement != null)
             {
-                var parent = _hostConfig.GetParent(fiber.HostElement);
-                if (parent != null)
+                var parentFiber = fiber.Parent;
+                while (parentFiber != null && parentFiber.HostElement == null)
                 {
-                    _hostConfig.RemoveChild(parent, fiber.HostElement);
+                    parentFiber = parentFiber.Parent;
                 }
-            }
-        }
 
-        /// <summary>
-        /// Commit layout effects
-        /// </summary>
-        private void CommitLayoutEffects(FiberNode fiber)
-        {
-            if (fiber.Tag == FiberTag.FunctionComponent)
-            {
-                FiberFunctionComponent.CommitLayoutEffects(fiber);
-            }
-        }
-
-        /// <summary>
-        /// Schedule passive effects
-        /// </summary>
-        private void SchedulePassiveEffects(FiberNode fiber)
-        {
-            if (fiber.Tag == FiberTag.FunctionComponent)
-            {
-                FiberFunctionComponent.SchedulePassiveEffects(fiber);
+                if (parentFiber?.HostElement != null)
+                {
+                    _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
+                }
             }
         }
 
@@ -810,8 +887,7 @@ namespace ReactiveUITK.Core.Fiber
 
         private FiberNode UpdateHostComponent(FiberNode fiber)
         {
-            // For now, just reconcile children
-            // In full implementation, this would handle element creation too
+            // Reconcile children for this host element.
             if (fiber.Children != null && fiber.Children.Count > 0)
             {
                 ReconcileChildren(fiber, fiber.Children);

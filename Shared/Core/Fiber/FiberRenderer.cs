@@ -17,7 +17,6 @@ namespace ReactiveUITK.Core.Fiber
 
         public FiberRenderer(VisualElement container, HostContext context = null)
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberRenderer] ctor");
             _container = container;
 
             if (context == null)
@@ -34,10 +33,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void Render(VirtualNode vnode)
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberRenderer] Render");
             if (_root == null)
             {
-                // Initial mount
+                // Initial mount - ensure container is clean
+                _container.Clear();
                 _root = _reconciler.CreateRoot(_container, vnode);
             }
             else
@@ -52,7 +51,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void Clear()
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberRenderer] Clear");
             _container.Clear();
             _root = null;
         }

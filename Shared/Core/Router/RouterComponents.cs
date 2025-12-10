@@ -15,7 +15,6 @@ namespace ReactiveUITK.Router
             IReadOnlyList<VirtualNode> children
         )
         {
-            UnityEngine.Debug.Log("[DuplicationTest][RouterFunc] Render start");
             props ??= new Dictionary<string, object>();
             props.TryGetValue("history", out var historyObj);
             props.TryGetValue("initialPath", out var initialPathObj);
@@ -86,9 +85,7 @@ namespace ReactiveUITK.Router
             var rootEntry = new RouteContextEntry(rootMatch, "/", null, HookContext.Current);
             Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, rootEntry);
 
-            var fragment = RouterRenderUtils.Fragment(children);
-            UnityEngine.Debug.Log($"[DuplicationTest][RouterFunc] Render end - {fragment}");
-            return fragment;
+            return RouterRenderUtils.Fragment(children);
         }
     }
 
@@ -99,11 +96,9 @@ namespace ReactiveUITK.Router
             IReadOnlyList<VirtualNode> children
         )
         {
-            UnityEngine.Debug.Log("[DuplicationTest][RouteFunc] Render start");
             var router = RouterHooks.UseRouter();
             if (router == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][RouteFunc] router null");
                 return null;
             }
 
@@ -125,14 +120,10 @@ namespace ReactiveUITK.Router
             {
                 resolvedPath = RouterPath.Combine(parentMatch?.Pattern ?? "/", path);
             }
-            UnityEngine.Debug.Log(
-                $"[DuplicationTest][RouteFunc] path={path} resolved={resolvedPath} exact={exact} location={router.Location.Path}"
-            );
 
             var match = RouteMatcher.Match(router.Location.Path, resolvedPath, exact, parentMatch);
             if (match == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][RouteFunc] no match");
                 return null;
             }
 
@@ -156,17 +147,14 @@ namespace ReactiveUITK.Router
             if (renderObj is Func<RouteMatch, VirtualNode> renderFunc)
             {
                 var someNode = renderFunc(match);
-                UnityEngine.Debug.Log("[DuplicationTest][RouteFunc] render delegate used");
                 return someNode;
             }
 
             if (elementObj is VirtualNode vnode)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][RouteFunc] element vnode return");
                 return vnode;
             }
 
-            UnityEngine.Debug.Log("[DuplicationTest][RouteFunc] returning fragment children");
             return RouterRenderUtils.Fragment(children);
         }
     }
@@ -178,11 +166,9 @@ namespace ReactiveUITK.Router
             IReadOnlyList<VirtualNode> children
         )
         {
-            UnityEngine.Debug.Log("[DuplicationTest][LinkFunc] Render start");
             var router = RouterHooks.UseRouter();
             if (router == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][LinkFunc] router null");
                 return null;
             }
             var routeMatch =
@@ -202,9 +188,6 @@ namespace ReactiveUITK.Router
             bool replace = replaceObj is bool replaceFlag && replaceFlag;
             Style style = styleObj as Style;
             string navigationBase = routeEntry?.NavigationBase ?? routeMatch?.Pattern;
-            UnityEngine.Debug.Log(
-                $"[DuplicationTest][LinkFunc] to={to} replace={replace} base={navigationBase}"
-            );
 
             Action navigate = () =>
             {
@@ -221,7 +204,6 @@ namespace ReactiveUITK.Router
                 {
                     target = RouterPath.Combine(navigationBase ?? "/", to);
                 }
-                UnityEngine.Debug.Log($"[DuplicationTest][LinkFunc] navigate target={target}");
                 if (replace)
                 {
                     router.Replace?.Invoke(target, stateObj);
@@ -240,7 +222,6 @@ namespace ReactiveUITK.Router
                     OnClick = navigate,
                 }
             );
-            UnityEngine.Debug.Log($"[DuplicationTest][LinkFunc] Render end: {button}");
             return button;
         }
     }
