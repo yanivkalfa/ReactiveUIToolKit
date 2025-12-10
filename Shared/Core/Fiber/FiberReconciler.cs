@@ -120,10 +120,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] ScheduleUpdateOnFiber");
             if (_root == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No root");
                 return;
             }
 
@@ -144,7 +142,6 @@ namespace ReactiveUITK.Core.Fiber
 
             if (rootVNode == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootVNode null");
                 return;
             }
 
@@ -206,7 +203,6 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] rootCurrent null");
                 return;
             }
 
@@ -214,7 +210,6 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Deferring update during commit");
                 _pendingRootVNode = rootVNode ?? _pendingRootVNode;
                 return;
             }
@@ -241,8 +236,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
-            
-            UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] Work scheduled. _nextUnitOfWork={(_nextUnitOfWork != null ? "set" : "null")}");
 
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
@@ -251,9 +244,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                UnityEngine.Debug.Log(
-                    "[DuplicationTest][FiberReconciler] Running WorkLoop synchronously"
-                );
                 WorkLoop();
             }
         }
@@ -264,7 +254,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void WorkLoop()
         {
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop begin");
             RenderPhaseSampler.Begin();
             try
             {
@@ -283,7 +272,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 CommitRoot();
             }
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] WorkLoop end");
         }
 
         /// <summary>
@@ -323,7 +311,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_nextUnitOfWork == null)
             {
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] No work for deadline");
                 return;
             }
 
@@ -564,7 +551,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             _commitCount++;
             _isCommitting = true; // Prevent ScheduleUpdateOnFiber from corrupting WIP
-            UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot start");
 
             CommitPhaseSampler.Begin();
             try
@@ -599,7 +585,6 @@ namespace ReactiveUITK.Core.Fiber
                 _root.LastEffect = null;
 
                 EmitMetrics();
-                UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] CommitRoot completed");
             }
             finally
             {
@@ -611,7 +596,6 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var pendingVNode = _pendingRootVNode;
                     _pendingRootVNode = null;
-                    UnityEngine.Debug.Log("[DuplicationTest][FiberReconciler] Processing deferred update after commit");
                     ScheduleUpdateOnFiber(_root.Current, pendingVNode);
                 }
             }
@@ -745,28 +729,6 @@ namespace ReactiveUITK.Core.Fiber
                     }
 
                     _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
-
-                    try
-                    {
-                        if (
-                            fiber.ElementType == "Slider"
-                            || fiber.ElementType == "Label"
-                            || fiber.ElementType == "VisualElement"
-                        )
-                        {
-                            UnityEngine.Debug.Log(
-                                "[DuplicationTest][FiberReconciler] CommitPlacement "
-                                    + $"type={fiber.ElementType} "
-                                    + $"name={fiber.HostElement?.name} "
-                                    + $"parentType={parentFiber.ElementType} "
-                                    + $"parentName={parentFiber.HostElement?.name}"
-                            );
-                        }
-                    }
-                    catch
-                    {
-                        // Logging should never break rendering.
-                    }
                 }
             }
             else
@@ -857,9 +819,6 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            // Debug log for deletion entry
-            UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] CommitDeletion type={fiber.ElementType} hostElement={(fiber.HostElement != null ? "set" : "null")}");
-
             // Depth-first delete: clean up subtree before removing the current node.
 
             // If this is a function component, clean up effects and signal subscriptions.
@@ -919,7 +878,6 @@ namespace ReactiveUITK.Core.Fiber
 
                 if (parentFiber?.HostElement != null)
                 {
-                    UnityEngine.Debug.Log($"[DuplicationTest][FiberReconciler] Removing {fiber.ElementType} from {parentFiber.ElementType}");
                     _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
                 }
             }
@@ -1109,14 +1067,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             // Get current children from alternate (if exists)
             var currentFirstChild = wipFiber.Alternate?.Child;
-
-            UnityEngine.Debug.Log(
-                $"[DuplicationTest][FiberReconciler] ReconcileChildren wip={wipFiber.ElementType} " +
-                $"alternate={(wipFiber.Alternate != null ? "set" : "null")} " +
-                $"alternateChild={(wipFiber.Alternate?.Child != null ? wipFiber.Alternate.Child.ElementType : "null")} " +
-                $"currentFirstChild={(currentFirstChild != null ? currentFirstChild.ElementType : "null")} " +
-                $"vnodeCount={(vnodes?.Count ?? 0)}"
-            );
 
             // Use the full reconciliation algorithm
             FiberChildReconciliation.ReconcileChildren(wipFiber, currentFirstChild, vnodes);

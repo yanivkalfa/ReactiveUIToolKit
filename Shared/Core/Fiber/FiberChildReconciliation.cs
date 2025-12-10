@@ -384,12 +384,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static void DeleteChild(FiberNode parentFiber, FiberNode childFiber)
         {
-            UnityEngine.Debug.Log(
-                $"[DuplicationTest][FiberChildReconciliation] DeleteChild " +
-                $"parent={parentFiber.ElementType} child={childFiber.ElementType} " +
-                $"childHostElement={(childFiber.HostElement != null ? childFiber.HostElement.name : "null")}"
-            );
-
             if (parentFiber.Deletions == null)
             {
                 parentFiber.Deletions = new List<FiberNode>();
@@ -404,11 +398,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static void DeleteRemainingChildren(FiberNode parentFiber, FiberNode firstChild)
         {
-            UnityEngine.Debug.Log(
-                $"[DuplicationTest][FiberChildReconciliation] DeleteRemainingChildren " +
-                $"parent={parentFiber.ElementType} firstChild={(firstChild != null ? firstChild.ElementType : "null")}"
-            );
-
             var child = firstChild;
             while (child != null)
             {
