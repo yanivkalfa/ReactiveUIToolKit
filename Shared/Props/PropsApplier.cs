@@ -1570,8 +1570,8 @@ namespace ReactiveUITK.Props
                 }
 
                 if (
-                    ReactiveUITK.Core.Reconciler.TraceLevel
-                    == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                    ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                    == ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
                 )
                 {
                     try
@@ -2092,8 +2092,9 @@ namespace ReactiveUITK.Props
             {
                 var ve = evt?.target as VisualElement;
                 if (
-                    Core.Reconciler.EnableDiffTracing
-                    && Core.Reconciler.TraceLevel == Core.Reconciler.DiffTraceLevel.Verbose
+                    Core.Diagnostics.DiagnosticsConfig.EnableDiffTracing
+                    && Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                        == Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
                 )
                 {
                     Debug.Log(

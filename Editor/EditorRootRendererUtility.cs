@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Core.Diagnostics;
 using ReactiveUITK.Signals;
 using UnityEditor;
 using UnityEngine.UIElements;
@@ -27,10 +28,14 @@ namespace ReactiveUITK.EditorSupport
                 SignalsRuntime.EnsureInitialized();
 
                 hostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
-                Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
-                Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
-                Reconciler.UseExceptionBoundaryFlow =
+
+                DiagnosticsConfig.CurrentTraceLevel = BuildDefinesConfig.ResolveTraceLevel();
+                DiagnosticsConfig.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                DiagnosticsConfig.UseExceptionBoundaryFlow =
                     BuildDefinesConfig.ResolveExceptionBoundaryFlow();
+
+                InternalLogOptions.EnableInternalLogs =
+                    DiagnosticsConfig.CurrentTraceLevel == DiagnosticsConfig.TraceLevel.Verbose;
                 renderer = new VNodeHostRenderer(hostContext, hostElement);
                 renderersByHost[hostElement] = renderer;
             }

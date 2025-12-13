@@ -88,8 +88,9 @@ export const ConceptsPage: FC = () => (
           <ListItemText
             primary={
               <>
-                <code>RUITK_DIFF_TRACING</code> — force <code>Reconciler.EnableDiffTracing</code>{' '}
-                to <code>true</code> for detailed diff diagnostics.
+                <code>RUITK_DIFF_TRACING</code> — force{' '}
+                <code>DiagnosticsConfig.EnableDiffTracing</code> to <code>true</code> for detailed
+                Fiber diff diagnostics.
               </>
             }
           />
