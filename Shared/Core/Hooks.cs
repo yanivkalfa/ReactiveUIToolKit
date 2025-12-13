@@ -251,7 +251,7 @@ namespace ReactiveUITK.Core
                     catch { }
                 }
 
-                // Legacy reconciler path: use the old metadata+FrameBatcher.
+                // Schedule a rerender via either Fiber (preferred) or legacy metadata.
                 Hooks.RequestComponentRerender(metadata);
             }
 
@@ -602,12 +602,6 @@ namespace ReactiveUITK.Core
             {
                 state.OnStateUpdated.Invoke();
                 return;
-            }
-
-            // Legacy path requires metadata + reconciler
-            if (metadata?.Reconciler != null)
-            {
-                ReactiveUITK.Core.FrameBatcher.Enqueue(metadata);
             }
         }
 
@@ -1183,10 +1177,7 @@ namespace ReactiveUITK.Core
                 entry.deps = dependencies;
                 state.FunctionEffects[index] = entry;
             }
-            if (
-                ReactiveUITK.Core.Reconciler.TraceLevel
-                == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
-            )
+            if (DiagnosticsConfig.CurrentTraceLevel == DiagnosticsConfig.TraceLevel.Verbose)
             {
                 try
                 {
@@ -1401,40 +1392,29 @@ namespace ReactiveUITK.Core
             // Resolve context value
             object resolved = default;
 
-            // Legacy path: use HostContext with metadata + provider frames
-            if (metadata != null && metadata.HostContext != null)
+            // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
+            var fiber = state.Fiber;
+            while (fiber != null)
             {
-                int version;
-                int providerId;
-                resolved = metadata.HostContext.ResolveContext(key, out version, out providerId);
-                metadata.HostContext.RegisterContextConsumer(metadata, key, providerId);
-            }
-            else
-            {
-                // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
-                var fiber = state.Fiber;
-                while (fiber != null)
+                if (
+                    fiber.ProvidedContext != null
+                    && fiber.ProvidedContext.TryGetValue(key, out resolved)
+                )
                 {
-                    if (
-                        fiber.ProvidedContext != null
-                        && fiber.ProvidedContext.TryGetValue(key, out resolved)
-                    )
-                    {
-                        break;
-                    }
-                    fiber = fiber.Parent;
+                    break;
                 }
+                fiber = fiber.Parent;
+            }
 
-                if (resolved == null && state.HostContext != null)
+            if (resolved == null && state.HostContext != null)
+            {
+                // Fallback to global environment
+                if (
+                    state.HostContext.Environment != null
+                    && state.HostContext.Environment.TryGetValue(key, out var envVal)
+                )
                 {
-                    // Fallback to global environment
-                    if (
-                        state.HostContext.Environment != null
-                        && state.HostContext.Environment.TryGetValue(key, out var envVal)
-                    )
-                    {
-                        resolved = envVal;
-                    }
+                    resolved = envVal;
                 }
             }
 
@@ -1511,15 +1491,6 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            // Legacy path: use NodeMetadata pending context
-            NodeMetadata metadata = HookContext.Current?.Owner;
-            if (metadata != null)
-            {
-                metadata.PendingProvidedContext ??= new Dictionary<string, object>();
-                metadata.PendingProvidedContext[key] = value;
-                return;
-            }
-
             // Fiber path: attach provided context to the current function component state / fiber
             var state = HookContext.Current;
             var fiber = state?.Fiber;
@@ -1528,10 +1499,7 @@ namespace ReactiveUITK.Core
                 return;
             }
 
-            if (fiber.ProvidedContext == null)
-            {
-                fiber.ProvidedContext = new Dictionary<string, object>();
-            }
+            fiber.ProvidedContext ??= new Dictionary<string, object>();
             fiber.ProvidedContext[key] = value;
         }
 
@@ -1560,10 +1528,40 @@ namespace ReactiveUITK.Core
 
         public static void FlushSync(Action action)
         {
-            FrameBatcher.FlushSync(action);
+            if (action == null)
+            {
+                return;
+            }
+
+            // Prefer the current hook context's scheduler when available.
+            var state = HookContext.Current;
+            IScheduler scheduler = ResolveScheduler(state?.Owner);
+
+            if (scheduler != null)
+            {
+                scheduler.BeginBatch();
+                try
+                {
+                    action();
+                    scheduler.PumpNow();
+                }
+                finally
+                {
+                    scheduler.EndBatch();
+                }
+            }
+            else
+            {
+                action();
+            }
         }
 
-        public static void FlushSync() => FrameBatcher.FlushSync();
+        public static void FlushSync()
+        {
+            var state = HookContext.Current;
+            IScheduler scheduler = ResolveScheduler(state?.Owner);
+            scheduler?.PumpNow();
+        }
 
         private static readonly Func<object, object> IdentitySelector = value => value;
 

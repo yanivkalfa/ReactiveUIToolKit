@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using ReactiveUITK.Core.Diagnostics;
 using ReactiveUITK.Signals;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -36,10 +37,16 @@ namespace ReactiveUITK.Core
                 sharedHostContext.Environment["isEditor"] = false;
 
                 sharedHostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
-                Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
-                Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
-                Reconciler.UseExceptionBoundaryFlow =
+
+                // Initialize global diagnostics configuration from build defines.
+                DiagnosticsConfig.CurrentTraceLevel = BuildDefinesConfig.ResolveTraceLevel();
+                DiagnosticsConfig.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                DiagnosticsConfig.UseExceptionBoundaryFlow =
                     BuildDefinesConfig.ResolveExceptionBoundaryFlow();
+
+                // For now, drive internal logs off the verbose trace level.
+                InternalLogOptions.EnableInternalLogs =
+                    DiagnosticsConfig.CurrentTraceLevel == DiagnosticsConfig.TraceLevel.Verbose;
             }
         }
 
