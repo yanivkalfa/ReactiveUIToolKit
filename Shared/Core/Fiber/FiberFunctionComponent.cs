@@ -46,7 +46,7 @@ namespace ReactiveUITK.Core.Fiber
             componentState.IsRendering = true;
 
             // DIAGNOSTIC LOG (TEMPORARY)
-            if (wipFiber.ElementType == "App.Root")
+            if (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Root"))
             {
                  bool propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
                  UnityEngine.Debug.Log($"[BailoutCheck] App.Root - PendingState: {wipFiber.HasPendingStateUpdate}, SubtreeUpdates: {wipFiber.SubtreeHasUpdates}, PropsEqual: {propsEqual}");
