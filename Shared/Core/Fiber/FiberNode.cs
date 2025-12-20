@@ -103,6 +103,16 @@ namespace ReactiveUITK.Core.Fiber
             object[] lastDeps,
             Action cleanup
         )> PassiveEffects;
+
+        /// <summary>
+        /// Flag indicating this fiber has a pending state update
+        /// </summary>
+        public bool HasPendingStateUpdate;
+
+        /// <summary>
+        /// Flag indicating a descendant has a pending update
+        /// </summary>
+        public bool SubtreeHasUpdates;
     }
 
     /// <summary>
@@ -152,5 +162,7 @@ namespace ReactiveUITK.Core.Fiber
 
         /// <summary>Ref needs update</summary>
         Ref = 1 << 5,
+
+
     }
 }

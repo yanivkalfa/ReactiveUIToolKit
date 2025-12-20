@@ -45,6 +45,34 @@ namespace ReactiveUITK.Core.Fiber
             HookContext.Current = componentState;
             componentState.IsRendering = true;
 
+            // Bailout check: if no state update and props match, we can skip rendering
+            if (!wipFiber.HasPendingStateUpdate && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
+            {
+                // If the subtree has updates, we still need to process the children.
+                // We use CloneChildFibers to reuse the previous fiber structure without re-rendering this component.
+                if (wipFiber.SubtreeHasUpdates)
+                {
+                    try
+                    {
+                        var clonedChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
+                        return clonedChild;
+                    }
+                    finally
+                    {
+                        componentState.IsRendering = false;
+                        HookContext.Current = null;
+                    }
+                }
+                else
+                {
+                    // Full bailout: no updates here or in subtree.
+                    // Returning null here stops the traversal for this branch.
+                    componentState.IsRendering = false;
+                    HookContext.Current = null;
+                    return null;
+                }
+            }
+
             VirtualNode childVNode = null;
 
             try
@@ -473,5 +501,23 @@ namespace ReactiveUITK.Core.Fiber
             // TODO: Use proper scheduler
             effect?.Invoke();
         }
+        /// <summary>
+        /// Compare props for equality (shallow comparison)
+        /// </summary>
+        private static bool ArePropsEqual(IReadOnlyDictionary<string, object> prev, IReadOnlyDictionary<string, object> next)
+        {
+            if (prev == next) return true;
+            if (prev == null || next == null) return false;
+            if (prev.Count != next.Count) return false;
+
+            foreach (var kvp in prev)
+            {
+                if (!next.TryGetValue(kvp.Key, out var nextVal)) return false;
+                if (!object.Equals(kvp.Value, nextVal)) return false;
+            }
+
+            return true;
+        }
+
     }
 }

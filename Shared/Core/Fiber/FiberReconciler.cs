@@ -145,10 +145,14 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            // Find the root fiber for this update by walking up the
-            // parent chain. Also check for deletion flags along the way.
+            // Find the root fiber by walking up.
+            // Mark the path as having updates.
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
+            
+            // Mark the target fiber as having an update
+            fiber.HasPendingStateUpdate = true;
+
             while (rootCurrent != null)
             {
                 if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
@@ -156,6 +160,13 @@ namespace ReactiveUITK.Core.Fiber
                     isDeleted = true;
                     break;
                 }
+                
+                // Mark parent as having a subtree update
+                if (rootCurrent.Parent != null)
+                {
+                    rootCurrent.Parent.SubtreeHasUpdates = true;
+                }
+
                 if (rootCurrent.Parent == null)
                 {
                     break;
@@ -514,6 +525,9 @@ namespace ReactiveUITK.Core.Fiber
                 // reconciliation can find the children via wipFiber.Alternate.Child.
                 workInProgress.Alternate = current;
             }
+
+            workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
+            workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
