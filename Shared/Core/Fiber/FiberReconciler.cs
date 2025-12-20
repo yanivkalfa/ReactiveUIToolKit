@@ -120,8 +120,11 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
+            UnityEngine.Debug.Log($"[FiberReconciler] ScheduleUpdateOnFiber. Fiber={fiber?.ElementType}, VNode={vnode?.NodeType}");
+
             if (_root == null)
             {
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Root is null!");
                 return;
             }
 
@@ -247,6 +250,8 @@ namespace ReactiveUITK.Core.Fiber
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
+
+            UnityEngine.Debug.Log($"[FiberReconciler] Update scheduled. NextUnitOfWork={_nextUnitOfWork?.ElementType}");
 
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
@@ -1086,6 +1091,8 @@ namespace ReactiveUITK.Core.Fiber
 
         private void ReconcileChildren(FiberNode wipFiber, IReadOnlyList<VirtualNode> vnodes)
         {
+            if (wipFiber.ElementType == "root" || wipFiber.ElementType == "App.Root")
+                 UnityEngine.Debug.Log($"[FiberReconciler] Reconciling children for {wipFiber.ElementType}. VNodes count: {vnodes?.Count ?? 0}");
             // Get current children from alternate (if exists)
             var currentFirstChild = wipFiber.Alternate?.Child;
 
