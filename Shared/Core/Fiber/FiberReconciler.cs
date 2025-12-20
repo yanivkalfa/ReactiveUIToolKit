@@ -496,6 +496,9 @@ namespace ReactiveUITK.Core.Fiber
             {
                 AppendToEffectList(fiber);
             }
+
+            // Commit the props for the next comparison
+            fiber.Props = fiber.PendingProps;
         }
 
         /// <summary>
@@ -524,6 +527,7 @@ namespace ReactiveUITK.Core.Fiber
                 // and its Alternate (which we're reusing) must point to Current so
                 // reconciliation can find the children via wipFiber.Alternate.Child.
                 workInProgress.Alternate = current;
+                workInProgress.Props = current.Props; // Keep the old props!
             }
 
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
