@@ -141,13 +141,13 @@ namespace ReactiveUITK.Core
 
             public T Set(T value)
             {
-                if (InternalLogOptions.EnableInternalLogs) UnityEngine.Debug.Log($"[Hooks] Set(T value) called. Value={value}");
+                UnityEngine.Debug.Log($"[Hooks] Set(T value) called. Value={value}");
                 return ApplyAndQueue(value);
             }
 
             private T ApplyAndQueue(StateUpdate<T> update)
             {
-                if (InternalLogOptions.EnableInternalLogs) UnityEngine.Debug.Log($"[Hooks] ApplyAndQueue called. State={state?.GetHashCode()}");
+                UnityEngine.Debug.Log($"[Hooks] ApplyAndQueue called. State={state?.GetHashCode()}");
                 if (state == null)
                 {
                     return update.Apply(default);
