@@ -5,7 +5,10 @@ namespace ReactiveUITK.Core.Fiber
     /// </summary>
     public static class FiberConfig
     {
-        public static bool EnableFiberLogging { get; set; } = true;
+        /// <summary>
+        /// Enable verbose fiber logging
+        /// </summary>
+        public static bool EnableFiberLogging { get; set; } = false;
 
         /// <summary>
         /// Enable to see which reconciler is being used
