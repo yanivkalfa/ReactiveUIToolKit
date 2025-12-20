@@ -47,8 +47,22 @@ namespace ReactiveUITK.Core.Fiber
 
             // Bailout check: if no state update and props match AND not reading context, we can skip rendering
 
+            // Bailout check: if no state update and props match AND not reading context, we can skip rendering
             if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
             {
+                 // LOGGING FOR DEBUGGING
+                 if (wipFiber.ElementType == "Router" || (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Router")))
+                 {
+                     if (wipFiber.SubtreeHasUpdates) 
+                         UnityEngine.Debug.Log($"[Bailout-Check] Router has SubtreeUpdates. Cloning children.");
+                     else 
+                         UnityEngine.Debug.Log($"[Bailout-Check] Router FULL BAILOUT (No pending, No subtree, No context-read).");
+                 }
+                 else if (wipFiber.ElementType == "Root" || (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("App.Root")))
+                 {
+                      UnityEngine.Debug.Log($"[Bailout-Check] App.Root BAILOUT - SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}");
+                 }
+
                 // RE-ENABLE BAILOUT
                 // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
                 if (wipFiber.SubtreeHasUpdates)
@@ -62,6 +76,12 @@ namespace ReactiveUITK.Core.Fiber
                 componentState.IsRendering = false;
                 HookContext.Current = null;
                 return null;
+            }
+
+            // LOGGING FOR RENDER
+            if (wipFiber.ElementType == "Router" || (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Router")))
+            {
+                 UnityEngine.Debug.Log($"[Render-Start] Rendering Router directly. PendingState: {wipFiber.HasPendingStateUpdate}, ReadsContext: {wipFiber.ReadsContext}");
             }
 
             VirtualNode childVNode = null;
