@@ -828,6 +828,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private void CommitDeletion(FiberNode fiber)
         {
+            if (fiber != null && FiberConfig.EnableFiberLogging)
+            {
+                UnityEngine.Debug.Log($"[FiberReconciler] Deleting fiber: {fiber.ElementType} Key: {fiber.Key}");
+            }
             if (fiber == null)
             {
                 return;
