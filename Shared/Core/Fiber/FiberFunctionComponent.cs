@@ -49,7 +49,24 @@ namespace ReactiveUITK.Core.Fiber
             if (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Root"))
             {
                  bool propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
-                 UnityEngine.Debug.Log($"[BailoutCheck] App.Root - PendingState: {wipFiber.HasPendingStateUpdate}, SubtreeUpdates: {wipFiber.SubtreeHasUpdates}, PropsEqual: {propsEqual}");
+                 var sb = new System.Text.StringBuilder();
+                 sb.AppendLine($"[BailoutCheck] App.Root - PendingState: {wipFiber.HasPendingStateUpdate}, SubtreeUpdates: {wipFiber.SubtreeHasUpdates}, PropsEqual: {propsEqual}");
+                 
+                 if (!propsEqual) {
+                     sb.AppendLine("Props Diff:");
+                     if (wipFiber.Props == null) sb.AppendLine("Old Props is NULL");
+                     else if (wipFiber.PendingProps == null) sb.AppendLine("New Props is NULL");
+                     else {
+                         foreach (var kvp in wipFiber.Props)
+                         {
+                            if (!wipFiber.PendingProps.TryGetValue(kvp.Key, out var newVal))
+                                 sb.AppendLine($"Key {kvp.Key} missing in PendingProps");
+                            else if (!object.Equals(kvp.Value, newVal))
+                                 sb.AppendLine($"Key {kvp.Key} value changed: {kvp.Value?.GetHashCode()} -> {newVal?.GetHashCode()} (Val: {kvp.Value} -> {newVal})");
+                         }
+                     }
+                 }
+                 UnityEngine.Debug.Log(sb.ToString());
             }
 
             // Bailout check: if no state update and props match, we can skip rendering

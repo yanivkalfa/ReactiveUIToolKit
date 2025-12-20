@@ -365,6 +365,7 @@ namespace ReactiveUITK.Core.Fiber
                 ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey,
                 HasPendingStateUpdate = fiber.HasPendingStateUpdate,
                 SubtreeHasUpdates = fiber.SubtreeHasUpdates,
+                EffectTag = fiber.EffectTag,
             };
         }
 
@@ -471,6 +472,8 @@ namespace ReactiveUITK.Core.Fiber
 
             return newChild;
         }
+
+
 
         private static IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
         {

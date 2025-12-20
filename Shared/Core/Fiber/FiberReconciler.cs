@@ -529,6 +529,8 @@ namespace ReactiveUITK.Core.Fiber
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
 
+
+
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
             // The passed vnode IS the child of the root, so we wrap it in a list
