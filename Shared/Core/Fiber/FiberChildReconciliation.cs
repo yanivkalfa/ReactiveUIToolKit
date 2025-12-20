@@ -457,6 +457,12 @@ namespace ReactiveUITK.Core.Fiber
             newChild.Parent = wipFiber;
             wipFiber.Child = newChild;
 
+            // Log details about the cloned child to debug flag propagation
+            if (newChild.Render != null && (newChild.Render.Method.Name.Contains("Router") || newChild.ElementType == "Router"))
+            {
+                UnityEngine.Debug.Log($"[CloneChildFibers] Cloned Router - Pending: {newChild.HasPendingStateUpdate}, Subtree: {newChild.SubtreeHasUpdates}, EffectTag: {newChild.EffectTag}");
+            }
+
             var currentSibling = currentChild.Sibling;
             var newSibling = newChild;
 

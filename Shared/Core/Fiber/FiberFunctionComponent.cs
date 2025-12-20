@@ -46,6 +46,12 @@ namespace ReactiveUITK.Core.Fiber
             componentState.IsRendering = true;
 
             // DIAGNOSTIC LOG (TEMPORARY)
+            if (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Router"))
+            {
+                 UnityEngine.Debug.Log($"[RenderCheck] Rendering Router - Pending: {wipFiber.HasPendingStateUpdate}, Subtree: {wipFiber.SubtreeHasUpdates}");
+            }
+
+            // DIAGNOSTIC LOG (TEMPORARY)
             if (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Root"))
             {
                  bool propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
