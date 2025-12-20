@@ -201,6 +201,8 @@ namespace ReactiveUITK.Core
                 // schedule a re-render. This avoids relying on the legacy
                 // queued-update mechanism, which is primarily for the
                 // old reconciler.
+                UnityEngine.Debug.Log($"[Hooks] EnqueuePendingUpdate. State={state?.GetHashCode()}, HasOnStateUpdated={state?.OnStateUpdated != null}");
+
                 if (state.OnStateUpdated != null)
                 {
                     state.HookStates ??= new List<object>();
