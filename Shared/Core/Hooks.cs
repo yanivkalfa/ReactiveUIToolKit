@@ -1389,29 +1389,36 @@ namespace ReactiveUITK.Core
 
             RecordHook(metadata, state, HookIdContext);
 
+            // Context usage makes bailout unsafe
+            if (state.Fiber != null)
+            {
+                state.Fiber.ReadsContext = true;
+            }
+
             // Resolve context value
             object resolved = default;
 
-            // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
+            // Fiber path: walk the Fiber tree's provided context
             var fiber = state.Fiber;
             while (fiber != null)
             {
                 if (
                     fiber.ProvidedContext != null
-                    && fiber.ProvidedContext.TryGetValue(key, out resolved)
+                    && fiber.ProvidedContext.TryGetValue(key, out var fiberVal)
                 )
                 {
+                    resolved = fiberVal;
                     break;
                 }
                 fiber = fiber.Parent;
             }
 
-            if (resolved == null && state.HostContext != null)
+            if (resolved == null || Equals(resolved, default(object)))
             {
-                // Fallback to global environment
+                // Fallback to HostContext environment
                 if (
-                    state.HostContext.Environment != null
-                    && state.HostContext.Environment.TryGetValue(key, out var envVal)
+                    metadata?.HostContext?.Environment != null
+                    && metadata.HostContext.Environment.TryGetValue(key, out var envVal)
                 )
                 {
                     resolved = envVal;
@@ -1435,6 +1442,8 @@ namespace ReactiveUITK.Core
             metadata?.SyncComponentState(state);
             return default;
         }
+
+
 
         public static T UseSignal<T>(Signal<T> signal)
         {

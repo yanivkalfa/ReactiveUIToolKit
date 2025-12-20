@@ -45,62 +45,23 @@ namespace ReactiveUITK.Core.Fiber
             HookContext.Current = componentState;
             componentState.IsRendering = true;
 
-            // DIAGNOSTIC LOG (TEMPORARY)
-            if (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Router"))
-            {
-                 UnityEngine.Debug.Log($"[RenderCheck] Rendering Router - Pending: {wipFiber.HasPendingStateUpdate}, Subtree: {wipFiber.SubtreeHasUpdates}");
-            }
+            // Bailout check: if no state update and props match AND not reading context, we can skip rendering
 
-            // DIAGNOSTIC LOG (TEMPORARY)
-            if (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Root"))
+            if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
             {
-                 bool propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
-                 var sb = new System.Text.StringBuilder();
-                 sb.AppendLine($"[BailoutCheck] App.Root - PendingState: {wipFiber.HasPendingStateUpdate}, SubtreeUpdates: {wipFiber.SubtreeHasUpdates}, PropsEqual: {propsEqual}");
-                 
-                 if (!propsEqual) {
-                     sb.AppendLine("Props Diff:");
-                     if (wipFiber.Props == null) sb.AppendLine("Old Props is NULL");
-                     else if (wipFiber.PendingProps == null) sb.AppendLine("New Props is NULL");
-                     else {
-                         foreach (var kvp in wipFiber.Props)
-                         {
-                            if (!wipFiber.PendingProps.TryGetValue(kvp.Key, out var newVal))
-                                 sb.AppendLine($"Key {kvp.Key} missing in PendingProps");
-                            else if (!object.Equals(kvp.Value, newVal))
-                                 sb.AppendLine($"Key {kvp.Key} value changed: {kvp.Value?.GetHashCode()} -> {newVal?.GetHashCode()} (Val: {kvp.Value} -> {newVal})");
-                         }
-                     }
-                 }
-                 UnityEngine.Debug.Log(sb.ToString());
-            }
-
-            // Bailout check: if no state update and props match, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
-            {
-                // If the subtree has updates, we still need to process the children.
-                // We use CloneChildFibers to reuse the previous fiber structure without re-rendering this component.
+                // RE-ENABLE BAILOUT
+                // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
                 if (wipFiber.SubtreeHasUpdates)
                 {
-                    try
-                    {
-                        var clonedChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
-                        return clonedChild;
-                    }
-                    finally
-                    {
-                        componentState.IsRendering = false;
-                        HookContext.Current = null;
-                    }
+                    FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
+                    return newChild;
                 }
-                else
-                {
-                    // Full bailout: no updates here or in subtree.
-                    // Returning null here stops the traversal for this branch.
-                    componentState.IsRendering = false;
-                    HookContext.Current = null;
-                    return null;
-                }
+                
+                // Full bailout: no updates here or in subtree.
+                // Returning null here stops the traversal for this branch.
+                componentState.IsRendering = false;
+                HookContext.Current = null;
+                return null;
             }
 
             VirtualNode childVNode = null;

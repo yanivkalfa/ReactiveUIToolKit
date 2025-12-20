@@ -532,6 +532,7 @@ namespace ReactiveUITK.Core.Fiber
 
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
+            workInProgress.ReadsContext = current.ReadsContext;
 
 
 
