@@ -45,6 +45,13 @@ namespace ReactiveUITK.Core.Fiber
             HookContext.Current = componentState;
             componentState.IsRendering = true;
 
+            // DIAGNOSTIC LOG (TEMPORARY)
+            if (wipFiber.ElementType == "App.Root")
+            {
+                 bool propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
+                 UnityEngine.Debug.Log($"[BailoutCheck] App.Root - PendingState: {wipFiber.HasPendingStateUpdate}, SubtreeUpdates: {wipFiber.SubtreeHasUpdates}, PropsEqual: {propsEqual}");
+            }
+
             // Bailout check: if no state update and props match, we can skip rendering
             if (!wipFiber.HasPendingStateUpdate && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
             {

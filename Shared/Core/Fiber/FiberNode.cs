@@ -162,7 +162,5 @@ namespace ReactiveUITK.Core.Fiber
 
         /// <summary>Ref needs update</summary>
         Ref = 1 << 5,
-
-
     }
 }
