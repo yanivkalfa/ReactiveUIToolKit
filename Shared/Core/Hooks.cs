@@ -139,10 +139,15 @@ namespace ReactiveUITK.Core
 
             public T Set(Func<T, T> updater) => ApplyAndQueue(updater);
 
-            public T Set(T value) => ApplyAndQueue(value);
+            public T Set(T value)
+            {
+                if (InternalLogOptions.EnableInternalLogs) UnityEngine.Debug.Log($"[Hooks] Set(T value) called. Value={value}");
+                return ApplyAndQueue(value);
+            }
 
             private T ApplyAndQueue(StateUpdate<T> update)
             {
+                if (InternalLogOptions.EnableInternalLogs) UnityEngine.Debug.Log($"[Hooks] ApplyAndQueue called. State={state?.GetHashCode()}");
                 if (state == null)
                 {
                     return update.Apply(default);
