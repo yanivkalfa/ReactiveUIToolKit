@@ -145,6 +145,7 @@ namespace ReactiveUITK.Core.Fiber
 
             if (rootVNode == null)
             {
+                UnityEngine.Debug.LogError("[FiberReconciler] _root.RootVNode is null during schedule! Cannot proceed.");
                 return;
             }
 
@@ -153,8 +154,16 @@ namespace ReactiveUITK.Core.Fiber
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
             
-            // Mark the target fiber as having an update
-            fiber.HasPendingStateUpdate = true;
+            if (fiber == null)
+            {
+                UnityEngine.Debug.LogError("[FiberReconciler] ScheduleUpdateOnFiber called with null fiber!");
+                // We can continue if we want to force a root update, but usually this is an error for state updates
+            }
+            else
+            {
+                // Mark the target fiber as having an update
+                fiber.HasPendingStateUpdate = true;
+            }
 
             while (rootCurrent != null)
             {
@@ -217,6 +226,7 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
+                UnityEngine.Debug.LogWarning("[FiberReconciler] rootCurrent is null. Cannot find a root to update.");
                 return;
             }
 
@@ -224,6 +234,7 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
+                UnityEngine.Debug.Log("[FiberReconciler] Deferring update because _isCommitting.");
                 _pendingRootVNode = rootVNode ?? _pendingRootVNode;
                 return;
             }
