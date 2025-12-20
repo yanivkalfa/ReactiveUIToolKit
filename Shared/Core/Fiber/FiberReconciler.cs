@@ -22,6 +22,7 @@ namespace ReactiveUITK.Core.Fiber
         private IScheduler _scheduler;
         private bool _workScheduled;
         private bool _isCommitting; // Track if we're in the commit phase
+        private bool _hasDeferredUpdate; // Track if an update was requested during commit
         private VirtualNode _pendingRootVNode; // Deferred update scheduled during commit
         private const float TimeSliceMs = 2.0f;
 
@@ -236,6 +237,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 UnityEngine.Debug.Log("[FiberReconciler] Deferring update because _isCommitting.");
                 _pendingRootVNode = rootVNode ?? _pendingRootVNode;
+                _hasDeferredUpdate = true;
                 return;
             }
 
@@ -629,10 +631,11 @@ namespace ReactiveUITK.Core.Fiber
                 _isCommitting = false;
 
                 // Process any deferred updates scheduled during commit
-                if (_pendingRootVNode != null)
+                if (_pendingRootVNode != null || _hasDeferredUpdate)
                 {
                     var pendingVNode = _pendingRootVNode;
                     _pendingRootVNode = null;
+                    _hasDeferredUpdate = false;
                     ScheduleUpdateOnFiber(_root.Current, pendingVNode);
                 }
             }
