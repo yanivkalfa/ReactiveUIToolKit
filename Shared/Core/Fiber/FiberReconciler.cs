@@ -226,7 +226,9 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
-                _pendingRootVNode = vnode ?? _pendingRootVNode;
+                // For state updates (vnode==null), use the root's VNode to ensure we queue an update
+                _pendingRootVNode = vnode ?? _root.RootVNode ?? _pendingRootVNode;
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Deferred during commit, queued with vnode={(vnode ?? _root.RootVNode) != null}");
                 return;
             }
 
