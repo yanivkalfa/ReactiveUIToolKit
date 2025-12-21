@@ -369,6 +369,27 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Mark fiber for placement at index
         /// </summary>
+        private static FiberNode PlaceExistingChild(FiberNode fiber, int newIndex)
+        {
+            fiber.Index = newIndex;
+            fiber.EffectTag = EffectFlags.None; // Mark as reused (no placement needed)
+            
+            // PHASE 2: Propagate flags from alternate when reusing
+            if (fiber.Alternate != null)
+            {
+                var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][PlaceExisting] Propagating from alternate - HasPending:{fiber.Alternate.HasPendingStateUpdate}, SubtreeUpdates:{fiber.Alternate.SubtreeHasUpdates}, ReadsContext:{fiber.Alternate.ReadsContext}");
+                
+                fiber.HasPendingStateUpdate = fiber.Alternate.HasPendingStateUpdate;
+                fiber.SubtreeHasUpdates = fiber.Alternate.SubtreeHasUpdates;
+                fiber.ReadsContext = fiber.Alternate.ReadsContext;
+            }
+            
+            return fiber;
+        }
+        /// <summary>
+        /// Mark fiber for placement at index
+        /// </summary>
         private static void PlaceChild(FiberNode fiber, int index)
         {
             fiber.Index = index;
