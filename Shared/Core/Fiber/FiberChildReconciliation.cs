@@ -464,5 +464,62 @@ namespace ReactiveUITK.Core.Fiber
                     return vnode.Properties ?? new Dictionary<string, object>();
             }
         }
+
+        /// <summary>
+        /// Clone child fibers from alternate without re-rendering parent.
+        /// Used for bailout optimization when parent props haven't changed
+        /// but subtree has updates.
+        /// </summary>
+        public static FiberNode CloneChildFibers(FiberNode parent)
+        {
+            var current = parent.Alternate?.Child;
+            if (current == null)
+                return null;
+
+            var newChild = CloneFiber(current, current.PendingProps);
+            parent.Child = newChild;
+            newChild.Parent = parent;
+
+            var previousNewFiber = newChild;
+            current = current.Sibling;
+
+            while (current != null)
+            {
+                var newFiber = CloneFiber(current, current.PendingProps);
+                newFiber.Parent = parent;
+                previousNewFiber.Sibling = newFiber;
+                previousNewFiber = newFiber;
+                current = current.Sibling;
+            }
+
+            previousNewFiber.Sibling = null;
+            return newChild;
+        }
+
+        /// <summary>
+        /// Clone a fiber node
+        /// </summary>
+        private static FiberNode CloneFiber(FiberNode current, IReadOnlyDictionary<string, object> newProps)
+        {
+            var clone = new FiberNode
+            {
+                Tag = current.Tag,
+                ElementType = current.ElementType,
+                Key = current.Key,
+                Render = current.Render,
+                HostElement = current.HostElement,
+                Props = current.Props,
+                PendingProps = newProps,
+                Children = current.Children,
+                Alternate = current,
+                ComponentState = current.ComponentState,
+                // Propagate update flags
+                HasPendingStateUpdate = current.HasPendingStateUpdate,
+                SubtreeHasUpdates = current.SubtreeHasUpdates,
+            };
+
+            current.Alternate = clone;
+            return clone;
+        }
     }
 }

@@ -41,6 +41,29 @@ namespace ReactiveUITK.Core.Fiber
             // Wire up state updates to Fiber reconciler
             componentState.OnStateUpdated = () => reconciler.ScheduleUpdateOnFiber(wipFiber, null);
 
+            // Bailout check: if no state update and props match, we can skip rendering
+            if (!wipFiber.HasPendingStateUpdate && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
+            {
+                // Log bailout for debugging
+                if (wipFiber.ElementType == "App.Root" || wipFiber.Render?.Method.Name == "Render")
+                {
+                    UnityEngine.Debug.Log($"[Bailout] {wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name} - SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}");
+                }
+
+                // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
+                if (wipFiber.SubtreeHasUpdates)
+                {
+                    FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
+                    return newChild;
+                }
+                
+                // Full bailout: no updates here or in subtree.
+                // Returning null here stops the traversal for this branch.
+                componentState.IsRendering = false;
+                HookContext.Current = null;
+                return null;
+            }
+
             // Set hook context
             HookContext.Current = componentState;
             componentState.IsRendering = true;
@@ -472,6 +495,32 @@ namespace ReactiveUITK.Core.Fiber
         {
             // TODO: Use proper scheduler
             effect?.Invoke();
+        }
+
+        /// <summary>
+        /// Check if props are equal (shallow comparison)
+        /// </summary>
+        private static bool ArePropsEqual(
+            IReadOnlyDictionary<string, object> props1,
+            IReadOnlyDictionary<string, object> props2
+        )
+        {
+            if (props1 == props2)
+                return true;
+            if (props1 == null || props2 == null)
+                return false;
+            if (props1.Count != props2.Count)
+                return false;
+
+            foreach (var kvp in props1)
+            {
+                if (!props2.TryGetValue(kvp.Key, out var value2))
+                    return false;
+                if (!object.Equals(kvp.Value, value2))
+                    return false;
+            }
+
+            return true;
         }
     }
 }
