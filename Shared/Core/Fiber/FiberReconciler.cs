@@ -535,13 +535,18 @@ namespace ReactiveUITK.Core.Fiber
                 workInProgress.Alternate = current;
             }
 
-            // Propagate update flags
+            // Propagate update flags to WIP
             var componentName = current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "Unknown";
             UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Propagating flags - HasPendingStateUpdate:{current.HasPendingStateUpdate}, SubtreeHasUpdates:{current.SubtreeHasUpdates}, ReadsContext:{current.ReadsContext}");
             
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
+
+            // Reset flags on current after propagating (start fresh for next cycle)
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Resetting current's flags");
+            current.HasPendingStateUpdate = false;
+            current.SubtreeHasUpdates = false;
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
@@ -612,17 +617,8 @@ namespace ReactiveUITK.Core.Fiber
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
 
-                // Only reset flags if there are NO deferred updates.
-                // If updates were scheduled during commit, they've already marked the correct flags.
-                if (_pendingRootVNode == null)
-                {
-                    UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] No deferred updates - Resetting flags");
-                    ResetFiberTreeAfterCommit(_root.Current);
-                }
-                else
-                {
-                    UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] Deferred updates present - Skipping flag reset");
-                }
+                // Just commit props - flags will be reset at start of next render
+                CommitPropsRecursive(_root.Current);
 
                 EmitMetrics();
             }
@@ -1210,32 +1206,21 @@ namespace ReactiveUITK.Core.Fiber
         private static bool MetricsEmittedHasSubscribers() => MetricsEmitted != null;
 
         /// <summary>
-        /// Reset props and update flags after commit
+        /// Commit props recursively (called after commit phase)
         /// </summary>
-        private void ResetFiberTreeAfterCommit(FiberNode fiber)
+        private void CommitPropsRecursive(FiberNode fiber)
         {
             if (fiber == null)
                 return;
 
-            var componentName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            
-            // Log before state
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][ResetAfterCommit] BEFORE - Props:{(fiber.Props != null ? fiber.Props.GetHashCode().ToString() : "null")}, PendingProps:{(fiber.PendingProps != null ? fiber.PendingProps.GetHashCode().ToString() : "null")}, HasPending:{fiber.HasPendingStateUpdate}, SubtreeUpdates:{fiber.SubtreeHasUpdates}, ReadsContext:{fiber.ReadsContext}");
-
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
 
-            // Reset update flags
-            fiber.HasPendingStateUpdate = false;
-            fiber.SubtreeHasUpdates = false;
-            
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][ResetAfterCommit] AFTER - Props committed, flags reset");
-
-            // Recursively reset children
+            // Recursively commit children props
             var child = fiber.Child;
             while (child != null)
             {
-                ResetFiberTreeAfterCommit(child);
+                CommitPropsRecursive(child);
                 child = child.Sibling;
             }
         }
