@@ -45,45 +45,6 @@ namespace ReactiveUITK.Core.Fiber
             HookContext.Current = componentState;
             componentState.IsRendering = true;
 
-            // Bailout check: if no state update and props match AND not reading context, we can skip rendering
-
-            // Bailout check: if no state update and props match AND not reading context, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
-            {
-                 // LOGGING FOR DEBUGGING
-                 if (wipFiber.ElementType == "Router" || (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Router")))
-                 {
-                     if (wipFiber.SubtreeHasUpdates) 
-                         UnityEngine.Debug.Log($"[Bailout-Check] Router has SubtreeUpdates. Cloning children.");
-                     else 
-                         UnityEngine.Debug.Log($"[Bailout-Check] Router FULL BAILOUT (No pending, No subtree, No context-read).");
-                 }
-                 else if (wipFiber.ElementType == "Root" || (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("App.Root")))
-                 {
-                      UnityEngine.Debug.Log($"[Bailout-Check] App.Root BAILOUT - SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}");
-                 }
-
-                // RE-ENABLE BAILOUT
-                // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
-                if (wipFiber.SubtreeHasUpdates)
-                {
-                    FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
-                    return newChild;
-                }
-                
-                // Full bailout: no updates here or in subtree.
-                // Returning null here stops the traversal for this branch.
-                componentState.IsRendering = false;
-                HookContext.Current = null;
-                return null;
-            }
-
-            // LOGGING FOR RENDER
-            if (wipFiber.ElementType == "Router" || (wipFiber.Render != null && wipFiber.Render.Method.Name.Contains("Router")))
-            {
-                 UnityEngine.Debug.Log($"[Render-Start] Rendering Router directly. PendingState: {wipFiber.HasPendingStateUpdate}, ReadsContext: {wipFiber.ReadsContext}");
-            }
-
             VirtualNode childVNode = null;
 
             try
@@ -512,23 +473,5 @@ namespace ReactiveUITK.Core.Fiber
             // TODO: Use proper scheduler
             effect?.Invoke();
         }
-        /// <summary>
-        /// Compare props for equality (shallow comparison)
-        /// </summary>
-        private static bool ArePropsEqual(IReadOnlyDictionary<string, object> prev, IReadOnlyDictionary<string, object> next)
-        {
-            if (prev == next) return true;
-            if (prev == null || next == null) return false;
-            if (prev.Count != next.Count) return false;
-
-            foreach (var kvp in prev)
-            {
-                if (!next.TryGetValue(kvp.Key, out var nextVal)) return false;
-                if (!object.Equals(kvp.Value, nextVal)) return false;
-            }
-
-            return true;
-        }
-
     }
 }

@@ -135,27 +135,14 @@ namespace ReactiveUITK.Core
 
             public T Invoke(StateUpdate<T> update) => GetCombinedDelegate()(update);
 
-            public T Set(StateUpdate<T> update)
-            {
-                UnityEngine.Debug.Log($"[Hooks] Set(StateUpdate<T>) called. UsesUpdater={update.UsesUpdater}");
-                return ApplyAndQueue(update);
-            }
+            public T Set(StateUpdate<T> update) => ApplyAndQueue(update);
 
-            public T Set(Func<T, T> updater)
-            {
-                UnityEngine.Debug.Log($"[Hooks] Set(Func<T, T>) called.");
-                return ApplyAndQueue(updater);
-            }
+            public T Set(Func<T, T> updater) => ApplyAndQueue(updater);
 
-            public T Set(T value)
-            {
-                UnityEngine.Debug.Log($"[Hooks] Set(T value) called. Value={value}");
-                return ApplyAndQueue(value);
-            }
+            public T Set(T value) => ApplyAndQueue(value);
 
             private T ApplyAndQueue(StateUpdate<T> update)
             {
-                UnityEngine.Debug.Log($"[Hooks] ApplyAndQueue called. State={state?.GetHashCode()}");
                 if (state == null)
                 {
                     return update.Apply(default);
@@ -214,8 +201,6 @@ namespace ReactiveUITK.Core
                 // schedule a re-render. This avoids relying on the legacy
                 // queued-update mechanism, which is primarily for the
                 // old reconciler.
-                UnityEngine.Debug.Log($"[Hooks] EnqueuePendingUpdate. State={state?.GetHashCode()}, HasOnStateUpdated={state?.OnStateUpdated != null}");
-
                 if (state.OnStateUpdated != null)
                 {
                     state.HookStates ??= new List<object>();
@@ -337,18 +322,9 @@ namespace ReactiveUITK.Core
                 var setter = this;
                 StateSetter<T> combined = update =>
                 {
-                    UnityEngine.Debug.Log($"[Hooks] CombinedDelegate invoked via {key}. Thread={System.Threading.Thread.CurrentThread.ManagedThreadId}. UpdateValue={update.Value}, UsesUpdater={update.UsesUpdater}, UpdaterIsNull={update.Updater == null}");
                     if (!update.UsesUpdater)
                     {
-                        try {
-                            UnityEngine.Debug.Log("[Hooks] CombinedDelegate: Calling setter.Set(T)...");
-                            var result = setter.Set(update.Value);
-                            UnityEngine.Debug.Log("[Hooks] CombinedDelegate: setter.Set(T) returned.");
-                            return result;
-                        } catch (System.Exception ex) {
-                            UnityEngine.Debug.LogError($"[Hooks] CombinedDelegate Exception calling Set(T): {ex}");
-                            throw;
-                        }
+                        return setter.Set(update.Value);
                     }
                     if (update.Updater == null)
                     {
@@ -1413,36 +1389,29 @@ namespace ReactiveUITK.Core
 
             RecordHook(metadata, state, HookIdContext);
 
-            // Context usage makes bailout unsafe
-            if (state.Fiber != null)
-            {
-                state.Fiber.ReadsContext = true;
-            }
-
             // Resolve context value
             object resolved = default;
 
-            // Fiber path: walk the Fiber tree's provided context
+            // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
             var fiber = state.Fiber;
             while (fiber != null)
             {
                 if (
                     fiber.ProvidedContext != null
-                    && fiber.ProvidedContext.TryGetValue(key, out var fiberVal)
+                    && fiber.ProvidedContext.TryGetValue(key, out resolved)
                 )
                 {
-                    resolved = fiberVal;
                     break;
                 }
                 fiber = fiber.Parent;
             }
 
-            if (resolved == null || Equals(resolved, default(object)))
+            if (resolved == null && state.HostContext != null)
             {
-                // Fallback to HostContext environment
+                // Fallback to global environment
                 if (
-                    metadata?.HostContext?.Environment != null
-                    && metadata.HostContext.Environment.TryGetValue(key, out var envVal)
+                    state.HostContext.Environment != null
+                    && state.HostContext.Environment.TryGetValue(key, out var envVal)
                 )
                 {
                     resolved = envVal;
@@ -1466,8 +1435,6 @@ namespace ReactiveUITK.Core
             metadata?.SyncComponentState(state);
             return default;
         }
-
-
 
         public static T UseSignal<T>(Signal<T> signal)
         {

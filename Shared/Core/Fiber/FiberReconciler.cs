@@ -22,7 +22,6 @@ namespace ReactiveUITK.Core.Fiber
         private IScheduler _scheduler;
         private bool _workScheduled;
         private bool _isCommitting; // Track if we're in the commit phase
-        private bool _hasDeferredUpdate; // Track if an update was requested during commit
         private VirtualNode _pendingRootVNode; // Deferred update scheduled during commit
         private const float TimeSliceMs = 2.0f;
 
@@ -121,11 +120,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
         {
-            UnityEngine.Debug.Log($"[FiberReconciler] ScheduleUpdateOnFiber. Fiber={fiber?.ElementType}, VNode={vnode?.NodeType}");
-
             if (_root == null)
             {
-                UnityEngine.Debug.LogWarning("[FiberReconciler] Root is null!");
                 return;
             }
 
@@ -146,26 +142,13 @@ namespace ReactiveUITK.Core.Fiber
 
             if (rootVNode == null)
             {
-                UnityEngine.Debug.LogError("[FiberReconciler] _root.RootVNode is null during schedule! Cannot proceed.");
                 return;
             }
 
-            // Find the root fiber by walking up.
-            // Mark the path as having updates.
+            // Find the root fiber for this update by walking up the
+            // parent chain. Also check for deletion flags along the way.
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
-            
-            if (fiber == null)
-            {
-                UnityEngine.Debug.LogError("[FiberReconciler] ScheduleUpdateOnFiber called with null fiber!");
-                // We can continue if we want to force a root update, but usually this is an error for state updates
-            }
-            else
-            {
-                // Mark the target fiber as having an update
-                fiber.HasPendingStateUpdate = true;
-            }
-
             while (rootCurrent != null)
             {
                 if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
@@ -173,13 +156,6 @@ namespace ReactiveUITK.Core.Fiber
                     isDeleted = true;
                     break;
                 }
-                
-                // Mark parent as having a subtree update
-                if (rootCurrent.Parent != null)
-                {
-                    rootCurrent.Parent.SubtreeHasUpdates = true;
-                }
-
                 if (rootCurrent.Parent == null)
                 {
                     break;
@@ -227,7 +203,6 @@ namespace ReactiveUITK.Core.Fiber
             if (rootCurrent == null)
             {
                 // No valid root to update; safely bail out.
-                UnityEngine.Debug.LogWarning("[FiberReconciler] rootCurrent is null. Cannot find a root to update.");
                 return;
             }
 
@@ -235,9 +210,7 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
-                UnityEngine.Debug.Log("[FiberReconciler] Deferring update because _isCommitting.");
                 _pendingRootVNode = rootVNode ?? _pendingRootVNode;
-                _hasDeferredUpdate = true;
                 return;
             }
 
@@ -263,8 +236,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
-
-            UnityEngine.Debug.Log($"[FiberReconciler] Update scheduled. NextUnitOfWork={_nextUnitOfWork?.ElementType}");
 
             // Start work loop (scheduler-based when available)
             if (_scheduler != null)
@@ -514,9 +485,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 AppendToEffectList(fiber);
             }
-
-            // Commit the props for the next comparison
-            fiber.Props = fiber.PendingProps;
         }
 
         /// <summary>
@@ -545,14 +513,7 @@ namespace ReactiveUITK.Core.Fiber
                 // and its Alternate (which we're reusing) must point to Current so
                 // reconciliation can find the children via wipFiber.Alternate.Child.
                 workInProgress.Alternate = current;
-                workInProgress.Props = current.Props; // Keep the old props!
             }
-
-            workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
-            workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
-            workInProgress.ReadsContext = current.ReadsContext;
-
-
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
@@ -631,11 +592,10 @@ namespace ReactiveUITK.Core.Fiber
                 _isCommitting = false;
 
                 // Process any deferred updates scheduled during commit
-                if (_pendingRootVNode != null || _hasDeferredUpdate)
+                if (_pendingRootVNode != null)
                 {
                     var pendingVNode = _pendingRootVNode;
                     _pendingRootVNode = null;
-                    _hasDeferredUpdate = false;
                     ScheduleUpdateOnFiber(_root.Current, pendingVNode);
                 }
             }
@@ -1105,8 +1065,6 @@ namespace ReactiveUITK.Core.Fiber
 
         private void ReconcileChildren(FiberNode wipFiber, IReadOnlyList<VirtualNode> vnodes)
         {
-            if (wipFiber.ElementType == "root" || wipFiber.ElementType == "App.Root")
-                 UnityEngine.Debug.Log($"[FiberReconciler] Reconciling children for {wipFiber.ElementType}. VNodes count: {vnodes?.Count ?? 0}");
             // Get current children from alternate (if exists)
             var currentFirstChild = wipFiber.Alternate?.Child;
 

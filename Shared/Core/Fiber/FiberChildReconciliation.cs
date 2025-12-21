@@ -363,10 +363,6 @@ namespace ReactiveUITK.Core.Fiber
                 ErrorBoundaryShowingFallback = fiber.ErrorBoundaryShowingFallback,
                 ErrorBoundaryLastException = fiber.ErrorBoundaryLastException,
                 ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey,
-                HasPendingStateUpdate = fiber.HasPendingStateUpdate,
-                SubtreeHasUpdates = fiber.SubtreeHasUpdates,
-                ReadsContext = fiber.ReadsContext,
-                EffectTag = fiber.EffectTag,
             };
         }
 
@@ -444,40 +440,8 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Clone child fibers when skipping render (Bailout)
+        /// Extract props from vnode
         /// </summary>
-        public static FiberNode CloneChildFibers(FiberNode wipFiber)
-        {
-            if (wipFiber.Alternate == null || wipFiber.Alternate.Child == null)
-            {
-                return null;
-            }
-
-            var currentChild = wipFiber.Alternate.Child;
-            var newChild = CloneFiber(currentChild);
-            newChild.Parent = wipFiber;
-            wipFiber.Child = newChild;
-
-
-
-            var currentSibling = currentChild.Sibling;
-            var newSibling = newChild;
-
-            while (currentSibling != null)
-            {
-                var cloneSibling = CloneFiber(currentSibling);
-                cloneSibling.Parent = wipFiber;
-                newSibling.Sibling = cloneSibling;
-                
-                newSibling = cloneSibling;
-                currentSibling = currentSibling.Sibling;
-            }
-
-            return newChild;
-        }
-
-
-
         private static IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
         {
             if (vnode == null)
