@@ -22,7 +22,9 @@ namespace ReactiveUITK.Core.Fiber
         private IScheduler _scheduler;
         private bool _workScheduled;
         private bool _isCommitting; // Track if we're in the commit phase
-        private VirtualNode _pendingRootVNode; // Deferred update scheduled during commit
+        // Queue for deferred updates during commit
+        // Stores target fiber and the vnode (if any)
+        private readonly Queue<(FiberNode Fiber, VirtualNode VNode)> _deferredUpdates = new Queue<(FiberNode, VirtualNode)>();
         private const float TimeSliceMs = 2.0f;
 
         // Metrics
@@ -226,9 +228,10 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
-                // For state updates (vnode==null), use the root's VNode to ensure we queue an update
-                _pendingRootVNode = vnode ?? _root.RootVNode ?? _pendingRootVNode;
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Deferred during commit, queued with vnode={(vnode ?? _root.RootVNode) != null}");
+                // Queue the specific fiber update to replay it after commit
+                _deferredUpdates.Enqueue((fiber, vnode));
+                var fiberName2 = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName2}][ScheduleUpdateOnFiber] Deferred during commit, queued in list. Count: {_deferredUpdates.Count}");
                 return;
             }
 
@@ -610,6 +613,14 @@ namespace ReactiveUITK.Core.Fiber
 
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
+
+                // PHASE 3: Commit props and clear remaining flags (SubtreeHasUpdates, ReadsContext)
+                // CRITICAL: We clear flags HERE, before processing deferred updates
+                // This cleans up the render we just finished.
+                // Any deferred updates processed next will set NEW flags on the tree, which we must NOT clear.
+                CommitPropsAndClearFlags(_root.Current);
+
+                EmitMetrics();
             }
             finally
             {
@@ -617,19 +628,13 @@ namespace ReactiveUITK.Core.Fiber
                 _isCommitting = false;
 
                 // Process any deferred updates scheduled during commit
-                if (_pendingRootVNode != null)
+                while (_deferredUpdates.Count > 0)
                 {
-                    var pendingVNode = _pendingRootVNode;
-                    _pendingRootVNode = null;
-                    UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] Processing deferred update");
-                    ScheduleUpdateOnFiber(_root.Current, pendingVNode);
+                    var (fiber, vnode) = _deferredUpdates.Dequeue();
+                    var name = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][CommitRoot] Processing deferred update from queue");
+                    ScheduleUpdateOnFiber(fiber, vnode);
                 }
-                
-                // CRITICAL: Clear flags AFTER processing deferred updates
-                // Otherwise cloning from current tree will get cleared flags
-                CommitPropsAndClearFlags(_root.Current);
-
-                EmitMetrics();
             }
         }
 
