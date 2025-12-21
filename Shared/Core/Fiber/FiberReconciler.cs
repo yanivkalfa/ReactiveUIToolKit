@@ -607,13 +607,9 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     _workInProgressRoot = null;
                 }
+
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
-
-                // PHASE 3: Commit props and clear remaining flags (SubtreeHasUpdates, ReadsContext)
-                CommitPropsAndClearFlags(_root.Current);
-
-                EmitMetrics();
             }
             finally
             {
@@ -628,6 +624,12 @@ namespace ReactiveUITK.Core.Fiber
                     UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] Processing deferred update");
                     ScheduleUpdateOnFiber(_root.Current, pendingVNode);
                 }
+                
+                // CRITICAL: Clear flags AFTER processing deferred updates
+                // Otherwise cloning from current tree will get cleared flags
+                CommitPropsAndClearFlags(_root.Current);
+
+                EmitMetrics();
             }
         }
 
