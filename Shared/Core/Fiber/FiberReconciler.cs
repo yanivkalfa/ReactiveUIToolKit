@@ -138,12 +138,8 @@ namespace ReactiveUITK.Core.Fiber
             {
                 _root.RootVNode = vnode;
             }
-            var rootVNode = _root.RootVNode;
-
-            if (rootVNode == null)
-            {
-                return;
-            }
+            // NOTE: rootVNode can be null for state-only updates (like setState calls)
+            // Don't early return here - we still need to process the update
 
             // Find the root fiber for this update by walking up the
             // parent chain. Also check for deletion flags along the way.
@@ -230,7 +226,7 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
-                _pendingRootVNode = rootVNode ?? _pendingRootVNode;
+                _pendingRootVNode = vnode ?? _pendingRootVNode;
                 return;
             }
 
@@ -240,10 +236,10 @@ namespace ReactiveUITK.Core.Fiber
                 // If we are updating the WIP, we don't need to create it.
                 // We just need to ensure it has the latest props/vnode if provided.
                 _workInProgressRoot = rootCurrent;
-                if (rootVNode != null)
+                if (vnode != null)
                 {
-                    _workInProgressRoot.PendingProps = ExtractProps(rootVNode);
-                    _workInProgressRoot.Children = new[] { rootVNode };
+                    _workInProgressRoot.PendingProps = ExtractProps(vnode);
+                    _workInProgressRoot.Children = new[] { vnode };
                     _workInProgressRoot.Child = null; // Reset child to force reconciliation
                     _workInProgressRoot.EffectTag = EffectFlags.None;
                     _workInProgressRoot.NextEffect = null;
@@ -252,7 +248,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+                _workInProgressRoot = CreateWorkInProgress(rootCurrent, vnode);
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
