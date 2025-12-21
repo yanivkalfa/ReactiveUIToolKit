@@ -1389,6 +1389,13 @@ namespace ReactiveUITK.Core
 
             RecordHook(metadata, state, HookIdContext);
 
+            // CRITICAL: Mark fiber as reading context to prevent incorrect bailout
+            if (state.Fiber != null)
+            {
+                state.Fiber.ReadsContext = true;
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{state.Fiber.ElementType ?? state.Fiber.Render?.Method.DeclaringType?.Name ?? "Unknown"}][UseContext] Set ReadsContext=true for key='{key}'");
+            }
+
             // Resolve context value
             object resolved = default;
 
