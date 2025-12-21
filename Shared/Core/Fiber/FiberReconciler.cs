@@ -150,9 +150,13 @@ namespace ReactiveUITK.Core.Fiber
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
             
+            var fiberName = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Called. VNode={(vnode != null ? vnode.NodeType.ToString() : "null")}");
+            
             // Mark the target fiber as having an update
             if (fiber != null)
             {
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Marking HasPendingStateUpdate=true");
                 fiber.HasPendingStateUpdate = true;
             }
 
@@ -167,6 +171,8 @@ namespace ReactiveUITK.Core.Fiber
                 // Mark parent as having a subtree update
                 if (rootCurrent.Parent != null)
                 {
+                    var parentName = rootCurrent.Parent.ElementType ?? rootCurrent.Parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][ScheduleUpdateOnFiber] Marking SubtreeHasUpdates=true");
                     rootCurrent.Parent.SubtreeHasUpdates = true;
                 }
 
@@ -530,6 +536,9 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Propagate update flags
+            var componentName = current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Propagating flags - HasPendingStateUpdate:{current.HasPendingStateUpdate}, SubtreeHasUpdates:{current.SubtreeHasUpdates}, ReadsContext:{current.ReadsContext}");
+            
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
@@ -1198,12 +1207,19 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber == null)
                 return;
 
+            var componentName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            
+            // Log before state
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][ResetAfterCommit] BEFORE - Props:{(fiber.Props != null ? fiber.Props.GetHashCode().ToString() : "null")}, PendingProps:{(fiber.PendingProps != null ? fiber.PendingProps.GetHashCode().ToString() : "null")}, HasPending:{fiber.HasPendingStateUpdate}, SubtreeUpdates:{fiber.SubtreeHasUpdates}, ReadsContext:{fiber.ReadsContext}");
+
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
 
             // Reset update flags
             fiber.HasPendingStateUpdate = false;
             fiber.SubtreeHasUpdates = false;
+            
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][ResetAfterCommit] AFTER - Props committed, flags reset");
 
             // Recursively reset children
             var child = fiber.Child;

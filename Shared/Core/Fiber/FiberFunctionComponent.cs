@@ -41,34 +41,41 @@ namespace ReactiveUITK.Core.Fiber
             // Wire up state updates to Fiber reconciler
             componentState.OnStateUpdated = () => reconciler.ScheduleUpdateOnFiber(wipFiber, null);
 
-            // Debug: Log render attempts for key components
+            // Log render attempt
             var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            if (componentName == "AppRoot" || componentName == "Header" || componentName == "NewGamePage")
-            {
-                UnityEngine.Debug.Log($"[RenderCheck] {componentName} - HasPendingStateUpdate: {wipFiber.HasPendingStateUpdate}, PropsEqual: {ArePropsEqual(wipFiber.PendingProps, wipFiber.Props)}, SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}, ReadsContext: {wipFiber.ReadsContext}");
-            }
+            var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
+            
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] ENTER - HasPendingStateUpdate:{wipFiber.HasPendingStateUpdate}, PropsEqual:{propsEqual}, SubtreeHasUpdates:{wipFiber.SubtreeHasUpdates}, ReadsContext:{wipFiber.ReadsContext}");
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] Props - Current:{(wipFiber.Props != null ? wipFiber.Props.GetHashCode().ToString() : "null")}, Pending:{(wipFiber.PendingProps != null ? wipFiber.PendingProps.GetHashCode().ToString() : "null")}");
 
             // Bailout check: if no state update and props match AND not reading context, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
+            if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && propsEqual)
             {
-                // Log bailout for debugging
-                if (wipFiber.ElementType == "App.Root" || wipFiber.Render?.Method.Name == "Render")
-                {
-                    UnityEngine.Debug.Log($"[Bailout] {wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name} - SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}");
-                }
-
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT CHECK PASSED - Checking subtree");
+                
                 // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
                 if (wipFiber.SubtreeHasUpdates)
                 {
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] SubtreeHasUpdates=true - Cloning children");
                     FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] Children cloned, returning");
                     return newChild;
                 }
                 
                 // Full bailout: no updates here or in subtree.
-                // Returning null here stops the traversal for this branch.
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] FULL BAILOUT - No subtree updates, skipping entire branch");
                 componentState.IsRendering = false;
                 HookContext.Current = null;
                 return null;
+            }
+            else
+            {
+                var reason = "";
+                if (wipFiber.HasPendingStateUpdate) reason = "HasPendingStateUpdate=true";
+                else if (wipFiber.ReadsContext) reason = "ReadsContext=true";
+                else if (!propsEqual) reason = "PropsNotEqual";
+                
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT FAILED - Reason:{reason} - Will render");
             }
 
             // Set hook context
