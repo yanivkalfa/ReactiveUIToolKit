@@ -135,9 +135,17 @@ namespace ReactiveUITK.Core
 
             public T Invoke(StateUpdate<T> update) => GetCombinedDelegate()(update);
 
-            public T Set(StateUpdate<T> update) => ApplyAndQueue(update);
+            public T Set(StateUpdate<T> update)
+            {
+                UnityEngine.Debug.Log($"[Hooks] Set(StateUpdate<T>) called. UsesUpdater={update.UsesUpdater}");
+                return ApplyAndQueue(update);
+            }
 
-            public T Set(Func<T, T> updater) => ApplyAndQueue(updater);
+            public T Set(Func<T, T> updater)
+            {
+                UnityEngine.Debug.Log($"[Hooks] Set(Func<T, T>) called.");
+                return ApplyAndQueue(updater);
+            }
 
             public T Set(T value)
             {
