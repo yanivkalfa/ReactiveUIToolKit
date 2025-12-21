@@ -329,6 +329,7 @@ namespace ReactiveUITK.Core
                 var setter = this;
                 StateSetter<T> combined = update =>
                 {
+                    UnityEngine.Debug.Log($"[Hooks] CombinedDelegate invoked via {key}. UpdateValue={update.Value}");
                     if (!update.UsesUpdater)
                     {
                         return setter.Set(update.Value);
