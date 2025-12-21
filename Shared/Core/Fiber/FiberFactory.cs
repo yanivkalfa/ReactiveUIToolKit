@@ -126,11 +126,11 @@ namespace ReactiveUITK.Core.Fiber
                 // Set up alternate chain
                 Alternate = current,
                 
-                // Update for new render
-                PendingProps = ExtractProps(newVNode),
-                Children = newVNode.Children,
+                // Update for new render - handle null newVNode (happens during bailout cloning)
+                PendingProps = newVNode != null ? ExtractProps(newVNode) : current.PendingProps,
+                Children = newVNode != null ? newVNode.Children : current.Children,
                 EffectTag = EffectFlags.Update, // Reused fiber = update
-                LastRenderedVNode = newVNode,
+                LastRenderedVNode = newVNode ?? current.LastRenderedVNode,
             };
 
             // Link back to clone
