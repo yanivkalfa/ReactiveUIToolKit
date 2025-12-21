@@ -612,8 +612,17 @@ namespace ReactiveUITK.Core.Fiber
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
 
-                // Commit props and reset flags for next render
-                ResetFiberTreeAfterCommit(_root.Current);
+                // Only reset flags if there are NO deferred updates.
+                // If updates were scheduled during commit, they've already marked the correct flags.
+                if (_pendingRootVNode == null)
+                {
+                    UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] No deferred updates - Resetting flags");
+                    ResetFiberTreeAfterCommit(_root.Current);
+                }
+                else
+                {
+                    UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] Deferred updates present - Skipping flag reset");
+                }
 
                 EmitMetrics();
             }
@@ -627,6 +636,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var pendingVNode = _pendingRootVNode;
                     _pendingRootVNode = null;
+                    UnityEngine.Debug.Log("[Full Tree Rerender][CommitRoot] Processing deferred update");
                     ScheduleUpdateOnFiber(_root.Current, pendingVNode);
                 }
             }
