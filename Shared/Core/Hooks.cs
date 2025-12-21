@@ -340,7 +340,15 @@ namespace ReactiveUITK.Core
                     UnityEngine.Debug.Log($"[Hooks] CombinedDelegate invoked via {key}. Thread={System.Threading.Thread.CurrentThread.ManagedThreadId}. UpdateValue={update.Value}, UsesUpdater={update.UsesUpdater}, UpdaterIsNull={update.Updater == null}");
                     if (!update.UsesUpdater)
                     {
-                        return setter.Set(update.Value);
+                        try {
+                            UnityEngine.Debug.Log("[Hooks] CombinedDelegate: Calling setter.Set(T)...");
+                            var result = setter.Set(update.Value);
+                            UnityEngine.Debug.Log("[Hooks] CombinedDelegate: setter.Set(T) returned.");
+                            return result;
+                        } catch (System.Exception ex) {
+                            UnityEngine.Debug.LogError($"[Hooks] CombinedDelegate Exception calling Set(T): {ex}");
+                            throw;
+                        }
                     }
                     if (update.Updater == null)
                     {
