@@ -213,14 +213,8 @@ namespace ReactiveUITK.Core.Fiber
                 return null;
             }
 
-            // Clone and update
-            var newFiber = CloneFiber(oldFiber);
-            newFiber.PendingProps = ExtractProps(newVNode);
-            newFiber.Children = newVNode.Children;
-            newFiber.EffectTag = EffectFlags.Update;
-            newFiber.LastRenderedVNode = newVNode;
-
-            return newFiber;
+            // Use centralized factory for consistent flag propagation
+            return FiberFactory.CloneForReuse(oldFiber, newVNode);
         }
 
         /// <summary>
@@ -493,37 +487,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public static FiberNode CloneChildFibers(FiberNode parent)
         {
-            var parentName = parent.ElementType ?? parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][CloneChildFibers] Starting child clone");
-            
-            var current = parent.Alternate?.Child;
-            if (current == null)
-            {
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][CloneChildFibers] No children to clone");
-                return null;
-            }
-
-            var newChild = CloneFiber(current, current.PendingProps);
-            parent.Child = newChild;
-            newChild.Parent = parent;
-
-            var previousNewFiber = newChild;
-            current = current.Sibling;
-            int siblingCount = 1;
-
-            while (current != null)
-            {
-                var newFiber = CloneFiber(current, current.PendingProps);
-                newFiber.Parent = parent;
-                previousNewFiber.Sibling = newFiber;
-                previousNewFiber = newFiber;
-                current = current.Sibling;
-                siblingCount++;
-            }
-
-            previousNewFiber.Sibling = null;
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][CloneChildFibers] Cloned {siblingCount} children");
-            return newChild;
+            // Use centralized factory for consistent flag propagation
+            return FiberFactory.CloneChildrenForBailout(parent);
         }
 
         /// <summary>

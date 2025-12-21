@@ -535,9 +535,9 @@ namespace ReactiveUITK.Core.Fiber
                 workInProgress.Alternate = current;
             }
 
-            // Propagate update flags to WIP (flags will be cleared later in commit)
-            var componentName = current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Propagating flags - HasPendingStateUpdate:{current.HasPendingStateUpdate}, SubtreeHasUpdates:{current.SubtreeHasUpdates}, ReadsContext:{current.ReadsContext}");
+            // Propagate update flags to WIP - root is special case, doesn't use factory
+            var componentName = current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "root";
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Propagating flags - HasPending:{current.HasPendingStateUpdate}, Subtree:{current.SubtreeHasUpdates}, ReadsContext:{current.ReadsContext}");
             
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;

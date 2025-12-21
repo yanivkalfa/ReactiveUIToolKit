@@ -164,37 +164,10 @@ namespace ReactiveUITK.Core.Fiber
             // Try to reuse existing fiber
             if (currentChild != null && CanReuseFiber(currentChild, newVNode))
             {
-                // Clone and update
-                var clone = new FiberNode
-                {
-                    Tag = currentChild.Tag,
-                    ElementType = currentChild.ElementType,
-                    Key = currentChild.Key,
-                    Render = currentChild.Render,
-                    HostElement = currentChild.HostElement,
-                    ComponentState = currentChild.ComponentState,
-                    Alternate = currentChild,
-                    Props = currentChild.Props,
-                    ContextFrame = currentChild.ContextFrame,
-                    ContextProviderId = currentChild.ContextProviderId,
-                    ProvidedContext = currentChild.ProvidedContext,
-                    PortalTarget = currentChild.PortalTarget,
-                    ErrorBoundaryActive = currentChild.ErrorBoundaryActive,
-                    ErrorBoundaryShowingFallback = currentChild.ErrorBoundaryShowingFallback,
-                    ErrorBoundaryLastException = currentChild.ErrorBoundaryLastException,
-                    ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
-                    Parent = parent,
-                    Index = 0,
-                    // PHASE 2: Propagate flags from current to clone
-                    HasPendingStateUpdate = currentChild.HasPendingStateUpdate,
-                    SubtreeHasUpdates = currentChild.SubtreeHasUpdates,
-                    ReadsContext = currentChild.ReadsContext,
-                };
-
-                clone.PendingProps = ExtractProps(newVNode);
-                clone.Children = newVNode.Children;
-                clone.EffectTag = EffectFlags.Update;
-                clone.LastRenderedVNode = newVNode;
+                // Use centralized factory for consistent flag propagation
+                var clone = FiberFactory.CloneForReuse(currentChild, newVNode);
+                clone.Parent = parent;
+                clone.Index = 0;
 
                 // Delete remaining siblings
                 var sibling = currentChild.Sibling;
@@ -280,71 +253,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static FiberNode CreateFiber(VirtualNode vnode, FiberNode parent, int index)
         {
-            if (vnode == null)
-                return null;
-
-            var fiber = new FiberNode
-            {
-                Key = vnode.Key,
-                Parent = parent,
-                Index = index,
-                PendingProps = ExtractProps(vnode),
-                Children = vnode.Children,
-                EffectTag = EffectFlags.Placement,
-            };
-            
-            // PHASE 2: Initialize flags for new fibers
-            fiber.HasPendingStateUpdate = false;
-            fiber.SubtreeHasUpdates = false;
-            fiber.ReadsContext = false;
-
-            switch (vnode.NodeType)
-            {
-                case VirtualNodeType.Element:
-                    fiber.Tag = FiberTag.HostComponent;
-                    fiber.ElementType = vnode.ElementTypeName;
-                    break;
-
-                case VirtualNodeType.Text:
-                    fiber.Tag = FiberTag.HostComponent;
-                    fiber.ElementType = "Label";
-                    break;
-
-                case VirtualNodeType.FunctionComponent:
-                    fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = vnode.FunctionRender;
-                    break;
-
-                case VirtualNodeType.Suspense:
-                    fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = FiberIntrinsicComponents.SuspenseRender;
-                    fiber.PendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
-                    fiber.EffectTag = EffectFlags.None;
-                    break;
-
-                case VirtualNodeType.Portal:
-                    fiber.Tag = FiberTag.HostPortal;
-                    fiber.PortalTarget = vnode.PortalTarget;
-                    fiber.HostElement = vnode.PortalTarget;
-                    fiber.EffectTag = EffectFlags.None;
-                    break;
-
-                case VirtualNodeType.ErrorBoundary:
-                    fiber.Tag = FiberTag.ErrorBoundary;
-                    fiber.LastRenderedVNode = vnode;
-                    fiber.ErrorBoundaryResetKey = vnode.ErrorResetToken;
-                    fiber.ErrorBoundaryActive = false;
-                    fiber.ErrorBoundaryShowingFallback = false;
-                    fiber.ErrorBoundaryLastException = null;
-                    fiber.EffectTag = EffectFlags.None;
-                    break;
-
-                case VirtualNodeType.Fragment:
-                    fiber.Tag = FiberTag.Fragment;
-                    break;
-            }
-
-            return fiber;
+            // Use centralized factory for consistent flag management
+            return FiberFactory.CreateNew(vnode, parent, index);
         }
 
         /// <summary>
