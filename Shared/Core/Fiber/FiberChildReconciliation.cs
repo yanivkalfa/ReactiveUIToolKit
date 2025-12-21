@@ -516,6 +516,7 @@ namespace ReactiveUITK.Core.Fiber
                 // Propagate update flags
                 HasPendingStateUpdate = current.HasPendingStateUpdate,
                 SubtreeHasUpdates = current.SubtreeHasUpdates,
+                ReadsContext = current.ReadsContext,
             };
 
             current.Alternate = clone;

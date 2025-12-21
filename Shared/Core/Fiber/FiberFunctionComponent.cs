@@ -45,11 +45,11 @@ namespace ReactiveUITK.Core.Fiber
             var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
             if (componentName == "AppRoot" || componentName == "Header" || componentName == "NewGamePage")
             {
-                UnityEngine.Debug.Log($"[RenderCheck] {componentName} - HasPendingStateUpdate: {wipFiber.HasPendingStateUpdate}, PropsEqual: {ArePropsEqual(wipFiber.PendingProps, wipFiber.Props)}, SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}");
+                UnityEngine.Debug.Log($"[RenderCheck] {componentName} - HasPendingStateUpdate: {wipFiber.HasPendingStateUpdate}, PropsEqual: {ArePropsEqual(wipFiber.PendingProps, wipFiber.Props)}, SubtreeHasUpdates: {wipFiber.SubtreeHasUpdates}, ReadsContext: {wipFiber.ReadsContext}");
             }
 
-            // Bailout check: if no state update and props match, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
+            // Bailout check: if no state update and props match AND not reading context, we can skip rendering
+            if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && ArePropsEqual(wipFiber.PendingProps, wipFiber.Props))
             {
                 // Log bailout for debugging
                 if (wipFiber.ElementType == "App.Root" || wipFiber.Render?.Method.Name == "Render")

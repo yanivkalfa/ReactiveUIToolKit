@@ -532,6 +532,7 @@ namespace ReactiveUITK.Core.Fiber
             // Propagate update flags
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
+            workInProgress.ReadsContext = current.ReadsContext;
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);

@@ -114,6 +114,11 @@ namespace ReactiveUITK.Core.Fiber
         /// Flag indicating this fiber's subtree has updates
         /// </summary>
         public bool SubtreeHasUpdates;
+
+        /// <summary>
+        /// Flag indicating this fiber reads from Context and cannot safely bail out based on props alone
+        /// </summary>
+        public bool ReadsContext;
     }
 
     /// <summary>
