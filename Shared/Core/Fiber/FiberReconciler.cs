@@ -120,7 +120,7 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Schedule an update on a fiber (triggered by setState, props change, etc.)
         /// </summary>
-        public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
+        public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode, bool scheduleWork = true)
         {
             if (_root == null)
             {
@@ -259,13 +259,16 @@ namespace ReactiveUITK.Core.Fiber
             _nextUnitOfWork = _workInProgressRoot;
 
             // Start work loop (scheduler-based when available)
-            if (_scheduler != null)
+            if (scheduleWork)
             {
-                ScheduleRootWork(IScheduler.Priority.Normal);
-            }
-            else
-            {
-                WorkLoop();
+                if (_scheduler != null)
+                {
+                    ScheduleRootWork(IScheduler.Priority.Normal);
+                }
+                else
+                {
+                    WorkLoop();
+                }
             }
         }
 
@@ -628,12 +631,29 @@ namespace ReactiveUITK.Core.Fiber
                 _isCommitting = false;
 
                 // Process any deferred updates scheduled during commit
+                bool pendingUpdates = false;
                 while (_deferredUpdates.Count > 0)
                 {
                     var (fiber, vnode) = _deferredUpdates.Dequeue();
                     var name = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                    UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][CommitRoot] Processing deferred update from queue");
-                    ScheduleUpdateOnFiber(fiber, vnode);
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][CommitRoot] Processing deferred update from queue (Batching flags)");
+                    // Update flags/WIP but DON'T schedule work yet
+                    ScheduleUpdateOnFiber(fiber, vnode, scheduleWork: false);
+                    pendingUpdates = true;
+                }
+
+                // Now that all deferred updates are processed and flags are set/merged,
+                // schedule the work loop ONCE.
+                if (pendingUpdates)
+                {
+                    if (_scheduler != null)
+                    {
+                        ScheduleRootWork(IScheduler.Priority.Normal);
+                    }
+                    else
+                    {
+                        WorkLoop();
+                    }
                 }
             }
         }
