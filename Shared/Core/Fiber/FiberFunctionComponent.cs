@@ -76,6 +76,14 @@ namespace ReactiveUITK.Core.Fiber
                 else if (!propsEqual) reason = "PropsNotEqual";
                 
                 UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT FAILED - Reason:{reason} - Will render");
+                
+                // PHASE 3: Clear HasPendingStateUpdate now that we've read it
+                // (SubtreeHasUpdates stays for reconciliation, cleared after commit)
+                if (wipFiber.HasPendingStateUpdate)
+                {
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] Clearing HasPendingStateUpdate before render");
+                    wipFiber.HasPendingStateUpdate = false;
+                }
             }
 
             // Set hook context
@@ -177,6 +185,10 @@ namespace ReactiveUITK.Core.Fiber
                     ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
                     Parent = parent,
                     Index = 0,
+                    // PHASE 2: Propagate flags from current to clone
+                    HasPendingStateUpdate = currentChild.HasPendingStateUpdate,
+                    SubtreeHasUpdates = currentChild.SubtreeHasUpdates,
+                    ReadsContext = currentChild.ReadsContext,
                 };
 
                 clone.PendingProps = ExtractProps(newVNode);
@@ -280,6 +292,11 @@ namespace ReactiveUITK.Core.Fiber
                 Children = vnode.Children,
                 EffectTag = EffectFlags.Placement,
             };
+            
+            // PHASE 2: Initialize flags for new fibers
+            fiber.HasPendingStateUpdate = false;
+            fiber.SubtreeHasUpdates = false;
+            fiber.ReadsContext = false;
 
             switch (vnode.NodeType)
             {

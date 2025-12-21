@@ -535,18 +535,13 @@ namespace ReactiveUITK.Core.Fiber
                 workInProgress.Alternate = current;
             }
 
-            // Propagate update flags to WIP
+            // Propagate update flags to WIP (flags will be cleared later in commit)
             var componentName = current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "Unknown";
             UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Propagating flags - HasPendingStateUpdate:{current.HasPendingStateUpdate}, SubtreeHasUpdates:{current.SubtreeHasUpdates}, ReadsContext:{current.ReadsContext}");
             
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
-
-            // Reset flags on current after propagating (start fresh for next cycle)
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Resetting current's flags");
-            current.HasPendingStateUpdate = false;
-            current.SubtreeHasUpdates = false;
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
@@ -617,8 +612,8 @@ namespace ReactiveUITK.Core.Fiber
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
 
-                // Just commit props - flags will be reset at start of next render
-                CommitPropsRecursive(_root.Current);
+                // PHASE 3: Commit props and clear remaining flags (SubtreeHasUpdates, ReadsContext)
+                CommitPropsAndClearFlags(_root.Current);
 
                 EmitMetrics();
             }
@@ -1206,9 +1201,9 @@ namespace ReactiveUITK.Core.Fiber
         private static bool MetricsEmittedHasSubscribers() => MetricsEmitted != null;
 
         /// <summary>
-        /// Commit props recursively (called after commit phase)
+        /// Phase 3: Commit props and clear flags after commit
         /// </summary>
-        private void CommitPropsRecursive(FiberNode fiber)
+        private void CommitPropsAndClearFlags(FiberNode fiber)
         {
             if (fiber == null)
                 return;
@@ -1216,11 +1211,15 @@ namespace ReactiveUITK.Core.Fiber
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
 
-            // Recursively commit children props
+            // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
+            fiber.SubtreeHasUpdates = false;
+            // Note: ReadsContext is permanent, don't clear it
+
+            // Recursively process children
             var child = fiber.Child;
             while (child != null)
             {
-                CommitPropsRecursive(child);
+                CommitPropsAndClearFlags(child);
                 child = child.Sibling;
             }
         }
