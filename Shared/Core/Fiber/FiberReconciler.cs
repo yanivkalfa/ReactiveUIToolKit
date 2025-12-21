@@ -1208,12 +1208,17 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber == null)
                 return;
 
+            var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[FLAGS][{name}][CommitClear] BEFORE - HasPending:{fiber.HasPendingStateUpdate}, Subtree:{fiber.SubtreeHasUpdates}, ReadsContext:{fiber.ReadsContext}");
+
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
 
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;
             // Note: ReadsContext is permanent, don't clear it
+
+            UnityEngine.Debug.Log($"[FLAGS][{name}][CommitClear] AFTER - Subtree:{fiber.SubtreeHasUpdates}");
 
             // Recursively process children
             var child = fiber.Child;
