@@ -602,6 +602,9 @@ namespace ReactiveUITK.Core.Fiber
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
 
+                // Commit props and reset flags for next render
+                ResetFiberTreeAfterCommit(_root.Current);
+
                 EmitMetrics();
             }
             finally
@@ -1185,5 +1188,29 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         private static bool MetricsEmittedHasSubscribers() => MetricsEmitted != null;
+
+        /// <summary>
+        /// Reset props and update flags after commit
+        /// </summary>
+        private void ResetFiberTreeAfterCommit(FiberNode fiber)
+        {
+            if (fiber == null)
+                return;
+
+            // Commit props for next comparison
+            fiber.Props = fiber.PendingProps;
+
+            // Reset update flags
+            fiber.HasPendingStateUpdate = false;
+            fiber.SubtreeHasUpdates = false;
+
+            // Recursively reset children
+            var child = fiber.Child;
+            while (child != null)
+            {
+                ResetFiberTreeAfterCommit(child);
+                child = child.Sibling;
+            }
+        }
     }
 }
