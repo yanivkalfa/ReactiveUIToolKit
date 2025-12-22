@@ -172,10 +172,13 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var parentName = rootCurrent.Parent.ElementType ?? rootCurrent.Parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
                     UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][ScheduleUpdateOnFiber] Marking SubtreeHasUpdates=true (Child: {rootCurrent.ElementType})");
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][ScheduleUpdateOnFiber] Parent hash: {rootCurrent.Parent.GetHashCode()}, Parent's Parent: {(rootCurrent.Parent.Parent != null ? rootCurrent.Parent.Parent.ElementType ?? "Component" : "NULL")}");
                     rootCurrent.Parent.SubtreeHasUpdates = true;
                 }
                 else
                 {
+                     var currName = rootCurrent.ElementType ?? rootCurrent.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                     UnityEngine.Debug.Log($"[Full Tree Rerender][{currName}][ScheduleUpdateOnFiber] HAS NO PARENT - stopping walk. Hash: {rootCurrent.GetHashCode()}");
                      UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleUpdateOnFiber] Reached top of chain. Current: {rootCurrent.ElementType ?? "Unknown"}");
                 }
 
