@@ -649,6 +649,15 @@ namespace ReactiveUITK.Core.Fiber
                 // schedule the work loop ONCE.
                 if (pendingUpdates)
                 {
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][CommitRoot] Scheduling final work. _workScheduled: {_workScheduled}");
+                    
+                    // FORCE RESET (Safety valve) - Commit is end of unit of work anyway
+                    if (_workScheduled)
+                    {
+                        UnityEngine.Debug.LogWarning("[Full Tree Rerender][CommitRoot] _workScheduled was true! Forcing false.");
+                        _workScheduled = false;
+                    }
+
                     if (_scheduler != null)
                     {
                         ScheduleRootWork(IScheduler.Priority.Normal);
