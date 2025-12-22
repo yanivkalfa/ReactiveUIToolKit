@@ -23,7 +23,9 @@ namespace ReactiveUITK.Elements
                     "text",
                     value =>
                     {
-                        labelElement.text = value ?? string.Empty;
+                        var newVal = value ?? string.Empty;
+                        // Debug.Log($"[LabelAdapter] Setting text to '{newVal}' on {labelElement.GetHashCode()}"); 
+                        labelElement.text = newVal;
                     }
                 );
             }

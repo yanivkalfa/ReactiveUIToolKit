@@ -14,26 +14,33 @@ namespace ReactiveUITK.Core.Fiber
         /// Reconcile children - diff old and new children, create/update/delete fibers
         /// </summary>
         public static void ReconcileChildren(
-            FiberNode wipFiber,
+            FiberNode returnFiber,
             FiberNode currentFirstChild,
             IReadOnlyList<VirtualNode> newChildren
         )
         {
+            if (FiberConfig.EnableFiberLogging)
+            {
+                var name = returnFiber.ElementType ?? returnFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                UnityEngine.Debug.Log($"[ChildReconcile][{name}] Reconciling {newChildren?.Count ?? 0} VNodes against {(currentFirstChild != null ? "Existing Fibers" : "Null")}");
+            }
+
+            // Optimization for likely case: the list of children is empty
             if (newChildren == null || newChildren.Count == 0)
             {
                 // Delete all existing children
-                DeleteRemainingChildren(wipFiber, currentFirstChild);
+                DeleteRemainingChildren(returnFiber, currentFirstChild);
                 return;
             }
 
             // Try keyed reconciliation first
             if (HasKeys(newChildren))
             {
-                ReconcileChildrenWithKeys(wipFiber, currentFirstChild, newChildren);
+                ReconcileChildrenWithKeys(returnFiber, currentFirstChild, newChildren);
             }
             else
             {
-                ReconcileChildrenByIndex(wipFiber, currentFirstChild, newChildren);
+                ReconcileChildrenByIndex(returnFiber, currentFirstChild, newChildren);
             }
         }
 

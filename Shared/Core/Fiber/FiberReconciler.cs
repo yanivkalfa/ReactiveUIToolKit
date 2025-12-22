@@ -20,7 +20,6 @@ namespace ReactiveUITK.Core.Fiber
         private HostContext _hostContext;
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
-        private bool _workScheduled;
         private bool _isCommitting; // Track if we're in the commit phase
         // Queue for deferred updates during commit
         // Stores target fiber and the vnode (if any)
@@ -320,12 +319,9 @@ namespace ReactiveUITK.Core.Fiber
             }
             */
             UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleRootWork] Scheduling work slice with priority {priority}");
-            _workScheduled = true;
-
             void Slice()
             {
                 UnityEngine.Debug.Log($"[Full Tree Rerender][Slice] Callback fired. NextUnit: {(_nextUnitOfWork != null ? "Set" : "Null")}");
-                _workScheduled = false;
                 ProcessWorkUntilDeadline();
 
                 if (_nextUnitOfWork != null)
@@ -970,6 +966,10 @@ namespace ReactiveUITK.Core.Fiber
             // Reconcile children for this host element.
             if (fiber.Children != null && fiber.Children.Count > 0)
             {
+                if (FiberConfig.EnableFiberLogging)
+                {
+                    UnityEngine.Debug.Log($"[UpdateHost][{fiber.ElementType}] Reconciling {fiber.Children.Count} children");
+                }
                 ReconcileChildren(fiber, fiber.Children);
             }
 
