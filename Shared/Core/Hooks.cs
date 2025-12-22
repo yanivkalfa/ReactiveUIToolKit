@@ -397,6 +397,7 @@ namespace ReactiveUITK.Core
                 var descendantHost = FindFirstHostElement(fiber.Child);
                 if (descendantHost != null)
                 {
+                    UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found descendant {descendantHost.name} (hash={descendantHost.GetHashCode()}) for Fiber {fiber.ElementType}");
                     return descendantHost;
                 }
             }
@@ -405,10 +406,12 @@ namespace ReactiveUITK.Core
             {
                 if (fiber.HostElement != null)
                 {
+                    UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found ancestor {fiber.HostElement.name} (hash={fiber.HostElement.GetHashCode()}) for Fiber {state?.Fiber?.ElementType}");
                     return fiber.HostElement;
                 }
                 fiber = fiber.Parent;
             }
+            UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found NOTHING for Fiber {state?.Fiber?.ElementType}");
             return null;
         }
 
