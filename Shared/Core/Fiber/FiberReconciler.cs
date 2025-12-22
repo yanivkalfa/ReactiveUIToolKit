@@ -563,7 +563,8 @@ namespace ReactiveUITK.Core.Fiber
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
             // The passed vnode IS the child of the root, so we wrap it in a list
-            workInProgress.Children = vnode != null ? new[] { vnode } : Array.Empty<VirtualNode>();
+            // Fix: If vnode is null (state update), preserve existing children to avoid wiping the tree
+            workInProgress.Children = vnode != null ? new[] { vnode } : current.Children;
             workInProgress.Child = null; // Will be reconciled
             workInProgress.EffectTag = EffectFlags.None;
             workInProgress.NextEffect = null;
