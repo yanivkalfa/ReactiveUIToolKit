@@ -630,6 +630,11 @@ namespace ReactiveUITK.Core.Fiber
 
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
+                
+                // CRITICAL: Update all ComponentState.Fiber references to the new committed tree
+                // This must happen AFTER swap so ComponentState points to fibers with fully connected parent chains
+                // UseEffect callbacks will fire next and need correct fiber references for ScheduleUpdateOnFiber
+                UpdateComponentStateReferences(_root.Current);
 
                 // Only clear WIP if it hasn't been updated by a synchronous effect (e.g. navigate)
                 if (_root.WorkInProgress == finishedWork)

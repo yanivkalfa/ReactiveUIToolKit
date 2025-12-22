@@ -143,14 +143,9 @@ namespace ReactiveUITK.Core.Fiber
             // Link back to clone
             current.Alternate = clone;
             
-            // CRITICAL: Update ComponentState.Fiber to point to the NEW cloned fiber
-            // Since ComponentState is now SHARED between current/alternate, this ensures
-            // that UseEffect callbacks (which close over ComponentState) will reference
-            // the correct active fiber when they fire, even after tree swaps.
-            if (clone.ComponentState != null)
-            {
-                clone.ComponentState.Fiber = clone;
-            }
+            // NOTE: We DON'T update ComponentState.Fiber here because the clone's parent chain
+            // isn't fully connected yet. The update happens in CommitRoot after tree swap
+            // when all parent references are guaranteed to be correct.
 
             var name = clone.ElementType ?? clone.Render?.Method.DeclaringType?.Name ?? "Unknown";
             UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][FiberFactory.CloneForReuse] Cloned with flags - HasPending:{clone.HasPendingStateUpdate}, SubtreeUpdates:{clone.SubtreeHasUpdates}, ReadsContext:{clone.ReadsContext}");
