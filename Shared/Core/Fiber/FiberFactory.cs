@@ -107,12 +107,19 @@ namespace ReactiveUITK.Core.Fiber
                 Key = current.Key,
                 Render = current.Render,
                 HostElement = current.HostElement,
-                ComponentState = current.ComponentState,
+                ComponentState = current.ComponentState,  // CRITICAL: Share, don't clone! Callbacks reference this.
                 Props = current.Props,
                 ContextFrame = current.ContextFrame,
                 ContextProviderId = current.ContextProviderId,
                 ProvidedContext = current.ProvidedContext,
                 PortalTarget = current.PortalTarget,
+                Index = current.Index,
+                
+                // Reset these for new tree
+                Child = null,
+                Sibling = null,
+                Parent = null,
+                
                 ErrorBoundaryActive = current.ErrorBoundaryActive,
                 ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback,
                 ErrorBoundaryLastException = current.ErrorBoundaryLastException,
@@ -136,8 +143,10 @@ namespace ReactiveUITK.Core.Fiber
             // Link back to clone
             current.Alternate = clone;
             
-            // CRITICAL: Update ComponentState to reference the new clone
-            // Without this, UseEffect callbacks will reference stale fibers with broken parent chains
+            // CRITICAL: Update ComponentState.Fiber to point to the NEW cloned fiber
+            // Since ComponentState is now SHARED between current/alternate, this ensures
+            // that UseEffect callbacks (which close over ComponentState) will reference
+            // the correct active fiber when they fire, even after tree swaps.
             if (clone.ComponentState != null)
             {
                 clone.ComponentState.Fiber = clone;
