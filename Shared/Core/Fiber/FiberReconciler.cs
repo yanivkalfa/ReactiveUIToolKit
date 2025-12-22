@@ -257,6 +257,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
+            UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleUpdateOnFiber] _nextUnitOfWork set to: {(_nextUnitOfWork != null ? _nextUnitOfWork.GetHashCode().ToString() : "Null")} (WIP: {(_root.WorkInProgress != null ? "Set" : "Null")})");
 
             // Start work loop (scheduler-based when available)
             if (scheduleWork)
@@ -554,6 +555,10 @@ namespace ReactiveUITK.Core.Fiber
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
+
+            // CRITICAL FIX: Copy existing props to WIP so we have a baseline for ArePropsEqual comparison
+            // Without this, WIP.Props is null, so comparison against PendingProps always fails
+            workInProgress.Props = current.Props;
 
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
