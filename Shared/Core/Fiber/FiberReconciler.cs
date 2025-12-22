@@ -622,6 +622,11 @@ namespace ReactiveUITK.Core.Fiber
 
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
+                
+                // CRITICAL: Update all ComponentState.Fiber references to point to the new tree
+                // This ensures that UseEffect callbacks (which fire AFTER commit) reference
+                // the correct, connected fibers even when their parent components fully bailed out
+                UpdateComponentStateReferences(_root.Current);
 
                 // Only clear WIP if it hasn't been updated by a synchronous effect (e.g. navigate)
                 if (_root.WorkInProgress == finishedWork)
@@ -1288,6 +1293,25 @@ namespace ReactiveUITK.Core.Fiber
                 CommitPropsAndClearFlags(child);
                 child = child.Sibling;
             }
+        }
+        /// <summary>
+        /// Recursively update all ComponentState.Fiber references to point to the new tree.
+        /// Called after tree swap to ensure UseEffect callbacks reference the correct fibers.
+        /// </summary>
+        private void UpdateComponentStateReferences(FiberNode fiber)
+        {
+            if (fiber == null)
+                return;
+                
+            // Update this fiber's component state if it exists
+            if (fiber.ComponentState != null)
+            {
+                fiber.ComponentState.Fiber = fiber;
+            }
+            
+            // Recurse to children and siblings
+            UpdateComponentStateReferences(fiber.Child);
+            UpdateComponentStateReferences(fiber.Sibling);
         }
     }
 }
