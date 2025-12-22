@@ -647,25 +647,20 @@ namespace ReactiveUITK.Core.Fiber
 
                 // Now that all deferred updates are processed and flags are set/merged,
                 // schedule the work loop ONCE.
+                // Now that all deferred updates are processed and flags are set/merged,
+                // schedule the work loop ONCE.
                 if (pendingUpdates)
                 {
-                    UnityEngine.Debug.Log($"[Full Tree Rerender][CommitRoot] Scheduling final work. _workScheduled: {_workScheduled}");
-                    
-                    // FORCE RESET (Safety valve) - Commit is end of unit of work anyway
-                    if (_workScheduled)
-                    {
-                        UnityEngine.Debug.LogWarning("[Full Tree Rerender][CommitRoot] _workScheduled was true! Forcing false.");
-                        _workScheduled = false;
-                    }
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][CommitRoot] Deferred updates processed. Restarting loop if needed.");
 
-                    if (_scheduler != null)
+                    if (_scheduler == null)
                     {
-                        ScheduleRootWork(IScheduler.Priority.Normal);
-                    }
-                    else
-                    {
+                        // Sync mode: We must restart the loop manually because the previous WorkLoop exited
                         WorkLoop();
                     }
+                    // Async mode: Do NOTHING. 
+                    // The 'Slice' callback that called us will see _nextUnitOfWork != null and reschedule automatically.
+                    // Explicitly calling ScheduleRootWork here causes double-scheduling and race conditions.
                 }
             }
         }
