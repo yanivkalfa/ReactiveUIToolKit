@@ -308,11 +308,16 @@ namespace ReactiveUITK.Core.Fiber
                 WorkLoop();
                 return;
             }
+            // SAFETY: Remove optimization check. 
+            // We observed cases where work was marked "scheduled" but never ran.
+            // Allowing multiple slices to enqueue is safer than dropping one.
+            /*
             if (_workScheduled)
             {
                 UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleRootWork] Skipped - work already scheduled");
                 return;
             }
+            */
             UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleRootWork] Scheduling work slice with priority {priority}");
             _workScheduled = true;
 
