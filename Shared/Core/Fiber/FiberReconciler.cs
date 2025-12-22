@@ -154,8 +154,10 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber != null)
             {
                 UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Marking HasPendingStateUpdate=true");
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Fiber hash: {fiber.GetHashCode()}, Parent: {(fiber.Parent != null ? fiber.Parent.ElementType ?? fiber.Parent.Render?.Method.DeclaringType?.Name ?? "Unknown" : "NULL")}");
                 fiber.HasPendingStateUpdate = true;
             }
+
 
             while (rootCurrent != null)
             {
