@@ -20,16 +20,27 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Create a VisualElement of the given type using the adapter registry
         /// </summary>
+        /// <summary>
+        /// Create a VisualElement of the given type using the adapter registry
+        /// </summary>
         public VisualElement CreateElement(string elementType)
         {
             var adapter = _registry.Resolve(elementType);
+            VisualElement element;
             if (adapter != null)
             {
-                return adapter.Create();
+                element = adapter.Create();
             }
-
-            // Fallback to generic VisualElement
-            return new VisualElement { name = elementType };
+            else
+            {
+                // Fallback to generic VisualElement
+                element = new VisualElement { name = elementType };
+            }
+            if (Core.Fiber.FiberConfig.EnableFiberLogging)
+            {
+                UnityEngine.Debug.Log($"[HostConfig] Created {elementType} (hash={element.GetHashCode()})");
+            }
+            return element;
         }
 
         /// <summary>
@@ -61,6 +72,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void AppendChild(VisualElement parent, VisualElement child)
         {
+            if (Core.Fiber.FiberConfig.EnableFiberLogging)
+            {
+                UnityEngine.Debug.Log($"[HostConfig] Appending {child.GetType().Name} (hash={child.GetHashCode()}) to {parent.GetType().Name} (hash={parent.GetHashCode()})");
+            }
             parent.Add(child);
         }
 
@@ -73,6 +88,10 @@ namespace ReactiveUITK.Core.Fiber
             VisualElement beforeChild
         )
         {
+            if (Core.Fiber.FiberConfig.EnableFiberLogging)
+            {
+                UnityEngine.Debug.Log($"[HostConfig] Inserting {child.GetType().Name} (hash={child.GetHashCode()}) before {(beforeChild != null ? beforeChild.GetType().Name : "null")} in {parent.GetType().Name}");
+            }
             if (beforeChild == null)
             {
                 parent.Add(child);
@@ -96,6 +115,10 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void RemoveChild(VisualElement parent, VisualElement child)
         {
+            if (Core.Fiber.FiberConfig.EnableFiberLogging)
+            {
+                UnityEngine.Debug.Log($"[HostConfig] Removing {child?.GetType().Name} (hash={child?.GetHashCode()}) from {parent.GetType().Name}");
+            }
             if (child != null && child.parent == parent)
             {
                 parent.Remove(child);
