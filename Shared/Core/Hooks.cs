@@ -395,6 +395,12 @@ namespace ReactiveUITK.Core
             if (fiber != null)
             {
                 var descendantHost = FindFirstHostElement(fiber.Child);
+                if (descendantHost == null && fiber.Child == null && fiber.Alternate != null)
+                {
+                    // Fallback to alternate if current child is not yet populated
+                    descendantHost = FindFirstHostElement(fiber.Alternate.Child);
+                }
+                
                 if (descendantHost != null)
                 {
                     UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found descendant {descendantHost.name} (hash={descendantHost.GetHashCode()}) for Fiber {fiber.ElementType}");

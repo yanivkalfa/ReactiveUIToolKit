@@ -64,6 +64,14 @@ namespace ReactiveUITK.Core.Fiber
                 
                 // Full bailout: no updates here or in subtree.
                 UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] FULL BAILOUT - No subtree updates, skipping entire branch");
+                
+                // CRITICAL FIX: We must carry over the existing child pointer to the WIP tree
+                // even if we don't visit it. Otherwise, this branch is severed in the new tree.
+                if (wipFiber.Alternate != null)
+                {
+                    wipFiber.Child = wipFiber.Alternate.Child;
+                }
+                
                 componentState.IsRendering = false;
                 HookContext.Current = null;
                 return null;
