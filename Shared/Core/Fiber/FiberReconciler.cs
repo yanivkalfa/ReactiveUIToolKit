@@ -953,6 +953,11 @@ namespace ReactiveUITK.Core.Fiber
 
                 if (parentFiber?.HostElement != null)
                 {
+                    if (FiberConfig.EnableFiberLogging)
+                    {
+                        var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                        UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][CommitDeletion] Removing host child from parent");
+                    }
                     _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
                 }
             }
