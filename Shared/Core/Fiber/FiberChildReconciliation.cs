@@ -19,10 +19,13 @@ namespace ReactiveUITK.Core.Fiber
             IReadOnlyList<VirtualNode> newChildren
         )
         {
+            // Unconditional log for debugging duplication
+            var name = returnFiber.ElementType ?? returnFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[ChildReconcile][{name}] Reconciling {newChildren?.Count ?? 0} VNodes. CurrentFirstChild: {(currentFirstChild != null ? "FOUND (hash=" + currentFirstChild.GetHashCode() + ")" : "NULL")}");
+            
             if (FiberConfig.EnableFiberLogging)
             {
-                var name = returnFiber.ElementType ?? returnFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                UnityEngine.Debug.Log($"[ChildReconcile][{name}] Reconciling {newChildren?.Count ?? 0} VNodes against {(currentFirstChild != null ? "Existing Fibers" : "Null")}");
+                 // output handled above
             }
 
             // Optimization for likely case: the list of children is empty

@@ -561,7 +561,11 @@ namespace ReactiveUITK.Core.Fiber
             // The passed vnode IS the child of the root, so we wrap it in a list
             // Fix: If vnode is null (state update), preserve existing children to avoid wiping the tree
             workInProgress.Children = vnode != null ? new[] { vnode } : current.Children;
-            workInProgress.Child = null; // Will be reconciled
+            
+            // Fix: Preserve Child link so Hooks.ResolveAnimationTarget can find the host element
+            // during the render phase (before ReconcileChildren overwrites it).
+            workInProgress.Child = current.Child;
+            
             workInProgress.EffectTag = EffectFlags.None;
             workInProgress.NextEffect = null;
             workInProgress.Deletions = null;
