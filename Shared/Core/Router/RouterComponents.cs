@@ -29,6 +29,8 @@ namespace ReactiveUITK.Router
             var (location, setLocation) = Hooks.UseState(
                 resolvedHistory?.Location ?? RouterPath.Parse("/")
             );
+            
+            UnityEngine.Debug.Log($"[RouterFunc] Rendered. Location: {location?.Path}");
 
             Hooks.UseEffect(
                 () =>
