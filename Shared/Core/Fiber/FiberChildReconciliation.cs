@@ -214,7 +214,10 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Use centralized factory for consistent flag propagation
-            return FiberFactory.CloneForReuse(oldFiber, newVNode);
+            var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
+            var name = oldFiber.ElementType ?? oldFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][UpdateSlot] Reused fiber");
+            return reused;
         }
 
         /// <summary>
