@@ -899,6 +899,9 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Depth-first delete: clean up subtree before removing the current node.
+            
+            var fiberName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[CommitDeletion] Visiting {fiberName} (Tag: {fiber.Tag})");
 
             // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
