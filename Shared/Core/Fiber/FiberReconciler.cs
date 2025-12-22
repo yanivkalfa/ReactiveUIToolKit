@@ -198,18 +198,22 @@ namespace ReactiveUITK.Core.Fiber
             // If we walked up and found a root, check if it matches the active root.
             if (rootCurrent != null)
             {
+                var treeType = "Unknown";
                 if (rootCurrent == _root.Current)
                 {
+                    treeType = "Current";
                     // Found the active root. Good.
                 }
                 else if (rootCurrent == _root.WorkInProgress)
                 {
+                    treeType = "WorkInProgress";
                     // Found the WorkInProgress root.
                     // This means we are scheduling an update on a tree that is currently being built (cascading update).
                     // We should continue using this root as the WIP.
                 }
-                else if (rootCurrent == _root.Current.Alternate)
+                else if (_root.Current.Alternate != null && rootCurrent == _root.Current.Alternate)
                 {
+                    treeType = "Alternate (old)";
                     // Found the alternate root (which is not currently set as WIP).
                     // This is valid during a commit phase or if we are interacting with a tree that is being committed.
                     // We allow it to proceed, as it will create a WIP from this root.
@@ -220,6 +224,7 @@ namespace ReactiveUITK.Core.Fiber
                     UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
                     return;
                 }
+                UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleUpdateOnFiber] Fiber belongs to tree: {treeType}");
             }
 
             if (rootCurrent == null)
