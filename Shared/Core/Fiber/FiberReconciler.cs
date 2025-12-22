@@ -310,12 +310,15 @@ namespace ReactiveUITK.Core.Fiber
             }
             if (_workScheduled)
             {
+                UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleRootWork] Skipped - work already scheduled");
                 return;
             }
+            UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleRootWork] Scheduling work slice with priority {priority}");
             _workScheduled = true;
 
             void Slice()
             {
+                UnityEngine.Debug.Log($"[Full Tree Rerender][Slice] Callback fired. NextUnit: {(_nextUnitOfWork != null ? "Set" : "Null")}");
                 _workScheduled = false;
                 ProcessWorkUntilDeadline();
 
