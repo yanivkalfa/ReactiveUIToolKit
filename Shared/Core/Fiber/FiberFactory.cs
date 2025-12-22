@@ -135,6 +135,13 @@ namespace ReactiveUITK.Core.Fiber
 
             // Link back to clone
             current.Alternate = clone;
+            
+            // CRITICAL: Update ComponentState to reference the new clone
+            // Without this, UseEffect callbacks will reference stale fibers with broken parent chains
+            if (clone.ComponentState != null)
+            {
+                clone.ComponentState.Fiber = clone;
+            }
 
             var name = clone.ElementType ?? clone.Render?.Method.DeclaringType?.Name ?? "Unknown";
             UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][FiberFactory.CloneForReuse] Cloned with flags - HasPending:{clone.HasPendingStateUpdate}, SubtreeUpdates:{clone.SubtreeHasUpdates}, ReadsContext:{clone.ReadsContext}");
