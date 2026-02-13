@@ -993,15 +993,14 @@ namespace ReactiveUITK.Core.Fiber
 
         private FiberNode UpdateHostComponent(FiberNode fiber)
         {
-            // Reconcile children for this host element.
-            if (fiber.Children != null && fiber.Children.Count > 0)
+            // Always reconcile children — even when new children list is empty.
+            // ReconcileChildren handles the empty case by calling DeleteRemainingChildren,
+            // which is critical for removing old child DOM elements (e.g., expired buff items).
+            if (FiberConfig.EnableFiberLogging)
             {
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    UnityEngine.Debug.Log($"[UpdateHost][{fiber.ElementType}] Reconciling {fiber.Children.Count} children");
-                }
-                ReconcileChildren(fiber, fiber.Children);
+                UnityEngine.Debug.Log($"[UpdateHost][{fiber.ElementType}] Reconciling {fiber.Children?.Count ?? 0} children");
             }
+            ReconcileChildren(fiber, fiber.Children);
 
             return fiber.Child;
         }
