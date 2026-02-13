@@ -70,6 +70,18 @@ namespace ReactiveUITK.Core.Fiber
                 if (wipFiber.Alternate != null)
                 {
                     wipFiber.Child = wipFiber.Alternate.Child;
+                    
+                    // CRITICAL FIX: We must update the child's Parent pointer to point to this new WIP fiber!
+                    // Otherwise, the child remains attached to the OLD parent (Alternate), breaking the update chain.
+                    if (wipFiber.Child != null)
+                    {
+                        var child = wipFiber.Child;
+                        while (child != null)
+                        {
+                            child.Parent = wipFiber;
+                            child = child.Sibling;
+                        }
+                    }
                 }
                 
                 componentState.IsRendering = false;
