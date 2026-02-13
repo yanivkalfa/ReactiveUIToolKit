@@ -361,9 +361,9 @@ namespace ReactiveUITK.Core
             // Fiber path: rely on HookContext.Current when no metadata is available.
             if (HookContext.Current != null)
             {
-                // DEBUG: Verify current context
+                // DEBUG UNCONDITIONAL
                 #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                if (InternalLogOptions.EnableInternalLogs && HookContext.Current.Fiber != null && HookContext.Current.Fiber.ElementType == "RouteFunc")
+                if (HookContext.Current.Fiber != null && HookContext.Current.Fiber.ElementType == "RouteFunc")
                 {
                      UnityEngine.Debug.Log($"[Hooks] EnsureState: Using HookContext.Current for {HookContext.Current.Fiber.ElementType}");
                 }
@@ -1493,7 +1493,8 @@ namespace ReactiveUITK.Core
             state.ContextDependencies ??= new List<ContextDependency>();
             state.ContextDependencies.Add(new ContextDependency(key, resolved));
 
-            if (InternalLogOptions.EnableInternalLogs || state.Fiber?.ElementType == "RouteFunc")
+            // DEBUG UNCONDITIONAL
+            if (state.Fiber?.ElementType == "RouteFunc")
             {
                  UnityEngine.Debug.Log($"[Hooks] UseContext: Added dep '{key}' for {state.Fiber?.ElementType}. Count={state.ContextDependencies.Count}");
             }
