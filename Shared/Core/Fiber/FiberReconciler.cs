@@ -515,9 +515,9 @@ namespace ReactiveUITK.Core.Fiber
                         fiber.HostElement = _hostConfig.CreateElement(fiber.ElementType);
                         fiber.EffectTag |= EffectFlags.Placement;
                     }
-                    else if (fiber.PendingProps != fiber.Props)
+                    else if (!AreHostPropsEqual(fiber.PendingProps, fiber.Props))
                     {
-                        // Props changed, mark for update
+                        // Props actually changed (deep comparison), mark for update
                         fiber.EffectTag |= EffectFlags.Update;
                     }
                     break;
@@ -1277,6 +1277,31 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         private static bool MetricsEmittedHasSubscribers() => MetricsEmitted != null;
+
+        /// <summary>
+        /// Shallow-compare two prop dictionaries by value.
+        /// Used by CompleteWork to avoid marking host components for update
+        /// when only the dictionary instance differs but values are identical.
+        /// </summary>
+        private static bool AreHostPropsEqual(
+            IReadOnlyDictionary<string, object> props1,
+            IReadOnlyDictionary<string, object> props2
+        )
+        {
+            if (props1 == props2) return true;
+            if (props1 == null || props2 == null) return false;
+            if (props1.Count != props2.Count) return false;
+
+            foreach (var kvp in props1)
+            {
+                if (!props2.TryGetValue(kvp.Key, out var value2))
+                    return false;
+                if (!object.Equals(kvp.Value, value2))
+                    return false;
+            }
+
+            return true;
+        }
 
         /// <summary>
         /// Phase 3: Commit props and clear flags after commit

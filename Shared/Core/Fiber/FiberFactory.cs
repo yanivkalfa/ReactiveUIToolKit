@@ -136,7 +136,7 @@ namespace ReactiveUITK.Core.Fiber
                 // Update for new render - handle null newVNode (happens during bailout cloning)
                 PendingProps = newVNode != null ? ExtractProps(newVNode) : current.PendingProps,
                 Children = newVNode != null ? newVNode.Children : current.Children,
-                EffectTag = EffectFlags.Update, // Reused fiber = update
+                EffectTag = EffectFlags.None, // Reused fiber starts clean; render/CompleteWork adds flags if needed
                 LastRenderedVNode = newVNode ?? current.LastRenderedVNode,
             };
 
@@ -171,8 +171,9 @@ namespace ReactiveUITK.Core.Fiber
 
             var current = parent.Alternate.Child;
             
-            // Clone first child
-            var newChild = CloneForReuse(current, current.LastRenderedVNode);
+            // Clone first child - pass null VNode to preserve prop identity
+            // (CloneForReuse will use current.PendingProps when newVNode is null)
+            var newChild = CloneForReuse(current, null);
             parent.Child = newChild;
             newChild.Parent = parent;
 
@@ -183,7 +184,7 @@ namespace ReactiveUITK.Core.Fiber
 
             while (current != null)
             {
-                var cloned = CloneForReuse(current, current.LastRenderedVNode);
+                var cloned = CloneForReuse(current, null);
                 cloned.Parent = parent;
                 previousNewFiber.Sibling = cloned;
                 previousNewFiber = cloned;
