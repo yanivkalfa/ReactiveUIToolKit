@@ -1466,14 +1466,14 @@ namespace ReactiveUITK.Core
 
         public static T UseContext<T>(string key)
         {
+            // DEBUG UNCONDITIONAL
+             UnityEngine.Debug.Log($"[Hooks] UseContext called for key '{key}'. HookContext.Current={HookContext.Current}");
             NodeMetadata metadata = HookContext.Current?.Owner;
             var state = EnsureState(metadata);
             if (state == null || string.IsNullOrEmpty(key))
             {
-                if (ReactiveUITK.Core.Diagnostics.InternalLogOptions.EnableInternalLogs)
-                {
-                     UnityEngine.Debug.Log($"[Hooks] UseContext: State is NULL for key '{key}'. Metadata={metadata}, HookContext={HookContext.Current}");
-                }
+                 // DEBUG UNCONDITIONAL
+                 UnityEngine.Debug.Log($"[Hooks] UseContext: State is NULL for key '{key}'. Metadata={metadata}, HookContext={HookContext.Current}");
                 return default;
             }
 
