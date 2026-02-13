@@ -359,11 +359,18 @@ namespace ReactiveUITK.Core
         private static FunctionComponentState EnsureState(NodeMetadata metadata)
         {
             // Fiber path: rely on HookContext.Current when no metadata is available.
-            if (metadata == null)
+            if (HookContext.Current != null)
             {
+                // DEBUG: Verify current context
+                #if UNITY_EDITOR || DEVELOPMENT_BUILD
+                if (InternalLogOptions.EnableInternalLogs && HookContext.Current.Fiber != null && HookContext.Current.Fiber.ElementType == "RouteFunc")
+                {
+                     UnityEngine.Debug.Log($"[Hooks] EnsureState: Using HookContext.Current for {HookContext.Current.Fiber.ElementType}");
+                }
+                #endif
                 return HookContext.Current;
             }
-            var state = HookContext.Current ?? metadata.ComponentState;
+            var state = metadata.ComponentState;
             if (state == null)
             {
                 state = metadata.EnsureComponentState();
