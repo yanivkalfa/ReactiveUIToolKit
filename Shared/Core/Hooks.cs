@@ -1395,6 +1395,13 @@ namespace ReactiveUITK.Core
             }
 
             var deps = fiber.ComponentState.ContextDependencies;
+
+            // DEBUG LOG: CHECK COUNT
+            if (InternalLogOptions.EnableInternalLogs || fiber.ElementType == "RouteFunc")
+            {
+                 UnityEngine.Debug.Log($"[Hooks] HasContextChangedChecked: Checking {deps.Count} deps for {fiber.ElementType}");
+            }
+
             for (int i = 0; i < deps.Count; i++)
             {
                 var dep = deps[i];
@@ -1474,6 +1481,11 @@ namespace ReactiveUITK.Core
             // This avoids breaking memory layout and allows UseContext to be truly stateless regarding hook order
             state.ContextDependencies ??= new List<ContextDependency>();
             state.ContextDependencies.Add(new ContextDependency(key, resolved));
+
+            if (InternalLogOptions.EnableInternalLogs || state.Fiber?.ElementType == "RouteFunc")
+            {
+                 UnityEngine.Debug.Log($"[Hooks] UseContext: Added dep '{key}' for {state.Fiber?.ElementType}. Count={state.ContextDependencies.Count}");
+            }
 
             return resolved is T result ? result : default;
         }

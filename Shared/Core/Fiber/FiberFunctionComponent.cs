@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Diagnostics;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -38,16 +39,25 @@ namespace ReactiveUITK.Core.Fiber
             componentState.EffectIndex = 0;
             componentState.LayoutEffectIndex = 0;
             
-            // Clear context dependencies for the new render pass (React-style)
-            componentState.ContextDependencies?.Clear();
+            var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
 
+            // Clear context dependencies for the new render pass (React-style)
+            if (componentState.ContextDependencies != null)
+            {
+                // Log render attempt
+                if (InternalLogOptions.EnableInternalLogs || wipFiber.ElementType == "RouteFunc")
+                {
+                     UnityEngine.Debug.Log($"[FiberFunctionComponent] Clearing {componentState.ContextDependencies.Count} deps for {componentName}");
+                }
+                componentState.ContextDependencies.Clear();
+            }
+            
             // Wire up state updates to Fiber reconciler
             // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
             // instead of capturing wipFiber, which becomes stale after tree swap in CommitRoot.
             componentState.OnStateUpdated = () => reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
 
             // Log render attempt
-            var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
             var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
             
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
@@ -55,9 +65,8 @@ namespace ReactiveUITK.Core.Fiber
             UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] ENTER - HasPendingStateUpdate:{wipFiber.HasPendingStateUpdate}, PropsEqual:{propsEqual}, SubtreeHasUpdates:{wipFiber.SubtreeHasUpdates}, ReadsContext:{wipFiber.ReadsContext}, ContextUnchanged:{contextUnchanged}");
             UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] Props - Current:{(wipFiber.Props != null ? wipFiber.Props.GetHashCode().ToString() : "null")}, Pending:{(wipFiber.PendingProps != null ? wipFiber.PendingProps.GetHashCode().ToString() : "null")}");
 
-            // Bailout check - TEMPORARILY DISABLED to fix "Stuck on Loading" bug
-            // The ContextUnchanged check is returning true incorrectly.
-            if (false && !wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
+            // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
+            if (!wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
             {
                 UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT CHECK PASSED - Checking subtree");
                 
