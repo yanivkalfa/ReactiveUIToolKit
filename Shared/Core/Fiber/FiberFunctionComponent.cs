@@ -47,30 +47,27 @@ namespace ReactiveUITK.Core.Fiber
             var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
             var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
             
-            if (FiberConfig.EnableFiberLogging)
-            {
-                UnityEngine.Debug.Log($"[Fiber][{componentName}][RenderCheck] HasPendingStateUpdate:{wipFiber.HasPendingStateUpdate}, PropsEqual:{propsEqual}, SubtreeHasUpdates:{wipFiber.SubtreeHasUpdates}, ReadsContext:{wipFiber.ReadsContext}");
-            }
+            bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
+            
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] ENTER - HasPendingStateUpdate:{wipFiber.HasPendingStateUpdate}, PropsEqual:{propsEqual}, SubtreeHasUpdates:{wipFiber.SubtreeHasUpdates}, ReadsContext:{wipFiber.ReadsContext}, ContextUnchanged:{contextUnchanged}");
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] Props - Current:{(wipFiber.Props != null ? wipFiber.Props.GetHashCode().ToString() : "null")}, Pending:{(wipFiber.PendingProps != null ? wipFiber.PendingProps.GetHashCode().ToString() : "null")}");
 
-            // Bailout check: if no state update and props match AND not reading context, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && !wipFiber.ReadsContext && propsEqual)
+            // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
+            if (!wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
             {
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT CHECK PASSED - Checking subtree");
+                
                 // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
                 if (wipFiber.SubtreeHasUpdates)
                 {
-                    if (FiberConfig.EnableFiberLogging)
-                    {
-                        UnityEngine.Debug.Log($"[Fiber][{componentName}][Bailout] SubtreeHasUpdates - Cloning children");
-                    }
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] SubtreeHasUpdates=true - Cloning children");
                     FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] Children cloned, returning");
                     return newChild;
                 }
                 
                 // Full bailout: no updates here or in subtree.
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    UnityEngine.Debug.Log($"[Fiber][{componentName}][Bailout] FULL BAILOUT - skipping entire branch");
-                }
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] FULL BAILOUT - No subtree updates, skipping entire branch");
                 
                 // CRITICAL FIX: We must carry over the existing child pointer to the WIP tree
                 // even if we don't visit it. Otherwise, this branch is severed in the new tree.
@@ -97,19 +94,18 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    var reason = "";
-                    if (wipFiber.HasPendingStateUpdate) reason = "HasPendingStateUpdate=true";
-                    else if (wipFiber.ReadsContext) reason = "ReadsContext=true";
-                    else if (!propsEqual) reason = "PropsNotEqual";
-                    UnityEngine.Debug.Log($"[Fiber][{componentName}][Bailout] FAILED - Reason:{reason} - Will render");
-                }
+                var reason = "";
+                if (wipFiber.HasPendingStateUpdate) reason = "HasPendingStateUpdate=true";
+                else if (!contextUnchanged) reason = "ContextChanged=true";
+                else if (!propsEqual) reason = "PropsNotEqual";
+                
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT FAILED - Reason:{reason} - Will render");
                 
                 // Clear HasPendingStateUpdate now that we've read it
                 // (SubtreeHasUpdates stays for reconciliation, cleared after commit)
                 if (wipFiber.HasPendingStateUpdate)
                 {
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] Clearing HasPendingStateUpdate before render");
                     wipFiber.HasPendingStateUpdate = false;
                 }
             }
@@ -197,10 +193,7 @@ namespace ReactiveUITK.Core.Fiber
                 clone.Parent = parent;
                 clone.Index = 0;
 
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    UnityEngine.Debug.Log($"[Fiber][ReconcileSingleChild] Reusing fiber for {clone.ElementType}");
-                }
+                UnityEngine.Debug.Log($"[ReconcileSingleChild] Reusing fiber {currentChild.GetHashCode()} -> Clone {clone.GetHashCode()} (Type: {clone.ElementType})");
 
                 // Delete remaining siblings
                 var sibling = currentChild.Sibling;
@@ -300,10 +293,7 @@ namespace ReactiveUITK.Core.Fiber
                 parentFiber.Deletions = new List<FiberNode>();
             }
 
-            if (FiberConfig.EnableFiberLogging)
-            {
-                UnityEngine.Debug.Log($"[Fiber][DeleteChild] Marking {childFiber.ElementType} for deletion from {parentFiber.ElementType}");
-            }
+            UnityEngine.Debug.Log($"[DeleteChild] Marking {childFiber.ElementType} (Hash: {childFiber.GetHashCode()}) for deletion from {parentFiber.ElementType} (Hash: {parentFiber.GetHashCode()})");
 
             childFiber.EffectTag |= EffectFlags.Deletion;
             parentFiber.Deletions.Add(childFiber);

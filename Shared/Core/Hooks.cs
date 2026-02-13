@@ -1387,6 +1387,79 @@ namespace ReactiveUITK.Core
             );
         }
 
+        private readonly struct ContextDependency
+        {
+            public readonly string Key;
+            public readonly object Value;
+
+            public ContextDependency(string key, object value)
+            {
+                Key = key;
+                Value = value;
+            }
+        }
+
+        public static bool HasContextChanged(Fiber.FiberNode fiber)
+        {
+            if (fiber == null || fiber.ComponentState == null || fiber.ComponentState.HookStates == null)
+            {
+                return false;
+            }
+
+            var hookStates = fiber.ComponentState.HookStates;
+            for (int i = 0; i < hookStates.Count; i++)
+            {
+                if (hookStates[i] is ContextDependency dep)
+                {
+                    object currentValue = ResolveContextValue(fiber, fiber.ComponentState, dep.Key);
+                    if (!Equals(currentValue, dep.Value))
+                    {
+                        if (InternalLogOptions.EnableInternalLogs)
+                        {
+                            UnityEngine.Debug.Log($"[Hooks] Context changed for key '{dep.Key}': {dep.Value} -> {currentValue}");
+                        }
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static object ResolveContextValue(Fiber.FiberNode fiber, FunctionComponentState state, string key)
+        {
+            object resolved = null;
+            
+            // Fiber path: walk the Fiber tree's provided context
+            var current = fiber;
+            while (current != null)
+            {
+                if (
+                    current.ProvidedContext != null
+                    && current.ProvidedContext.TryGetValue(key, out var providedValue)
+                )
+                {
+                    resolved = providedValue;
+                    break;
+                }
+                current = current.Parent;
+            }
+
+            // Fallback to HostContext / Environment if not found in Fiber tree
+            if (resolved == null && state != null && state.HostContext != null)
+            {
+                if (state.HostContext.Environment != null)
+                {
+                    if (state.HostContext.Environment.TryGetValue(key, out var envValue))
+                    {
+                        resolved = envValue;
+                    }
+                }
+            }
+
+            return resolved;
+        }
+
         public static T UseContext<T>(string key)
         {
             NodeMetadata metadata = HookContext.Current?.Owner;
@@ -1397,59 +1470,30 @@ namespace ReactiveUITK.Core
             }
 
             RecordHook(metadata, state, HookIdContext);
-
-            // CRITICAL: Mark fiber as reading context to prevent incorrect bailout
+            
+            // CRITICAL: Mark fiber as reading context
+            // We still mark it to ensure we track dependencies, but we now have HasContextChanged to allow bailout.
             if (state.Fiber != null)
             {
                 state.Fiber.ReadsContext = true;
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{state.Fiber.ElementType ?? state.Fiber.Render?.Method.DeclaringType?.Name ?? "Unknown"}][UseContext] Set ReadsContext=true for key='{key}'");
             }
 
             // Resolve context value
-            object resolved = default;
+            object resolved = ResolveContextValue(state.Fiber, state, key);
 
-            // Fiber path: walk the Fiber tree's provided context, then fall back to HostContext.Environment.
-            var fiber = state.Fiber;
-            while (fiber != null)
-            {
-                if (
-                    fiber.ProvidedContext != null
-                    && fiber.ProvidedContext.TryGetValue(key, out resolved)
-                )
-                {
-                    break;
-                }
-                fiber = fiber.Parent;
-            }
-
-            if (resolved == null && state.HostContext != null)
-            {
-                // Fallback to global environment
-                if (
-                    state.HostContext.Environment != null
-                    && state.HostContext.Environment.TryGetValue(key, out var envVal)
-                )
-                {
-                    resolved = envVal;
-                }
-            }
-
+            // Access HookStates safely
             state.HookStates ??= new List<object>();
-            if (state.HookIndex >= state.HookStates.Count)
+            while (state.HookStates.Count <= state.HookIndex)
             {
                 state.HookStates.Add(default(T));
             }
-            if (resolved is T typed)
-            {
-                state.HookStates[state.HookIndex] = typed;
-                state.HookIndex++;
-                metadata?.SyncComponentState(state);
-                return typed;
-            }
-            state.HookStates[state.HookIndex] = default(T);
+            
+            // Store ContextDependency instead of the value itself, so we can re-resolve/validate later
+            state.HookStates[state.HookIndex] = new ContextDependency(key, resolved);
             state.HookIndex++;
             metadata?.SyncComponentState(state);
-            return default;
+
+            return resolved is T result ? result : default;
         }
 
         public static T UseSignal<T>(Signal<T> signal)

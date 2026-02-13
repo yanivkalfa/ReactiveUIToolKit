@@ -147,14 +147,14 @@ namespace ReactiveUITK.Core.Fiber
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
             
+            var fiberName = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Called. VNode={(vnode != null ? vnode.NodeType.ToString() : "null")}");
+            
             // Mark the target fiber as having an update
             if (fiber != null)
             {
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    var fiberName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                    UnityEngine.Debug.Log($"[Fiber][{fiberName}][ScheduleUpdate] Marking HasPendingStateUpdate=true");
-                }
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Marking HasPendingStateUpdate=true");
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName}][ScheduleUpdateOnFiber] Fiber hash: {fiber.GetHashCode()}, Parent: {(fiber.Parent != null ? fiber.Parent.ElementType ?? fiber.Parent.Render?.Method.DeclaringType?.Name ?? "Unknown" : "NULL")}");
                 fiber.HasPendingStateUpdate = true;
             }
 
@@ -170,7 +170,16 @@ namespace ReactiveUITK.Core.Fiber
                 // Mark parent as having a subtree update
                 if (rootCurrent.Parent != null)
                 {
+                    var parentName = rootCurrent.Parent.ElementType ?? rootCurrent.Parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][ScheduleUpdateOnFiber] Marking SubtreeHasUpdates=true (Child: {rootCurrent.ElementType})");
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][ScheduleUpdateOnFiber] Parent hash: {rootCurrent.Parent.GetHashCode()}, Parent's Parent: {(rootCurrent.Parent.Parent != null ? rootCurrent.Parent.Parent.ElementType ?? "Component" : "NULL")}");
                     rootCurrent.Parent.SubtreeHasUpdates = true;
+                }
+                else
+                {
+                     var currName = rootCurrent.ElementType ?? rootCurrent.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                     UnityEngine.Debug.Log($"[Full Tree Rerender][{currName}][ScheduleUpdateOnFiber] HAS NO PARENT - stopping walk. Hash: {rootCurrent.GetHashCode()}");
+                     UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleUpdateOnFiber] Reached top of chain. Current: {rootCurrent.ElementType ?? "Unknown"}");
                 }
 
                 if (rootCurrent.Parent == null)
@@ -182,37 +191,40 @@ namespace ReactiveUITK.Core.Fiber
 
             if (isDeleted)
             {
-                if (FiberConfig.EnableFiberLogging)
-                {
-                    UnityEngine.Debug.LogWarning("[Fiber] Attempted update on deleted fiber. Ignoring.");
-                }
+                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on deleted fiber. Ignoring.");
                 return;
             }
 
             // If we walked up and found a root, check if it matches the active root.
             if (rootCurrent != null)
             {
+                var treeType = "Unknown";
                 if (rootCurrent == _root.Current)
                 {
+                    treeType = "Current";
                     // Found the active root. Good.
                 }
                 else if (rootCurrent == _root.WorkInProgress)
                 {
-                    // Found the WorkInProgress root (cascading update).
+                    treeType = "WorkInProgress";
+                    // Found the WorkInProgress root.
+                    // This means we are scheduling an update on a tree that is currently being built (cascading update).
+                    // We should continue using this root as the WIP.
                 }
                 else if (_root.Current.Alternate != null && rootCurrent == _root.Current.Alternate)
                 {
-                    // Found the alternate root — valid during commit phase.
+                    treeType = "Alternate (old)";
+                    // Found the alternate root (which is not currently set as WIP).
+                    // This is valid during a commit phase or if we are interacting with a tree that is being committed.
+                    // We allow it to proceed, as it will create a WIP from this root.
                 }
                 else
                 {
-                    // This fiber is detached from the current tree
-                    if (FiberConfig.EnableFiberLogging)
-                    {
-                        UnityEngine.Debug.LogWarning($"[Fiber] Attempted update on detached fiber. Ignoring.");
-                    }
+                    // This fiber is detached from the current tree (and its alternate)
+                    UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
                     return;
                 }
+                UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleUpdateOnFiber] Fiber belongs to tree: {treeType}");
             }
 
             if (rootCurrent == null)
@@ -231,6 +243,8 @@ namespace ReactiveUITK.Core.Fiber
             {
                 // Queue the specific fiber update to replay it after commit
                 _deferredUpdates.Enqueue((fiber, vnode));
+                var fiberName2 = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                UnityEngine.Debug.Log($"[Full Tree Rerender][{fiberName2}][ScheduleUpdateOnFiber] Deferred during commit, queued in list. Count: {_deferredUpdates.Count}");
                 return;
             }
 
@@ -256,7 +270,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
-
+            UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleUpdateOnFiber] _nextUnitOfWork set to: {(_nextUnitOfWork != null ? _nextUnitOfWork.GetHashCode().ToString() : "Null")} (WIP: {(_root.WorkInProgress != null ? "Set" : "Null")})");
 
             // Start work loop (scheduler-based when available)
             if (scheduleWork)
@@ -318,8 +332,10 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
             */
+            UnityEngine.Debug.Log($"[Full Tree Rerender][ScheduleRootWork] Scheduling work slice with priority {priority}");
             void Slice()
             {
+                UnityEngine.Debug.Log($"[Full Tree Rerender][Slice] Callback fired. NextUnit: {(_nextUnitOfWork != null ? "Set" : "Null")}");
                 ProcessWorkUntilDeadline();
 
                 if (_nextUnitOfWork != null)
@@ -542,7 +558,10 @@ namespace ReactiveUITK.Core.Fiber
                 workInProgress.Alternate = current;
             }
 
-            // Propagate update flags to WIP
+            // Propagate update flags to WIP - root is special case, doesn't use factory
+            var componentName = current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "root";
+            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][CreateWIP] Propagating flags - HasPending:{current.HasPendingStateUpdate}, Subtree:{current.SubtreeHasUpdates}, ReadsContext:{current.ReadsContext}");
+            
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
@@ -649,6 +668,8 @@ namespace ReactiveUITK.Core.Fiber
                 while (_deferredUpdates.Count > 0)
                 {
                     var (fiber, vnode) = _deferredUpdates.Dequeue();
+                    var name = fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][CommitRoot] Processing deferred update from queue (Batching flags)");
                     // Update flags/WIP but DON'T schedule work yet
                     ScheduleUpdateOnFiber(fiber, vnode, scheduleWork: false);
                     pendingUpdates = true;
@@ -656,8 +677,11 @@ namespace ReactiveUITK.Core.Fiber
 
                 // Now that all deferred updates are processed and flags are set/merged,
                 // schedule the work loop ONCE.
+                // Now that all deferred updates are processed and flags are set/merged,
+                // schedule the work loop ONCE.
                 if (pendingUpdates)
                 {
+                    UnityEngine.Debug.Log($"[Full Tree Rerender][CommitRoot] Deferred updates processed. Restarting loop if needed.");
 
                     if (_scheduler == null)
                     {
@@ -889,6 +913,9 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
+            var fiberName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[CommitDeletion] Visiting {fiberName} (Tag: {fiber.Tag}, Hash: {fiber.GetHashCode()})");
+
             // Depth-first delete: clean up subtree before removing the current node.
             
             // If this is a function component, clean up effects and signal subscriptions.
@@ -948,12 +975,12 @@ namespace ReactiveUITK.Core.Fiber
 
                 if (parentFiber?.HostElement != null)
                 {
+                    UnityEngine.Debug.Log($"[CommitDeletion] Removing host child {fiber.GetHashCode()} from parent {parentFiber.GetHashCode()}");
                     _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
                 }
-                else if (FiberConfig.EnableFiberLogging)
+                else
                 {
-                    var fiberName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                    UnityEngine.Debug.LogWarning($"[Fiber][CommitDeletion] Could not find host parent for {fiberName}");
+                    UnityEngine.Debug.Log($"[CommitDeletion] ERROR: Could not find host parent for {fiberName} (Hash: {fiber.GetHashCode()})!");
                 }
             }
             else
@@ -1259,12 +1286,17 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber == null)
                 return;
 
+            var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[FLAGS][{name}][CommitClear] BEFORE - HasPending:{fiber.HasPendingStateUpdate}, Subtree:{fiber.SubtreeHasUpdates}, ReadsContext:{fiber.ReadsContext}");
+
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
 
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;
             // Note: ReadsContext is permanent, don't clear it
+
+            UnityEngine.Debug.Log($"[FLAGS][{name}][CommitClear] AFTER - Subtree:{fiber.SubtreeHasUpdates}");
 
             // Recursively process children
             var child = fiber.Child;
