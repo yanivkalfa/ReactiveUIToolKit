@@ -1399,12 +1399,16 @@ namespace ReactiveUITK.Core
             {
                 var dep = deps[i];
                 object currentValue = ResolveContextValue(fiber, fiber.ComponentState, dep.Key);
+                
+                // DEBUG: Force logging for RouterState/RouteMatch
+                if (dep.Key.Contains("Router") || dep.Key.Contains("Route"))
+                {
+                     UnityEngine.Debug.Log($"[Hooks][HasContextChanged] Key='{dep.Key}' | Old={(dep.Value?.GetHashCode())} | New={(currentValue?.GetHashCode())} | Equal={Equals(currentValue, dep.Value)}");
+                }
+
                 if (!Equals(currentValue, dep.Value))
                 {
-                    if (InternalLogOptions.EnableInternalLogs)
-                    {
-                        UnityEngine.Debug.Log($"[Hooks] Context changed for key '{dep.Key}': {dep.Value} -> {currentValue}");
-                    }
+                     UnityEngine.Debug.Log($"[Hooks] Context changed for key '{dep.Key}': {dep.Value} -> {currentValue}");
                     return true;
                 }
             }
