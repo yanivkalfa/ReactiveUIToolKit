@@ -1470,6 +1470,10 @@ namespace ReactiveUITK.Core
             var state = EnsureState(metadata);
             if (state == null || string.IsNullOrEmpty(key))
             {
+                if (ReactiveUITK.Core.Diagnostics.InternalLogOptions.EnableInternalLogs)
+                {
+                     UnityEngine.Debug.Log($"[Hooks] UseContext: State is NULL for key '{key}'. Metadata={metadata}, HookContext={HookContext.Current}");
+                }
                 return default;
             }
 
