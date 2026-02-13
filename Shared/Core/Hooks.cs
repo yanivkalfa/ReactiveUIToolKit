@@ -1404,9 +1404,10 @@ namespace ReactiveUITK.Core
             var deps = fiber.ComponentState.ContextDependencies;
 
             // DEBUG LOG: CHECK COUNT
-            if (InternalLogOptions.EnableInternalLogs || fiber.ElementType == "RouteFunc")
+            var compName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            if (InternalLogOptions.EnableInternalLogs || compName.Contains("Route"))
             {
-                 UnityEngine.Debug.Log($"[Hooks] HasContextChangedChecked: Checking {deps.Count} deps for {fiber.ElementType}");
+                 UnityEngine.Debug.Log($"[Hooks] HasContextChangedChecked: Checking {deps.Count} deps for {compName}");
             }
 
             for (int i = 0; i < deps.Count; i++)
@@ -1494,9 +1495,10 @@ namespace ReactiveUITK.Core
             state.ContextDependencies.Add(new ContextDependency(key, resolved));
 
             // DEBUG UNCONDITIONAL
-            if (state.Fiber?.ElementType == "RouteFunc")
+            var compName = state.Fiber?.ElementType ?? state.Fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            if (key.Contains("Router") || key.Contains("Route") || compName.Contains("Route"))
             {
-                 UnityEngine.Debug.Log($"[Hooks] UseContext: Added dep '{key}' for {state.Fiber?.ElementType}. Count={state.ContextDependencies.Count}");
+                 UnityEngine.Debug.Log($"[Hooks] UseContext: Added dep '{key}' for {compName}. Count={state.ContextDependencies.Count}");
             }
 
             return resolved is T result ? result : default;

@@ -45,7 +45,7 @@ namespace ReactiveUITK.Core.Fiber
             if (componentState.ContextDependencies != null)
             {
                 // Log render attempt
-                if (InternalLogOptions.EnableInternalLogs || wipFiber.ElementType == "RouteFunc")
+                if (InternalLogOptions.EnableInternalLogs || componentName.Contains("Route"))
                 {
                      UnityEngine.Debug.Log($"[FiberFunctionComponent] Clearing {componentState.ContextDependencies.Count} deps for {componentName}");
                 }
