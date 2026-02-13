@@ -41,15 +41,15 @@ namespace ReactiveUITK.Core.Fiber
             
             var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
 
-            // Clear context dependencies for the new render pass (React-style)
+            // NOTE: We do NOT clear context dependencies here.
+            // HasContextChanged (below) needs the PREVIOUS render's deps for comparison.
+            // Deps are cleared right before the render call, so UseContext can rebuild them.
             if (componentState.ContextDependencies != null)
             {
-                // Log render attempt
                 if (InternalLogOptions.EnableInternalLogs || componentName.Contains("Route"))
                 {
-                     UnityEngine.Debug.Log($"[FiberFunctionComponent] Clearing {componentState.ContextDependencies.Count} deps for {componentName}");
+                     UnityEngine.Debug.Log($"[FiberFunctionComponent] {componentName} has {componentState.ContextDependencies.Count} deps from previous render (NOT clearing yet)");
                 }
-                componentState.ContextDependencies.Clear();
             }
             
             // Wire up state updates to Fiber reconciler
@@ -129,6 +129,12 @@ namespace ReactiveUITK.Core.Fiber
             // Set hook context
             HookContext.Current = componentState;
             componentState.IsRendering = true;
+
+            // NOW clear context deps right before render — UseContext will rebuild them
+            if (componentState.ContextDependencies != null)
+            {
+                componentState.ContextDependencies.Clear();
+            }
 
             VirtualNode childVNode = null;
 
