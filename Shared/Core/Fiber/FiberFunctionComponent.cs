@@ -55,8 +55,9 @@ namespace ReactiveUITK.Core.Fiber
             UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] ENTER - HasPendingStateUpdate:{wipFiber.HasPendingStateUpdate}, PropsEqual:{propsEqual}, SubtreeHasUpdates:{wipFiber.SubtreeHasUpdates}, ReadsContext:{wipFiber.ReadsContext}, ContextUnchanged:{contextUnchanged}");
             UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] Props - Current:{(wipFiber.Props != null ? wipFiber.Props.GetHashCode().ToString() : "null")}, Pending:{(wipFiber.PendingProps != null ? wipFiber.PendingProps.GetHashCode().ToString() : "null")}");
 
-            // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
+            // Bailout check - TEMPORARILY DISABLED to fix "Stuck on Loading" bug
+            // The ContextUnchanged check is returning true incorrectly.
+            if (false && !wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
             {
                 UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT CHECK PASSED - Checking subtree");
                 
