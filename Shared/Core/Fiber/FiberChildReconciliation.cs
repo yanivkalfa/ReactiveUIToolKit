@@ -19,13 +19,10 @@ namespace ReactiveUITK.Core.Fiber
             IReadOnlyList<VirtualNode> newChildren
         )
         {
-            // Unconditional log for debugging duplication
-            var name = returnFiber.ElementType ?? returnFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[ChildReconcile][{name}] Reconciling {newChildren?.Count ?? 0} VNodes. CurrentFirstChild: {(currentFirstChild != null ? "FOUND (hash=" + currentFirstChild.GetHashCode() + ")" : "NULL")}");
-            
             if (FiberConfig.EnableFiberLogging)
             {
-                 // output handled above
+                var name = returnFiber.ElementType ?? returnFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                UnityEngine.Debug.Log($"[Fiber][ChildReconcile][{name}] Reconciling {newChildren?.Count ?? 0} VNodes. CurrentFirstChild: {(currentFirstChild != null ? "FOUND" : "NULL")}");
             }
 
             // Optimization for likely case: the list of children is empty
@@ -225,8 +222,6 @@ namespace ReactiveUITK.Core.Fiber
 
             // Use centralized factory for consistent flag propagation
             var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
-            var name = oldFiber.ElementType ?? oldFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][UpdateSlot] Reused fiber");
             return reused;
         }
 
@@ -381,12 +376,9 @@ namespace ReactiveUITK.Core.Fiber
             fiber.Index = newIndex;
             fiber.EffectTag = EffectFlags.None; // Mark as reused (no placement needed)
             
-            // PHASE 2: Propagate flags from alternate when reusing
+            // Propagate flags from alternate when reusing
             if (fiber.Alternate != null)
             {
-                var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][PlaceExisting] Propagating from alternate - HasPending:{fiber.Alternate.HasPendingStateUpdate}, SubtreeUpdates:{fiber.Alternate.SubtreeHasUpdates}, ReadsContext:{fiber.Alternate.ReadsContext}");
-                
                 fiber.HasPendingStateUpdate = fiber.Alternate.HasPendingStateUpdate;
                 fiber.SubtreeHasUpdates = fiber.Alternate.SubtreeHasUpdates;
                 fiber.ReadsContext = fiber.Alternate.ReadsContext;

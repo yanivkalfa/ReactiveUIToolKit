@@ -85,7 +85,10 @@ namespace ReactiveUITK.Core.Fiber
                     break;
             }
 
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown"}][FiberFactory.CreateNew] Created new fiber with clean flags");
+            if (FiberConfig.EnableFiberLogging)
+            {
+                UnityEngine.Debug.Log($"[Fiber][{fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown"}][FiberFactory.CreateNew] Created new fiber");
+            }
             
             return fiber;
         }
@@ -147,8 +150,11 @@ namespace ReactiveUITK.Core.Fiber
             // isn't fully connected yet. The update happens in CommitRoot after tree swap
             // when all parent references are guaranteed to be correct.
 
-            var name = clone.ElementType ?? clone.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][FiberFactory.CloneForReuse] Cloned with flags - HasPending:{clone.HasPendingStateUpdate}, SubtreeUpdates:{clone.SubtreeHasUpdates}, ReadsContext:{clone.ReadsContext}");
+            if (FiberConfig.EnableFiberLogging)
+            {
+                var name = clone.ElementType ?? clone.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                UnityEngine.Debug.Log($"[Fiber][{name}][FiberFactory.CloneForReuse] Flags - HasPending:{clone.HasPendingStateUpdate}, SubtreeUpdates:{clone.SubtreeHasUpdates}, ReadsContext:{clone.ReadsContext}");
+            }
 
             return clone;
         }
@@ -161,13 +167,8 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (parent?.Alternate?.Child == null)
             {
-                var parentName = parent?.ElementType ?? parent?.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][FiberFactory.CloneChildren] No children to clone");
                 return null;
             }
-
-            var parentName2 = parent.ElementType ?? parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName2}][FiberFactory.CloneChildren] Cloning children for bailout");
 
             var current = parent.Alternate.Child;
             
@@ -192,7 +193,6 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             previousNewFiber.Sibling = null;
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName2}][FiberFactory.CloneChildren] Cloned {siblingCount} children");
             
             return newChild;
         }
