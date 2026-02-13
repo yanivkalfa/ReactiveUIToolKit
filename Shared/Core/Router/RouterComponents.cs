@@ -45,7 +45,7 @@ namespace ReactiveUITK.Router
                 new object[] { resolvedHistory }
             );
 
-            RouterState routerState =
+            var routerState = Hooks.UseMemo(() =>
                 resolvedHistory != null
                     ? new RouterState(
                         location,
@@ -78,7 +78,9 @@ namespace ReactiveUITK.Router
                         _ => false,
                         _ => false,
                         _ => Disposable.Empty
-                    );
+                    ),
+                new object[] { resolvedHistory, location }
+            );
 
             Hooks.ProvideContext(RouterContextKeys.RouterState, routerState);
             var rootMatch = RouteMatch.CreateRoot(location?.Path ?? "/");
@@ -123,7 +125,11 @@ namespace ReactiveUITK.Router
                 resolvedPath = RouterPath.Combine(parentMatch?.Pattern ?? "/", path);
             }
 
-            var match = RouteMatcher.Match(router.Location.Path, resolvedPath, exact, parentMatch);
+            var match = Hooks.UseMemo(
+                () => RouteMatcher.Match(router.Location.Path, resolvedPath, exact, parentMatch),
+                new object[] { router.Location.Path, resolvedPath, exact, parentMatch }
+            );
+
             if (match == null)
             {
                 return null;
@@ -138,11 +144,15 @@ namespace ReactiveUITK.Router
                 ? parentNavigationBase
                 : resolvedPath;
             string navigationBase = RouterPath.Combine(baseSeed ?? "/", string.Empty);
-            var routeEntry = new RouteContextEntry(
-                match,
-                navigationBase,
-                parentEntry,
-                HookContext.Current
+            
+            var routeEntry = Hooks.UseMemo(
+                () => new RouteContextEntry(
+                    match,
+                    navigationBase,
+                    parentEntry,
+                    HookContext.Current
+                ),
+                new object[] { match, navigationBase, parentEntry, HookContext.Current }
             );
             Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, routeEntry);
 

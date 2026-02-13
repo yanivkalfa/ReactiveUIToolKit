@@ -1387,39 +1387,25 @@ namespace ReactiveUITK.Core
             );
         }
 
-        private readonly struct ContextDependency
-        {
-            public readonly string Key;
-            public readonly object Value;
-
-            public ContextDependency(string key, object value)
-            {
-                Key = key;
-                Value = value;
-            }
-        }
-
         public static bool HasContextChanged(Fiber.FiberNode fiber)
         {
-            if (fiber == null || fiber.ComponentState == null || fiber.ComponentState.HookStates == null)
+            if (fiber == null || fiber.ComponentState == null || fiber.ComponentState.ContextDependencies == null)
             {
                 return false;
             }
 
-            var hookStates = fiber.ComponentState.HookStates;
-            for (int i = 0; i < hookStates.Count; i++)
+            var deps = fiber.ComponentState.ContextDependencies;
+            for (int i = 0; i < deps.Count; i++)
             {
-                if (hookStates[i] is ContextDependency dep)
+                var dep = deps[i];
+                object currentValue = ResolveContextValue(fiber, fiber.ComponentState, dep.Key);
+                if (!Equals(currentValue, dep.Value))
                 {
-                    object currentValue = ResolveContextValue(fiber, fiber.ComponentState, dep.Key);
-                    if (!Equals(currentValue, dep.Value))
+                    if (InternalLogOptions.EnableInternalLogs)
                     {
-                        if (InternalLogOptions.EnableInternalLogs)
-                        {
-                            UnityEngine.Debug.Log($"[Hooks] Context changed for key '{dep.Key}': {dep.Value} -> {currentValue}");
-                        }
-                        return true;
+                        UnityEngine.Debug.Log($"[Hooks] Context changed for key '{dep.Key}': {dep.Value} -> {currentValue}");
                     }
+                    return true;
                 }
             }
 
@@ -1472,7 +1458,6 @@ namespace ReactiveUITK.Core
             RecordHook(metadata, state, HookIdContext);
             
             // CRITICAL: Mark fiber as reading context
-            // We still mark it to ensure we track dependencies, but we now have HasContextChanged to allow bailout.
             if (state.Fiber != null)
             {
                 state.Fiber.ReadsContext = true;
@@ -1481,17 +1466,10 @@ namespace ReactiveUITK.Core
             // Resolve context value
             object resolved = ResolveContextValue(state.Fiber, state, key);
 
-            // Access HookStates safely
-            state.HookStates ??= new List<object>();
-            while (state.HookStates.Count <= state.HookIndex)
-            {
-                state.HookStates.Add(default(T));
-            }
-            
-            // Store ContextDependency instead of the value itself, so we can re-resolve/validate later
-            state.HookStates[state.HookIndex] = new ContextDependency(key, resolved);
-            state.HookIndex++;
-            metadata?.SyncComponentState(state);
+            // Store dependency in specific list (React-style), NOT in hook slots
+            // This avoids breaking memory layout and allows UseContext to be truly stateless regarding hook order
+            state.ContextDependencies ??= new List<ContextDependency>();
+            state.ContextDependencies.Add(new ContextDependency(key, resolved));
 
             return resolved is T result ? result : default;
         }

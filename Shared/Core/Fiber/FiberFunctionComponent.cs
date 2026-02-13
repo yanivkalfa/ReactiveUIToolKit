@@ -37,6 +37,9 @@ namespace ReactiveUITK.Core.Fiber
             componentState.HookIndex = 0;
             componentState.EffectIndex = 0;
             componentState.LayoutEffectIndex = 0;
+            
+            // Clear context dependencies for the new render pass (React-style)
+            componentState.ContextDependencies?.Clear();
 
             // Wire up state updates to Fiber reconciler
             // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
