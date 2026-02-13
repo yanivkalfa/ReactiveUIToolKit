@@ -189,6 +189,8 @@ namespace ReactiveUITK.Core.Fiber
                 clone.Parent = parent;
                 clone.Index = 0;
 
+                UnityEngine.Debug.Log($"[ReconcileSingleChild] Reusing fiber {currentChild.GetHashCode()} -> Clone {clone.GetHashCode()} (Type: {clone.ElementType})");
+
                 // Delete remaining siblings
                 var sibling = currentChild.Sibling;
                 while (sibling != null)
@@ -286,6 +288,8 @@ namespace ReactiveUITK.Core.Fiber
             {
                 parentFiber.Deletions = new List<FiberNode>();
             }
+
+            UnityEngine.Debug.Log($"[DeleteChild] Marking {childFiber.ElementType} (Hash: {childFiber.GetHashCode()}) for deletion from {parentFiber.ElementType} (Hash: {parentFiber.GetHashCode()})");
 
             childFiber.EffectTag |= EffectFlags.Deletion;
             parentFiber.Deletions.Add(childFiber);

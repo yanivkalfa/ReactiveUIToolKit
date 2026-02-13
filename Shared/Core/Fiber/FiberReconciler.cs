@@ -913,11 +913,11 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
+            var fiberName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            UnityEngine.Debug.Log($"[CommitDeletion] Visiting {fiberName} (Tag: {fiber.Tag}, Hash: {fiber.GetHashCode()})");
+
             // Depth-first delete: clean up subtree before removing the current node.
             
-            var fiberName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[CommitDeletion] Visiting {fiberName} (Tag: {fiber.Tag})");
-
             // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
             {
@@ -967,21 +967,27 @@ namespace ReactiveUITK.Core.Fiber
             // If this fiber has a HostElement, remove it from its parent
             if (fiber.HostElement != null)
             {
+                UnityEngine.Debug.Log($"[CommitDeletion] Found HostElement for {fiberName}. Searching for host parent...");
                 var parentFiber = fiber.Parent;
                 while (parentFiber != null && parentFiber.HostElement == null)
                 {
+                    // UnityEngine.Debug.Log($"[CommitDeletion] Walking up... Parent: {parentFiber.ElementType} (HasHost: {parentFiber.HostElement != null})");
                     parentFiber = parentFiber.Parent;
                 }
 
                 if (parentFiber?.HostElement != null)
                 {
-                    if (FiberConfig.EnableFiberLogging)
-                    {
-                        var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                        UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][CommitDeletion] Removing host child from parent");
-                    }
+                    UnityEngine.Debug.Log($"[CommitDeletion] Removing host child {fiber.GetHashCode()} from parent {parentFiber.GetHashCode()}");
                     _hostConfig.RemoveChild(parentFiber.HostElement, fiber.HostElement);
                 }
+                else
+                {
+                    UnityEngine.Debug.Log($"[CommitDeletion] ERROR: Could not find host parent for {fiberName} (Hash: {fiber.GetHashCode()})!");
+                }
+            }
+            else
+            {
+                // UnityEngine.Debug.Log($"[CommitDeletion] No HostElement for {fiberName}.");
             }
         }
 
