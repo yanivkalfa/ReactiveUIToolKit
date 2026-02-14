@@ -14,26 +14,32 @@ namespace ReactiveUITK.Core.Fiber
         /// Reconcile children - diff old and new children, create/update/delete fibers
         /// </summary>
         public static void ReconcileChildren(
-            FiberNode wipFiber,
+            FiberNode returnFiber,
             FiberNode currentFirstChild,
             IReadOnlyList<VirtualNode> newChildren
         )
         {
+            // Unconditional log for debugging duplication
+            var name =
+                returnFiber.ElementType
+                ?? returnFiber.Render?.Method.DeclaringType?.Name
+                ?? "Unknown";
+            // Optimization for likely case: the list of children is empty
             if (newChildren == null || newChildren.Count == 0)
             {
                 // Delete all existing children
-                DeleteRemainingChildren(wipFiber, currentFirstChild);
+                DeleteRemainingChildren(returnFiber, currentFirstChild);
                 return;
             }
 
             // Try keyed reconciliation first
             if (HasKeys(newChildren))
             {
-                ReconcileChildrenWithKeys(wipFiber, currentFirstChild, newChildren);
+                ReconcileChildrenWithKeys(returnFiber, currentFirstChild, newChildren);
             }
             else
             {
-                ReconcileChildrenByIndex(wipFiber, currentFirstChild, newChildren);
+                ReconcileChildrenByIndex(returnFiber, currentFirstChild, newChildren);
             }
         }
 
@@ -213,14 +219,11 @@ namespace ReactiveUITK.Core.Fiber
                 return null;
             }
 
-            // Clone and update
-            var newFiber = CloneFiber(oldFiber);
-            newFiber.PendingProps = ExtractProps(newVNode);
-            newFiber.Children = newVNode.Children;
-            newFiber.EffectTag = EffectFlags.Update;
-            newFiber.LastRenderedVNode = newVNode;
-
-            return newFiber;
+            // Use centralized factory for consistent flag propagation
+            var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
+            var name =
+                oldFiber.ElementType ?? oldFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            return reused;
         }
 
         /// <summary>
@@ -244,15 +247,17 @@ namespace ReactiveUITK.Core.Fiber
                     return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
-                    if (fiber.Tag != FiberTag.FunctionComponent) return false;
-                    
+                    if (fiber.Tag != FiberTag.FunctionComponent)
+                        return false;
+
                     // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender) return true;
-                    
+                    if (fiber.Render == vnode.FunctionRender)
+                        return true;
+
                     // Handle method group conversion (creates new delegate instance)
                     if (fiber.Render != null && vnode.FunctionRender != null)
                     {
-                        return fiber.Render.Method == vnode.FunctionRender.Method 
+                        return fiber.Render.Method == vnode.FunctionRender.Method
                             && fiber.Render.Target == vnode.FunctionRender.Target;
                     }
                     return false;
@@ -369,6 +374,27 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Mark fiber for placement at index
         /// </summary>
+        private static FiberNode PlaceExistingChild(FiberNode fiber, int newIndex)
+        {
+            fiber.Index = newIndex;
+            fiber.EffectTag = EffectFlags.None; // Mark as reused (no placement needed)
+
+            // PHASE 2: Propagate flags from alternate when reusing
+            if (fiber.Alternate != null)
+            {
+                var name =
+                    fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber.HasPendingStateUpdate = fiber.Alternate.HasPendingStateUpdate;
+                fiber.SubtreeHasUpdates = fiber.Alternate.SubtreeHasUpdates;
+                fiber.ReadsContext = fiber.Alternate.ReadsContext;
+            }
+
+            return fiber;
+        }
+
+        /// <summary>
+        /// Mark fiber for placement at index
+        /// </summary>
         private static void PlaceChild(FiberNode fiber, int index)
         {
             fiber.Index = index;
@@ -463,6 +489,47 @@ namespace ReactiveUITK.Core.Fiber
                 default:
                     return vnode.Properties ?? new Dictionary<string, object>();
             }
+        }
+
+        /// <summary>
+        /// Clone child fibers from alternate without re-rendering parent.
+        /// Used for bailout optimization when parent props haven't changed
+        /// but subtree has updates.
+        /// </summary>
+        public static FiberNode CloneChildFibers(FiberNode parent)
+        {
+            // Use centralized factory for consistent flag propagation
+            return FiberFactory.CloneChildrenForBailout(parent);
+        }
+
+        /// <summary>
+        /// Clone a fiber node
+        /// </summary>
+        private static FiberNode CloneFiber(
+            FiberNode current,
+            IReadOnlyDictionary<string, object> newProps
+        )
+        {
+            var clone = new FiberNode
+            {
+                Tag = current.Tag,
+                ElementType = current.ElementType,
+                Key = current.Key,
+                Render = current.Render,
+                HostElement = current.HostElement,
+                Props = current.Props,
+                PendingProps = newProps,
+                Children = current.Children,
+                Alternate = current,
+                ComponentState = current.ComponentState,
+                // Propagate update flags
+                HasPendingStateUpdate = current.HasPendingStateUpdate,
+                SubtreeHasUpdates = current.SubtreeHasUpdates,
+                ReadsContext = current.ReadsContext,
+            };
+
+            current.Alternate = clone;
+            return clone;
         }
     }
 }

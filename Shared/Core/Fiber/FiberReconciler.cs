@@ -20,9 +20,12 @@ namespace ReactiveUITK.Core.Fiber
         private HostContext _hostContext;
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
-        private bool _workScheduled;
         private bool _isCommitting; // Track if we're in the commit phase
-        private VirtualNode _pendingRootVNode; // Deferred update scheduled during commit
+
+        // Queue for deferred updates during commit
+        // Stores target fiber and the vnode (if any)
+        private readonly Queue<(FiberNode Fiber, VirtualNode VNode)> _deferredUpdates =
+            new Queue<(FiberNode, VirtualNode)>();
         private const float TimeSliceMs = 2.0f;
 
         // Metrics
@@ -118,7 +121,11 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Schedule an update on a fiber (triggered by setState, props change, etc.)
         /// </summary>
-        public void ScheduleUpdateOnFiber(FiberNode fiber, VirtualNode vnode)
+        public void ScheduleUpdateOnFiber(
+            FiberNode fiber,
+            VirtualNode vnode,
+            bool scheduleWork = true
+        )
         {
             if (_root == null)
             {
@@ -138,17 +145,22 @@ namespace ReactiveUITK.Core.Fiber
             {
                 _root.RootVNode = vnode;
             }
-            var rootVNode = _root.RootVNode;
-
-            if (rootVNode == null)
-            {
-                return;
-            }
+            // NOTE: rootVNode can be null for state-only updates (like setState calls)
+            // Don't early return here - we still need to process the update
 
             // Find the root fiber for this update by walking up the
             // parent chain. Also check for deletion flags along the way.
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
+
+            var fiberName =
+                fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            // Mark the target fiber as having an update
+            if (fiber != null)
+            {
+                fiber.HasPendingStateUpdate = true;
+            }
+
             while (rootCurrent != null)
             {
                 if ((rootCurrent.EffectTag & EffectFlags.Deletion) != 0)
@@ -156,6 +168,24 @@ namespace ReactiveUITK.Core.Fiber
                     isDeleted = true;
                     break;
                 }
+
+                // Mark parent as having a subtree update
+                if (rootCurrent.Parent != null)
+                {
+                    var parentName =
+                        rootCurrent.Parent.ElementType
+                        ?? rootCurrent.Parent.Render?.Method.DeclaringType?.Name
+                        ?? "Unknown";
+                    rootCurrent.Parent.SubtreeHasUpdates = true;
+                }
+                else
+                {
+                    var currName =
+                        rootCurrent.ElementType
+                        ?? rootCurrent.Render?.Method.DeclaringType?.Name
+                        ?? "Unknown";
+                }
+
                 if (rootCurrent.Parent == null)
                 {
                     break;
@@ -165,25 +195,28 @@ namespace ReactiveUITK.Core.Fiber
 
             if (isDeleted)
             {
-                UnityEngine.Debug.LogWarning("[FiberReconciler] Attempted update on deleted fiber. Ignoring.");
                 return;
             }
 
             // If we walked up and found a root, check if it matches the active root.
             if (rootCurrent != null)
             {
+                var treeType = "Unknown";
                 if (rootCurrent == _root.Current)
                 {
+                    treeType = "Current";
                     // Found the active root. Good.
                 }
                 else if (rootCurrent == _root.WorkInProgress)
                 {
+                    treeType = "WorkInProgress";
                     // Found the WorkInProgress root.
                     // This means we are scheduling an update on a tree that is currently being built (cascading update).
                     // We should continue using this root as the WIP.
                 }
-                else if (rootCurrent == _root.Current.Alternate)
+                else if (_root.Current.Alternate != null && rootCurrent == _root.Current.Alternate)
                 {
+                    treeType = "Alternate (old)";
                     // Found the alternate root (which is not currently set as WIP).
                     // This is valid during a commit phase or if we are interacting with a tree that is being committed.
                     // We allow it to proceed, as it will create a WIP from this root.
@@ -191,7 +224,9 @@ namespace ReactiveUITK.Core.Fiber
                 else
                 {
                     // This fiber is detached from the current tree (and its alternate)
-                    UnityEngine.Debug.LogWarning($"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}");
+                    UnityEngine.Debug.LogWarning(
+                        $"[FiberReconciler] Attempted update on detached fiber. Ignoring. rootCurrent={rootCurrent.GetHashCode()} _root.Current={_root.Current.GetHashCode()}"
+                    );
                     return;
                 }
             }
@@ -210,7 +245,10 @@ namespace ReactiveUITK.Core.Fiber
             // Resetting Child=null during commit would corrupt the tree being committed.
             if (_isCommitting)
             {
-                _pendingRootVNode = rootVNode ?? _pendingRootVNode;
+                // Queue the specific fiber update to replay it after commit
+                _deferredUpdates.Enqueue((fiber, vnode));
+                var fiberName2 =
+                    fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
                 return;
             }
 
@@ -220,10 +258,10 @@ namespace ReactiveUITK.Core.Fiber
                 // If we are updating the WIP, we don't need to create it.
                 // We just need to ensure it has the latest props/vnode if provided.
                 _workInProgressRoot = rootCurrent;
-                if (rootVNode != null)
+                if (vnode != null)
                 {
-                    _workInProgressRoot.PendingProps = ExtractProps(rootVNode);
-                    _workInProgressRoot.Children = new[] { rootVNode };
+                    _workInProgressRoot.PendingProps = ExtractProps(vnode);
+                    _workInProgressRoot.Children = new[] { vnode };
                     _workInProgressRoot.Child = null; // Reset child to force reconciliation
                     _workInProgressRoot.EffectTag = EffectFlags.None;
                     _workInProgressRoot.NextEffect = null;
@@ -232,19 +270,22 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                _workInProgressRoot = CreateWorkInProgress(rootCurrent, rootVNode);
+                _workInProgressRoot = CreateWorkInProgress(rootCurrent, vnode);
             }
             _root.WorkInProgress = _workInProgressRoot;
             _nextUnitOfWork = _workInProgressRoot;
 
             // Start work loop (scheduler-based when available)
-            if (_scheduler != null)
+            if (scheduleWork)
             {
-                ScheduleRootWork(IScheduler.Priority.Normal);
-            }
-            else
-            {
-                WorkLoop();
+                if (_scheduler != null)
+                {
+                    ScheduleRootWork(IScheduler.Priority.Normal);
+                }
+                else
+                {
+                    WorkLoop();
+                }
             }
         }
 
@@ -284,15 +325,9 @@ namespace ReactiveUITK.Core.Fiber
                 WorkLoop();
                 return;
             }
-            if (_workScheduled)
-            {
-                return;
-            }
-            _workScheduled = true;
 
             void Slice()
             {
-                _workScheduled = false;
                 ProcessWorkUntilDeadline();
 
                 if (_nextUnitOfWork != null)
@@ -472,9 +507,9 @@ namespace ReactiveUITK.Core.Fiber
                         fiber.HostElement = _hostConfig.CreateElement(fiber.ElementType);
                         fiber.EffectTag |= EffectFlags.Placement;
                     }
-                    else if (fiber.PendingProps != fiber.Props)
+                    else if (!AreHostPropsEqual(fiber.PendingProps, fiber.Props))
                     {
-                        // Props changed, mark for update
+                        // Props actually changed (deep comparison), mark for update
                         fiber.EffectTag |= EffectFlags.Update;
                     }
                     break;
@@ -515,11 +550,27 @@ namespace ReactiveUITK.Core.Fiber
                 workInProgress.Alternate = current;
             }
 
+            // Propagate update flags to WIP - root is special case, doesn't use factory
+            var componentName =
+                current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "root";
+            workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
+            workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
+            workInProgress.ReadsContext = current.ReadsContext;
+
+            // CRITICAL FIX: Copy existing props to WIP so we have a baseline for ArePropsEqual comparison
+            // Without this, WIP.Props is null, so comparison against PendingProps always fails
+            workInProgress.Props = current.Props;
+
             // Update props for new render
             workInProgress.PendingProps = ExtractProps(vnode);
             // The passed vnode IS the child of the root, so we wrap it in a list
-            workInProgress.Children = vnode != null ? new[] { vnode } : Array.Empty<VirtualNode>();
-            workInProgress.Child = null; // Will be reconciled
+            // Fix: If vnode is null (state update), preserve existing children to avoid wiping the tree
+            workInProgress.Children = vnode != null ? new[] { vnode } : current.Children;
+
+            // Fix: Preserve Child link so Hooks.ResolveAnimationTarget can find the host element
+            // during the render phase (before ReconcileChildren overwrites it).
+            workInProgress.Child = current.Child;
+
             workInProgress.EffectTag = EffectFlags.None;
             workInProgress.NextEffect = null;
             workInProgress.Deletions = null;
@@ -571,6 +622,11 @@ namespace ReactiveUITK.Core.Fiber
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
 
+                // CRITICAL: Update all ComponentState.Fiber references to the new committed tree
+                // This must happen AFTER swap so ComponentState points to fibers with fully connected parent chains
+                // UseEffect callbacks will fire next and need correct fiber references for ScheduleUpdateOnFiber
+                UpdateComponentStateReferences(_root.Current);
+
                 // Only clear WIP if it hasn't been updated by a synchronous effect (e.g. navigate)
                 if (_root.WorkInProgress == finishedWork)
                 {
@@ -581,8 +637,15 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     _workInProgressRoot = null;
                 }
+
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
+
+                // PHASE 3: Commit props and clear remaining flags (SubtreeHasUpdates, ReadsContext)
+                // CRITICAL: We clear flags HERE, before processing deferred updates
+                // This cleans up the render we just finished.
+                // Any deferred updates processed next will set NEW flags on the tree, which we must NOT clear.
+                CommitPropsAndClearFlags(_root.Current);
 
                 EmitMetrics();
             }
@@ -592,11 +655,33 @@ namespace ReactiveUITK.Core.Fiber
                 _isCommitting = false;
 
                 // Process any deferred updates scheduled during commit
-                if (_pendingRootVNode != null)
+                bool pendingUpdates = false;
+                while (_deferredUpdates.Count > 0)
                 {
-                    var pendingVNode = _pendingRootVNode;
-                    _pendingRootVNode = null;
-                    ScheduleUpdateOnFiber(_root.Current, pendingVNode);
+                    var (fiber, vnode) = _deferredUpdates.Dequeue();
+                    var name =
+                        fiber?.ElementType
+                        ?? fiber?.Render?.Method.DeclaringType?.Name
+                        ?? "Unknown";
+                    // Update flags/WIP but DON'T schedule work yet
+                    ScheduleUpdateOnFiber(fiber, vnode, scheduleWork: false);
+                    pendingUpdates = true;
+                }
+
+                // Now that all deferred updates are processed and flags are set/merged,
+                // schedule the work loop ONCE.
+                // Now that all deferred updates are processed and flags are set/merged,
+                // schedule the work loop ONCE.
+                if (pendingUpdates)
+                {
+                    if (_scheduler == null)
+                    {
+                        // Sync mode: We must restart the loop manually because the previous WorkLoop exited
+                        WorkLoop();
+                    }
+                    // Async mode: Do NOTHING.
+                    // The 'Slice' callback that called us will see _nextUnitOfWork != null and reschedule automatically.
+                    // Explicitly calling ScheduleRootWork here causes double-scheduling and race conditions.
                 }
             }
         }
@@ -819,8 +904,9 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
+            var fiberName =
+                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
             // Depth-first delete: clean up subtree before removing the current node.
-
             // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
             {
@@ -887,11 +973,7 @@ namespace ReactiveUITK.Core.Fiber
 
         private FiberNode UpdateHostComponent(FiberNode fiber)
         {
-            // Reconcile children for this host element.
-            if (fiber.Children != null && fiber.Children.Count > 0)
-            {
-                ReconcileChildren(fiber, fiber.Children);
-            }
+            ReconcileChildren(fiber, fiber.Children);
 
             return fiber.Child;
         }
@@ -1167,5 +1249,78 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         private static bool MetricsEmittedHasSubscribers() => MetricsEmitted != null;
+
+        /// <summary>
+        /// Shallow-compare two prop dictionaries by value.
+        /// Used by CompleteWork to avoid marking host components for update
+        /// when only the dictionary instance differs but values are identical.
+        /// </summary>
+        private static bool AreHostPropsEqual(
+            IReadOnlyDictionary<string, object> props1,
+            IReadOnlyDictionary<string, object> props2
+        )
+        {
+            if (props1 == props2)
+                return true;
+            if (props1 == null || props2 == null)
+                return false;
+            if (props1.Count != props2.Count)
+                return false;
+
+            foreach (var kvp in props1)
+            {
+                if (!props2.TryGetValue(kvp.Key, out var value2))
+                    return false;
+                if (!object.Equals(kvp.Value, value2))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Phase 3: Commit props and clear flags after commit
+        /// </summary>
+        private void CommitPropsAndClearFlags(FiberNode fiber)
+        {
+            if (fiber == null)
+                return;
+
+            var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+
+            // Commit props for next comparison
+            fiber.Props = fiber.PendingProps;
+
+            // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
+            fiber.SubtreeHasUpdates = false;
+
+            // Recursively process children
+            var child = fiber.Child;
+            while (child != null)
+            {
+                CommitPropsAndClearFlags(child);
+                child = child.Sibling;
+            }
+        }
+
+        /// <summary>
+        /// Recursively update all ComponentState.Fiber references to point to the new tree.
+        /// Called after tree swap to ensure UseEffect callbacks reference the correct fibers.
+        /// </summary>
+        private void UpdateComponentStateReferences(FiberNode fiber)
+        {
+            if (fiber == null)
+                return;
+
+            // Update this fiber's component state if it exists
+            if (fiber.ComponentState != null)
+            {
+                fiber.ComponentState.Fiber = fiber;
+            }
+
+            // Recurse to children and siblings
+            UpdateComponentStateReferences(fiber.Child);
+            UpdateComponentStateReferences(fiber.Sibling);
+        }
     }
 }

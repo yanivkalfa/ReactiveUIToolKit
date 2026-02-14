@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Diagnostics;
 
 namespace ReactiveUITK.Core.Fiber
 {
@@ -38,12 +39,81 @@ namespace ReactiveUITK.Core.Fiber
             componentState.EffectIndex = 0;
             componentState.LayoutEffectIndex = 0;
 
+            var componentName =
+                wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+
             // Wire up state updates to Fiber reconciler
-            componentState.OnStateUpdated = () => reconciler.ScheduleUpdateOnFiber(wipFiber, null);
+            // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
+            // instead of capturing wipFiber, which becomes stale after tree swap in CommitRoot.
+            componentState.OnStateUpdated = () =>
+                reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
+
+            // Log render attempt
+            var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
+            bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
+
+            // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
+            if (!wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
+            {
+                // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
+                if (wipFiber.SubtreeHasUpdates)
+                {
+                    FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
+                    return newChild;
+                }
+                // Commit props so the next render cycle sees matching props for ArePropsEqual
+                wipFiber.Props = wipFiber.PendingProps;
+
+                // CRITICAL FIX: We must carry over the existing child pointer to the WIP tree
+                // even if we don't visit it. Otherwise, this branch is severed in the new tree.
+                if (wipFiber.Alternate != null)
+                {
+                    wipFiber.Child = wipFiber.Alternate.Child;
+
+                    // CRITICAL FIX: We must update the child's Parent pointer to point to this new WIP fiber!
+                    // Otherwise, the child remains attached to the OLD parent (Alternate), breaking the update chain.
+                    if (wipFiber.Child != null)
+                    {
+                        var child = wipFiber.Child;
+                        while (child != null)
+                        {
+                            child.Parent = wipFiber;
+                            child = child.Sibling;
+                        }
+                    }
+                }
+
+                componentState.IsRendering = false;
+                HookContext.Current = null;
+                return null;
+            }
+            else
+            {
+                var reason = "";
+                if (wipFiber.HasPendingStateUpdate)
+                    reason = "HasPendingStateUpdate=true";
+                else if (!contextUnchanged)
+                    reason = "ContextChanged=true";
+                else if (!propsEqual)
+                    reason = "PropsNotEqual";
+
+                // Clear HasPendingStateUpdate now that we've read it
+                // (SubtreeHasUpdates stays for reconciliation, cleared after commit)
+                if (wipFiber.HasPendingStateUpdate)
+                {
+                    wipFiber.HasPendingStateUpdate = false;
+                }
+            }
 
             // Set hook context
             HookContext.Current = componentState;
             componentState.IsRendering = true;
+
+            // NOW clear context deps right before render — UseContext will rebuild them
+            if (componentState.ContextDependencies != null)
+            {
+                componentState.ContextDependencies.Clear();
+            }
 
             VirtualNode childVNode = null;
 
@@ -119,33 +189,10 @@ namespace ReactiveUITK.Core.Fiber
             // Try to reuse existing fiber
             if (currentChild != null && CanReuseFiber(currentChild, newVNode))
             {
-                // Clone and update
-                var clone = new FiberNode
-                {
-                    Tag = currentChild.Tag,
-                    ElementType = currentChild.ElementType,
-                    Key = currentChild.Key,
-                    Render = currentChild.Render,
-                    HostElement = currentChild.HostElement,
-                    ComponentState = currentChild.ComponentState,
-                    Alternate = currentChild,
-                    Props = currentChild.Props,
-                    ContextFrame = currentChild.ContextFrame,
-                    ContextProviderId = currentChild.ContextProviderId,
-                    ProvidedContext = currentChild.ProvidedContext,
-                    PortalTarget = currentChild.PortalTarget,
-                    ErrorBoundaryActive = currentChild.ErrorBoundaryActive,
-                    ErrorBoundaryShowingFallback = currentChild.ErrorBoundaryShowingFallback,
-                    ErrorBoundaryLastException = currentChild.ErrorBoundaryLastException,
-                    ErrorBoundaryResetKey = currentChild.ErrorBoundaryResetKey,
-                    Parent = parent,
-                    Index = 0,
-                };
-
-                clone.PendingProps = ExtractProps(newVNode);
-                clone.Children = newVNode.Children;
-                clone.EffectTag = EffectFlags.Update;
-                clone.LastRenderedVNode = newVNode;
+                // Use centralized factory for consistent flag propagation
+                var clone = FiberFactory.CloneForReuse(currentChild, newVNode);
+                clone.Parent = parent;
+                clone.Index = 0;
 
                 // Delete remaining siblings
                 var sibling = currentChild.Sibling;
@@ -195,15 +242,17 @@ namespace ReactiveUITK.Core.Fiber
                     return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
-                    if (fiber.Tag != FiberTag.FunctionComponent) return false;
-                    
+                    if (fiber.Tag != FiberTag.FunctionComponent)
+                        return false;
+
                     // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender) return true;
-                    
+                    if (fiber.Render == vnode.FunctionRender)
+                        return true;
+
                     // Handle method group conversion (creates new delegate instance)
                     if (fiber.Render != null && vnode.FunctionRender != null)
                     {
-                        return fiber.Render.Method == vnode.FunctionRender.Method 
+                        return fiber.Render.Method == vnode.FunctionRender.Method
                             && fiber.Render.Target == vnode.FunctionRender.Target;
                     }
                     return false;
@@ -231,66 +280,8 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         private static FiberNode CreateFiber(VirtualNode vnode, FiberNode parent, int index)
         {
-            if (vnode == null)
-                return null;
-
-            var fiber = new FiberNode
-            {
-                Key = vnode.Key,
-                Parent = parent,
-                Index = index,
-                PendingProps = ExtractProps(vnode),
-                Children = vnode.Children,
-                EffectTag = EffectFlags.Placement,
-            };
-
-            switch (vnode.NodeType)
-            {
-                case VirtualNodeType.Element:
-                    fiber.Tag = FiberTag.HostComponent;
-                    fiber.ElementType = vnode.ElementTypeName;
-                    break;
-
-                case VirtualNodeType.Text:
-                    fiber.Tag = FiberTag.HostComponent;
-                    fiber.ElementType = "Label";
-                    break;
-
-                case VirtualNodeType.FunctionComponent:
-                    fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = vnode.FunctionRender;
-                    break;
-
-                case VirtualNodeType.Suspense:
-                    fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = FiberIntrinsicComponents.SuspenseRender;
-                    fiber.PendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
-                    fiber.EffectTag = EffectFlags.None;
-                    break;
-
-                case VirtualNodeType.Portal:
-                    fiber.Tag = FiberTag.HostPortal;
-                    fiber.PortalTarget = vnode.PortalTarget;
-                    fiber.HostElement = vnode.PortalTarget;
-                    fiber.EffectTag = EffectFlags.None;
-                    break;
-
-                case VirtualNodeType.ErrorBoundary:
-                    fiber.Tag = FiberTag.ErrorBoundary;
-                    fiber.LastRenderedVNode = vnode;
-                    fiber.ErrorBoundaryResetKey = vnode.ErrorResetToken;
-                    fiber.ErrorBoundaryActive = false;
-                    fiber.ErrorBoundaryShowingFallback = false;
-                    fiber.ErrorBoundaryLastException = null;
-                    fiber.EffectTag = EffectFlags.None;
-                    break;
-
-                case VirtualNodeType.Fragment:
-                    fiber.Tag = FiberTag.Fragment;
-                    break;
-            }
-
-            return fiber;
+            // Use centralized factory for consistent flag management
+            return FiberFactory.CreateNew(vnode, parent, index);
         }
 
         /// <summary>
@@ -302,7 +293,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 parentFiber.Deletions = new List<FiberNode>();
             }
-
             childFiber.EffectTag |= EffectFlags.Deletion;
             parentFiber.Deletions.Add(childFiber);
         }
@@ -472,6 +462,32 @@ namespace ReactiveUITK.Core.Fiber
         {
             // TODO: Use proper scheduler
             effect?.Invoke();
+        }
+
+        /// <summary>
+        /// Check if props are equal (shallow comparison)
+        /// </summary>
+        private static bool ArePropsEqual(
+            IReadOnlyDictionary<string, object> props1,
+            IReadOnlyDictionary<string, object> props2
+        )
+        {
+            if (props1 == props2)
+                return true;
+            if (props1 == null || props2 == null)
+                return false;
+            if (props1.Count != props2.Count)
+                return false;
+
+            foreach (var kvp in props1)
+            {
+                if (!props2.TryGetValue(kvp.Key, out var value2))
+                    return false;
+                if (!object.Equals(kvp.Value, value2))
+                    return false;
+            }
+
+            return true;
         }
     }
 }

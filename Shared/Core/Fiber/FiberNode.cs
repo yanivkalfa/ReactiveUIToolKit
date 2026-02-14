@@ -103,6 +103,22 @@ namespace ReactiveUITK.Core.Fiber
             object[] lastDeps,
             Action cleanup
         )> PassiveEffects;
+
+        // ==== Update Tracking (for bailout optimization) ====
+        /// <summary>
+        /// Flag indicating this fiber has a pending state update
+        /// </summary>
+        public bool HasPendingStateUpdate;
+
+        /// <summary>
+        /// Flag indicating this fiber's subtree has updates
+        /// </summary>
+        public bool SubtreeHasUpdates;
+
+        /// <summary>
+        /// Flag indicating this fiber reads from Context and cannot safely bail out based on props alone
+        /// </summary>
+        public bool ReadsContext;
     }
 
     /// <summary>
