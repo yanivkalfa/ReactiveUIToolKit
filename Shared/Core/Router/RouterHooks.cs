@@ -8,8 +8,6 @@ namespace ReactiveUITK.Router
     {
         public static RouterState UseRouter()
         {
-            // DEBUG UNCONDITIONAL
-             UnityEngine.Debug.Log("[RouterHooks] UseRouter called (Unconditional)");
             return Hooks.UseContext<RouterState>(RouterContextKeys.RouterState);
         }
 

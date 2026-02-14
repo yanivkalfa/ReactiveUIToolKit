@@ -38,59 +38,38 @@ namespace ReactiveUITK.Core.Fiber
             componentState.HookIndex = 0;
             componentState.EffectIndex = 0;
             componentState.LayoutEffectIndex = 0;
-            
-            var componentName = wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
 
-            // NOTE: We do NOT clear context dependencies here.
-            // HasContextChanged (below) needs the PREVIOUS render's deps for comparison.
-            // Deps are cleared right before the render call, so UseContext can rebuild them.
-            if (componentState.ContextDependencies != null)
-            {
-                if (InternalLogOptions.EnableInternalLogs || componentName.Contains("Route"))
-                {
-                     UnityEngine.Debug.Log($"[FiberFunctionComponent] {componentName} has {componentState.ContextDependencies.Count} deps from previous render (NOT clearing yet)");
-                }
-            }
-            
+            var componentName =
+                wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+
             // Wire up state updates to Fiber reconciler
             // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
             // instead of capturing wipFiber, which becomes stale after tree swap in CommitRoot.
-            componentState.OnStateUpdated = () => reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
+            componentState.OnStateUpdated = () =>
+                reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
 
             // Log render attempt
             var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
-            
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
-            
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] ENTER - HasPendingStateUpdate:{wipFiber.HasPendingStateUpdate}, PropsEqual:{propsEqual}, SubtreeHasUpdates:{wipFiber.SubtreeHasUpdates}, ReadsContext:{wipFiber.ReadsContext}, ContextUnchanged:{contextUnchanged}");
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][RenderCheck] Props - Current:{(wipFiber.Props != null ? wipFiber.Props.GetHashCode().ToString() : "null")}, Pending:{(wipFiber.PendingProps != null ? wipFiber.PendingProps.GetHashCode().ToString() : "null")}");
 
             // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
             if (!wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
             {
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT CHECK PASSED - Checking subtree");
-                
                 // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
                 if (wipFiber.SubtreeHasUpdates)
                 {
-                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] SubtreeHasUpdates=true - Cloning children");
                     FiberNode newChild = FiberChildReconciliation.CloneChildFibers(wipFiber);
-                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] Children cloned, returning");
                     return newChild;
                 }
-                
-                // Full bailout: no updates here or in subtree.
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] FULL BAILOUT - No subtree updates, skipping entire branch");
-                
                 // Commit props so the next render cycle sees matching props for ArePropsEqual
                 wipFiber.Props = wipFiber.PendingProps;
-                
+
                 // CRITICAL FIX: We must carry over the existing child pointer to the WIP tree
                 // even if we don't visit it. Otherwise, this branch is severed in the new tree.
                 if (wipFiber.Alternate != null)
                 {
                     wipFiber.Child = wipFiber.Alternate.Child;
-                    
+
                     // CRITICAL FIX: We must update the child's Parent pointer to point to this new WIP fiber!
                     // Otherwise, the child remains attached to the OLD parent (Alternate), breaking the update chain.
                     if (wipFiber.Child != null)
@@ -103,7 +82,7 @@ namespace ReactiveUITK.Core.Fiber
                         }
                     }
                 }
-                
+
                 componentState.IsRendering = false;
                 HookContext.Current = null;
                 return null;
@@ -111,17 +90,17 @@ namespace ReactiveUITK.Core.Fiber
             else
             {
                 var reason = "";
-                if (wipFiber.HasPendingStateUpdate) reason = "HasPendingStateUpdate=true";
-                else if (!contextUnchanged) reason = "ContextChanged=true";
-                else if (!propsEqual) reason = "PropsNotEqual";
-                
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] BAILOUT FAILED - Reason:{reason} - Will render");
-                
+                if (wipFiber.HasPendingStateUpdate)
+                    reason = "HasPendingStateUpdate=true";
+                else if (!contextUnchanged)
+                    reason = "ContextChanged=true";
+                else if (!propsEqual)
+                    reason = "PropsNotEqual";
+
                 // Clear HasPendingStateUpdate now that we've read it
                 // (SubtreeHasUpdates stays for reconciliation, cleared after commit)
                 if (wipFiber.HasPendingStateUpdate)
                 {
-                    UnityEngine.Debug.Log($"[Full Tree Rerender][{componentName}][Bailout] Clearing HasPendingStateUpdate before render");
                     wipFiber.HasPendingStateUpdate = false;
                 }
             }
@@ -215,8 +194,6 @@ namespace ReactiveUITK.Core.Fiber
                 clone.Parent = parent;
                 clone.Index = 0;
 
-                UnityEngine.Debug.Log($"[ReconcileSingleChild] Reusing fiber {currentChild.GetHashCode()} -> Clone {clone.GetHashCode()} (Type: {clone.ElementType})");
-
                 // Delete remaining siblings
                 var sibling = currentChild.Sibling;
                 while (sibling != null)
@@ -265,15 +242,17 @@ namespace ReactiveUITK.Core.Fiber
                     return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
-                    if (fiber.Tag != FiberTag.FunctionComponent) return false;
-                    
+                    if (fiber.Tag != FiberTag.FunctionComponent)
+                        return false;
+
                     // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender) return true;
-                    
+                    if (fiber.Render == vnode.FunctionRender)
+                        return true;
+
                     // Handle method group conversion (creates new delegate instance)
                     if (fiber.Render != null && vnode.FunctionRender != null)
                     {
-                        return fiber.Render.Method == vnode.FunctionRender.Method 
+                        return fiber.Render.Method == vnode.FunctionRender.Method
                             && fiber.Render.Target == vnode.FunctionRender.Target;
                     }
                     return false;
@@ -314,9 +293,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 parentFiber.Deletions = new List<FiberNode>();
             }
-
-            UnityEngine.Debug.Log($"[DeleteChild] Marking {childFiber.ElementType} (Hash: {childFiber.GetHashCode()}) for deletion from {parentFiber.ElementType} (Hash: {parentFiber.GetHashCode()})");
-
             childFiber.EffectTag |= EffectFlags.Deletion;
             parentFiber.Deletions.Add(childFiber);
         }

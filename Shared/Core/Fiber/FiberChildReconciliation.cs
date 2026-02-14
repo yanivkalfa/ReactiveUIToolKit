@@ -20,14 +20,10 @@ namespace ReactiveUITK.Core.Fiber
         )
         {
             // Unconditional log for debugging duplication
-            var name = returnFiber.ElementType ?? returnFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[ChildReconcile][{name}] Reconciling {newChildren?.Count ?? 0} VNodes. CurrentFirstChild: {(currentFirstChild != null ? "FOUND (hash=" + currentFirstChild.GetHashCode() + ")" : "NULL")}");
-            
-            if (FiberConfig.EnableFiberLogging)
-            {
-                 // output handled above
-            }
-
+            var name =
+                returnFiber.ElementType
+                ?? returnFiber.Render?.Method.DeclaringType?.Name
+                ?? "Unknown";
             // Optimization for likely case: the list of children is empty
             if (newChildren == null || newChildren.Count == 0)
             {
@@ -225,8 +221,8 @@ namespace ReactiveUITK.Core.Fiber
 
             // Use centralized factory for consistent flag propagation
             var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
-            var name = oldFiber.ElementType ?? oldFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][UpdateSlot] Reused fiber");
+            var name =
+                oldFiber.ElementType ?? oldFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
             return reused;
         }
 
@@ -251,15 +247,17 @@ namespace ReactiveUITK.Core.Fiber
                     return fiber.Tag == FiberTag.HostComponent && fiber.ElementType == "Label";
 
                 case VirtualNodeType.FunctionComponent:
-                    if (fiber.Tag != FiberTag.FunctionComponent) return false;
-                    
+                    if (fiber.Tag != FiberTag.FunctionComponent)
+                        return false;
+
                     // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender) return true;
-                    
+                    if (fiber.Render == vnode.FunctionRender)
+                        return true;
+
                     // Handle method group conversion (creates new delegate instance)
                     if (fiber.Render != null && vnode.FunctionRender != null)
                     {
-                        return fiber.Render.Method == vnode.FunctionRender.Method 
+                        return fiber.Render.Method == vnode.FunctionRender.Method
                             && fiber.Render.Target == vnode.FunctionRender.Target;
                     }
                     return false;
@@ -380,20 +378,20 @@ namespace ReactiveUITK.Core.Fiber
         {
             fiber.Index = newIndex;
             fiber.EffectTag = EffectFlags.None; // Mark as reused (no placement needed)
-            
+
             // PHASE 2: Propagate flags from alternate when reusing
             if (fiber.Alternate != null)
             {
-                var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][PlaceExisting] Propagating from alternate - HasPending:{fiber.Alternate.HasPendingStateUpdate}, SubtreeUpdates:{fiber.Alternate.SubtreeHasUpdates}, ReadsContext:{fiber.Alternate.ReadsContext}");
-                
+                var name =
+                    fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
                 fiber.HasPendingStateUpdate = fiber.Alternate.HasPendingStateUpdate;
                 fiber.SubtreeHasUpdates = fiber.Alternate.SubtreeHasUpdates;
                 fiber.ReadsContext = fiber.Alternate.ReadsContext;
             }
-            
+
             return fiber;
         }
+
         /// <summary>
         /// Mark fiber for placement at index
         /// </summary>
@@ -507,7 +505,10 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Clone a fiber node
         /// </summary>
-        private static FiberNode CloneFiber(FiberNode current, IReadOnlyDictionary<string, object> newProps)
+        private static FiberNode CloneFiber(
+            FiberNode current,
+            IReadOnlyDictionary<string, object> newProps
+        )
         {
             var clone = new FiberNode
             {

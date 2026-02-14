@@ -20,12 +20,6 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Create a VisualElement of the given type using the adapter registry
         /// </summary>
-        /// <summary>
-        /// Create a VisualElement of the given type using the adapter registry
-        /// </summary>
-        /// <summary>
-        /// Create a VisualElement of the given type using the adapter registry
-        /// </summary>
         public VisualElement CreateElement(string elementType)
         {
             var adapter = _registry.Resolve(elementType);
@@ -39,7 +33,6 @@ namespace ReactiveUITK.Core.Fiber
                 // Fallback to generic VisualElement
                 element = new VisualElement { name = elementType };
             }
-            UnityEngine.Debug.Log($"[HostConfig] Created {elementType} (hash={element.GetHashCode()})");
             return element;
         }
 
@@ -72,7 +65,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void AppendChild(VisualElement parent, VisualElement child)
         {
-            UnityEngine.Debug.Log($"[HostConfig] Appending {child.GetType().Name} (hash={child.GetHashCode()}) to {parent.GetType().Name} (hash={parent.GetHashCode()})");
             parent.Add(child);
         }
 
@@ -85,7 +77,6 @@ namespace ReactiveUITK.Core.Fiber
             VisualElement beforeChild
         )
         {
-             UnityEngine.Debug.Log($"[HostConfig] Inserting {child.GetType().Name} (hash={child.GetHashCode()}) before {(beforeChild != null ? beforeChild.GetType().Name : "null")} in {parent.GetType().Name}");
             if (beforeChild == null)
             {
                 parent.Add(child);
@@ -109,7 +100,6 @@ namespace ReactiveUITK.Core.Fiber
         /// </summary>
         public void RemoveChild(VisualElement parent, VisualElement child)
         {
-            UnityEngine.Debug.Log($"[HostConfig] Removing {child?.GetType().Name} (hash={child?.GetHashCode()}) from {parent.GetType().Name}");
             if (child != null && child.parent == parent)
             {
                 parent.Remove(child);

@@ -361,13 +361,6 @@ namespace ReactiveUITK.Core
             // Fiber path: rely on HookContext.Current when no metadata is available.
             if (HookContext.Current != null)
             {
-                // DEBUG UNCONDITIONAL
-                #if UNITY_EDITOR || DEVELOPMENT_BUILD
-                if (HookContext.Current.Fiber != null && HookContext.Current.Fiber.ElementType == "RouteFunc")
-                {
-                     UnityEngine.Debug.Log($"[Hooks] EnsureState: Using HookContext.Current for {HookContext.Current.Fiber.ElementType}");
-                }
-                #endif
                 return HookContext.Current;
             }
             var state = metadata.ComponentState;
@@ -407,10 +400,9 @@ namespace ReactiveUITK.Core
                     // Fallback to alternate if current child is not yet populated
                     descendantHost = FindFirstHostElement(fiber.Alternate.Child);
                 }
-                
+
                 if (descendantHost != null)
                 {
-                    UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found descendant {descendantHost.name} (hash={descendantHost.GetHashCode()}) for Fiber {fiber.ElementType}");
                     return descendantHost;
                 }
             }
@@ -419,12 +411,10 @@ namespace ReactiveUITK.Core
             {
                 if (fiber.HostElement != null)
                 {
-                    UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found ancestor {fiber.HostElement.name} (hash={fiber.HostElement.GetHashCode()}) for Fiber {state?.Fiber?.ElementType}");
                     return fiber.HostElement;
                 }
                 fiber = fiber.Parent;
             }
-            UnityEngine.Debug.Log($"[Hooks] ResolveAnimationTarget found NOTHING for Fiber {state?.Fiber?.ElementType}");
             return null;
         }
 
@@ -1396,7 +1386,11 @@ namespace ReactiveUITK.Core
 
         public static bool HasContextChanged(Fiber.FiberNode fiber)
         {
-            if (fiber == null || fiber.ComponentState == null || fiber.ComponentState.ContextDependencies == null)
+            if (
+                fiber == null
+                || fiber.ComponentState == null
+                || fiber.ComponentState.ContextDependencies == null
+            )
             {
                 return false;
             }
@@ -1404,26 +1398,15 @@ namespace ReactiveUITK.Core
             var deps = fiber.ComponentState.ContextDependencies;
 
             // DEBUG LOG: CHECK COUNT
-            var compName = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            if (InternalLogOptions.EnableInternalLogs || compName.Contains("Route"))
-            {
-                 UnityEngine.Debug.Log($"[Hooks] HasContextChangedChecked: Checking {deps.Count} deps for {compName}");
-            }
-
+            var compName =
+                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
             for (int i = 0; i < deps.Count; i++)
             {
                 var dep = deps[i];
                 object currentValue = ResolveContextValue(fiber, fiber.ComponentState, dep.Key);
-                
-                // DEBUG: Force logging for RouterState/RouteMatch
-                if (dep.Key.Contains("Router") || dep.Key.Contains("Route"))
-                {
-                     UnityEngine.Debug.Log($"[Hooks][HasContextChanged] Key='{dep.Key}' | Old={(dep.Value?.GetHashCode())} | New={(currentValue?.GetHashCode())} | Equal={Equals(currentValue, dep.Value)}");
-                }
 
                 if (!Equals(currentValue, dep.Value))
                 {
-                     UnityEngine.Debug.Log($"[Hooks] Context changed for key '{dep.Key}': {dep.Value} -> {currentValue}");
                     return true;
                 }
             }
@@ -1431,10 +1414,14 @@ namespace ReactiveUITK.Core
             return false;
         }
 
-        private static object ResolveContextValue(Fiber.FiberNode fiber, FunctionComponentState state, string key)
+        private static object ResolveContextValue(
+            Fiber.FiberNode fiber,
+            FunctionComponentState state,
+            string key
+        )
         {
             object resolved = null;
-            
+
             // Fiber path: walk the Fiber tree's provided context
             var current = fiber;
             while (current != null)
@@ -1467,19 +1454,15 @@ namespace ReactiveUITK.Core
 
         public static T UseContext<T>(string key)
         {
-            // DEBUG UNCONDITIONAL
-             UnityEngine.Debug.Log($"[Hooks] UseContext called for key '{key}'. HookContext.Current={HookContext.Current}");
             NodeMetadata metadata = HookContext.Current?.Owner;
             var state = EnsureState(metadata);
             if (state == null || string.IsNullOrEmpty(key))
             {
-                 // DEBUG UNCONDITIONAL
-                 UnityEngine.Debug.Log($"[Hooks] UseContext: State is NULL for key '{key}'. Metadata={metadata}, HookContext={HookContext.Current}");
                 return default;
             }
 
             RecordHook(metadata, state, HookIdContext);
-            
+
             // CRITICAL: Mark fiber as reading context
             if (state.Fiber != null)
             {
@@ -1495,12 +1478,10 @@ namespace ReactiveUITK.Core
             state.ContextDependencies.Add(new ContextDependency(key, resolved));
 
             // DEBUG UNCONDITIONAL
-            var compName = state.Fiber?.ElementType ?? state.Fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            if (key.Contains("Router") || key.Contains("Route") || compName.Contains("Route"))
-            {
-                 UnityEngine.Debug.Log($"[Hooks] UseContext: Added dep '{key}' for {compName}. Count={state.ContextDependencies.Count}");
-            }
-
+            var compName =
+                state.Fiber?.ElementType
+                ?? state.Fiber?.Render?.Method.DeclaringType?.Name
+                ?? "Unknown";
             return resolved is T result ? result : default;
         }
 

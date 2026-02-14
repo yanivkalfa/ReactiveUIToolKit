@@ -26,7 +26,7 @@ namespace ReactiveUITK.Core.Fiber
                 PendingProps = ExtractProps(vnode),
                 Children = vnode.Children,
                 EffectTag = EffectFlags.Placement, // New fiber needs to be placed
-                
+
                 // Initialize flags - new fibers start clean
                 HasPendingStateUpdate = false,
                 SubtreeHasUpdates = false,
@@ -84,9 +84,6 @@ namespace ReactiveUITK.Core.Fiber
                     UnityEngine.Debug.LogError($"Unknown VirtualNodeType: {vnode.NodeType}");
                     break;
             }
-
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown"}][FiberFactory.CreateNew] Created new fiber with clean flags");
-            
             return fiber;
         }
 
@@ -107,32 +104,32 @@ namespace ReactiveUITK.Core.Fiber
                 Key = current.Key,
                 Render = current.Render,
                 HostElement = current.HostElement,
-                ComponentState = current.ComponentState,  // CRITICAL: Share, don't clone! Callbacks reference this.
+                ComponentState = current.ComponentState, // CRITICAL: Share, don't clone! Callbacks reference this.
                 Props = current.Props,
                 ContextFrame = current.ContextFrame,
                 ContextProviderId = current.ContextProviderId,
                 ProvidedContext = current.ProvidedContext,
                 PortalTarget = current.PortalTarget,
                 Index = current.Index,
-                
+
                 // Reset these for new tree
                 Child = null,
                 Sibling = null,
                 Parent = null,
-                
+
                 ErrorBoundaryActive = current.ErrorBoundaryActive,
                 ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback,
                 ErrorBoundaryLastException = current.ErrorBoundaryLastException,
                 ErrorBoundaryResetKey = current.ErrorBoundaryResetKey,
-                
+
                 // AUTOMATIC FLAG PROPAGATION - This is why the factory exists!
                 HasPendingStateUpdate = current.HasPendingStateUpdate,
                 SubtreeHasUpdates = current.SubtreeHasUpdates,
                 ReadsContext = current.ReadsContext,
-                
+
                 // Set up alternate chain
                 Alternate = current,
-                
+
                 // Update for new render - handle null newVNode (happens during bailout cloning)
                 PendingProps = newVNode != null ? ExtractProps(newVNode) : current.PendingProps,
                 Children = newVNode != null ? newVNode.Children : current.Children,
@@ -142,14 +139,12 @@ namespace ReactiveUITK.Core.Fiber
 
             // Link back to clone
             current.Alternate = clone;
-            
+
             // NOTE: We DON'T update ComponentState.Fiber here because the clone's parent chain
             // isn't fully connected yet. The update happens in CommitRoot after tree swap
             // when all parent references are guaranteed to be correct.
 
             var name = clone.ElementType ?? clone.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{name}][FiberFactory.CloneForReuse] Cloned with flags - HasPending:{clone.HasPendingStateUpdate}, SubtreeUpdates:{clone.SubtreeHasUpdates}, ReadsContext:{clone.ReadsContext}");
-
             return clone;
         }
 
@@ -161,16 +156,15 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (parent?.Alternate?.Child == null)
             {
-                var parentName = parent?.ElementType ?? parent?.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName}][FiberFactory.CloneChildren] No children to clone");
+                var parentName =
+                    parent?.ElementType ?? parent?.Render?.Method.DeclaringType?.Name ?? "Unknown";
                 return null;
             }
 
-            var parentName2 = parent.ElementType ?? parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName2}][FiberFactory.CloneChildren] Cloning children for bailout");
-
+            var parentName2 =
+                parent.ElementType ?? parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
             var current = parent.Alternate.Child;
-            
+
             // Clone first child - pass null VNode to preserve prop identity
             // (CloneForReuse will use current.PendingProps when newVNode is null)
             var newChild = CloneForReuse(current, null);
@@ -193,8 +187,6 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             previousNewFiber.Sibling = null;
-            UnityEngine.Debug.Log($"[Full Tree Rerender][{parentName2}][FiberFactory.CloneChildren] Cloned {siblingCount} children");
-            
             return newChild;
         }
 

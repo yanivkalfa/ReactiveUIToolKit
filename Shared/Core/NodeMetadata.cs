@@ -127,7 +127,7 @@ namespace ReactiveUITK.Core
         public Task SuspensePendingTask;
         public object SuspenseTaskLock;
         public int SuspenseTaskVersion;
-        
+
         // React-style context dependency tracking
         public List<ContextDependency> ContextDependencies;
     }
