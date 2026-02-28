@@ -21,6 +21,7 @@ namespace ReactiveUITK.Core.Fiber
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
         private bool _isCommitting; // Track if we're in the commit phase
+        private List<FiberNode> _pendingPassiveEffects; // Collected during CommitWork, flushed two-pass after tree swap
 
         // Queue for deferred updates during commit
         // Stores target fiber and the vnode (if any)
@@ -201,22 +202,18 @@ namespace ReactiveUITK.Core.Fiber
             // If we walked up and found a root, check if it matches the active root.
             if (rootCurrent != null)
             {
-                var treeType = "Unknown";
                 if (rootCurrent == _root.Current)
                 {
-                    treeType = "Current";
                     // Found the active root. Good.
                 }
                 else if (rootCurrent == _root.WorkInProgress)
                 {
-                    treeType = "WorkInProgress";
                     // Found the WorkInProgress root.
                     // This means we are scheduling an update on a tree that is currently being built (cascading update).
                     // We should continue using this root as the WIP.
                 }
                 else if (_root.Current.Alternate != null && rootCurrent == _root.Current.Alternate)
                 {
-                    treeType = "Alternate (old)";
                     // Found the alternate root (which is not currently set as WIP).
                     // This is valid during a commit phase or if we are interacting with a tree that is being committed.
                     // We allow it to proceed, as it will create a WIP from this root.
@@ -611,7 +608,8 @@ namespace ReactiveUITK.Core.Fiber
                 // Process deletions first (from root down)
                 CommitDeletions(_root.WorkInProgress);
 
-                // Process effect list
+                // Process effect list — passive effect fibers are collected here, not run yet
+                _pendingPassiveEffects = new List<FiberNode>();
                 var effect = _root.FirstEffect;
                 while (effect != null)
                 {
@@ -626,6 +624,20 @@ namespace ReactiveUITK.Core.Fiber
                 // This must happen AFTER swap so ComponentState points to fibers with fully connected parent chains
                 // UseEffect callbacks will fire next and need correct fiber references for ScheduleUpdateOnFiber
                 UpdateComponentStateReferences(_root.Current);
+
+                // Flush passive effects in two passes: all cleanups first, then all setups.
+                // This preserves React's invariant that no component's setup runs before all
+                // components' cleanups have completed within the same commit.
+                if (_pendingPassiveEffects != null && _pendingPassiveEffects.Count > 0)
+                {
+                    var toFlush = _pendingPassiveEffects;
+                    _pendingPassiveEffects = null;
+                    for (int i = 0; i < toFlush.Count; i++)
+                        FiberFunctionComponent.RunPassiveEffectCleanups(toFlush[i]);
+                    for (int i = 0; i < toFlush.Count; i++)
+                        FiberFunctionComponent.RunPassiveEffectSetups(toFlush[i]);
+                }
+                _pendingPassiveEffects = null;
 
                 // Only clear WIP if it hasn't been updated by a synchronous effect (e.g. navigate)
                 if (_root.WorkInProgress == finishedWork)
@@ -739,10 +751,10 @@ namespace ReactiveUITK.Core.Fiber
                 CommitLayoutEffects(fiber);
             }
 
-            // Passive effects
+            // Passive effects — collected here, flushed two-pass in CommitRoot after tree swap
             if ((fiber.EffectTag & EffectFlags.PassiveEffect) != 0)
             {
-                SchedulePassiveEffects(fiber);
+                _pendingPassiveEffects?.Add(fiber);
             }
 
             if ((fiber.EffectTag & (EffectFlags.LayoutEffect | EffectFlags.PassiveEffect)) != 0)

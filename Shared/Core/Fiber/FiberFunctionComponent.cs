@@ -11,6 +11,12 @@ namespace ReactiveUITK.Core.Fiber
     /// </summary>
     public static class FiberFunctionComponent
     {
+        // Guards against infinite render loops (e.g. setState called unconditionally during render).
+        // ThreadStatic ensures each thread keeps its own independent depth counter.
+        [ThreadStatic]
+        private static int s_renderDepth;
+        private const int MaxRenderDepth = 25;
+
         /// <summary>
         /// Render a function component and return the child fiber
         /// </summary>
@@ -89,14 +95,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                var reason = "";
-                if (wipFiber.HasPendingStateUpdate)
-                    reason = "HasPendingStateUpdate=true";
-                else if (!contextUnchanged)
-                    reason = "ContextChanged=true";
-                else if (!propsEqual)
-                    reason = "PropsNotEqual";
-
                 // Clear HasPendingStateUpdate now that we've read it
                 // (SubtreeHasUpdates stays for reconciliation, cleared after commit)
                 if (wipFiber.HasPendingStateUpdate)
@@ -117,8 +115,19 @@ namespace ReactiveUITK.Core.Fiber
 
             VirtualNode childVNode = null;
 
+            s_renderDepth++;
             try
             {
+                // Guard against infinite render loops caused by unconditional setState during render
+                if (s_renderDepth > MaxRenderDepth)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[Fiber] Maximum render depth ({MaxRenderDepth}) exceeded in '{componentName}'. "
+                        + "A component may be calling setState unconditionally during render."
+                    );
+                    return null;
+                }
+
                 // Call the render function
                 var propsDict =
                     wipFiber.PendingProps as Dictionary<string, object>
@@ -133,6 +142,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             finally
             {
+                s_renderDepth--;
                 componentState.IsRendering = false;
                 HookContext.Current = null;
             }
@@ -432,6 +442,79 @@ namespace ReactiveUITK.Core.Fiber
                         }
                     });
                 }
+            }
+        }
+
+        /// <summary>
+        /// Pass 1 of 2 for passive-effect flushing: run only the cleanup of each dirty effect.
+        /// Must be called for ALL committed fibers before RunPassiveEffectSetups is called for any.
+        /// </summary>
+        public static void RunPassiveEffectCleanups(FiberNode fiber)
+        {
+            var componentState = fiber.ComponentState;
+            if (componentState?.FunctionEffects == null)
+                return;
+
+            for (int i = 0; i < componentState.FunctionEffects.Count; i++)
+            {
+                var effect = componentState.FunctionEffects[i];
+                bool shouldRun = effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
+                if (!shouldRun || effect.cleanup == null)
+                    continue;
+
+                try
+                {
+                    effect.cleanup.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"Effect cleanup error: {ex}");
+                }
+
+                // Clear the cleanup reference so it cannot fire twice, but preserve lastDeps
+                // so RunPassiveEffectSetups can re-evaluate shouldRun identically.
+                componentState.FunctionEffects[i] = (
+                    effect.factory,
+                    effect.deps,
+                    effect.lastDeps,
+                    null
+                );
+            }
+        }
+
+        /// <summary>
+        /// Pass 2 of 2 for passive-effect flushing: run the setup of each dirty effect and store the new cleanup.
+        /// Must be called after RunPassiveEffectCleanups has been called for ALL committed fibers.
+        /// </summary>
+        public static void RunPassiveEffectSetups(FiberNode fiber)
+        {
+            var componentState = fiber.ComponentState;
+            if (componentState?.FunctionEffects == null)
+                return;
+
+            for (int i = 0; i < componentState.FunctionEffects.Count; i++)
+            {
+                var effect = componentState.FunctionEffects[i];
+                bool shouldRun = effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
+                if (!shouldRun)
+                    continue;
+
+                Action newCleanup = null;
+                try
+                {
+                    newCleanup = effect.factory?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"Effect error: {ex}");
+                }
+
+                componentState.FunctionEffects[i] = (
+                    effect.factory,
+                    effect.deps,
+                    (object[])effect.deps?.Clone(),
+                    newCleanup
+                );
             }
         }
 
