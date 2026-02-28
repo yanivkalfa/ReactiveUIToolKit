@@ -123,7 +123,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     UnityEngine.Debug.LogError(
                         $"[Fiber] Maximum render depth ({MaxRenderDepth}) exceeded in '{componentName}'. "
-                        + "A component may be calling setState unconditionally during render."
+                            + "A component may be calling setState unconditionally during render."
                     );
                     return null;
                 }
@@ -458,7 +458,8 @@ namespace ReactiveUITK.Core.Fiber
             for (int i = 0; i < componentState.FunctionEffects.Count; i++)
             {
                 var effect = componentState.FunctionEffects[i];
-                bool shouldRun = effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
+                bool shouldRun =
+                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
                 if (!shouldRun || effect.cleanup == null)
                     continue;
 
@@ -495,7 +496,8 @@ namespace ReactiveUITK.Core.Fiber
             for (int i = 0; i < componentState.FunctionEffects.Count; i++)
             {
                 var effect = componentState.FunctionEffects[i];
-                bool shouldRun = effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
+                bool shouldRun =
+                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
                 if (!shouldRun)
                     continue;
 

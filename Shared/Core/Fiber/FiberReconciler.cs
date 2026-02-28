@@ -628,14 +628,34 @@ namespace ReactiveUITK.Core.Fiber
                 // Flush passive effects in two passes: all cleanups first, then all setups.
                 // This preserves React's invariant that no component's setup runs before all
                 // components' cleanups have completed within the same commit.
+                //
+                // When a scheduler is present (async mode) we enqueue a single batched-effect
+                // action so effects fire AFTER the current frame's rendering is fully done —
+                // matching React 18's post-paint passive-effect timing.
+                // When no scheduler is available (sync / test mode) we run them immediately.
                 if (_pendingPassiveEffects != null && _pendingPassiveEffects.Count > 0)
                 {
                     var toFlush = _pendingPassiveEffects;
                     _pendingPassiveEffects = null;
-                    for (int i = 0; i < toFlush.Count; i++)
-                        FiberFunctionComponent.RunPassiveEffectCleanups(toFlush[i]);
-                    for (int i = 0; i < toFlush.Count; i++)
-                        FiberFunctionComponent.RunPassiveEffectSetups(toFlush[i]);
+
+                    if (_scheduler != null)
+                    {
+                        _scheduler.EnqueueBatchedEffect(() =>
+                        {
+                            for (int i = 0; i < toFlush.Count; i++)
+                                FiberFunctionComponent.RunPassiveEffectCleanups(toFlush[i]);
+                            for (int i = 0; i < toFlush.Count; i++)
+                                FiberFunctionComponent.RunPassiveEffectSetups(toFlush[i]);
+                        });
+                    }
+                    else
+                    {
+                        // Sync / no-scheduler fallback: run in-place (same behaviour as before).
+                        for (int i = 0; i < toFlush.Count; i++)
+                            FiberFunctionComponent.RunPassiveEffectCleanups(toFlush[i]);
+                        for (int i = 0; i < toFlush.Count; i++)
+                            FiberFunctionComponent.RunPassiveEffectSetups(toFlush[i]);
+                    }
                 }
                 _pendingPassiveEffects = null;
 
