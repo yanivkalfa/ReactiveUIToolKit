@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core.Fiber;
 using ReactiveUITK.Props;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
@@ -21,13 +23,6 @@ namespace ReactiveUITK.Core
         {
             hostElement = host;
             fiberRenderer = new FiberRenderer(host, hostContext);
-
-            if (FiberConfig.ShowReconcilerInfo)
-            {
-                UnityEngine.Debug.Log(
-                    $"[VNodeHostRenderer] Using FIBER reconciler for {host.name}"
-                );
-            }
         }
 
         public void Render(VirtualNode vnode)

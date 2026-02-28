@@ -9,6 +9,6 @@ namespace ReactiveUITK.Core.Diagnostics
         /// When true, non-essential diagnostic logs will be emitted.
         /// Defaults to false so normal usage stays quiet.
         /// </summary>
-        public static bool EnableInternalLogs { get; set; } = false;
+        public static bool EnableInternalLogs { get; set; } = true;
     }
 }

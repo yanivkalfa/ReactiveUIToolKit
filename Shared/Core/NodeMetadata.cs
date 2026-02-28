@@ -16,36 +16,9 @@ namespace ReactiveUITK.Core
         public Dictionary<string, string> EventHandlerSignatures = new();
         public object AttachedRef;
 
-        public System.Func<
-            Dictionary<string, object>,
-            IReadOnlyList<VirtualNode>,
-            VirtualNode
-        > FuncRender;
-        public Dictionary<string, object> FuncProps;
-        public IReadOnlyList<VirtualNode> FuncChildren;
-        public IReadOnlyList<PropTypeDefinition> FuncPropTypes;
-        public VirtualNode LastRenderedSubtree;
         public UnityEngine.UIElements.VisualElement Container;
         public HostContext HostContext;
-        public Reconciler Reconciler;
         public FunctionComponentState ComponentState;
-        public List<VirtualNode> PortalPreviousChildren;
-        public UnityEngine.UIElements.VisualElement PortalTarget;
-        public bool PortalDetachWired;
-        public EventCallback<DetachFromPanelEvent> PortalDetachHandler;
-        public bool IsFlattened;
-        public bool ErrorBoundaryActive;
-        public bool ErrorBoundaryShowingFallback;
-        public Exception ErrorBoundaryLastException;
-        public string ErrorBoundaryResetKey;
-        public SuspenseRenderState SuspenseState;
-        public Task SuspensePendingTask;
-        public object SuspenseTaskLock;
-        public int SuspenseTaskVersion;
-        public HostContext.ContextFrameHandle InheritedContextFrame;
-        public Dictionary<string, object> PendingProvidedContext;
-        public IReadOnlyDictionary<string, object> LastProvidedContextSnapshot;
-        public int ContextProviderId;
 
         internal FunctionComponentState EnsureComponentState()
         {
@@ -140,7 +113,6 @@ namespace ReactiveUITK.Core
         )> FunctionLayoutEffects;
         public int EffectIndex;
         public int LayoutEffectIndex;
-        public HashSet<ContextKey> SubscribedContextKeys;
         public bool PendingUpdate;
         public bool UpdateQueued;
         public Action OnStateUpdated; // Bridge for Fiber reconciler
@@ -149,12 +121,26 @@ namespace ReactiveUITK.Core
         public bool IsRendering;
         public HashSet<string> StrictDiagnosticsKeys;
         public Dictionary<(int slot, byte kind), Delegate> StateSetterDelegateCache;
-        public Dictionary<ContextKey, int> ContextVersions;
         public Dictionary<int, HookStateUpdateQueue> HookStateQueues;
         public Dictionary<int, object> PendingHookStatePreviews;
         public SuspenseRenderState SuspenseState;
         public Task SuspensePendingTask;
         public object SuspenseTaskLock;
         public int SuspenseTaskVersion;
+
+        // React-style context dependency tracking
+        public List<ContextDependency> ContextDependencies;
+    }
+
+    internal readonly struct ContextDependency
+    {
+        public readonly string Key;
+        public readonly object Value;
+
+        public ContextDependency(string key, object value)
+        {
+            Key = key;
+            Value = value;
+        }
     }
 }

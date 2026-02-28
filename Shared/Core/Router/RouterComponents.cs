@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Diagnostics;
 using ReactiveUITK.Props.Typed;
+using UnityEngine;
 
 namespace ReactiveUITK.Router
 {
@@ -27,7 +29,6 @@ namespace ReactiveUITK.Router
             var (location, setLocation) = Hooks.UseState(
                 resolvedHistory?.Location ?? RouterPath.Parse("/")
             );
-
             Hooks.UseEffect(
                 () =>
                 {
@@ -41,46 +42,50 @@ namespace ReactiveUITK.Router
                 new object[] { resolvedHistory }
             );
 
-            RouterState routerState =
-                resolvedHistory != null
-                    ? new RouterState(
-                        location,
-                        (path, state) =>
-                        {
-                            resolvedHistory.Push(path, state);
-                            return true;
-                        },
-                        (path, state) =>
-                        {
-                            resolvedHistory.Replace(path, state);
-                            return true;
-                        },
-                        delta =>
-                        {
-                            if (!resolvedHistory.CanGo(delta))
+            var routerState = Hooks.UseMemo(
+                () =>
+                    resolvedHistory != null
+                        ? new RouterState(
+                            location,
+                            (path, state) =>
                             {
-                                return false;
-                            }
-                            resolvedHistory.Go(delta);
-                            return true;
-                        },
-                        delta => resolvedHistory.CanGo(delta),
-                        blocker => resolvedHistory.RegisterBlocker(blocker)
-                    )
-                    : new RouterState(
-                        location,
-                        (_, __) => false,
-                        (_, __) => false,
-                        _ => false,
-                        _ => false,
-                        _ => Disposable.Empty
-                    );
+                                resolvedHistory.Push(path, state);
+                                return true;
+                            },
+                            (path, state) =>
+                            {
+                                resolvedHistory.Replace(path, state);
+                                return true;
+                            },
+                            delta =>
+                            {
+                                if (!resolvedHistory.CanGo(delta))
+                                {
+                                    return false;
+                                }
+                                resolvedHistory.Go(delta);
+                                return true;
+                            },
+                            delta => resolvedHistory.CanGo(delta),
+                            blocker => resolvedHistory.RegisterBlocker(blocker)
+                        )
+                        : new RouterState(
+                            location,
+                            (_, __) => false,
+                            (_, __) => false,
+                            _ => false,
+                            _ => false,
+                            _ => Disposable.Empty
+                        ),
+                new object[] { resolvedHistory, location }
+            );
 
             Hooks.ProvideContext(RouterContextKeys.RouterState, routerState);
-            Hooks.ProvideContext(
-                RouterContextKeys.RouteMatch,
-                RouteMatch.CreateRoot(location?.Path ?? "/")
-            );
+            var rootMatch = RouteMatch.CreateRoot(location?.Path ?? "/");
+            Hooks.ProvideContext(RouterContextKeys.RouteMatch, rootMatch);
+            Hooks.ProvideContext(RouterContextKeys.RoutePattern, "/");
+            var rootEntry = new RouteContextEntry(rootMatch, "/", null, HookContext.Current);
+            Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, rootEntry);
 
             return RouterRenderUtils.Fragment(children);
         }
@@ -107,22 +112,48 @@ namespace ReactiveUITK.Router
 
             string path = pathObj as string;
             bool exact = exactObj is bool flag && flag;
+            var parentEntry = RouteContextEntryHelper.ResolveCurrentEntry();
+            string parentNavigationBase = parentEntry?.NavigationBase ?? "/";
+            var parentMatch = parentEntry?.Match ?? RouteMatch.CreateRoot(router.Location.Path);
+            string parentPattern = parentMatch?.Pattern ?? "/";
 
-            var parentMatch =
-                Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
-                ?? RouteMatch.CreateRoot(router.Location.Path);
+            string resolvedPath = path;
+            if (!string.IsNullOrEmpty(path))
+            {
+                resolvedPath = RouterPath.Combine(parentMatch?.Pattern ?? "/", path);
+            }
 
-            var match = RouteMatcher.Match(router.Location.Path, path, exact, parentMatch);
+            var match = Hooks.UseMemo(
+                () => RouteMatcher.Match(router.Location.Path, resolvedPath, exact, parentMatch),
+                new object[] { router.Location.Path, resolvedPath, exact, parentMatch }
+            );
+
             if (match == null)
             {
                 return null;
             }
 
             Hooks.ProvideContext(RouterContextKeys.RouteMatch, match);
+            string providedPattern = string.IsNullOrEmpty(resolvedPath)
+                ? match?.Pattern ?? parentPattern
+                : resolvedPath;
+            Hooks.ProvideContext(RouterContextKeys.RoutePattern, providedPattern);
+            string baseSeed = string.IsNullOrEmpty(resolvedPath)
+                ? parentNavigationBase
+                : resolvedPath;
+            string navigationBase = RouterPath.Combine(baseSeed ?? "/", string.Empty);
+
+            var routeEntry = Hooks.UseMemo(
+                () =>
+                    new RouteContextEntry(match, navigationBase, parentEntry, HookContext.Current),
+                new object[] { match, navigationBase, parentEntry, HookContext.Current }
+            );
+            Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, routeEntry);
 
             if (renderObj is Func<RouteMatch, VirtualNode> renderFunc)
             {
-                return renderFunc(match);
+                var someNode = renderFunc(match);
+                return someNode;
             }
 
             if (elementObj is VirtualNode vnode)
@@ -146,6 +177,10 @@ namespace ReactiveUITK.Router
             {
                 return null;
             }
+            var routeMatch =
+                Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
+                ?? RouteMatch.CreateRoot(router.Location?.Path ?? "/");
+            var routeEntry = RouteContextEntryHelper.ResolveCurrentEntry();
 
             props ??= new Dictionary<string, object>();
             props.TryGetValue("to", out var toObj);
@@ -158,10 +193,23 @@ namespace ReactiveUITK.Router
             string label = labelObj as string ?? to;
             bool replace = replaceObj is bool replaceFlag && replaceFlag;
             Style style = styleObj as Style;
+            string navigationBase = routeEntry?.NavigationBase ?? routeMatch?.Pattern;
 
             Action navigate = () =>
             {
-                string target = string.IsNullOrWhiteSpace(to) ? "/" : to;
+                string target;
+                if (string.IsNullOrEmpty(to))
+                {
+                    target = navigationBase ?? "/";
+                }
+                else if (to.StartsWith("/"))
+                {
+                    target = RouterPath.Normalize(to);
+                }
+                else
+                {
+                    target = RouterPath.Combine(navigationBase ?? "/", to);
+                }
                 if (replace)
                 {
                     router.Replace?.Invoke(target, stateObj);
@@ -172,7 +220,7 @@ namespace ReactiveUITK.Router
                 }
             };
 
-            return V.Button(
+            var button = V.Button(
                 new ButtonProps
                 {
                     Text = label,
@@ -180,6 +228,7 @@ namespace ReactiveUITK.Router
                     OnClick = navigate,
                 }
             );
+            return button;
         }
     }
 
@@ -207,6 +256,50 @@ namespace ReactiveUITK.Router
                 buffer[i] = children[i];
             }
             return V.Fragment(null, buffer);
+        }
+    }
+
+    internal sealed class RouteContextEntry
+    {
+        public static readonly RouteContextEntry Root = new RouteContextEntry(
+            RouteMatch.CreateRoot("/"),
+            "/",
+            null,
+            owner: null
+        );
+
+        public RouteContextEntry(
+            RouteMatch match,
+            string navigationBase,
+            RouteContextEntry parent,
+            FunctionComponentState owner
+        )
+        {
+            Match = match;
+            NavigationBase = string.IsNullOrEmpty(navigationBase) ? "/" : navigationBase;
+            Parent = parent;
+            Owner = owner;
+        }
+
+        public RouteMatch Match { get; }
+        public string NavigationBase { get; }
+        public RouteContextEntry Parent { get; }
+        public FunctionComponentState Owner { get; }
+    }
+
+    internal static class RouteContextEntryHelper
+    {
+        public static RouteContextEntry ResolveCurrentEntry()
+        {
+            var entry =
+                Hooks.UseContext<RouteContextEntry>(RouterContextKeys.RouteContextEntry)
+                ?? RouteContextEntry.Root;
+            var state = HookContext.Current;
+            if (entry != null && ReferenceEquals(entry.Owner, state))
+            {
+                return entry.Parent ?? RouteContextEntry.Root;
+            }
+            return entry ?? RouteContextEntry.Root;
         }
     }
 

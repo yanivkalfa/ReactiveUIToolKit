@@ -23,13 +23,17 @@ namespace ReactiveUITK.Core.Fiber
         public VisualElement CreateElement(string elementType)
         {
             var adapter = _registry.Resolve(elementType);
+            VisualElement element;
             if (adapter != null)
             {
-                return adapter.Create();
+                element = adapter.Create();
             }
-
-            // Fallback to generic VisualElement
-            return new VisualElement { name = elementType };
+            else
+            {
+                // Fallback to generic VisualElement
+                element = new VisualElement { name = elementType };
+            }
+            return element;
         }
 
         /// <summary>

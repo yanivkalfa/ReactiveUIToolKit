@@ -6,6 +6,7 @@ import {
   ROUTER_EDITOR_EXAMPLE,
   ROUTER_LINKS_AND_NAV_EXAMPLE,
   ROUTER_RUNTIME_EXAMPLE,
+  ROUTER_SPLIT_LAYOUT_EXAMPLE,
 } from './RouterPage.example'
 
 export const RouterPage: FC = () => (
@@ -115,5 +116,23 @@ export const RouterPage: FC = () => (
       back and forth and read route data.
     </Typography>
     <CodeBlock language="tsx" code={ROUTER_LINKS_AND_NAV_EXAMPLE} />
+
+    <Typography variant="h5" component="h3" gutterBottom>
+      Split layouts with nested routes
+    </Typography>
+    <Typography variant="body1" paragraph>
+      You can keep a single router history while nesting routes to act like “outlets”. Child routes
+      may use relative paths (for example “profile”), and we automatically resolve them against the
+      parent match. When you use a relative route, it is prefixed with the parent route’s path
+      before matching, so patterns like <code>:id/edit</code> work the same way they do in React
+      Router—no need to repeat the parent prefix.
+    </Typography>
+    <Typography variant="body1" paragraph>
+      The example below matches <code>/mainMenu/*</code>, renders a sidebar, and nests additional{' '}
+      <code>V.Route</code> elements so the right-hand panel switches content as the path changes. The
+      sidebar buttons simply call <code>RouterHooks.UseNavigate()</code> with relative targets, and
+      the router keeps everything in sync without spinning up another router.
+    </Typography>
+    <CodeBlock language="tsx" code={ROUTER_SPLIT_LAYOUT_EXAMPLE} />
   </Box>
 )

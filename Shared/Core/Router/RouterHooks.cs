@@ -45,6 +45,11 @@ namespace ReactiveUITK.Router
         public static RouterNavigateHandler UseNavigate(bool replace = false)
         {
             var router = UseRouter();
+            var routeMatch =
+                Hooks.UseContext<RouteMatch>(RouterContextKeys.RouteMatch)
+                ?? RouteMatch.CreateRoot(router?.Location?.Path ?? "/");
+            var routeEntry = RouteContextEntryHelper.ResolveCurrentEntry();
+            string navigationBase = routeEntry?.NavigationBase ?? routeMatch?.Pattern;
             if (router == null)
             {
                 return (_, __) => false;
@@ -52,11 +57,29 @@ namespace ReactiveUITK.Router
 
             return (path, state) =>
             {
-                string target = string.IsNullOrWhiteSpace(path) ? "/" : path;
+                string target;
+                if (string.IsNullOrEmpty(path))
+                {
+                    target = navigationBase ?? "/";
+                }
+                else if (path.StartsWith("/"))
+                {
+                    target = RouterPath.Normalize(path);
+                }
+                else
+                {
+                    target = RouterPath.Combine(navigationBase ?? "/", path);
+                }
                 return replace
                     ? router.Replace?.Invoke(target, state) ?? false
                     : router.Navigate?.Invoke(target, state) ?? false;
             };
+        }
+
+        public static string UseNavigationBase()
+        {
+            var routeEntry = RouteContextEntryHelper.ResolveCurrentEntry();
+            return routeEntry?.NavigationBase ?? "/";
         }
 
         public static RouterGoHandler UseGo()

@@ -1,5 +1,6 @@
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core.Fiber
@@ -34,7 +35,8 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (_root == null)
             {
-                // Initial mount
+                // Initial mount - ensure container is clean
+                _container.Clear();
                 _root = _reconciler.CreateRoot(_container, vnode);
             }
             else

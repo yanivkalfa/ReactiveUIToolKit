@@ -74,9 +74,9 @@ namespace ReactiveUITK.Elements
                     }
                 );
                 if (
-                    ReactiveUITK.Core.Reconciler.EnableDiffTracing
-                    && ReactiveUITK.Core.Reconciler.TraceLevel
-                        != ReactiveUITK.Core.Reconciler.DiffTraceLevel.None
+                    ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.EnableDiffTracing
+                    && ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                        != ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.TraceLevel.None
                 )
                 {
                     UnityEngine.Debug.Log(

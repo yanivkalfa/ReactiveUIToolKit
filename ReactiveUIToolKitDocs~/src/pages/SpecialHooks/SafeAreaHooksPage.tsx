@@ -69,7 +69,7 @@ export const SafeAreaHooksPage: FC = () => (
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary="V.VisualElementSafe(style, key, children) – wraps a VisualElement and automatically applies padding based on SafeAreaInsets." />
+          <ListItemText primary="V.VisualElementSafe(propsOrStyle, key, children) – takes either a Style or a props dictionary, wraps a VisualElement, and automatically applies padding based on SafeAreaInsets." />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary="Merges your own padding with the safe-area padding so you keep control over layout while staying visible on all devices." />

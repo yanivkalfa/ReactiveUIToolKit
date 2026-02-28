@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 public static class SliderExamples
@@ -21,13 +22,37 @@ public static class SliderExamples
       setValue(evt.newValue);
     }
 
+    var trackStyle = new Style
+    {
+      { StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.2f, 1f) },
+      { StyleKeys.Height, 3f },
+    };
+
+    var handleStyle = new Style
+    {
+      { StyleKeys.Width, 12f },
+      { StyleKeys.Height, 12f },
+      { StyleKeys.BorderRadius, 6f },
+      { StyleKeys.BackgroundColor, Color.white },
+    };
+
     return V.Slider(
       new SliderProps
       {
         LowValue = 0f,
         HighValue = 1f,
         Value = value,
-        Direction = "Horizontal",
+        Direction = "horizontal",
+        Style = new Style { { StyleKeys.Width, 220f } },
+        Track = new Dictionary<string, object>
+        {
+          { "style", trackStyle },
+        },
+        Handle = new Dictionary<string, object>
+        {
+          { "style", handleStyle },
+        },
+        OnChange = OnChange,
       }
     );
   }

@@ -13,7 +13,9 @@ export const ToggleButtonGroupPage: FC = () => (
     </Typography>
     <Typography variant="body1" paragraph>
       <code>V.ToggleButtonGroup</code> wraps the UI Toolkit <code>ToggleButtonGroup</code> element
-      using <code>ToggleButtonGroupProps</code> and child buttons as options.
+      using <code>ToggleButtonGroupProps</code>. Provide a zero-based <code>Value</code> index and
+      add regular <code>V.Button</code> children, handling each button&apos;s <code>OnClick</code>
+      to drive your own selection state.
     </Typography>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
@@ -30,4 +32,3 @@ export const ToggleButtonGroupPage: FC = () => (
     <UnityDocsSection componentName="ToggleButtonGroup" />
   </Box>
 )
-

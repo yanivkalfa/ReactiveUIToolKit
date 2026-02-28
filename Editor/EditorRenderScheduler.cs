@@ -79,6 +79,29 @@ namespace ReactiveUITK.EditorSupport
             }
         }
 
+        public void PumpNow()
+        {
+            ExecuteQueue(highPriorityQueue);
+            ExecuteQueue(normalPriorityQueue);
+            ExecuteQueue(lowPriorityQueue);
+            ExecuteQueue(idlePriorityQueue);
+            if (batchedEffectActions.Count > 0)
+            {
+                foreach (var e in batchedEffectActions)
+                {
+                    try
+                    {
+                        e();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError(ex);
+                    }
+                }
+                batchedEffectActions.Clear();
+            }
+        }
+
         private static void Pump()
         {
             ExecuteQueue(highPriorityQueue);
@@ -86,8 +109,8 @@ namespace ReactiveUITK.EditorSupport
             ExecuteQueue(lowPriorityQueue);
             ExecuteQueue(idlePriorityQueue);
             if (
-                ReactiveUITK.Core.Reconciler.TraceLevel
-                == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                == ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
             )
             {
                 int h = highPriorityQueue.Count,
@@ -108,8 +131,8 @@ namespace ReactiveUITK.EditorSupport
             {
                 int count = batchedEffectActions.Count;
                 if (
-                    ReactiveUITK.Core.Reconciler.TraceLevel
-                    == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                    ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                    == ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
                 )
                 {
                     try
