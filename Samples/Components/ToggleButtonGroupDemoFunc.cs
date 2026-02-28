@@ -31,13 +31,6 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             var (selected, setSelected) = Hooks.UseState(0);
 
-            VirtualNode MakeOption(int index, string label)
-            {
-                return V.Button(
-                    new ButtonProps { Text = label, OnClick = () => setSelected.Set(index) }
-                );
-            }
-
             return V.VisualElement(
                 ContainerStyle,
                 null,
