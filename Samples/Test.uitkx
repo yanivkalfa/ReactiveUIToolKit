@@ -1,0 +1,7 @@
+@namespace MyApp.UI
+@component Test
+
+<box>
+    <label text="Hello UITKX" />
+    <button text="Click me" />
+</box>

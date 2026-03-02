@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>UitkxVsix</AssemblyName>
+    <RootNamespace>UitkxVsix</RootNamespace>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <GenerateVsixContainer>true</GenerateVsixContainer>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <Nullable>enable</Nullable>
+    <LangVersion>10</LangVersion>
+    <UseWpf>false</UseWpf>
+    <UseWindowsForms>false</UseWindowsForms>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference
+      Include="Microsoft.VSSDK.BuildTools"
+      Version="17.9.3185"
+      PrivateAssets="all"
+    />
+    <PackageReference
+      Include="Microsoft.VisualStudio.LanguageServer.Client"
+      Version="17.9.5268"
+      ExcludeAssets="runtime"
+    />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="StreamJsonRpc" Version="2.16.36" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Embed the LSP server binary (published to bin/server/ by CI) -->
+    <Content Include="server\**\*.*">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <!-- TextMate grammar for basic syntax colouring -->
+    <Content Include="..\grammar\uitkx.tmLanguage.json">
+      <Link>Syntaxes\uitkx.tmLanguage.json</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

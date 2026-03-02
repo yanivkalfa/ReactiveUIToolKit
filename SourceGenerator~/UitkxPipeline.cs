@@ -1,0 +1,147 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.IO;
+using System.Threading;
+using Microsoft.CodeAnalysis;
+using ReactiveUITK.SourceGenerator.Emitter;
+using ReactiveUITK.SourceGenerator.Nodes;
+using ReactiveUITK.SourceGenerator.Parser;
+
+namespace ReactiveUITK.SourceGenerator
+{
+    /// <summary>
+    /// Top-level orchestrator for the UITKX compilation pipeline.
+    ///
+    /// Chain:
+    ///   Stage 1 — DirectiveParser  — @namespace / @component / @using / @props / @key
+    ///   Stage 2 — UitkxParser      — recursive-descent markup → AST
+    ///   Stage 3 — PropsResolver    — maps tag names to V.* call patterns
+    ///   Stage 4 — CSharpEmitter    — walks AST, produces compilable partial class
+    ///
+    /// Diagnostics produced:
+    ///   UITKX0001   — unknown lowercase built-in element (warning)
+    ///   UITKX0005   — missing required @namespace / @component directive (error)
+    ///   UITKX0006   — @component name ≠ filename (warning)
+    ///   UITKX0008   — unknown PascalCase function component (warning)
+    ///   UITKX03xx   — parse errors
+    /// </summary>
+    public static class UitkxPipeline
+    {
+        public static UitkxPipelineResult Run(
+            string source,
+            string filePath,
+            Compilation compilation,
+            CancellationToken ct
+        )
+        {
+            ct.ThrowIfCancellationRequested();
+
+            string fileName = Path.GetFileName(filePath);
+            string hintName = fileName + ".g.cs";
+
+            var diagnostics = new List<Diagnostic>();
+
+            // ── Stage 1: Directive parsing ────────────────────────────────────
+            DirectiveSet directives = DirectiveParser.Parse(source, filePath, diagnostics);
+
+            ct.ThrowIfCancellationRequested();
+
+            // ── Stage 2: Markup parsing ───────────────────────────────────────
+            ImmutableArray<AstNode> rootNodes = UitkxParser.Parse(
+                source,
+                filePath,
+                directives,
+                diagnostics
+            );
+
+            ct.ThrowIfCancellationRequested();
+
+            // Guard 1: only emit into compilations that reference ReactiveUITK.Shared.
+            // The generator runs on every assembly in the project; assemblies that
+            // don't reference Shared would get CS0246 errors for `using ReactiveUITK;`.
+            if (compilation.GetTypeByMetadataName("ReactiveUITK.Core.VirtualNode") == null)
+            {
+                return new UitkxPipelineResult(
+                    HintName: hintName,
+                    Source: null,
+                    Diagnostics: ImmutableArray<Diagnostic>.Empty
+                );
+            }
+
+            // Guard 2: only emit into the compilation that *owns* this .uitkx file.
+            // Multiple assemblies may reference Shared (e.g. ReactiveUITK.Editor and
+            // ReactiveUITK.Samples both pass Guard 1). Emitting the same partial class
+            // into both causes CS0436 "conflicts with imported type".
+            // We consider "ownership" as: the compilation has at least one SyntaxTree
+            // whose file lives in the same directory as the .uitkx file.
+            string uitkxDir = Path.GetDirectoryName(filePath) ?? string.Empty;
+            bool ownedByThisCompilation = false;
+            foreach (var tree in compilation.SyntaxTrees)
+            {
+                string treeDir = Path.GetDirectoryName(tree.FilePath) ?? string.Empty;
+                if (string.Equals(treeDir, uitkxDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    ownedByThisCompilation = true;
+                    break;
+                }
+            }
+            if (!ownedByThisCompilation)
+            {
+                return new UitkxPipelineResult(
+                    HintName: hintName,
+                    Source: null,
+                    Diagnostics: ImmutableArray<Diagnostic>.Empty
+                );
+            }
+
+            // If there are hard directive errors, emit a null source so the
+            // compiler doesn't see a broken partial-class skeleton.
+            int errorCount = 0;
+            foreach (var d in diagnostics)
+                if (d.Severity == DiagnosticSeverity.Error)
+                    errorCount++;
+
+            if (errorCount > 0 || directives.ComponentName == null || directives.Namespace == null)
+            {
+                return new UitkxPipelineResult(
+                    HintName: hintName,
+                    Source: null,
+                    Diagnostics: diagnostics.ToImmutableArray()
+                );
+            }
+
+            ct.ThrowIfCancellationRequested();
+
+            // ── Stage 3: PropsResolver ────────────────────────────────────────
+            var resolver = new PropsResolver(compilation);
+
+            ct.ThrowIfCancellationRequested();
+
+            // ── Stage 3b: Rules-of-Hooks validation ───────────────────────────
+            HooksValidator.Validate(rootNodes, filePath, diagnostics);
+
+            // ── Stage 3c: Structural validation ───────────────────────────────
+            StructureValidator.Validate(rootNodes, filePath, diagnostics);
+
+            ct.ThrowIfCancellationRequested();
+
+            // ── Stage 4: CSharpEmitter ────────────────────────────────────────
+            string generatedSource = CSharpEmitter.Emit(
+                filePath,
+                directives,
+                rootNodes,
+                resolver,
+                diagnostics
+            );
+
+            ct.ThrowIfCancellationRequested();
+
+            return new UitkxPipelineResult(
+                HintName: hintName,
+                Source: generatedSource,
+                Diagnostics: diagnostics.ToImmutableArray()
+            );
+        }
+    }
+}

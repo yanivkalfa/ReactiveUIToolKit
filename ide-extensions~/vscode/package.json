@@ -1,0 +1,96 @@
+{
+  "name": "uitkx",
+  "displayName": "UITKX",
+  "description": "Language support for .uitkx ReactiveUIToolKit component templates",
+  "version": "1.0.0",
+  "publisher": "ReactiveUITK",
+  "icon": "images/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/ReactiveUIToolKit"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "uitkx",
+    "unity",
+    "ui-toolkit",
+    "reactive"
+  ],
+  "activationEvents": [
+    "onLanguage:uitkx"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "uitkx",
+        "aliases": [
+          "UITKX",
+          "uitkx"
+        ],
+        "extensions": [
+          ".uitkx"
+        ],
+        "filenames": [],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "uitkx",
+        "scopeName": "source.uitkx",
+        "path": "./syntaxes/uitkx.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.cs.embedded.uitkx": "csharp"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "UITKX",
+      "properties": {
+        "uitkx.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the UitkxLanguageServer.dll. Leave empty to use the bundled server."
+        },
+        "uitkx.server.dotnetPath": {
+          "type": "string",
+          "default": "dotnet",
+          "description": "Path to the dotnet executable used to run the LSP server."
+        },
+        "uitkx.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace LSP communication between VS Code and the language server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('fs').cpSync('../grammar/uitkx.tmLanguage.json','syntaxes/uitkx.tmLanguage.json')\"",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -watch -p tsconfig.json",
+    "vscode:prepublish": "npm run prebuild && npm run build",
+    "package": "vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "typescript": "^5.3.0"
+  }
+}

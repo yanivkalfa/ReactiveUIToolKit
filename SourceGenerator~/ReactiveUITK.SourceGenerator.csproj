@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Must target netstandard2.0 — required by Roslyn generator infrastructure -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <!-- Roslyn generators must set this to opt into the generator base class verification -->
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <!--
+      Build output goes directly into the Unity Analyzers/ folder.
+      The DLL placed there (with the RoslynAnalyzer .meta label) is what Unity
+      picks up when compiling every assembly in the project.
+    -->
+    <OutputPath>..\Analyzers\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <!-- Keep intermediate build files local to SourceGenerator~ -->
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <AssemblyName>ReactiveUITK.SourceGenerator</AssemblyName>
+    <RootNamespace>ReactiveUITK.SourceGenerator</RootNamespace>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- RS2008: release-tracking for analyzer rules — not needed for this internal generator -->
+    <NoWarn>RS2008</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Exclude the sibling test project from the generator's own compilation -->
+    <Compile Remove="Tests\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      Pin to Roslyn 4.3.1 — the exact version Unity 6000.2.6f2 ships in
+      Editor/Data/DotNetSdkRoslyn/Microsoft.CodeAnalysis.CSharp.dll.
+      Using a NEWER version here would cause type-load failures at runtime
+      because Unity's host process provides 4.3.1 and cannot satisfy a
+      binding redirect to a higher version.
+
+      PrivateAssets="all" means the Roslyn DLLs are NOT copied to the output
+      folder — Unity supplies them at compile time from its own install.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

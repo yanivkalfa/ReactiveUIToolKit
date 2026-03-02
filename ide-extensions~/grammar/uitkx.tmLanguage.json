@@ -1,0 +1,263 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "UITKX",
+  "scopeName": "source.uitkx",
+  "fileTypes": [
+    "uitkx"
+  ],
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#directive-declaration"
+    },
+    {
+      "include": "#control-flow-block"
+    },
+    {
+      "include": "#code-block"
+    },
+    {
+      "include": "#inline-expression"
+    },
+    {
+      "include": "#tag-self-closing"
+    },
+    {
+      "include": "#tag-close"
+    },
+    {
+      "include": "#tag-open"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.block.uitkx",
+      "begin": "<!--",
+      "end": "-->",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      }
+    },
+    "directive-declaration": {
+      "comment": "Handles @namespace X, @component X, @using X, @props X",
+      "name": "meta.directive.uitkx",
+      "match": "^(@)(namespace|component|using|props)\\b(.*)$",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.keyword.uitkx"
+        },
+        "2": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "3": {
+          "name": "entity.name.type.uitkx"
+        }
+      }
+    },
+    "control-flow-block": {
+      "comment": "Handles @if (...), @else, @foreach (...), @switch (...), @case X:, @default:",
+      "name": "meta.control.uitkx",
+      "match": "(@)(if|else if|else|foreach|switch|case|default|break)\\b(\\s*\\(.*?\\))?",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.keyword.uitkx"
+        },
+        "2": {
+          "name": "keyword.control.uitkx"
+        },
+        "3": {
+          "name": "meta.embedded.expression.uitkx"
+        }
+      }
+    },
+    "code-block": {
+      "comment": "Handles @code { ... }",
+      "name": "meta.embedded.code.uitkx",
+      "begin": "(@code)\\s*(\\{)",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "2": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.uitkx"
+        }
+      },
+      "contentName": "source.cs.embedded.uitkx",
+      "patterns": [
+        {
+          "include": "source.cs"
+        }
+      ]
+    },
+    "inline-expression": {
+      "comment": "Handles @(expr) inline C# expressions",
+      "name": "meta.embedded.expression.uitkx",
+      "begin": "@(?=\\()",
+      "end": "(?<=\\))",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.expression.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#cs-paren-expression"
+        }
+      ]
+    },
+    "cs-paren-expression": {
+      "name": "meta.embedded.cs.uitkx",
+      "begin": "\\(",
+      "end": "\\)",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.begin.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.end.uitkx"
+        }
+      },
+      "contentName": "source.cs.embedded.uitkx",
+      "patterns": [
+        {
+          "include": "source.cs"
+        }
+      ]
+    },
+    "tag-self-closing": {
+      "name": "meta.tag.self-closing.uitkx",
+      "begin": "(<)([A-Za-z][A-Za-z0-9]*)",
+      "end": "(/?>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.uitkx"
+        },
+        "2": {
+          "name": "entity.name.tag.uitkx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#tag-attributes"
+        }
+      ]
+    },
+    "tag-close": {
+      "name": "meta.tag.close.uitkx",
+      "match": "(</)(\\w+)(>)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.uitkx"
+        },
+        "2": {
+          "name": "entity.name.tag.uitkx"
+        },
+        "3": {
+          "name": "punctuation.definition.tag.end.uitkx"
+        }
+      }
+    },
+    "tag-open": {
+      "name": "meta.tag.open.uitkx",
+      "begin": "(<)([A-Za-z][A-Za-z0-9]*)",
+      "end": "(>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.uitkx"
+        },
+        "2": {
+          "name": "entity.name.tag.uitkx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#tag-attributes"
+        }
+      ]
+    },
+    "tag-attributes": {
+      "patterns": [
+        {
+          "include": "#attribute-key"
+        },
+        {
+          "include": "#attribute-value-string"
+        },
+        {
+          "include": "#attribute-value-expression"
+        },
+        {
+          "include": "#attribute-boolean-shorthand"
+        }
+      ]
+    },
+    "attribute-key": {
+      "name": "entity.other.attribute-name.uitkx",
+      "match": "[A-Za-z][A-Za-z0-9\\-_]*(?=\\s*[={\\s/>])"
+    },
+    "attribute-value-string": {
+      "name": "string.quoted.double.uitkx",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.uitkx",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "attribute-value-expression": {
+      "name": "meta.embedded.expression.attribute.uitkx",
+      "begin": "(\\{)",
+      "end": "(\\})",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.block.end.uitkx"
+        }
+      },
+      "contentName": "source.cs.embedded.uitkx",
+      "patterns": [
+        {
+          "include": "source.cs"
+        }
+      ]
+    },
+    "attribute-boolean-shorthand": {
+      "comment": "Lone attribute name without = used as boolean true shorthand",
+      "name": "entity.other.attribute-name.uitkx",
+      "match": "\\b[A-Za-z][A-Za-z0-9\\-_]*\\b"
+    }
+  }
+}

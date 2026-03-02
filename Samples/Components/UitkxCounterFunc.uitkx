@@ -1,0 +1,13 @@
+@namespace ReactiveUITK.Samples.FunctionalComponents
+@component UitkxCounterFunc
+
+@code {
+    var (count, setCount) = Hooks.UseState(0);
+}
+
+<box>
+    <label text="UITKX Source-Generator Demo" />
+    <label text={$"Count: {count}"} />
+    <button text="+" onClick={() => setCount(count + 1)} />
+    <button text="-" onClick={() => setCount(count - 1)} />
+</box>

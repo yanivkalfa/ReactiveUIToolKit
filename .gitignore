@@ -9,4 +9,11 @@ ReactiveUIToolKitDocs~/**/*.meta
 ReactiveUIToolKitDocs~/dist/*
 ReactiveUIToolKitDocs~/node_modules/*
 
+# Source generator build artifacts — the compiled DLL in Analyzers/ IS committed;
+# only the intermediate build output dirs and side-files are ignored.
+SourceGenerator~/obj/
+SourceGenerator~/bin/
+Analyzers/*.deps.json
+Analyzers/*.pdb
+
 
