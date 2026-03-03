@@ -12,11 +12,7 @@
   <ItemGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
     <SourceRoot Include="C:\Users\neta\.nuget\packages\" />
   </ItemGroup>
-  <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
-    <Import Project="$(NuGetPackageRoot)microsoft.net.illink.tasks\8.0.24\build\Microsoft.NET.ILLink.Tasks.props" Condition="Exists('$(NuGetPackageRoot)microsoft.net.illink.tasks\8.0.24\build\Microsoft.NET.ILLink.Tasks.props')" />
-  </ImportGroup>
   <PropertyGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
     <PkgMicrosoft_VisualStudio_Threading_Analyzers Condition=" '$(PkgMicrosoft_VisualStudio_Threading_Analyzers)' == '' ">C:\Users\neta\.nuget\packages\microsoft.visualstudio.threading.analyzers\17.6.40</PkgMicrosoft_VisualStudio_Threading_Analyzers>
-    <PkgMicrosoft_NET_ILLink_Tasks Condition=" '$(PkgMicrosoft_NET_ILLink_Tasks)' == '' ">C:\Users\neta\.nuget\packages\microsoft.net.illink.tasks\8.0.24</PkgMicrosoft_NET_ILLink_Tasks>
   </PropertyGroup>
 </Project>

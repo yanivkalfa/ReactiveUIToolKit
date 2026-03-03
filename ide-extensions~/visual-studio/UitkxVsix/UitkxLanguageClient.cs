@@ -13,13 +13,18 @@ using Microsoft.VisualStudio.Utilities;
 namespace UitkxVsix;
 
 /// <summary>
-/// MEF-exported LSP language client for .uitkx files.
-/// VS discovers this via [ContentType("uitkx")] and calls ActivateAsync
-/// to obtain the server I/O streams.
+/// LSP language client for .uitkx files.
+/// NOT currently MEF-exported: VS 2022/2026's LanguageClientFactory has broken
+/// MEF dependencies (ExperimentationService, sessionManager) that cause the
+/// entire extension DLL to be rejected when [Export(typeof(ILanguageClient))]
+/// is present, which also breaks content-type registration and colorization.
+///
+/// TODO: re-enable LSP via a proper AsyncPackage + [ProvideLanguageClient]
+/// registration once VS stabilises the LanguageClientFactory composition.
 /// </summary>
-[Export(typeof(ILanguageClient))]
-[ContentType("uitkx")]
-[RunOnContext(RunningContext.RunOnHost)]
+// [Export(typeof(ILanguageClient))]
+// [ContentType("uitkx")]
+// [RunOnContext(RunningContext.RunOnHost)]
 public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 {
     private Process? _serverProcess;
@@ -40,14 +45,14 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
     public async Task<Connection?> ActivateAsync(CancellationToken token)
     {
-        var serverDll = FindServerDll();
-        if (!File.Exists(serverDll))
+        var (fileName, arguments) = FindServerCommand();
+        if (fileName is null)
             return null;
 
         var psi = new ProcessStartInfo
         {
-            FileName = "dotnet",
-            Arguments = $"\"{serverDll}\"",
+            FileName = fileName,
+            Arguments = arguments,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -96,11 +101,22 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static string FindServerDll()
+    private static (string? fileName, string arguments) FindServerCommand()
     {
         // Prefer a `server/` subdirectory beside this assembly (bundled in VSIX)
         var asm = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        var bundled = Path.Combine(asm, "server", "UitkxLanguageServer.dll");
-        return bundled;
+        var serverDir = Path.Combine(asm, "server");
+
+        // Try running the exe directly (no dotnet CLI needed, just .NET runtime)
+        var exe = Path.Combine(serverDir, "UitkxLanguageServer.exe");
+        if (File.Exists(exe))
+            return (exe, string.Empty);
+
+        // Fall back to dotnet dll (requires dotnet CLI in PATH)
+        var dll = Path.Combine(serverDir, "UitkxLanguageServer.dll");
+        if (File.Exists(dll))
+            return ("dotnet", $"\"{dll}\"");
+
+        return (null, string.Empty);
     }
 }

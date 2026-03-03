@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements;
 using ReactiveUITK.Core.Diagnostics;
+using ReactiveUITK.Elements;
 using ReactiveUITK.Signals;
 using UnityEngine;
 using UnityEngine.UIElements;

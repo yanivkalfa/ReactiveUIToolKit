@@ -1,3 +1,4 @@
+# Source & build artefacts not needed at runtime
 .vscode/**
 .vscode-test/**
 src/**
@@ -7,6 +8,12 @@ test/**
 .gitignore
 .eslintrc.json
 tsconfig.json
+esbuild.js
 **/*.map
 **/*.ts
+
+# Re-include compiled output and bundled server
 !out/**
+!server/**
+!syntaxes/**
+!language-configuration.json

@@ -104,7 +104,7 @@ public static class DocumentContext
         var m = s_openTagRegex.Match(before);
         if (m.Success)
         {
-            var tagName = m.Groups[1].Value.ToLowerInvariant();
+            var tagName = m.Groups[1].Value;
             // Extract the attribute-name prefix the user is typing
             var rest = before[(m.Index + m.Length)..];
             var attrPfx = Regex.Match(rest, @"([A-Za-z][A-Za-z0-9\-_]*)$").Value;

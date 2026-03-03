@@ -3,28 +3,37 @@
     <TargetFramework>net472</TargetFramework>
     <AssemblyName>UitkxVsix</AssemblyName>
     <RootNamespace>UitkxVsix</RootNamespace>
-    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <GeneratePkgDefFile>false</GeneratePkgDefFile>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <GenerateVsixContainer>true</GenerateVsixContainer>
     <CreateVsixContainer>true</CreateVsixContainer>
+    <VsixOutputFileName>UitkxVsix.vsix</VsixOutputFileName>
     <Nullable>enable</Nullable>
     <LangVersion>10</LangVersion>
     <UseWpf>false</UseWpf>
     <UseWindowsForms>false</UseWindowsForms>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="PresentationCore" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference
       Include="Microsoft.VSSDK.BuildTools"
-      Version="17.9.3185"
+      Version="17.14.2120"
       PrivateAssets="all"
+      GeneratePathProperty="true"
     />
-    <PackageReference
-      Include="Microsoft.VisualStudio.LanguageServer.Client"
-      Version="17.9.5268"
-      ExcludeAssets="runtime"
-    />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="StreamJsonRpc" Version="2.16.36" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.VisualStudio.Text.UI.Wpf"
+               Condition="Exists('C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\Editor\Microsoft.VisualStudio.Text.UI.Wpf.dll')">
+      <HintPath>C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\Editor\Microsoft.VisualStudio.Text.UI.Wpf.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="UitkxLanguageClient.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Embed the LSP server binary (published to bin/server/ by CI) -->
@@ -32,11 +41,23 @@
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <!-- License -->
+    <Content Include="LICENSE.txt">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
     <!-- TextMate grammar for basic syntax colouring -->
-    <Content Include="..\grammar\uitkx.tmLanguage.json">
+    <Content Include="..\..\grammar\uitkx.tmLanguage.json">
       <Link>Syntaxes\uitkx.tmLanguage.json</Link>
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <!-- Language configuration for bracket matching, comment toggling, etc. -->
+    <Content Include="..\..\grammar\uitkx.language-configuration.json">
+      <Link>Syntaxes\uitkx.language-configuration.json</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
+  <Import Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets"
+          Condition="'$(PkgMicrosoft_VSSDK_BuildTools)' != '' And Exists('$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets')" />
 </Project>

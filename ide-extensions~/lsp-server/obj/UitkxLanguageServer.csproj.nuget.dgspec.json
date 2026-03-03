@@ -50,19 +50,9 @@
               "target": "Package",
               "version": "[8.0.0, )"
             },
-            "Microsoft.NET.ILLink.Tasks": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[8.0.24, )",
-              "autoReferenced": true
-            },
             "OmniSharp.Extensions.LanguageServer": {
               "target": "Package",
               "version": "[0.19.9, )"
-            },
-            "System.Text.Json": {
-              "target": "Package",
-              "version": "[8.0.5, )"
             }
           },
           "imports": [
@@ -76,24 +66,6 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.24, 8.0.24]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[8.0.24, 8.0.24]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.24, 8.0.24]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.24, 8.0.24]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"

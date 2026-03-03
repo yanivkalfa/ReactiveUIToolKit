@@ -41,7 +41,7 @@ public sealed class HoverHandler : IHoverHandler
         {
             var attrs = string.Join(", ", element.Attributes.Select(a => $"`{a.Name}`"));
             var md =
-                $"## `<{word.ToLowerInvariant()}>` — {element.PropsType}\n\n"
+                $"## `<{word}>` — {element.PropsType}\n\n"
                 + $"{element.Description}\n\n"
                 + $"**Accepts children:** {(element.AcceptsChildren ? "yes" : "no")}\n\n"
                 + $"**Attributes:** {attrs}";

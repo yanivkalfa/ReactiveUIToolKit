@@ -1,0 +1,51 @@
+{
+  "comments": {
+    "lineComment": "//",
+    "blockComment": ["/*", "*/"]
+  },
+  "brackets": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["<", ">"]
+  ],
+  "autoClosingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"],
+    ["<", ">"]
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+    ["\"", "\""],
+    ["'", "'"],
+    ["<", ">"]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(?:.*\\{\\s*$|<(?!\\/)([A-Za-z][A-Za-z0-9-]*)(?:\\s[^>]*)?>\\s*$)",
+    "decreaseIndentPattern": "^\\s*(?:\\}|<\\/)"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^.*\\{\\s*$",
+      "action": { "indentAction": "indent" }
+    },
+    {
+      "beforeText": "^\\s*\\}",
+      "action": { "indentAction": "outdent" }
+    },
+    {
+      "beforeText": "^.*[^/]>\\s*$",
+      "afterText": "^\\s*</[A-Za-z]",
+      "action": { "indentAction": "indentOutdent" }
+    },
+    {
+      "beforeText": "^.*[^/]>\\s*$",
+      "action": { "indentAction": "indent" }
+    }
+  ]
+}

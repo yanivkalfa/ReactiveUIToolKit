@@ -13,7 +13,18 @@ ReactiveUIToolKitDocs~/node_modules/*
 # only the intermediate build output dirs and side-files are ignored.
 SourceGenerator~/obj/
 SourceGenerator~/bin/
+SourceGenerator~/Tests/obj/
+SourceGenerator~/Tests/bin/
 Analyzers/*.deps.json
 Analyzers/*.pdb
+
+# VS extension build artifacts
+ide-extensions~/visual-studio/UitkxVsix/bin/
+ide-extensions~/visual-studio/UitkxVsix/obj/
+ide-extensions~/visual-studio/UitkxVsix/server/
+ide-extensions~/visual-studio/UitkxVsix/.vsix/
+
+# LSP server build artifacts (bin/obj — the committed DLLs live directly in lsp-server/bin/Release/net8.0/)
+ide-extensions~/lsp-server/obj/
 
 

@@ -83,12 +83,18 @@ public sealed class UitkxSchema
                 stream,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
             ) ?? throw new InvalidOperationException("Failed to deserialize uitkx-schema.json.");
+
+        // Rebuild Elements with case-insensitive keys so <Button> and <button> both resolve
+        Root.Elements = new Dictionary<string, ElementInfo>(
+            Root.Elements,
+            StringComparer.OrdinalIgnoreCase
+        );
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     public ElementInfo? TryGetElement(string tagName) =>
-        Root.Elements.TryGetValue(tagName.ToLowerInvariant(), out var el) ? el : null;
+        Root.Elements.TryGetValue(tagName, out var el) ? el : null;
 
     public IEnumerable<AttributeInfo> GetAttributesForElement(string tagName)
     {

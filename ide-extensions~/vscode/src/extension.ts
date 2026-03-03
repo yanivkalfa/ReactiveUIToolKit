@@ -11,6 +11,7 @@ import {
 let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  console.log('[UITKX] Extension activated');
   const config = vscode.workspace.getConfiguration('uitkx');
 
   // Locate the LSP server DLL

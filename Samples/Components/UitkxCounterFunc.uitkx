@@ -3,11 +3,41 @@
 
 @code {
     var (count, setCount) = Hooks.UseState(0);
+    if (count < 0) {
+
+        if (count < -5) {
+            return <Label text="Count cannot be less than -5!"/>;
+        }
+        return <Label text="Count cannot be negative!"/>;
+    }
 }
 
-<box>
-    <label text="UITKX Source-Generator Demo" />
-    <label text={$"Count: {count}"} />
-    <button text="+" onClick={() => setCount(count + 1)} />
-    <button text="-" onClick={() => setCount(count - 1)} />
-</box>
+<Box>
+    @if (count < 0) {
+        <Label text={$"Count: {count} - {i}"}/>
+        @if() {
+            <Label text="Count is negative!"/>
+        }
+    }
+
+    @for (int i = 0; i < count; i++) {
+        <Label text={$"Count: {count} - {i}"}/>
+    }
+    @case count {
+        0 => <Label text="Count is zero!"/>,
+        1 => <Label text="Count is one!"/>,
+        _ => <Label text={$"Count is {count}!"}/>
+    }
+    <Label text={$"Count: {count}"}/>
+    <Button
+        text="+"
+        onClick={(a, b) => setCount(count + 1)}/>
+    <Button
+        text="-"
+        onClick={() => setCount(count - 1)}/>
+    <VisualElement>
+        <Box>
+            <Label text="asdasd"/>
+        </Box>
+    </VisualElement>
+</Box>

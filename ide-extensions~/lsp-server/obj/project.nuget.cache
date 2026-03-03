@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "ZLN9Yp+ZZLc=",
+  "dgSpecHash": "g6UvC+xndCM=",
   "success": true,
   "projectFilePath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\lsp-server\\UitkxLanguageServer.csproj",
   "expectedPackageFiles": [
@@ -18,7 +18,6 @@
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.extensions.options\\8.0.0\\microsoft.extensions.options.8.0.0.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.extensions.options.configurationextensions\\8.0.0\\microsoft.extensions.options.configurationextensions.8.0.0.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.extensions.primitives\\8.0.0\\microsoft.extensions.primitives.8.0.0.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\microsoft.net.illink.tasks\\8.0.24\\microsoft.net.illink.tasks.8.0.24.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.netcore.platforms\\5.0.0\\microsoft.netcore.platforms.5.0.0.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.visualstudio.threading\\17.6.40\\microsoft.visualstudio.threading.17.6.40.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.visualstudio.threading.analyzers\\17.6.40\\microsoft.visualstudio.threading.analyzers.17.6.40.nupkg.sha512",
@@ -37,13 +36,10 @@
     "C:\\Users\\neta\\.nuget\\packages\\system.runtime.compilerservices.unsafe\\6.0.0\\system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\system.security.accesscontrol\\5.0.0\\system.security.accesscontrol.5.0.0.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\system.security.principal.windows\\5.0.0\\system.security.principal.windows.5.0.0.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\system.text.json\\8.0.5\\system.text.json.8.0.5.nupkg.sha512",
+    "C:\\Users\\neta\\.nuget\\packages\\system.text.encodings.web\\8.0.0\\system.text.encodings.web.8.0.0.nupkg.sha512",
+    "C:\\Users\\neta\\.nuget\\packages\\system.text.json\\8.0.0\\system.text.json.8.0.0.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\system.threading.channels\\6.0.0\\system.threading.channels.6.0.0.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\system.threading.tasks.extensions\\4.5.4\\system.threading.tasks.extensions.4.5.4.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.24\\microsoft.netcore.app.ref.8.0.24.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.24\\microsoft.windowsdesktop.app.ref.8.0.24.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.24\\microsoft.aspnetcore.app.ref.8.0.24.nupkg.sha512",
-    "C:\\Users\\neta\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\8.0.24\\microsoft.netcore.app.host.win-x64.8.0.24.nupkg.sha512"
+    "C:\\Users\\neta\\.nuget\\packages\\system.threading.tasks.extensions\\4.5.4\\system.threading.tasks.extensions.4.5.4.nupkg.sha512"
   ],
   "logs": []
 }

@@ -61,7 +61,7 @@
     }
   ],
   "elements": {
-    "label": {
+    "Label": {
       "propsType": "LabelProps",
       "description": "Renders a text label (VisualElement wrapping a text element).",
       "acceptsChildren": false,
@@ -93,7 +93,7 @@
         }
       ]
     },
-    "button": {
+    "Button": {
       "propsType": "ButtonProps",
       "description": "Clickable button element.",
       "acceptsChildren": false,
@@ -135,7 +135,7 @@
         }
       ]
     },
-    "box": {
+    "Box": {
       "propsType": "BoxProps",
       "description": "Generic container box.",
       "acceptsChildren": true,
@@ -167,7 +167,7 @@
         }
       ]
     },
-    "textfield": {
+    "TextField": {
       "propsType": "TextFieldProps",
       "description": "Single-line or multi-line text input.",
       "acceptsChildren": false,
@@ -254,7 +254,7 @@
         }
       ]
     },
-    "toggle": {
+    "Toggle": {
       "propsType": "ToggleProps",
       "description": "Boolean toggle / checkbox.",
       "acceptsChildren": false,
@@ -311,7 +311,7 @@
         }
       ]
     },
-    "slider": {
+    "Slider": {
       "propsType": "SliderProps",
       "description": "Float slider control.",
       "acceptsChildren": false,
@@ -388,7 +388,7 @@
         }
       ]
     },
-    "sliderint": {
+    "SliderInt": {
       "propsType": "SliderIntProps",
       "description": "Integer slider control.",
       "acceptsChildren": false,
@@ -440,7 +440,7 @@
         }
       ]
     },
-    "image": {
+    "Image": {
       "propsType": "ImageProps",
       "description": "Renders a Texture2D or Sprite.",
       "acceptsChildren": false,
@@ -482,7 +482,7 @@
         }
       ]
     },
-    "scrollview": {
+    "ScrollView": {
       "propsType": "ScrollViewProps",
       "description": "Scrollable container.",
       "acceptsChildren": true,
@@ -534,7 +534,7 @@
         }
       ]
     },
-    "listview": {
+    "ListView": {
       "propsType": "ListViewProps",
       "description": "Virtualised list with MakeItem/BindItem callbacks.",
       "acceptsChildren": false,
@@ -616,7 +616,7 @@
         }
       ]
     },
-    "treeview": {
+    "TreeView": {
       "propsType": "TreeViewProps",
       "description": "Virtualised hierarchical tree list.",
       "acceptsChildren": false,
@@ -678,7 +678,7 @@
         }
       ]
     },
-    "foldout": {
+    "Foldout": {
       "propsType": "FoldoutProps",
       "description": "Expandable/collapsible section.",
       "acceptsChildren": true,
@@ -730,7 +730,7 @@
         }
       ]
     },
-    "groupbox": {
+    "GroupBox": {
       "propsType": "GroupBoxProps",
       "description": "Labelled group box container.",
       "acceptsChildren": true,
@@ -772,7 +772,7 @@
         }
       ]
     },
-    "helpbox": {
+    "HelpBox": {
       "propsType": "HelpBoxProps",
       "description": "Info, warning, or error message box.",
       "acceptsChildren": false,
@@ -809,7 +809,7 @@
         }
       ]
     },
-    "progressbar": {
+    "ProgressBar": {
       "propsType": "ProgressBarProps",
       "description": "Horizontal progress indicator.",
       "acceptsChildren": false,
@@ -856,7 +856,7 @@
         }
       ]
     },
-    "tab": {
+    "Tab": {
       "propsType": "TabProps",
       "description": "Individual tab inside a TabView.",
       "acceptsChildren": false,
@@ -878,7 +878,7 @@
         }
       ]
     },
-    "tabview": {
+    "TabView": {
       "propsType": "TabViewProps",
       "description": "Tabbed panel with switchable content.",
       "acceptsChildren": false,
@@ -935,7 +935,7 @@
         }
       ]
     },
-    "textelement": {
+    "TextElement": {
       "propsType": "TextElementProps",
       "description": "Low-level text element (leaf node).",
       "acceptsChildren": false,
@@ -967,7 +967,7 @@
         }
       ]
     },
-    "radiobutton": {
+    "RadioButton": {
       "propsType": "RadioButtonProps",
       "description": "Single radio button in a group.",
       "acceptsChildren": false,
@@ -1014,7 +1014,7 @@
         }
       ]
     },
-    "radiobuttongroup": {
+    "RadioButtonGroup": {
       "propsType": "RadioButtonGroupProps",
       "description": "Container managing a set of radio buttons.",
       "acceptsChildren": true,
@@ -1066,7 +1066,7 @@
         }
       ]
     },
-    "dropdownfield": {
+    "DropdownField": {
       "propsType": "DropdownFieldProps",
       "description": "Drop-down list selector.",
       "acceptsChildren": false,
@@ -1123,7 +1123,7 @@
         }
       ]
     },
-    "enumfield": {
+    "EnumField": {
       "propsType": "EnumFieldProps",
       "description": "Enum value picker field.",
       "acceptsChildren": false,
@@ -1170,7 +1170,7 @@
         }
       ]
     },
-    "integerfield": {
+    "IntegerField": {
       "propsType": "IntegerFieldProps",
       "description": "Integer text input field.",
       "acceptsChildren": false,
@@ -1217,7 +1217,7 @@
         }
       ]
     },
-    "floatfield": {
+    "FloatField": {
       "propsType": "FloatFieldProps",
       "description": "Float text input field.",
       "acceptsChildren": false,
@@ -1264,7 +1264,7 @@
         }
       ]
     },
-    "visualelement": {
+    "VisualElement": {
       "propsType": "Dictionary",
       "description": "Bare VisualElement — generic container with arbitrary props.",
       "acceptsChildren": true,
@@ -1291,7 +1291,7 @@
         }
       ]
     },
-    "text": {
+    "Text": {
       "propsType": "BuiltinText",
       "description": "Shorthand for a plain text label.",
       "acceptsChildren": false,
@@ -1323,7 +1323,7 @@
         }
       ]
     },
-    "fragment": {
+    "Fragment": {
       "propsType": "Fragment",
       "description": "Invisible wrapper that allows returning multiple root elements.",
       "acceptsChildren": true,

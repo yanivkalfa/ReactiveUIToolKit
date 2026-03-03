@@ -31,7 +31,7 @@ namespace ReactiveUITK.SourceGenerator
             id: "UITKX0001",
             title: "Unknown built-in element",
             messageFormat: "Unknown element '<{0}>'. Check the tag name — "
-                + "built-in elements are lowercase (e.g. <button>, <label>).",
+                + "built-in elements use PascalCase (e.g. <Button>, <Label>).",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true,

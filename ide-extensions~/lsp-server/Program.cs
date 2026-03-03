@@ -15,6 +15,7 @@ var server = await LanguageServer.From(options =>
         .WithHandler<TextSyncHandler>()
         .WithHandler<CompletionHandler>()
         .WithHandler<HoverHandler>()
+        .WithHandler<FormattingHandler>()
         .WithServices(services =>
         {
             services.AddSingleton<UitkxSchema>();

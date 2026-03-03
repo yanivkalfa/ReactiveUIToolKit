@@ -2,13 +2,12 @@
   "name": "uitkx",
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
-  "version": "1.0.0",
+  "version": "1.0.10",
   "publisher": "ReactiveUITK",
-  "icon": "images/icon.png",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/ReactiveUIToolKit"
+    "url": "https://github.com/ReactiveUITK/ReactiveUIToolKit"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -75,14 +74,24 @@
           "description": "Trace LSP communication between VS Code and the language server."
         }
       }
+    },
+    "configurationDefaults": {
+      "[uitkx]": {
+        "editor.defaultFormatter": "ReactiveUITK.uitkx",
+        "editor.formatOnSave": true,
+        "editor.autoIndent": "full",
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true
+      }
     }
   },
   "scripts": {
     "prebuild": "node -e \"require('fs').cpSync('../grammar/uitkx.tmLanguage.json','syntaxes/uitkx.tmLanguage.json')\"",
-    "build": "tsc -p tsconfig.json",
-    "watch": "tsc -watch -p tsconfig.json",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
     "vscode:prepublish": "npm run prebuild && npm run build",
-    "package": "vsce package"
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
@@ -91,6 +100,7 @@
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.3.0"
   }
 }

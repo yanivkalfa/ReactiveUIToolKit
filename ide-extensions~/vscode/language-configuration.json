@@ -13,10 +13,6 @@
     [
       "(",
       ")"
-    ],
-    [
-      "<",
-      ">"
     ]
   ],
   "autoClosingPairs": [
@@ -52,17 +48,32 @@
     [
       "\"",
       "\""
-    ],
-    [
-      "<",
-      ">"
     ]
   ],
   "wordPattern": "[A-Za-z][A-Za-z0-9_-]*",
   "indentationRules": {
-    "increaseIndentPattern": "<([A-Za-z][^/>]*)(?<!/)>\\s*$",
-    "decreaseIndentPattern": "^\\s*</"
+    "increaseIndentPattern": "^\\s*(?:.*\\{\\s*$|<[A-Za-z][A-Za-z0-9]*(\\s[^>]*[^/])?>[^<]*$)",
+    "decreaseIndentPattern": "^\\s*(?:\\}|</)"
   },
+  "onEnterRules": [
+    {
+      "beforeText": "^.*\\{\\s*$",
+      "action": { "indentAction": "indent" }
+    },
+    {
+      "beforeText": "^\\s*\\}",
+      "action": { "indentAction": "outdent" }
+    },
+    {
+      "beforeText": "^.*[^/]>\\s*$",
+      "afterText": "^\\s*</[A-Za-z]",
+      "action": { "indentAction": "indentOutdent" }
+    },
+    {
+      "beforeText": "^.*[^/]>\\s*$",
+      "action": { "indentAction": "indent" }
+    }
+  ],
   "folding": {
     "markers": {
       "start": "^\\s*<!--\\s*#region\\b",

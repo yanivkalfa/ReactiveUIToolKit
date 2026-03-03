@@ -133,7 +133,7 @@ public sealed class CompletionHandler : ICompletionHandler
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string BuildTagSnippet(string tagName, UitkxSchema.ElementInfo info) =>
-        info.AcceptsChildren ? $"<{tagName}>$0</{tagName}>" : $"<{tagName} $1 />";
+        info.AcceptsChildren ? $"{tagName}>$0</{tagName}>" : $"{tagName} $1 />";
 
     private static int ToOffset(string text, Position position)
     {
