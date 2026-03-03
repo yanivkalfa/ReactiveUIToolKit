@@ -1,13 +1,3 @@
 // UITKX Visual Studio Extension - Registry definitions
-// Registers the TextMate grammar repository so VS discovers uitkx.tmLanguage.json
-
-[$RootKey$\TextMate\Repositories]
-"UitkxSyntax"="$PackageFolder$\Syntaxes"
-
-// Map the grammar scope name to the language-configuration.json
-[$RootKey$\TextMate\LanguageConfiguration\GrammarMapping]
-"source.uitkx"="$PackageFolder$\Syntaxes\uitkx.language-configuration.json"
-
-// Map the VS content type name to the language-configuration.json
-[$RootKey$\TextMate\LanguageConfiguration\ContentTypeMapping]
-"uitkx"="$PackageFolder$\Syntaxes\uitkx.language-configuration.json"
+// TextMate registration intentionally disabled.
+// Coloring is provided by UitkxClassifier + custom classification formats.
