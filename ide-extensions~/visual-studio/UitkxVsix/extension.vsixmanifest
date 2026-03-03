@@ -1,6 +1,6 @@
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011">
   <Metadata>
-    <Identity Id="UitkxVsix.ReactiveUITK" Version="1.0.8" Language="en-US" Publisher="ReactiveUITK" />
+    <Identity Id="UitkxVsix.ReactiveUITK" Version="1.0.9" Language="en-US" Publisher="ReactiveUITK" />
     <DisplayName>UITKX</DisplayName>
     <Description xml:space="preserve">Language support for .uitkx ReactiveUIToolKit component templates. Provides completions, hover documentation, and LSP-based editor features.</Description>
     <MoreInfo>https://github.com/ReactiveUITK/ReactiveUIToolKit</MoreInfo>

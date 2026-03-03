@@ -4,7 +4,7 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Id="UitkxVsix.ReactiveUITK"
-              Version="1.0.8"
+          Version="1.0.9"
               Language="en-US"
               Publisher="ReactiveUITK" />
     <DisplayName>UITKX</DisplayName>
