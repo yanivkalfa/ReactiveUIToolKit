@@ -4,6 +4,7 @@ using System.ComponentModel.Composition;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.LanguageServer.Client;
@@ -22,11 +23,13 @@ namespace UitkxVsix;
 /// TODO: re-enable LSP via a proper AsyncPackage + [ProvideLanguageClient]
 /// registration once VS stabilises the LanguageClientFactory composition.
 /// </summary>
-// [Export(typeof(ILanguageClient))]
-// [ContentType("uitkx")]
-// [RunOnContext(RunningContext.RunOnHost)]
+[Export(typeof(ILanguageClient))]
+[Name("UITKX Language Server")]
+[ContentType("uitkx")]
+[RunOnContext(RunningContext.RunOnHost)]
 public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 {
+    private static readonly string LogFilePath = Path.Combine(Path.GetTempPath(), "uitkx-vsix-lsp.log");
     private Process? _serverProcess;
 
     // ── ILanguageClient ──────────────────────────────────────────────────────
@@ -45,35 +48,60 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
     public async Task<Connection?> ActivateAsync(CancellationToken token)
     {
-        var (fileName, arguments) = FindServerCommand();
-        if (fileName is null)
-            return null;
-
-        var psi = new ProcessStartInfo
+        foreach (var (fileName, arguments, description) in FindServerCommands())
         {
-            FileName = fileName,
-            Arguments = arguments,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    WorkingDirectory = Path.GetDirectoryName(fileName) ?? AppContext.BaseDirectory,
+                    RedirectStandardInput = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
 
-        _serverProcess = new Process { StartInfo = psi };
+                psi.Environment["DOTNET_ROLL_FORWARD"] = "LatestMajor";
 
-        // Suppress stderr so it doesn't pop up in VS output windows
-        _serverProcess.ErrorDataReceived += (_, _) => { };
+                var stderr = new StringBuilder();
+                var process = new Process { StartInfo = psi };
+                process.ErrorDataReceived += (_, e) =>
+                {
+                    if (!string.IsNullOrWhiteSpace(e.Data))
+                        stderr.AppendLine(e.Data);
+                };
 
-        _serverProcess.Start();
-        _serverProcess.BeginErrorReadLine();
+                process.Start();
+                process.BeginErrorReadLine();
 
-        await Task.Yield();
+                await Task.Delay(750, token);
 
-        return new Connection(
-            _serverProcess.StandardOutput.BaseStream,
-            _serverProcess.StandardInput.BaseStream
-        );
+                if (process.HasExited)
+                {
+                    Log($"LSP launch attempt failed ({description}). ExitCode={process.ExitCode}. Command='{fileName} {arguments}'. Stderr='{stderr}'.");
+                    process.Dispose();
+                    continue;
+                }
+
+                _serverProcess = process;
+                Log($"LSP launch succeeded ({description}). Command='{fileName} {arguments}'.");
+
+                return new Connection(
+                    _serverProcess.StandardOutput.BaseStream,
+                    _serverProcess.StandardInput.BaseStream
+                );
+            }
+            catch (Exception ex)
+            {
+                Log($"LSP launch attempt threw ({description}). Command='{fileName} {arguments}'. Error='{ex}'.");
+            }
+        }
+
+        Log("LSP activation failed: no launch strategy succeeded.");
+        return null;
     }
 
     public Task OnLoadedAsync() => Task.CompletedTask;
@@ -101,7 +129,7 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static (string? fileName, string arguments) FindServerCommand()
+    private static IEnumerable<(string fileName, string arguments, string description)> FindServerCommands()
     {
         // Prefer a `server/` subdirectory beside this assembly (bundled in VSIX)
         var asm = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
@@ -110,13 +138,27 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
         // Try running the exe directly (no dotnet CLI needed, just .NET runtime)
         var exe = Path.Combine(serverDir, "UitkxLanguageServer.exe");
         if (File.Exists(exe))
-            return (exe, string.Empty);
+            yield return (exe, string.Empty, "native-exe");
 
         // Fall back to dotnet dll (requires dotnet CLI in PATH)
         var dll = Path.Combine(serverDir, "UitkxLanguageServer.dll");
         if (File.Exists(dll))
-            return ("dotnet", $"\"{dll}\"");
+            yield return ("dotnet", $"\"{dll}\"", "dotnet-dll");
 
-        return (null, string.Empty);
+        // Last resort: try server executable by relative path from extension root.
+        if (File.Exists(Path.Combine("server", "UitkxLanguageServer.exe")))
+            yield return (Path.Combine("server", "UitkxLanguageServer.exe"), string.Empty, "relative-exe");
+    }
+
+    private static void Log(string message)
+    {
+        try
+        {
+            var line = $"[{DateTime.UtcNow:O}] {message}{Environment.NewLine}";
+            File.AppendAllText(LogFilePath, line);
+        }
+        catch
+        {
+        }
     }
 }

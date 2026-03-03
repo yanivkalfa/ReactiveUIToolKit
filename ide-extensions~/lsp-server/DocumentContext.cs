@@ -23,6 +23,9 @@ public static class DocumentContext
 
         /// <summary>Cursor inside an open tag after the tag name — offer attributes.</summary>
         AttributeName,
+
+        /// <summary>Cursor in an attribute value — offer value suggestions based on attribute type.</summary>
+        AttributeValue,
     }
 
     public sealed class Context
@@ -32,13 +35,26 @@ public static class DocumentContext
         /// <summary>Tag name (lower-cased) when Kind == AttributeName, or empty string.</summary>
         public string TagName { get; init; } = "";
 
+        /// <summary>Attribute name when Kind == AttributeValue, or empty string.</summary>
+        public string AttributeName { get; init; } = "";
+
         /// <summary>The prefix already typed (used to pre-filter the list).</summary>
         public string Prefix { get; init; } = "";
     }
 
-    private static readonly Regex s_openTagRegex = new(
-        @"<([A-Za-z][A-Za-z0-9]*)\s+(?:[^>]*)$",
-        RegexOptions.Compiled | RegexOptions.RightToLeft
+    private static readonly Regex s_tagNameRegex = new(
+        @"^([A-Za-z][A-Za-z0-9]*)",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex s_attributeValueRegex = new(
+        @"([A-Za-z][A-Za-z0-9\-_]*)\s*=\s*(?:(""[^""]*)|('[^']*)|(\{[^}]*))$",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex s_identifierTailRegex = new(
+        @"([A-Za-z][A-Za-z0-9\-_]*)$",
+        RegexOptions.Compiled
     );
 
     /// <summary>
@@ -100,19 +116,53 @@ public static class DocumentContext
                 return new Context { Kind = CompletionKind.TagName, Prefix = afterLt };
         }
 
-        // --- Inside open tag attributes  <button text="|  or  <button |
-        var m = s_openTagRegex.Match(before);
-        if (m.Success)
+        // --- Inside open tag attributes/value: <button text="|  or  <button |
+        var ltOpen = before.LastIndexOf('<');
+        var gtOpen = before.LastIndexOf('>');
+        if (ltOpen >= 0 && ltOpen > gtOpen)
         {
-            var tagName = m.Groups[1].Value;
-            // Extract the attribute-name prefix the user is typing
-            var rest = before[(m.Index + m.Length)..];
-            var attrPfx = Regex.Match(rest, @"([A-Za-z][A-Za-z0-9\-_]*)$").Value;
+            var openTagContent = before[(ltOpen + 1)..];
+            if (openTagContent.StartsWith("/"))
+            {
+                return new Context { Kind = CompletionKind.None };
+            }
+
+            var tagMatch = s_tagNameRegex.Match(openTagContent);
+            if (!tagMatch.Success)
+            {
+                return new Context { Kind = CompletionKind.None };
+            }
+
+            var tagName = tagMatch.Groups[1].Value;
+            var afterTagName = openTagContent[tagMatch.Length..];
+
+            var valueMatch = s_attributeValueRegex.Match(afterTagName);
+            if (valueMatch.Success)
+            {
+                var attrName = valueMatch.Groups[1].Value;
+                var rawPrefix = valueMatch.Groups[2].Success
+                    ? valueMatch.Groups[2].Value
+                    : valueMatch.Groups[3].Success
+                        ? valueMatch.Groups[3].Value
+                        : valueMatch.Groups[4].Value;
+
+                var prefix = rawPrefix.Length > 0 ? rawPrefix[1..] : "";
+
+                return new Context
+                {
+                    Kind = CompletionKind.AttributeValue,
+                    TagName = tagName,
+                    AttributeName = attrName,
+                    Prefix = prefix,
+                };
+            }
+
+            var attrPrefix = s_identifierTailRegex.Match(afterTagName).Value;
             return new Context
             {
                 Kind = CompletionKind.AttributeName,
                 TagName = tagName,
-                Prefix = attrPfx,
+                Prefix = attrPrefix,
             };
         }
 

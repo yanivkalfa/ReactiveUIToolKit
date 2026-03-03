@@ -49,6 +49,11 @@ public sealed class CompletionHandler : ICompletionHandler
                 context.TagName,
                 context.Prefix
             ),
+            DocumentContext.CompletionKind.AttributeValue => AttributeValueItems(
+                context.TagName,
+                context.AttributeName,
+                context.Prefix
+            ),
             _ => Enumerable.Empty<CompletionItem>(),
         };
 
@@ -66,7 +71,8 @@ public sealed class CompletionHandler : ICompletionHandler
             {
                 Label = "@" + d.Name,
                 Kind = CompletionItemKind.Keyword,
-                InsertText = "@" + d.Name + " ",
+                InsertText = BuildDirectiveSnippet(d.Name),
+                InsertTextFormat = InsertTextFormat.Snippet,
                 Detail = "UITKX directive",
                 Documentation = new MarkupContent
                 {
@@ -84,7 +90,8 @@ public sealed class CompletionHandler : ICompletionHandler
             {
                 Label = "@" + d.Name,
                 Kind = CompletionItemKind.Keyword,
-                InsertText = "@" + d.Name,
+                InsertText = BuildControlFlowSnippet(d.Name),
+                InsertTextFormat = InsertTextFormat.Snippet,
                 Detail = "UITKX control flow",
                 Documentation = new MarkupContent
                 {
@@ -115,6 +122,8 @@ public sealed class CompletionHandler : ICompletionHandler
     private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix) =>
         _schema
             .GetAttributesForElement(tagName)
+            .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
             .Where(a => a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(a => new CompletionItem
             {
@@ -130,10 +139,112 @@ public sealed class CompletionHandler : ICompletionHandler
                 },
             });
 
+    private IEnumerable<CompletionItem> AttributeValueItems(
+        string tagName,
+        string attributeName,
+        string prefix)
+    {
+        var attr = _schema
+            .GetAttributesForElement(tagName)
+            .FirstOrDefault(a => a.Name.Equals(attributeName, StringComparison.OrdinalIgnoreCase));
+
+        if (attr is null)
+            return Enumerable.Empty<CompletionItem>();
+
+        var type = attr.Type.ToLowerInvariant();
+
+        if (type is "bool" or "boolean")
+        {
+            return new[]
+            {
+                ValueItem("true", "bool", "true"),
+                ValueItem("false", "bool", "false"),
+            }.Where(i => i.Label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (type is "int" or "long" or "short" or "byte" or "uint" or "ulong")
+        {
+            return new[] { ValueItem("0", attr.Type, "0") };
+        }
+
+        if (type is "float" or "double" or "decimal")
+        {
+            return new[] { ValueItem("0.0", attr.Type, "0.0") };
+        }
+
+        if (type == "action")
+        {
+            return new[]
+            {
+                new CompletionItem
+                {
+                    Label = "() => { }",
+                    Kind = CompletionItemKind.Function,
+                    InsertText = "() => { $0 }",
+                    InsertTextFormat = InsertTextFormat.Snippet,
+                    Detail = attr.Type,
+                    Documentation = new MarkupContent
+                    {
+                        Kind = MarkupKind.Markdown,
+                        Value = "Inline callback expression.",
+                    },
+                },
+            };
+        }
+
+        if (type is "object" or "style")
+        {
+            return new[]
+            {
+                ValueItem("{ }", attr.Type, "{ $0 }", true),
+            };
+        }
+
+        return Enumerable.Empty<CompletionItem>();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string BuildTagSnippet(string tagName, UitkxSchema.ElementInfo info) =>
         info.AcceptsChildren ? $"{tagName}>$0</{tagName}>" : $"{tagName} $1 />";
+
+    private static string BuildDirectiveSnippet(string name) =>
+        name switch
+        {
+            "namespace" => "@namespace $1",
+            "component" => "@component $1",
+            "using" => "@using $1",
+            "props" => "@props $1",
+            "key" => "@key $1",
+            _ => "@" + name + " $1",
+        };
+
+    private static string BuildControlFlowSnippet(string name) =>
+        name switch
+        {
+            "if" => "@if ($1)\\n{\\n\\t$0\\n}",
+            "else" => "@else\\n{\\n\\t$0\\n}",
+            "foreach" => "@foreach (var item in $1)\\n{\\n\\t$0\\n}",
+            "switch" => "@switch ($1)\\n{\\n\\t@case $2 => $0\\n}",
+            "case" => "@case $1 => $0",
+            "default" => "@default => $0",
+            "code" => "@code\\n{\\n\\t$0\\n}",
+            _ => "@" + name,
+        };
+
+    private static CompletionItem ValueItem(
+        string label,
+        string detail,
+        string insertText,
+        bool snippet = false)
+        => new()
+        {
+            Label = label,
+            Kind = CompletionItemKind.Value,
+            InsertText = insertText,
+            InsertTextFormat = snippet ? InsertTextFormat.Snippet : InsertTextFormat.PlainText,
+            Detail = detail,
+        };
 
     private static int ToOffset(string text, Position position)
     {

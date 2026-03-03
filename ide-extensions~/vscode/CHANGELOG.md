@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.12]
+- Add Marketplace icon (`images/logo.png`) and wire manifest `icon` field so extension branding renders correctly.
+
+## [1.0.11]
+- Re-publish VS Code extension after IntelliSense/LSP stabilization so Marketplace package reflects current fixed behavior.
+
 ## [1.0.10]
 - Fix formatter indentation for directive blocks nested under tags (`@if/@for/@case/@code`) and align closing `}` with opening directive level.
 - Add `@case` expression tokenization before `{` and classify switch-arm labels (`count`, `0`, `1`, `_`) plus `=>` operator.

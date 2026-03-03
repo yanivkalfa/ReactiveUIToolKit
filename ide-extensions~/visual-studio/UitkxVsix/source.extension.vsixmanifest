@@ -4,9 +4,9 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
         <Identity Id="UitkxVsix.ReactiveUITK"
-          Version="1.0.10"
+          Version="1.0.12"
               Language="en-US"
-              Publisher="ReactiveUITK" />
+              Publisher="Yaniv Kalfa" />
     <DisplayName>UITKX</DisplayName>
     <Description xml:space="preserve">Language support for .uitkx ReactiveUIToolKit component templates. Provides completions, hover documentation, and LSP-based editor features.</Description>
     <MoreInfo>https://github.com/ReactiveUITK/ReactiveUIToolKit</MoreInfo>
@@ -14,9 +14,15 @@
     <Tags>Unity;UI Toolkit;UITKX;ReactiveUI;language;lsp</Tags>
   </Metadata>
   <Installation AllUsers="false" Scope="ProductExtension">
-    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,19.0)" />
-    <InstallationTarget Id="Microsoft.VisualStudio.Professional" Version="[17.0,19.0)" />
-    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,19.0)" />
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Professional" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,19.0)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
   </Installation>
   <Dependencies>
     <Dependency Id="Microsoft.Framework.NDP" DisplayName=".NET Framework" Version="[4.7.2,)" />

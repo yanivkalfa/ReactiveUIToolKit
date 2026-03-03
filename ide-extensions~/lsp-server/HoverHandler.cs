@@ -39,12 +39,18 @@ public sealed class HoverHandler : IHoverHandler
         var element = _schema.TryGetElement(word);
         if (element is not null)
         {
-            var attrs = string.Join(", ", element.Attributes.Select(a => $"`{a.Name}`"));
+            var attrs = element.Attributes.Take(8).ToArray();
+            var attrList = attrs.Length == 0
+                ? "_None_"
+                : string.Join("\n", attrs.Select(a => $"- `{a.Name}`: `{a.Type}`"));
+            var moreAttrs = element.Attributes.Count > attrs.Length
+                ? $"\n- _+{element.Attributes.Count - attrs.Length} more..._"
+                : "";
             var md =
                 $"## `<{word}>` — {element.PropsType}\n\n"
                 + $"{element.Description}\n\n"
                 + $"**Accepts children:** {(element.AcceptsChildren ? "yes" : "no")}\n\n"
-                + $"**Attributes:** {attrs}";
+                + $"**Attributes**\n{attrList}{moreAttrs}";
             return Task.FromResult<Hover?>(
                 new Hover
                 {
@@ -83,7 +89,11 @@ public sealed class HoverHandler : IHoverHandler
             );
         if (directive is not null)
         {
-            var md = $"## `@{directive.Name}`\n\n{directive.Description}";
+            var md =
+                $"## `@{directive.Name}`\n\n{directive.Description}\n\n"
+                + "```uitkx\n"
+                + DirectiveExample(directive.Name)
+                + "\n```";
             return Task.FromResult<Hover?>(
                 new Hover
                 {
@@ -109,4 +119,21 @@ public sealed class HoverHandler : IHoverHandler
         }
         return Math.Min(offset + column, text.Length);
     }
+
+    private static string DirectiveExample(string name) =>
+        name switch
+        {
+            "namespace" => "@namespace My.Game.Ui",
+            "component" => "@component InventoryPanel",
+            "using" => "@using UnityEngine",
+            "props" => "@props InventoryPanelProps",
+            "if" => "@if (show)\n{\n    <Label text=\"Visible\" />\n}",
+            "else" => "@else\n{\n    <Label text=\"Hidden\" />\n}",
+            "foreach" => "@foreach (var item in items)\n{\n    <Label text={item.Name} />\n}",
+            "switch" => "@switch (mode)\n{\n    @case 0 => <Label text=\"A\" />\n    @default => <Label text=\"B\" />\n}",
+            "case" => "@case 0 => <Label text=\"State\" />",
+            "default" => "@default => <Label text=\"Fallback\" />",
+            "code" => "@code\n{\n    var enabled = true;\n}",
+            _ => "@" + name,
+        };
 }
