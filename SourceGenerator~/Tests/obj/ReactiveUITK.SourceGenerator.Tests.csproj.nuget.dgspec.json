@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj": {}
+    "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj": {}
   },
   "projects": {
-    "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj": {
+    "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj",
+        "projectUniqueName": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj",
         "projectName": "ReactiveUITK.SourceGenerator",
-        "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj",
+        "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj",
         "packagesPath": "C:\\Users\\neta\\.nuget\\packages\\",
-        "outputPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\obj\\",
+        "outputPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\neta\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -73,14 +73,14 @@
         }
       }
     },
-    "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj": {
+    "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
+        "projectUniqueName": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
         "projectName": "ReactiveUITK.SourceGenerator.Tests",
-        "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
+        "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
         "packagesPath": "C:\\Users\\neta\\.nuget\\packages\\",
-        "outputPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\obj\\",
+        "outputPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\neta\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -97,8 +97,8 @@
           "net10.0": {
             "targetAlias": "net10.0",
             "projectReferences": {
-              "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj": {
-                "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj"
+              "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj": {
+                "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj"
               }
             }
           }

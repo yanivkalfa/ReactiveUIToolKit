@@ -1,3 +1,4 @@
+using System.IO;
 using MediatR;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
@@ -24,18 +25,47 @@ public sealed class CompletionHandler : ICompletionHandler
     ) =>
         new CompletionRegistrationOptions
         {
-            DocumentSelector = TextDocumentSelector.ForLanguage("uitkx"),
+            DocumentSelector = new TextDocumentSelector(
+                new TextDocumentFilter { Pattern = "**/*.uitkx" }
+            ),
             TriggerCharacters = new Container<string>("<", "@", " ", "\n", "{"),
             ResolveProvider = false,
         };
+
+    private static void Log(string msg) => ServerLog.Log(msg);
 
     public Task<CompletionList> Handle(
         CompletionParams request,
         CancellationToken cancellationToken
     )
     {
+        Log(
+            $"completion request: {request.TextDocument.Uri}  pos={request.Position.Line}:{request.Position.Character}"
+        );
+
         if (!_store.TryGet(request.TextDocument.Uri, out var text))
-            return Task.FromResult(new CompletionList());
+        {
+            // VS2022 may have sent textDocument/didOpen before the server was ready.
+            // Fall back to reading the file from disk.
+            string? localPath = null;
+            try
+            {
+                localPath = new System.Uri(request.TextDocument.Uri.ToString()).LocalPath;
+            }
+            catch { }
+
+            if (localPath != null && File.Exists(localPath))
+            {
+                text = File.ReadAllText(localPath);
+                _store.Set(request.TextDocument.Uri, text);
+                Log($"completion: loaded from disk ({text.Length} chars)");
+            }
+            else
+            {
+                Log($"completion: store miss + disk miss — returning empty");
+                return Task.FromResult(new CompletionList());
+            }
+        }
 
         var offset = ToOffset(text, request.Position);
         var context = DocumentContext.Detect(text, offset);
@@ -57,7 +87,9 @@ public sealed class CompletionHandler : ICompletionHandler
             _ => Enumerable.Empty<CompletionItem>(),
         };
 
-        return Task.FromResult(new CompletionList(items));
+        var list = items.ToList();
+        Log($"completion: kind={context.Kind} prefix='{context.Prefix}' → {list.Count} items");
+        return Task.FromResult(new CompletionList(list));
     }
 
     // ── Completion item builders ─────────────────────────────────────────────
@@ -142,7 +174,8 @@ public sealed class CompletionHandler : ICompletionHandler
     private IEnumerable<CompletionItem> AttributeValueItems(
         string tagName,
         string attributeName,
-        string prefix)
+        string prefix
+    )
     {
         var attr = _schema
             .GetAttributesForElement(tagName)
@@ -194,10 +227,7 @@ public sealed class CompletionHandler : ICompletionHandler
 
         if (type is "object" or "style")
         {
-            return new[]
-            {
-                ValueItem("{ }", attr.Type, "{ $0 }", true),
-            };
+            return new[] { ValueItem("{ }", attr.Type, "{ $0 }", true) };
         }
 
         return Enumerable.Empty<CompletionItem>();
@@ -216,19 +246,22 @@ public sealed class CompletionHandler : ICompletionHandler
             "using" => "@using $1",
             "props" => "@props $1",
             "key" => "@key $1",
+            "code" => "@code\n{\n\t$0\n}",
             _ => "@" + name + " $1",
         };
 
     private static string BuildControlFlowSnippet(string name) =>
         name switch
         {
-            "if" => "@if ($1)\\n{\\n\\t$0\\n}",
-            "else" => "@else\\n{\\n\\t$0\\n}",
-            "foreach" => "@foreach (var item in $1)\\n{\\n\\t$0\\n}",
-            "switch" => "@switch ($1)\\n{\\n\\t@case $2 => $0\\n}",
+            "if" => "@if ($1)\n{\n\t$0\n}",
+            "else" => "@else\n{\n\t$0\n}",
+            "foreach" => "@foreach (var item in $1)\n{\n\t$0\n}",
+            "switch" => "@switch ($1)\n{\n\t@case $2 => $0\n}",
             "case" => "@case $1 => $0",
             "default" => "@default => $0",
-            "code" => "@code\\n{\\n\\t$0\\n}",
+            "code" => "@code\n{\n\t$0\n}",
+            "for" => "@for (int $1 = 0; $1 < $2; $1++)\n{\n\t$0\n}",
+            "while" => "@while ($1)\n{\n\t$0\n}",
             _ => "@" + name,
         };
 
@@ -236,8 +269,9 @@ public sealed class CompletionHandler : ICompletionHandler
         string label,
         string detail,
         string insertText,
-        bool snippet = false)
-        => new()
+        bool snippet = false
+    ) =>
+        new()
         {
             Label = label,
             Kind = CompletionItemKind.Value,

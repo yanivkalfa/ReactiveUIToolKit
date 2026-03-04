@@ -236,6 +236,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 case ForeachNode f:
                     EmitForeachNode(f);
                     break;
+                case ForNode fn:
+                    EmitForNode(fn);
+                    break;
+                case WhileNode wn:
+                    EmitWhileNode(wn);
+                    break;
                 case SwitchNode s:
                     EmitSwitchNode(s);
                     break;
@@ -505,6 +511,26 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (i == ifn.Branches.Length - 1)
                     _sb.Append($"({QVNode})null");
             }
+        }
+
+        private void EmitForNode(ForNode fn)
+        {
+            // Emit as IIFE building a list — keeps `i` properly in scope
+            _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
+            _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
+            _sb.Append($"for ({fn.ForExpression}) {{ __r.Add(");
+            EmitBodyExpr(fn.Body);
+            _sb.Append("); } return __r.ToArray(); }))()");
+        }
+
+        private void EmitWhileNode(WhileNode wn)
+        {
+            // Emit as IIFE building a list
+            _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
+            _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
+            _sb.Append($"while ({wn.Condition}) {{ __r.Add(");
+            EmitBodyExpr(wn.Body);
+            _sb.Append("); } return __r.ToArray(); }))()");
         }
 
         private void EmitForeachNode(ForeachNode forn)

@@ -1,43 +1,59 @@
 @namespace ReactiveUITK.Samples.FunctionalComponents
 @component UitkxCounterFunc
-
 @code {
     var (count, setCount) = Hooks.UseState(0);
-    if (count < 0) {
-
-        if (count < -5) {
-            return <Label text="Count cannot be less than -5!"/>;
-        }
-        return <Label text="Count cannot be negative!"/>;
-    }
+    var (mode, setMode) = Hooks.UseState("normal");
 }
 
 <Box>
-    @if (count < 0) {
-        <Label text={$"Count: {count} - {i}"}/>
-        @if() {
-            <Label text="Count is negative!"/>
-        }
+    @switch (mode) {
+        @case "squared":
+        <Label text={$"Mode: Squared — Count²: {count * count}"}/>
+        @case "normal":
+        <Label text={$"Mode: Normal — Count: {count}"}/>
+        @default:
+        <Label text={$"Mode: Unknown ({mode})"}/>
     }
 
-    @for (int i = 0; i < count; i++) {
-        <Label text={$"Count: {count} - {i}"}/>
+    @if (count < -5) {
+        <Label text="Count cannot be less than -5!"/>
+        } @else if (count < 0) {
+        <Label text="Count is negative!"/>
+        } @else if (count == 0) {
+        <Label text="Count is zero"/>
+        } @else {
+        @for (int i = 0; i < count; i++) {
+            @if (i % 2 == 0) {
+                <Label text={$"Even row {i}"}/>
+                } @else {
+                <Label text={$"Odd row {i}"}/>
+            }
+        }
+        <Label text={$"Total rows: {count}"}/>
     }
-    @case count {
-        0 => <Label text="Count is zero!"/>,
-        1 => <Label text="Count is one!"/>,
-        _ => <Label text={$"Count is {count}!"}/>
-    }
-    <Label text={$"Count: {count}"}/>
-    <Button
-        text="+"
-        onClick={(a, b) => setCount(count + 1)}/>
-    <Button
-        text="-"
-        onClick={() => setCount(count - 1)}/>
-    <VisualElement>
-        <Box>
-            <Label text="asdasd"/>
-        </Box>
-    </VisualElement>
+
+    <Box>
+        <Button
+            text="-5"
+            onClick={() => setCount(count - 5)}/>
+        <Button
+            text="-"
+            onClick={() => setCount(count - 1)}/>
+        <Label text={$"{count}"}/>
+        <Button
+            text="+"
+            onClick={() => setCount(count + 1)}/>
+        <Button
+            text="+5"
+            onClick={() => setCount(count + 5)}/>
+    </Box>
+
+    <Box>
+        <Button
+            text="Normal"
+            onClick={() => setMode("normal")}/>
+        <Button
+            text="Squared"
+            onClick={() => setMode("squared")}/>
+    </Box>
 </Box>

@@ -27,10 +27,13 @@
       PrivateAssets="all"
       GeneratePathProperty="true"
     />
-    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" PrivateAssets="all" />
+    <PackageReference
+      Include="Microsoft.VisualStudio.SDK"
+      Version="17.14.40265"
+      PrivateAssets="all"
+    />
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="UitkxLanguageClient.cs" />
     <!-- Embed the LSP server binary (published to bin/server/ by CI) -->
     <Content Include="server\**\*.*">
       <IncludeInVSIX>true</IncludeInVSIX>
@@ -40,19 +43,23 @@
     <Content Include="LICENSE.txt">
       <IncludeInVSIX>true</IncludeInVSIX>
     </Content>
-    <!-- TextMate grammar for basic syntax colouring -->
+    <!-- TextMate grammar: VSCode-only, not included in VS VSIX.
+         VS uses the MEF IClassifier (UitkxClassifier.cs) for syntax colouring.
+         Including tmLanguage.json in VS2026+ causes it to use TextMate scope
+         colours instead of our custom ClassificationFormatDefinition colours. -->
     <Content Include="..\..\grammar\uitkx.tmLanguage.json">
       <Link>Syntaxes\uitkx.tmLanguage.json</Link>
-      <IncludeInVSIX>true</IncludeInVSIX>
+      <IncludeInVSIX>false</IncludeInVSIX>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <!-- Language configuration for bracket matching, comment toggling, etc. -->
     <Content Include="..\..\grammar\uitkx.language-configuration.json">
       <Link>Syntaxes\uitkx.language-configuration.json</Link>
-      <IncludeInVSIX>true</IncludeInVSIX>
+      <IncludeInVSIX>false</IncludeInVSIX>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets"
-          Condition="'$(PkgMicrosoft_VSSDK_BuildTools)' != '' And Exists('$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets')" />
+  <Import
+    Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets"
+    Condition="'$(PkgMicrosoft_VSSDK_BuildTools)' != '' And Exists('$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets')"
+  />
 </Project>

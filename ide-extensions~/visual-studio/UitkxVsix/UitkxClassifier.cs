@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.Composition;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Utilities;
@@ -8,27 +12,149 @@ using Microsoft.VisualStudio.Utilities;
 namespace UitkxVsix;
 
 [Export(typeof(IClassifierProvider))]
-[ContentType("text")]
+[ContentType("uitkx")]
 internal sealed class UitkxClassifierProvider : IClassifierProvider
 {
+    private static readonly string DiagLogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-vsix-diag.log"
+    );
+    private static bool _metadataDumped;
+    private static bool _lspLoaded;
+
+    static UitkxClassifierProvider()
+    {
+        try
+        {
+            File.AppendAllText(
+                DiagLogPath,
+                $"[{DateTime.UtcNow:O}] UitkxClassifierProvider type loaded (DLL active).{Environment.NewLine}"
+            );
+        }
+        catch { }
+    }
+
     [Import]
-    internal IClassificationTypeRegistryService ClassificationTypeRegistryService { get; set; } = null!;
+    internal IClassificationTypeRegistryService ClassificationTypeRegistryService { get; set; } =
+        null!;
+
+    [Import]
+    internal ILanguageClientBroker LanguageClientBroker { get; set; } = null!;
+
+    [ImportMany]
+    internal IEnumerable<
+        Lazy<ILanguageClient, IDictionary<string, object>>
+    > LanguageClients { get; set; } = null!;
 
     public IClassifier? GetClassifier(ITextBuffer textBuffer)
     {
+        if (!_metadataDumped)
+        {
+            _metadataDumped = true;
+            try
+            {
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"[{DateTime.UtcNow:O}] ILanguageClient MEF exports:");
+                foreach (
+                    var lc in LanguageClients
+                        ?? Enumerable.Empty<Lazy<ILanguageClient, IDictionary<string, object>>>()
+                )
+                {
+                    sb.Append($"  Metadata=[");
+                    foreach (var kvp in lc.Metadata)
+                    {
+                        if (
+                            kvp.Value is System.Collections.IEnumerable en
+                            && !(kvp.Value is string)
+                        )
+                        {
+                            var items = string.Join(
+                                ",",
+                                en.Cast<object>().Select(o => o?.ToString() ?? "null")
+                            );
+                            sb.Append($" {kvp.Key}=[{items}]");
+                        }
+                        else
+                            sb.Append($" {kvp.Key}={kvp.Value}");
+                    }
+                    sb.AppendLine(" ]");
+                }
+                File.AppendAllText(DiagLogPath, sb.ToString());
+            }
+            catch (Exception ex)
+            {
+                File.AppendAllText(
+                    DiagLogPath,
+                    $"[{DateTime.UtcNow:O}] MetaDump error: {ex.Message}{Environment.NewLine}"
+                );
+            }
+        }
+
+        if (!_lspLoaded)
+        {
+            _lspLoaded = true;
+            var uitkxEntry = LanguageClients?.FirstOrDefault(lc =>
+                lc.Metadata.TryGetValue("ContentTypes", out var ct)
+                && ct is string[] cts
+                && cts.Contains("uitkx", StringComparer.OrdinalIgnoreCase)
+            );
+
+            if (uitkxEntry != null && LanguageClientBroker != null)
+            {
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        File.AppendAllText(
+                            DiagLogPath,
+                            $"[{DateTime.UtcNow:O}] Calling broker.LoadAsync for uitkx client...{Environment.NewLine}"
+                        );
+                        await LanguageClientBroker.LoadAsync(
+                            new UitkxLspMetadata(),
+                            uitkxEntry.Value
+                        );
+                        File.AppendAllText(
+                            DiagLogPath,
+                            $"[{DateTime.UtcNow:O}] broker.LoadAsync completed successfully.{Environment.NewLine}"
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        File.AppendAllText(
+                            DiagLogPath,
+                            $"[{DateTime.UtcNow:O}] broker.LoadAsync error: {ex}{Environment.NewLine}"
+                        );
+                    }
+                });
+            }
+            else
+            {
+                File.AppendAllText(
+                    DiagLogPath,
+                    $"[{DateTime.UtcNow:O}] LoadAsync skipped: uitkxEntry={uitkxEntry != null}, broker={LanguageClientBroker != null}{Environment.NewLine}"
+                );
+            }
+        }
+
         if (!ShouldClassifyBuffer(textBuffer))
         {
             return null;
         }
 
-        return textBuffer.Properties.GetOrCreateSingletonProperty(
-            () => new UitkxClassifier(ClassificationTypeRegistryService)
+        return textBuffer.Properties.GetOrCreateSingletonProperty(() =>
+            new UitkxClassifier(ClassificationTypeRegistryService)
         );
     }
 
     private static bool ShouldClassifyBuffer(ITextBuffer textBuffer)
     {
-        if (string.Equals(textBuffer.ContentType.TypeName, "uitkx", StringComparison.OrdinalIgnoreCase))
+        if (
+            string.Equals(
+                textBuffer.ContentType.TypeName,
+                "uitkx",
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
         {
             return true;
         }
@@ -41,6 +167,13 @@ internal sealed class UitkxClassifierProvider : IClassifierProvider
 
         return false;
     }
+}
+
+/// <summary>Metadata passed to ILanguageClientBroker.LoadAsync for explicit uitkx client activation.</summary>
+internal sealed class UitkxLspMetadata : ILanguageClientMetadata
+{
+    public string? ClientName => null;
+    public IEnumerable<string> ContentTypes => new[] { "uitkx" };
 }
 
 internal sealed class UitkxClassifier : IClassifier
@@ -62,21 +195,81 @@ internal sealed class UitkxClassifier : IClassifier
 
     private readonly HashSet<string> _controlDirectives = new(StringComparer.Ordinal)
     {
-        "if", "else", "for", "foreach", "while", "switch", "case", "default", "break", "continue"
+        "if",
+        "else",
+        "for",
+        "foreach",
+        "while",
+        "switch",
+        "case",
+        "default",
+        "break",
+        "continue",
     };
 
     private readonly HashSet<string> _typedDirectives = new(StringComparer.Ordinal)
     {
-        "namespace", "component", "using", "props"
+        "namespace",
+        "component",
+        "using",
+        "props",
     };
 
     private readonly HashSet<string> _keywords = new(StringComparer.Ordinal)
     {
-        "true", "false", "null", "new", "typeof", "nameof", "this", "var", "int", "string", "bool",
-        "float", "double", "decimal", "long", "uint", "ulong", "byte", "char", "object", "void", "return",
-        "await", "async", "if", "else", "for", "foreach", "while", "do", "break", "continue", "throw",
-        "catch", "finally", "using", "static", "readonly", "const", "private", "public", "protected", "internal",
-        "class", "interface", "enum", "struct", "record", "is", "as", "in", "out", "ref"
+        "true",
+        "false",
+        "null",
+        "new",
+        "typeof",
+        "nameof",
+        "this",
+        "var",
+        "int",
+        "string",
+        "bool",
+        "float",
+        "double",
+        "decimal",
+        "long",
+        "uint",
+        "ulong",
+        "byte",
+        "char",
+        "object",
+        "void",
+        "return",
+        "await",
+        "async",
+        "if",
+        "else",
+        "for",
+        "foreach",
+        "while",
+        "do",
+        "break",
+        "continue",
+        "throw",
+        "catch",
+        "finally",
+        "using",
+        "static",
+        "readonly",
+        "const",
+        "private",
+        "public",
+        "protected",
+        "internal",
+        "class",
+        "interface",
+        "enum",
+        "struct",
+        "record",
+        "is",
+        "as",
+        "in",
+        "out",
+        "ref",
     };
 
     private ITextSnapshot? _cachedSnapshot;
@@ -86,50 +279,83 @@ internal sealed class UitkxClassifier : IClassifier
     public event EventHandler<ClassificationChangedEventArgs>? ClassificationChanged;
 #pragma warning restore CS0067
 
-    public UitkxClassifier(
-        IClassificationTypeRegistryService classificationTypeRegistryService
-    )
+    public UitkxClassifier(IClassificationTypeRegistryService classificationTypeRegistryService)
     {
-        _keyword = classificationTypeRegistryService.GetClassificationType("keyword")
+        _keyword =
+            classificationTypeRegistryService.GetClassificationType("keyword")
             ?? classificationTypeRegistryService.GetClassificationType("text")!;
-        _string = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.String)
+        _string =
+            classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.String)
             ?? classificationTypeRegistryService.GetClassificationType("string")
             ?? _keyword;
-        _number = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Number)
+        _number =
+            classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Number)
             ?? classificationTypeRegistryService.GetClassificationType("number")
             ?? _keyword;
-        _identifier = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Identifier)
+        _identifier =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.Identifier
+            )
             ?? classificationTypeRegistryService.GetClassificationType("identifier")
             ?? classificationTypeRegistryService.GetClassificationType("text")!;
-        _operator = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Operator)
+        _operator =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.Operator
+            )
             ?? classificationTypeRegistryService.GetClassificationType("operator")
             ?? _keyword;
-        _method = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Function)
+        _method =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.Function
+            )
             ?? classificationTypeRegistryService.GetClassificationType("method name")
             ?? _identifier;
-        _type = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.TypeName)
+        _type =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.TypeName
+            )
             ?? classificationTypeRegistryService.GetClassificationType("class name")
             ?? _method;
-        _comment = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Comment)
+        _comment =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.Comment
+            )
             ?? classificationTypeRegistryService.GetClassificationType("comment")
             ?? _identifier;
-        _tagName = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.TagName)
+        _tagName =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.TagName
+            )
             ?? classificationTypeRegistryService.GetClassificationType("xml literal name")
             ?? _type;
-        _attributeName = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.AttributeName)
+        _attributeName =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.AttributeName
+            )
             ?? classificationTypeRegistryService.GetClassificationType("xml literal attribute name")
             ?? _keyword;
-        _directiveName = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.DirectiveKeyword)
+        _directiveName =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.DirectiveKeyword
+            )
             ?? classificationTypeRegistryService.GetClassificationType("preprocessor keyword")
             ?? _keyword;
-        _controlDirectiveName = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.ControlKeyword)
+        _controlDirectiveName =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.ControlKeyword
+            )
             ?? classificationTypeRegistryService.GetClassificationType("preprocessor keyword")
             ?? _directiveName;
-        _tagDelimiter = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.TagDelimiter)
+        _tagDelimiter =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.TagDelimiter
+            )
             ?? classificationTypeRegistryService.GetClassificationType("xml literal delimiter")
             ?? _operator;
-        _directivePunctuation = classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.DirectivePunctuation)
-            ?? _operator;
+        _directivePunctuation =
+            classificationTypeRegistryService.GetClassificationType(
+                UitkxClassificationNames.DirectivePunctuation
+            ) ?? _operator;
     }
 
     public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
@@ -256,7 +482,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (index + 1 >= text.Length || text[index] != '/' || text[index + 1] != '/')
         {
@@ -278,7 +505,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (text[index] != '@')
         {
@@ -294,7 +522,9 @@ internal sealed class UitkxClassifier : IClassifier
         var directiveStart = index + 1;
         var directiveEnd = ParseIdentifier(text, directiveStart);
         var directiveToken = text.Substring(directiveStart, directiveEnd - directiveStart);
-        var directiveType = _controlDirectives.Contains(directiveToken) ? _controlDirectiveName : _directiveName;
+        var directiveType = _controlDirectives.Contains(directiveToken)
+            ? _controlDirectiveName
+            : _directiveName;
         AddSpan(snapshot, spans, directiveStart, directiveEnd - directiveStart, directiveType);
         index = directiveEnd;
 
@@ -319,14 +549,21 @@ internal sealed class UitkxClassifier : IClassifier
                 continue;
             }
 
-            if (text[index] == '\r' || text[index] == '\n' || text[index] == '{' || text[index] == '<')
+            if (
+                text[index] == '\r'
+                || text[index] == '\n'
+                || text[index] == '{'
+                || text[index] == '<'
+            )
             {
                 break;
             }
 
-            if (TryClassifyInterpolatedString(snapshot, text, ref index, spans)
+            if (
+                TryClassifyInterpolatedString(snapshot, text, ref index, spans)
                 || TryClassifyNormalString(snapshot, text, ref index, spans)
-                || TryClassifyBraceExpression(snapshot, text, ref index, spans))
+                || TryClassifyBraceExpression(snapshot, text, ref index, spans)
+            )
             {
                 continue;
             }
@@ -350,7 +587,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (text[index] != '<')
         {
@@ -394,10 +632,12 @@ internal sealed class UitkxClassifier : IClassifier
                 continue;
             }
 
-            if (TryClassifyLineComment(snapshot, text, ref index, spans)
+            if (
+                TryClassifyLineComment(snapshot, text, ref index, spans)
                 || TryClassifyInterpolatedString(snapshot, text, ref index, spans)
                 || TryClassifyNormalString(snapshot, text, ref index, spans)
-                || TryClassifyBraceExpression(snapshot, text, ref index, spans))
+                || TryClassifyBraceExpression(snapshot, text, ref index, spans)
+            )
             {
                 continue;
             }
@@ -447,7 +687,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (text[index] != '{')
         {
@@ -467,8 +708,10 @@ internal sealed class UitkxClassifier : IClassifier
 
         while (index < text.Length && depth > 0)
         {
-            if (TryClassifyInterpolatedString(snapshot, text, ref index, spans)
-                || TryClassifyNormalString(snapshot, text, ref index, spans))
+            if (
+                TryClassifyInterpolatedString(snapshot, text, ref index, spans)
+                || TryClassifyNormalString(snapshot, text, ref index, spans)
+            )
             {
                 continue;
             }
@@ -487,7 +730,13 @@ internal sealed class UitkxClassifier : IClassifier
                 {
                     if (index > exprStart)
                     {
-                        ClassifyExpressionSegment(snapshot, text, exprStart, index - exprStart, spans);
+                        ClassifyExpressionSegment(
+                            snapshot,
+                            text,
+                            exprStart,
+                            index - exprStart,
+                            spans
+                        );
                     }
 
                     AddSpan(snapshot, spans, index, 1, _operator);
@@ -514,7 +763,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (!IsAtLineContentStart(text, index))
         {
@@ -538,7 +788,12 @@ internal sealed class UitkxClassifier : IClassifier
         }
 
         var probe = tokenEnd;
-        while (probe < text.Length && char.IsWhiteSpace(text[probe]) && text[probe] != '\r' && text[probe] != '\n')
+        while (
+            probe < text.Length
+            && char.IsWhiteSpace(text[probe])
+            && text[probe] != '\r'
+            && text[probe] != '\n'
+        )
         {
             probe++;
         }
@@ -558,7 +813,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         var parenStart = index;
         AddSpan(snapshot, spans, parenStart, 1, _operator);
@@ -568,8 +824,10 @@ internal sealed class UitkxClassifier : IClassifier
         var depth = 1;
         while (index < text.Length && depth > 0)
         {
-            if (TryClassifyInterpolatedString(snapshot, text, ref index, spans)
-                || TryClassifyNormalString(snapshot, text, ref index, spans))
+            if (
+                TryClassifyInterpolatedString(snapshot, text, ref index, spans)
+                || TryClassifyNormalString(snapshot, text, ref index, spans)
+            )
             {
                 continue;
             }
@@ -588,7 +846,13 @@ internal sealed class UitkxClassifier : IClassifier
                 {
                     if (index > exprStart)
                     {
-                        ClassifyExpressionSegment(snapshot, text, exprStart, index - exprStart, spans);
+                        ClassifyExpressionSegment(
+                            snapshot,
+                            text,
+                            exprStart,
+                            index - exprStart,
+                            spans
+                        );
                     }
 
                     AddSpan(snapshot, spans, index, 1, _operator);
@@ -613,7 +877,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (index + 1 >= text.Length || text[index] != '$' || text[index + 1] != '"')
         {
@@ -679,7 +944,13 @@ internal sealed class UitkxClassifier : IClassifier
                         {
                             if (index > holeStart)
                             {
-                                ClassifyExpressionSegment(snapshot, text, holeStart, index - holeStart, spans);
+                                ClassifyExpressionSegment(
+                                    snapshot,
+                                    text,
+                                    holeStart,
+                                    index - holeStart,
+                                    spans
+                                );
                             }
 
                             AddSpan(snapshot, spans, index, 1, _operator);
@@ -710,7 +981,8 @@ internal sealed class UitkxClassifier : IClassifier
         ITextSnapshot snapshot,
         string text,
         ref int index,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         if (text[index] != '"')
         {
@@ -745,7 +1017,8 @@ internal sealed class UitkxClassifier : IClassifier
         string text,
         int start,
         int length,
-        List<ClassificationSpan> spans)
+        List<ClassificationSpan> spans
+    )
     {
         var end = start + length;
         var i = start;
@@ -840,7 +1113,16 @@ internal sealed class UitkxClassifier : IClassifier
     private static int ParseMarkupName(string text, int index)
     {
         var i = index;
-        while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_' || text[i] == '-' || text[i] == ':' || text[i] == '.'))
+        while (
+            i < text.Length
+            && (
+                char.IsLetterOrDigit(text[i])
+                || text[i] == '_'
+                || text[i] == '-'
+                || text[i] == ':'
+                || text[i] == '.'
+            )
+        )
         {
             i++;
         }
@@ -848,14 +1130,31 @@ internal sealed class UitkxClassifier : IClassifier
         return i;
     }
 
-    private static bool IsIdentifierStart(char c)
-        => char.IsLetter(c) || c == '_';
+    private static bool IsIdentifierStart(char c) => char.IsLetter(c) || c == '_';
 
-    private static bool IsMarkupNameStart(char c)
-        => char.IsLetter(c) || c == '_';
+    private static bool IsMarkupNameStart(char c) => char.IsLetter(c) || c == '_';
 
-    private static bool IsOperatorChar(char c)
-        => c is '+' or '-' or '*' or '/' or '%' or '&' or '|' or '^' or '~' or '!' or '<' or '>' or '=' or '?' or ':' or '{' or '}' or '(' or ')';
+    private static bool IsOperatorChar(char c) =>
+        c
+            is '+'
+                or '-'
+                or '*'
+                or '/'
+                or '%'
+                or '&'
+                or '|'
+                or '^'
+                or '~'
+                or '!'
+                or '<'
+                or '>'
+                or '='
+                or '?'
+                or ':'
+                or '{'
+                or '}'
+                or '('
+                or ')';
 
     private static bool ShouldTreatBraceAsExpression(string text, int braceIndex)
     {
@@ -894,13 +1193,16 @@ internal sealed class UitkxClassifier : IClassifier
         ICollection<ClassificationSpan> spans,
         int start,
         int length,
-        IClassificationType classificationType)
+        IClassificationType classificationType
+    )
     {
         if (length <= 0 || start < 0 || start + length > snapshot.Length)
         {
             return;
         }
 
-        spans.Add(new ClassificationSpan(new SnapshotSpan(snapshot, start, length), classificationType));
+        spans.Add(
+            new ClassificationSpan(new SnapshotSpan(snapshot, start, length), classificationType)
+        );
     }
 }

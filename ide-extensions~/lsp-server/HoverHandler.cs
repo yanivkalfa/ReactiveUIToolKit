@@ -1,3 +1,4 @@
+using System.IO;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -21,13 +22,40 @@ public sealed class HoverHandler : IHoverHandler
     ) =>
         new HoverRegistrationOptions
         {
-            DocumentSelector = TextDocumentSelector.ForLanguage("uitkx"),
+            DocumentSelector = new TextDocumentSelector(
+                new TextDocumentFilter { Pattern = "**/*.uitkx" }
+            ),
         };
 
     public Task<Hover?> Handle(HoverParams request, CancellationToken cancellationToken)
     {
+        ServerLog.Log(
+            $"hover request: {request.TextDocument.Uri}  pos={request.Position.Line}:{request.Position.Character}"
+        );
+
         if (!_store.TryGet(request.TextDocument.Uri, out var text) || text is null)
-            return Task.FromResult<Hover?>(null);
+        {
+            // VS2022 may have sent textDocument/didOpen before the server was ready.
+            // Fall back to reading the file from disk.
+            string? localPath = null;
+            try
+            {
+                localPath = new System.Uri(request.TextDocument.Uri.ToString()).LocalPath;
+            }
+            catch { }
+
+            if (localPath != null && File.Exists(localPath))
+            {
+                text = File.ReadAllText(localPath);
+                _store.Set(request.TextDocument.Uri, text);
+                ServerLog.Log($"hover: loaded from disk ({text.Length} chars)");
+            }
+            else
+            {
+                ServerLog.Log($"hover: store miss + disk miss — returning null");
+                return Task.FromResult<Hover?>(null);
+            }
+        }
 
         var offset = ToOffset(text, request.Position);
         var (word, tagContext) = DocumentContext.WordAt(text, offset);
@@ -40,12 +68,14 @@ public sealed class HoverHandler : IHoverHandler
         if (element is not null)
         {
             var attrs = element.Attributes.Take(8).ToArray();
-            var attrList = attrs.Length == 0
-                ? "_None_"
-                : string.Join("\n", attrs.Select(a => $"- `{a.Name}`: `{a.Type}`"));
-            var moreAttrs = element.Attributes.Count > attrs.Length
-                ? $"\n- _+{element.Attributes.Count - attrs.Length} more..._"
-                : "";
+            var attrList =
+                attrs.Length == 0
+                    ? "_None_"
+                    : string.Join("\n", attrs.Select(a => $"- `{a.Name}`: `{a.Type}`"));
+            var moreAttrs =
+                element.Attributes.Count > attrs.Length
+                    ? $"\n- _+{element.Attributes.Count - attrs.Length} more..._"
+                    : "";
             var md =
                 $"## `<{word}>` — {element.PropsType}\n\n"
                 + $"{element.Description}\n\n"
@@ -130,7 +160,8 @@ public sealed class HoverHandler : IHoverHandler
             "if" => "@if (show)\n{\n    <Label text=\"Visible\" />\n}",
             "else" => "@else\n{\n    <Label text=\"Hidden\" />\n}",
             "foreach" => "@foreach (var item in items)\n{\n    <Label text={item.Name} />\n}",
-            "switch" => "@switch (mode)\n{\n    @case 0 => <Label text=\"A\" />\n    @default => <Label text=\"B\" />\n}",
+            "switch" =>
+                "@switch (mode)\n{\n    @case 0 => <Label text=\"A\" />\n    @default => <Label text=\"B\" />\n}",
             "case" => "@case 0 => <Label text=\"State\" />",
             "default" => "@default => <Label text=\"Fallback\" />",
             "code" => "@code\n{\n    var enabled = true;\n}",

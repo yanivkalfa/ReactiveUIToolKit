@@ -28,6 +28,10 @@
     {
       "name": "key",
       "description": "Sets a static key on the component root element."
+    },
+    {
+      "name": "code",
+      "description": "Embedded C# code block before the return statement."
     }
   ],
   "controlFlow": [
@@ -58,6 +62,14 @@
     {
       "name": "code",
       "description": "Embedded C# code block before the return statement."
+    },
+    {
+      "name": "for",
+      "description": "C-style for loop — generates a standard for loop."
+    },
+    {
+      "name": "while",
+      "description": "While loop — generates a while loop."
     }
   ],
   "elements": {

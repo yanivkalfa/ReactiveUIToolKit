@@ -2,5 +2,5 @@
 // This file is rewritten by UitkxChangeWatcher each time a
 // .uitkx file is saved, forcing Unity to recompile and re-run
 // the ReactiveUITK source generator. Do not edit.
-// Last trigger: 2026-03-02 01:17:23.994 UTC
+// Last trigger: 2026-03-04 11:01:27.401 UTC
 namespace ReactiveUITK.Editor.Generated { }

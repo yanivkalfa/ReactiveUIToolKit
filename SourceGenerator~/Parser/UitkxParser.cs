@@ -178,6 +178,16 @@ namespace ReactiveUITK.SourceGenerator.Parser
                             if (feNode != null)
                                 nodes.Add(feNode);
                             break;
+                        case "for":
+                            var forNode = ParseFor(atLine);
+                            if (forNode != null)
+                                nodes.Add(forNode);
+                            break;
+                        case "while":
+                            var whileNode = ParseWhile(atLine);
+                            if (whileNode != null)
+                                nodes.Add(whileNode);
+                            break;
                         case "switch":
                             var swNode = ParseSwitch(atLine);
                             if (swNode != null)
@@ -524,6 +534,58 @@ namespace ReactiveUITK.SourceGenerator.Parser
 
         // ── @foreach ──────────────────────────────────────────────────────────
 
+        private ForNode? ParseFor(int startLine)
+        {
+            _scanner.SkipInlineWhitespace();
+
+            if (!PeekAt('('))
+            {
+                EmitExpected("'(' after @for", startLine);
+                return null;
+            }
+
+            string forExpr = _scanner.ReadParenExpression();
+            _scanner.SkipWhitespaceAndNewlines();
+
+            if (!PeekAt('{'))
+            {
+                EmitExpected("'{' after @for (...)", startLine);
+                return null;
+            }
+
+            _scanner.Advance(); // consume '{'
+            var body = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+            _scanner.TryConsume('}');
+
+            return new ForNode(forExpr, body.ToImmutableArray(), startLine, _filePath);
+        }
+
+        private WhileNode? ParseWhile(int startLine)
+        {
+            _scanner.SkipInlineWhitespace();
+
+            if (!PeekAt('('))
+            {
+                EmitExpected("'(' after @while", startLine);
+                return null;
+            }
+
+            string condition = _scanner.ReadParenExpression();
+            _scanner.SkipWhitespaceAndNewlines();
+
+            if (!PeekAt('{'))
+            {
+                EmitExpected("'{' after @while (...)", startLine);
+                return null;
+            }
+
+            _scanner.Advance(); // consume '{'
+            var body = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+            _scanner.TryConsume('}');
+
+            return new WhileNode(condition, body.ToImmutableArray(), startLine, _filePath);
+        }
+
         private ForeachNode? ParseForeach(int startLine)
         {
             _scanner.SkipInlineWhitespace();
@@ -834,8 +896,9 @@ namespace ReactiveUITK.SourceGenerator.Parser
 
         private Diagnostic MakeError(DiagnosticDescriptor desc, params object[] args)
         {
-            var loc = Location.Create(_filePath, default, default);
-            return Diagnostic.Create(desc, loc, args);
+            // Use Location.None — Unity silently drops diagnostics whose location
+            // points to a non-SyntaxTree file (e.g. an AdditionalText .uitkx).
+            return Diagnostic.Create(desc, Location.None, args);
         }
     }
 }

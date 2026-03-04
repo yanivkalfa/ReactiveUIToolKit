@@ -9,28 +9,44 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Threading;
-using Microsoft.VisualStudio.Utilities;
+using StreamJsonRpc;
 
 namespace UitkxVsix;
 
-/// <summary>
-/// LSP language client for .uitkx files.
-/// NOT currently MEF-exported: VS 2022/2026's LanguageClientFactory has broken
-/// MEF dependencies (ExperimentationService, sessionManager) that cause the
-/// entire extension DLL to be rejected when [Export(typeof(ILanguageClient))]
-/// is present, which also breaks content-type registration and colorization.
-///
-/// TODO: re-enable LSP via a proper AsyncPackage + [ProvideLanguageClient]
-/// registration once VS stabilises the LanguageClientFactory composition.
-/// </summary>
+/// <summary>LSP language client for .uitkx files.</summary>
 [Export(typeof(ILanguageClient))]
-[Name("UITKX Language Server")]
-[ContentType("uitkx")]
-[RunOnContext(RunningContext.RunOnHost)]
-public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
+[LanguageClientContentType("uitkx")]
+public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage2, IDisposable
 {
-    private static readonly string LogFilePath = Path.Combine(Path.GetTempPath(), "uitkx-vsix-lsp.log");
+    // Exposed for UitkxCompletionSource and UitkxHoverSource to call LSP directly.
+    internal static volatile JsonRpc? InternalRpc;
+    private static readonly string LogFilePath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-vsix-lsp.log"
+    );
+    private static readonly string StaticLogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-vsix-static.log"
+    );
     private Process? _serverProcess;
+
+    // Static constructor fires when .NET first loads this type (during MEF scan or activation).
+    static UitkxLanguageClient()
+    {
+        try
+        {
+            File.AppendAllText(
+                StaticLogPath,
+                $"[{DateTime.UtcNow:O}] UitkxLanguageClient type loaded by CLR.{Environment.NewLine}"
+            );
+        }
+        catch { }
+    }
+
+    public UitkxLanguageClient()
+    {
+        Log("UitkxLanguageClient constructor called (MEF instantiated).");
+    }
 
     // ── ILanguageClient ──────────────────────────────────────────────────────
 
@@ -41,10 +57,8 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
     public IEnumerable<string>? FilesToWatch => null;
     public bool ShowNotificationOnInitializeFailed => true;
 
-#pragma warning disable CS0067  // Visual Studio calls these via reflection
     public event AsyncEventHandler<EventArgs>? StartAsync;
     public event AsyncEventHandler<EventArgs>? StopAsync;
-#pragma warning restore CS0067
 
     public async Task<Connection?> ActivateAsync(CancellationToken token)
     {
@@ -81,7 +95,9 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
                 if (process.HasExited)
                 {
-                    Log($"LSP launch attempt failed ({description}). ExitCode={process.ExitCode}. Command='{fileName} {arguments}'. Stderr='{stderr}'.");
+                    Log(
+                        $"LSP launch attempt failed ({description}). ExitCode={process.ExitCode}. Command='{fileName} {arguments}'. Stderr='{stderr}'."
+                    );
                     process.Dispose();
                     continue;
                 }
@@ -96,7 +112,9 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
             }
             catch (Exception ex)
             {
-                Log($"LSP launch attempt threw ({description}). Command='{fileName} {arguments}'. Error='{ex}'.");
+                Log(
+                    $"LSP launch attempt threw ({description}). Command='{fileName} {arguments}'. Error='{ex}'."
+                );
             }
         }
 
@@ -104,9 +122,34 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
         return null;
     }
 
-    public Task OnLoadedAsync() => Task.CompletedTask;
+    public async Task OnLoadedAsync()
+    {
+        Log("OnLoadedAsync called — raising StartAsync.");
+        // Raise StartAsync to signal VS that this client is ready.
+        // VS calls ActivateAsync() in response — without this, ActivateAsync is never invoked.
+        await (StartAsync?.InvokeAsync(this, EventArgs.Empty) ?? Task.CompletedTask);
+        Log("OnLoadedAsync done — StartAsync raised.");
+    }
 
-    public Task OnServerInitializedAsync() => Task.CompletedTask;
+    public Task OnServerInitializedAsync()
+    {
+        Log("OnServerInitializedAsync — LSP initialize handshake complete.");
+        return Task.CompletedTask;
+    }
+
+    // ── ILanguageClientCustomMessage2 ────────────────────────────────────────
+    // Captures the live JsonRpc pipe so UitkxCompletionSource / UitkxHoverSource
+    // can call textDocument/completion and textDocument/hover directly.
+
+    object? ILanguageClientCustomMessage2.MiddleLayer => null;
+    object? ILanguageClientCustomMessage2.CustomMessageTarget => null;
+
+    Task ILanguageClientCustomMessage2.AttachForCustomMessageAsync(JsonRpc rpc)
+    {
+        InternalRpc = rpc;
+        Log("AttachForCustomMessageAsync \u2014 JsonRpc pipe captured for direct LSP calls.");
+        return Task.CompletedTask;
+    }
 
     public Task<InitializationFailureContext?> OnServerInitializeFailedAsync(
         ILanguageClientInitializationInfo initializationState
@@ -129,7 +172,11 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
-    private static IEnumerable<(string fileName, string arguments, string description)> FindServerCommands()
+    private static IEnumerable<(
+        string fileName,
+        string arguments,
+        string description
+    )> FindServerCommands()
     {
         // Prefer a `server/` subdirectory beside this assembly (bundled in VSIX)
         var asm = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
@@ -147,7 +194,11 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
 
         // Last resort: try server executable by relative path from extension root.
         if (File.Exists(Path.Combine("server", "UitkxLanguageServer.exe")))
-            yield return (Path.Combine("server", "UitkxLanguageServer.exe"), string.Empty, "relative-exe");
+            yield return (
+                Path.Combine("server", "UitkxLanguageServer.exe"),
+                string.Empty,
+                "relative-exe"
+            );
     }
 
     private static void Log(string message)
@@ -157,8 +208,6 @@ public sealed class UitkxLanguageClient : ILanguageClient, IDisposable
             var line = $"[{DateTime.UtcNow:O}] {message}{Environment.NewLine}";
             File.AppendAllText(LogFilePath, line);
         }
-        catch
-        {
-        }
+        catch { }
     }
 }

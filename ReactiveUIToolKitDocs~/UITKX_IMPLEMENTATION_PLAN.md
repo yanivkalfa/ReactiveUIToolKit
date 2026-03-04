@@ -999,24 +999,161 @@ Add `UITKX_MIGRATION.md` explaining:
 
 ---
 
+## Current Status (as of March 2026)
+
+| Phase | Status | Notes |
+|---|---|---|
+| 1 | ✅ Done | Generator active, AdditionalFiles wired, UitkxChangeWatcher triggers recompile |
+| 2 | ✅ Done | Full recursive-descent parser, all control-flow nodes, @code block |
+| 3 | ✅ Done | PropsResolver via Roslyn symbol inspection |
+| 4 | ✅ Done | C# emitter producing valid partial classes |
+| 5 | ⚠ Partial | Diagnostics exist but surfacing is broken — see Stabilisation section below |
+| 6 | ⚠ Partial | Some parser/emitter tests exist; integration tests incomplete |
+| 7 | ✅ Done (MVP) | VS Code (v1.0.16) and VS2022 (v1.0.50) both published with completions + hover + colors. Remaining: formatting (VS2022), source maps, inline error squiggles |
+| 8 | ❌ Not started | |
+| 9 | ❌ Not started | |
+
+---
+
+## Stabilisation Plan (before Phase 8/9)
+
+Complete these in order before moving to runtime/integration work.
+
+### Stab-1 — `return <markup/>` inside `@code` (Option A)
+
+Support early-return patterns used in React:
+```uitkx
+@code {
+    var (count, setCount) = Hooks.UseState(0);
+    if (count < 0) {
+        return <Label text="Cannot be negative!"/>;
+    }
+}
+<Box>...</Box>
+```
+
+**Approach:** When scanning `@code { }` content, detect `return <TagName` patterns and invoke the markup parser for those positions. Substitute the parsed tag with its emitted C# VirtualNode expression. Everything else in `@code` stays verbatim.
+
+**Scope:** Only `return <Tag/>` and `return <Tag>...</Tag>` are translated. No other embedded markup inside `@code` (e.g. assignments, arguments). That full mixed-mode syntax is deferred to Phase 10.
+
+**Effort:** ~2 days.
+
+---
+
+### Stab-2 — Error surfacing via `#error` directives
+
+**Problem (fixed in source generator):** Unity silently drops `Diagnostic` objects whose `Location` points to a non-SyntaxTree file (i.e. a `.uitkx` AdditionalText). Parse errors were disappearing.
+
+**Fix applied:** On error, the pipeline now emits a `.g.cs` file containing `#error` pragma lines. Unity's C# compiler surfaces these as real errors in the Console.
+
+**Remaining:** Ensure all parse error paths (not just directive errors) reach the `#error` emitter. Verify error messages are human-readable and identify the `.uitkx` file + line.
+
+---
+
+### Stab-3 — Source maps / `#line` directives
+
+**Goal:** Errors in the generated `.g.cs` point back to the correct line in the `.uitkx` file. Debugger breakpoints set in `.uitkx` files hit correctly.
+
+The `#line` infrastructure is partially designed (see Phase 4.2 above). Needs to be fully wired: every emitted `V.*` call must be preceded by `#line N "path/to/file.uitkx"`.
+
+**Effort:** ~2 days.
+
+---
+
+### Stab-4 — VS2022 code formatting
+
+Add `textDocument/formatting` support to the LSP server (`FormattingHandler.cs`). The formatter already exists (`Formatter.cs`) — it needs to be wired as an LSP handler and the VS2022 VSIX needs to invoke it on Format Document.
+
+**Effort:** ~1 day.
+
+---
+
+### Stab-5 — Inline error squiggles in `.uitkx` files (Phase 7.c)
+
+**Goal:** Parse errors and unknown-element warnings appear as red/yellow squiggles directly in the `.uitkx` editor, without requiring a full compile.
+
+**Approach:**
+- LSP server adds a `textDocument/publishDiagnostics` notification handler.
+- On `didOpen`/`didChange`, the server parses the document and pushes `Diagnostic[]` back to the client.
+- VS Code and VS2022 both render these as inline squiggles via the LSP protocol.
+
+This is distinct from the `#error` approach (Stab-2) — both are needed. `#error` catches errors that survive to compile time; LSP diagnostics catch them as-you-type.
+
+**Effort:** ~2 days.
+
+---
+
 ## Implementation Order Summary
 
 | Phase | What | Days |
 |---|---|---|
-| 1 | Generator project setup + entry point + AdditionalFiles wiring | 5–7 |
-| 2 | Tokenizer + Parser + AST nodes | 7–10 |
-| 3 | PropsResolver (Strategy B, Roslyn symbol inspection) | 5–7 |
-| 4 | C# Emitter + #line directives | 5–7 |
-| 5 | Full diagnostic suite | 2–3 |
-| 6 | Generator unit tests | 3–5 |
-| 7 | VS Code extension (grammar + LSP + schema) | 10–14 |
+| 1 | Generator project setup + entry point + AdditionalFiles wiring | ✅ Done |
+| 2 | Tokenizer + Parser + AST nodes | ✅ Done |
+| 3 | PropsResolver (Strategy B, Roslyn symbol inspection) | ✅ Done |
+| 4 | C# Emitter + #line directives | ✅ Done |
+| 5 | Full diagnostic suite | ✅ Done (partial) |
+| 6 | Generator unit tests | ⚠ Partial |
+| 7 | VS Code + VS2022 extensions (grammar + LSP + completions + hover) | ✅ Done (MVP) |
+| **Stab-1** | **`return <markup/>` inside `@code`** | **~2 days** |
+| **Stab-2** | **Error surfacing via `#error` (fix applied, verify coverage)** | **~0.5 days** |
+| **Stab-3** | **Source maps / `#line` directives fully wired** | **~2 days** |
+| **Stab-4** | **VS2022 code formatting** | **~1 day** |
+| **Stab-5** | **Inline error squiggles via LSP `publishDiagnostics`** | **~2 days** |
 | 8 | Runtime library support (PropsHelper, [UitkxElement]) | 2–3 |
-| 9 | Integration, samples, migration docs | 3–4 |
-| **Total** | | **~42–60 days** |
+| 9 | Integration, samples, migration docs + publish library & extensions | 3–4 |
+| **10** | **Full mixed-mode syntax (Option B) — see below** | **~2 weeks** |
 
-Phases 1–6 can ship as a usable (no IntelliSense) MVP.
-Phase 7 is the quality-of-life layer that makes it feel like `.tsx`.
-Phases 8–9 polish and prove it in production.
+Phases 1–7 + Stab-1–5 = stable, shippable developer experience.
+Phases 8–9 = proven in production, published.
+Phase 10 = full React-fidelity redesign, done properly with no shortcuts.
+
+---
+
+## Phase 10 — Full Mixed-Mode Syntax (Option B)
+**Planned after Phase 9. No shortcuts.**
+
+### Goal
+
+Remove the `@code { } + markup` two-zone model. The entire file body (after directives) becomes the Render method, with C# statements and markup freely interleaved — identical to JSX/TSX:
+
+```uitkx
+@namespace MyGame.UI
+@component PlayerHUD
+@props PlayerHUDProps
+
+var (count, setCount) = Hooks.UseState(0);
+
+if (count < 0) {
+    return <Label text="Cannot be negative!"/>;
+}
+
+return (
+    <Box>
+        <Label text={$"Count: {count}"}/>
+        <Button text="+" onClick={() => setCount(count + 1)}/>
+    </Box>
+);
+```
+
+### Reference Implementation
+
+Study React's actual JSX transform (Babel plugin `@babel/plugin-transform-react-jsx` and the TypeScript JSX parser) before writing a single line of code. The `<` ambiguity problem (comparison vs tag open) is solved there — copy the solution, don't invent a new one.
+
+Key heuristic from TSX: `<` followed by an identifier that starts with an uppercase letter, OR a known tag name from the schema, is treated as markup. `<` in any other context is a comparison/generic operator.
+
+### What changes
+
+- **Parser:** Full interleaved C# + markup scanning with brace-depth tracking across arbitrary C# constructs.
+- **`return (markup)` support:** Parenthesised markup groups.
+- **`@code` removal:** `@code { }` is no longer the only way to write C# — it may be kept as an optional explicit block for clarity, or removed entirely.
+- **Grammar/IDE coloring:** Both VS Code and VS2022 classifiers need C# ↔ markup mode switching.
+- **All existing tests updated** to the new file format.
+
+### Constraints
+
+- Existing `.uitkx` files from Phase 9 must still parse correctly (migration path).
+- No breaking changes to the emitted C# API — generated code still calls `V.*`.
+- Generic type expressions (`Action<VoidEvent>`) must NOT be misidentified as markup tags. Handle this with lookahead before committing to markup mode.
 
 ---
 

@@ -79,6 +79,28 @@ export function activate(context: vscode.ExtensionContext): void {
       fileEvents: vscode.workspace.createFileSystemWatcher('**/*.uitkx'),
     },
     traceOutputChannel: vscode.window.createOutputChannel('UITKX LSP Trace'),
+    middleware: {
+      // VSCode inserts completionItem.insertText at the cursor position.
+      // For @-triggered items the server returns insertText starting with '@'
+      // (e.g. "@if ()\n{\n\t\n}"), which would produce "@@if..." because the
+      // user's typed '@' is already in the buffer.
+      // Strip the leading '@' so VSCode inserts cleanly after the typed '@'.
+      provideCompletionItem(document, position, context, token, next) {
+        return Promise.resolve(next(document, position, context, token)).then(result => {
+          if (!result) return result;
+          const items = Array.isArray(result) ? result : (result as vscode.CompletionList).items;
+          for (const item of items) {
+            const raw = item.insertText;
+            const text = typeof raw === 'string' ? raw : raw?.value;
+            if (text && text.startsWith('@')) {
+              const stripped = text.slice(1);
+              item.insertText = typeof raw === 'string' ? stripped : new vscode.SnippetString(stripped);
+            }
+          }
+          return result;
+        });
+      },
+    },
   };
 
   client = new LanguageClient(

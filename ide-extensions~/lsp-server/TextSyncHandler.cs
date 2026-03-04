@@ -26,7 +26,9 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
     ) =>
         new TextDocumentSyncRegistrationOptions
         {
-            DocumentSelector = TextDocumentSelector.ForLanguage("uitkx"),
+            DocumentSelector = new TextDocumentSelector(
+                new TextDocumentFilter { Pattern = "**/*.uitkx" }
+            ),
             Change = TextDocumentSyncKind.Full,
             Save = new SaveOptions { IncludeText = false },
         };
@@ -36,6 +38,9 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         CancellationToken cancellationToken
     )
     {
+        ServerLog.Log(
+            $"didOpen: {request.TextDocument.Uri}  lang={request.TextDocument.LanguageId}  len={request.TextDocument.Text?.Length}"
+        );
         _store.Set(request.TextDocument.Uri, request.TextDocument.Text);
         return Unit.Task;
     }
@@ -46,6 +51,7 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
     )
     {
         var text = request.ContentChanges.LastOrDefault()?.Text ?? "";
+        ServerLog.Log($"didChange: {request.TextDocument.Uri}  len={text.Length}");
         _store.Set(request.TextDocument.Uri, text);
         return Unit.Task;
     }

@@ -25,6 +25,9 @@
       "include": "#code-block"
     },
     {
+      "include": "#code-block-newline-brace"
+    },
+    {
       "include": "#inline-expression"
     },
     {
@@ -113,10 +116,10 @@
       }
     },
     "case-directive-expression": {
-      "comment": "Handles @case expression blocks and tokenizes the expression before '{'",
+      "comment": "Handles @case expression up to the colon terminator (@case \"x\":)",
       "name": "meta.control.uitkx",
       "begin": "(@)(case)\\b\\s*",
-      "end": "(?=\\{)",
+      "end": ":",
       "beginCaptures": {
         "1": {
           "name": "punctuation.definition.keyword.uitkx"
@@ -141,10 +144,10 @@
         "4": {
           "name": "keyword.operator.uitkx"
         }
-        }
+      }
     },
     "code-block": {
-      "comment": "Handles @code { ... }",
+      "comment": "Handles @code { ... } with brace on the same line",
       "begin": "(@code)\\s*(\\{)",
       "end": "\\}",
       "beginCaptures": {
@@ -161,7 +164,33 @@
         }
       },
       "patterns": [
-        { "include": "#code-block-body" }
+        {
+          "include": "#code-block-body"
+        }
+      ]
+    },
+    "code-block-newline-brace": {
+      "comment": "Handles @code on its own line followed by { ... } on the next line",
+      "begin": "(@code)\\s*$",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.directive.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "match": "\\{",
+          "name": "punctuation.section.block.begin.uitkx"
+        },
+        {
+          "include": "#code-block-body"
+        }
       ]
     },
     "inline-expression": {
@@ -183,7 +212,9 @@
       "begin": "\\(",
       "end": "\\)",
       "patterns": [
-        { "include": "#expression-content" }
+        {
+          "include": "#expression-content"
+        }
       ]
     },
     "tag-self-closing": {
@@ -282,7 +313,9 @@
       "begin": "\\{",
       "end": "\\}",
       "patterns": [
-        { "include": "#expression-content" }
+        {
+          "include": "#expression-content"
+        }
       ]
     },
     "attribute-boolean-shorthand": {
@@ -295,23 +328,47 @@
       "begin": "\\{",
       "end": "\\}",
       "patterns": [
-        { "include": "#expression-content" }
+        {
+          "include": "#expression-content"
+        }
       ]
     },
     "expression-content": {
       "comment": "C# expression token patterns — ordered: strings first, then keywords, operators, numbers, calls, identifiers",
       "patterns": [
-        { "include": "#interpolated-string" },
-        { "include": "#double-quoted-string" },
-        { "include": "#cs-keywords" },
-        { "include": "#cs-type-name" },
-        { "include": "#numeric-literal" },
-        { "include": "#lambda-arrow" },
-        { "include": "#cs-operator" },
-        { "include": "#brace-expression" },
-        { "include": "#cs-paren-expression" },
-        { "include": "#function-call" },
-        { "include": "#identifier" }
+        {
+          "include": "#interpolated-string"
+        },
+        {
+          "include": "#double-quoted-string"
+        },
+        {
+          "include": "#cs-keywords"
+        },
+        {
+          "include": "#cs-type-name"
+        },
+        {
+          "include": "#numeric-literal"
+        },
+        {
+          "include": "#lambda-arrow"
+        },
+        {
+          "include": "#cs-operator"
+        },
+        {
+          "include": "#brace-expression"
+        },
+        {
+          "include": "#cs-paren-expression"
+        },
+        {
+          "include": "#function-call"
+        },
+        {
+          "include": "#identifier"
+        }
       ]
     },
     "interpolated-string": {
@@ -319,15 +376,27 @@
       "begin": "(\\$\")",
       "end": "(\")",
       "beginCaptures": {
-        "1": { "name": "string.quoted.double.uitkx" }
+        "1": {
+          "name": "string.quoted.double.uitkx"
+        }
       },
       "endCaptures": {
-        "1": { "name": "string.quoted.double.uitkx" }
+        "1": {
+          "name": "string.quoted.double.uitkx"
+        }
       },
       "patterns": [
-        { "include": "#string-interpolation" },
-        { "name": "constant.character.escape.uitkx", "match": "\\\\." },
-        { "name": "string.quoted.double.uitkx", "match": "[^{}'\"\\\\]+" }
+        {
+          "include": "#string-interpolation"
+        },
+        {
+          "name": "constant.character.escape.uitkx",
+          "match": "\\\\."
+        },
+        {
+          "name": "string.quoted.double.uitkx",
+          "match": "[^{}'\"\\\\]+"
+        }
       ]
     },
     "string-interpolation": {
@@ -335,7 +404,9 @@
       "begin": "\\{",
       "end": "\\}",
       "patterns": [
-        { "include": "#expression-content" }
+        {
+          "include": "#expression-content"
+        }
       ]
     },
     "double-quoted-string": {
@@ -344,7 +415,10 @@
       "begin": "\"(?!\"\")",
       "end": "\"",
       "patterns": [
-        { "name": "constant.character.escape.uitkx", "match": "\\\\." }
+        {
+          "name": "constant.character.escape.uitkx",
+          "match": "\\\\."
+        }
       ]
     },
     "cs-keywords": {
@@ -376,7 +450,9 @@
       "comment": "Function/method call: identifier immediately followed by ( — must come before plain identifier",
       "match": "\\b([a-z_][A-Za-z0-9_]*)(?=\\s*\\()",
       "captures": {
-        "1": { "name": "entity.name.function.uitkx" }
+        "1": {
+          "name": "entity.name.function.uitkx"
+        }
       }
     },
     "identifier": {
@@ -387,7 +463,9 @@
     "code-block-body": {
       "comment": "Content inside @code { } — uses full expression tokenization",
       "patterns": [
-        { "include": "#expression-content" }
+        {
+          "include": "#expression-content"
+        }
       ]
     }
   }

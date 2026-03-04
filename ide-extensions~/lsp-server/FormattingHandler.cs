@@ -12,15 +12,19 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
 
     public DocumentFormattingRegistrationOptions GetRegistrationOptions(
         DocumentFormattingCapability capability,
-        ClientCapabilities           clientCapabilities) =>
+        ClientCapabilities clientCapabilities
+    ) =>
         new DocumentFormattingRegistrationOptions
         {
-            DocumentSelector = TextDocumentSelector.ForLanguage("uitkx"),
+            DocumentSelector = new TextDocumentSelector(
+                new TextDocumentFilter { Pattern = "**/*.uitkx" }
+            ),
         };
 
     public Task<TextEditContainer?> Handle(
         DocumentFormattingParams request,
-        CancellationToken        cancellationToken)
+        CancellationToken cancellationToken
+    )
     {
         if (!_store.TryGet(request.TextDocument.Uri, out var text))
             return Task.FromResult<TextEditContainer?>(null);
@@ -31,9 +35,9 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
             return Task.FromResult<TextEditContainer?>(null);
 
         // Replace the entire document with the formatted version
-        var lines     = text.Split('\n');
-        var lastLine  = lines.Length - 1;
-        var lastChar  = lines[lastLine].Length;
+        var lines = text.Split('\n');
+        var lastLine = lines.Length - 1;
+        var lastChar = lines[lastLine].Length;
 
         var edit = new TextEdit
         {

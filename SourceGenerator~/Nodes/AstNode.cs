@@ -104,6 +104,27 @@ namespace ReactiveUITK.SourceGenerator.Nodes
         string SourceFile
     ) : AstNode(SourceLine, SourceFile);
 
+    /// <summary>
+    /// A <c>@for (init; condition; increment) { ... }</c> block.
+    /// <see cref="ForExpression"/> is the raw content between the parentheses.
+    /// </summary>
+    public sealed record ForNode(
+        string ForExpression,
+        ImmutableArray<AstNode> Body,
+        int SourceLine,
+        string SourceFile
+    ) : AstNode(SourceLine, SourceFile);
+
+    /// <summary>
+    /// A <c>@while (condition) { ... }</c> block.
+    /// </summary>
+    public sealed record WhileNode(
+        string Condition,
+        ImmutableArray<AstNode> Body,
+        int SourceLine,
+        string SourceFile
+    ) : AstNode(SourceLine, SourceFile);
+
     /// <summary>One <c>@case</c> or <c>@default</c> branch inside a switch block.</summary>
     public sealed record SwitchCase(
         /// <summary>The case expression, or <c>null</c> for <c>@default</c>.</summary>

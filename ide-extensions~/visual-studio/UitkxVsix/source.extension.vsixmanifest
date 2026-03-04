@@ -4,7 +4,7 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
         <Identity Id="UitkxVsix.ReactiveUITK"
-          Version="1.0.12"
+          Version="1.0.51"
               Language="en-US"
               Publisher="Yaniv Kalfa" />
     <DisplayName>UITKX</DisplayName>
@@ -32,6 +32,6 @@
   </Prerequisites>
   <Assets>
     <Asset Type="Microsoft.VisualStudio.MefComponent" Role="Managed" Path="UitkxVsix.dll" />
-    <Asset Type="Microsoft.VisualStudio.VsPackage" Role="Managed" Path="uitkx.pkgdef" />
+    <Asset Type="Microsoft.VisualStudio.LanguageServer.Client" Role="Managed" Path="UitkxVsix.dll" />
   </Assets>
 </PackageManifest>

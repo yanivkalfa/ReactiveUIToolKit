@@ -71,34 +71,21 @@ public static class DocumentContext
         var lineStart = before.LastIndexOf('\n') + 1;
         var currentLine = before[lineStart..];
 
-        // --- @directive at position 0 on the line
-        if (currentLine.StartsWith('@') && !currentLine.Contains(' '))
+        // --- @-triggered completion: directive vs control-flow
+        // Directives (@namespace, @component, etc.) appear only before any markup.
+        // Control-flow (@if, @foreach, etc.) appear inside the markup body.
+        // Heuristic: if any line before the cursor starts with '<' (a markup tag),
+        // we are past the directive header and should offer control-flow.
+        var atIdx2 = currentLine.LastIndexOf('@');
+        if (atIdx2 >= 0 && currentLine.IndexOf(' ', atIdx2) < 0)
         {
-            var atPrefix = currentLine[1..]; // text after '@'
-            // Decide: directive vs control-flow based on whether '@' is the first non-whitespace
-            bool isDeclarationLine =
-                lineStart == 0
-                || string.IsNullOrWhiteSpace(
-                    documentText[
-                        (before.LastIndexOf('\n', lineStart > 0 ? lineStart - 1 : 0))..lineStart
-                    ]
-                        .Trim('\n', '\r')
-                );
+            var atPrefix = currentLine[(atIdx2 + 1)..];
+            bool isPastMarkup = before.Split('\n').Any(l => l.TrimStart().StartsWith('<'));
             return new Context
             {
-                Kind = isDeclarationLine
-                    ? CompletionKind.DirectiveName
-                    : CompletionKind.ControlFlowName,
+                Kind = isPastMarkup ? CompletionKind.ControlFlowName : CompletionKind.DirectiveName,
                 Prefix = atPrefix,
             };
-        }
-
-        // --- After '@' anywhere in markup (@if, @foreach, etc.)
-        if (currentLine.Contains('@') && currentLine.IndexOf(' ', currentLine.LastIndexOf('@')) < 0)
-        {
-            var atIdx = currentLine.LastIndexOf('@');
-            var atPrefix = currentLine[(atIdx + 1)..];
-            return new Context { Kind = CompletionKind.ControlFlowName, Prefix = atPrefix };
         }
 
         // --- Tag name  <|
@@ -140,11 +127,10 @@ public static class DocumentContext
             if (valueMatch.Success)
             {
                 var attrName = valueMatch.Groups[1].Value;
-                var rawPrefix = valueMatch.Groups[2].Success
-                    ? valueMatch.Groups[2].Value
-                    : valueMatch.Groups[3].Success
-                        ? valueMatch.Groups[3].Value
-                        : valueMatch.Groups[4].Value;
+                var rawPrefix =
+                    valueMatch.Groups[2].Success ? valueMatch.Groups[2].Value
+                    : valueMatch.Groups[3].Success ? valueMatch.Groups[3].Value
+                    : valueMatch.Groups[4].Value;
 
                 var prefix = rawPrefix.Length > 0 ? rawPrefix[1..] : "";
 

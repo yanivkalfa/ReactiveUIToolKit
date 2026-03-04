@@ -10,7 +10,7 @@ namespace UitkxVsix;
 internal static class UitkxContentType
 {
 #pragma warning disable CS0649
-    [Export, Name("uitkx"), DisplayName("UITKX"), BaseDefinition("code")]
+    [Export, Name("uitkx"), DisplayName("UITKX"), BaseDefinition("text")]
     internal static ContentTypeDefinition? UitkxContentTypeDef;
 
     [Export, FileExtension(".uitkx"), ContentType("uitkx")]
