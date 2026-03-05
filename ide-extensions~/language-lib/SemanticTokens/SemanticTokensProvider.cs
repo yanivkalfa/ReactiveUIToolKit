@@ -431,7 +431,16 @@ namespace ReactiveUITK.Language.SemanticTokens
             if (bodyEnd <= bodyStart) return;
 
             // 3. Lines that contain embedded markup — handled by element walker, skip them
-            var markupLines = new HashSet<int>(cb.ReturnMarkups.Select(rm => rm.SourceLine));
+            var markupLines = new HashSet<int>();
+            foreach (var rm in cb.ReturnMarkups)
+            {
+                int startLine = rm.Element.SourceLine;
+                int endLine = rm.Element.CloseTagLine > 0 ? rm.Element.CloseTagLine : rm.Element.SourceLine;
+                if (endLine < startLine) endLine = startLine;
+
+                for (int line = startLine; line <= endLine; line++)
+                    markupLines.Add(line);
+            }
 
             // 4. Determine the first source line that overlaps bodyStart
             int startLineIdx = Array.BinarySearch(lineStarts, bodyStart);
