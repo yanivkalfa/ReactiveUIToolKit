@@ -170,6 +170,36 @@ function looksLikeMarkupSelection(text: string): boolean {
   );
 }
 
+function firstNonWhitespaceChar(lineText: string): number {
+  const idx = lineText.search(/\S/);
+  return idx >= 0 ? idx : 0;
+}
+
+function trimmedLineEndChar(lineText: string): number {
+  return lineText.replace(/\s+$/, '').length;
+}
+
+function toMarkupRange(document: vscode.TextDocument, selection: vscode.Selection): vscode.Range {
+  let startLine = selection.start.line;
+  let endLine = selection.end.line;
+
+  if (!selection.isEmpty && selection.end.character === 0 && endLine > startLine) {
+    endLine -= 1;
+  }
+
+  const startText = document.lineAt(startLine).text;
+  const endText = document.lineAt(endLine).text;
+  const startChar = firstNonWhitespaceChar(startText);
+  let endChar = trimmedLineEndChar(endText);
+
+  if (endChar < 0) endChar = 0;
+
+  return new vscode.Range(
+    new vscode.Position(startLine, startChar),
+    new vscode.Position(endLine, endChar)
+  );
+}
+
 function toggleLineCommentForRanges(editor: vscode.TextEditor, lineRanges: vscode.Range[]): Thenable<boolean> {
   const document = editor.document;
   const lineNumbers = new Set<number>();
@@ -376,7 +406,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (inCode && !isMarkupSelection) {
           lineCommentRanges.push(effectiveRange);
         } else {
-          jsxCommentRanges.push(effectiveRange);
+          jsxCommentRanges.push(toMarkupRange(document, selection));
         }
       }
 
