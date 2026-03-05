@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Callbacks;
@@ -24,10 +25,29 @@ namespace ReactiveUITK.Editor
             RegexOptions.Compiled
         );
 
+        private static readonly Regex s_uitkxLocationRegex = new Regex(
+            @"(?<path>[A-Za-z]:[^\r\n()]*?\.uitkx|Assets[/\\][^\r\n()]*?\.uitkx|[^\r\n():]*[\\/][^\r\n()]*?\.uitkx)\((?<line>\d+)(?:,(?<col>\d+))?\)",
+            RegexOptions.Compiled
+        );
+
         [OnOpenAsset]
         private static bool OnOpenAsset(int instanceId, int line)
         {
             string assetPath = AssetDatabase.GetAssetPath(instanceId);
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                var obj = EditorUtility.InstanceIDToObject(instanceId);
+                if (obj != null)
+                    assetPath = AssetDatabase.GetAssetPath(obj);
+            }
+
+            if (string.IsNullOrEmpty(assetPath)
+                && TryResolveFromConsoleActiveText(out string consolePath, out int consoleLine))
+            {
+                assetPath = consolePath;
+                if (line <= 0)
+                    line = consoleLine;
+            }
 
             if (!TryResolveUitkxTarget(assetPath, line, out string fullPath, out int targetLine))
                 return false; // not ours — let Unity handle it
@@ -148,6 +168,55 @@ namespace ReactiveUITK.Editor
             }
 
             return Path.GetFullPath(mappedPath);
+        }
+
+        private static bool TryResolveFromConsoleActiveText(out string assetPath, out int line)
+        {
+            assetPath = string.Empty;
+            line = 1;
+
+            try
+            {
+                var consoleWindowType = Type.GetType("UnityEditor.ConsoleWindow, UnityEditor");
+                if (consoleWindowType == null)
+                    return false;
+
+                var consoleField = consoleWindowType.GetField(
+                    "ms_ConsoleWindow",
+                    BindingFlags.Static | BindingFlags.NonPublic
+                );
+                if (consoleField == null)
+                    return false;
+
+                var consoleWindow = consoleField.GetValue(null);
+                if (consoleWindow == null)
+                    return false;
+
+                var activeTextField = consoleWindowType.GetField(
+                    "m_ActiveText",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                if (activeTextField == null)
+                    return false;
+
+                string activeText = activeTextField.GetValue(consoleWindow) as string ?? string.Empty;
+                if (string.IsNullOrEmpty(activeText))
+                    return false;
+
+                var match = s_uitkxLocationRegex.Match(activeText);
+                if (!match.Success)
+                    return false;
+
+                assetPath = match.Groups["path"].Value.Replace('\\', '/');
+                if (int.TryParse(match.Groups["line"].Value, out int parsedLine) && parsedLine > 0)
+                    line = parsedLine;
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }
