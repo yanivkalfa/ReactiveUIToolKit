@@ -94,6 +94,9 @@ public sealed class DiagnosticsPublisher
             Code     = (DiagnosticCode)d.Code,
             Source   = "uitkx",
             Message  = d.Message,
+            Tags     = d.Code == DiagnosticCodes.UnreachableAfterReturn
+                ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
+                : null,
         };
     }
 

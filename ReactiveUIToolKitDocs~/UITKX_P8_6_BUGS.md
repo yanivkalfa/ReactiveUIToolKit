@@ -20,11 +20,11 @@
   Fix: `SemanticTokensProvider` scans the `@code` body line-by-line with a composite regex and emits `keyword`, `function`, `type`, `variable`, `string`, `number`, and `comment` semantic tokens for C# constructs. Follow-up fixes (v1.0.48-v1.0.50) prevent semantic-token bleed into embedded markup/comment spans and improve comment-scope grammar inside `@code`.
   *(Note: elements inside `{/* */}` do get colored — so the issue was specific to the `@code` region.)*
 
-- [ ] **#3 Setter hover missing** — `setCount`, `setMode`, etc. show no hover docs.
-  The hover handler covers tags/attributes but not C# identifiers inside `@code`.
+- [x] **#3 Setter hover missing** — Fixed in v1.0.51 (regression polished in v1.0.52).
+  Fix: `HoverHandler` now resolves hook tuple setter identifiers in `@code` (both declaration and usage sites, e.g. `setCount(...)`) and returns hook-setter hover docs.
 
-- [ ] **#4 `{/*` auto-close wraps wrong** — typing `{/*` closes immediately at cursor `{/* | */}`.
-  Should instead wrap the selected text / nearby element.
+- [ ] **#4 `{/*` auto-close wraps wrong** — Deferred by product decision for this cycle.
+  Current behavior accepted for now; can be revisited post-8.6.
 
 - [x] **#5 `Ctrl+/` in markup** — Fixed in v1.0.47.
   Fix: added `uitkx.toggleBlockComment` command + keybinding override so `Ctrl+/`/`Cmd+/` is context-aware in `.uitkx` files: markup toggles `{/* */}`, non-markup code in `@code` toggles `//`. Selection range normalization wraps from first non-whitespace to end of last touched line.

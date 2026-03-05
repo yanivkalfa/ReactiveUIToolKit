@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
@@ -142,6 +143,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     break;
 
                 case CodeBlockNode cb:
+                    CheckUnreachableAfterReturn(cb, diags);
                     foreach (var rm in cb.ReturnMarkups)
                     {
                         CheckElement(rm.Element, insideForeach, diags);
@@ -225,6 +227,63 @@ namespace ReactiveUITK.Language.Diagnostics
                     seen[keyVal] = el;
                 }
             }
+        }
+
+        private static readonly Regex s_topLevelReturnRegex = new Regex(
+            @"^\s*return\b",
+            RegexOptions.Compiled
+        );
+
+        private static void CheckUnreachableAfterReturn(CodeBlockNode cb, List<ParseDiagnostic> diags)
+        {
+            if (string.IsNullOrWhiteSpace(cb.Code))
+                return;
+
+            var lines = cb.Code.Replace("\r\n", "\n").Split('\n');
+            bool seenTopLevelReturn = false;
+            int depth = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.Length == 0)
+                {
+                    depth += CountChar(line, '{') - CountChar(line, '}');
+                    if (depth < 0) depth = 0;
+                    continue;
+                }
+
+                if (seenTopLevelReturn && !trimmed.StartsWith("//", System.StringComparison.Ordinal))
+                {
+                    int leading = line.Length - line.TrimStart().Length;
+                    diags.Add(MakeDiag(
+                        DiagnosticCodes.UnreachableAfterReturn,
+                        ParseSeverity.Hint,
+                        "Unreachable code after 'return'.",
+                        cb.SourceLine + 1 + i,
+                        leading,
+                        line.Length));
+                }
+
+                if (!seenTopLevelReturn && depth == 0 && s_topLevelReturnRegex.IsMatch(line))
+                {
+                    seenTopLevelReturn = true;
+                }
+
+                depth += CountChar(line, '{') - CountChar(line, '}');
+                if (depth < 0) depth = 0;
+            }
+        }
+
+        private static int CountChar(string text, char ch)
+        {
+            int count = 0;
+            for (int i = 0; i < text.Length; i++)
+                if (text[i] == ch)
+                    count++;
+            return count;
         }
 
         // ═══════════════════════════════════════════════════════════════════════

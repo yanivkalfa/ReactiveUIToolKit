@@ -36,6 +36,13 @@ namespace ReactiveUITK.Language.Diagnostics
         /// </summary>
         public const string MissingKey         = "UITKX0106";
 
+        /// <summary>
+        /// Statement appears after an unconditional top-level <c>return</c> in an
+        /// <c>@code</c> block and is unreachable.
+        /// Severity: Hint (with Unnecessary tag in LSP layer).
+        /// </summary>
+        public const string UnreachableAfterReturn = "UITKX0107";
+
         // ── T1 — Parser codes (emitted by UitkxParser / DirectiveParser) ─────
         // Listed here for cross-reference only; not produced by DiagnosticsAnalyzer.
 
