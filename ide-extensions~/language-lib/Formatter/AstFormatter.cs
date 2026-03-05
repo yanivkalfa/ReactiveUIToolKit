@@ -25,8 +25,13 @@ namespace ReactiveUITK.Language.Formatter
         private readonly StringBuilder _sb = new StringBuilder();
         private int _indent;
 
-        public AstFormatter(FormatterOptions opts) { _opts = opts; }
-        public AstFormatter() : this(FormatterOptions.Default) { }
+        public AstFormatter(FormatterOptions opts)
+        {
+            _opts = opts;
+        }
+
+        public AstFormatter()
+            : this(FormatterOptions.Default) { }
 
         // ═══════════════════════════════════════════════════════════════════════
         //  PUBLIC ENTRY POINT
@@ -146,18 +151,33 @@ namespace ReactiveUITK.Language.Formatter
         {
             switch (node)
             {
-                case ElementNode el:  FormatElement(el);  break;
-                case IfNode      ifn: FormatIf(ifn);      break;
-                case ForeachNode fe:  FormatForeach(fe);  break;
-                case ForNode     fn:  FormatFor(fn);       break;
-                case WhileNode   wh:  FormatWhile(wh);    break;
-                case SwitchNode  sw:  FormatSwitch(sw);   break;
-                case CodeBlockNode cb: FormatCodeBlock(cb); break;
+                case ElementNode el:
+                    FormatElement(el);
+                    break;
+                case IfNode ifn:
+                    FormatIf(ifn);
+                    break;
+                case ForeachNode fe:
+                    FormatForeach(fe);
+                    break;
+                case ForNode fn:
+                    FormatFor(fn);
+                    break;
+                case WhileNode wh:
+                    FormatWhile(wh);
+                    break;
+                case SwitchNode sw:
+                    FormatSwitch(sw);
+                    break;
+                case CodeBlockNode cb:
+                    FormatCodeBlock(cb);
+                    break;
 
                 case TextNode tn:
                 {
                     var t = tn.Content.Trim();
-                    if (t.Length > 0) Ln(t);
+                    if (t.Length > 0)
+                        Ln(t);
                     break;
                 }
 
@@ -193,7 +213,8 @@ namespace ReactiveUITK.Language.Formatter
                     ? $"<{el.TagName} {string.Join(" ", attrStrings)}{selfCloseSeq}"
                     : $"<{el.TagName} {string.Join(" ", attrStrings)}>";
 
-                bool wrap = _opts.SingleAttributePerLine
+                bool wrap =
+                    _opts.SingleAttributePerLine
                     || IndentStr().Length + singleLine.Length > _opts.PrintWidth;
 
                 if (!wrap)
@@ -224,7 +245,8 @@ namespace ReactiveUITK.Language.Formatter
             string tagName,
             List<string> attrStrings,
             bool selfClose,
-            string selfCloseSeq)
+            string selfCloseSeq
+        )
         {
             // Tag name line: e.g. "    <Box"
             Ln($"<{tagName}");
@@ -323,11 +345,14 @@ namespace ReactiveUITK.Language.Formatter
         /// can continue on the same line.</para>
         /// </summary>
         private void EmitCSharpLines(
-            string code, string tabExp,
+            string code,
+            string tabExp,
             bool firstLineStripped,
-            bool suppressLastNewline)
+            bool suppressLastNewline
+        )
         {
-            if (string.IsNullOrEmpty(code)) return;
+            if (string.IsNullOrEmpty(code))
+                return;
             var lines = code.Split('\n');
 
             // baseSpaces: minimum leading spaces across all non-blank lines that
@@ -335,12 +360,15 @@ namespace ReactiveUITK.Language.Formatter
             int baseSpaces = int.MaxValue;
             for (int li = firstLineStripped ? 1 : 0; li < lines.Length; li++)
             {
-                if (string.IsNullOrWhiteSpace(lines[li])) continue;
+                if (string.IsNullOrWhiteSpace(lines[li]))
+                    continue;
                 var exp = lines[li].Replace("\t", tabExp);
                 int lead = exp.Length - exp.TrimStart().Length;
-                if (lead < baseSpaces) baseSpaces = lead;
+                if (lead < baseSpaces)
+                    baseSpaces = lead;
             }
-            if (baseSpaces == int.MaxValue) baseSpaces = 0;
+            if (baseSpaces == int.MaxValue)
+                baseSpaces = 0;
 
             // Find last non-blank line index (for suppressLastNewline).
             int lastMeaningful = lines.Length - 1;
@@ -349,7 +377,8 @@ namespace ReactiveUITK.Language.Formatter
 
             for (int li = 0; li < lines.Length; li++)
             {
-                if (li > lastMeaningful) break; // skip trailing blank lines
+                if (li > lastMeaningful)
+                    break; // skip trailing blank lines
 
                 var stripped = lines[li].TrimEnd();
                 if (string.IsNullOrWhiteSpace(stripped))
@@ -360,12 +389,11 @@ namespace ReactiveUITK.Language.Formatter
 
                 var expL = stripped.Replace("\t", tabExp);
                 int leadL = expL.Length - expL.TrimStart().Length;
-                int rel = (firstLineStripped && li == 0)
-                    ? 0
-                    : System.Math.Max(0, leadL - baseSpaces);
+                int rel =
+                    (firstLineStripped && li == 0) ? 0 : System.Math.Max(0, leadL - baseSpaces);
 
                 string relPrefix = rel > 0 ? new string(' ', rel) : string.Empty;
-                string content   = stripped.TrimStart();
+                string content = stripped.TrimStart();
 
                 if (li == lastMeaningful && suppressLastNewline)
                     _sb.Append(IndentStr() + relPrefix + content);
@@ -381,9 +409,7 @@ namespace ReactiveUITK.Language.Formatter
         private void AppendElementInline(ElementNode el, bool selfClose)
         {
             var attrStrings = BuildAttrStrings(el.Attributes);
-            string closing  = selfClose
-                ? (_opts.InsertSpaceBeforeSelfClose ? " />" : "/>")
-                : ">";
+            string closing = selfClose ? (_opts.InsertSpaceBeforeSelfClose ? " />" : "/>") : ">";
             if (attrStrings.Count == 0)
                 _sb.Append($"<{el.TagName}{closing}");
             else
@@ -399,12 +425,16 @@ namespace ReactiveUITK.Language.Formatter
             if (cb.ReturnMarkups.IsEmpty)
             {
                 // No embedded JSX — emit C# lines with relative-indent only.
-                EmitCSharpLines(cb.Code, tabExp,
-                    firstLineStripped: true, suppressLastNewline: false);
+                EmitCSharpLines(
+                    cb.Code,
+                    tabExp,
+                    firstLineStripped: true,
+                    suppressLastNewline: false
+                );
             }
             else
             {
-                int pos          = 0;
+                int pos = 0;
                 bool firstSegment = true;
 
                 foreach (var rm in cb.ReturnMarkups) // sorted by StartOffsetInCodeBlock
@@ -420,8 +450,12 @@ namespace ReactiveUITK.Language.Formatter
                         {
                             // The very first segment: ExpressionExtractor stripped
                             // leading whitespace from line[0].
-                            EmitCSharpLines(seg, tabExp,
-                                firstLineStripped: true, suppressLastNewline: true);
+                            EmitCSharpLines(
+                                seg,
+                                tabExp,
+                                firstLineStripped: true,
+                                suppressLastNewline: true
+                            );
                             firstSegment = false;
                         }
                         else
@@ -441,8 +475,12 @@ namespace ReactiveUITK.Language.Formatter
                                 _sb.Append('\n');
                                 string rest = seg.Substring(nlPos + 1);
                                 if (!string.IsNullOrWhiteSpace(rest))
-                                    EmitCSharpLines(rest, tabExp,
-                                        firstLineStripped: false, suppressLastNewline: true);
+                                    EmitCSharpLines(
+                                        rest,
+                                        tabExp,
+                                        firstLineStripped: false,
+                                        suppressLastNewline: true
+                                    );
                             }
                         }
                     }
@@ -486,7 +524,7 @@ namespace ReactiveUITK.Language.Formatter
                 if (pos < cb.Code.Length)
                 {
                     string tail = cb.Code.Substring(pos);
-                    int nlPos   = tail.IndexOf('\n');
+                    int nlPos = tail.IndexOf('\n');
                     if (nlPos < 0)
                     {
                         // Just a one-line suffix like ";"
@@ -499,8 +537,12 @@ namespace ReactiveUITK.Language.Formatter
                         _sb.Append('\n');
                         string rest = tail.Substring(nlPos + 1);
                         if (!string.IsNullOrWhiteSpace(rest))
-                            EmitCSharpLines(rest, tabExp,
-                                firstLineStripped: false, suppressLastNewline: false);
+                            EmitCSharpLines(
+                                rest,
+                                tabExp,
+                                firstLineStripped: false,
+                                suppressLastNewline: false
+                            );
                     }
                 }
             }
@@ -609,7 +651,8 @@ namespace ReactiveUITK.Language.Formatter
 
         private string IndentStr()
         {
-            if (_indent <= 0) return string.Empty;
+            if (_indent <= 0)
+                return string.Empty;
             return _opts.UseTabIndent
                 ? new string('\t', _indent)
                 : new string(' ', _indent * _opts.IndentSize);

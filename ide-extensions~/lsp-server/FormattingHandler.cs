@@ -35,9 +35,9 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
         // uitkx.config.json.  Falls back to default options if the URI is not a
         // local file path.
         var localPath = GetLocalPath(request.TextDocument.Uri);
-        var fileDir   = localPath is not null ? Path.GetDirectoryName(localPath) : null;
+        var fileDir = localPath is not null ? Path.GetDirectoryName(localPath) : null;
 
-        var opts      = ConfigLoader.LoadFormatterOptions(fileDir);
+        var opts = ConfigLoader.LoadFormatterOptions(fileDir);
         var formatter = new AstFormatter(opts);
 
         var formatted = formatter.Format(text, localPath ?? string.Empty);
@@ -47,7 +47,7 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
 
         // Replace the entire document with the formatted version.
         // Use the original text to compute the end position so the range is exact.
-        var lines    = text.Split('\n');
+        var lines = text.Split('\n');
         var lastLine = lines.Length - 1;
         var lastChar = lines[lastLine].Length;
 
@@ -68,7 +68,8 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
     /// to a local file-system path, or <c>null</c> if it is not a file URI.
     /// </summary>
     private static string? GetLocalPath(
-        OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri uri)
+        OmniSharp.Extensions.LanguageServer.Protocol.DocumentUri uri
+    )
     {
         try
         {

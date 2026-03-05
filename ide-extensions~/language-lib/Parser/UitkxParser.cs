@@ -124,9 +124,7 @@ namespace ReactiveUITK.Language.Parser
                     )
                         break;
                     // Closing tag does not match expected — emit error and skip '<'
-                    _diagnostics.Add(
-                        ErrMismatchedTag(closing, stopTag ?? "?", _scanner.Line)
-                    );
+                    _diagnostics.Add(ErrMismatchedTag(closing, stopTag ?? "?", _scanner.Line));
                     _scanner.Advance();
                     continue;
                 }
@@ -203,9 +201,7 @@ namespace ReactiveUITK.Language.Parser
                                 nodes.Add(cbNode);
                             break;
                         case "else":
-                            _diagnostics.Add(
-                                ErrUnexpectedToken("@else", atLine, "@if block")
-                            );
+                            _diagnostics.Add(ErrUnexpectedToken("@else", atLine, "@if block"));
                             SkipToEndOfLine();
                             break;
                         case "case":
@@ -216,9 +212,7 @@ namespace ReactiveUITK.Language.Parser
                             SkipToEndOfLine();
                             break;
                         default:
-                            _diagnostics.Add(
-                                ErrUnknownDirective(keyword, atLine)
-                            );
+                            _diagnostics.Add(ErrUnknownDirective(keyword, atLine));
                             SkipToEndOfLine();
                             break;
                     }
@@ -250,7 +244,7 @@ namespace ReactiveUITK.Language.Parser
         private ElementNode? ParseElement()
         {
             int openLine = _scanner.Line;
-            int openCol  = ColAtPos(_scanner.Pos); // 0-based column of the '<'
+            int openCol = ColAtPos(_scanner.Pos); // 0-based column of the '<'
             _scanner.Advance(); // consume '<'
             _scanner.SkipInlineWhitespace();
 
@@ -269,15 +263,11 @@ namespace ReactiveUITK.Language.Parser
                     if (PeekClosingTagName() == string.Empty)
                         ConsumeClosingTag();
                     else
-                        _diagnostics.Add(
-                            ErrUnclosedTag("<>", openLine)
-                        );
+                        _diagnostics.Add(ErrUnclosedTag("<>", openLine));
                 }
                 else
                 {
-                    _diagnostics.Add(
-                        ErrUnclosedTag("<>", openLine)
-                    );
+                    _diagnostics.Add(ErrUnclosedTag("<>", openLine));
                 }
 
                 return new ElementNode(
@@ -286,15 +276,16 @@ namespace ReactiveUITK.Language.Parser
                     fragmentChildren.ToImmutableArray(),
                     openLine,
                     _filePath
-                ) { SourceColumn = openCol };
+                )
+                {
+                    SourceColumn = openCol,
+                };
             }
 
             string tagName = _scanner.ReadTagName();
             if (string.IsNullOrEmpty(tagName))
             {
-                _diagnostics.Add(
-                    ErrUnexpectedToken("<", openLine, "tag name after '<'")
-                );
+                _diagnostics.Add(ErrUnexpectedToken("<", openLine, "tag name after '<'"));
                 SkipToTagEnd();
                 return null;
             }
@@ -311,15 +302,16 @@ namespace ReactiveUITK.Language.Parser
                     ImmutableArray<AstNode>.Empty,
                     openLine,
                     _filePath
-                ) { SourceColumn = openCol };
+                )
+                {
+                    SourceColumn = openCol,
+                };
             }
 
             // Open-block: >
             if (!_scanner.TryConsume('>'))
             {
-                _diagnostics.Add(
-                    ErrMissingTagClose(tagName, openLine, openCol)
-                );
+                _diagnostics.Add(ErrMissingTagClose(tagName, openLine, openCol));
                 // Best-effort: continue without consuming
             }
 
@@ -329,9 +321,7 @@ namespace ReactiveUITK.Language.Parser
 
             if (_scanner.IsEof)
             {
-                _diagnostics.Add(
-                    ErrUnclosedTag(tagName, openLine)
-                );
+                _diagnostics.Add(ErrUnclosedTag(tagName, openLine));
             }
             else
             {
@@ -343,9 +333,7 @@ namespace ReactiveUITK.Language.Parser
                 }
                 else
                 {
-                    _diagnostics.Add(
-                        ErrMismatchedTag(closing, tagName, openLine)
-                    );
+                    _diagnostics.Add(ErrMismatchedTag(closing, tagName, openLine));
                     SkipToTagEnd();
                 }
             }
@@ -356,7 +344,11 @@ namespace ReactiveUITK.Language.Parser
                 children.ToImmutableArray(),
                 openLine,
                 _filePath
-            ) { SourceColumn = openCol, CloseTagLine = closeTagLine };
+            )
+            {
+                SourceColumn = openCol,
+                CloseTagLine = closeTagLine,
+            };
         }
 
         // ── Attributes ────────────────────────────────────────────────────────
@@ -698,23 +690,25 @@ namespace ReactiveUITK.Language.Parser
             }
 
             // Use ExpressionExtractor so nested braces in C# are handled correctly
-            int bracePos       = _scanner.Pos;
-            int codeBodyStart  = bracePos + 1;
+            int bracePos = _scanner.Pos;
+            int codeBodyStart = bracePos + 1;
             var (code, afterClose) = ExpressionExtractor.FromBrace(_source, bracePos);
-            int codeBodyEnd    = afterClose > 0 ? afterClose - 1 : bracePos + 1;
+            int codeBodyEnd = afterClose > 0 ? afterClose - 1 : bracePos + 1;
             AdvanceScannerTo(afterClose);
 
             // Compute how many leading chars were trimmed so offsets map correctly
-            int rawLen       = codeBodyEnd - codeBodyStart;
-            string rawBody   = rawLen > 0 ? _source.Substring(codeBodyStart, rawLen) : string.Empty;
+            int rawLen = codeBodyEnd - codeBodyStart;
+            string rawBody = rawLen > 0 ? _source.Substring(codeBodyStart, rawLen) : string.Empty;
             int leadingChars = rawBody.Length - rawBody.TrimStart().Length;
 
-            var returnMarkups = ScanForReturnMarkup(codeBodyStart, codeBodyEnd, leadingChars, startLine);
+            var returnMarkups = ScanForReturnMarkup(
+                codeBodyStart,
+                codeBodyEnd,
+                leadingChars,
+                startLine
+            );
 
-            return new CodeBlockNode(code, startLine, _filePath)
-            {
-                ReturnMarkups = returnMarkups,
-            };
+            return new CodeBlockNode(code, startLine, _filePath) { ReturnMarkups = returnMarkups };
         }
 
         /// <summary>
@@ -728,7 +722,11 @@ namespace ReactiveUITK.Language.Parser
         /// temporary sub-parser so the current parser state is not disturbed.
         /// </summary>
         private ImmutableArray<ReturnMarkupNode> ScanForReturnMarkup(
-            int codeBodyStart, int codeBodyEnd, int leadingChars, int blockStartLine)
+            int codeBodyStart,
+            int codeBodyEnd,
+            int leadingChars,
+            int blockStartLine
+        )
         {
             var result = ImmutableArray.CreateBuilder<ReturnMarkupNode>();
             int i = codeBodyStart;
@@ -738,7 +736,7 @@ namespace ReactiveUITK.Language.Parser
                 if (TrySkipNonCodeSpan(ref i, codeBodyEnd))
                     continue;
 
-                int markupAt   = -1; // index in _source where '<Tag' starts, or -1
+                int markupAt = -1; // index in _source where '<Tag' starts, or -1
                 int parenStart = -1; // index in _source of an enclosing '(', if present
 
                 // ── Pattern A: return <Tag  (also tolerates return (<Tag>) ) ───
@@ -747,22 +745,31 @@ namespace ReactiveUITK.Language.Parser
                     const string kw = "return";
                     bool kwMatch = true;
                     for (int k = 0; k < kw.Length && kwMatch; k++)
-                        if (i + k >= _source.Length || _source[i + k] != kw[k]) kwMatch = false;
+                        if (i + k >= _source.Length || _source[i + k] != kw[k])
+                            kwMatch = false;
 
                     if (kwMatch)
                     {
-                        bool boundBefore = i == 0 ||
-                            !(char.IsLetterOrDigit(_source[i - 1]) || _source[i - 1] == '_');
+                        bool boundBefore =
+                            i == 0
+                            || !(char.IsLetterOrDigit(_source[i - 1]) || _source[i - 1] == '_');
                         int afterKw = i + kw.Length;
-                        bool boundAfter = afterKw >= _source.Length ||
-                            !(char.IsLetterOrDigit(_source[afterKw]) || _source[afterKw] == '_');
+                        bool boundAfter =
+                            afterKw >= _source.Length
+                            || !(char.IsLetterOrDigit(_source[afterKw]) || _source[afterKw] == '_');
 
                         if (boundBefore && boundAfter)
                         {
                             int j = afterKw;
-                            while (j < codeBodyEnd &&
-                                   (_source[j] == ' ' || _source[j] == '\t' ||
-                                    _source[j] == '\r' || _source[j] == '\n'))
+                            while (
+                                j < codeBodyEnd
+                                && (
+                                    _source[j] == ' '
+                                    || _source[j] == '\t'
+                                    || _source[j] == '\r'
+                                    || _source[j] == '\n'
+                                )
+                            )
                                 j++;
 
                             // Tolerate return (<Tag>)
@@ -770,14 +777,24 @@ namespace ReactiveUITK.Language.Parser
                             {
                                 parenStart = j;
                                 j++;
-                                while (j < codeBodyEnd &&
-                                       (_source[j] == ' ' || _source[j] == '\t' ||
-                                        _source[j] == '\r' || _source[j] == '\n'))
+                                while (
+                                    j < codeBodyEnd
+                                    && (
+                                        _source[j] == ' '
+                                        || _source[j] == '\t'
+                                        || _source[j] == '\r'
+                                        || _source[j] == '\n'
+                                    )
+                                )
                                     j++;
                             }
 
-                            if (j < codeBodyEnd && _source[j] == '<' &&
-                                j + 1 < codeBodyEnd && char.IsLetter(_source[j + 1]))
+                            if (
+                                j < codeBodyEnd
+                                && _source[j] == '<'
+                                && j + 1 < codeBodyEnd
+                                && char.IsLetter(_source[j + 1])
+                            )
                                 markupAt = j;
                             else
                                 parenStart = -1; // paren was not followed by JSX — reset
@@ -791,20 +808,28 @@ namespace ReactiveUITK.Language.Parser
                 {
                     bool isAssign = true;
                     // Exclude == and =>
-                    if (i + 1 < _source.Length &&
-                        (_source[i + 1] == '=' || _source[i + 1] == '>'))
+                    if (i + 1 < _source.Length && (_source[i + 1] == '=' || _source[i + 1] == '>'))
                         isAssign = false;
                     // Exclude !=, <=, >=
-                    if (isAssign && i > 0 &&
-                        (_source[i - 1] == '!' || _source[i - 1] == '<' || _source[i - 1] == '>'))
+                    if (
+                        isAssign
+                        && i > 0
+                        && (_source[i - 1] == '!' || _source[i - 1] == '<' || _source[i - 1] == '>')
+                    )
                         isAssign = false;
 
                     if (isAssign)
                     {
                         int j = i + 1;
-                        while (j < codeBodyEnd &&
-                               (_source[j] == ' ' || _source[j] == '\t' ||
-                                _source[j] == '\r' || _source[j] == '\n'))
+                        while (
+                            j < codeBodyEnd
+                            && (
+                                _source[j] == ' '
+                                || _source[j] == '\t'
+                                || _source[j] == '\r'
+                                || _source[j] == '\n'
+                            )
+                        )
                             j++;
 
                         // Tolerate an optional '(' directly before the '<'
@@ -813,14 +838,24 @@ namespace ReactiveUITK.Language.Parser
                         {
                             parenStart = j;
                             j++;
-                            while (j < codeBodyEnd &&
-                                   (_source[j] == ' ' || _source[j] == '\t' ||
-                                    _source[j] == '\r' || _source[j] == '\n'))
+                            while (
+                                j < codeBodyEnd
+                                && (
+                                    _source[j] == ' '
+                                    || _source[j] == '\t'
+                                    || _source[j] == '\r'
+                                    || _source[j] == '\n'
+                                )
+                            )
                                 j++;
                         }
 
-                        if (j < codeBodyEnd && _source[j] == '<' &&
-                            j + 1 < codeBodyEnd && char.IsLetter(_source[j + 1]))
+                        if (
+                            j < codeBodyEnd
+                            && _source[j] == '<'
+                            && j + 1 < codeBodyEnd
+                            && char.IsLetter(_source[j + 1])
+                        )
                             markupAt = j;
                         else
                             parenStart = -1; // paren not followed by JSX — reset
@@ -833,31 +868,51 @@ namespace ReactiveUITK.Language.Parser
                     int elementStartInSource = markupAt;
                     int elementLine = LineAtPos(elementStartInSource);
                     var (element, endPos) = ParseSingleElement(
-                        _source, _filePath, elementStartInSource, elementLine, _diagnostics);
+                        _source,
+                        _filePath,
+                        elementStartInSource,
+                        elementLine,
+                        _diagnostics
+                    );
 
                     if (element != null)
                     {
                         // When a '(' wraps the element, expand the span to cover
                         // '(' … ')' so CSharpEmitter replaces the whole paren group.
                         int spanStart = parenStart >= 0 ? parenStart : elementStartInSource;
-                        int spanEnd   = endPos;
+                        int spanEnd = endPos;
                         if (parenStart >= 0)
                         {
                             int k = endPos;
-                            while (k < codeBodyEnd &&
-                                   (_source[k] == ' ' || _source[k] == '\t' ||
-                                    _source[k] == '\r' || _source[k] == '\n'))
+                            while (
+                                k < codeBodyEnd
+                                && (
+                                    _source[k] == ' '
+                                    || _source[k] == '\t'
+                                    || _source[k] == '\r'
+                                    || _source[k] == '\n'
+                                )
+                            )
                                 k++;
                             if (k < codeBodyEnd && _source[k] == ')')
                                 spanEnd = k + 1;
                         }
 
                         int startOffset = spanStart - codeBodyStart - leadingChars;
-                        int endOffset   = spanEnd   - codeBodyStart - leadingChars;
-                        int elementCol  = ColAtPos(elementStartInSource);
-                        result.Add(new ReturnMarkupNode(
-                            element with { SourceColumn = elementCol },
-                            startOffset, endOffset, elementLine, _filePath));
+                        int endOffset = spanEnd - codeBodyStart - leadingChars;
+                        int elementCol = ColAtPos(elementStartInSource);
+                        result.Add(
+                            new ReturnMarkupNode(
+                                element with
+                                {
+                                    SourceColumn = elementCol,
+                                },
+                                startOffset,
+                                endOffset,
+                                elementLine,
+                                _filePath
+                            )
+                        );
                         i = spanEnd; // advance past entire span (including ')')
                         continue;
                     }
@@ -871,14 +926,16 @@ namespace ReactiveUITK.Language.Parser
 
         private bool TrySkipNonCodeSpan(ref int i, int codeBodyEnd)
         {
-            if (i >= codeBodyEnd) return false;
+            if (i >= codeBodyEnd)
+                return false;
 
             if (_source[i] == '/' && i + 1 < codeBodyEnd)
             {
                 if (_source[i + 1] == '/')
                 {
                     i += 2;
-                    while (i < codeBodyEnd && _source[i] != '\n') i++;
+                    while (i < codeBodyEnd && _source[i] != '\n')
+                        i++;
                     return true;
                 }
 
@@ -923,15 +980,21 @@ namespace ReactiveUITK.Language.Parser
             {
                 quotePos = i;
             }
-            else if ((_source[i] == '$' || _source[i] == '@') && i + 1 < codeBodyEnd && _source[i + 1] == '"')
+            else if (
+                (_source[i] == '$' || _source[i] == '@')
+                && i + 1 < codeBodyEnd
+                && _source[i + 1] == '"'
+            )
             {
                 quotePos = i + 1;
                 isVerbatim = _source[i] == '@';
             }
-            else if ((_source[i] == '$' || _source[i] == '@')
-                  && i + 2 < codeBodyEnd
-                  && (_source[i + 1] == '$' || _source[i + 1] == '@')
-                  && _source[i + 2] == '"')
+            else if (
+                (_source[i] == '$' || _source[i] == '@')
+                && i + 2 < codeBodyEnd
+                && (_source[i + 1] == '$' || _source[i + 1] == '@')
+                && _source[i + 2] == '"'
+            )
             {
                 quotePos = i + 2;
                 isVerbatim = _source[i] == '@' || _source[i + 1] == '@';
@@ -987,8 +1050,12 @@ namespace ReactiveUITK.Language.Parser
         /// by creating a temporary sub-parser.  Does NOT mutate the current parser's state.
         /// </summary>
         internal static (ElementNode? Element, int EndPos) ParseSingleElement(
-            string source, string filePath, int startPos, int startLine,
-            List<ParseDiagnostic> diagnostics)
+            string source,
+            string filePath,
+            int startPos,
+            int startLine,
+            List<ParseDiagnostic> diagnostics
+        )
         {
             var parser = new UitkxParser(source, filePath, startPos, startLine, diagnostics);
             var element = parser.ParseElement();
@@ -1000,7 +1067,8 @@ namespace ReactiveUITK.Language.Parser
         {
             int line = 1;
             for (int i = 0; i < pos && i < _source.Length; i++)
-                if (_source[i] == '\n') line++;
+                if (_source[i] == '\n')
+                    line++;
             return line;
         }
 
@@ -1189,13 +1257,13 @@ namespace ReactiveUITK.Language.Parser
         private ParseDiagnostic ErrMissingTagClose(string tagName, int line, int openCol) =>
             new ParseDiagnostic
             {
-                Code        = "UITKX0303",
-                Severity    = ParseSeverity.Error,
-                SourceLine  = line,
-                SourceColumn = openCol,           // 0-based column of '<'
-                EndLine     = line,
-                EndColumn   = openCol + 1 + tagName.Length, // covers '<TagName'
-                Message     = $"Missing '>' or '/>' after tag '<{tagName}>' at line {line}.",
+                Code = "UITKX0303",
+                Severity = ParseSeverity.Error,
+                SourceLine = line,
+                SourceColumn = openCol, // 0-based column of '<'
+                EndLine = line,
+                EndColumn = openCol + 1 + tagName.Length, // covers '<TagName'
+                Message = $"Missing '>' or '/>' after tag '<{tagName}>' at line {line}.",
             };
 
         private ParseDiagnostic ErrUnclosedTag(string tagName, int line) =>

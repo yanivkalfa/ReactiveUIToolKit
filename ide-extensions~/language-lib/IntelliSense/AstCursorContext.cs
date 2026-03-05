@@ -15,14 +15,19 @@ namespace ReactiveUITK.Language.IntelliSense
     {
         /// <summary>Not in a position that supports IntelliSense.</summary>
         None,
+
         /// <summary>Cursor is after <c>@</c> in the directive block (before any markup).</summary>
         DirectiveName,
+
         /// <summary>Cursor is after <c>@</c> inside the markup body (control-flow keywords).</summary>
         ControlFlowName,
+
         /// <summary>Cursor is typing an element tag name after <c>&lt;</c>.</summary>
         TagName,
+
         /// <summary>Cursor is inside an open tag, after the tag name (typing an attribute name).</summary>
         AttributeName,
+
         /// <summary>Cursor is inside an attribute value: <c>attr="…"</c> or <c>attr={…}</c>.</summary>
         AttributeValue,
     }
@@ -94,17 +99,14 @@ namespace ReactiveUITK.Language.IntelliSense
         /// <param name="text">The raw source text of the same document.</param>
         /// <param name="line1">1-based cursor line (LSP <c>Position.Line + 1</c>).</param>
         /// <param name="col0">0-based cursor column (LSP <c>Position.Character</c>).</param>
-        public static CursorContext Find(
-            ParseResult parseResult,
-            string text,
-            int line1,
-            int col0)
+        public static CursorContext Find(ParseResult parseResult, string text, int line1, int col0)
         {
             string lineText = GetLine(text, line1);
-            if (col0 > lineText.Length) col0 = lineText.Length;
+            if (col0 > lineText.Length)
+                col0 = lineText.Length;
 
             string prefix = ExtractIdentifierBefore(lineText, col0);
-            string word   = prefix + ExtractIdentifierAfter(lineText, col0);
+            string word = prefix + ExtractIdentifierAfter(lineText, col0);
             int prefixStart = col0 - prefix.Length;
 
             // ── 1. Directive block (lines before markup starts) ────────────────
@@ -114,9 +116,9 @@ namespace ReactiveUITK.Language.IntelliSense
                 if (prefixStart > 0 && lineText[prefixStart - 1] == '@')
                     return new CursorContext
                     {
-                        Kind   = CursorKind.DirectiveName,
+                        Kind = CursorKind.DirectiveName,
                         Prefix = prefix,
-                        Word   = word,
+                        Word = word,
                     };
                 return CursorContext.Empty;
             }
@@ -125,9 +127,9 @@ namespace ReactiveUITK.Language.IntelliSense
             if (prefixStart > 0 && lineText[prefixStart - 1] == '@')
                 return new CursorContext
                 {
-                    Kind   = CursorKind.ControlFlowName,
+                    Kind = CursorKind.ControlFlowName,
                     Prefix = prefix,
-                    Word   = word,
+                    Word = word,
                 };
             // ―― 2a. Inline expression @(word) ―――――――――――――――――――――――――――――――
             // When the cursor is inside @(expr), return a context with the word so
@@ -142,24 +144,31 @@ namespace ReactiveUITK.Language.IntelliSense
                 {
                     // Verify cursor is between the '(' and matching ')'
                     int inner = atParen + 2;
-                    int depth = 1, j = inner;
+                    int depth = 1,
+                        j = inner;
                     while (j < lineText.Length && depth > 0)
                     {
-                        if (lineText[j] == '(') depth++;
-                        else if (lineText[j] == ')') { depth--; if (depth == 0) break; }
+                        if (lineText[j] == '(')
+                            depth++;
+                        else if (lineText[j] == ')')
+                        {
+                            depth--;
+                            if (depth == 0)
+                                break;
+                        }
                         j++;
                     }
                     if (col0 >= inner && col0 <= j)
                         return new CursorContext
                         {
-                            Kind   = CursorKind.None, // no completion list, but Word is set for nav
+                            Kind = CursorKind.None, // no completion list, but Word is set for nav
                             Prefix = prefix,
-                            Word   = word,
+                            Word = word,
                         };
                 }
             }
             // ── 3. AST walk: find the element / attribute that owns this line ──
-            string? astTagName  = null;
+            string? astTagName = null;
             string? astAttrName = null;
             FindAstContext(parseResult.RootNodes, line1, ref astTagName, ref astAttrName);
 
@@ -176,11 +185,16 @@ namespace ReactiveUITK.Language.IntelliSense
             for (int l = 1; l < line1 && pos < text.Length; l++)
             {
                 int nl = text.IndexOf('\n', pos);
-                if (nl < 0) { pos = text.Length; break; }
+                if (nl < 0)
+                {
+                    pos = text.Length;
+                    break;
+                }
                 pos = nl + 1;
             }
             int end = text.IndexOf('\n', pos);
-            if (end < 0) end = text.Length;
+            if (end < 0)
+                end = text.Length;
             string raw = text.Substring(pos, end - pos);
             if (raw.Length > 0 && raw[raw.Length - 1] == '\r')
                 raw = raw.Substring(0, raw.Length - 1);
@@ -189,15 +203,19 @@ namespace ReactiveUITK.Language.IntelliSense
 
         private static string ExtractIdentifierBefore(string line, int col)
         {
-            int end = col, start = end;
-            while (start > 0 && IsIdentChar(line[start - 1])) start--;
+            int end = col,
+                start = end;
+            while (start > 0 && IsIdentChar(line[start - 1]))
+                start--;
             return line.Substring(start, end - start);
         }
 
         private static string ExtractIdentifierAfter(string line, int col)
         {
-            int start = col, end = start;
-            while (end < line.Length && IsIdentChar(line[end])) end++;
+            int start = col,
+                end = start;
+            while (end < line.Length && IsIdentChar(line[end]))
+                end++;
             return line.Substring(start, end - start);
         }
 
@@ -215,12 +233,14 @@ namespace ReactiveUITK.Language.IntelliSense
             ImmutableArray<AstNode> nodes,
             int line1,
             ref string? tagName,
-            ref string? attrName)
+            ref string? attrName
+        )
         {
             foreach (var node in nodes)
             {
                 WalkNode(node, line1, ref tagName, ref attrName);
-                if (tagName != null) return;
+                if (tagName != null)
+                    return;
             }
         }
 
@@ -228,7 +248,8 @@ namespace ReactiveUITK.Language.IntelliSense
             AstNode node,
             int line1,
             ref string? tagName,
-            ref string? attrName)
+            ref string? attrName
+        )
         {
             switch (node)
             {
@@ -240,7 +261,7 @@ namespace ReactiveUITK.Language.IntelliSense
                     {
                         if (attr.SourceLine == line1)
                         {
-                            tagName  = el.TagName;
+                            tagName = el.TagName;
                             attrName = attr.Name;
                             return;
                         }
@@ -255,7 +276,8 @@ namespace ReactiveUITK.Language.IntelliSense
                     foreach (var child in el.Children)
                     {
                         WalkNode(child, line1, ref tagName, ref attrName);
-                        if (tagName != null) return;
+                        if (tagName != null)
+                            return;
                     }
                     break;
                 }
@@ -287,12 +309,14 @@ namespace ReactiveUITK.Language.IntelliSense
             ImmutableArray<AstNode> body,
             int line1,
             ref string? tagName,
-            ref string? attrName)
+            ref string? attrName
+        )
         {
             foreach (var node in body)
             {
                 WalkNode(node, line1, ref tagName, ref attrName);
-                if (tagName != null) return;
+                if (tagName != null)
+                    return;
             }
         }
 
@@ -304,7 +328,8 @@ namespace ReactiveUITK.Language.IntelliSense
             string prefix,
             string word,
             string? astTagName,
-            string? astAttrName)
+            string? astAttrName
+        )
         {
             // Find the last unclosed '<' before col0 on this line.
             int tagOpen = FindLastOpenAngle(line, col0);
@@ -316,16 +341,21 @@ namespace ReactiveUITK.Language.IntelliSense
                 if (astTagName != null && astAttrName != null)
                     return new CursorContext
                     {
-                        Kind          = CursorKind.AttributeName,
-                        TagName       = astTagName,
+                        Kind = CursorKind.AttributeName,
+                        TagName = astTagName,
                         AttributeName = astAttrName,
-                        Prefix        = prefix,
-                        Word          = word,
+                        Prefix = prefix,
+                        Word = word,
                     };
                 // No tag context but there is a word under the cursor (e.g. inside @code
                 // raw C# text, or between elements) — return it so hover/nav can still work.
                 if (!string.IsNullOrEmpty(word))
-                    return new CursorContext { Kind = CursorKind.None, Prefix = prefix, Word = word };
+                    return new CursorContext
+                    {
+                        Kind = CursorKind.None,
+                        Prefix = prefix,
+                        Word = word,
+                    };
                 return CursorContext.Empty;
             }
 
@@ -334,11 +364,13 @@ namespace ReactiveUITK.Language.IntelliSense
 
             // Skip optional '/' for closing tags – those don't need completions.
             bool isClosingTag = i < line.Length && line[i] == '/';
-            if (isClosingTag) i++;
+            if (isClosingTag)
+                i++;
 
             // ── Tag name phase ─────────────────────────────────────────────────
             int tagNameStart = i;
-            while (i < line.Length && IsIdentChar(line[i])) i++;
+            while (i < line.Length && IsIdentChar(line[i]))
+                i++;
             string textTagName = line.Substring(tagNameStart, i - tagNameStart);
 
             // Cursor is in the tag name span → TagName completion.
@@ -350,68 +382,77 @@ namespace ReactiveUITK.Language.IntelliSense
                         Kind = CursorKind.None,
                         Word = !string.IsNullOrEmpty(textTagName) ? textTagName : word,
                     };
-                string resolvedTag = !string.IsNullOrEmpty(astTagName) ? astTagName!
-                                   : !string.IsNullOrEmpty(textTagName) ? textTagName
-                                   : "";
+                string resolvedTag =
+                    !string.IsNullOrEmpty(astTagName) ? astTagName!
+                    : !string.IsNullOrEmpty(textTagName) ? textTagName
+                    : "";
                 return new CursorContext
                 {
-                    Kind    = CursorKind.TagName,
+                    Kind = CursorKind.TagName,
                     TagName = resolvedTag,
-                    Prefix  = prefix,
-                    Word    = word,
+                    Prefix = prefix,
+                    Word = word,
                 };
             }
 
-            if (isClosingTag) return CursorContext.Empty;
+            if (isClosingTag)
+                return CursorContext.Empty;
 
             // Prefer AST tag name; fall back to what the text scan found.
-            string effectiveTag = !string.IsNullOrEmpty(astTagName) ? astTagName!
-                                : !string.IsNullOrEmpty(textTagName) ? textTagName
-                                : "";
+            string effectiveTag =
+                !string.IsNullOrEmpty(astTagName) ? astTagName!
+                : !string.IsNullOrEmpty(textTagName) ? textTagName
+                : "";
 
             // ── Attribute list phase ───────────────────────────────────────────
             while (i <= col0 && i < line.Length)
             {
                 // Skip whitespace.
-                while (i < line.Length && (line[i] == ' ' || line[i] == '\t')) i++;
-                if (i > col0 || i >= line.Length) break;
+                while (i < line.Length && (line[i] == ' ' || line[i] == '\t'))
+                    i++;
+                if (i > col0 || i >= line.Length)
+                    break;
 
                 char ch = line[i];
 
                 // Self-closing '/>' or closing '>'.
-                if (ch == '>' || ch == '/') break;
+                if (ch == '>' || ch == '/')
+                    break;
 
                 // Attribute name token.
                 if (IsIdentChar(ch))
                 {
                     int attrStart = i;
-                    while (i < line.Length && IsIdentChar(line[i])) i++;
+                    while (i < line.Length && IsIdentChar(line[i]))
+                        i++;
                     string attrTok = line.Substring(attrStart, i - attrStart);
 
                     // Cursor is within this attribute name span.
                     if (col0 > attrStart && col0 <= i)
                         return new CursorContext
                         {
-                            Kind          = CursorKind.AttributeName,
-                            TagName       = effectiveTag ?? "",
+                            Kind = CursorKind.AttributeName,
+                            TagName = effectiveTag ?? "",
                             AttributeName = attrTok,
-                            Prefix        = prefix,
-                            Word          = word,
+                            Prefix = prefix,
+                            Word = word,
                         };
 
                     // Skip optional whitespace before '='.
-                    while (i < line.Length && (line[i] == ' ' || line[i] == '\t')) i++;
+                    while (i < line.Length && (line[i] == ' ' || line[i] == '\t'))
+                        i++;
 
                     if (i < line.Length && line[i] == '=')
                     {
                         i++; // consume '='
 
                         // Skip whitespace after '='.
-                        while (i < line.Length && (line[i] == ' ' || line[i] == '\t')) i++;
+                        while (i < line.Length && (line[i] == ' ' || line[i] == '\t'))
+                            i++;
 
                         if (i < line.Length && (line[i] == '"' || line[i] == '{'))
                         {
-                            char open  = line[i];
+                            char open = line[i];
                             char close = open == '"' ? '"' : '}';
                             i++; // consume opening delimiter
                             int valueStart = i;
@@ -422,12 +463,19 @@ namespace ReactiveUITK.Language.IntelliSense
                             {
                                 if (open == '{')
                                 {
-                                    if (line[i] == '{') depth++;
-                                    else if (line[i] == '}') { depth--; if (depth == 0) break; }
+                                    if (line[i] == '{')
+                                        depth++;
+                                    else if (line[i] == '}')
+                                    {
+                                        depth--;
+                                        if (depth == 0)
+                                            break;
+                                    }
                                 }
                                 else
                                 {
-                                    if (line[i] == '"') break;
+                                    if (line[i] == '"')
+                                        break;
                                 }
                                 i++;
                             }
@@ -437,18 +485,19 @@ namespace ReactiveUITK.Language.IntelliSense
                             if (col0 >= valueStart && col0 <= valueEnd)
                             {
                                 string valPrefix = ExtractIdentifierBefore(line, col0);
-                                string valWord   = valPrefix + ExtractIdentifierAfter(line, col0);
+                                string valWord = valPrefix + ExtractIdentifierAfter(line, col0);
                                 return new CursorContext
                                 {
-                                    Kind          = CursorKind.AttributeValue,
-                                    TagName       = effectiveTag,
+                                    Kind = CursorKind.AttributeValue,
+                                    TagName = effectiveTag,
                                     AttributeName = attrTok,
-                                    Prefix        = valPrefix,
-                                    Word          = valWord,
+                                    Prefix = valPrefix,
+                                    Word = valWord,
                                 };
                             }
 
-                            if (i < line.Length) i++; // consume closing delimiter
+                            if (i < line.Length)
+                                i++; // consume closing delimiter
                         }
                     }
                 }
@@ -461,10 +510,10 @@ namespace ReactiveUITK.Language.IntelliSense
             // Cursor ended up past all scanned attribute tokens → typing a new attribute name.
             return new CursorContext
             {
-                Kind    = CursorKind.AttributeName,
+                Kind = CursorKind.AttributeName,
                 TagName = effectiveTag,
-                Prefix  = prefix,
-                Word    = word,
+                Prefix = prefix,
+                Word = word,
             };
         }
 
@@ -477,8 +526,8 @@ namespace ReactiveUITK.Language.IntelliSense
         private static int FindLastOpenAngle(string line, int col0)
         {
             int result = -1;
-            int depth  = 0;
-            int limit  = Math.Min(col0, line.Length);
+            int depth = 0;
+            int limit = Math.Min(col0, line.Length);
             for (int i = 0; i < limit; i++)
             {
                 if (line[i] == '<')
@@ -489,7 +538,11 @@ namespace ReactiveUITK.Language.IntelliSense
                 else if (line[i] == '>')
                 {
                     depth--;
-                    if (depth <= 0) { result = -1; depth = 0; }
+                    if (depth <= 0)
+                    {
+                        result = -1;
+                        depth = 0;
+                    }
                 }
             }
             return result;

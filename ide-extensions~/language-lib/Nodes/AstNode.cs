@@ -57,8 +57,8 @@ namespace ReactiveUITK.Language.Nodes
         /// Any <c>return &lt;Tag .../&gt;</c> markup expressions found inside this
         /// code block.  Sorted by <see cref="ReturnMarkupNode.StartOffsetInCodeBlock"/>.
         /// </summary>
-        public ImmutableArray<ReturnMarkupNode> ReturnMarkups { get; init; }
-            = ImmutableArray<ReturnMarkupNode>.Empty;
+        public ImmutableArray<ReturnMarkupNode> ReturnMarkups { get; init; } =
+            ImmutableArray<ReturnMarkupNode>.Empty;
     }
 
     /// <summary>

@@ -98,8 +98,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 if (n is CodeBlockNode cb)
                     codeBlocks.Add(cb);
-                else if (n is JsxCommentNode)
-                    { } // JSX comments are markup-only; skip in emitted C#
+                else if (n is JsxCommentNode) { } // JSX comments are markup-only; skip in emitted C#
                 else
                     markupNodes.Add(n);
             }
@@ -219,13 +218,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 foreach (var m in markups)
                 {
                     int start = m.StartOffsetInCodeBlock;
-                    int end   = m.EndOffsetInCodeBlock;
+                    int end = m.EndOffsetInCodeBlock;
 
                     // Guard against out-of-range offsets
-                    if (start < 0) start = 0;
-                    if (end   < 0) end   = 0;
-                    if (start > codeText.Length) start = codeText.Length;
-                    if (end   > codeText.Length) end   = codeText.Length;
+                    if (start < 0)
+                        start = 0;
+                    if (end < 0)
+                        end = 0;
+                    if (start > codeText.Length)
+                        start = codeText.Length;
+                    if (end > codeText.Length)
+                        end = codeText.Length;
 
                     if (start > prev)
                         spliced.Append(codeText, prev, start - prev);
@@ -262,16 +265,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private static readonly (string From, string To)[] s_hookAliases =
         {
-            ("useState(",           "Hooks.UseState("),
-            ("useEffect(",          "Hooks.UseEffect("),
-            ("useRef(",             "Hooks.UseRef("),
-            ("useCallback(",        "Hooks.UseCallback("),
-            ("useMemo(",            "Hooks.UseMemo("),
-            ("useContext(",         "Hooks.UseContext("),
-            ("useReducer(",         "Hooks.UseReducer("),
-            ("useSignal(",          "Hooks.UseSignal("),
-            ("useDeferredValue(",   "Hooks.UseDeferredValue("),
-            ("useTransition(",      "Hooks.UseTransition("),
+            ("useState(", "Hooks.UseState("),
+            ("useEffect(", "Hooks.UseEffect("),
+            ("useRef(", "Hooks.UseRef("),
+            ("useCallback(", "Hooks.UseCallback("),
+            ("useMemo(", "Hooks.UseMemo("),
+            ("useContext(", "Hooks.UseContext("),
+            ("useReducer(", "Hooks.UseReducer("),
+            ("useSignal(", "Hooks.UseSignal("),
+            ("useDeferredValue(", "Hooks.UseDeferredValue("),
+            ("useTransition(", "Hooks.UseTransition("),
         };
 
         private static string ApplyHookAliases(string code)

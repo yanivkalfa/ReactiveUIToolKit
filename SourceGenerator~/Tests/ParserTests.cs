@@ -23,7 +23,10 @@ public class ParserTests
         return DirectiveParser.Parse(source, "test.uitkx", diags);
     }
 
-    private static ImmutableArray<AstNode> ParseMarkup(string source, out List<ParseDiagnostic> diags)
+    private static ImmutableArray<AstNode> ParseMarkup(
+        string source,
+        out List<ParseDiagnostic> diags
+    )
     {
         diags = new List<ParseDiagnostic>();
         var directives = DirectiveParser.Parse(source, "test.uitkx", diags);
@@ -232,14 +235,14 @@ public class ParserTests
         const string src =
             ValidHeader
             + """
-              @code {
-                  // var node = <Box>
-                  //   <Label text="hi"/>
-                  // </Box>;
-                  var x = 1;
-              }
-              <box/>
-              """;
+                @code {
+                    // var node = <Box>
+                    //   <Label text="hi"/>
+                    // </Box>;
+                    var x = 1;
+                }
+                <box/>
+                """;
 
         var nodes = ParseMarkup(src, out _);
         var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
@@ -253,16 +256,16 @@ public class ParserTests
         const string src =
             ValidHeader
             + """
-              @code {
-                  /*
-                  var node = <Box>
-                      <Label text="hi"/>
-                  </Box>;
-                  */
-                  var live = <Label text="ok"/>;
-              }
-              <box/>
-              """;
+                @code {
+                    /*
+                    var node = <Box>
+                        <Label text="hi"/>
+                    </Box>;
+                    */
+                    var live = <Label text="ok"/>;
+                }
+                <box/>
+                """;
 
         var nodes = ParseMarkup(src, out _);
         var cb = Assert.Single(nodes.OfType<CodeBlockNode>());

@@ -230,10 +230,18 @@
       "begin": "\\(",
       "end": "\\)",
       "patterns": [
-        { "include": "#tag-self-closing" },
-        { "include": "#tag-close" },
-        { "include": "#tag-open" },
-        { "include": "#expression-content" }
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#tag-open"
+        },
+        {
+          "include": "#expression-content"
+        }
       ]
     },
     "tag-self-closing": {
@@ -252,14 +260,30 @@
         }
       },
       "patterns": [
-        { "include": "#control-flow-with-expression" },
-        { "include": "#case-directive-expression" },
-        { "include": "#control-flow-keyword" },
-        { "include": "#inline-expression" },
-        { "include": "#tag-self-closing" },
-        { "include": "#tag-close" },
-        { "include": "#code-block" },
-        { "include": "#tag-attributes" }
+        {
+          "include": "#control-flow-with-expression"
+        },
+        {
+          "include": "#case-directive-expression"
+        },
+        {
+          "include": "#control-flow-keyword"
+        },
+        {
+          "include": "#inline-expression"
+        },
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#code-block"
+        },
+        {
+          "include": "#tag-attributes"
+        }
       ]
     },
     "tag-close": {
@@ -291,14 +315,30 @@
         }
       },
       "patterns": [
-        { "include": "#control-flow-with-expression" },
-        { "include": "#case-directive-expression" },
-        { "include": "#control-flow-keyword" },
-        { "include": "#inline-expression" },
-        { "include": "#tag-self-closing" },
-        { "include": "#tag-close" },
-        { "include": "#code-block" },
-        { "include": "#tag-attributes" }
+        {
+          "include": "#control-flow-with-expression"
+        },
+        {
+          "include": "#case-directive-expression"
+        },
+        {
+          "include": "#control-flow-keyword"
+        },
+        {
+          "include": "#inline-expression"
+        },
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#code-block"
+        },
+        {
+          "include": "#tag-attributes"
+        }
       ]
     },
     "tag-attributes": {
@@ -337,10 +377,14 @@
       "begin": "(?<==)\\{",
       "end": "\\}",
       "beginCaptures": {
-        "0": { "name": "punctuation.section.embedded.begin.uitkx" }
+        "0": {
+          "name": "punctuation.section.embedded.begin.uitkx"
+        }
       },
       "endCaptures": {
-        "0": { "name": "punctuation.section.embedded.end.uitkx" }
+        "0": {
+          "name": "punctuation.section.embedded.end.uitkx"
+        }
       },
       "patterns": [
         {
@@ -509,15 +553,33 @@
     "code-block-body": {
       "comment": "Content inside @code { } — full expression tokenization PLUS embedded markup highlighting",
       "patterns": [
-        { "include": "#jsx-comment" },
-        { "include": "#cs-line-comment" },
-        { "include": "#cs-block-comment" },
-        { "include": "#comment" },
-        { "include": "#tag-self-closing" },
-        { "include": "#tag-close" },
-        { "include": "#tag-open" },
-        { "include": "#inline-expression" },
-        { "include": "#expression-content" }
+        {
+          "include": "#jsx-comment"
+        },
+        {
+          "include": "#cs-line-comment"
+        },
+        {
+          "include": "#cs-block-comment"
+        },
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#tag-open"
+        },
+        {
+          "include": "#inline-expression"
+        },
+        {
+          "include": "#expression-content"
+        }
       ]
     }
   }

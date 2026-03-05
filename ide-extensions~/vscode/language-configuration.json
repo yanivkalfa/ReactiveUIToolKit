@@ -1,7 +1,10 @@
 {
   "comments": {
     "lineComment": "//",
-    "blockComment": ["{/*", "*/}"]
+    "blockComment": [
+      "{/*",
+      "*/}"
+    ]
   },
   "brackets": [
     [
@@ -60,20 +63,28 @@
   "onEnterRules": [
     {
       "beforeText": "^.*\\{\\s*$",
-      "action": { "indentAction": "indent" }
+      "action": {
+        "indentAction": "indent"
+      }
     },
     {
       "beforeText": "^\\s*\\}",
-      "action": { "indentAction": "outdent" }
+      "action": {
+        "indentAction": "outdent"
+      }
     },
     {
       "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
       "afterText": "^\\s*</[A-Za-z]",
-      "action": { "indentAction": "indentOutdent" }
+      "action": {
+        "indentAction": "indentOutdent"
+      }
     },
     {
       "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
-      "action": { "indentAction": "indent" }
+      "action": {
+        "indentAction": "indent"
+      }
     }
   ],
   "folding": {

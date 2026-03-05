@@ -26,22 +26,22 @@ namespace ReactiveUITK.Language.SemanticTokens
         // ── Standard LSP types (reused) ───────────────────────────────────────
 
         public const string Variable = "variable";
-        public const string Keyword  = "keyword";
+        public const string Keyword = "keyword";
 
         /// <summary>Standard LSP function type — used for hook setter variables.</summary>
         public const string Function = "function";
 
         /// <summary>Standard LSP comment type — used for {/* */} JSX comments.</summary>
-        public const string Comment  = "comment";
+        public const string Comment = "comment";
 
         /// <summary>Standard LSP type — PascalCase class/type names inside @code.</summary>
-        public const string Type     = "type";
+        public const string Type = "type";
 
         /// <summary>Standard LSP string type — string literals inside @code.</summary>
-        public const string String   = "string";
+        public const string String = "string";
 
         /// <summary>Standard LSP number type — numeric literals inside @code.</summary>
-        public const string Number   = "number";
+        public const string Number = "number";
 
         // ── Legend array (position = token-type index) ────────────────────────
 
@@ -52,7 +52,18 @@ namespace ReactiveUITK.Language.SemanticTokens
         /// </summary>
         public static readonly string[] All = new[]
         {
-            Element, Directive, Attribute, Expression, DirectiveName, Variable, Keyword, Function, Comment, Type, String, Number,
+            Element,
+            Directive,
+            Attribute,
+            Expression,
+            DirectiveName,
+            Variable,
+            Keyword,
+            Function,
+            Comment,
+            Type,
+            String,
+            Number,
         };
     }
 
@@ -69,9 +80,6 @@ namespace ReactiveUITK.Language.SemanticTokens
         /// All modifiers in registration order.
         /// Bit position <c>i</c> corresponds to modifier <c>All[i]</c> in the bitmask.
         /// </summary>
-        public static readonly string[] All = new[]
-        {
-            Declaration,
-        };
+        public static readonly string[] All = new[] { Declaration };
     }
 }

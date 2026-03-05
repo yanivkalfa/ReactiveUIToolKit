@@ -195,7 +195,8 @@ public class EmitterTests
         Assert.True(result.SourceWasProduced);
         Assert.True(
             result.SourceContains("UitkxElement(\"MyComp\")"),
-            "Expected [UitkxElement(\"MyComp\")] attribute on the generated partial class");
+            "Expected [UitkxElement(\"MyComp\")] attribute on the generated partial class"
+        );
     }
 
     [Fact]
@@ -203,7 +204,9 @@ public class EmitterTests
     {
         // Before the fix, JsxCommentNode emitted nothing but the comma logic still ran,
         // resulting in invalid C# like V.Box(V.Label(...), , V.Label(...))
-        const string src = Header + """
+        const string src =
+            Header
+            + """
 <box>
     {/* this is a comment */}
     <label text="a"/>
@@ -214,10 +217,12 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.False(result.SourceContains(", ,"),
-            "No double-comma should appear (dangling comma from comment)\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
-        Assert.True(result.SourceContains("V.Label("),
-            "Labels should still be emitted");
+        Assert.False(
+            result.SourceContains(", ,"),
+            "No double-comma should appear (dangling comma from comment)\n--- GENERATED ---\n"
+                + (result.GeneratedSource ?? "(null)")
+        );
+        Assert.True(result.SourceContains("V.Label("), "Labels should still be emitted");
     }
 
     [Fact]
@@ -225,15 +230,19 @@ public class EmitterTests
     {
         // A JSX comment at the root level alongside a single element should not
         // force Fragment wrapping (which would cause a dangling empty argument).
-        const string src = Header + """
+        const string src =
+            Header
+            + """
 {/* root comment */}
 <box />
 """;
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(result.SourceContains("V.Box("),
-            "Box should be emitted\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+        Assert.True(
+            result.SourceContains("V.Box("),
+            "Box should be emitted\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)")
+        );
     }
 
     // ── Embedded markup in @code ─────────────────────────────────────────────
@@ -241,19 +250,26 @@ public class EmitterTests
     [Fact]
     public void AssignMarkupInCodeBlock_GeneratesVCall()
     {
-        const string src = Header + "@code {\n    var (count, setCount) = useState(0);\n    var component = (\n        <box>\n            <label text=\"hi\"/>\n        </box>\n    );\n}\n<box>@(component)</box>";
+        const string src =
+            Header
+            + "@code {\n    var (count, setCount) = useState(0);\n    var component = (\n        <box>\n            <label text=\"hi\"/>\n        </box>\n    );\n}\n<box>@(component)</box>";
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(result.SourceContains("V.Box("),
-            "Assigned <box> should produce V.Box( call.\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+        Assert.True(
+            result.SourceContains("V.Box("),
+            "Assigned <box> should produce V.Box( call.\n--- GENERATED ---\n"
+                + (result.GeneratedSource ?? "(null)")
+        );
     }
 
     [Fact]
     public void AssignMarkupWithInterpolatedStrings_GeneratesVCall()
     {
         // Mirrors the real UitkxCounterFunc.uitkx pattern with interpolated strings and onClick lambdas
-        const string src = Header + """
+        const string src =
+            Header
+            + """
 @code {
     var (count, setCount) = useState(0);
     var component = (
@@ -269,27 +285,40 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(result.SourceContains("V.Box("),
-            "Assigned <box> with onClick lambdas should produce V.Box( call.\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+        Assert.True(
+            result.SourceContains("V.Box("),
+            "Assigned <box> with onClick lambdas should produce V.Box( call.\n--- GENERATED ---\n"
+                + (result.GeneratedSource ?? "(null)")
+        );
     }
 
     [Fact]
     public void ReturnMarkupInCodeBlock_GeneratesVCall()
     {
-        const string src = Header + "@code {\n    private static VirtualNode Btn() {\n        return <label text=\"hi\" />;\n    }\n}";
+        const string src =
+            Header
+            + "@code {\n    private static VirtualNode Btn() {\n        return <label text=\"hi\" />;\n    }\n}";
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(result.SourceContains("V.Label("), "Embedded <label> should produce V.Label( call");
+        Assert.True(
+            result.SourceContains("V.Label("),
+            "Embedded <label> should produce V.Label( call"
+        );
     }
 
     [Fact]
     public void ReturnMarkupInCodeBlock_ExpressionAttribute_IsVerbatim()
     {
-        const string src = Header + "@code {\n    private static VirtualNode Btn(string msg) {\n        return <label text={msg} />;\n    }\n}";
+        const string src =
+            Header
+            + "@code {\n    private static VirtualNode Btn(string msg) {\n        return <label text={msg} />;\n    }\n}";
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(result.SourceContains("msg"), "Expression attribute should appear verbatim in generated source");
+        Assert.True(
+            result.SourceContains("msg"),
+            "Expression attribute should appear verbatim in generated source"
+        );
     }
 }

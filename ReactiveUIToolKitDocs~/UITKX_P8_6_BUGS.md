@@ -1,6 +1,6 @@
 # UITKX P8.6 — Bug & Feature Checklist
 
-> Tracked as of v1.0.44 · March 2026
+> Tracked as of v1.0.50 · March 2026
 
 ---
 
@@ -15,9 +15,9 @@
 
 ## 🟠 Editor Features (Broken)
 
-- [x] **#2 `@code` block not colored** — Fixed in v1.0.44.
+- [x] **#2 `@code` block not colored** — Fixed in v1.0.44, stabilized through v1.0.50.
   Root cause: the LSP server emitted no semantic tokens for the C# content inside `@code { }`, leaving it to the TextMate grammar alone (which produced only basic coloring). The `contentName` injection approach (v1.0.42) broke markup coloring — reverted in v1.0.43.
-  Fix: `SemanticTokensProvider` now scans the `@code` body line-by-line with a composite regex and emits `keyword`, `function`, `type`, `variable`, `string`, `number`, and `comment` semantic tokens for all C# constructs. Hook setters still get `Function` coloring via the existing `CollectHookSetterTokens` pass (runs after, overrides any `Variable` token for the same position).
+  Fix: `SemanticTokensProvider` scans the `@code` body line-by-line with a composite regex and emits `keyword`, `function`, `type`, `variable`, `string`, `number`, and `comment` semantic tokens for C# constructs. Follow-up fixes (v1.0.48-v1.0.50) prevent semantic-token bleed into embedded markup/comment spans and improve comment-scope grammar inside `@code`.
   *(Note: elements inside `{/* */}` do get colored — so the issue was specific to the `@code` region.)*
 
 - [ ] **#3 Setter hover missing** — `setCount`, `setMode`, etc. show no hover docs.
@@ -26,13 +26,17 @@
 - [ ] **#4 `{/*` auto-close wraps wrong** — typing `{/*` closes immediately at cursor `{/* | */}`.
   Should instead wrap the selected text / nearby element.
 
-- [ ] **#5 `Ctrl+/` in markup** — should toggle `{/* */}` around selected lines/element as a block comment.
-  Currently inserts `//` (line comment) or does nothing useful in markup context.
+- [x] **#5 `Ctrl+/` in markup** — Fixed in v1.0.47.
+  Fix: added `uitkx.toggleBlockComment` command + keybinding override so `Ctrl+/`/`Cmd+/` is context-aware in `.uitkx` files: markup toggles `{/* */}`, non-markup code in `@code` toggles `//`. Selection range normalization wraps from first non-whitespace to end of last touched line.
 
 - [ ] **#6 Unreachable code not grayed** — everything *after* a `return` statement (anywhere in the file) should be dimmed.
   Currently no dimming because UITKX semantic tokens suppress OmniSharp's unreachable-code decoration.
 
 - [ ] **#7 Unity console click navigation** — clicking / double-clicking / Ctrl+clicking a `.uitkx` compile error in the Unity console does nothing.
+
+- [ ] **#8 Missing `;` auto-fix on save/format (default ON, opt-out)** — formatter should insert missing semicolons in safe statement-ending contexts.
+  Scope: run during format/save (not while typing), deterministic and cross-IDE friendly.
+  Config: default enabled; users can opt out via formatter option (e.g. `insertMissingSemicolonsOnFormat: false`).
 
 ---
 
