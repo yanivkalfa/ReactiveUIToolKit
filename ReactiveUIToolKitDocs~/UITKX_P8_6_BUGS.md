@@ -1,6 +1,6 @@
 # UITKX P8.6 — Bug & Feature Checklist
 
-> Tracked as of v1.0.41 · March 2026
+> Tracked as of v1.0.42 · March 2026
 
 ---
 
@@ -15,8 +15,10 @@
 
 ## 🟠 Editor Features (Broken)
 
-- [ ] **#2 `@code` block not colored** — identifiers, variables, hook calls inside `@code { }` have no semantic coloring.
-  *(Note: elements inside `{/* */}` do get colored — so the issue is specific to the `@code` region.)*
+- [x] **#2 `@code` block not colored** — Fixed in v1.0.42.
+  Root cause: `code-block` grammar pattern had no `contentName`, so VS Code didn't treat the body as embedded C# for OmniSharp.
+  Fix: Added `"contentName": "source.cs.embedded.uitkx"` to both `code-block` and `code-block-newline-brace` patterns; `embeddedLanguages` mapping already existed in `package.json`.
+  *(Note: elements inside `{/* */}` do get colored — so the issue was specific to the `@code` region.)*
 
 - [ ] **#3 Setter hover missing** — `setCount`, `setMode`, etc. show no hover docs.
   The hover handler covers tags/attributes but not C# identifiers inside `@code`.
