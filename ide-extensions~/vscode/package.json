@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.49",
+  "version": "1.0.50",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {

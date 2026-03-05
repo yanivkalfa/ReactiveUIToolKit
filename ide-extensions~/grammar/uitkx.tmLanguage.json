@@ -367,6 +367,12 @@
       "comment": "C# expression token patterns — ordered: strings first, then keywords, operators, numbers, calls, identifiers",
       "patterns": [
         {
+          "include": "#cs-line-comment"
+        },
+        {
+          "include": "#cs-block-comment"
+        },
+        {
           "include": "#interpolated-string"
         },
         {
@@ -490,9 +496,22 @@
       "name": "variable.other.uitkx",
       "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
     },
+    "cs-line-comment": {
+      "name": "comment.line.double-slash.uitkx",
+      "begin": "//",
+      "end": "$"
+    },
+    "cs-block-comment": {
+      "name": "comment.block.uitkx",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
     "code-block-body": {
       "comment": "Content inside @code { } — full expression tokenization PLUS embedded markup highlighting",
       "patterns": [
+        { "include": "#jsx-comment" },
+        { "include": "#cs-line-comment" },
+        { "include": "#cs-block-comment" },
         { "include": "#comment" },
         { "include": "#tag-self-closing" },
         { "include": "#tag-close" },
