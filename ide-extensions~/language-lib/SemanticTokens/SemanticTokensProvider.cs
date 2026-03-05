@@ -78,7 +78,39 @@ namespace ReactiveUITK.Language.SemanticTokens
             // 3. Hook setter variables — whole-source scan (covers all @code blocks)
             CollectHookSetterTokens(source, lineStarts, tokens);
 
-            return tokens.OrderBy(t => t.Line).ThenBy(t => t.Column).ToArray();
+            return NormalizeTokenConflicts(tokens)
+                .OrderBy(t => t.Line)
+                .ThenBy(t => t.Column)
+                .ToArray();
+        }
+
+        private static IEnumerable<SemanticTokenData> NormalizeTokenConflicts(
+            List<SemanticTokenData> tokens)
+        {
+            var merged = new Dictionary<(int Line, int Col, int Len), SemanticTokenData>();
+
+            foreach (var token in tokens)
+            {
+                var key = (token.Line, token.Column, token.Length);
+                if (!merged.TryGetValue(key, out var existing))
+                {
+                    merged[key] = token;
+                    continue;
+                }
+
+                bool preferFunction =
+                    existing.TokenType == SemanticTokenTypes.Variable
+                    && token.TokenType == SemanticTokenTypes.Function;
+
+                bool preferComment =
+                    existing.TokenType != SemanticTokenTypes.Comment
+                    && token.TokenType == SemanticTokenTypes.Comment;
+
+                if (preferFunction || preferComment)
+                    merged[key] = token;
+            }
+
+            return merged.Values;
         }
 
         // ── Directive block ───────────────────────────────────────────────────
@@ -407,12 +439,17 @@ namespace ReactiveUITK.Language.SemanticTokens
             List<SemanticTokenData> tokens
         )
         {
+            var setterNames = new HashSet<string>(StringComparer.Ordinal);
+
             var matches = s_hookTupleRegex.Matches(source);
             foreach (Match m in matches)
             {
                 var setter = m.Groups["setter"];
                 if (!setter.Success)
                     continue;
+
+                setterNames.Add(setter.Value);
+
                 int offset = setter.Index;
                 int lineIdx = Array.BinarySearch(lineStarts, offset);
                 if (lineIdx < 0)
@@ -428,6 +465,35 @@ namespace ReactiveUITK.Language.SemanticTokens
                     SemanticTokenTypes.Function,
                     s_noMods
                 );
+            }
+
+            // Also color setter invocations (e.g. setCount(...)) as functions.
+            foreach (var setterName in setterNames)
+            {
+                var callRegex = new Regex(
+                    $@"\b{Regex.Escape(setterName)}\b(?=\s*\()",
+                    RegexOptions.Compiled
+                );
+
+                foreach (Match call in callRegex.Matches(source))
+                {
+                    int offset = call.Index;
+                    int lineIdx = Array.BinarySearch(lineStarts, offset);
+                    if (lineIdx < 0)
+                        lineIdx = (~lineIdx) - 1;
+                    if (lineIdx < 0)
+                        lineIdx = 0;
+                    int col = offset - lineStarts[lineIdx];
+
+                    EmitToken(
+                        tokens,
+                        lineIdx,
+                        col,
+                        call.Length,
+                        SemanticTokenTypes.Function,
+                        s_noMods
+                    );
+                }
             }
         }
 

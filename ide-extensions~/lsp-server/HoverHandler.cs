@@ -215,7 +215,7 @@ public sealed class HoverHandler : IHoverHandler
         }
 
         // 5. Is it a hook setter variable from tuple destructuring?
-        if (TryGetHookSetterHover(text, offset, out var setterMd))
+        if (TryGetHookSetterHover(text, offset, word, out var setterMd))
             return Task.FromResult<Hover?>(
                 new Hover
                 {
@@ -243,9 +243,16 @@ public sealed class HoverHandler : IHoverHandler
         return Task.FromResult<Hover?>(null);
     }
 
-    private static bool TryGetHookSetterHover(string text, int offset, out string markdown)
+    private static bool TryGetHookSetterHover(
+        string text,
+        int offset,
+        string hoveredWord,
+        out string markdown
+    )
     {
         markdown = string.Empty;
+        if (string.IsNullOrWhiteSpace(hoveredWord))
+            return false;
 
         var matches = s_hookTupleRegex.Matches(text);
         foreach (Match match in matches)
@@ -255,9 +262,32 @@ public sealed class HoverHandler : IHoverHandler
             if (!setterGroup.Success || !hookGroup.Success)
                 continue;
 
+            if (!setterGroup.Value.Equals(hoveredWord, StringComparison.Ordinal))
+                continue;
+
             int setterStart = setterGroup.Index;
             int setterEnd = setterStart + setterGroup.Length;
-            if (offset < setterStart || offset > setterEnd)
+            bool offsetOnDeclaration = offset >= setterStart && offset <= setterEnd;
+            if (!offsetOnDeclaration)
+            {
+                // Allow hover on any usage of the setter identifier in the file,
+                // not only on its tuple declaration.
+                int wordStart = offset;
+                while (wordStart > 0 && (char.IsLetterOrDigit(text[wordStart - 1]) || text[wordStart - 1] == '_'))
+                    wordStart--;
+                int wordEnd = offset;
+                while (wordEnd < text.Length && (char.IsLetterOrDigit(text[wordEnd]) || text[wordEnd] == '_'))
+                    wordEnd++;
+
+                if (wordEnd <= wordStart)
+                    continue;
+
+                string wordAtOffset = text.Substring(wordStart, wordEnd - wordStart);
+                if (!wordAtOffset.Equals(hoveredWord, StringComparison.Ordinal))
+                    continue;
+            }
+
+            if (!offsetOnDeclaration && !hoveredWord.Equals(setterGroup.Value, StringComparison.Ordinal))
                 continue;
 
             string hookName = hookGroup.Value;
