@@ -50,7 +50,15 @@ namespace ReactiveUITK.Editor
             }
 
             if (!TryResolveUitkxTarget(assetPath, line, out string fullPath, out int targetLine))
-                return false; // not ours — let Unity handle it
+            {
+                // Second chance: Console entries sometimes carry generator virtual paths
+                // that don't round-trip through AssetDatabase instance ids.
+                if (!TryResolveFromConsoleActiveText(out string consolePath2, out int consoleLine2))
+                    return false; // not ours — let Unity handle it
+
+                if (!TryResolveUitkxTarget(consolePath2, consoleLine2, out fullPath, out targetLine))
+                    return false;
+            }
 
             try
             {
