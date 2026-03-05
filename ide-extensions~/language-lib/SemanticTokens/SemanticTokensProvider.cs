@@ -181,6 +181,8 @@ namespace ReactiveUITK.Language.SemanticTokens
                     // Walk elements embedded inside @code (var x = <Tag ...>)
                     foreach (var rm in cb.ReturnMarkups)
                         CollectElementTokens(rm.Element, source, lineStarts, tokens, knownElements);
+                    // Emit semantic tokens for all C# content inside @code
+                    CollectCodeBlockBodyTokens(cb, source, lineStarts, tokens);
                     break;
 
                 case ExpressionNode ex:
@@ -306,6 +308,31 @@ namespace ReactiveUITK.Language.SemanticTokens
             }
         }
 
+        // ── @code body C# tokenizer ─────────────────────────────────────────
+
+        /// <summary>
+        /// Composite tokeniser for C# source inside <c>@code { }</c> blocks.
+        /// Groups (tried left-to-right, so earlier groups win):
+        ///   str  — string / interpolated string / verbatim string literal
+        ///   num  — numeric literal
+        ///   kw   — C# keyword or built-in type alias
+        ///   func — identifier immediately followed by (
+        ///   type — PascalCase identifier (class / type name)
+        ///   var  — camelCase / underscore identifier
+        /// </summary>
+        private static readonly Regex s_codeBodyTokenRegex = new Regex(
+            @"(?<str>\$?@?""(?:[^""\\]|\\.)*"")"
+            + @"|(?<num>\b\d+(?:\.\d+)?[fFdDmMuUlL]*\b)"
+            + @"|(?<kw>\b(?:var|int|string|bool|float|double|decimal|long|uint|ulong|byte|char|object|void"
+                    + @"|return|await|async|if|else|for|foreach|while|do|break|continue|in|new|this"
+                    + @"|null|true|false|typeof|nameof|is|as|out|ref|readonly|const|static|using"
+                    + @"|throw|catch|finally|params|class|interface|struct|enum|record"
+                    + @"|private|public|protected|internal|abstract|override|virtual|sealed)\b)"
+            + @"|(?<func>[a-zA-Z_][A-Za-z0-9_]*)(?=\s*\()"
+            + @"|(?<type>\b[A-Z][A-Za-z0-9]*\b)"
+            + @"|(?<var>\b[a-z_][A-Za-z0-9_]*\b)",
+            RegexOptions.Compiled);
+
         // ── Hook setter coloring ────────────────────────────────────────────
 
         // Matches: var (anyState, <setter>) = useState(  or  Hooks.UseState(
@@ -335,6 +362,88 @@ namespace ReactiveUITK.Language.SemanticTokens
                 int col = offset - lineStarts[lineIdx];
                 EmitToken(tokens, lineIdx, col, setter.Length,
                           SemanticTokenTypes.Function, s_noMods);
+            }
+        }
+
+        // ── @code body scanner ────────────────────────────────────────────────
+
+        private static void CollectCodeBlockBodyTokens(
+            CodeBlockNode cb,
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens)
+        {
+            // 1. Locate the opening { of @code in source (same line or the next)
+            int searchLineStart = lineStarts[cb.SourceLine - 1];
+            int searchEnd = (cb.SourceLine + 1 < lineStarts.Length)
+                ? lineStarts[cb.SourceLine + 1]
+                : source.Length;
+            int openBrace = source.IndexOf('{', searchLineStart,
+                                           Math.Min(searchEnd, source.Length) - searchLineStart);
+            if (openBrace < 0) return;
+
+            int bodyStart = openBrace + 1;
+
+            // 2. Find matching closing } by brace depth
+            int depth = 1;
+            int bodyEnd = bodyStart;
+            for (int i = bodyStart; i < source.Length && depth > 0; i++)
+            {
+                if      (source[i] == '{') depth++;
+                else if (source[i] == '}') { depth--; if (depth == 0) { bodyEnd = i; break; } }
+            }
+            if (bodyEnd <= bodyStart) return;
+
+            // 3. Lines that contain embedded markup — handled by element walker, skip them
+            var markupLines = new HashSet<int>(cb.ReturnMarkups.Select(rm => rm.SourceLine));
+
+            // 4. Determine the first source line that overlaps bodyStart
+            int startLineIdx = Array.BinarySearch(lineStarts, bodyStart);
+            if (startLineIdx < 0) startLineIdx = (~startLineIdx) - 1;
+            if (startLineIdx < 0) startLineIdx = 0;
+
+            // 5. Walk each line inside the body
+            for (int li = startLineIdx; li < lineStarts.Length; li++)
+            {
+                int lineStart = lineStarts[li];
+                if (lineStart >= bodyEnd) break;
+
+                int lineEnd = (li + 1 < lineStarts.Length) ? lineStarts[li + 1] : source.Length;
+
+                // Clip to body bounds
+                int segStart = Math.Max(lineStart, bodyStart);
+                int segEnd   = Math.Min(lineEnd, bodyEnd);
+                if (segStart >= segEnd) continue;
+
+                int line1 = li + 1;
+                if (markupLines.Contains(line1)) continue;
+
+                string seg = source.Substring(segStart, segEnd - segStart).TrimEnd('\r', '\n');
+                int colBase = segStart - lineStart;
+
+                // Strip // line comment — emit Comment token for it
+                int slashIdx = seg.IndexOf("//", StringComparison.Ordinal);
+                if (slashIdx >= 0)
+                {
+                    EmitToken(tokens, li, colBase + slashIdx, seg.Length - slashIdx,
+                              SemanticTokenTypes.Comment, s_noMods);
+                    seg = seg.Substring(0, slashIdx);
+                }
+
+                // Emit C# tokens
+                foreach (Match m in s_codeBodyTokenRegex.Matches(seg))
+                {
+                    if (!m.Success) continue;
+                    string ttType;
+                    if      (m.Groups["str"].Success)  ttType = SemanticTokenTypes.String;
+                    else if (m.Groups["num"].Success)  ttType = SemanticTokenTypes.Number;
+                    else if (m.Groups["kw"].Success)   ttType = SemanticTokenTypes.Keyword;
+                    else if (m.Groups["func"].Success) ttType = SemanticTokenTypes.Function;
+                    else if (m.Groups["type"].Success) ttType = SemanticTokenTypes.Type;
+                    else if (m.Groups["var"].Success)  ttType = SemanticTokenTypes.Variable;
+                    else continue;
+                    EmitToken(tokens, li, colBase + m.Index, m.Length, ttType, s_noMods);
+                }
             }
         }
 
