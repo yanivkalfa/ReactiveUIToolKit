@@ -4,29 +4,29 @@
 @code {
     var (count, setCount) = useState(0);
     var (mode, setMode) = useState("normal");
-    // var component = (
-        // <Box>
-            // <Button text="-5" onClick={() => setCount(count - 5)} />
-            // <Button text="-" onClick={() => setCount(count - 1)} />
-            // <Label text={$"{count}"} />
-            // <Button text="+" onClick={() => setCount(count + 1)} />
-            // <Button text="+5" onClick={() => setCount(count + 5)} />
-            // <Box>
-                // <Button text="-5" onClick={() => setCount(count - 5)} />
-                // <Button text="-" onClick={() => setCount(count - 1)} />
-                // <Label text={$"{count}"} />
-                // <Button text="+" onClick={() => setCount(count + 1)} />
-                // <Button text="+5" onClick={() => setCount(count + 5)} />
-                // <Box>
-                    // <Button text="-5" onClick={() => setCount(count - 5)} />
-                    // <Button text="-" onClick={() => setCount(count - 1)} />
-                    // <Label text={$"{count}"} />
-                    // <Button text="+" onClick={() => setCount(count + 1)} />
-                    // <Button text="+5" onClick={() => setCount(count + 5)} />
-                // </Box>
-            // </Box>
-        // </Box>
-    // );
+    var component = (
+        <Box>
+            <Button text="-5" onClick={() => setCount(count - 5)} />
+            <Button text="-" onClick={() => setCount(count - 1)} />
+            <Label text={$"{count}"} />
+            <Button text="+" onClick={() => setCount(count + 1)} />
+            <Button text="+5" onClick={() => setCount(count + 5)} />
+            <Box>
+                <Button text="-5" onClick={() => setCount(count - 5)} />
+                <Button text="-" onClick={() => setCount(count - 1)} />
+                <Label text={$"{count}"} />
+                <Button text="+" onClick={() => setCount(count + 1)} />
+                <Button text="+5" onClick={() => setCount(count + 5)} />
+                <Box>
+                    <Button text="-5" onClick={() => setCount(count - 5)} />
+                    <Button text="-" onClick={() => setCount(count - 1)} />
+                    <Label text={$"{count}"} />
+                    <Button text="+" onClick={() => setCount(count + 1)} />
+                    <Button text="+5" onClick={() => setCount(count + 5)} />
+                </Box>
+            </Box>
+        </Box>
+    );
 }
 
 <Box>

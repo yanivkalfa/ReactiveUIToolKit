@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.48",
+  "version": "1.0.49",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {
@@ -82,7 +82,8 @@
         "editor.formatOnSave": true,
         "editor.autoIndent": "full",
         "editor.tabSize": 4,
-        "editor.insertSpaces": true
+        "editor.insertSpaces": true,
+        "editor.bracketPairColorization.enabled": false
       }
     },
     "semanticTokenTypes": [

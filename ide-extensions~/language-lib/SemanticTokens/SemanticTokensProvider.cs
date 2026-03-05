@@ -442,6 +442,32 @@ namespace ReactiveUITK.Language.SemanticTokens
                     markupLines.Add(line);
             }
 
+            // 3b. Lines inside JSX comment spans {/* ... */} in @code should not be
+            // tokenized as C#; they are handled by grammar + comment semantic tokens.
+            var jsxCommentLines = new HashSet<int>();
+            int scan = bodyStart;
+            while (scan < bodyEnd)
+            {
+                int jsxStart = source.IndexOf("{/*", scan, bodyEnd - scan, StringComparison.Ordinal);
+                if (jsxStart < 0) break;
+
+                int jsxClose = source.IndexOf("*/}", jsxStart + 3, bodyEnd - (jsxStart + 3), StringComparison.Ordinal);
+                int jsxEndExclusive = jsxClose >= 0 ? jsxClose + 3 : bodyEnd;
+
+                int startLineIdx2 = Array.BinarySearch(lineStarts, jsxStart);
+                if (startLineIdx2 < 0) startLineIdx2 = (~startLineIdx2) - 1;
+                if (startLineIdx2 < 0) startLineIdx2 = 0;
+
+                int endLineIdx2 = Array.BinarySearch(lineStarts, Math.Max(jsxStart, jsxEndExclusive - 1));
+                if (endLineIdx2 < 0) endLineIdx2 = (~endLineIdx2) - 1;
+                if (endLineIdx2 < 0) endLineIdx2 = 0;
+
+                for (int li2 = startLineIdx2; li2 <= endLineIdx2; li2++)
+                    jsxCommentLines.Add(li2 + 1);
+
+                scan = Math.Max(scan + 1, jsxEndExclusive);
+            }
+
             // 4. Determine the first source line that overlaps bodyStart
             int startLineIdx = Array.BinarySearch(lineStarts, bodyStart);
             if (startLineIdx < 0) startLineIdx = (~startLineIdx) - 1;
@@ -462,6 +488,7 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                 int line1 = li + 1;
                 if (markupLines.Contains(line1)) continue;
+                if (jsxCommentLines.Contains(line1)) continue;
 
                 string seg = source.Substring(segStart, segEnd - segStart).TrimEnd('\r', '\n');
                 int colBase = segStart - lineStart;
