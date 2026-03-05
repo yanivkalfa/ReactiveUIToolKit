@@ -10,6 +10,233 @@ import {
 
 let client: LanguageClient | undefined;
 
+function isIdentifierChar(ch: string): boolean {
+  return /[A-Za-z0-9_]/.test(ch);
+}
+
+function isInsideCodeBlock(document: vscode.TextDocument, position: vscode.Position): boolean {
+  const text = document.getText();
+  const targetOffset = document.offsetAt(position);
+
+  let inCode = false;
+  let awaitingCodeBrace = false;
+  let codeBraceDepth = 0;
+
+  let inLineComment = false;
+  let inBlockComment = false;
+  let inString = false;
+  let inChar = false;
+  let isVerbatimString = false;
+
+  for (let i = 0; i < text.length && i < targetOffset; i++) {
+    const ch = text[i];
+    const next = i + 1 < text.length ? text[i + 1] : '';
+
+    if (inLineComment) {
+      if (ch === '\n') inLineComment = false;
+      continue;
+    }
+
+    if (inBlockComment) {
+      if (ch === '*' && next === '/') {
+        inBlockComment = false;
+        i++;
+      }
+      continue;
+    }
+
+    if (inString) {
+      if (isVerbatimString) {
+        if (ch === '"' && next === '"') {
+          i++;
+          continue;
+        }
+        if (ch === '"') {
+          inString = false;
+          isVerbatimString = false;
+        }
+      } else {
+        if (ch === '\\') {
+          i++;
+          continue;
+        }
+        if (ch === '"') {
+          inString = false;
+        }
+      }
+      continue;
+    }
+
+    if (inChar) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '\'') inChar = false;
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+
+    if (ch === '/' && next === '*') {
+      inBlockComment = true;
+      i++;
+      continue;
+    }
+
+    if (ch === '\'') {
+      inChar = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      isVerbatimString = false;
+      continue;
+    }
+
+    if ((ch === '@' || ch === '$') && next === '"') {
+      inString = true;
+      isVerbatimString = ch === '@';
+      i++;
+      continue;
+    }
+
+    if ((ch === '@' || ch === '$') && i + 2 < text.length && (text[i + 1] === '@' || text[i + 1] === '$') && text[i + 2] === '"') {
+      inString = true;
+      isVerbatimString = ch === '@' || text[i + 1] === '@';
+      i += 2;
+      continue;
+    }
+
+    if (!inCode) {
+      if (!awaitingCodeBrace && ch === '@' && i + 5 < text.length && text.substring(i + 1, i + 5) === 'code') {
+        const prev = i > 0 ? text[i - 1] : '';
+        const after = i + 5 < text.length ? text[i + 5] : '';
+        const prevOk = !prev || !isIdentifierChar(prev);
+        const afterOk = !after || !isIdentifierChar(after);
+        if (prevOk && afterOk) {
+          awaitingCodeBrace = true;
+          i += 4;
+          continue;
+        }
+      }
+
+      if (awaitingCodeBrace) {
+        if (ch === '{') {
+          inCode = true;
+          codeBraceDepth = 1;
+          awaitingCodeBrace = false;
+          continue;
+        }
+      }
+
+      continue;
+    }
+
+    if (ch === '{') {
+      codeBraceDepth++;
+      continue;
+    }
+    if (ch === '}') {
+      codeBraceDepth--;
+      if (codeBraceDepth <= 0) {
+        inCode = false;
+        codeBraceDepth = 0;
+      }
+      continue;
+    }
+  }
+
+  return inCode;
+}
+
+function looksLikeMarkupSelection(text: string): boolean {
+  const lines = text.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+
+  if (lines.length === 0) return false;
+
+  return lines.every(line =>
+    line.startsWith('<') ||
+    line.startsWith('</') ||
+    line.startsWith('{/*') ||
+    line.startsWith('*/}')
+  );
+}
+
+function toggleLineCommentForRanges(editor: vscode.TextEditor, lineRanges: vscode.Range[]): Thenable<boolean> {
+  const document = editor.document;
+  const lineNumbers = new Set<number>();
+
+  for (const range of lineRanges) {
+    const startLine = range.start.line;
+    const endLine = range.end.character === 0 && range.end.line > range.start.line
+      ? range.end.line - 1
+      : range.end.line;
+    for (let line = startLine; line <= endLine; line++) lineNumbers.add(line);
+  }
+
+  const lines = Array.from(lineNumbers).sort((a, b) => a - b);
+  const uncommentAll = lines.length > 0 && lines.every(line => {
+    const text = document.lineAt(line).text;
+    if (text.trim().length === 0) return true;
+    return /^\s*\/\//.test(text);
+  });
+
+  return editor.edit(editBuilder => {
+    for (let idx = lines.length - 1; idx >= 0; idx--) {
+      const line = lines[idx];
+      const lineText = document.lineAt(line).text;
+      const fullRange = document.lineAt(line).range;
+
+      if (uncommentAll) {
+        const updated = lineText.replace(/^(\s*)\/\/ ?/, '$1');
+        editBuilder.replace(fullRange, updated);
+      } else {
+        if (lineText.trim().length === 0) {
+          editBuilder.replace(fullRange, lineText);
+        } else {
+          const indent = lineText.match(/^\s*/)?.[0] ?? '';
+          const rest = lineText.slice(indent.length);
+          editBuilder.replace(fullRange, `${indent}// ${rest}`);
+        }
+      }
+    }
+  });
+}
+
+function toggleJsxBlockCommentForRanges(editor: vscode.TextEditor, ranges: vscode.Range[]): Thenable<boolean> {
+  const document = editor.document;
+  const sortedRanges = [...ranges].sort((a, b) => document.offsetAt(b.start) - document.offsetAt(a.start));
+
+  return editor.edit(editBuilder => {
+    for (const range of sortedRanges) {
+      const text = document.getText(range);
+      const trimmed = text.trim();
+
+      if (trimmed.startsWith('{/*') && trimmed.endsWith('*/}')) {
+        const open = text.indexOf('{/*');
+        const close = text.lastIndexOf('*/}');
+        if (open >= 0 && close >= open) {
+          let inner = text.substring(open + 3, close);
+          if (inner.startsWith(' ')) inner = inner.substring(1);
+          if (inner.endsWith(' ')) inner = inner.substring(0, inner.length - 1);
+          editBuilder.replace(range, text.substring(0, open) + inner + text.substring(close + 3));
+          continue;
+        }
+      }
+
+      editBuilder.replace(range, `{/* ${text} */}`);
+    }
+  });
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   console.log('[UITKX] Extension activated');
   const config = vscode.workspace.getConfiguration('uitkx');
@@ -133,7 +360,33 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await vscode.commands.executeCommand('editor.action.blockComment');
+      const document = editor.document;
+      const lineCommentRanges: vscode.Range[] = [];
+      const jsxCommentRanges: vscode.Range[] = [];
+
+      for (const selection of editor.selections) {
+        const effectiveRange = selection.isEmpty
+          ? document.lineAt(selection.start.line).range
+          : new vscode.Range(selection.start, selection.end);
+
+        const inCode = isInsideCodeBlock(document, effectiveRange.start);
+        const selectedText = document.getText(effectiveRange);
+        const isMarkupSelection = looksLikeMarkupSelection(selectedText);
+
+        if (inCode && !isMarkupSelection) {
+          lineCommentRanges.push(effectiveRange);
+        } else {
+          jsxCommentRanges.push(effectiveRange);
+        }
+      }
+
+      if (jsxCommentRanges.length > 0) {
+        await toggleJsxBlockCommentForRanges(editor, jsxCommentRanges);
+      }
+
+      if (lineCommentRanges.length > 0) {
+        await toggleLineCommentForRanges(editor, lineCommentRanges);
+      }
     }
   );
   context.subscriptions.push(toggleBlockCommentCommand);

@@ -191,14 +191,7 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                 case JsxCommentNode jc:
                 {
-                    // Emit the whole {/* ... */} span as a Comment token
-                    int col = FindOnLine(source, lineStarts, jc.SourceLine, "{/*");
-                    if (col >= 0)
-                    {
-                        int commentLen = "{/*".Length + jc.Content.Length + "*/}".Length;
-                        EmitToken(tokens, jc.SourceLine - 1, col, commentLen,
-                                  SemanticTokenTypes.Comment, s_noMods);
-                    }
+                    EmitJsxCommentTokens(jc, source, lineStarts, tokens);
                     break;
                 }
 
@@ -366,6 +359,49 @@ namespace ReactiveUITK.Language.SemanticTokens
         }
 
         // ── @code body scanner ────────────────────────────────────────────────
+
+        private static void EmitJsxCommentTokens(
+            JsxCommentNode jc,
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens)
+        {
+            int col = FindOnLine(source, lineStarts, jc.SourceLine, "{/*");
+            if (col < 0) return;
+
+            int startOffset = lineStarts[jc.SourceLine - 1] + col;
+            int closeAt = source.IndexOf("*/}", startOffset, StringComparison.Ordinal);
+            if (closeAt < 0)
+            {
+                int fallbackLen = "{/*".Length + jc.Content.Length + "*/}".Length;
+                EmitToken(tokens, jc.SourceLine - 1, col, fallbackLen,
+                          SemanticTokenTypes.Comment, s_noMods);
+                return;
+            }
+
+            int endExclusive = closeAt + 3;
+            int startLineIdx = Array.BinarySearch(lineStarts, startOffset);
+            if (startLineIdx < 0) startLineIdx = (~startLineIdx) - 1;
+            if (startLineIdx < 0) startLineIdx = 0;
+
+            for (int li = startLineIdx; li < lineStarts.Length; li++)
+            {
+                int lineStart = lineStarts[li];
+                if (lineStart >= endExclusive) break;
+
+                int lineEnd = li + 1 < lineStarts.Length ? lineStarts[li + 1] : source.Length;
+                int segStart = Math.Max(lineStart, startOffset);
+                int segEnd = Math.Min(lineEnd, endExclusive);
+                while (segEnd > segStart && (source[segEnd - 1] == '\r' || source[segEnd - 1] == '\n'))
+                    segEnd--;
+
+                if (segEnd > segStart)
+                {
+                    EmitToken(tokens, li, segStart - lineStart, segEnd - segStart,
+                              SemanticTokenTypes.Comment, s_noMods);
+                }
+            }
+        }
 
         private static void CollectCodeBlockBodyTokens(
             CodeBlockNode cb,
