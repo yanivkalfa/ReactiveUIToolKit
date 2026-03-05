@@ -251,6 +251,9 @@ namespace ReactiveUITK.Editor
 
             try
             {
+                if (TryResolveFromSelectedConsoleEntry(out assetPath, out line))
+                    return true;
+
                 var consoleWindowType = Type.GetType("UnityEditor.ConsoleWindow, UnityEditor");
                 if (consoleWindowType == null)
                     return false;
@@ -286,6 +289,88 @@ namespace ReactiveUITK.Editor
                     line = parsedLine;
 
                 return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static bool TryResolveFromSelectedConsoleEntry(out string assetPath, out int line)
+        {
+            assetPath = string.Empty;
+            line = 1;
+
+            try
+            {
+                var consoleWindowType = Type.GetType("UnityEditor.ConsoleWindow, UnityEditor");
+                var logEntriesType = Type.GetType("UnityEditor.LogEntries, UnityEditor");
+                var logEntryType = Type.GetType("UnityEditor.LogEntry, UnityEditor");
+                if (consoleWindowType == null || logEntriesType == null || logEntryType == null)
+                    return false;
+
+                var consoleField = consoleWindowType.GetField(
+                    "ms_ConsoleWindow",
+                    BindingFlags.Static | BindingFlags.NonPublic
+                );
+                if (consoleField == null)
+                    return false;
+
+                var consoleWindow = consoleField.GetValue(null);
+                if (consoleWindow == null)
+                    return false;
+
+                var listViewField = consoleWindowType.GetField(
+                    "m_ListView",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                if (listViewField == null)
+                    return false;
+
+                var listView = listViewField.GetValue(consoleWindow);
+                if (listView == null)
+                    return false;
+
+                var rowField = listView.GetType().GetField("row", BindingFlags.Instance | BindingFlags.Public);
+                if (rowField == null)
+                    return false;
+
+                int row = (int)rowField.GetValue(listView);
+                if (row < 0)
+                    return false;
+
+                var getEntryMethod = logEntriesType.GetMethod(
+                    "GetEntryInternal",
+                    BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic,
+                    null,
+                    new[] { typeof(int), logEntryType },
+                    null
+                );
+                if (getEntryMethod == null)
+                    return false;
+
+                var entry = Activator.CreateInstance(logEntryType);
+                if (entry == null)
+                    return false;
+
+                bool ok = (bool)getEntryMethod.Invoke(null, new[] { (object)row, entry });
+                if (!ok)
+                    return false;
+
+                var fileField = logEntryType.GetField("file", BindingFlags.Instance | BindingFlags.Public);
+                var lineField = logEntryType.GetField("line", BindingFlags.Instance | BindingFlags.Public);
+
+                string file = fileField != null ? (fileField.GetValue(entry) as string ?? string.Empty) : string.Empty;
+                int ln = lineField != null ? (int)lineField.GetValue(entry) : 1;
+
+                if (!string.IsNullOrEmpty(file))
+                {
+                    assetPath = file.Replace('\\', '/');
+                    line = ln > 0 ? ln : 1;
+                    return true;
+                }
+
+                return false;
             }
             catch
             {
