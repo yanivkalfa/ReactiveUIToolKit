@@ -41,6 +41,8 @@ namespace ReactiveUITK.Editor
                     assetPath = AssetDatabase.GetAssetPath(obj);
             }
 
+            Debug.Log($"[UITKX Nav] OnOpenAsset instanceId={instanceId} line={line} assetPath='{assetPath}'");
+
             if (string.IsNullOrEmpty(assetPath)
                 && TryResolveFromConsoleActiveText(out string consolePath, out int consoleLine))
             {
@@ -54,11 +56,19 @@ namespace ReactiveUITK.Editor
                 // Second chance: Console entries sometimes carry generator virtual paths
                 // that don't round-trip through AssetDatabase instance ids.
                 if (!TryResolveFromConsoleActiveText(out string consolePath2, out int consoleLine2))
+                {
+                    Debug.Log("[UITKX Nav] Could not resolve from console active text.");
                     return false; // not ours — let Unity handle it
+                }
 
                 if (!TryResolveUitkxTarget(consolePath2, consoleLine2, out fullPath, out targetLine))
+                {
+                    Debug.Log($"[UITKX Nav] Console fallback path unresolved: '{consolePath2}' line={consoleLine2}");
                     return false;
+                }
             }
+
+            Debug.Log($"[UITKX Nav] Resolved target: '{fullPath}:{targetLine}'");
 
             try
             {
@@ -273,22 +283,40 @@ namespace ReactiveUITK.Editor
                     "m_ActiveText",
                     BindingFlags.Instance | BindingFlags.NonPublic
                 );
-                if (activeTextField == null)
-                    return false;
+                string[] activeTextCandidates;
+                if (activeTextField != null)
+                {
+                    string t1 = activeTextField.GetValue(consoleWindow) as string ?? string.Empty;
+                    var altField = consoleWindowType.GetField(
+                        "m_ActiveTextWithHyperlinks",
+                        BindingFlags.Instance | BindingFlags.NonPublic
+                    );
+                    string t2 = altField != null ? (altField.GetValue(consoleWindow) as string ?? string.Empty) : string.Empty;
+                    activeTextCandidates = new[] { t1, t2 };
+                }
+                else
+                {
+                    activeTextCandidates = Array.Empty<string>();
+                }
 
-                string activeText = activeTextField.GetValue(consoleWindow) as string ?? string.Empty;
-                if (string.IsNullOrEmpty(activeText))
-                    return false;
+                for (int i = 0; i < activeTextCandidates.Length; i++)
+                {
+                    string candidate = activeTextCandidates[i];
+                    if (string.IsNullOrEmpty(candidate))
+                        continue;
 
-                var match = s_uitkxLocationRegex.Match(activeText);
-                if (!match.Success)
-                    return false;
+                    var match = s_uitkxLocationRegex.Match(candidate);
+                    if (!match.Success)
+                        continue;
 
-                assetPath = match.Groups["path"].Value.Replace('\\', '/');
-                if (int.TryParse(match.Groups["line"].Value, out int parsedLine) && parsedLine > 0)
-                    line = parsedLine;
+                    assetPath = match.Groups["path"].Value.Replace('\\', '/');
+                    if (int.TryParse(match.Groups["line"].Value, out int parsedLine) && parsedLine > 0)
+                        line = parsedLine;
+                    Debug.Log($"[UITKX Nav] Parsed from active text: '{assetPath}:{line}'");
+                    return true;
+                }
 
-                return true;
+                return false;
             }
             catch
             {
@@ -304,8 +332,10 @@ namespace ReactiveUITK.Editor
             try
             {
                 var consoleWindowType = Type.GetType("UnityEditor.ConsoleWindow, UnityEditor");
-                var logEntriesType = Type.GetType("UnityEditor.LogEntries, UnityEditor");
-                var logEntryType = Type.GetType("UnityEditor.LogEntry, UnityEditor");
+                var logEntriesType = Type.GetType("UnityEditorInternal.LogEntries, UnityEditor")
+                    ?? Type.GetType("UnityEditor.LogEntries, UnityEditor");
+                var logEntryType = Type.GetType("UnityEditorInternal.LogEntry, UnityEditor")
+                    ?? Type.GetType("UnityEditor.LogEntry, UnityEditor");
                 if (consoleWindowType == null || logEntriesType == null || logEntryType == null)
                     return false;
 
@@ -357,8 +387,10 @@ namespace ReactiveUITK.Editor
                 if (!ok)
                     return false;
 
-                var fileField = logEntryType.GetField("file", BindingFlags.Instance | BindingFlags.Public);
-                var lineField = logEntryType.GetField("line", BindingFlags.Instance | BindingFlags.Public);
+                var fileField = logEntryType.GetField("file", BindingFlags.Instance | BindingFlags.Public)
+                    ?? logEntryType.GetField("file", BindingFlags.Instance | BindingFlags.NonPublic);
+                var lineField = logEntryType.GetField("line", BindingFlags.Instance | BindingFlags.Public)
+                    ?? logEntryType.GetField("line", BindingFlags.Instance | BindingFlags.NonPublic);
 
                 string file = fileField != null ? (fileField.GetValue(entry) as string ?? string.Empty) : string.Empty;
                 int ln = lineField != null ? (int)lineField.GetValue(entry) : 1;
@@ -367,6 +399,7 @@ namespace ReactiveUITK.Editor
                 {
                     assetPath = file.Replace('\\', '/');
                     line = ln > 0 ? ln : 1;
+                    Debug.Log($"[UITKX Nav] Parsed from selected console entry: '{assetPath}:{line}'");
                     return true;
                 }
 
