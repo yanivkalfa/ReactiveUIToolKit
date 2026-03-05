@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "VEedW9GwZJA=",
+  "dgSpecHash": "9BbOAbbvrhY=",
   "success": true,
-  "projectFilePath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
+  "projectFilePath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.3.3\\microsoft.codeanalysis.analyzers.3.3.3.nupkg.sha512",
     "C:\\Users\\neta\\.nuget\\packages\\microsoft.codeanalysis.common\\4.3.1\\microsoft.codeanalysis.common.4.3.1.nupkg.sha512",

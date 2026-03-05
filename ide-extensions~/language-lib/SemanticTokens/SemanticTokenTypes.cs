@@ -28,6 +28,12 @@ namespace ReactiveUITK.Language.SemanticTokens
         public const string Variable = "variable";
         public const string Keyword  = "keyword";
 
+        /// <summary>Standard LSP function type — used for hook setter variables.</summary>
+        public const string Function = "function";
+
+        /// <summary>Standard LSP comment type — used for {/* */} JSX comments.</summary>
+        public const string Comment  = "comment";
+
         // ── Legend array (position = token-type index) ────────────────────────
 
         /// <summary>
@@ -37,7 +43,7 @@ namespace ReactiveUITK.Language.SemanticTokens
         /// </summary>
         public static readonly string[] All = new[]
         {
-            Element, Directive, Attribute, Expression, DirectiveName, Variable, Keyword,
+            Element, Directive, Attribute, Expression, DirectiveName, Variable, Keyword, Function, Comment,
         };
     }
 

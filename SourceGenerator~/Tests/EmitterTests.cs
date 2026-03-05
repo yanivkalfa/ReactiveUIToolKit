@@ -198,7 +198,80 @@ public class EmitterTests
             "Expected [UitkxElement(\"MyComp\")] attribute on the generated partial class");
     }
 
+    [Fact]
+    public void JsxCommentInsideElement_DoesNotEmitExtraComma()
+    {
+        // Before the fix, JsxCommentNode emitted nothing but the comma logic still ran,
+        // resulting in invalid C# like V.Box(V.Label(...), , V.Label(...))
+        const string src = Header + """
+<box>
+    {/* this is a comment */}
+    <label text="a"/>
+    {/* another comment */}
+    <label text="b"/>
+</box>
+""";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "Source should be produced");
+        Assert.False(result.SourceContains(", ,"),
+            "No double-comma should appear (dangling comma from comment)\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+        Assert.True(result.SourceContains("V.Label("),
+            "Labels should still be emitted");
+    }
+
+    [Fact]
+    public void JsxCommentAsRootNode_DoesNotBreakSingleRoot()
+    {
+        // A JSX comment at the root level alongside a single element should not
+        // force Fragment wrapping (which would cause a dangling empty argument).
+        const string src = Header + """
+{/* root comment */}
+<box />
+""";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "Source should be produced");
+        Assert.True(result.SourceContains("V.Box("),
+            "Box should be emitted\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+    }
+
     // ── Embedded markup in @code ─────────────────────────────────────────────
+
+    [Fact]
+    public void AssignMarkupInCodeBlock_GeneratesVCall()
+    {
+        const string src = Header + "@code {\n    var (count, setCount) = useState(0);\n    var component = (\n        <box>\n            <label text=\"hi\"/>\n        </box>\n    );\n}\n<box>@(component)</box>";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "Source should be produced");
+        Assert.True(result.SourceContains("V.Box("),
+            "Assigned <box> should produce V.Box( call.\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+    }
+
+    [Fact]
+    public void AssignMarkupWithInterpolatedStrings_GeneratesVCall()
+    {
+        // Mirrors the real UitkxCounterFunc.uitkx pattern with interpolated strings and onClick lambdas
+        const string src = Header + """
+@code {
+    var (count, setCount) = useState(0);
+    var component = (
+        <box>
+            <button text="-5" onClick={() => setCount(count - 5)} />
+            <label text={$"{count}"} />
+            <button text="+5" onClick={() => setCount(count + 5)} />
+        </box>
+    );
+}
+<box>@(component)</box>
+""";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "Source should be produced");
+        Assert.True(result.SourceContains("V.Box("),
+            "Assigned <box> with onClick lambdas should produce V.Box( call.\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)"));
+    }
 
     [Fact]
     public void ReturnMarkupInCodeBlock_GeneratesVCall()

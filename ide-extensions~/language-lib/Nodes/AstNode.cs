@@ -40,6 +40,13 @@ namespace ReactiveUITK.Language.Nodes
         : AstNode(SourceLine, SourceFile);
 
     /// <summary>
+    /// A JSX-style comment <c>{/* ... */}</c> in markup.
+    /// Not emitted to C#; preserved by the formatter.
+    /// </summary>
+    public sealed record JsxCommentNode(string Content, int SourceLine, string SourceFile)
+        : AstNode(SourceLine, SourceFile);
+
+    /// <summary>
     /// The <c>@code { ... }</c> block at the bottom of a .uitkx file.
     /// Its content is inserted verbatim inside the generated partial class.
     /// </summary>

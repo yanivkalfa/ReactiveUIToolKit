@@ -143,6 +143,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             "UseSignal(",
             "UseDeferredValue(",
             "UseTransition(",
+            // React-style camelCase shorthand aliases supported by the emitter
+            "useState(",
+            "useEffect(",
+            "useRef(",
+            "useCallback(",
+            "useMemo(",
+            "useContext(",
+            "useReducer(",
+            "useSignal(",
+            "useDeferredValue(",
+            "useTransition(",
         };
 
         // ── UITKX0016 — hook inside attribute expression ─────────────────────

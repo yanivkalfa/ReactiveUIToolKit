@@ -1,6 +1,6 @@
 is_global = true
 build_property.RootNamespace = ReactiveUITK.Language
-build_property.ProjectDir = c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\language-lib\
+build_property.ProjectDir = C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\language-lib\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.CsWinRTUseWindowsUIXamlProjections = false

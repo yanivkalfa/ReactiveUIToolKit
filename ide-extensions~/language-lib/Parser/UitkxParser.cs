@@ -135,6 +135,17 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.TrySkipHtmlComment())
                     continue;
 
+                // ── JSX comment {/* ... */} ──────────────────────────────────
+                if (c == '{')
+                {
+                    int commentLine1 = _scanner.Line;
+                    if (_scanner.TrySkipJsxComment(out string jsxContent))
+                    {
+                        nodes.Add(new JsxCommentNode(jsxContent, commentLine1, _filePath));
+                        continue;
+                    }
+                }
+
                 // ── Opening element <Tag ────────────────────────────────────
                 if (c == '<' && PeekChar(1) != '/')
                 {

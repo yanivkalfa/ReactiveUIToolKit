@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
@@ -67,6 +68,9 @@ namespace ReactiveUITK.Language.SemanticTokens
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
                 CollectNodeTokens(node, source, lineStarts, tokens, knownElements);
+
+            // 3. Hook setter variables — whole-source scan (covers all @code blocks)
+            CollectHookSetterTokens(source, lineStarts, tokens);
 
             return tokens
                 .OrderBy(t => t.Line)
@@ -183,6 +187,19 @@ namespace ReactiveUITK.Language.SemanticTokens
                     EmitKeyword(tokens, source, lineStarts, ex.SourceLine, "@(");
                     break;
 
+                case JsxCommentNode jc:
+                {
+                    // Emit the whole {/* ... */} span as a Comment token
+                    int col = FindOnLine(source, lineStarts, jc.SourceLine, "{/*");
+                    if (col >= 0)
+                    {
+                        int commentLen = "{/*".Length + jc.Content.Length + "*/}".Length;
+                        EmitToken(tokens, jc.SourceLine - 1, col, commentLen,
+                                  SemanticTokenTypes.Comment, s_noMods);
+                    }
+                    break;
+                }
+
                 case TextNode _:
                     break; // plain text — no semantic tokens
             }
@@ -286,6 +303,38 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                 foreach (var child in c.Body)
                     CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+            }
+        }
+
+        // ── Hook setter coloring ────────────────────────────────────────────
+
+        // Matches: var (anyState, <setter>) = useState(  or  Hooks.UseState(
+        private static readonly Regex s_hookTupleRegex = new Regex(
+            @"\bvar\s*\(\s*\w+\s*,\s*(?<setter>\w+)\s*\)\s*=\s*(?:Hooks\.)?[Uu]se[A-Za-z]+\s*[<(]",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// Scans the entire source for hook tuple destructuring and emits
+        /// <see cref="SemanticTokenTypes.Function"/> tokens for setter variables.
+        /// Called once as a post-pass so it covers hooks at any nesting level.
+        /// </summary>
+        private static void CollectHookSetterTokens(
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens)
+        {
+            var matches = s_hookTupleRegex.Matches(source);
+            foreach (Match m in matches)
+            {
+                var setter = m.Groups["setter"];
+                if (!setter.Success) continue;
+                int offset  = setter.Index;
+                int lineIdx = Array.BinarySearch(lineStarts, offset);
+                if (lineIdx < 0) lineIdx = (~lineIdx) - 1;
+                if (lineIdx < 0) lineIdx = 0;
+                int col = offset - lineStarts[lineIdx];
+                EmitToken(tokens, lineIdx, col, setter.Length,
+                          SemanticTokenTypes.Function, s_noMods);
             }
         }
 

@@ -244,7 +244,7 @@ namespace ReactiveUITK.Language.Parser
         {
             if (!IsAt("<!--"))
                 return false;
-            // Skip until ->
+            // Skip until -->
             while (!IsEof)
             {
                 if (IsAt("-->"))
@@ -255,6 +255,34 @@ namespace ReactiveUITK.Language.Parser
                 Advance();
             }
             return true; // unclosed comment — consumed to EOF
+        }
+
+        /// <summary>
+        /// Tries to skip a JSX-style comment <c>{/* ... */}</c> and returns
+        /// the comment body in <paramref name="content"/>.
+        /// Returns <c>true</c> if a JSX comment was found and consumed.
+        /// Handles multi-line content and unclosed comments (consumed to EOF).
+        /// </summary>
+        public bool TrySkipJsxComment(out string content)
+        {
+            content = string.Empty;
+            if (!IsAt("{/*"))
+                return false;
+            TryConsume("{/*");
+            var sb = new System.Text.StringBuilder();
+            while (!IsEof)
+            {
+                if (IsAt("*/}"))
+                {
+                    TryConsume("*/}");
+                    content = sb.ToString();
+                    return true;
+                }
+                sb.Append(Current);
+                Advance();
+            }
+            content = sb.ToString(); // unclosed comment — content up to EOF
+            return true;
         }
 
         /// <summary>

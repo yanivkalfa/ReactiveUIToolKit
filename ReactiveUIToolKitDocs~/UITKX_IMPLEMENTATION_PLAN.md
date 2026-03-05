@@ -1351,12 +1351,12 @@ Estimated effort: **~4–6 hours** (Medium).
 
 | Sub-task | Status |
 |---|---|
-| 8.6.1 Unity Console navigation | `[ ]` NOT STARTED |
-| 8.6.2 Hook shorthand aliases (`useState` → `Hooks.UseState`) | `[ ]` NOT STARTED |
-| 8.6.2 useState setter coloring | `[ ]` NOT STARTED |
-| 8.6.2 hook hover docs | `[ ]` NOT STARTED |
+| 8.6.1 Unity Console navigation | `[x]` DONE v1.0.38 |
+| 8.6.2 Hook shorthand aliases (`useState` → `Hooks.UseState`) | `[x]` DONE v1.0.38 |
+| 8.6.2 useState setter coloring | `[x]` DONE v1.0.38 |
+| 8.6.2 hook hover docs | `[x]` DONE v1.0.38 |
 | 8.6.3 Function-style syntax | `[ ]` NOT STARTED |
-| 8.6.4 JSX-style comments `{/* */}` + Ctrl+/ | `[ ]` NOT STARTED |
+| 8.6.4 JSX-style comments `{/* */}` + Ctrl+/ | `[x]` DONE v1.0.38 |
 
 ---
 

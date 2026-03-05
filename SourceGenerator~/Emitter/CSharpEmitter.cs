@@ -98,6 +98,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 if (n is CodeBlockNode cb)
                     codeBlocks.Add(cb);
+                else if (n is JsxCommentNode)
+                    { } // JSX comments are markup-only; skip in emitted C#
                 else
                     markupNodes.Add(n);
             }
@@ -244,6 +246,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 codeText = spliced.ToString();
             }
 
+            // Apply React-style hook shorthand: useState( → Hooks.UseState( etc.
+            codeText = ApplyHookAliases(codeText);
+
             foreach (var line in codeText.Split('\n'))
             {
                 var trimmed = line.TrimEnd('\r');
@@ -251,6 +256,32 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     L($"{I3}{trimmed.TrimStart()}");
             }
             L("");
+        }
+
+        // ── Hook alias substitution ───────────────────────────────────────────
+
+        private static readonly (string From, string To)[] s_hookAliases =
+        {
+            ("useState(",           "Hooks.UseState("),
+            ("useEffect(",          "Hooks.UseEffect("),
+            ("useRef(",             "Hooks.UseRef("),
+            ("useCallback(",        "Hooks.UseCallback("),
+            ("useMemo(",            "Hooks.UseMemo("),
+            ("useContext(",         "Hooks.UseContext("),
+            ("useReducer(",         "Hooks.UseReducer("),
+            ("useSignal(",          "Hooks.UseSignal("),
+            ("useDeferredValue(",   "Hooks.UseDeferredValue("),
+            ("useTransition(",      "Hooks.UseTransition("),
+        };
+
+        private static string ApplyHookAliases(string code)
+        {
+            // Fast path: bail early if no lowercase hook names are present
+            if (code.IndexOf("use", StringComparison.Ordinal) < 0)
+                return code;
+            foreach (var (from, to) in s_hookAliases)
+                code = code.Replace(from, to);
+            return code;
         }
 
         // ── __C helper method ─────────────────────────────────────────────────
@@ -309,6 +340,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 case CodeBlockNode:
                     // @code blocks are hoisted before return; skip inline
                     _sb.Append($"({QVNode})null");
+                    break;
+                case JsxCommentNode:
+                    // JSX comments emit nothing to C#
                     break;
                 default:
                     _sb.Append($"({QVNode})null /* unhandled: {node.GetType().Name} */");
@@ -739,10 +773,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // UITKX0010 — warn on duplicate static string keys among siblings
             CheckDuplicateKeys(children);
 
+            bool first = true;
             for (int i = 0; i < children.Length; i++)
             {
-                if (i > 0)
+                // JSX comments emit nothing — skip to avoid dangling commas
+                if (children[i] is JsxCommentNode)
+                    continue;
+
+                if (!first)
                     _sb.Append(",");
+                first = false;
+
                 _sb.AppendLine();
                 if (children[i].SourceLine > 0)
                 {
@@ -751,7 +792,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.Append(I4);
                 EmitNode(children[i]);
             }
-            if (children.Length > 0)
+            if (!first)
             {
                 _sb.AppendLine();
                 _sb.Append(I4);

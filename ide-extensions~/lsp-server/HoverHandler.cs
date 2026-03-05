@@ -190,8 +190,43 @@ public sealed class HoverHandler : IHoverHandler
             );
         }
 
+        // 5. Is it a hook name (camelCase shorthand or qualified Hooks.Use*)?
+        string hookLookup = word;
+        // Also match if the word is e.g. "UseState" (PascalCase bare name)
+        if (!s_hookDocs.ContainsKey(hookLookup) && char.IsUpper(hookLookup[0]))
+            hookLookup = "Hooks." + hookLookup;
+        if (s_hookDocs.TryGetValue(hookLookup, out var hookMd))
+            return Task.FromResult<Hover?>(new Hover
+            {
+                Contents = new MarkedStringsOrMarkupContent(
+                    new MarkupContent { Kind = MarkupKind.Markdown, Value = hookMd }),
+            });
+
         return Task.FromResult<Hover?>(null);
     }
+
+    // ── Hook documentation ──────────────────────────────────────────────────
+
+    private static readonly Dictionary<string, string> s_hookDocs =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["useState"]          = "## `useState<T>(initialValue)`\n\n**Shorthand for `Hooks.UseState`.** Returns a `(value, setter)` tuple.  \nCall `setter(newValue)` to schedule a re-render with the new state.\n\n```csharp\nvar (count, setCount) = useState(0);\n```",
+            ["Hooks.UseState"]    = "## `Hooks.UseState<T>(initialValue)`\n\nReturns a `(value, setter)` tuple.  \nCall `setter(newValue)` to schedule a re-render with the new state.\n\n```csharp\nvar (count, setCount) = Hooks.UseState(0);\n```",
+            ["useEffect"]         = "## `useEffect(action, deps?)`\n\n**Shorthand for `Hooks.UseEffect`.** Runs `action` after each render.  \nPass a `deps` array to run only when those values change.\n\n```csharp\nuseEffect(() => { /* side-effect */ }, new object[] { count });\n```",
+            ["Hooks.UseEffect"]   = "## `Hooks.UseEffect(action, deps?)`\n\nRuns `action` after each render.  \nPass a `deps` array to run only when those values change.\n\n```csharp\nHooks.UseEffect(() => { /* side-effect */ }, new object[] { count });\n```",
+            ["useRef"]            = "## `useRef<T>(initialValue?)`\n\n**Shorthand for `Hooks.UseRef`.** Returns a mutable ref object whose `.Current` persists across re-renders without causing a re-render on write.",
+            ["Hooks.UseRef"]      = "## `Hooks.UseRef<T>(initialValue?)`\n\nReturns a mutable ref object whose `.Current` persists across re-renders without causing a re-render on write.",
+            ["useMemo"]           = "## `useMemo<T>(factory, deps)`\n\n**Shorthand for `Hooks.UseMemo`.** Returns a memoised value. Re-computes `factory()` only when `deps` change.",
+            ["Hooks.UseMemo"]     = "## `Hooks.UseMemo<T>(factory, deps)`\n\nReturns a memoised value. Re-computes `factory()` only when `deps` change.",
+            ["useCallback"]       = "## `useCallback(fn, deps)`\n\n**Shorthand for `Hooks.UseCallback`.** Returns a memoised delegate. Re-creates `fn` only when `deps` change.",
+            ["Hooks.UseCallback"] = "## `Hooks.UseCallback(fn, deps)`\n\nReturns a memoised delegate. Re-creates `fn` only when `deps` change.",
+            ["useSignal"]         = "## `useSignal<T>(initialValue)`\n\n**Shorthand for `Hooks.UseSignal`.** Like `useState` but backed by a reactive signal — updates propagate without a full re-render.",
+            ["Hooks.UseSignal"]   = "## `Hooks.UseSignal<T>(initialValue)`\n\nLike `UseState` but backed by a reactive signal — updates propagate without a full re-render.",
+            ["useContext"]        = "## `useContext<T>()`\n\n**Shorthand for `Hooks.UseContext`.** Reads the nearest context value of type `T` provided by a parent component.",
+            ["Hooks.UseContext"]  = "## `Hooks.UseContext<T>()`\n\nReads the nearest context value of type `T` provided by a parent component.",
+            ["useReducer"]        = "## `useReducer<TState, TAction>(reducer, initialState)`\n\n**Shorthand for `Hooks.UseReducer`.** Returns `(state, dispatch)`. Calls `reducer(state, action)` on each `dispatch(action)`.",
+            ["Hooks.UseReducer"]  = "## `Hooks.UseReducer<TState, TAction>(reducer, initialState)`\n\nReturns `(state, dispatch)`. Calls `reducer(state, action)` on each `dispatch(action)`.",
+        };
 
     private static int ToOffset(string text, Position position)
     {

@@ -7,6 +7,9 @@
   ],
   "patterns": [
     {
+      "include": "#jsx-comment"
+    },
+    {
       "include": "#comment"
     },
     {
@@ -44,6 +47,21 @@
     }
   ],
   "repository": {
+    "jsx-comment": {
+      "name": "comment.block.uitkx",
+      "begin": "\\{/\\*",
+      "end": "\\*/\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      }
+    },
     "comment": {
       "name": "comment.block.uitkx",
       "begin": "<!--",

@@ -124,6 +124,34 @@ export function activate(context: vscode.ExtensionContext): void {
     output.appendLine(`[UITKX] Failed to start language client: ${message}`);
     vscode.window.showErrorMessage(`UITKX: Failed to start language server. ${message}`);
   });
+  const jsxCommentHandler = vscode.workspace.onDidChangeTextDocument(event => {
+    if (event.document.languageId !== 'uitkx') return;
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document !== event.document) return;
+    if (event.contentChanges.length !== 1) return;
+    const change = event.contentChanges[0];
+    if (change.text !== '*') return;
+    const afterCol = change.range.start.character + 1;
+    const lineText = event.document.lineAt(change.range.start.line).text;
+    if (afterCol < 3 || lineText.substring(afterCol - 3, afterCol) !== '{/*') return;
+    const nextChar = afterCol < lineText.length ? lineText[afterCol] : '';
+    const insertPos = new vscode.Position(change.range.start.line, afterCol);
+    if (nextChar === '}') {
+      // Already have a closing brace — insert ' */' before it
+      editor.edit(eb => {
+        eb.insert(insertPos, ' */');
+      }, { undoStopBefore: false, undoStopAfter: false }).then(ok => {
+        if (ok) editor.selection = new vscode.Selection(insertPos, insertPos);
+      });
+    } else {
+      editor.edit(eb => {
+        eb.insert(insertPos, ' */}');
+      }, { undoStopBefore: false, undoStopAfter: false }).then(ok => {
+        if (ok) editor.selection = new vscode.Selection(insertPos, insertPos);
+      });
+    }
+  });
+  context.subscriptions.push(jsxCommentHandler);
   context.subscriptions.push(client);
 }
 

@@ -2,8 +2,8 @@
 @component UitkxCounterFunc
 
 @code {
-    var (count, setCount) = Hooks.UseState(0);
-    var (mode, setMode) = Hooks.UseState("normal");
+    var (count, setCount) = useState(0);
+    var (mode, setMode) = useState("normal");
     var component = (
         <Box>
             <Button text="-5" onClick={() => setCount(count - 5)} />

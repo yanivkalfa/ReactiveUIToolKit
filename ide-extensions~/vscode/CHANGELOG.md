@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.0.39]
+- **Fix: `useState` / hook hover now works inside `@code` blocks.** `ClassifyTagPosition`
+  was returning `CursorContext.Empty` (word stripped) when the cursor was on plain
+  code text with no `<` tag on the same line. It now returns the word so hover,
+  go-to-definition, and hook docs all trigger correctly.
+- **Fix: formatter no longer erases `{/* */}` JSX comments on save.** The formatter
+  now detects `{/*` in the source and skips formatting entirely for that document,
+  preserving all comments.
+- **Fix: `{/*` auto-closes correctly.** `{/*` → `*/}` is now listed before `{` → `}`
+  in `autoClosingPairs`, so VS Code picks the longer match before the single-char one.
+- **Fix: Unity Console click now actually opens VS Code on Windows.** `code` is a
+  `.cmd` script on Windows; the handler now uses `cmd.exe /c code --goto ...` so
+  it launches correctly.
+- **Fix: `useState` shorthand hook errors.** The SourceGenerator DLL in `Analyzers/`
+  has been rebuilt with the `ApplyHookAliases` substitution, so `useState(0)` in
+  `@code` blocks now correctly becomes `Hooks.UseState(0)` in generated C#.
+
+## [1.0.38]
+- **Feature 8.6.1: Unity Console click opens `.uitkx` in VS Code**.
+  A new `[OnOpenAsset]` handler in `Editor/UitkxConsoleNavigation.cs` intercepts
+  opens of `.uitkx` assets and redirects them to `code --goto path:line`, so
+  clicking a Unity Console hyperlink (backed by the `#line` directives already
+  emitted by the source generator) opens the exact `.uitkx` line in VS Code.
+- **Feature 8.6.2a: React-style hook shorthands** — `useState(0)`, `useEffect(...)`,
+  `useMemo(...)` etc. are now valid in `@code` blocks. The emitter normalises them
+  to `Hooks.UseState(0)` etc. before generating C#. The rules-of-hooks validator
+  (UITKX0015/0016/0018) also fires on the camelCase shorthand forms.
+- **Feature 8.6.2b: Hook setter coloring** — in `var (count, setCount) = useState(0)`,
+  the setter variable `setCount` is now colored with the attribute/property theme
+  color, making it visually distinct from the state variable.
+- **Feature 8.6.2c: Hook hover documentation** — hovering `useState`, `useEffect`,
+  `Hooks.UseState` etc. shows a markdown tooltip with the hook's signature and
+  a one-line description. Works for all 10 built-in hooks (both shorthand and
+  fully-qualified forms).
+- **Feature 8.6.4: JSX-style markup comments `{/* */}` + Ctrl+/ support**.
+  - `{/* any text */}` is now recognized in markup, colored as a comment, and
+    completely ignored by the parser and emitter.
+  - Multi-line comments are supported.
+  - `Ctrl+/` inserts `//` (ideal inside `@code` blocks).
+  - `Ctrl+Shift+/` wraps the selection in `{/* */}` (ideal in markup).
+  - Typing `{/*` auto-inserts `*/}`.
+  - `<!-- -->` HTML comments continue to work as before.
+
 ## [1.0.37]
 - **Fix: missing `>` diagnostic squiggle now sits on `<TagName`, not column 0**.
   The error now carries the exact source range of the opening token so the squiggle

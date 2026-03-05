@@ -39,6 +39,7 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
 
         var opts      = ConfigLoader.LoadFormatterOptions(fileDir);
         var formatter = new AstFormatter(opts);
+
         var formatted = formatter.Format(text, localPath ?? string.Empty);
 
         if (formatted == text)

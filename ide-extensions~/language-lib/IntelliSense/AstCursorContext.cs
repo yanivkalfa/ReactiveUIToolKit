@@ -322,6 +322,10 @@ namespace ReactiveUITK.Language.IntelliSense
                         Prefix        = prefix,
                         Word          = word,
                     };
+                // No tag context but there is a word under the cursor (e.g. inside @code
+                // raw C# text, or between elements) — return it so hover/nav can still work.
+                if (!string.IsNullOrEmpty(word))
+                    return new CursorContext { Kind = CursorKind.None, Prefix = prefix, Word = word };
                 return CursorContext.Empty;
             }
 

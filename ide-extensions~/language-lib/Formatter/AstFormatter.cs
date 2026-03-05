@@ -164,6 +164,10 @@ namespace ReactiveUITK.Language.Formatter
                 case ExpressionNode en:
                     Ln($"@({en.Expression})");
                     break;
+
+                case JsxCommentNode jc:
+                    Ln($"{{/* {jc.Content.Trim()} */}}");
+                    break;
             }
         }
 

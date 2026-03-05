@@ -1331,11 +1331,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
+      "projectUniqueName": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
       "projectName": "ReactiveUITK.SourceGenerator.Tests",
-      "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
+      "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\ReactiveUITK.SourceGenerator.Tests.csproj",
       "packagesPath": "C:\\Users\\neta\\.nuget\\packages\\",
-      "outputPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\obj\\",
+      "outputPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\Tests\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\neta\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -1352,11 +1352,11 @@
         "net10.0": {
           "targetAlias": "net10.0",
           "projectReferences": {
-            "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj": {
-              "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj"
+            "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj": {
+              "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj"
             },
-            "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj": {
-              "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj"
+            "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj": {
+              "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\SourceGenerator~\\ReactiveUITK.SourceGenerator.csproj"
             }
           }
         }
