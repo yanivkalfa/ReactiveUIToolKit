@@ -227,6 +227,51 @@ public class ParserTests
     }
 
     [Fact]
+    public void Markup_CodeBlock_LineCommentedMarkup_IsIgnored()
+    {
+        const string src =
+            ValidHeader
+            + """
+              @code {
+                  // var node = <Box>
+                  //   <Label text="hi"/>
+                  // </Box>;
+                  var x = 1;
+              }
+              <box/>
+              """;
+
+        var nodes = ParseMarkup(src, out _);
+        var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
+
+        Assert.Empty(cb.ReturnMarkups);
+    }
+
+    [Fact]
+    public void Markup_CodeBlock_BlockCommentedMarkup_IsIgnored_ButLiveMarkupStillParsed()
+    {
+        const string src =
+            ValidHeader
+            + """
+              @code {
+                  /*
+                  var node = <Box>
+                      <Label text="hi"/>
+                  </Box>;
+                  */
+                  var live = <Label text="ok"/>;
+              }
+              <box/>
+              """;
+
+        var nodes = ParseMarkup(src, out _);
+        var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
+
+        var only = Assert.Single(cb.ReturnMarkups);
+        Assert.Equal("Label", only.Element.TagName);
+    }
+
+    [Fact]
     public void Markup_InlineExpression_ProducesExpressionNode()
     {
         const string src = ValidHeader + "<box>@(someCall())</box>";

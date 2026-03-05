@@ -735,6 +735,9 @@ namespace ReactiveUITK.Language.Parser
 
             while (i < codeBodyEnd)
             {
+                if (TrySkipNonCodeSpan(ref i, codeBodyEnd))
+                    continue;
+
                 int markupAt   = -1; // index in _source where '<Tag' starts, or -1
                 int parenStart = -1; // index in _source of an enclosing '(', if present
 
@@ -864,6 +867,119 @@ namespace ReactiveUITK.Language.Parser
             }
 
             return result.ToImmutable();
+        }
+
+        private bool TrySkipNonCodeSpan(ref int i, int codeBodyEnd)
+        {
+            if (i >= codeBodyEnd) return false;
+
+            if (_source[i] == '/' && i + 1 < codeBodyEnd)
+            {
+                if (_source[i + 1] == '/')
+                {
+                    i += 2;
+                    while (i < codeBodyEnd && _source[i] != '\n') i++;
+                    return true;
+                }
+
+                if (_source[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < codeBodyEnd && !(_source[i] == '*' && _source[i + 1] == '/'))
+                        i++;
+                    i = i + 1 < codeBodyEnd ? i + 2 : codeBodyEnd;
+                    return true;
+                }
+            }
+
+            if (_source[i] == '\'')
+            {
+                int j = i + 1;
+                while (j < codeBodyEnd)
+                {
+                    if (_source[j] == '\\')
+                    {
+                        j += 2;
+                        continue;
+                    }
+
+                    if (_source[j] == '\'')
+                    {
+                        j++;
+                        break;
+                    }
+
+                    j++;
+                }
+
+                i = j;
+                return true;
+            }
+
+            int quotePos = -1;
+            bool isVerbatim = false;
+
+            if (_source[i] == '"')
+            {
+                quotePos = i;
+            }
+            else if ((_source[i] == '$' || _source[i] == '@') && i + 1 < codeBodyEnd && _source[i + 1] == '"')
+            {
+                quotePos = i + 1;
+                isVerbatim = _source[i] == '@';
+            }
+            else if ((_source[i] == '$' || _source[i] == '@')
+                  && i + 2 < codeBodyEnd
+                  && (_source[i + 1] == '$' || _source[i + 1] == '@')
+                  && _source[i + 2] == '"')
+            {
+                quotePos = i + 2;
+                isVerbatim = _source[i] == '@' || _source[i + 1] == '@';
+            }
+
+            if (quotePos >= 0)
+            {
+                int j = quotePos + 1;
+                while (j < codeBodyEnd)
+                {
+                    if (isVerbatim)
+                    {
+                        if (_source[j] == '"')
+                        {
+                            if (j + 1 < codeBodyEnd && _source[j + 1] == '"')
+                            {
+                                j += 2;
+                                continue;
+                            }
+
+                            j++;
+                            break;
+                        }
+
+                        j++;
+                        continue;
+                    }
+
+                    if (_source[j] == '\\')
+                    {
+                        j += 2;
+                        continue;
+                    }
+
+                    if (_source[j] == '"')
+                    {
+                        j++;
+                        break;
+                    }
+
+                    j++;
+                }
+
+                i = j;
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>

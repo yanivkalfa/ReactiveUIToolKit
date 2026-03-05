@@ -124,6 +124,20 @@ export function activate(context: vscode.ExtensionContext): void {
     output.appendLine(`[UITKX] Failed to start language client: ${message}`);
     vscode.window.showErrorMessage(`UITKX: Failed to start language server. ${message}`);
   });
+
+  const toggleBlockCommentCommand = vscode.commands.registerTextEditorCommand(
+    'uitkx.toggleBlockComment',
+    async (editor) => {
+      if (editor.document.languageId !== 'uitkx') {
+        await vscode.commands.executeCommand('editor.action.commentLine');
+        return;
+      }
+
+      await vscode.commands.executeCommand('editor.action.blockComment');
+    }
+  );
+  context.subscriptions.push(toggleBlockCommentCommand);
+
   const jsxCommentHandler = vscode.workspace.onDidChangeTextDocument(event => {
     if (event.document.languageId !== 'uitkx') return;
     const editor = vscode.window.activeTextEditor;

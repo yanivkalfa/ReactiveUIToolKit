@@ -1,6 +1,6 @@
 # UITKX P8.6 — Bug & Feature Checklist
 
-> Tracked as of v1.0.43 · March 2026
+> Tracked as of v1.0.44 · March 2026
 
 ---
 
@@ -15,9 +15,10 @@
 
 ## 🟠 Editor Features (Broken)
 
-- [ ] **#2 `@code` block not colored** — identifiers, variables, hook calls inside `@code { }` have no semantic coloring.
-  *(Note: elements inside `{/* */}` do get colored — so the issue is specific to the `@code` region.)*
-  ⚠️ Attempted `contentName: "source.cs.embedded.uitkx"` in v1.0.42 — **reverted in v1.0.43**: the C# grammar injection overrides all the UITKX patterns inside `@code`, breaking markup coloring (tags, `{}`, `/` etc. all wrong colors). Needs a different approach: inject targeted token patterns (keywords, types, identifiers) as explicit rules in `code-block-body` without delegating the whole scope to C#.
+- [x] **#2 `@code` block not colored** — Fixed in v1.0.44.
+  Root cause: the LSP server emitted no semantic tokens for the C# content inside `@code { }`, leaving it to the TextMate grammar alone (which produced only basic coloring). The `contentName` injection approach (v1.0.42) broke markup coloring — reverted in v1.0.43.
+  Fix: `SemanticTokensProvider` now scans the `@code` body line-by-line with a composite regex and emits `keyword`, `function`, `type`, `variable`, `string`, `number`, and `comment` semantic tokens for all C# constructs. Hook setters still get `Function` coloring via the existing `CollectHookSetterTokens` pass (runs after, overrides any `Variable` token for the same position).
+  *(Note: elements inside `{/* */}` do get colored — so the issue was specific to the `@code` region.)*
 
 - [ ] **#3 Setter hover missing** — `setCount`, `setMode`, etc. show no hover docs.
   The hover handler covers tags/attributes but not C# identifiers inside `@code`.

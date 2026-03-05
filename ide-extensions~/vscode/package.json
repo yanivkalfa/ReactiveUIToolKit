@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.44",
+  "version": "1.0.45",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {
@@ -110,6 +110,24 @@
         "id": "uitkxDirectiveName",
         "superType": "namespace",
         "description": "UITKX directive value tokens (namespace, component name, etc.)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "uitkx.toggleBlockComment",
+        "title": "UITKX: Toggle Block Comment"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "uitkx.toggleBlockComment",
+        "key": "ctrl+/",
+        "when": "editorTextFocus && editorLangId == uitkx"
+      },
+      {
+        "command": "uitkx.toggleBlockComment",
+        "key": "cmd+/",
+        "when": "editorTextFocus && editorLangId == uitkx"
       }
     ]
   },
