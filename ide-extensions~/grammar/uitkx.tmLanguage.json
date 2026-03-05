@@ -168,6 +168,7 @@
       "comment": "Handles @code { ... } with brace on the same line",
       "begin": "(@code)\\s*(\\{)",
       "end": "\\}",
+      "contentName": "source.cs.embedded.uitkx",
       "beginCaptures": {
         "1": {
           "name": "keyword.other.directive.uitkx"
@@ -191,6 +192,7 @@
       "comment": "Handles @code on its own line followed by { ... } on the next line",
       "begin": "(@code)\\s*$",
       "end": "\\}",
+      "contentName": "source.cs.embedded.uitkx",
       "beginCaptures": {
         "1": {
           "name": "keyword.other.directive.uitkx"
