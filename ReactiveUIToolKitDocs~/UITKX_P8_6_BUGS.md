@@ -29,14 +29,17 @@
 - [x] **#5 `Ctrl+/` in markup** — Fixed in v1.0.47.
   Fix: added `uitkx.toggleBlockComment` command + keybinding override so `Ctrl+/`/`Cmd+/` is context-aware in `.uitkx` files: markup toggles `{/* */}`, non-markup code in `@code` toggles `//`. Selection range normalization wraps from first non-whitespace to end of last touched line.
 
-- [ ] **#6 Unreachable code not grayed** — everything *after* a `return` statement (anywhere in the file) should be dimmed.
-  Currently no dimming because UITKX semantic tokens suppress OmniSharp's unreachable-code decoration.
+- [x] **#6 Unreachable code not grayed** — Fixed in v1.0.53.
+  Fix: language-lib emits `UITKX0107` hint diagnostics for unreachable lines after top-level `return` in `@code`; LSP publishes them with `DiagnosticTag.Unnecessary` so editors dim them.
 
 - [ ] **#7 Unity console click navigation** — clicking / double-clicking / Ctrl+clicking a `.uitkx` compile error in the Unity console does nothing.
 
 - [ ] **#8 Missing `;` auto-fix on save/format (default ON, opt-out)** — formatter should insert missing semicolons in safe statement-ending contexts.
   Scope: run during format/save (not while typing), deterministic and cross-IDE friendly.
   Config: default enabled; users can opt out via formatter option (e.g. `insertMissingSemicolonsOnFormat: false`).
+
+- [ ] **#9 `@for` / `@while` support `break` / `continue` flow handling** — add full control-flow support and diagnostics for loop-only statements.
+  Requirement: `break;` / `continue;` should be accepted and behave correctly inside loop bodies.
 
 ---
 

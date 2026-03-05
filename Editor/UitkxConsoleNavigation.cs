@@ -1,8 +1,10 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Callbacks;
+using UnityEngine;
 
 namespace ReactiveUITK.Editor
 {
@@ -17,21 +19,24 @@ namespace ReactiveUITK.Editor
     /// </summary>
     public static class UitkxConsoleNavigation
     {
+        private static readonly Regex s_lineDirectiveRegex = new Regex(
+            "^\\s*#line\\s+(?<line>\\d+)\\s+\"(?<path>[^\"]+)\"",
+            RegexOptions.Compiled
+        );
+
         [OnOpenAsset]
         private static bool OnOpenAsset(int instanceId, int line)
         {
             string assetPath = AssetDatabase.GetAssetPath(instanceId);
 
-            if (!assetPath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
-                return false; // not our file — let Unity handle it
-
-            string fullPath = Path.GetFullPath(assetPath);
+            if (!TryResolveUitkxTarget(assetPath, line, out string fullPath, out int targetLine))
+                return false; // not ours — let Unity handle it
 
             try
             {
                 // On Windows, 'code' is a .cmd script so we need cmd.exe as the host.
                 // On macOS/Linux, 'code' is a binary and can be launched directly.
-                string gotoArg = line > 0 ? $"--goto \"{fullPath}:{line}\"" : $"\"{fullPath}\"";
+                string gotoArg = targetLine > 0 ? $"--goto \"{fullPath}:{targetLine}\"" : $"\"{fullPath}\"";
 
 #if UNITY_EDITOR_WIN
                 Process.Start(
@@ -63,6 +68,86 @@ namespace ReactiveUITK.Editor
             }
 
             return true; // handled — suppress Unity's default open behaviour
+        }
+
+        private static bool TryResolveUitkxTarget(string assetPath, int clickedLine, out string fullPath, out int line)
+        {
+            fullPath = string.Empty;
+            line = clickedLine > 0 ? clickedLine : 1;
+
+            if (string.IsNullOrEmpty(assetPath))
+                return false;
+
+            // Direct .uitkx click (project window or console where #line is already respected)
+            if (assetPath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+            {
+                fullPath = Path.GetFullPath(assetPath);
+                return true;
+            }
+
+            // Console may open the generated .g.cs file. Recover original .uitkx via #line pragmas.
+            if (!assetPath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            string generatedFullPath = Path.GetFullPath(assetPath);
+            if (!File.Exists(generatedFullPath))
+                return false;
+
+            string[] lines = File.ReadAllLines(generatedFullPath);
+            if (lines.Length == 0)
+                return false;
+
+            int clicked = Mathf.Clamp(clickedLine, 1, lines.Length);
+
+            int activeDirectiveSourceLine = -1; // 1-based line of '#line ... "file"'
+            int activeDirectiveTargetLine = -1; // target line number from directive
+            string? activeDirectiveTargetPath = null;
+
+            for (int sourceLine = 1; sourceLine <= clicked; sourceLine++)
+            {
+                string text = lines[sourceLine - 1];
+                var match = s_lineDirectiveRegex.Match(text);
+                if (!match.Success)
+                    continue;
+
+                if (!int.TryParse(match.Groups["line"].Value, out int mappedStart))
+                    continue;
+
+                activeDirectiveSourceLine = sourceLine;
+                activeDirectiveTargetLine = mappedStart;
+                activeDirectiveTargetPath = match.Groups["path"].Value;
+            }
+
+            if (string.IsNullOrEmpty(activeDirectiveTargetPath))
+                return false;
+
+            // Line mapping: source line right after '#line' maps to mappedStart.
+            int targetLine = activeDirectiveTargetLine + Math.Max(0, clicked - (activeDirectiveSourceLine + 1));
+            string mappedPath = ResolvePathToAbsolute(activeDirectiveTargetPath);
+            if (!mappedPath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (!File.Exists(mappedPath))
+                return false;
+
+            fullPath = mappedPath;
+            line = targetLine;
+            return true;
+        }
+
+        private static string ResolvePathToAbsolute(string mappedPath)
+        {
+            if (Path.IsPathRooted(mappedPath))
+                return Path.GetFullPath(mappedPath);
+
+            // Unity project root = parent of Assets/
+            string projectRoot = Directory.GetParent(Application.dataPath)?.FullName ?? string.Empty;
+            if (!string.IsNullOrEmpty(projectRoot))
+            {
+                string combined = Path.GetFullPath(Path.Combine(projectRoot, mappedPath));
+                return combined;
+            }
+
+            return Path.GetFullPath(mappedPath);
         }
     }
 }
