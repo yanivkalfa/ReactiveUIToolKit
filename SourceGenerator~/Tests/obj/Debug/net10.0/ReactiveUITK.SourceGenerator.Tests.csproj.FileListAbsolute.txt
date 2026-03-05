@@ -127,3 +127,6 @@ C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Test
 C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Tests\obj\Debug\net10.0\ReactiveUITK.SourceGenerator.Tests.pdb
 C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Tests\obj\Debug\net10.0\ReactiveUITK.SourceGenerator.Tests.genruntimeconfig.cache
 C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Tests\obj\Debug\net10.0\ref\ReactiveUITK.SourceGenerator.Tests.dll
+c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Tests\bin\Debug\net10.0\.msCoverageSourceRootsMapping_ReactiveUITK.SourceGenerator.Tests
+c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Tests\bin\Debug\net10.0\ReactiveUITK.Language.dll
+c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\SourceGenerator~\Tests\bin\Debug\net10.0\ReactiveUITK.Language.pdb

@@ -65,12 +65,12 @@
       "action": { "indentAction": "outdent" }
     },
     {
-      "beforeText": "^.*[^/]>\\s*$",
+      "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
       "afterText": "^\\s*</[A-Za-z]",
       "action": { "indentAction": "indentOutdent" }
     },
     {
-      "beforeText": "^.*[^/]>\\s*$",
+      "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
       "action": { "indentAction": "indent" }
     }
   ],

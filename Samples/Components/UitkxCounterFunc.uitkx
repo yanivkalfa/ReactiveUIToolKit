@@ -1,59 +1,69 @@
 @namespace ReactiveUITK.Samples.FunctionalComponents
 @component UitkxCounterFunc
+
 @code {
     var (count, setCount) = Hooks.UseState(0);
     var (mode, setMode) = Hooks.UseState("normal");
+    var component = (
+        <Box>
+            <Button text="-5" onClick={() => setCount(count - 5)} />
+            <Button text="-" onClick={() => setCount(count - 1)} />
+            <Label text={$"{count}"} />
+            <Button text="+" onClick={() => setCount(count + 1)} />
+            <Button text="+5" onClick={() => setCount(count + 5)} />
+            <Box>
+                <Button text="-5" onClick={() => setCount(count - 5)} />
+                <Button text="-" onClick={() => setCount(count - 1)} />
+                <Label text={$"{count}"} />
+                <Button text="+" onClick={() => setCount(count + 1)} />
+                <Button text="+5" onClick={() => setCount(count + 5)} />
+                <Box>
+                    <Button text="-5" onClick={() => setCount(count - 5)} />
+                    <Button text="-" onClick={() => setCount(count - 1)} />
+                    <Label text={$"{count}"} />
+                    <Button text="+" onClick={() => setCount(count + 1)} />
+                    <Button text="+5" onClick={() => setCount(count + 5)} />
+                </Box>
+            </Box>
+        </Box>
+    );
 }
 
 <Box>
     @switch (mode) {
         @case "squared":
-        <Label text={$"Mode: Squared — Count²: {count * count}"}/>
+            <Label text={$"Mode: Squared — Count²: {count * count}"} />
         @case "normal":
-        <Label text={$"Mode: Normal — Count: {count}"}/>
+            <Label text={$"Mode: Normal — Count: {count}"} />
         @default:
-        <Label text={$"Mode: Unknown ({mode})"}/>
+            <Label text={$"Mode: Unknown ({mode})"} />
     }
-
     @if (count < -5) {
-        <Label text="Count cannot be less than -5!"/>
-        } @else if (count < 0) {
-        <Label text="Count is negative!"/>
-        } @else if (count == 0) {
-        <Label text="Count is zero"/>
-        } @else {
+        <Label text="Count cannot be less than -5!" />
+    } @else if (count < 0) {
+        <Label text="Count is negative!" />
+    } @else if (count == 0) {
+        <Label text="Count is zero" />
+    } @else {
         @for (int i = 0; i < count; i++) {
             @if (i % 2 == 0) {
-                <Label text={$"Even row {i}"}/>
-                } @else {
-                <Label text={$"Odd row {i}"}/>
+                <Label text={$"Even row {i}"} />
+            } @else {
+                <Label text={$"Odd row {i}"} />
             }
         }
-        <Label text={$"Total rows: {count}"}/>
+        <Label text={$"Total rows: {count}"} />
     }
-
+    @(component)
     <Box>
-        <Button
-            text="-5"
-            onClick={() => setCount(count - 5)}/>
-        <Button
-            text="-"
-            onClick={() => setCount(count - 1)}/>
-        <Label text={$"{count}"}/>
-        <Button
-            text="+"
-            onClick={() => setCount(count + 1)}/>
-        <Button
-            text="+5"
-            onClick={() => setCount(count + 5)}/>
+        <Button text="-5" onClick={() => setCount(count - 5)} />
+        <Button text="-" onClick={() => setCount(count - 1)} />
+        <Label text={$"{count}"} />
+        <Button text="+" onClick={() => setCount(count + 1)} />
+        <Button text="+5" onClick={() => setCount(count + 5)} />
     </Box>
-
     <Box>
-        <Button
-            text="Normal"
-            onClick={() => setMode("normal")}/>
-        <Button
-            text="Squared"
-            onClick={() => setMode("squared")}/>
+        <Button text="Normal" onClick={() => setMode("normal")} />
+        <Button text="Squared" onClick={() => setMode("squared")} />
     </Box>
 </Box>

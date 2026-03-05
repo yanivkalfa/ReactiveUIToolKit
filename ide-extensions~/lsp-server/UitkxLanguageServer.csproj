@@ -14,6 +14,9 @@
     <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../language-lib/UitkxLanguage.csproj" />
+  </ItemGroup>
   <!-- Embed schema as resource so we can resolve it without relying on cwd -->
   <ItemGroup>
     <EmbeddedResource Include="..\grammar\uitkx-schema.json">

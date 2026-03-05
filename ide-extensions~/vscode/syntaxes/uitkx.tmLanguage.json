@@ -60,9 +60,9 @@
       }
     },
     "directive-declaration": {
-      "comment": "Handles @namespace X, @component X, @using X, @props X",
+      "comment": "Handles @namespace X, @component X, @using X, @props X, @key X, @inject T N",
       "name": "meta.directive.uitkx",
-      "match": "^(@)(namespace|component|using|props)\\b(.*)$",
+      "match": "^(@)(namespace|component|using|props|key|inject)\\b(.*)$",
       "captures": {
         "1": {
           "name": "punctuation.definition.keyword.uitkx"
@@ -212,9 +212,10 @@
       "begin": "\\(",
       "end": "\\)",
       "patterns": [
-        {
-          "include": "#expression-content"
-        }
+        { "include": "#tag-self-closing" },
+        { "include": "#tag-close" },
+        { "include": "#tag-open" },
+        { "include": "#expression-content" }
       ]
     },
     "tag-self-closing": {
@@ -225,9 +226,7 @@
         "1": {
           "name": "punctuation.definition.tag.begin.uitkx"
         },
-        "2": {
-          "name": "entity.name.tag.uitkx"
-        }
+        "2": {}
       },
       "endCaptures": {
         "1": {
@@ -235,9 +234,14 @@
         }
       },
       "patterns": [
-        {
-          "include": "#tag-attributes"
-        }
+        { "include": "#control-flow-with-expression" },
+        { "include": "#case-directive-expression" },
+        { "include": "#control-flow-keyword" },
+        { "include": "#inline-expression" },
+        { "include": "#tag-self-closing" },
+        { "include": "#tag-close" },
+        { "include": "#code-block" },
+        { "include": "#tag-attributes" }
       ]
     },
     "tag-close": {
@@ -247,9 +251,7 @@
         "1": {
           "name": "punctuation.definition.tag.begin.uitkx"
         },
-        "2": {
-          "name": "entity.name.tag.uitkx"
-        },
+        "2": {},
         "3": {
           "name": "punctuation.definition.tag.end.uitkx"
         }
@@ -263,9 +265,7 @@
         "1": {
           "name": "punctuation.definition.tag.begin.uitkx"
         },
-        "2": {
-          "name": "entity.name.tag.uitkx"
-        }
+        "2": {}
       },
       "endCaptures": {
         "1": {
@@ -273,9 +273,14 @@
         }
       },
       "patterns": [
-        {
-          "include": "#tag-attributes"
-        }
+        { "include": "#control-flow-with-expression" },
+        { "include": "#case-directive-expression" },
+        { "include": "#control-flow-keyword" },
+        { "include": "#inline-expression" },
+        { "include": "#tag-self-closing" },
+        { "include": "#tag-close" },
+        { "include": "#code-block" },
+        { "include": "#tag-attributes" }
       ]
     },
     "tag-attributes": {
@@ -310,8 +315,15 @@
       ]
     },
     "attribute-value-expression": {
-      "begin": "\\{",
+      "comment": "Only match { immediately preceded by = so control-flow braces like @switch(x){ are never consumed",
+      "begin": "(?<==)\\{",
       "end": "\\}",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.embedded.begin.uitkx" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.section.embedded.end.uitkx" }
+      },
       "patterns": [
         {
           "include": "#expression-content"
@@ -461,11 +473,14 @@
       "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
     },
     "code-block-body": {
-      "comment": "Content inside @code { } — uses full expression tokenization",
+      "comment": "Content inside @code { } — full expression tokenization PLUS embedded markup highlighting",
       "patterns": [
-        {
-          "include": "#expression-content"
-        }
+        { "include": "#comment" },
+        { "include": "#tag-self-closing" },
+        { "include": "#tag-close" },
+        { "include": "#tag-open" },
+        { "include": "#inline-expression" },
+        { "include": "#expression-content" }
       ]
     }
   }

@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.17",
+  "version": "1.0.37",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {
@@ -84,7 +84,34 @@
         "editor.tabSize": 4,
         "editor.insertSpaces": true
       }
-    }
+    },
+    "semanticTokenTypes": [
+      {
+        "id": "uitkxElement",
+        "superType": "class",
+        "description": "UITKX element tag names (e.g. Box, Label, MyComponent)"
+      },
+      {
+        "id": "uitkxDirective",
+        "superType": "keyword",
+        "description": "UITKX control-flow directives (@if, @foreach, @switch, etc.)"
+      },
+      {
+        "id": "uitkxAttribute",
+        "superType": "property",
+        "description": "UITKX attribute names on elements (e.g. text, class)"
+      },
+      {
+        "id": "uitkxExpression",
+        "superType": "macro",
+        "description": "UITKX inline expression delimiters @(...)"
+      },
+      {
+        "id": "uitkxDirectiveName",
+        "superType": "namespace",
+        "description": "UITKX directive value tokens (namespace, component name, etc.)"
+      }
+    ]
   },
   "scripts": {
     "prebuild": "node -e \"require('fs').cpSync('../grammar/uitkx.tmLanguage.json','syntaxes/uitkx.tmLanguage.json')\"",

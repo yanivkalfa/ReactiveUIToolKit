@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.IO;
 using MediatR;
 using OmniSharp.Extensions.LanguageServer.Protocol;
@@ -5,18 +6,22 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using ReactiveUITK.Language.IntelliSense;
+using ReactiveUITK.Language.Parser;
 
 namespace UitkxLanguageServer;
 
 public sealed class CompletionHandler : ICompletionHandler
 {
-    private readonly UitkxSchema _schema;
+    private readonly UitkxSchema  _schema;
     private readonly DocumentStore _store;
+    private readonly WorkspaceIndex _index;
 
-    public CompletionHandler(UitkxSchema schema, DocumentStore store)
+    public CompletionHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index)
     {
         _schema = schema;
-        _store = store;
+        _store  = store;
+        _index  = index;
     }
 
     public CompletionRegistrationOptions GetRegistrationOptions(
@@ -43,18 +48,16 @@ public sealed class CompletionHandler : ICompletionHandler
             $"completion request: {request.TextDocument.Uri}  pos={request.Position.Line}:{request.Position.Character}"
         );
 
+        // Extract local path once; reused for disk-read fallback and AST parse.
+        string localPath;
+        try { localPath = new System.Uri(request.TextDocument.Uri.ToString()).LocalPath; }
+        catch { localPath = string.Empty; }
+
         if (!_store.TryGet(request.TextDocument.Uri, out var text))
         {
             // VS2022 may have sent textDocument/didOpen before the server was ready.
             // Fall back to reading the file from disk.
-            string? localPath = null;
-            try
-            {
-                localPath = new System.Uri(request.TextDocument.Uri.ToString()).LocalPath;
-            }
-            catch { }
-
-            if (localPath != null && File.Exists(localPath))
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
             {
                 text = File.ReadAllText(localPath);
                 _store.Set(request.TextDocument.Uri, text);
@@ -67,28 +70,36 @@ public sealed class CompletionHandler : ICompletionHandler
             }
         }
 
-        var offset = ToOffset(text, request.Position);
-        var context = DocumentContext.Detect(text, offset);
+        // Parse the document with the language-lib AST pipeline so completions
+        // are derived from the real syntax tree instead of text scanning.
 
-        var items = context.Kind switch
+        var parseDiags  = new List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives  = DirectiveParser.Parse(text, localPath, parseDiags);
+        var nodes       = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var parseResult = new ParseResult(
+            directives,
+            nodes,
+            ImmutableArray.CreateRange(parseDiags));
+
+        int line1 = (int)request.Position.Line + 1;
+        int col0  = (int)request.Position.Character;
+        var ctx = AstCursorContext.Find(parseResult, text, line1, col0);
+
+        var items = ctx.Kind switch
         {
-            DocumentContext.CompletionKind.DirectiveName => DirectiveItems(context.Prefix),
-            DocumentContext.CompletionKind.ControlFlowName => ControlFlowItems(context.Prefix),
-            DocumentContext.CompletionKind.TagName => TagItems(context.Prefix),
-            DocumentContext.CompletionKind.AttributeName => AttributeItems(
-                context.TagName,
-                context.Prefix
-            ),
-            DocumentContext.CompletionKind.AttributeValue => AttributeValueItems(
-                context.TagName,
-                context.AttributeName,
-                context.Prefix
-            ),
-            _ => Enumerable.Empty<CompletionItem>(),
+            CursorKind.DirectiveName   => DirectiveItems(ctx.Prefix),
+            CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix),
+            CursorKind.TagName         => TagItems(ctx.Prefix),
+            CursorKind.AttributeName   => AttributeItems(ctx.TagName ?? "", ctx.Prefix),
+            CursorKind.AttributeValue  => AttributeValueItems(
+                ctx.TagName ?? "",
+                ctx.AttributeName ?? "",
+                ctx.Prefix),
+            _                          => Enumerable.Empty<CompletionItem>(),
         };
 
         var list = items.ToList();
-        Log($"completion: kind={context.Kind} prefix='{context.Prefix}' → {list.Count} items");
+        Log($"completion: kind={ctx.Kind} prefix='{ctx.Prefix}' → {list.Count} items");
         return Task.FromResult(new CompletionList(list));
     }
 
@@ -132,44 +143,115 @@ public sealed class CompletionHandler : ICompletionHandler
                 },
             });
 
-    private IEnumerable<CompletionItem> TagItems(string prefix) =>
-        _schema
-            .Root.Elements.Where(kv =>
+    private IEnumerable<CompletionItem> TagItems(string prefix)
+    {
+        // Dynamic elements from workspace (one item per known element)
+        var knownElements = _index.KnownElements;
+
+        var dynamicItems = knownElements
+            .Where(name => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(name =>
+            {
+                var props  = _index.GetProps(name);
+                var detail = $"{name}Props";
+                var docMd  = props.Count == 0
+                    ? $"Component `{name}`"
+                    : $"Component `{name}` — {props.Count} prop(s):\n"
+                      + string.Join(", ", props.Take(5).Select(p => $"`{p.Name}`"));
+                var acceptsChildren = _schema.TryGetElement(name)?.AcceptsChildren ?? true;
+                return new CompletionItem
+                {
+                    Label            = name,
+                    Kind             = CompletionItemKind.Class,
+                    InsertText       = acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
+                    InsertTextFormat = InsertTextFormat.Snippet,
+                    Detail           = detail,
+                    Documentation    = new MarkupContent
+                    {
+                        Kind  = MarkupKind.Markdown,
+                        Value = docMd,
+                    },
+                };
+            });
+
+        // Schema built-ins not already covered by the workspace index
+        var schemaItems = _schema.Root.Elements
+            .Where(kv =>
                 kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            )
+                && !knownElements.Contains(kv.Key))
             .Select(kv => new CompletionItem
             {
-                Label = kv.Key,
-                Kind = CompletionItemKind.Class,
-                InsertText = BuildTagSnippet(kv.Key, kv.Value),
+                Label            = kv.Key,
+                Kind             = CompletionItemKind.Class,
+                InsertText       = BuildTagSnippet(kv.Key, kv.Value),
                 InsertTextFormat = InsertTextFormat.Snippet,
-                Detail = kv.Value.PropsType,
-                Documentation = new MarkupContent
+                Detail           = kv.Value.PropsType,
+                Documentation    = new MarkupContent
                 {
-                    Kind = MarkupKind.Markdown,
+                    Kind  = MarkupKind.Markdown,
                     Value = kv.Value.Description,
                 },
             });
 
-    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix) =>
-        _schema
+        return dynamicItems.Concat(schemaItems);
+    }
+
+    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix)
+    {
+        var workspaceProps = _index.GetProps(tagName);
+        var coveredNames   = new HashSet<string>(
+            workspaceProps.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+
+        // Props declared in *Props.cs (dynamic, workspace-specific)
+        var dynItems = workspaceProps
+            .Where(p => p.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(p =>
+            {
+                // Prefer {=} binding for non-string props; string=" " for string
+                var isString = p.Type.Equals("string", StringComparison.OrdinalIgnoreCase);
+                var insert   = isString ? $"{p.Name}=\"$1\"" : $"{p.Name}={{$1}}";
+                var doc      = string.IsNullOrEmpty(p.XmlDoc)
+                    ? $"**{p.Type}** `{p.Name}`"
+                    : p.XmlDoc;
+                return new CompletionItem
+                {
+                    Label            = p.Name,
+                    Kind             = CompletionItemKind.Property,
+                    InsertText       = insert,
+                    InsertTextFormat = InsertTextFormat.Snippet,
+                    Detail           = p.Type,
+                    Documentation    = new MarkupContent
+                    {
+                        Kind  = MarkupKind.Markdown,
+                        Value = doc,
+                    },
+                };
+            });
+
+        // Schema attrs for built-in elements + universal attrs not already covered
+        var schemaItems = _schema
             .GetAttributesForElement(tagName)
+            .Where(a =>
+                !coveredNames.Contains(a.Name)
+                && a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Where(a => a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(a => new CompletionItem
             {
-                Label = a.Name,
-                Kind = CompletionItemKind.Property,
-                InsertText = a.Name + "=\"$1\"",
+                Label            = a.Name,
+                Kind             = CompletionItemKind.Property,
+                InsertText       = a.Name + "=\"$1\"",
                 InsertTextFormat = InsertTextFormat.Snippet,
-                Detail = a.Type,
-                Documentation = new MarkupContent
+                Detail           = a.Type,
+                Documentation    = new MarkupContent
                 {
-                    Kind = MarkupKind.Markdown,
+                    Kind  = MarkupKind.Markdown,
                     Value = a.Description,
                 },
             });
+
+        return dynItems.Concat(schemaItems);
+    }
 
     private IEnumerable<CompletionItem> AttributeValueItems(
         string tagName,

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
-using ReactiveUITK.SourceGenerator.Nodes;
+using ReactiveUITK.Language.Nodes;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
 {

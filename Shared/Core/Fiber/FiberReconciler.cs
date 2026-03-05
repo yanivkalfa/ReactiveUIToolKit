@@ -784,7 +784,10 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Commit placement - insert element into DOM
+        /// Commit placement - insert element into DOM at the correct position.
+        /// Uses InsertBefore(parent, child, nextHostSibling) when a stable DOM
+        /// sibling can be found, falling back to AppendChild when the element
+        /// belongs at the end of the parent.
         /// </summary>
         private void CommitPlacement(FiberNode fiber)
         {
@@ -809,14 +812,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 if (_hostConfig.GetParent(fiber.HostElement) == null)
                 {
-                    if (FiberConfig.EnableFiberLogging)
-                    {
-                        UnityEngine.Debug.Log(
-                            $"[Fiber] Appending {fiber.ElementType} to {parentFiber.ElementType}"
-                        );
-                    }
-
-                    // Apply initial properties before appending
+                    // Apply initial properties before inserting
                     if (fiber.PendingProps != null)
                     {
                         if (FiberConfig.EnableFiberLogging)
@@ -845,7 +841,27 @@ namespace ReactiveUITK.Core.Fiber
                         }
                     }
 
-                    _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
+                    // Find the nearest already-placed DOM element that logically
+                    // follows this fiber in tree order.  If one exists, insert
+                    // before it so the element lands at the right visual position.
+                    // Otherwise append to the end (correct when there is no later sibling).
+                    var before = GetHostSibling(fiber);
+                    if (before != null)
+                    {
+                        if (FiberConfig.EnableFiberLogging)
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] InsertBefore {fiber.ElementType} before {before.name}"
+                            );
+                        _hostConfig.InsertBefore(parentFiber.HostElement, fiber.HostElement, before);
+                    }
+                    else
+                    {
+                        if (FiberConfig.EnableFiberLogging)
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] AppendChild {fiber.ElementType} to {parentFiber.ElementType}"
+                            );
+                        _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
+                    }
                 }
             }
             else
@@ -856,6 +872,59 @@ namespace ReactiveUITK.Core.Fiber
                         $"[Fiber] Could not find host parent for {fiber.ElementType}"
                     );
                 }
+            }
+        }
+
+        /// <summary>
+        /// Finds the nearest VisualElement that should appear AFTER
+        /// <paramref name="fiber"/> in DOM order and is already present in the
+        /// parent element (i.e. not itself being newly placed).
+        ///
+        /// Mirrors React's <c>getHostSibling</c> algorithm:
+        /// walk the fiber-tree siblings (and descend into non-host containers
+        /// such as Fragments and FunctionComponents) until a stable host node
+        /// is found, or we run out of siblings within the same host-parent.
+        /// </summary>
+        private static VisualElement GetHostSibling(FiberNode fiber)
+        {
+            FiberNode node = fiber;
+
+            while (true) // outer: advance to the next fiber to examine
+            {
+                // Walk up until we find a node that has a sibling,
+                // stopping if we cross into a host-element's territory.
+                while (node.Sibling == null)
+                {
+                    if (node.Parent == null
+                        || node.Parent.Tag == FiberTag.HostComponent
+                        || node.Parent.Tag == FiberTag.HostPortal)
+                        return null; // no DOM sibling exists before the host parent boundary
+                    node = node.Parent;
+                }
+                node = node.Sibling;
+
+                // Descend into `node` looking for the first stable HostComponent.
+                // If at any point we hit a Placement node or a childless container,
+                // break out so the outer loop can try the next sibling.
+                while (node.Tag != FiberTag.HostComponent)
+                {
+                    if ((node.EffectTag & EffectFlags.Placement) != 0)
+                        break; // this container is also new — try its sibling next
+
+                    if (node.Tag == FiberTag.HostPortal || node.Child == null)
+                        break; // can't descend further — try next sibling
+
+                    node = node.Child; // descend into Fragment / FunctionComponent
+                }
+
+                // If we landed on a stable HostComponent, that is our anchor.
+                if (node.Tag == FiberTag.HostComponent
+                    && (node.EffectTag & EffectFlags.Placement) == 0
+                    && node.HostElement != null)
+                    return node.HostElement;
+
+                // Otherwise `node` is wherever we stopped.  The next outer loop
+                // iteration will advance to node.Sibling (or walk up if null).
             }
         }
 

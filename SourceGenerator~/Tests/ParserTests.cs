@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using Microsoft.CodeAnalysis;
-using ReactiveUITK.SourceGenerator.Nodes;
-using ReactiveUITK.SourceGenerator.Parser;
+using ReactiveUITK.Language;
+using ReactiveUITK.Language.Nodes;
+using ReactiveUITK.Language.Parser;
 using Xunit;
 
 namespace ReactiveUITK.SourceGenerator.Tests;
@@ -17,15 +17,15 @@ public class ParserTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static DirectiveSet ParseDirectives(string source, out List<Diagnostic> diags)
+    private static DirectiveSet ParseDirectives(string source, out List<ParseDiagnostic> diags)
     {
-        diags = new List<Diagnostic>();
+        diags = new List<ParseDiagnostic>();
         return DirectiveParser.Parse(source, "test.uitkx", diags);
     }
 
-    private static ImmutableArray<AstNode> ParseMarkup(string source, out List<Diagnostic> diags)
+    private static ImmutableArray<AstNode> ParseMarkup(string source, out List<ParseDiagnostic> diags)
     {
-        diags = new List<Diagnostic>();
+        diags = new List<ParseDiagnostic>();
         var directives = DirectiveParser.Parse(source, "test.uitkx", diags);
         return UitkxParser.Parse(source, "test.uitkx", directives, diags);
     }
@@ -72,14 +72,14 @@ public class ParserTests
     public void Directives_MissingNamespace_EmitsUITKX0005()
     {
         ParseDirectives("@component MyComp\n<box/>", out var diags);
-        Assert.Contains(diags, d => d.Id == "UITKX0005");
+        Assert.Contains(diags, d => d.Code == "UITKX0005");
     }
 
     [Fact]
     public void Directives_MissingComponent_EmitsUITKX0005()
     {
         ParseDirectives("@namespace Test.NS\n<box/>", out var diags);
-        Assert.Contains(diags, d => d.Id == "UITKX0005");
+        Assert.Contains(diags, d => d.Code == "UITKX0005");
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public class ParserTests
     {
         // @component declared before @namespace
         ParseDirectives("@component MyComp\n@namespace Test.NS\n<box/>", out var diags);
-        Assert.Contains(diags, d => d.Id == "UITKX0012");
+        Assert.Contains(diags, d => d.Code == "UITKX0012");
     }
 
     // ── Markup: elements ─────────────────────────────────────────────────────

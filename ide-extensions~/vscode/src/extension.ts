@@ -16,6 +16,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('UITKX');
   context.subscriptions.push(output);
 
+  // --- Persistence diagnostics ---
+  output.appendLine(`[UITKX] globalStorageUri: ${context.globalStorageUri.fsPath}`);
+  const storedChat = context.globalState.get<unknown>('chatHistory');
+  output.appendLine(`[UITKX] globalState.chatHistory on activate: ${JSON.stringify(storedChat ?? null)}`);
+  const allKeys = context.globalState.keys();
+  output.appendLine(`[UITKX] globalState keys: ${JSON.stringify(allKeys)}`);
+  // --------------------------------
+
   const customServerPath = (config.get<string>('server.path', '') || '').trim();
   const bundledDll = path.join(context.extensionPath, 'server', 'UitkxLanguageServer.dll');
   const bundledExe = path.join(context.extensionPath, 'server', 'UitkxLanguageServer.exe');

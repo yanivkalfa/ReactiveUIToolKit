@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using ReactiveUITK.SourceGenerator.Nodes;
-using ReactiveUITK.SourceGenerator.Parser;
+using ReactiveUITK.Language.Nodes;
+using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
 {
@@ -124,10 +125,22 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // ── Namespace + class ────────────────────────────────────────────
             L($"namespace {_directives.Namespace}");
             L("{");
+            L($"    [global::ReactiveUITK.UitkxElement(\"{_directives.ComponentName}\")]");
             L($"    public partial class {_directives.ComponentName}");
             L("    {");
 
             EmitHelperMethod();
+
+            // ── @inject fields ────────────────────────────────────────────────
+            // Each @inject directive emits a static field.  Set the value in the
+            // companion (non-generated) partial class or via a static initialiser.
+            if (!_directives.Injects.IsDefault && !_directives.Injects.IsEmpty)
+            {
+                L($"{I2}// @inject — set these fields before calling Render.");
+                foreach (var inj in _directives.Injects)
+                    L($"{I2}public static {inj.Type} {inj.Name};");
+                L("");
+            }
 
             // ── Render method signature ───────────────────────────────────────
             L($"{I2}public static {QVNode} Render(");
@@ -148,16 +161,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // @code block content (inside Render method, before return)
             var codeArr = codeBlocks.ToImmutable();
             foreach (var cb in codeArr)
-            {
-                L($"#line {cb.SourceLine} \"{_displayName}\"");
-                foreach (var line in cb.Code.Split('\n'))
-                {
-                    var trimmed = line.TrimEnd('\r');
-                    if (!string.IsNullOrEmpty(trimmed))
-                        L($"{I3}{trimmed.TrimStart()}");
-                }
-                L("");
-            }
+                EmitCodeBlockContent(cb);
 
             // ── Return expression ─────────────────────────────────────────────
             var markup = markupNodes.ToImmutable();
@@ -190,6 +194,63 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("}"); // close namespace
 
             return _sb.ToString();
+        }
+
+        // ── @code block emission ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Emits one <c>@code { }</c> block, splicing any embedded
+        /// <c>return &lt;Tag .../&gt;</c> markup into their C# call equivalents.
+        /// </summary>
+        private void EmitCodeBlockContent(CodeBlockNode cb)
+        {
+            L($"#line {cb.SourceLine} \"{_displayName}\"");
+            string codeText = cb.Code;
+
+            if (!cb.ReturnMarkups.IsEmpty)
+            {
+                // Splice C# call expressions in place of each <Tag .../> markup
+                var markups = cb.ReturnMarkups.OrderBy(m => m.StartOffsetInCodeBlock).ToArray();
+                var spliced = new StringBuilder();
+                int prev = 0;
+
+                foreach (var m in markups)
+                {
+                    int start = m.StartOffsetInCodeBlock;
+                    int end   = m.EndOffsetInCodeBlock;
+
+                    // Guard against out-of-range offsets
+                    if (start < 0) start = 0;
+                    if (end   < 0) end   = 0;
+                    if (start > codeText.Length) start = codeText.Length;
+                    if (end   > codeText.Length) end   = codeText.Length;
+
+                    if (start > prev)
+                        spliced.Append(codeText, prev, start - prev);
+
+                    // Capture element C# emission without touching the main builder
+                    int savedLen = _sb.Length;
+                    EmitNode(m.Element);
+                    string elemCs = _sb.ToString(savedLen, _sb.Length - savedLen);
+                    _sb.Length = savedLen;
+
+                    spliced.Append(elemCs.Trim());
+                    prev = end;
+                }
+
+                if (prev < codeText.Length)
+                    spliced.Append(codeText, prev, codeText.Length - prev);
+
+                codeText = spliced.ToString();
+            }
+
+            foreach (var line in codeText.Split('\n'))
+            {
+                var trimmed = line.TrimEnd('\r');
+                if (!string.IsNullOrEmpty(trimmed))
+                    L($"{I3}{trimmed.TrimStart()}");
+            }
+            L("");
         }
 
         // ── __C helper method ─────────────────────────────────────────────────
@@ -490,27 +551,44 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 return;
             }
 
+            // Stable-type strategy:
+            // 1. The outer Fragment ensures the TYPE at THIS node's position in the parent
+            //    children array is always Fragment (never label, never box).
+            // 2. Each branch is ALSO wrapped in a Fragment (via EmitBodyAsFragment) so the
+            //    ternary value that sits at position-0 of the outer Fragment is ALWAYS a
+            //    Fragment regardless of which branch fires.
+            //
+            // Without (2), switching from a single-node branch (Label) to a multi-node
+            // branch (Fragment) still changes the type at that inner position. The reconciler
+            // would delete the old fiber and call CommitPlacement on the new one, which
+            // only ever calls AppendChild — placing the new children at the END of the
+            // host parent instead of at the correct index.
+            _sb.Append("V.Fragment(key: null, __C(");
+
             // Build ternary chain:
-            // (cond1) ? body1 : (cond2) ? body2 : bodyN_or_null
+            // (cond1) ? V.Fragment(...body1) : (cond2) ? V.Fragment(...body2) : V.Fragment()
             for (int i = 0; i < ifn.Branches.Length; i++)
             {
                 var branch = ifn.Branches[i];
 
                 if (branch.Condition == null)
                 {
-                    // @else — terminal branch
-                    EmitBodyExpr(branch.Body);
+                    // @else — terminal branch, always a Fragment
+                    EmitBodyAsFragment(branch.Body);
+                    _sb.Append("))");
                     return;
                 }
 
                 _sb.Append($"({branch.Condition}) ? ");
-                EmitBodyExpr(branch.Body);
+                EmitBodyAsFragment(branch.Body);
                 _sb.Append(" : ");
 
-                // If this is the last branch and it had a condition (no @else), append null
+                // Last branch with no @else — emit an empty Fragment (not null) so the
+                // type at position-0 of the outer Fragment is always Fragment.
                 if (i == ifn.Branches.Length - 1)
-                    _sb.Append($"({QVNode})null");
+                    _sb.Append("V.Fragment(key: null)");
             }
+            _sb.Append("))");
         }
 
         private void EmitForNode(ForNode fn)
@@ -572,21 +650,27 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitSwitchNode(SwitchNode sw)
         {
+            // Same stable-type strategy as EmitIfNode:
+            // outer Fragment keeps parent position stable; each arm is also always a Fragment
+            // so the switch expression result type never changes.
+            _sb.Append("V.Fragment(key: null, __C(");
             _sb.Append($"({sw.SwitchExpression}) switch {{");
 
             foreach (var c in sw.Cases)
             {
                 _sb.Append(c.ValueExpression == null ? " _ => " : $" {c.ValueExpression} => ");
 
-                EmitBodyExpr(c.Body);
+                EmitBodyAsFragment(c.Body);
                 _sb.Append(",");
             }
 
-            // Ensure there is always a default to keep C# exhaustiveness happy
+            // Ensure there is always a default to keep C# exhaustiveness happy.
+            // Use an empty Fragment (not null) so the switch result is always Fragment.
             if (sw.Cases.Length > 0 && sw.Cases[sw.Cases.Length - 1].ValueExpression != null)
-                _sb.Append($" _ => ({QVNode})null,");
+                _sb.Append(" _ => V.Fragment(key: null),");
 
             _sb.Append(" }");
+            _sb.Append("))");
         }
 
         // ── Leaf nodes ────────────────────────────────────────────────────────
@@ -609,6 +693,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         }
 
         // ── Body expression helpers ───────────────────────────────────────────
+
+        /// <summary>
+        /// Emits the body of an @if / @switch branch as a V.Fragment, always.
+        /// This guarantees that the type of the value produced by every branch of a
+        /// ternary / switch expression is always VirtualNodeType.Fragment, so the
+        /// reconciler never needs to CommitPlacement after initial mount.
+        /// </summary>
+        private void EmitBodyAsFragment(ImmutableArray<AstNode> body)
+        {
+            _sb.Append("V.Fragment(key: null, __C(");
+            if (!body.IsEmpty)
+                EmitChildArgs(body);
+            _sb.Append("))");
+        }
 
         /// <summary>
         /// Emits the body of a branch as a single expression.

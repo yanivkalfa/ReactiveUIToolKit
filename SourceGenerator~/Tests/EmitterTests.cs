@@ -182,4 +182,41 @@ public class EmitterTests
             "Expected #line directives in generated source"
         );
     }
+
+    // ── [UitkxElement] attribute ─────────────────────────────────────────────
+
+    [Fact]
+    public void GeneratedClass_HasUitkxElementAttribute()
+    {
+        // The emitter should emit [global::ReactiveUITK.UitkxElement("MyComp")]
+        // on the generated partial class so runtime tooling can discover it.
+        var result = GeneratorTestHelper.Run(Header + "<label/>");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("UitkxElement(\"MyComp\")"),
+            "Expected [UitkxElement(\"MyComp\")] attribute on the generated partial class");
+    }
+
+    // ── Embedded markup in @code ─────────────────────────────────────────────
+
+    [Fact]
+    public void ReturnMarkupInCodeBlock_GeneratesVCall()
+    {
+        const string src = Header + "@code {\n    private static VirtualNode Btn() {\n        return <label text=\"hi\" />;\n    }\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "Source should be produced");
+        Assert.True(result.SourceContains("V.Label("), "Embedded <label> should produce V.Label( call");
+    }
+
+    [Fact]
+    public void ReturnMarkupInCodeBlock_ExpressionAttribute_IsVerbatim()
+    {
+        const string src = Header + "@code {\n    private static VirtualNode Btn(string msg) {\n        return <label text={msg} />;\n    }\n}";
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "Source should be produced");
+        Assert.True(result.SourceContains("msg"), "Expression attribute should appear verbatim in generated source");
+    }
 }

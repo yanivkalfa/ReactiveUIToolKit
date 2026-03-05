@@ -10,8 +10,10 @@
         "dependencies": {
           "Microsoft.CodeAnalysis.CSharp": "4.3.1",
           "Microsoft.NET.Test.Sdk": "17.12.0",
+          "ReactiveUITK.Language": "1.0.0",
           "ReactiveUITK.SourceGenerator": "1.0.0",
-          "xunit": "2.9.3"
+          "xunit": "2.9.3",
+          "ReactiveUITK.Language.Reference": "1.0.0.0"
         },
         "runtime": {
           "ReactiveUITK.SourceGenerator.Tests.dll": {}
@@ -433,9 +435,27 @@
           }
         }
       },
+      "ReactiveUITK.Language/1.0.0": {
+        "runtime": {
+          "ReactiveUITK.Language.dll": {
+            "fileVersion": "0.0.0.0"
+          }
+        }
+      },
       "ReactiveUITK.SourceGenerator/1.0.0": {
+        "dependencies": {
+          "ReactiveUITK.Language": "1.0.0"
+        },
         "runtime": {
           "ReactiveUITK.SourceGenerator.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "ReactiveUITK.Language.Reference/1.0.0.0": {
+        "runtime": {
+          "ReactiveUITK.Language.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -540,8 +560,18 @@
       "path": "xunit.extensibility.execution/2.9.3",
       "hashPath": "xunit.extensibility.execution.2.9.3.nupkg.sha512"
     },
+    "ReactiveUITK.Language/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
     "ReactiveUITK.SourceGenerator/1.0.0": {
       "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "ReactiveUITK.Language.Reference/1.0.0.0": {
+      "type": "reference",
       "serviceable": false,
       "sha512": ""
     }

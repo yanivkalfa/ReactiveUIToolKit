@@ -8,7 +8,12 @@
     <RootNamespace>ReactiveUITK.SourceGenerator.Tests</RootNamespace>
     <!-- Suppress the RS1035 "do not use banned API" warning that fires when
          test code calls File.ReadAllText etc. inside analyzer test helpers. -->
-    <NoWarn>RS1035</NoWarn>
+    <!-- CS8785: Generator failed to generate source — expected here because the
+         test build's analyzer host uses an isolated load context that doesn't
+         have ReactiveUITK.Language.dll alongside it.  All 48 tests still pass
+         because GeneratorTestHelper.Run() instantiates UitkxGenerator directly
+         rather than going through the analyzer pipeline slot. -->
+    <NoWarn>RS1035;CS8785</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <!-- Reference the generator as a normal project (not as RoslynAnalyzer)
@@ -19,6 +24,8 @@
       OutputItemType="Analyzer"
       SetTargetFramework="TargetFramework=netstandard2.0"
     />
+    <!-- Direct reference to language-lib so test code can use its public types -->
+    <ProjectReference Include="../../ide-extensions~/language-lib/UitkxLanguage.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- Use the same Roslyn version so types unify correctly. -->

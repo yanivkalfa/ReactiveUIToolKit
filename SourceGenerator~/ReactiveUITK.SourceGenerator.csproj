@@ -25,6 +25,12 @@
   <ItemGroup>
     <!-- Exclude the sibling test project from the generator's own compilation -->
     <Compile Remove="Tests\**\*.cs" />
+    <!-- AstNode.cs and Parser/ were moved to language-lib -->
+    <Compile Remove="Nodes\**\*.cs" />
+    <Compile Remove="Parser\**\*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ide-extensions~\language-lib\UitkxLanguage.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!--
@@ -38,5 +44,50 @@
       folder — Unity supplies them at compile time from its own install.
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" PrivateAssets="all" />
+    <!--
+      Pin the same version of System.Collections.Immutable that UitkxLanguage.csproj uses.
+      PrivateAssets="all" keeps it from leaking to downstream consumers, but we still
+      need the NuGet package to be restored so $(NuGetPackageRoot) points at the DLL.
+      The CopyImmutableToOutput target below handles actually placing it in Analyzers/.
+    -->
+    <PackageReference Include="System.Collections.Immutable" Version="6.0.0" PrivateAssets="all" />
   </ItemGroup>
+
+  <!--
+    After the generator builds, copy ReactiveUITK.Language.dll into the same
+    output folder (Analyzers/).  This is required because:
+      1. Unity must find the DLL next to the generator when loading analyzers.
+      2. LanguageLibResolver.cs resolves the assembly from the generator's own
+         directory at runtime, so both files must be co-located.
+  -->
+  <!--
+    Copy System.Collections.Immutable.dll into Analyzers/ alongside the generator.
+    ReactiveUITK.Language.dll references this assembly, so Unity's analyzer loader
+    must be able to find it in the same folder.  The language-lib project uses
+    PrivateAssets="all" so the DLL is not automatically output — we copy it explicitly.
+    $(NuGetPackageRoot) is the local NuGet cache root (e.g. %USERPROFILE%\.nuget\packages\).
+  -->
+  <Target Name="CopyImmutableToOutput" AfterTargets="Build">
+    <ItemGroup>
+      <_ImmutableDll Include="$(NuGetPackageRoot)system.collections.immutable\6.0.0\lib\netstandard2.0\System.Collections.Immutable.dll" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_ImmutableDll)"
+      DestinationFolder="$(OutputPath)"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyLanguageLibToOutput" AfterTargets="Build">
+    <MSBuild
+      Projects="..\ide-extensions~\language-lib\UitkxLanguage.csproj"
+      Targets="GetTargetPath"
+      Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_LanguageLibDll" />
+    </MSBuild>
+    <Copy
+      SourceFiles="@(_LanguageLibDll)"
+      DestinationFolder="$(OutputPath)"
+      SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

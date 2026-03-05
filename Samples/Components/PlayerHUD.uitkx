@@ -1,0 +1,39 @@
+@namespace ReactiveUITK.Samples.FunctionalComponents
+@component PlayerHUD
+
+@code {
+    // Extract strongly-typed props. The presenter passes them under the "data" key:
+    //   V.Func(PlayerHUD.Render, new Dictionary<string,object>{ {"data", myProps} })
+    var hud = (__rawProps.TryGetValue("data", out var __hud) ? __hud : null)
+    as PlayerHUDProps ?? PlayerHUDProps.Default;
+}
+
+<Box>
+    <Label text="Player Status"/>
+
+    @switch (hud.ActiveAbility) {
+        @case "fireball":
+        <Label text="Active: Fireball"/>
+        @case "shield":
+        <Label text="Active: Shield"/>
+        @default:
+        <Label text="No ability selected"/>
+    }
+
+    @if (hud.Health <= 0) {
+        <Label text="Game Over"/>
+        } @else if ((float)hud.Health / hud.MaxHealth < 0.2f) {
+        <Label text={$"Critical HP: {hud.Health} / {hud.MaxHealth}"}/>
+        } @else {
+        <Label text={$"HP: {hud.Health} / {hud.MaxHealth}"}/>
+    }
+
+    @foreach (var item in hud.Inventory) {
+        <Box key={item.Id}>
+            <Label text={$"{item.Name} x{item.Count}"}/>
+            @if (item.IsEquipped) {
+                <Label text="[equipped]"/>
+            }
+        </Box>
+    }
+</Box>

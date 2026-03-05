@@ -27,6 +27,11 @@ namespace ReactiveUITK.SourceGenerator
     [Generator]
     public sealed class UitkxGenerator : IIncrementalGenerator
     {
+        // Belt-and-suspenders: ensure the assembly resolver is registered as soon
+        // as the generator type is loaded, regardless of [ModuleInitializer] support.
+        // This fires on ALL runtimes (Mono, CoreCLR) before Initialize() is called.
+        static UitkxGenerator() => LanguageLibResolver.EnsureRegistered();
+
         // Emitted once per assembly to confirm the generator DLL loaded.
         private static readonly DiagnosticDescriptor s_generatorAlive = new DiagnosticDescriptor(
             id: "UITKX0000",
@@ -83,7 +88,17 @@ namespace ReactiveUITK.SourceGenerator
                         }
                         foreach (var tree in pair.Right.SyntaxTrees)
                         {
-                            string? dir = Path.GetDirectoryName(tree.FilePath);
+                            // Unity's csproj can contain relative Compile paths;
+                            // resolve to absolute so the "Assets" ancestor walk works.
+                            string treePath = tree.FilePath;
+                            if (!string.IsNullOrEmpty(treePath)
+                                && !Path.IsPathRooted(treePath))
+                            {
+                                try { treePath = Path.GetFullPath(treePath); }
+                                catch { /* ignore resolution failures */ }
+                            }
+
+                            string? dir = Path.GetDirectoryName(treePath);
                             while (!string.IsNullOrEmpty(dir))
                             {
                                 if (Directory.Exists(Path.Combine(dir, "Assets")))

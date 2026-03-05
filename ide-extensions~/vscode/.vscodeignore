@@ -12,6 +12,9 @@ esbuild.js
 **/*.map
 **/*.ts
 
+# Scratch / alternate publish folders
+lsp-server-win/**
+
 # Re-include compiled output and bundled server
 !out/**
 !server/**

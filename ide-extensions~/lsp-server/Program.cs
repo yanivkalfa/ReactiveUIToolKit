@@ -20,12 +20,20 @@ var server = await LanguageServer.From(options =>
         .WithHandler<CompletionHandler>()
         .WithHandler<HoverHandler>()
         .WithHandler<FormattingHandler>()
+        .WithHandler<SemanticTokensHandler>()
+        .WithHandler<DefinitionHandler>()
+        .WithHandler<WatchedFilesHandler>()
         .WithServices(services =>
         {
             services.AddSingleton<UitkxSchema>();
             services.AddSingleton<DocumentStore>();
+            services.AddSingleton<WorkspaceIndex>();
+            services.AddSingleton<DiagnosticsPublisher>();
             services.AddSingleton<OmniSharp.Extensions.LanguageServer.Protocol.Server.IOnLanguageServerStarted>(
                 new StartupLogger()
+            );
+            services.AddSingleton<OmniSharp.Extensions.LanguageServer.Protocol.Server.IOnLanguageServerStarted>(
+                sp => sp.GetRequiredService<WorkspaceIndex>()
             );
         })
 );

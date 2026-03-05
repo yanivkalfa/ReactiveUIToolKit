@@ -65,3 +65,5 @@ C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\lsp-s
 C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\lsp-server\obj\Release\net8.0\UitkxLanguageServer.pdb
 C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\lsp-server\obj\Release\net8.0\UitkxLanguageServer.genruntimeconfig.cache
 C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\lsp-server\obj\Release\net8.0\ref\UitkxLanguageServer.dll
+C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\lsp-server\bin\Release\net8.0\ReactiveUITK.Language.dll
+C:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\ide-extensions~\lsp-server\bin\Release\net8.0\ReactiveUITK.Language.pdb

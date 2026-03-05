@@ -14,8 +14,13 @@ namespace UitkxLanguageServer;
 public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
 {
     private readonly DocumentStore _store;
+    private readonly DiagnosticsPublisher _diagnostics;
 
-    public TextSyncHandler(DocumentStore store) => _store = store;
+    public TextSyncHandler(DocumentStore store, DiagnosticsPublisher diagnostics)
+    {
+        _store = store;
+        _diagnostics = diagnostics;
+    }
 
     public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri) =>
         new TextDocumentAttributes(uri, "uitkx");
@@ -42,6 +47,7 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
             $"didOpen: {request.TextDocument.Uri}  lang={request.TextDocument.LanguageId}  len={request.TextDocument.Text?.Length}"
         );
         _store.Set(request.TextDocument.Uri, request.TextDocument.Text);
+        _diagnostics.Publish(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty);
         return Unit.Task;
     }
 
@@ -53,6 +59,7 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         var text = request.ContentChanges.LastOrDefault()?.Text ?? "";
         ServerLog.Log($"didChange: {request.TextDocument.Uri}  len={text.Length}");
         _store.Set(request.TextDocument.Uri, text);
+        _diagnostics.Publish(request.TextDocument.Uri, text);
         return Unit.Task;
     }
 

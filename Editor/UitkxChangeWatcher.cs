@@ -2,6 +2,7 @@
 using System;
 using System.IO;
 using UnityEditor;
+using UnityEditor.Compilation;
 
 namespace ReactiveUITK.Editor
 {
@@ -64,7 +65,18 @@ namespace ReactiveUITK.Editor
                 + "namespace ReactiveUITK.Editor.Generated { }\n";
 
             File.WriteAllText(absolutePath, content);
+
+            // ImportAsset tells Unity this .cs changed, scheduling a recompile.
             AssetDatabase.ImportAsset(TriggerAssetPath, ImportAssetOptions.ForceUpdate);
+
+            // Belt-and-suspenders: explicitly request a script compilation and
+            // clear the incremental build cache.  This ensures Roslyn re-reads
+            // every AdditionalText (including .uitkx files) from disk rather
+            // than returning a stale cached copy, which would cause the source
+            // generator to produce outdated output even after a file save.
+            CompilationPipeline.RequestScriptCompilation(
+                RequestScriptCompilationOptions.CleanBuildCache
+            );
         }
 
         private static bool AnyUitkxFile(string[] paths)
