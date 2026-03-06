@@ -181,6 +181,17 @@ public class EmitterTests
             result.SourceContains("#line"),
             "Expected #line directives in generated source"
         );
+
+        // Must carry a concrete path to avoid Unity virtual generator hyperlinks
+        // like ReactiveUITK.SourceGenerator\...\Foo.uitkx(...).
+        Assert.True(
+            result.SourceContains("/TestComponent.uitkx\""),
+            "Expected #line to include normalized source file path"
+        );
+        Assert.False(
+            result.SourceContains("ReactiveUITK.SourceGenerator\\"),
+            "#line should not point to virtual generator paths"
+        );
     }
 
     // ── [UitkxElement] attribute ─────────────────────────────────────────────

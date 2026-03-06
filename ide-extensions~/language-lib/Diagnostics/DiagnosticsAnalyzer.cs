@@ -43,29 +43,36 @@ namespace ReactiveUITK.Language.Diagnostics
         public IReadOnlyList<ParseDiagnostic> Analyze(
             ParseResult parseResult,
             string? filePath,
-            HashSet<string>? projectElements = null)
+            HashSet<string>? projectElements = null
+        )
         {
             var diags = new List<ParseDiagnostic>();
-            var d     = parseResult.Directives;
+            var d = parseResult.Directives;
 
             // ── T2: UITKX0101 — Missing @namespace ───────────────────────────
             if (string.IsNullOrEmpty(d.Namespace))
             {
-                diags.Add(MakeDiag(
-                    DiagnosticCodes.MissingNamespace,
-                    ParseSeverity.Error,
-                    "Missing required '@namespace' directive.",
-                    line: 1));
+                diags.Add(
+                    MakeDiag(
+                        DiagnosticCodes.MissingNamespace,
+                        ParseSeverity.Error,
+                        "Missing required '@namespace' directive.",
+                        line: 1
+                    )
+                );
             }
 
             // ── T2: UITKX0102 — Missing @component ───────────────────────────
             if (string.IsNullOrEmpty(d.ComponentName))
             {
-                diags.Add(MakeDiag(
-                    DiagnosticCodes.MissingComponent,
-                    ParseSeverity.Error,
-                    "Missing required '@component' directive.",
-                    line: 1));
+                diags.Add(
+                    MakeDiag(
+                        DiagnosticCodes.MissingComponent,
+                        ParseSeverity.Error,
+                        "Missing required '@component' directive.",
+                        line: 1
+                    )
+                );
             }
 
             // ── T2: UITKX0103 — Filename / component-name mismatch ───────────
@@ -74,11 +81,14 @@ namespace ReactiveUITK.Language.Diagnostics
                 var stem = Path.GetFileNameWithoutExtension(filePath);
                 if (!string.Equals(stem, d.ComponentName, System.StringComparison.Ordinal))
                 {
-                    diags.Add(MakeDiag(
-                        DiagnosticCodes.FilenameMismatch,
-                        ParseSeverity.Error,
-                        $"@component name '{d.ComponentName}' does not match filename '{stem}.uitkx'.",
-                        line: d.MarkupStartLine > 1 ? d.MarkupStartLine - 1 : 1));
+                    diags.Add(
+                        MakeDiag(
+                            DiagnosticCodes.FilenameMismatch,
+                            ParseSeverity.Error,
+                            $"@component name '{d.ComponentName}' does not match filename '{stem}.uitkx'.",
+                            line: d.MarkupStartLine > 1 ? d.MarkupStartLine - 1 : 1
+                        )
+                    );
                 }
             }
 
@@ -96,7 +106,8 @@ namespace ReactiveUITK.Language.Diagnostics
             ImmutableArray<AstNode> nodes,
             bool insideForeach,
             HashSet<string>? projectElements,
-            List<ParseDiagnostic> diags)
+            List<ParseDiagnostic> diags
+        )
         {
             // UITKX0104 — Duplicate literal key among siblings at this level.
             CheckDuplicateKeys(nodes, diags);
@@ -111,7 +122,8 @@ namespace ReactiveUITK.Language.Diagnostics
             AstNode node,
             bool insideForeach,
             HashSet<string>? projectElements,
-            List<ParseDiagnostic> diags)
+            List<ParseDiagnostic> diags
+        )
         {
             switch (node)
             {
@@ -147,7 +159,12 @@ namespace ReactiveUITK.Language.Diagnostics
                     foreach (var rm in cb.ReturnMarkups)
                     {
                         CheckElement(rm.Element, insideForeach, diags);
-                        WalkNodeList(rm.Element.Children, insideForeach: false, projectElements, diags);
+                        WalkNodeList(
+                            rm.Element.Children,
+                            insideForeach: false,
+                            projectElements,
+                            diags
+                        );
                     }
                     break;
 
@@ -162,17 +179,22 @@ namespace ReactiveUITK.Language.Diagnostics
         private static void CheckElement(
             ElementNode el,
             bool insideForeach,
-            List<ParseDiagnostic> diags)
+            List<ParseDiagnostic> diags
+        )
         {
             // UITKX0106 — Missing key inside @foreach.
             if (insideForeach && !HasKeyAttribute(el))
             {
-                diags.Add(MakeDiag(
-                    DiagnosticCodes.MissingKey,
-                    ParseSeverity.Error,
-                    $"Element <{el.TagName}> inside @foreach should have a 'key' attribute to help with reconciliation.",
-                    el.SourceLine, el.SourceColumn,
-                    el.SourceColumn + 1 + el.TagName.Length));
+                diags.Add(
+                    MakeDiag(
+                        DiagnosticCodes.MissingKey,
+                        ParseSeverity.Error,
+                        $"Element <{el.TagName}> inside @foreach should have a 'key' attribute to help with reconciliation.",
+                        el.SourceLine,
+                        el.SourceColumn,
+                        el.SourceColumn + 1 + el.TagName.Length
+                    )
+                );
             }
         }
 
@@ -182,7 +204,8 @@ namespace ReactiveUITK.Language.Diagnostics
 
         private static void CheckDuplicateKeys(
             ImmutableArray<AstNode> siblings,
-            List<ParseDiagnostic> diags)
+            List<ParseDiagnostic> diags
+        )
         {
             // Collect elements that have a literal string key attribute.
             // Map: key-value → first element that used it.
@@ -193,9 +216,10 @@ namespace ReactiveUITK.Language.Diagnostics
                 if (node is not ElementNode el)
                     continue;
 
-                var keyAttr = el.Attributes.FirstOrDefault(
-                    a => string.Equals(a.Name, "key", System.StringComparison.Ordinal)
-                      && a.Value is StringLiteralValue);
+                var keyAttr = el.Attributes.FirstOrDefault(a =>
+                    string.Equals(a.Name, "key", System.StringComparison.Ordinal)
+                    && a.Value is StringLiteralValue
+                );
 
                 if (keyAttr is null)
                     continue;
@@ -205,21 +229,33 @@ namespace ReactiveUITK.Language.Diagnostics
                 if (seen.TryGetValue(keyVal, out var first))
                 {
                     // Report on the duplicate (current element).
-                    diags.Add(MakeDiag(
-                        DiagnosticCodes.DuplicateKey,
-                        ParseSeverity.Error,
-                        $"Duplicate sibling key \"{keyVal}\". Keys must be unique among sibling elements.",
-                        el.SourceLine, el.SourceColumn));
-
-                    // Also report on the first occurrence if not already done.
-                    if (!diags.Any(d => d.Code == DiagnosticCodes.DuplicateKey
-                                     && d.SourceLine == first.SourceLine))
-                    {
-                        diags.Add(MakeDiag(
+                    diags.Add(
+                        MakeDiag(
                             DiagnosticCodes.DuplicateKey,
                             ParseSeverity.Error,
                             $"Duplicate sibling key \"{keyVal}\". Keys must be unique among sibling elements.",
-                            first.SourceLine, first.SourceColumn));
+                            el.SourceLine,
+                            el.SourceColumn
+                        )
+                    );
+
+                    // Also report on the first occurrence if not already done.
+                    if (
+                        !diags.Any(d =>
+                            d.Code == DiagnosticCodes.DuplicateKey
+                            && d.SourceLine == first.SourceLine
+                        )
+                    )
+                    {
+                        diags.Add(
+                            MakeDiag(
+                                DiagnosticCodes.DuplicateKey,
+                                ParseSeverity.Error,
+                                $"Duplicate sibling key \"{keyVal}\". Keys must be unique among sibling elements.",
+                                first.SourceLine,
+                                first.SourceColumn
+                            )
+                        );
                     }
                 }
                 else
@@ -234,7 +270,10 @@ namespace ReactiveUITK.Language.Diagnostics
             RegexOptions.Compiled
         );
 
-        private static void CheckUnreachableAfterReturn(CodeBlockNode cb, List<ParseDiagnostic> diags)
+        private static void CheckUnreachableAfterReturn(
+            CodeBlockNode cb,
+            List<ParseDiagnostic> diags
+        )
         {
             if (string.IsNullOrWhiteSpace(cb.Code))
                 return;
@@ -251,20 +290,26 @@ namespace ReactiveUITK.Language.Diagnostics
                 if (trimmed.Length == 0)
                 {
                     depth += CountChar(line, '{') - CountChar(line, '}');
-                    if (depth < 0) depth = 0;
+                    if (depth < 0)
+                        depth = 0;
                     continue;
                 }
 
-                if (seenTopLevelReturn && !trimmed.StartsWith("//", System.StringComparison.Ordinal))
+                if (
+                    seenTopLevelReturn && !trimmed.StartsWith("//", System.StringComparison.Ordinal)
+                )
                 {
                     int leading = line.Length - line.TrimStart().Length;
-                    diags.Add(MakeDiag(
-                        DiagnosticCodes.UnreachableAfterReturn,
-                        ParseSeverity.Hint,
-                        "Unreachable code after 'return'.",
-                        cb.SourceLine + 1 + i,
-                        leading,
-                        line.Length));
+                    diags.Add(
+                        MakeDiag(
+                            DiagnosticCodes.UnreachableAfterReturn,
+                            ParseSeverity.Hint,
+                            "Unreachable code after 'return'.",
+                            cb.SourceLine + 1 + i,
+                            leading,
+                            line.Length
+                        )
+                    );
                 }
 
                 if (!seenTopLevelReturn && depth == 0 && s_topLevelReturnRegex.IsMatch(line))
@@ -273,7 +318,8 @@ namespace ReactiveUITK.Language.Diagnostics
                 }
 
                 depth += CountChar(line, '{') - CountChar(line, '}');
-                if (depth < 0) depth = 0;
+                if (depth < 0)
+                    depth = 0;
             }
         }
 
@@ -291,8 +337,9 @@ namespace ReactiveUITK.Language.Diagnostics
         // ═══════════════════════════════════════════════════════════════════════
 
         private static bool HasKeyAttribute(ElementNode el) =>
-            el.Attributes.Any(a => string.Equals(
-                a.Name, "key", System.StringComparison.OrdinalIgnoreCase));
+            el.Attributes.Any(a =>
+                string.Equals(a.Name, "key", System.StringComparison.OrdinalIgnoreCase)
+            );
 
         private static ParseDiagnostic MakeDiag(
             string code,
@@ -300,16 +347,17 @@ namespace ReactiveUITK.Language.Diagnostics
             string message,
             int line,
             int column = 0,
-            int endColumn = 0) =>
+            int endColumn = 0
+        ) =>
             new ParseDiagnostic
             {
-                Code         = code,
-                Severity     = severity,
-                Message      = message,
-                SourceLine   = line,
+                Code = code,
+                Severity = severity,
+                Message = message,
+                SourceLine = line,
                 SourceColumn = column,
-                EndLine      = line,
-                EndColumn    = endColumn > 0 ? endColumn : column,
+                EndLine = line,
+                EndColumn = endColumn > 0 ? endColumn : column,
             };
     }
 }

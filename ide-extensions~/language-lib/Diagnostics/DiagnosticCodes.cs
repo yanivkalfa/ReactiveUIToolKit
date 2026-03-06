@@ -13,28 +13,28 @@ namespace ReactiveUITK.Language.Diagnostics
         // ── T2 — Structural diagnostics (this analyzer) ──────────────────────
 
         /// <summary>File contains no <c>@namespace</c> directive.</summary>
-        public const string MissingNamespace   = "UITKX0101";
+        public const string MissingNamespace = "UITKX0101";
 
         /// <summary>File contains no <c>@component</c> directive.</summary>
-        public const string MissingComponent   = "UITKX0102";
+        public const string MissingComponent = "UITKX0102";
 
         /// <summary><c>@component Foo</c> but the file is named <c>Bar.uitkx</c>.</summary>
-        public const string FilenameMismatch   = "UITKX0103";
+        public const string FilenameMismatch = "UITKX0103";
 
         /// <summary>Two sibling elements share the same literal <c>key="…"</c> value.</summary>
-        public const string DuplicateKey       = "UITKX0104";
+        public const string DuplicateKey = "UITKX0104";
 
         /// <summary>
         /// PascalCase element name is not in the workspace element index.
         /// Only reported when the index is available.
         /// </summary>
-        public const string UnknownElement     = "UITKX0105";
+        public const string UnknownElement = "UITKX0105";
 
         /// <summary>
         /// An element inside a <c>@foreach</c> body has no <c>key</c> attribute.
         /// Severity: Warning.
         /// </summary>
-        public const string MissingKey         = "UITKX0106";
+        public const string MissingKey = "UITKX0106";
 
         /// <summary>
         /// Statement appears after an unconditional top-level <c>return</c> in an
@@ -47,15 +47,15 @@ namespace ReactiveUITK.Language.Diagnostics
         // Listed here for cross-reference only; not produced by DiagnosticsAnalyzer.
 
         /// <summary>Unexpected token while parsing. Emitted by UitkxParser.</summary>
-        public const string UnexpectedToken    = "UITKX0300";
+        public const string UnexpectedToken = "UITKX0300";
 
         /// <summary>Unclosed element tag. Emitted by UitkxParser.</summary>
-        public const string UnclosedTag        = "UITKX0301";
+        public const string UnclosedTag = "UITKX0301";
 
         /// <summary>Mismatched closing tag. Emitted by UitkxParser.</summary>
-        public const string MismatchedTag      = "UITKX0302";
+        public const string MismatchedTag = "UITKX0302";
 
         /// <summary>Unknown <c>@directive</c> keyword. Emitted by UitkxParser.</summary>
-        public const string UnknownDirective   = "UITKX0305";
+        public const string UnknownDirective = "UITKX0305";
     }
 }

@@ -23,6 +23,7 @@
                     <Label text={$"{count}"} />
                     <Button text="+" onClick={() => setCount(count + 1)} />
                     <Button text="+5" onClick={() => setCount(count + 5)} />
+                    <Button text="+5" onClick={() => setCount(count + 5)} />
                 </Box>
             </Box>
         </Box>

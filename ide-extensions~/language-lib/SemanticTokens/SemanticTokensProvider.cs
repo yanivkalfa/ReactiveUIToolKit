@@ -85,7 +85,8 @@ namespace ReactiveUITK.Language.SemanticTokens
         }
 
         private static IEnumerable<SemanticTokenData> NormalizeTokenConflicts(
-            List<SemanticTokenData> tokens)
+            List<SemanticTokenData> tokens
+        )
         {
             var merged = new Dictionary<(int Line, int Col, int Len), SemanticTokenData>();
 

@@ -273,10 +273,16 @@ public sealed class HoverHandler : IHoverHandler
                 // Allow hover on any usage of the setter identifier in the file,
                 // not only on its tuple declaration.
                 int wordStart = offset;
-                while (wordStart > 0 && (char.IsLetterOrDigit(text[wordStart - 1]) || text[wordStart - 1] == '_'))
+                while (
+                    wordStart > 0
+                    && (char.IsLetterOrDigit(text[wordStart - 1]) || text[wordStart - 1] == '_')
+                )
                     wordStart--;
                 int wordEnd = offset;
-                while (wordEnd < text.Length && (char.IsLetterOrDigit(text[wordEnd]) || text[wordEnd] == '_'))
+                while (
+                    wordEnd < text.Length
+                    && (char.IsLetterOrDigit(text[wordEnd]) || text[wordEnd] == '_')
+                )
                     wordEnd++;
 
                 if (wordEnd <= wordStart)
@@ -287,7 +293,10 @@ public sealed class HoverHandler : IHoverHandler
                     continue;
             }
 
-            if (!offsetOnDeclaration && !hoveredWord.Equals(setterGroup.Value, StringComparison.Ordinal))
+            if (
+                !offsetOnDeclaration
+                && !hoveredWord.Equals(setterGroup.Value, StringComparison.Ordinal)
+            )
                 continue;
 
             string hookName = hookGroup.Value;

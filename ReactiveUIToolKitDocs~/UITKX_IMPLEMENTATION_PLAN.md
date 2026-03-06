@@ -21,7 +21,7 @@
 | P6 | Embedded Markup in `@code` | `[DONE]` |
 | P7 | `PropsHelper.Bind<T>` + `[UitkxElement]` | `[DONE]` |
 | P8 | Integration, Samples, Migration Docs | `[DONE]` |
-| P8.6 | Developer Experience Improvements (IDE Polish) | `[ ]` NOT STARTED |
+| P8.6 | Developer Experience Improvements (IDE Polish) | `[~]` IN PROGRESS (only #9 remaining) |
 | P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[ ]` NOT STARTED |
 | P10 | Rider Plugin | `[ ]` NOT STARTED |
 
@@ -1349,14 +1349,35 @@ Estimated effort: **~4–6 hours** (Medium).
 
 ## Phase 8.6 Status
 
+> Consolidated here from the former `UITKX_P8_6_BUGS.md` tracker.
+> Active remaining scope for Phase 8.6 is now **only #9**.
+> **#4 `{/*` auto-close wraps wrong` was removed from scope by product decision**.
+
 | Sub-task | Status |
 |---|---|
-| 8.6.1 Unity Console navigation | `[x]` DONE v1.0.38 |
-| 8.6.2 Hook shorthand aliases (`useState` → `Hooks.UseState`) | `[x]` DONE v1.0.38 |
-| 8.6.2 useState setter coloring | `[x]` DONE v1.0.38 |
-| 8.6.2 hook hover docs | `[x]` DONE v1.0.38 |
-| 8.6.3 Function-style syntax | `[ ]` NOT STARTED |
-| 8.6.4 JSX-style comments `{/* */}` + Ctrl+/ | `[x]` DONE v1.0.38 |
+| #1 CS compilation errors | `[x]` COMPLETED (v1.0.41) |
+| #2 `@code` block semantic coloring | `[x]` COMPLETED (v1.0.44+) |
+| #3 Hook setter hover docs | `[x]` COMPLETED (v1.0.51+) |
+| #4 `{/*` auto-close wraps wrong | `[-]` REMOVED FROM SCOPE |
+| #5 `Ctrl+/` in markup | `[x]` COMPLETED (v1.0.47) |
+| #6 Unreachable code dimming | `[x]` COMPLETED (v1.0.53) |
+| #7 Unity console click navigation | `[x]` COMPLETED |
+| #8 Missing `;` auto-fix on save/format | `[x]` COMPLETED (v1.0.57) |
+| #9 `@for` / `@while` support `break` / `continue` flow handling | `[ ]` NOT STARTED (ONLY REMAINING 8.6 ITEM) |
+
+### 8.6 Remaining Scope — #9 (Information Only)
+
+`#9` means UITKX loop bodies should support normal loop-control statements:
+
+- `break;` exits the nearest enclosing `@for` / `@foreach` / `@while` loop body.
+- `continue;` skips to the next iteration of the nearest enclosing loop.
+
+Expected language behavior:
+
+- `break;` / `continue;` are valid only inside loop bodies.
+- Using them outside loops should produce clear diagnostics.
+- Nested loop semantics should match C# (nearest loop wins).
+- Generated C# should preserve equivalent control flow (no behavior drift).
 
 ---
 

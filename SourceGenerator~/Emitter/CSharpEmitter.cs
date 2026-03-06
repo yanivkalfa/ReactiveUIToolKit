@@ -59,7 +59,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     internal sealed class EmitContext
     {
         private readonly string _filePath;
-        private readonly string _displayName; // bare filename for #line directives
+        private readonly string _displayName; // bare filename for headers/diagnostics
+        private readonly string _linePath; // normalized absolute path for #line directives
         private readonly DirectiveSet _directives;
         private readonly PropsResolver _resolver;
         private readonly IList<Diagnostic> _diagnostics;
@@ -84,6 +85,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             _resolver = resolver;
             _diagnostics = diagnostics;
             _displayName = Path.GetFileName(filePath);
+            _linePath = NormalizeLinePath(filePath);
         }
 
         // ── Top-level builder ─────────────────────────────────────────────────
@@ -175,7 +177,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 // Single root — determine its #line
                 int srcLine = markup[0].SourceLine;
-                L($"#line {srcLine} \"{_displayName}\"");
+                L($"#line {srcLine} \"{_linePath}\"");
                 _sb.Append($"{I3}return ");
                 EmitNode(markup[0]);
                 _sb.AppendLine(";");
@@ -184,7 +186,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 // Multiple roots — wrap in Fragment
                 int srcLine = markup[0].SourceLine;
-                L($"#line {srcLine} \"{_displayName}\"");
+                L($"#line {srcLine} \"{_linePath}\"");
                 _sb.Append($"{I3}return V.Fragment(key: null, __C(");
                 EmitChildArgs(markup);
                 _sb.AppendLine("));");
@@ -205,7 +207,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private void EmitCodeBlockContent(CodeBlockNode cb)
         {
-            L($"#line {cb.SourceLine} \"{_displayName}\"");
+            L($"#line {cb.SourceLine} \"{_linePath}\"");
             string codeText = cb.Code;
 
             if (!cb.ReturnMarkups.IsEmpty)
@@ -790,7 +792,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.AppendLine();
                 if (children[i].SourceLine > 0)
                 {
-                    _sb.AppendLine($"#line {children[i].SourceLine} \"{_displayName}\"");
+                    _sb.AppendLine($"#line {children[i].SourceLine} \"{_linePath}\"");
                 }
                 _sb.Append(I4);
                 EmitNode(children[i]);
@@ -937,6 +939,21 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 .Trim()
                 .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
             return parts.Length > 0 ? parts[parts.Length - 1] : "__item";
+        }
+
+        private static string NormalizeLinePath(string filePath)
+        {
+            string fullPath;
+            try
+            {
+                fullPath = Path.GetFullPath(filePath);
+            }
+            catch
+            {
+                fullPath = filePath;
+            }
+
+            return fullPath.Replace('\\', '/').Replace("\"", "\\\"");
         }
 
         // ── StringBuilder helpers ─────────────────────────────────────────────

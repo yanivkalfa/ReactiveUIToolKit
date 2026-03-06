@@ -6,11 +6,11 @@ using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
-using LspRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 using ReactiveUITK.Language;
 using ReactiveUITK.Language.Diagnostics;
 using ReactiveUITK.Language.Parser;
 using LspDiagnosticSeverity = OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity;
+using LspRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
 namespace UitkxLanguageServer;
 
@@ -48,28 +48,28 @@ public sealed class DiagnosticsPublisher
         // ── Parse ────────────────────────────────────────────────────────────
         var parseDiags = new List<ParseDiagnostic>();
         var directives = DirectiveParser.Parse(text, localPath, parseDiags);
-        var nodes      = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var nodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
 
         var parseResult = new ParseResult(
             directives,
             nodes,
-            System.Collections.Immutable.ImmutableArray.CreateRange(parseDiags));
+            System.Collections.Immutable.ImmutableArray.CreateRange(parseDiags)
+        );
 
         // ── T2 structural analysis ───────────────────────────────────────────
         var t2Diags = _analyzer.Analyze(parseResult, localPath);
 
         // ── Combine T1 + T2 ─────────────────────────────────────────────────
-        var allDiags = parseResult.Diagnostics
-            .Concat(t2Diags)
-            .Select(d => ToLsp(d))
-            .ToArray();
+        var allDiags = parseResult.Diagnostics.Concat(t2Diags).Select(d => ToLsp(d)).ToArray();
 
         // ── Publish notification ─────────────────────────────────────────────
-        _server.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
-        {
-            Uri         = uri,
-            Diagnostics = new Container<Diagnostic>(allDiags),
-        });
+        _server.TextDocument.PublishDiagnostics(
+            new PublishDiagnosticsParams
+            {
+                Uri = uri,
+                Diagnostics = new Container<Diagnostic>(allDiags),
+            }
+        );
     }
 
     // ── Conversion helpers ────────────────────────────────────────────────────
@@ -82,32 +82,37 @@ public sealed class DiagnosticsPublisher
 
         // EndLine/EndColumn are 0 when not tracked → fall back to same position.
         int endLine = d.EndLine > 0 ? Math.Max(0, d.EndLine - 1) : startLine;
-        int endChar = d.EndColumn > 0 ? d.EndColumn
-                    : startChar > 0   ? startChar       // same column
-                    : 1;                                 // minimal non-zero range
+        int endChar =
+            d.EndColumn > 0 ? d.EndColumn
+            : startChar > 0 ? startChar // same column
+            : 1; // minimal non-zero range
 
         return new Diagnostic
         {
-            Range    = new LspRange(new Position(startLine, startChar),
-                                    new Position(endLine,   endChar)),
+            Range = new LspRange(
+                new Position(startLine, startChar),
+                new Position(endLine, endChar)
+            ),
             Severity = ToLspSeverity(d.Severity),
-            Code     = (DiagnosticCode)d.Code,
-            Source   = "uitkx",
-            Message  = d.Message,
-            Tags     = d.Code == DiagnosticCodes.UnreachableAfterReturn
-                ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
-                : null,
+            Code = (DiagnosticCode)d.Code,
+            Source = "uitkx",
+            Message = d.Message,
+            Tags =
+                d.Code == DiagnosticCodes.UnreachableAfterReturn
+                    ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
+                    : null,
         };
     }
 
-    private static LspDiagnosticSeverity ToLspSeverity(ParseSeverity s) => s switch
-    {
-        ParseSeverity.Error       => LspDiagnosticSeverity.Error,
-        ParseSeverity.Warning     => LspDiagnosticSeverity.Warning,
-        ParseSeverity.Information => LspDiagnosticSeverity.Information,
-        ParseSeverity.Hint        => LspDiagnosticSeverity.Hint,
-        _                         => LspDiagnosticSeverity.Information,
-    };
+    private static LspDiagnosticSeverity ToLspSeverity(ParseSeverity s) =>
+        s switch
+        {
+            ParseSeverity.Error => LspDiagnosticSeverity.Error,
+            ParseSeverity.Warning => LspDiagnosticSeverity.Warning,
+            ParseSeverity.Information => LspDiagnosticSeverity.Information,
+            ParseSeverity.Hint => LspDiagnosticSeverity.Hint,
+            _ => LspDiagnosticSeverity.Information,
+        };
 
     private static string? GetLocalPath(DocumentUri uri)
     {
@@ -116,6 +121,9 @@ public sealed class DiagnosticsPublisher
             var sysUri = new Uri(uri.ToString());
             return sysUri.IsFile ? sysUri.LocalPath : null;
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 }
