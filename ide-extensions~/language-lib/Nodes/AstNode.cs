@@ -176,6 +176,20 @@ namespace ReactiveUITK.Language.Nodes
         string SourceFile
     ) : AstNode(SourceLine, SourceFile);
 
+    /// <summary>
+    /// A loop-flow <c>@break;</c> statement.
+    /// Valid only inside <c>@for</c> / <c>@while</c> bodies.
+    /// </summary>
+    public sealed record BreakNode(int SourceLine, string SourceFile)
+        : AstNode(SourceLine, SourceFile);
+
+    /// <summary>
+    /// A loop-flow <c>@continue;</c> statement.
+    /// Valid only inside <c>@for</c> / <c>@while</c> bodies.
+    /// </summary>
+    public sealed record ContinueNode(int SourceLine, string SourceFile)
+        : AstNode(SourceLine, SourceFile);
+
     /// <summary>One <c>@case</c> or <c>@default</c> branch inside a switch block.</summary>
     public sealed record SwitchCase(
         /// <summary>The case expression, or <c>null</c> for <c>@default</c>.</summary>

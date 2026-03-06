@@ -398,10 +398,12 @@ namespace ReactiveUITK.Language.IntelliSense
             if (isClosingTag)
                 return CursorContext.Empty;
 
-            // Prefer AST tag name; fall back to what the text scan found.
+            // Prefer the local text-scanned tag name when available (important
+            // for same-line nested tags like <Box><Label .../></Box> where AST
+            // line-only context can resolve to the outer element).
             string effectiveTag =
-                !string.IsNullOrEmpty(astTagName) ? astTagName!
-                : !string.IsNullOrEmpty(textTagName) ? textTagName
+                !string.IsNullOrEmpty(textTagName) ? textTagName
+                : !string.IsNullOrEmpty(astTagName) ? astTagName!
                 : "";
 
             // ── Attribute list phase ───────────────────────────────────────────

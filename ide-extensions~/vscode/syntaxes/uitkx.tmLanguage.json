@@ -557,6 +557,15 @@
           "include": "#jsx-comment"
         },
         {
+          "include": "#control-flow-with-expression"
+        },
+        {
+          "include": "#case-directive-expression"
+        },
+        {
+          "include": "#control-flow-keyword"
+        },
+        {
           "include": "#cs-line-comment"
         },
         {

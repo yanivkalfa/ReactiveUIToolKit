@@ -1,5 +1,104 @@
 # Changelog
 
+## [1.0.80]
+- **Fix: restore C# coloring in `@code` body lines (e.g. `var`, `useState`, tuples).**
+  Re-added `expression-content` fallback inside `@code` grammar body so pure C#
+  lines are tokenized again while embedded markup patterns remain available.
+
+## [1.0.79]
+- **Revert: roll back 1.0.77 editor-default color overrides.**
+  Removed UITKX defaults for `editor.guides.bracketPairs` and
+  `editor.guides.highlightActiveBracketPair` so behavior returns to the
+  1.0.76 baseline. Kept only `editor.bracketPairColorization.enabled: false`.
+
+## [1.0.78]
+- **Hotfix: restore UITKX semantic token colors.**
+  Reverted the UITKX default that disabled semantic highlighting, which caused
+  tag/directive semantic colors to disappear. Bracket-pair colorization controls
+  remain in place.
+
+## [1.0.77]
+- **Fix: consistent punctuation coloring mode for UITKX (`{}` / `()` / brackets).**
+  Added UITKX language defaults to disable bracket-pair colorization overlays,
+  bracket-pair guides, and semantic highlighting overlays for UITKX documents.
+  This forces one grammar-driven color model so identical syntax colors the same
+  across all sections/contexts.
+
+## [1.0.76]
+- **Fix: enforce one consistent color model across all markup contexts.**
+  Disabled context-dependent C# semantic overlays from UITKX semantic token output
+  (including hook/body C# token passes), keeping semantic coloring focused on
+  UITKX markup/directive primitives so identical markup patterns color the same
+  anywhere in the file.
+
+## [1.0.75]
+- **Fix: structural embedded-markup color consistency inside `@code`.**
+  Semantic tokens now scan and parse embedded markup directly from `@code` source
+  spans (not only parser-captured forms), emit normal markup tokens for those
+  elements/attributes, and exclude those spans from C# semantic tokenization.
+  This makes markup coloring significantly more consistent across contexts.
+
+## [1.0.74]
+- **Fix: unify embedded-markup punctuation colors inside `@code`.**
+  Removed the global `expression-content` fallback from `@code` body grammar,
+  so embedded markup uses the same scope rules as top-level markup (reducing
+  `{}` / `()` / mixed-token color drift across contexts).
+
+## [1.0.73]
+- **Fix: attribute completion inserts canonical library property names.**
+  Completion now normalizes dynamic workspace props to schema/library casing,
+  so selecting `text` inserts `text=...` (not `Text=...`).
+- **Fix: more consistent embedded-markup coloring inside `@code`.**
+  Added control-flow grammar scopes inside `@code` and suppressed C# semantic
+  tokenization on markup-closer lines within embedded markup runs.
+
+## [1.0.72]
+- **Fix: attribute completion in same-line nested tags.**
+  Completion now prefers the local tag under the cursor, so `<Box><Label .../></Box>`
+  suggests `Label` attributes (e.g. `text`) correctly.
+- **Fix: better embedded-markup coloring inside `@code`.**
+  C# semantic tokenization now skips markup-like lines in `@code` blocks so
+  embedded UITKX markup coloring stays consistent with normal markup.
+
+## [1.0.71]
+- **Fix: restore `@code` suggestion at header boundary.**
+  Header detection now includes the markup-start boundary line again, while
+  keeping the non-header `@code` leak prevention in place.
+
+## [1.0.70]
+- **Fix: hard-stop `@code` outside header context.**
+  Added a final completion-result safety filter so `@code` is removed whenever
+  the cursor is not in the strict header zone.
+
+## [1.0.69]
+- **Hotfix: rebuild with updated completion server binary.**
+  Ensures the post-header `@code` completion routing fix is compiled into the
+  bundled LSP server payload.
+
+## [1.0.68]
+- **Fix: `@code` no longer leaks into post-header directive completions.**
+  Completion routing now treats non-header `@` contexts as control-flow/markup
+  contexts, and header-only `@code` suggestions stop once you are past the
+  header/`@code` boundary.
+
+## [1.0.67]
+- **Fix: completion works again for embedded markup inside `@code`.**
+  Tag and markup directive suggestions are now enabled in likely embedded-markup
+  regions inside `@code` blocks, while pure C# lines remain directive-filtered.
+
+## [1.0.66]
+- **Fix: header completion now suggests only `@code`.**
+  In the header zone (before markup), directive completion is now intentionally
+  constrained to `@code` only, matching the current authoring workflow.
+
+## [1.0.65]
+- **Fix: `@code` appears again in the header/directive completion zone.**
+  The directive/markup boundary completion routing now treats the markup-start line
+  as header-capable for directive suggestions, so `@code` is suggested where expected.
+- **Fix: directive suggestions stay context-bound.**
+  Header zones keep top-level directives while markup/code contexts keep their own
+  filtered suggestion sets.
+
 ## [1.0.39]
 - **Fix: `useState` / hook hover now works inside `@code` blocks.** `ClassifyTagPosition`
   was returning `CursorContext.Empty` (word stripped) when the cursor was on plain

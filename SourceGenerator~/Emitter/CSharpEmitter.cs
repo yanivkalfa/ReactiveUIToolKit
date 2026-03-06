@@ -342,6 +342,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 case SwitchNode s:
                     EmitSwitchNode(s);
                     break;
+                case BreakNode:
+                case ContinueNode:
+                    _sb.Append($"({QVNode})null /* loop-flow statement */");
+                    break;
                 case CodeBlockNode:
                     // @code blocks are hoisted before return; skip inline
                     _sb.Append($"({QVNode})null");
@@ -635,9 +639,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // Emit as IIFE building a list — keeps `i` properly in scope
             _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
             _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
-            _sb.Append($"for ({fn.ForExpression}) {{ __r.Add(");
-            EmitBodyExpr(fn.Body);
-            _sb.Append("); } return __r.ToArray(); }))()");
+            _sb.Append($"for ({fn.ForExpression}) {{ ");
+            if (ContainsLoopFlow(fn.Body))
+            {
+                EmitLoopBodyStatements(fn.Body);
+            }
+            else
+            {
+                _sb.Append("__r.Add(");
+                EmitBodyExpr(fn.Body);
+                _sb.Append("); ");
+            }
+            _sb.Append("} return __r.ToArray(); }))()");
         }
 
         private void EmitWhileNode(WhileNode wn)
@@ -645,9 +658,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // Emit as IIFE building a list
             _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
             _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
-            _sb.Append($"while ({wn.Condition}) {{ __r.Add(");
-            EmitBodyExpr(wn.Body);
-            _sb.Append("); } return __r.ToArray(); }))()");
+            _sb.Append($"while ({wn.Condition}) {{ ");
+            if (ContainsLoopFlow(wn.Body))
+            {
+                EmitLoopBodyStatements(wn.Body);
+            }
+            else
+            {
+                _sb.Append("__r.Add(");
+                EmitBodyExpr(wn.Body);
+                _sb.Append("); ");
+            }
+            _sb.Append("} return __r.ToArray(); }))()");
         }
 
         private void EmitForeachNode(ForeachNode forn)
@@ -710,6 +732,118 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             _sb.Append(" }");
             _sb.Append("))");
+        }
+
+        private void EmitLoopBodyStatements(ImmutableArray<AstNode> body)
+        {
+            foreach (var node in body)
+                EmitLoopBodyStatement(node);
+        }
+
+        private void EmitLoopBodyStatement(AstNode node)
+        {
+            switch (node)
+            {
+                case JsxCommentNode:
+                    return;
+
+                case BreakNode:
+                    _sb.Append("break; ");
+                    return;
+
+                case ContinueNode:
+                    _sb.Append("continue; ");
+                    return;
+
+                case IfNode ifNode when ContainsLoopFlow(ifNode):
+                    EmitLoopIfStatement(ifNode);
+                    return;
+
+                case ForNode:
+                case WhileNode:
+                case ForeachNode:
+                    _sb.Append("__r.AddRange(");
+                    EmitNode(node);
+                    _sb.Append("); ");
+                    return;
+
+                default:
+                    _sb.Append("__r.Add(");
+                    EmitNode(node);
+                    _sb.Append("); ");
+                    return;
+            }
+        }
+
+        private void EmitLoopIfStatement(IfNode ifn)
+        {
+            if (ifn.Branches.IsEmpty)
+                return;
+
+            for (int i = 0; i < ifn.Branches.Length; i++)
+            {
+                var branch = ifn.Branches[i];
+                if (i == 0)
+                {
+                    _sb.Append($"if ({branch.Condition}) {{ ");
+                }
+                else if (branch.Condition != null)
+                {
+                    _sb.Append($"else if ({branch.Condition}) {{ ");
+                }
+                else
+                {
+                    _sb.Append("else { ");
+                }
+
+                EmitLoopBodyStatements(branch.Body);
+                _sb.Append("} ");
+            }
+        }
+
+        private static bool ContainsLoopFlow(ImmutableArray<AstNode> nodes)
+        {
+            foreach (var node in nodes)
+                if (ContainsLoopFlow(node))
+                    return true;
+            return false;
+        }
+
+        private static bool ContainsLoopFlow(AstNode node)
+        {
+            switch (node)
+            {
+                case BreakNode:
+                case ContinueNode:
+                    return true;
+
+                case IfNode ifn:
+                    foreach (var branch in ifn.Branches)
+                        if (ContainsLoopFlow(branch.Body))
+                            return true;
+                    return false;
+
+                case ElementNode el:
+                    return ContainsLoopFlow(el.Children);
+
+                case ForeachNode fe:
+                    return ContainsLoopFlow(fe.Body);
+
+                case ForNode fn:
+                    return ContainsLoopFlow(fn.Body);
+
+                case WhileNode wn:
+                    return ContainsLoopFlow(wn.Body);
+
+                case SwitchNode sw:
+                    foreach (var c in sw.Cases)
+                        if (ContainsLoopFlow(c.Body))
+                            return true;
+                    return false;
+
+                default:
+                    return false;
+            }
         }
 
         // ── Leaf nodes ────────────────────────────────────────────────────────

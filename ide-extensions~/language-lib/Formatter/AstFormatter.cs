@@ -191,6 +191,12 @@ namespace ReactiveUITK.Language.Formatter
                 case SwitchNode sw:
                     FormatSwitch(sw);
                     break;
+                case BreakNode:
+                    Ln("@break;");
+                    break;
+                case ContinueNode:
+                    Ln("@continue;");
+                    break;
                 case CodeBlockNode cb:
                     FormatCodeBlock(cb);
                     break;

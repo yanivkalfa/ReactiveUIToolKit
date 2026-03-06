@@ -77,7 +77,7 @@ namespace ReactiveUITK.Language.Parser
             );
 
             return parser
-                .ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false)
+                .ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false, loopDepth: 0)
                 .ToImmutableArray();
         }
 
@@ -89,7 +89,12 @@ namespace ReactiveUITK.Language.Parser
         /// <param name="stopTag">Stop (without consuming) at matching closing tag.</param>
         /// <param name="stopAtBrace">Stop (without consuming) at bare '}'.</param>
         /// <param name="stopAtCase">Stop (without consuming) at '@case' or '@default'.</param>
-        private List<AstNode> ParseContent(string? stopTag, bool stopAtBrace, bool stopAtCase)
+        private List<AstNode> ParseContent(
+            string? stopTag,
+            bool stopAtBrace,
+            bool stopAtCase,
+            int loopDepth
+        )
         {
             var nodes = new List<AstNode>();
 
@@ -110,7 +115,7 @@ namespace ReactiveUITK.Language.Parser
                 if (stopAtCase && c == '@')
                 {
                     string? kw = PeekDirectiveKeyword();
-                    if (kw == "case" || kw == "default")
+                    if (kw == "case" || kw == "default" || kw == "break")
                         break;
                 }
 
@@ -147,7 +152,7 @@ namespace ReactiveUITK.Language.Parser
                 // ── Opening element <Tag ────────────────────────────────────
                 if (c == '<' && PeekChar(1) != '/')
                 {
-                    var elem = ParseElement();
+                    var elem = ParseElement(loopDepth);
                     if (elem != null)
                         nodes.Add(elem);
                     continue;
@@ -171,29 +176,61 @@ namespace ReactiveUITK.Language.Parser
                     switch (keyword)
                     {
                         case "if":
-                            var ifNode = ParseIf(atLine);
+                            var ifNode = ParseIf(atLine, loopDepth);
                             if (ifNode != null)
                                 nodes.Add(ifNode);
                             break;
                         case "foreach":
-                            var feNode = ParseForeach(atLine);
+                            var feNode = ParseForeach(atLine, loopDepth);
                             if (feNode != null)
                                 nodes.Add(feNode);
                             break;
                         case "for":
-                            var forNode = ParseFor(atLine);
+                            var forNode = ParseFor(atLine, loopDepth);
                             if (forNode != null)
                                 nodes.Add(forNode);
                             break;
                         case "while":
-                            var whileNode = ParseWhile(atLine);
+                            var whileNode = ParseWhile(atLine, loopDepth);
                             if (whileNode != null)
                                 nodes.Add(whileNode);
                             break;
                         case "switch":
-                            var swNode = ParseSwitch(atLine);
+                            var swNode = ParseSwitch(atLine, loopDepth);
                             if (swNode != null)
                                 nodes.Add(swNode);
+                            break;
+                        case "break":
+                            if (loopDepth > 0)
+                            {
+                                ConsumeOptionalDirectiveTerminator();
+                                nodes.Add(new BreakNode(atLine, _filePath));
+                            }
+                            else
+                            {
+                                _diagnostics.Add(
+                                    ErrUnexpectedToken("@break", atLine, "@for or @while loop block")
+                                );
+                                SkipToEndOfLine();
+                            }
+                            break;
+                        case "continue":
+                            if (loopDepth > 0)
+                            {
+                                ConsumeOptionalDirectiveTerminator();
+                                nodes.Add(new ContinueNode(atLine, _filePath));
+                            }
+                            else
+                            {
+                                _diagnostics.Add(
+                                    ErrUnexpectedToken(
+                                        "@continue",
+                                        atLine,
+                                        "@for or @while loop block"
+                                    )
+                                );
+                                SkipToEndOfLine();
+                            }
                             break;
                         case "code":
                             var cbNode = ParseCodeBlock(atLine);
@@ -241,7 +278,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── Element ───────────────────────────────────────────────────────────
 
-        private ElementNode? ParseElement()
+        private ElementNode? ParseElement(int loopDepth)
         {
             int openLine = _scanner.Line;
             int openCol = ColAtPos(_scanner.Pos); // 0-based column of the '<'
@@ -254,7 +291,8 @@ namespace ReactiveUITK.Language.Parser
                 var fragmentChildren = ParseContent(
                     stopTag: string.Empty,
                     stopAtBrace: false,
-                    stopAtCase: false
+                    stopAtCase: false,
+                    loopDepth: loopDepth
                 );
 
                 // Consume </>
@@ -315,7 +353,12 @@ namespace ReactiveUITK.Language.Parser
                 // Best-effort: continue without consuming
             }
 
-            var children = ParseContent(stopTag: tagName, stopAtBrace: false, stopAtCase: false);
+            var children = ParseContent(
+                stopTag: tagName,
+                stopAtBrace: false,
+                stopAtCase: false,
+                loopDepth: loopDepth
+            );
 
             int closeTagLine = 0;
 
@@ -417,7 +460,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @if ───────────────────────────────────────────────────────────────
 
-        private IfNode? ParseIf(int startLine)
+        private IfNode? ParseIf(int startLine, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -438,7 +481,12 @@ namespace ReactiveUITK.Language.Parser
 
             int firstLine = _scanner.Line;
             _scanner.Advance(); // consume '{'
-            var firstBody = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+            var firstBody = ParseContent(
+                null,
+                stopAtBrace: true,
+                stopAtCase: false,
+                loopDepth: loopDepth
+            );
             _scanner.TryConsume('}');
             var branches = new List<IfBranch>
             {
@@ -477,7 +525,12 @@ namespace ReactiveUITK.Language.Parser
                     }
 
                     _scanner.Advance(); // consume '{'
-                    var elseIfBody = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+                    var elseIfBody = ParseContent(
+                        null,
+                        stopAtBrace: true,
+                        stopAtCase: false,
+                        loopDepth: loopDepth
+                    );
                     _scanner.TryConsume('}');
                     branches.Add(new IfBranch(elseCond, elseIfBody.ToImmutableArray(), elseLine));
                 }
@@ -489,7 +542,12 @@ namespace ReactiveUITK.Language.Parser
                         break;
                     }
                     _scanner.Advance(); // consume '{'
-                    var elseBody = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+                    var elseBody = ParseContent(
+                        null,
+                        stopAtBrace: true,
+                        stopAtCase: false,
+                        loopDepth: loopDepth
+                    );
                     _scanner.TryConsume('}');
                     branches.Add(new IfBranch(null, elseBody.ToImmutableArray(), elseLine));
                     break; // @else terminates the chain
@@ -501,7 +559,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @for ──────────────────────────────────────────────────────────────
 
-        private ForNode? ParseFor(int startLine)
+        private ForNode? ParseFor(int startLine, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -521,7 +579,12 @@ namespace ReactiveUITK.Language.Parser
             }
 
             _scanner.Advance(); // consume '{'
-            var body = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+            var body = ParseContent(
+                null,
+                stopAtBrace: true,
+                stopAtCase: false,
+                loopDepth: loopDepth + 1
+            );
             _scanner.TryConsume('}');
 
             return new ForNode(forExpr, body.ToImmutableArray(), startLine, _filePath);
@@ -529,7 +592,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @while ────────────────────────────────────────────────────────────
 
-        private WhileNode? ParseWhile(int startLine)
+        private WhileNode? ParseWhile(int startLine, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -549,7 +612,12 @@ namespace ReactiveUITK.Language.Parser
             }
 
             _scanner.Advance(); // consume '{'
-            var body = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+            var body = ParseContent(
+                null,
+                stopAtBrace: true,
+                stopAtCase: false,
+                loopDepth: loopDepth + 1
+            );
             _scanner.TryConsume('}');
 
             return new WhileNode(condition, body.ToImmutableArray(), startLine, _filePath);
@@ -557,7 +625,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @foreach ──────────────────────────────────────────────────────────
 
-        private ForeachNode? ParseForeach(int startLine)
+        private ForeachNode? ParseForeach(int startLine, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -587,7 +655,12 @@ namespace ReactiveUITK.Language.Parser
             }
 
             _scanner.Advance(); // consume '{'
-            var body = ParseContent(null, stopAtBrace: true, stopAtCase: false);
+            var body = ParseContent(
+                null,
+                stopAtBrace: true,
+                stopAtCase: false,
+                loopDepth: loopDepth
+            );
             _scanner.TryConsume('}');
 
             return new ForeachNode(
@@ -601,7 +674,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @switch ───────────────────────────────────────────────────────────
 
-        private SwitchNode? ParseSwitch(int startLine)
+        private SwitchNode? ParseSwitch(int startLine, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -654,13 +727,25 @@ namespace ReactiveUITK.Language.Parser
                         _scanner.Advance();
                     string caseVal = _source.Substring(vStart, _scanner.Pos - vStart).Trim();
                     _scanner.TryConsume(':');
-                    var caseBody = ParseContent(null, stopAtBrace: true, stopAtCase: true);
+                    var caseBody = ParseContent(
+                        null,
+                        stopAtBrace: true,
+                        stopAtCase: true,
+                        loopDepth: loopDepth
+                    );
+                    TryConsumeSwitchBreak();
                     cases.Add(new SwitchCase(caseVal, caseBody.ToImmutableArray(), caseLine));
                 }
                 else if (keyword == "default")
                 {
                     _scanner.TryConsume(':');
-                    var defaultBody = ParseContent(null, stopAtBrace: true, stopAtCase: true);
+                    var defaultBody = ParseContent(
+                        null,
+                        stopAtBrace: true,
+                        stopAtCase: true,
+                        loopDepth: loopDepth
+                    );
+                    TryConsumeSwitchBreak();
                     cases.Add(new SwitchCase(null, defaultBody.ToImmutableArray(), caseLine));
                 }
                 else
@@ -1058,7 +1143,7 @@ namespace ReactiveUITK.Language.Parser
         )
         {
             var parser = new UitkxParser(source, filePath, startPos, startLine, diagnostics);
-            var element = parser.ParseElement();
+            var element = parser.ParseElement(loopDepth: 0);
             return (element, parser._scanner.Pos);
         }
 
@@ -1242,6 +1327,27 @@ namespace ReactiveUITK.Language.Parser
                 _scanner.Advance();
         }
 
+        private void ConsumeOptionalDirectiveTerminator()
+        {
+            _scanner.SkipInlineWhitespace();
+            _scanner.TryConsume(';');
+        }
+
+        private void TryConsumeSwitchBreak()
+        {
+            _scanner.SkipWhitespaceAndNewlines();
+            if (_scanner.IsEof || _scanner.Current != '@')
+                return;
+
+            string? kw = PeekDirectiveKeyword();
+            if (!string.Equals(kw, "break", StringComparison.Ordinal))
+                return;
+
+            _scanner.Advance();
+            _scanner.ReadIdentifier();
+            ConsumeOptionalDirectiveTerminator();
+        }
+
         // ── ParseDiagnostic factory helpers ───────────────────────────────────
 
         private ParseDiagnostic ErrUnexpectedToken(string got, int line, string expected) =>
@@ -1294,7 +1400,7 @@ namespace ReactiveUITK.Language.Parser
                 SourceLine = line,
                 Message =
                     $"Unknown markup directive '@{keyword}' at line {line} in '{_filePath}'. "
-                    + "Valid directives are: if, else, foreach, switch, case, default, code.",
+                    + "Valid directives are: if, else, foreach, for, while, switch, case, default, break, continue, code.",
             };
     }
 }

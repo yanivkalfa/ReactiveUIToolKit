@@ -70,6 +70,14 @@
     {
       "name": "while",
       "description": "While loop — generates a while loop."
+    },
+    {
+      "name": "break",
+      "description": "Loop-flow statement valid inside @for/@while bodies."
+    },
+    {
+      "name": "continue",
+      "description": "Loop-flow statement valid inside @for/@while bodies."
     }
   ],
   "elements": {

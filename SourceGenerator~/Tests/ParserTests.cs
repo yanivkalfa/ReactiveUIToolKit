@@ -220,6 +220,55 @@ public class ParserTests
     }
 
     [Fact]
+    public void Markup_ForDirective_ParsesBreakAndContinueNodes()
+    {
+        const string src =
+            ValidHeader
+            + """
+                @for (var i = 0; i < 10; i++) {
+                    @continue;
+                    @break;
+                }
+                """;
+
+        var nodes = ParseMarkup(src, out _);
+        var forNode = Assert.Single(nodes.OfType<ForNode>());
+
+        Assert.Contains(forNode.Body, n => n is ContinueNode);
+        Assert.Contains(forNode.Body, n => n is BreakNode);
+    }
+
+    [Fact]
+    public void Markup_BreakOutsideLoop_EmitsUnexpectedToken()
+    {
+        const string src = ValidHeader + "@break;\n<label/>";
+        ParseMarkup(src, out var diags);
+
+        Assert.Contains(diags, d => d.Code == "UITKX0300" && d.Message.Contains("@break"));
+    }
+
+    [Fact]
+    public void Markup_ContinueInsideLoopIf_ParsesNestedContinueNode()
+    {
+        const string src =
+            ValidHeader
+            + """
+                @while (isRunning) {
+                    @if (skip) {
+                        @continue;
+                    }
+                    <label />
+                }
+                """;
+
+        var nodes = ParseMarkup(src, out _);
+        var whileNode = Assert.Single(nodes.OfType<WhileNode>());
+        var ifNode = Assert.Single(whileNode.Body.OfType<IfNode>());
+
+        Assert.Contains(ifNode.Branches[0].Body, n => n is ContinueNode);
+    }
+
+    [Fact]
     public void Markup_CodeBlock_ProducesCodeBlockNode()
     {
         const string src = ValidHeader + "@code { var x = 1; }\n<box/>";

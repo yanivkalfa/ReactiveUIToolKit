@@ -127,6 +127,46 @@ public class EmitterTests
     }
 
     [Fact]
+    public void ForDirective_WithLoopFlow_EmitsBreakAndContinueStatements()
+    {
+        const string src =
+            Header
+            + """
+                @for (var i = 0; i < 10; i++) {
+                    @if (i < 3) { @continue; }
+                    <label text={i.ToString()} />
+                    @if (i > 6) { @break; }
+                }
+                """;
+
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("for (var i = 0; i < 10; i++)"), "Expected for loop");
+        Assert.True(result.SourceContains("continue;"), "Expected continue statement");
+        Assert.True(result.SourceContains("break;"), "Expected break statement");
+    }
+
+    [Fact]
+    public void WhileDirective_WithLoopFlow_EmitsContinueStatement()
+    {
+        const string src =
+            Header
+            + """
+                @while (running) {
+                    @if (skip) { @continue; }
+                    <label />
+                }
+                """;
+
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("while (running)"), "Expected while loop");
+        Assert.True(result.SourceContains("continue;"), "Expected continue statement");
+    }
+
+    [Fact]
     public void SwitchDirective_GeneratesSwitchExpression()
     {
         const string src =

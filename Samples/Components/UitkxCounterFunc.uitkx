@@ -6,6 +6,11 @@
     var (mode, setMode) = useState("normal");
     var component = (
         <Box>
+            @if (true) {
+                <Box>
+                    <Button text="-5" onClick={() => setCount(count - 5)} />
+                </Box>
+            }
             <Button text="-5" onClick={() => setCount(count - 5)} />
             <Button text="-" onClick={() => setCount(count - 1)} />
             <Label text={$"{count}"} />
@@ -47,10 +52,14 @@
         <Label text="Count is zero" />
     } @else {
         @for (int i = 0; i < count; i++) {
+            @if (i == 2) {
+                @break;
+            }
             @if (i % 2 == 0) {
                 <Label text={$"Even row {i}"} />
             } @else {
                 <Label text={$"Odd row {i}"} />
+                <Button text="-5" onClick={() => setCount(count - 5)} />
             }
         }
         <Label text={$"Total rows: {count}"} />

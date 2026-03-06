@@ -7,6 +7,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using ReactiveUITK.Language.IntelliSense;
+using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
 namespace UitkxLanguageServer;
@@ -16,6 +17,12 @@ public sealed class CompletionHandler : ICompletionHandler
     private readonly UitkxSchema  _schema;
     private readonly DocumentStore _store;
     private readonly WorkspaceIndex _index;
+
+    private static readonly HashSet<string> s_headerDirectives =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "code",
+        };
 
     public CompletionHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index)
     {
@@ -84,21 +91,34 @@ public sealed class CompletionHandler : ICompletionHandler
         int line1 = (int)request.Position.Line + 1;
         int col0  = (int)request.Position.Character;
         var ctx = AstCursorContext.Find(parseResult, text, line1, col0);
+        int offset = ToOffset(text, request.Position);
+        string? triggerChar = request.Context?.TriggerCharacter;
+
+        bool inDirectiveHeader = line1 <= parseResult.Directives.MarkupStartLine;
+        bool inCodeBlockLine = IsInsideCodeBlockAtOffset(text, offset);
+        bool inEmbeddedMarkupInCode = inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
 
         var items = ctx.Kind switch
         {
-            CursorKind.DirectiveName   => DirectiveItems(ctx.Prefix),
-            CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix),
+            CursorKind.DirectiveName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
+            CursorKind.DirectiveName when inCodeBlockLine && !inEmbeddedMarkupInCode => Enumerable.Empty<CompletionItem>(),
+            CursorKind.DirectiveName   => ControlFlowItems(ctx.Prefix, text, request.Position),
+            CursorKind.ControlFlowName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
+            CursorKind.ControlFlowName when inCodeBlockLine && !inEmbeddedMarkupInCode => Enumerable.Empty<CompletionItem>(),
+            CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
             CursorKind.TagName         => TagItems(ctx.Prefix),
             CursorKind.AttributeName   => AttributeItems(ctx.TagName ?? "", ctx.Prefix),
             CursorKind.AttributeValue  => AttributeValueItems(
                 ctx.TagName ?? "",
                 ctx.AttributeName ?? "",
                 ctx.Prefix),
+            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems("") ,
             _                          => Enumerable.Empty<CompletionItem>(),
         };
 
         var list = items.ToList();
+        if (!inDirectiveHeader)
+            list = list.Where(i => !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase)).ToList();
         Log($"completion: kind={ctx.Kind} prefix='{ctx.Prefix}' → {list.Count} items");
         return Task.FromResult(new CompletionList(list));
     }
@@ -108,7 +128,8 @@ public sealed class CompletionHandler : ICompletionHandler
     private IEnumerable<CompletionItem> DirectiveItems(string prefix) =>
         _schema
             .Root.Directives.Where(d =>
-                d.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                s_headerDirectives.Contains(d.Name ?? string.Empty)
+                && (d.Name ?? string.Empty).StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
             )
             .Select(d => new CompletionItem
             {
@@ -124,10 +145,26 @@ public sealed class CompletionHandler : ICompletionHandler
                 },
             });
 
-    private IEnumerable<CompletionItem> ControlFlowItems(string prefix) =>
-        _schema
+    private IEnumerable<CompletionItem> ControlFlowItems(
+        string prefix,
+        string sourceText,
+        Position position
+    )
+    {
+        prefix ??= string.Empty;
+        int offset = ToOffset(sourceText, position);
+        int prefixStart = Math.Max(0, offset - (prefix?.Length ?? 0));
+        int atIndex = Math.Max(0, prefixStart - 1);
+
+        var allowed = GetAllowedControlFlowNames(sourceText, atIndex, offset);
+
+        return _schema
             .Root.ControlFlow.Where(d =>
-                d.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                allowed.Contains(d.Name ?? string.Empty)
+                && (d.Name ?? string.Empty).StartsWith(
+                    prefix ?? string.Empty,
+                    StringComparison.OrdinalIgnoreCase
+                )
             )
             .Select(d => new CompletionItem
             {
@@ -142,6 +179,397 @@ public sealed class CompletionHandler : ICompletionHandler
                     Value = d.Description,
                 },
             });
+    }
+
+    private enum BlockKind
+    {
+        Unknown,
+        Switch,
+        Loop,
+        If,
+        Code,
+    }
+
+    private static HashSet<string> GetAllowedControlFlowNames(
+        string sourceText,
+        int atIndex,
+        int cursorOffset
+    )
+    {
+        var stack = ScanBlockStack(sourceText, atIndex);
+        BlockKind top = stack.Count > 0 ? stack[stack.Count - 1] : BlockKind.Unknown;
+
+        // Inside @code { ... } we should not suggest UITKX markup directives.
+        if (stack.Contains(BlockKind.Code))
+        {
+            if (!IsLikelyEmbeddedMarkupAtOffset(sourceText, cursorOffset))
+                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        // Always valid in markup positions
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "if",
+            "for",
+            "foreach",
+            "while",
+            "switch",
+        };
+
+        // @else is meaningful right after a closed branch, and also when cursor
+        // is positioned just before the closing '}' of an if-branch body.
+        char prevSig = PreviousSignificantChar(sourceText, atIndex);
+        char nextSig = NextSignificantChar(sourceText, cursorOffset);
+        if (prevSig == '}' || (nextSig == '}' && stack.Contains(BlockKind.If)))
+            allowed.Add("else");
+
+        // @case/@default should only appear at direct switch body level
+        if (top == BlockKind.Switch)
+        {
+            allowed.Add("case");
+            allowed.Add("default");
+            allowed.Add("break"); // switch-case terminator style
+        }
+
+        // Loop-flow appears when inside loop body (including nested blocks inside loop)
+        if (stack.Contains(BlockKind.Loop))
+        {
+            allowed.Add("break");
+            allowed.Add("continue");
+        }
+
+        return allowed;
+    }
+
+    private static List<BlockKind> ScanBlockStack(string text, int limitExclusive)
+    {
+        var stack = new List<BlockKind>();
+        BlockKind? pending = null;
+
+        int limit = Math.Max(0, Math.Min(limitExclusive, text.Length));
+        int i = 0;
+        while (i < limit)
+        {
+            char c = text[i];
+
+            // line comment
+            if (c == '/' && i + 1 < limit && text[i + 1] == '/')
+            {
+                i += 2;
+                while (i < limit && text[i] != '\n')
+                    i++;
+                continue;
+            }
+
+            // block comment
+            if (c == '/' && i + 1 < limit && text[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < limit && !(text[i] == '*' && text[i + 1] == '/'))
+                    i++;
+                i = Math.Min(i + 2, limit);
+                continue;
+            }
+
+            // string literal (rough skip)
+            if (c == '"' || c == '\'')
+            {
+                char quote = c;
+                i++;
+                while (i < limit)
+                {
+                    if (text[i] == '\\')
+                    {
+                        i += 2;
+                        continue;
+                    }
+                    if (text[i] == quote)
+                    {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+                continue;
+            }
+
+            if (c == '@')
+            {
+                int j = i + 1;
+                while (j < limit && (char.IsLetterOrDigit(text[j]) || text[j] == '_'))
+                    j++;
+
+                if (j > i + 1)
+                {
+                    string kw = text.Substring(i + 1, j - (i + 1));
+                    pending = kw switch
+                    {
+                        "switch" => BlockKind.Switch,
+                        "for" => BlockKind.Loop,
+                        "while" => BlockKind.Loop,
+                        "foreach" => BlockKind.Loop,
+                        "if" => BlockKind.If,
+                        "else" => BlockKind.If,
+                        "code" => BlockKind.Code,
+                        _ => null,
+                    };
+                }
+
+                i = j;
+                continue;
+            }
+
+            if (c == '{')
+            {
+                stack.Add(pending ?? BlockKind.Unknown);
+                pending = null;
+                i++;
+                continue;
+            }
+
+            if (c == '}')
+            {
+                if (stack.Count > 0)
+                    stack.RemoveAt(stack.Count - 1);
+                pending = null;
+                i++;
+                continue;
+            }
+
+            i++;
+        }
+
+        return stack;
+    }
+
+    private static char PreviousSignificantChar(string text, int indexExclusive)
+    {
+        int i = Math.Min(indexExclusive - 1, text.Length - 1);
+        while (i >= 0)
+        {
+            char c = text[i];
+            if (!char.IsWhiteSpace(c))
+                return c;
+            i--;
+        }
+        return '\0';
+    }
+
+    private static char NextSignificantChar(string text, int indexInclusive)
+    {
+        int i = Math.Max(0, indexInclusive);
+        while (i < text.Length)
+        {
+            char c = text[i];
+            if (!char.IsWhiteSpace(c))
+                return c;
+            i++;
+        }
+        return '\0';
+    }
+
+    private static bool IsInsideCodeBlockAtOffset(string sourceText, int targetOffset)
+    {
+        bool inCode = false;
+        bool awaitingCodeBrace = false;
+        int codeBraceDepth = 0;
+
+        bool inLineComment = false;
+        bool inBlockComment = false;
+        bool inString = false;
+        bool inChar = false;
+
+        int limit = Math.Max(0, Math.Min(targetOffset, sourceText.Length));
+        for (int i = 0; i < limit; i++)
+        {
+            char ch = sourceText[i];
+            char next = i + 1 < limit ? sourceText[i + 1] : '\0';
+
+            if (inLineComment)
+            {
+                if (ch == '\n')
+                    inLineComment = false;
+                continue;
+            }
+
+            if (inBlockComment)
+            {
+                if (ch == '*' && next == '/')
+                {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+
+            if (inString)
+            {
+                if (ch == '\\')
+                {
+                    i++;
+                    continue;
+                }
+                if (ch == '"')
+                    inString = false;
+                continue;
+            }
+
+            if (inChar)
+            {
+                if (ch == '\\')
+                {
+                    i++;
+                    continue;
+                }
+                if (ch == '\'')
+                    inChar = false;
+                continue;
+            }
+
+            if (ch == '/' && next == '/')
+            {
+                inLineComment = true;
+                i++;
+                continue;
+            }
+
+            if (ch == '/' && next == '*')
+            {
+                inBlockComment = true;
+                i++;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (ch == '\'')
+            {
+                inChar = true;
+                continue;
+            }
+
+            if (!inCode)
+            {
+                if (
+                    !awaitingCodeBrace
+                    && ch == '@'
+                    && i + 5 < limit
+                    && sourceText.Substring(i + 1, 4) == "code"
+                )
+                {
+                    char prev = i > 0 ? sourceText[i - 1] : '\0';
+                    char after = i + 5 < limit ? sourceText[i + 5] : '\0';
+                    bool prevOk = prev == '\0' || !(char.IsLetterOrDigit(prev) || prev == '_');
+                    bool afterOk = after == '\0' || !(char.IsLetterOrDigit(after) || after == '_');
+                    if (prevOk && afterOk)
+                    {
+                        awaitingCodeBrace = true;
+                        i += 4;
+                        continue;
+                    }
+                }
+
+                if (awaitingCodeBrace)
+                {
+                    if (ch == '{')
+                    {
+                        inCode = true;
+                        codeBraceDepth = 1;
+                        awaitingCodeBrace = false;
+                    }
+                    continue;
+                }
+
+                continue;
+            }
+
+            if (ch == '{')
+            {
+                codeBraceDepth++;
+                continue;
+            }
+
+            if (ch == '}')
+            {
+                codeBraceDepth--;
+                if (codeBraceDepth <= 0)
+                {
+                    inCode = false;
+                    codeBraceDepth = 0;
+                }
+            }
+        }
+
+        return inCode;
+    }
+
+    private static bool IsLikelyEmbeddedMarkupAtOffset(string sourceText, int offset)
+    {
+        var (lineText, lineStart) = GetLineAtOffset(sourceText, offset);
+        int col = Math.Max(0, Math.Min(offset - lineStart, lineText.Length));
+        string left = lineText.Substring(0, col).TrimStart();
+        string full = lineText.TrimStart();
+
+        if (left.StartsWith("<", StringComparison.Ordinal) || full.StartsWith("<", StringComparison.Ordinal))
+            return true;
+
+        if (full.StartsWith("@if", StringComparison.Ordinal)
+            || full.StartsWith("@else", StringComparison.Ordinal)
+            || full.StartsWith("@for", StringComparison.Ordinal)
+            || full.StartsWith("@foreach", StringComparison.Ordinal)
+            || full.StartsWith("@while", StringComparison.Ordinal)
+            || full.StartsWith("@switch", StringComparison.Ordinal)
+            || full.StartsWith("@case", StringComparison.Ordinal)
+            || full.StartsWith("@default", StringComparison.Ordinal))
+            return true;
+
+        // If a previous nearby non-empty line looks like markup, treat this line as markup context too.
+        int back = lineStart - 1;
+        int examined = 0;
+        while (back > 0 && examined < 25)
+        {
+            var (prev, prevStart) = GetLineAtOffset(sourceText, back);
+            string t = prev.Trim();
+            if (t.Length > 0)
+            {
+                if (t.StartsWith("<", StringComparison.Ordinal)
+                    || t.StartsWith("</", StringComparison.Ordinal)
+                    || t.StartsWith("@if", StringComparison.Ordinal)
+                    || t.StartsWith("@else", StringComparison.Ordinal)
+                    || t.StartsWith("@for", StringComparison.Ordinal)
+                    || t.StartsWith("@foreach", StringComparison.Ordinal)
+                    || t.StartsWith("@while", StringComparison.Ordinal)
+                    || t.StartsWith("@switch", StringComparison.Ordinal)
+                    || t.StartsWith("@case", StringComparison.Ordinal)
+                    || t.StartsWith("@default", StringComparison.Ordinal))
+                        return true;
+                return false;
+            }
+            back = prevStart - 1;
+            examined++;
+        }
+
+        return false;
+    }
+
+    private static (string lineText, int lineStartOffset) GetLineAtOffset(string text, int offset)
+    {
+        int o = Math.Max(0, Math.Min(offset, text.Length));
+        int start = o;
+        while (start > 0 && text[start - 1] != '\n')
+            start--;
+
+        int end = o;
+        while (end < text.Length && text[end] != '\n')
+            end++;
+
+        string line = text.Substring(start, end - start).TrimEnd('\r');
+        return (line, start);
+    }
 
     private IEnumerable<CompletionItem> TagItems(string prefix)
     {
@@ -199,23 +627,29 @@ public sealed class CompletionHandler : ICompletionHandler
     private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix)
     {
         var workspaceProps = _index.GetProps(tagName);
-        var coveredNames   = new HashSet<string>(
-            workspaceProps.Select(p => p.Name), StringComparer.OrdinalIgnoreCase);
+        var coveredNames   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var p in workspaceProps)
+        {
+            coveredNames.Add(p.Name);
+            coveredNames.Add(CanonicalSchemaAttributeName(tagName, p.Name));
+        }
 
         // Props declared in *Props.cs (dynamic, workspace-specific)
         var dynItems = workspaceProps
             .Where(p => p.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(p =>
             {
+                var canonicalName = CanonicalSchemaAttributeName(tagName, p.Name);
                 // Prefer {=} binding for non-string props; string=" " for string
                 var isString = p.Type.Equals("string", StringComparison.OrdinalIgnoreCase);
-                var insert   = isString ? $"{p.Name}=\"$1\"" : $"{p.Name}={{$1}}";
+                var insert   = isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
                 var doc      = string.IsNullOrEmpty(p.XmlDoc)
                     ? $"**{p.Type}** `{p.Name}`"
                     : p.XmlDoc;
                 return new CompletionItem
                 {
-                    Label            = p.Name,
+                    Label            = canonicalName,
                     Kind             = CompletionItemKind.Property,
                     InsertText       = insert,
                     InsertTextFormat = InsertTextFormat.Snippet,
@@ -251,6 +685,15 @@ public sealed class CompletionHandler : ICompletionHandler
             });
 
         return dynItems.Concat(schemaItems);
+    }
+
+    private string CanonicalSchemaAttributeName(string tagName, string fallbackName)
+    {
+        var schemaAttr = _schema
+            .GetAttributesForElement(tagName)
+            .FirstOrDefault(a => a.Name.Equals(fallbackName, StringComparison.OrdinalIgnoreCase));
+
+        return schemaAttr?.Name ?? fallbackName;
     }
 
     private IEnumerable<CompletionItem> AttributeValueItems(
@@ -344,6 +787,8 @@ public sealed class CompletionHandler : ICompletionHandler
             "code" => "@code\n{\n\t$0\n}",
             "for" => "@for (int $1 = 0; $1 < $2; $1++)\n{\n\t$0\n}",
             "while" => "@while ($1)\n{\n\t$0\n}",
+            "break" => "@break;",
+            "continue" => "@continue;",
             _ => "@" + name,
         };
 
