@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Callbacks;
+using UnityEditorInternal;
 using UnityEngine;
 
 namespace ReactiveUITK.Editor
@@ -30,7 +31,7 @@ namespace ReactiveUITK.Editor
             RegexOptions.Compiled
         );
 
-        [OnOpenAsset]
+        [OnOpenAsset(-10000)]
         private static bool OnOpenAsset(int instanceId, int line)
         {
             string assetPath = AssetDatabase.GetAssetPath(instanceId);
@@ -72,37 +73,42 @@ namespace ReactiveUITK.Editor
 
             try
             {
-                // On Windows, 'code' is a .cmd script so we need cmd.exe as the host.
-                // On macOS/Linux, 'code' is a binary and can be launched directly.
-                string gotoArg = targetLine > 0 ? $"--goto \"{fullPath}:{targetLine}\"" : $"\"{fullPath}\"";
-
-#if UNITY_EDITOR_WIN
-                Process.Start(
-                    new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c code {gotoArg}",
-                        UseShellExecute = false,
-                        CreateNoWindow = true,
-                    }
-                );
-#else
-                Process.Start(
-                    new ProcessStartInfo
-                    {
-                        FileName = "code",
-                        Arguments = gotoArg,
-                        UseShellExecute = true,
-                    }
-                );
-#endif
+                // Prefer Unity's configured external script editor.
+                InternalEditorUtility.OpenFileAtLineExternal(fullPath, targetLine > 0 ? targetLine : 1);
             }
             catch (Exception ex)
             {
-                UnityEngine.Debug.LogWarning(
-                    $"[UITKX] Could not open VS Code for '{assetPath}': {ex.Message}\n"
-                        + $"Make sure the 'code' command is on your PATH."
-                );
+                // Fallback to explicit VS Code CLI launch.
+                try
+                {
+                    string gotoArg = targetLine > 0 ? $"--goto \"{fullPath}:{targetLine}\"" : $"\"{fullPath}\"";
+#if UNITY_EDITOR_WIN
+                    Process.Start(
+                        new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c code {gotoArg}",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                        }
+                    );
+#else
+                    Process.Start(
+                        new ProcessStartInfo
+                        {
+                            FileName = "code",
+                            Arguments = gotoArg,
+                            UseShellExecute = true,
+                        }
+                    );
+#endif
+                }
+                catch (Exception fallbackEx)
+                {
+                    UnityEngine.Debug.LogWarning(
+                        $"[UITKX] Could not open external editor for '{assetPath}': {ex.Message}. Fallback failed: {fallbackEx.Message}"
+                    );
+                }
             }
 
             return true; // handled — suppress Unity's default open behaviour
