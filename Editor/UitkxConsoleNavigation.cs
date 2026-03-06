@@ -41,7 +41,7 @@ namespace ReactiveUITK.Editor
                     assetPath = AssetDatabase.GetAssetPath(obj);
             }
 
-            Debug.Log($"[UITKX Nav] OnOpenAsset instanceId={instanceId} line={line} assetPath='{assetPath}'");
+            UnityEngine.Debug.Log($"[UITKX Nav] OnOpenAsset instanceId={instanceId} line={line} assetPath='{assetPath}'");
 
             if (string.IsNullOrEmpty(assetPath)
                 && TryResolveFromConsoleActiveText(out string consolePath, out int consoleLine))
@@ -57,18 +57,18 @@ namespace ReactiveUITK.Editor
                 // that don't round-trip through AssetDatabase instance ids.
                 if (!TryResolveFromConsoleActiveText(out string consolePath2, out int consoleLine2))
                 {
-                    Debug.Log("[UITKX Nav] Could not resolve from console active text.");
+                    UnityEngine.Debug.Log("[UITKX Nav] Could not resolve from console active text.");
                     return false; // not ours — let Unity handle it
                 }
 
                 if (!TryResolveUitkxTarget(consolePath2, consoleLine2, out fullPath, out targetLine))
                 {
-                    Debug.Log($"[UITKX Nav] Console fallback path unresolved: '{consolePath2}' line={consoleLine2}");
+                    UnityEngine.Debug.Log($"[UITKX Nav] Console fallback path unresolved: '{consolePath2}' line={consoleLine2}");
                     return false;
                 }
             }
 
-            Debug.Log($"[UITKX Nav] Resolved target: '{fullPath}:{targetLine}'");
+            UnityEngine.Debug.Log($"[UITKX Nav] Resolved target: '{fullPath}:{targetLine}'");
 
             try
             {
@@ -312,7 +312,7 @@ namespace ReactiveUITK.Editor
                     assetPath = match.Groups["path"].Value.Replace('\\', '/');
                     if (int.TryParse(match.Groups["line"].Value, out int parsedLine) && parsedLine > 0)
                         line = parsedLine;
-                    Debug.Log($"[UITKX Nav] Parsed from active text: '{assetPath}:{line}'");
+                    UnityEngine.Debug.Log($"[UITKX Nav] Parsed from active text: '{assetPath}:{line}'");
                     return true;
                 }
 
@@ -399,7 +399,7 @@ namespace ReactiveUITK.Editor
                 {
                     assetPath = file.Replace('\\', '/');
                     line = ln > 0 ? ln : 1;
-                    Debug.Log($"[UITKX Nav] Parsed from selected console entry: '{assetPath}:{line}'");
+                    UnityEngine.Debug.Log($"[UITKX Nav] Parsed from selected console entry: '{assetPath}:{line}'");
                     return true;
                 }
 
