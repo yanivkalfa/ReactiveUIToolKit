@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorRenderDepthGuardDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Tests-(Core-Fixes)/Render Depth Guard")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(Core-Fixes)/Render Depth Guard")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorRenderDepthGuardDemoWindow>("Render Depth Guard");

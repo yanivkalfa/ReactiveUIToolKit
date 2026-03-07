@@ -68,8 +68,11 @@ namespace ReactiveUITK.Language.SemanticTokens
             var tokens = new List<SemanticTokenData>(64);
             int[] lineStarts = BuildLineStarts(source);
 
-            // 1. Directive block (every line before markup starts)
-            CollectDirectiveTokens(parseResult.Directives, source, lineStarts, tokens);
+            // 1. Top-level declaration tokens
+            if (parseResult.Directives.IsFunctionStyle)
+                CollectFunctionStyleDeclarationTokens(source, lineStarts, tokens);
+            else
+                CollectDirectiveTokens(parseResult.Directives, source, lineStarts, tokens);
 
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
@@ -185,6 +188,48 @@ namespace ReactiveUITK.Language.SemanticTokens
                         SemanticTokenTypes.DirectiveName,
                         s_noMods
                     );
+            }
+        }
+
+        private static void CollectFunctionStyleDeclarationTokens(
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens
+        )
+        {
+            int i = 0;
+            while (i < source.Length && char.IsWhiteSpace(source[i]))
+                i++;
+
+            const string keyword = "component";
+            if (
+                i + keyword.Length > source.Length
+                || !string.Equals(source.Substring(i, keyword.Length), keyword, StringComparison.Ordinal)
+            )
+                return;
+
+            var (line0, col0) = OffsetToLineCol0(lineStarts, i);
+            EmitToken(tokens, line0, col0, keyword.Length, SemanticTokenTypes.Directive, s_noMods);
+
+            int j = i + keyword.Length;
+            while (j < source.Length && (source[j] == ' ' || source[j] == '\t'))
+                j++;
+
+            int nameStart = j;
+            while (j < source.Length && (char.IsLetterOrDigit(source[j]) || source[j] == '_'))
+                j++;
+
+            if (j > nameStart)
+            {
+                var (nameLine0, nameCol0) = OffsetToLineCol0(lineStarts, nameStart);
+                EmitToken(
+                    tokens,
+                    nameLine0,
+                    nameCol0,
+                    j - nameStart,
+                    SemanticTokenTypes.DirectiveName,
+                    s_noMods
+                );
             }
         }
 
@@ -936,6 +981,21 @@ namespace ReactiveUITK.Language.SemanticTokens
             if (idx < 0)
                 idx = 0;
             return idx + 1;
+        }
+
+        private static (int Line0, int Col0) OffsetToLineCol0(int[] lineStarts, int offset)
+        {
+            int idx = Array.BinarySearch(lineStarts, offset);
+            if (idx < 0)
+                idx = (~idx) - 1;
+            if (idx < 0)
+                idx = 0;
+
+            int col = offset - lineStarts[idx];
+            if (col < 0)
+                col = 0;
+
+            return (idx, col);
         }
 
         private static bool IsLikelyEmbeddedMarkupLine(string segment)

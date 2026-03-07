@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorEffectCleanupOrderDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Tests-(Core-Fixes)/Effect Cleanup Order")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(Core-Fixes)/Effect Cleanup Order")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorEffectCleanupOrderDemoWindow>("Effect Cleanup Order");

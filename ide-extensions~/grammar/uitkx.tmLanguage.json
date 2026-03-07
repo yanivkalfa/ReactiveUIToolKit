@@ -7,6 +7,9 @@
   ],
   "patterns": [
     {
+      "include": "#function-style-declaration"
+    },
+    {
       "include": "#jsx-comment"
     },
     {
@@ -14,6 +17,12 @@
     },
     {
       "include": "#directive-declaration"
+    },
+    {
+      "include": "#function-style-setup-keyword"
+    },
+    {
+      "include": "#function-style-return-keyword"
     },
     {
       "include": "#control-flow-with-expression"
@@ -90,6 +99,22 @@
         },
         "3": {
           "name": "entity.name.type.uitkx"
+        }
+      }
+    },
+    "function-style-declaration": {
+      "comment": "Handles function-style component declarations: component Name {",
+      "name": "meta.component.function-style.uitkx",
+      "match": "^(\\s*)(component)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\{)?\\s*$",
+      "captures": {
+        "2": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "3": {
+          "name": "entity.name.type.uitkx"
+        },
+        "4": {
+          "name": "punctuation.section.block.begin.uitkx"
         }
       }
     },
@@ -506,6 +531,16 @@
       "name": "keyword.control.uitkx",
       "match": "\\b(true|false|null|new|typeof|nameof|this|var|int|string|bool|float|double|decimal|long|uint|ulong|byte|char|object|void|return|await|async|if|else|for|foreach|while|do|break|continue|throw|catch|finally|using|static|readonly|const|private|public|protected|internal|class|interface|enum|struct|record|is|as|in|out|ref)\\b"
     },
+    "function-style-setup-keyword": {
+      "comment": "Optional function-style setup marker: setup;",
+      "name": "keyword.control.uitkx",
+      "match": "\\bsetup\\b(?=\\s*;)"
+    },
+    "function-style-return-keyword": {
+      "comment": "Function-style return keyword before markup expression: return (...)",
+      "name": "keyword.control.uitkx",
+      "match": "\\breturn\\b(?=\\s*\\()"
+    },
     "cs-type-name": {
       "comment": "PascalCase type/class names — e.g. List, Dictionary, MyComponent",
       "name": "entity.name.type.uitkx",
@@ -553,6 +588,9 @@
     "code-block-body": {
       "comment": "Content inside @code { } — full expression tokenization PLUS embedded markup highlighting",
       "patterns": [
+        {
+          "include": "#function-style-setup-keyword"
+        },
         {
           "include": "#jsx-comment"
         },

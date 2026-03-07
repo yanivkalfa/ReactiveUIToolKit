@@ -8,6 +8,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using ReactiveUITK.Language;
 using ReactiveUITK.Language.Diagnostics;
+using ReactiveUITK.Language.Lowering;
 using ReactiveUITK.Language.Parser;
 using LspDiagnosticSeverity = OmniSharp.Extensions.LanguageServer.Protocol.Models.DiagnosticSeverity;
 using LspRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
@@ -48,7 +49,8 @@ public sealed class DiagnosticsPublisher
         // ── Parse ────────────────────────────────────────────────────────────
         var parseDiags = new List<ParseDiagnostic>();
         var directives = DirectiveParser.Parse(text, localPath, parseDiags);
-        var nodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var parsedNodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var nodes = CanonicalLowering.LowerToRenderRoots(directives, parsedNodes, localPath);
 
         var parseResult = new ParseResult(
             directives,

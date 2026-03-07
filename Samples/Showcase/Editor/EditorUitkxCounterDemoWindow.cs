@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorUitkxCounterDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/UITKX Counter Demo (Source Generator)")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/UITKX Counter Demo (Source Generator)")]
         public static void Open()
         {
             var window = GetWindow<EditorUitkxCounterDemoWindow>("UITKX Counter Demo");

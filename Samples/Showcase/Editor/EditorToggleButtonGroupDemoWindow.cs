@@ -10,7 +10,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorToggleButtonGroupDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Toggle Button Group")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Toggle Button Group")]
         public static void ShowWindow()
         {
             EditorToggleButtonGroupDemoWindow window = GetWindow<EditorToggleButtonGroupDemoWindow>(

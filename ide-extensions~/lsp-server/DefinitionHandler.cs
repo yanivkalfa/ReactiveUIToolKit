@@ -135,6 +135,26 @@ public sealed class DefinitionHandler : IDefinitionHandler
             return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(localPath, codeVarLine, codeVarCol));
         }
 
+        if (directives.IsFunctionStyle)
+        {
+            var setupStart = directives.FunctionSetupStartLine > 0
+                ? directives.FunctionSetupStartLine
+                : 1;
+            var setupEnd = Math.Max(setupStart, directives.MarkupStartLine - 1);
+
+            var (setupVarLine, setupVarCol) = FindVarDeclarationInLineRange(
+                text,
+                word,
+                setupStart,
+                setupEnd
+            );
+            if (setupVarLine > 0)
+            {
+                ServerLog.Log($"definition: '{word}' \u2192 function-style setup var at line {setupVarLine} col {setupVarCol}");
+                return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(localPath, setupVarLine, setupVarCol));
+            }
+        }
+
         ServerLog.Log($"definition: no target found for '{word}'");
         return Task.FromResult<LocationOrLocationLinks?>(null);
     }
@@ -193,6 +213,51 @@ public sealed class DefinitionHandler : IDefinitionHandler
 
             if (col >= 0) return (lineNum, col);
         }
+        return (0, 0);
+    }
+
+    private static (int Line, int Col) FindVarDeclarationInLineRange(
+        string text,
+        string varName,
+        int startLine1,
+        int endLine1
+    )
+    {
+        if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(varName))
+            return (0, 0);
+
+        var lines = text.Split('\n');
+        int start = Math.Max(1, startLine1);
+        int end = Math.Min(lines.Length, Math.Max(start, endLine1));
+
+        for (int lineNum = start; lineNum <= end; lineNum++)
+        {
+            var line = lines[lineNum - 1].TrimEnd('\r');
+            int col = -1;
+            var escaped = System.Text.RegularExpressions.Regex.Escape(varName);
+
+            var m = System.Text.RegularExpressions.Regex.Match(line, $@"\bvar\s+({escaped})\b");
+            if (m.Success) col = m.Groups[1].Index;
+
+            if (col < 0 && line.Contains("var (", StringComparison.Ordinal))
+            {
+                m = System.Text.RegularExpressions.Regex.Match(line, $@"\b({escaped})\b");
+                if (m.Success) col = m.Groups[1].Index;
+            }
+
+            if (col < 0)
+            {
+                m = System.Text.RegularExpressions.Regex.Match(
+                    line,
+                    $@"\b\w+\s+({escaped})\s*[=;]"
+                );
+                if (m.Success) col = m.Groups[1].Index;
+            }
+
+            if (col >= 0)
+                return (lineNum, col);
+        }
+
         return (0, 0);
     }
 

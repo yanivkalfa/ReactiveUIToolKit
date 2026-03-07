@@ -61,7 +61,7 @@ namespace ReactiveUITK.SourceGenerator
                 category: Category,
                 defaultSeverity: DiagnosticSeverity.Error,
                 isEnabledByDefault: true,
-                description: "Every .uitkx file must declare @namespace and @component."
+                description: "Directive-header files must declare @namespace and @component. Function-style files use 'component Name { ... }' and infer namespace from the companion partial class when available."
             );
 
         /// <summary>UITKX0006 — @component value does not match the file name.</summary>
@@ -133,7 +133,7 @@ namespace ReactiveUITK.SourceGenerator
             id: "UITKX0305",
             title: "Unknown markup directive",
             messageFormat: "Unknown markup directive '@{0}' at line {1} in '{2}'. "
-                + "Valid directives are: if, else, foreach, switch, case, default, code.",
+                + "Valid directives are: if, else, for, foreach, while, switch, case, default, break, continue, code.",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true

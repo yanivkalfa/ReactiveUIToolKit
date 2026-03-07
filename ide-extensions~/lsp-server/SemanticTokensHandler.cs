@@ -7,6 +7,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using ReactiveUITK.Language;
+using ReactiveUITK.Language.Lowering;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.SemanticTokens;
 
@@ -75,7 +76,8 @@ public sealed class SemanticTokensHandler : SemanticTokensHandlerBase
 
         var parseDiags = new List<ParseDiagnostic>();
         var directives = DirectiveParser.Parse(text, localPath, parseDiags);
-        var nodes      = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var parsedNodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var nodes = CanonicalLowering.LowerToRenderRoots(directives, parsedNodes, localPath);
         var parseResult = new ParseResult(
             directives,
             nodes,

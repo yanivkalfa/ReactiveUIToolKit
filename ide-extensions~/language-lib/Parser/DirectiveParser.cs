@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace ReactiveUITK.Language.Parser
 {
@@ -29,6 +30,12 @@ namespace ReactiveUITK.Language.Parser
     /// </summary>
     public static class DirectiveParser
     {
+        private const string FunctionStyleDefaultNamespace = "ReactiveUITK.FunctionStyle";
+        private static readonly Regex s_namespaceRegex = new Regex(
+            @"^\s*namespace\s+([A-Za-z_][A-Za-z0-9_\.]*)",
+            RegexOptions.Multiline | RegexOptions.CultureInvariant
+        );
+
         private static readonly HashSet<string> s_topLevelKeywords = new HashSet<string>(
             StringComparer.Ordinal
         )
@@ -53,6 +60,50 @@ namespace ReactiveUITK.Language.Parser
             List<ParseDiagnostic> diagnosticBag
         )
         {
+            if (source.Length > 0 && source[0] == '\uFEFF')
+                source = source.Substring(1);
+
+            if (TryParseFunctionStyle(source, filePath, diagnosticBag, out var functionStyleSet))
+                return functionStyleSet;
+
+            if (LooksLikeFunctionStyleComponent(source, 0))
+            {
+                int fsI = 0;
+                int fsLine = 1;
+                SkipLeadingFunctionStyleTrivia(source, ref fsI, ref fsLine);
+
+                string fallbackComponent = Path.GetFileNameWithoutExtension(filePath);
+                if (TryReadKeyword(source, ref fsI, "component"))
+                {
+                    SkipSpaces(source, ref fsI);
+                    if (TryReadIdentifier(source, ref fsI, out string parsedComponentName))
+                        fallbackComponent = parsedComponentName;
+                }
+
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = fsLine,
+                    Message = "Invalid function-style component declaration. Expected 'component PascalCaseName { ... return (...) ... }'.",
+                });
+
+                return new DirectiveSet(
+                    Namespace: InferFunctionStyleNamespace(filePath),
+                    ComponentName: fallbackComponent,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                    MarkupStartLine: fsLine,
+                    MarkupStartIndex: source.Length,
+                    MarkupEndIndex: source.Length,
+                    IsFunctionStyle: true,
+                    FunctionSetupCode: string.Empty,
+                    FunctionSetupStartLine: fsLine
+                );
+            }
+
             string fileName = Path.GetFileNameWithoutExtension(filePath);
             string? ns = null;
             string? component = null;
@@ -175,6 +226,17 @@ namespace ReactiveUITK.Language.Parser
                 markupLine = line;
             }
 
+            if (LooksLikeFunctionStyleComponent(source, markupStart))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2104",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = markupLine,
+                    Message = "Function-style form cannot be mixed with directive header form.",
+                });
+            }
+
             // ── Validate required directives ──────────────────────────────────
             string shortName = Path.GetFileName(filePath);
 
@@ -233,11 +295,864 @@ namespace ReactiveUITK.Language.Parser
                 Usings: usings.ToImmutableArray(),
                 Injects: injects.ToImmutableArray(),
                 MarkupStartLine: markupLine,
-                MarkupStartIndex: markupStart
+                MarkupStartIndex: markupStart,
+                MarkupEndIndex: -1,
+                IsFunctionStyle: false,
+                FunctionSetupCode: null,
+                FunctionSetupStartLine: -1
             );
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
+
+        private static bool TryParseFunctionStyle(
+            string source,
+            string filePath,
+            List<ParseDiagnostic> diagnosticBag,
+            out DirectiveSet directiveSet
+        )
+        {
+            directiveSet = default!;
+
+            if (source.Length > 0 && source[0] == '\uFEFF')
+                source = source.Substring(1);
+
+            int i = 0;
+            int line = 1;
+            SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+
+            if (!TryReadKeyword(source, ref i, "component"))
+                return false;
+
+            int componentLine = line;
+
+            SkipSpaces(source, ref i);
+            if (!TryReadIdentifier(source, ref i, out string componentName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Expected PascalCase component name after 'component'.",
+                });
+                componentName = Path.GetFileNameWithoutExtension(filePath);
+            }
+
+            if (!IsPascalCase(componentName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2100",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = $"Function-style component name '{componentName}' must be PascalCase.",
+                });
+            }
+
+            string functionNamespace = InferFunctionStyleNamespace(filePath);
+
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+            if (i >= source.Length || source[i] != '{')
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Expected '{' after function-style component declaration.",
+                });
+
+                directiveSet = new DirectiveSet(
+                    Namespace: functionNamespace,
+                    ComponentName: componentName,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                    MarkupStartLine: componentLine,
+                    MarkupStartIndex: source.Length,
+                    MarkupEndIndex: source.Length,
+                    IsFunctionStyle: true,
+                    FunctionSetupCode: string.Empty,
+                    FunctionSetupStartLine: componentLine
+                );
+                return true;
+            }
+
+            int bodyOpen = i;
+            if (!TryReadBalancedBlock(source, bodyOpen, out int bodyCloseExclusive))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = componentLine,
+                    Message = "Unclosed function-style component body. Missing '}'.",
+                });
+
+                directiveSet = new DirectiveSet(
+                    Namespace: functionNamespace,
+                    ComponentName: componentName,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                    MarkupStartLine: componentLine,
+                    MarkupStartIndex: source.Length,
+                    MarkupEndIndex: source.Length,
+                    IsFunctionStyle: true,
+                    FunctionSetupCode: string.Empty,
+                    FunctionSetupStartLine: componentLine
+                );
+                return true;
+            }
+
+            int bodyStart = bodyOpen + 1;
+            int bodyEndExclusive = bodyCloseExclusive - 1;
+
+            if (
+                !TryFindTopLevelReturn(
+                    source,
+                    bodyStart,
+                    bodyEndExclusive,
+                    out int returnStart,
+                    out int returnOpenParen,
+                    out int returnCloseParen,
+                    out int returnStmtEndExclusive
+                )
+            )
+            {
+                int malformedReturnPos = FindTopLevelReturnAfter(source, bodyStart, bodyEndExclusive);
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = malformedReturnPos >= 0 ? "UITKX2102" : "UITKX2101",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = malformedReturnPos >= 0 ? LineAtPos(source, malformedReturnPos) : componentLine,
+                    Message = malformedReturnPos >= 0
+                        ? "'return' must return UITKX markup using 'return (...)'."
+                        : "Function-style component must contain exactly one top-level 'return (...)' statement.",
+                });
+
+                directiveSet = new DirectiveSet(
+                    Namespace: functionNamespace,
+                    ComponentName: componentName,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                    MarkupStartLine: componentLine,
+                    MarkupStartIndex: source.Length,
+                    MarkupEndIndex: source.Length,
+                    IsFunctionStyle: true,
+                    FunctionSetupCode: source.Substring(bodyStart, Math.Max(0, bodyEndExclusive - bodyStart)).Trim(),
+                    FunctionSetupStartLine: LineAtPos(source, bodyStart)
+                );
+                return true;
+            }
+
+            int secondReturn = FindTopLevelReturnAfter(
+                source,
+                returnStmtEndExclusive,
+                bodyEndExclusive
+            );
+            if (secondReturn >= 0)
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2103",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = LineAtPos(source, secondReturn),
+                    Message = "Multiple top-level returns are not allowed in function-style components.",
+                });
+            }
+
+            int markupStart = returnOpenParen + 1;
+            int markupEnd = returnCloseParen;
+            int markupLine = LineAtPos(source, markupStart);
+
+            if (!LooksLikeMarkupRoot(source, markupStart, markupEnd))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2102",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = markupLine,
+                    Message = "'return' must return UITKX markup.",
+                });
+
+                markupStart = markupEnd;
+            }
+
+            string setupCode =
+                source.Substring(bodyStart, Math.Max(0, returnStart - bodyStart))
+                + source.Substring(
+                    returnStmtEndExclusive,
+                    Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
+                );
+
+            directiveSet = new DirectiveSet(
+                Namespace: functionNamespace,
+                ComponentName: componentName,
+                PropsTypeName: null,
+                DefaultKey: null,
+                Usings: ImmutableArray<string>.Empty,
+                Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                MarkupStartLine: markupLine,
+                MarkupStartIndex: markupStart,
+                MarkupEndIndex: markupEnd,
+                IsFunctionStyle: true,
+                FunctionSetupCode: setupCode.Trim(),
+                FunctionSetupStartLine: LineAtPos(source, bodyStart)
+            );
+
+            if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
+            {
+                if (IsDirectiveHeaderAt(source, trailingPos))
+                {
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2104",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = LineAtPos(source, trailingPos),
+                        Message = "Function-style form cannot be mixed with directive header form.",
+                    });
+                }
+                else
+                {
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2105",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = LineAtPos(source, trailingPos),
+                        Message = "Invalid top-level statement after function-style component declaration.",
+                    });
+                }
+            }
+
+            return true;
+        }
+
+        private static string InferFunctionStyleNamespace(string filePath)
+        {
+            try
+            {
+                var companionCsPath = Path.ChangeExtension(filePath, ".cs");
+                if (string.IsNullOrWhiteSpace(companionCsPath) || !File.Exists(companionCsPath))
+                    return FunctionStyleDefaultNamespace;
+
+                var csText = File.ReadAllText(companionCsPath);
+                var m = s_namespaceRegex.Match(csText);
+                if (m.Success)
+                {
+                    var ns = m.Groups[1].Value.Trim();
+                    if (!string.IsNullOrWhiteSpace(ns))
+                        return ns;
+                }
+            }
+            catch
+            {
+            }
+
+            return FunctionStyleDefaultNamespace;
+        }
+
+        private static bool LooksLikeMarkupRoot(string source, int start, int endExclusive)
+        {
+            int i = start;
+            while (i < endExclusive)
+            {
+                if (TrySkipNonCodeSpan(source, ref i, endExclusive))
+                    continue;
+
+                if (char.IsWhiteSpace(source[i]))
+                {
+                    i++;
+                    continue;
+                }
+
+                return source[i] == '<' || source[i] == '@';
+            }
+
+            return false;
+        }
+
+        private static bool LooksLikeFunctionStyleComponent(string source, int start)
+        {
+            int i = start;
+            int line = 1;
+            SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+
+            return TryReadKeywordAt(source, i, "component");
+        }
+
+        private static void SkipLeadingFunctionStyleTrivia(string source, ref int i, ref int line)
+        {
+            while (i < source.Length)
+            {
+                if (source[i] == ' ' || source[i] == '\t')
+                {
+                    i++;
+                    continue;
+                }
+
+                if (IsNewline(source[i]))
+                {
+                    ConsumeNewline(source, ref i, ref line);
+                    continue;
+                }
+
+                // // line comment
+                if (
+                    source[i] == '/'
+                    && i + 1 < source.Length
+                    && source[i + 1] == '/'
+                )
+                {
+                    i += 2;
+                    while (i < source.Length && !IsNewline(source[i]))
+                        i++;
+                    continue;
+                }
+
+                // /* block comment */
+                if (
+                    source[i] == '/'
+                    && i + 1 < source.Length
+                    && source[i + 1] == '*'
+                )
+                {
+                    i += 2;
+                    while (i < source.Length)
+                    {
+                        if (IsNewline(source[i]))
+                        {
+                            ConsumeNewline(source, ref i, ref line);
+                            continue;
+                        }
+
+                        if (
+                            source[i] == '*'
+                            && i + 1 < source.Length
+                            && source[i + 1] == '/'
+                        )
+                        {
+                            i += 2;
+                            break;
+                        }
+
+                        i++;
+                    }
+                    continue;
+                }
+
+                // <!-- html comment -->
+                if (
+                    source[i] == '<'
+                    && i + 3 < source.Length
+                    && source[i + 1] == '!'
+                    && source[i + 2] == '-'
+                    && source[i + 3] == '-'
+                )
+                {
+                    i += 4;
+                    while (i < source.Length)
+                    {
+                        if (IsNewline(source[i]))
+                        {
+                            ConsumeNewline(source, ref i, ref line);
+                            continue;
+                        }
+
+                        if (
+                            source[i] == '-'
+                            && i + 2 < source.Length
+                            && source[i + 1] == '-'
+                            && source[i + 2] == '>'
+                        )
+                        {
+                            i += 3;
+                            break;
+                        }
+
+                        i++;
+                    }
+                    continue;
+                }
+
+                break;
+            }
+        }
+
+        private static bool TryFindNextNonWhitespace(string source, int start, out int pos)
+        {
+            pos = start;
+            while (pos < source.Length && char.IsWhiteSpace(source[pos]))
+                pos++;
+
+            return pos < source.Length;
+        }
+
+        private static bool IsDirectiveHeaderAt(string source, int atPos)
+        {
+            if (atPos < 0 || atPos >= source.Length || source[atPos] != '@')
+                return false;
+
+            int i = atPos + 1;
+            int start = i;
+            while (i < source.Length && char.IsLetter(source[i]))
+                i++;
+
+            if (i <= start)
+                return false;
+
+            string keyword = source.Substring(start, i - start).ToLowerInvariant();
+            return s_topLevelKeywords.Contains(keyword);
+        }
+
+        private static bool TryFindTopLevelReturn(
+            string source,
+            int start,
+            int endExclusive,
+            out int returnStart,
+            out int openParen,
+            out int closeParen,
+            out int stmtEndExclusive
+        )
+        {
+            returnStart = -1;
+            openParen = -1;
+            closeParen = -1;
+            stmtEndExclusive = -1;
+
+            int i = start;
+            int braceDepth = 0;
+            int parenDepth = 0;
+            int bracketDepth = 0;
+
+            while (i < endExclusive)
+            {
+                if (TrySkipNonCodeSpan(source, ref i, endExclusive))
+                    continue;
+
+                char c = source[i];
+
+                if (c == '{')
+                {
+                    braceDepth++;
+                    i++;
+                    continue;
+                }
+                if (c == '}')
+                {
+                    if (braceDepth > 0)
+                        braceDepth--;
+                    i++;
+                    continue;
+                }
+                if (c == '(')
+                {
+                    parenDepth++;
+                    i++;
+                    continue;
+                }
+                if (c == ')')
+                {
+                    if (parenDepth > 0)
+                        parenDepth--;
+                    i++;
+                    continue;
+                }
+                if (c == '[')
+                {
+                    bracketDepth++;
+                    i++;
+                    continue;
+                }
+                if (c == ']')
+                {
+                    if (bracketDepth > 0)
+                        bracketDepth--;
+                    i++;
+                    continue;
+                }
+
+                if (braceDepth == 0 && parenDepth == 0 && bracketDepth == 0)
+                {
+                    if (TryReadKeywordAt(source, i, "return"))
+                    {
+                        returnStart = i;
+                        int j = i + "return".Length;
+                        SkipWhitespace(source, ref j);
+
+                        if (j >= endExclusive || source[j] != '(')
+                            return false;
+
+                        openParen = j;
+                        if (!TryReadBalancedParen(source, openParen, endExclusive, out int closeParenExclusive))
+                            return false;
+
+                        closeParen = closeParenExclusive - 1;
+                        j = closeParenExclusive;
+                        SkipWhitespace(source, ref j);
+                        if (j >= endExclusive || source[j] != ';')
+                            return false;
+
+                        stmtEndExclusive = j + 1;
+                        return true;
+                    }
+                }
+
+                i++;
+            }
+
+            return false;
+        }
+
+        private static int FindTopLevelReturnAfter(string source, int start, int endExclusive)
+        {
+            int i = start;
+            int braceDepth = 0;
+            int parenDepth = 0;
+            int bracketDepth = 0;
+
+            while (i < endExclusive)
+            {
+                if (TrySkipNonCodeSpan(source, ref i, endExclusive))
+                    continue;
+
+                char c = source[i];
+                if (c == '{')
+                {
+                    braceDepth++;
+                    i++;
+                    continue;
+                }
+                if (c == '}')
+                {
+                    if (braceDepth > 0)
+                        braceDepth--;
+                    i++;
+                    continue;
+                }
+                if (c == '(')
+                {
+                    parenDepth++;
+                    i++;
+                    continue;
+                }
+                if (c == ')')
+                {
+                    if (parenDepth > 0)
+                        parenDepth--;
+                    i++;
+                    continue;
+                }
+                if (c == '[')
+                {
+                    bracketDepth++;
+                    i++;
+                    continue;
+                }
+                if (c == ']')
+                {
+                    if (bracketDepth > 0)
+                        bracketDepth--;
+                    i++;
+                    continue;
+                }
+
+                if (braceDepth == 0 && parenDepth == 0 && bracketDepth == 0)
+                {
+                    if (TryReadKeywordAt(source, i, "return"))
+                        return i;
+                }
+
+                i++;
+            }
+
+            return -1;
+        }
+
+        private static bool TryReadBalancedBlock(string source, int openBracePos, out int closeExclusive)
+        {
+            closeExclusive = -1;
+            if (openBracePos < 0 || openBracePos >= source.Length || source[openBracePos] != '{')
+                return false;
+
+            int i = openBracePos + 1;
+            int depth = 1;
+            while (i < source.Length)
+            {
+                if (TrySkipNonCodeSpan(source, ref i, source.Length))
+                    continue;
+
+                if (source[i] == '{')
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+
+                if (source[i] == '}')
+                {
+                    depth--;
+                    i++;
+                    if (depth == 0)
+                    {
+                        closeExclusive = i;
+                        return true;
+                    }
+                    continue;
+                }
+
+                i++;
+            }
+
+            return false;
+        }
+
+        private static bool TryReadBalancedParen(
+            string source,
+            int openParenPos,
+            int endExclusive,
+            out int closeExclusive
+        )
+        {
+            closeExclusive = -1;
+            if (openParenPos < 0 || openParenPos >= source.Length || source[openParenPos] != '(')
+                return false;
+
+            int i = openParenPos + 1;
+            int depth = 1;
+            while (i < endExclusive)
+            {
+                if (TrySkipNonCodeSpan(source, ref i, endExclusive))
+                    continue;
+
+                if (source[i] == '(')
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+
+                if (source[i] == ')')
+                {
+                    depth--;
+                    i++;
+                    if (depth == 0)
+                    {
+                        closeExclusive = i;
+                        return true;
+                    }
+                    continue;
+                }
+
+                i++;
+            }
+
+            return false;
+        }
+
+        private static bool TrySkipNonCodeSpan(string source, ref int i, int limit)
+        {
+            if (i >= limit)
+                return false;
+
+            if (source[i] == '/' && i + 1 < limit)
+            {
+                if (source[i + 1] == '/')
+                {
+                    i += 2;
+                    while (i < limit && source[i] != '\n')
+                        i++;
+                    return true;
+                }
+
+                if (source[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < limit && !(source[i] == '*' && source[i + 1] == '/'))
+                        i++;
+                    i = i + 1 < limit ? i + 2 : limit;
+                    return true;
+                }
+            }
+
+            if (source[i] == '\'')
+            {
+                i++;
+                while (i < limit)
+                {
+                    if (source[i] == '\\')
+                    {
+                        i += 2;
+                        continue;
+                    }
+                    if (source[i] == '\'')
+                    {
+                        i++;
+                        break;
+                    }
+                    i++;
+                }
+                return true;
+            }
+
+            int quotePos = -1;
+            bool verbatim = false;
+
+            if (source[i] == '"')
+            {
+                quotePos = i;
+            }
+            else if ((source[i] == '@' || source[i] == '$') && i + 1 < limit && source[i + 1] == '"')
+            {
+                quotePos = i + 1;
+                verbatim = source[i] == '@';
+            }
+            else if (
+                (source[i] == '@' || source[i] == '$')
+                && i + 2 < limit
+                && (source[i + 1] == '@' || source[i + 1] == '$')
+                && source[i + 2] == '"'
+            )
+            {
+                quotePos = i + 2;
+                verbatim = source[i] == '@' || source[i + 1] == '@';
+            }
+
+            if (quotePos >= 0)
+            {
+                i = quotePos + 1;
+                while (i < limit)
+                {
+                    if (verbatim)
+                    {
+                        if (source[i] == '"')
+                        {
+                            if (i + 1 < limit && source[i + 1] == '"')
+                            {
+                                i += 2;
+                                continue;
+                            }
+                            i++;
+                            break;
+                        }
+                        i++;
+                        continue;
+                    }
+
+                    if (source[i] == '\\')
+                    {
+                        i += 2;
+                        continue;
+                    }
+
+                    if (source[i] == '"')
+                    {
+                        i++;
+                        break;
+                    }
+
+                    i++;
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool TryReadKeyword(string source, ref int i, string keyword)
+        {
+            if (!TryReadKeywordAt(source, i, keyword))
+                return false;
+            i += keyword.Length;
+            return true;
+        }
+
+        private static bool TryReadKeywordAt(string source, int i, string keyword)
+        {
+            if (i < 0 || i + keyword.Length > source.Length)
+                return false;
+
+            if (!string.Equals(source.Substring(i, keyword.Length), keyword, StringComparison.Ordinal))
+                return false;
+
+            char prev = i > 0 ? source[i - 1] : '\0';
+            char next = i + keyword.Length < source.Length ? source[i + keyword.Length] : '\0';
+            bool prevOk = prev == '\0' || !(char.IsLetterOrDigit(prev) || prev == '_');
+            bool nextOk = next == '\0' || !(char.IsLetterOrDigit(next) || next == '_');
+            return prevOk && nextOk;
+        }
+
+        private static bool TryReadIdentifier(string source, ref int i, out string ident)
+        {
+            ident = string.Empty;
+            if (i >= source.Length || !(char.IsLetter(source[i]) || source[i] == '_'))
+                return false;
+
+            int start = i;
+            i++;
+            while (i < source.Length && (char.IsLetterOrDigit(source[i]) || source[i] == '_'))
+                i++;
+
+            ident = source.Substring(start, i - start);
+            return true;
+        }
+
+        private static bool IsPascalCase(string ident)
+        {
+            if (string.IsNullOrEmpty(ident) || !char.IsUpper(ident[0]))
+                return false;
+
+            for (int i = 1; i < ident.Length; i++)
+                if (!char.IsLetterOrDigit(ident[i]))
+                    return false;
+
+            return true;
+        }
+
+        private static void SkipSpaces(string source, ref int i)
+        {
+            while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
+                i++;
+        }
+
+        private static void SkipWhitespace(string source, ref int i)
+        {
+            while (i < source.Length && char.IsWhiteSpace(source[i]))
+                i++;
+        }
+
+        private static void SkipWhitespaceAndNewlines(string source, ref int i, ref int line)
+        {
+            while (i < source.Length)
+            {
+                if (source[i] == ' ' || source[i] == '\t')
+                {
+                    i++;
+                    continue;
+                }
+                if (IsNewline(source[i]))
+                {
+                    ConsumeNewline(source, ref i, ref line);
+                    continue;
+                }
+                break;
+            }
+        }
+
+        private static int LineAtPos(string source, int pos)
+        {
+            int line = 1;
+            for (int i = 0; i < pos && i < source.Length; i++)
+                if (source[i] == '\n')
+                    line++;
+            return line;
+        }
 
         private static bool IsNewline(char c) => c == '\r' || c == '\n';
 

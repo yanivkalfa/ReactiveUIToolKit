@@ -110,7 +110,7 @@ namespace ReactiveUITK.Language.IntelliSense
             int prefixStart = col0 - prefix.Length;
 
             // ── 1. Directive block (lines before markup starts) ────────────────
-            if (line1 < parseResult.Directives.MarkupStartLine)
+            if (!parseResult.Directives.IsFunctionStyle && line1 < parseResult.Directives.MarkupStartLine)
             {
                 // Cursor must be right after '@' to be completing a directive name.
                 if (prefixStart > 0 && lineText[prefixStart - 1] == '@')

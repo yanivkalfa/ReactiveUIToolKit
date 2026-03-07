@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorAnimationsDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Animations")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Animations")]
         public static void Open()
         {
             var w = GetWindow<EditorAnimationsDemoWindow>("RUITK Animations");

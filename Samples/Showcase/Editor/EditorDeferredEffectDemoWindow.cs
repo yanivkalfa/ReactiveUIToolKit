@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorDeferredEffectDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Tests-(Core-Fixes)/Deferred UseEffect")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(Core-Fixes)/Deferred UseEffect")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorDeferredEffectDemoWindow>("Deferred UseEffect");

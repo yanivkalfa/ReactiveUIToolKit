@@ -33,6 +33,7 @@ namespace ReactiveUITK.Language.Parser
     {
         private readonly string _source;
         private readonly string _filePath;
+        private readonly int _stopPosExclusive;
 
         // Non-readonly so LookAheadIsElse-based @else processing can re-create the
         // scanner after controlled lookahead (though current impl avoids it).
@@ -46,11 +47,13 @@ namespace ReactiveUITK.Language.Parser
             string filePath,
             int startPos,
             int startLine,
+            int stopPosExclusive,
             List<ParseDiagnostic> diagnostics
         )
         {
             _source = source;
             _filePath = filePath;
+            _stopPosExclusive = stopPosExclusive;
             _scanner = new MarkupTokenizer(source, startPos, startLine);
             _diagnostics = diagnostics;
         }
@@ -73,6 +76,7 @@ namespace ReactiveUITK.Language.Parser
                 filePath,
                 directives.MarkupStartIndex,
                 directives.MarkupStartLine,
+                directives.MarkupEndIndex,
                 diagnostics
             );
 
@@ -100,8 +104,14 @@ namespace ReactiveUITK.Language.Parser
 
             while (!_scanner.IsEof)
             {
+                if (_stopPosExclusive >= 0 && _scanner.Pos >= _stopPosExclusive)
+                    break;
+
                 _scanner.SkipWhitespaceAndNewlines();
                 if (_scanner.IsEof)
+                    break;
+
+                if (_stopPosExclusive >= 0 && _scanner.Pos >= _stopPosExclusive)
                     break;
 
                 int positionBefore = _scanner.Pos;
@@ -1142,7 +1152,14 @@ namespace ReactiveUITK.Language.Parser
             List<ParseDiagnostic> diagnostics
         )
         {
-            var parser = new UitkxParser(source, filePath, startPos, startLine, diagnostics);
+            var parser = new UitkxParser(
+                source,
+                filePath,
+                startPos,
+                startLine,
+                stopPosExclusive: -1,
+                diagnostics
+            );
             var element = parser.ParseElement(loopDepth: 0);
             return (element, parser._scanner.Pos);
         }

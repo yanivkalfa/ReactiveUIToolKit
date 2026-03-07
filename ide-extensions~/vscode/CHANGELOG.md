@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.0.85]
+- **Fix: stabilize function-style diagnostics and reduce false broken-file errors.**
+  Added defensive function-style parsing around leading comments/trivia,
+  suppressed legacy missing-`@namespace`/`@component` diagnostics for
+  function-style documents, and aligned generator fallback behavior with
+  function-style semantics.
+- **Fix: improve function-style syntax coloring coverage.**
+  Added grammar scopes for function-style `component` declarations and
+  `return (...)` keyword matching to improve token consistency in UITKX files.
+
+## [1.0.84]
+- **Feature: complete function-style tooling parity across LSP + formatter.**
+  Applied canonical lowering in semantic-token and diagnostics pipelines,
+  improved go-to-definition for setup variables in `component Name { ... }`,
+  added function-style declaration tokenization, and updated formatter support
+  to preserve function-style authoring (`component` + `return (...)`) with
+  regression tests.
+
+## [1.0.83]
+- **Test: add canonical lowering semantic-equivalence coverage.**
+  Added a normalization test that validates function-style and directive-header
+  sources lower to the same semantic AST shape (including control-flow blocks),
+  and updated function-style plan progress for Phase 2 setup-code hoisting.
+
+## [1.0.82]
+- **Feature: add canonical lowering stage for function-style components.**
+  Introduced a dedicated lowering pass between parse and validation/emission so
+  function-style setup code is normalized into a synthetic `@code` root in one
+  canonical pipeline stage, with regression tests for both function-style and
+  directive-header authoring forms.
+
+## [1.0.81]
+- **Feature: strengthen function-style component diagnostics.**
+  Added dedicated detection for invalid function-style returns (`UITKX2102`)
+  and mixed file forms (`UITKX2104`) so `component Name { ... }` contracts
+  now produce deterministic errors for non-markup returns and header mixing.
+
 ## [1.0.80]
 - **Fix: restore C# coloring in `@code` body lines (e.g. `var`, `useState`, tuples).**
   Re-added `expression-content` fallback inside `@code` grammar body so pure C#

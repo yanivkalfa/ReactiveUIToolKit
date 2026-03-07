@@ -82,8 +82,15 @@ namespace ReactiveUITK.Language.Formatter
                 if (d.Severity == ParseSeverity.Error)
                     return source;
 
-            FormatDirectives(directives);
-            FormatNodeList(nodes, topLevel: true);
+            if (directives.IsFunctionStyle)
+            {
+                FormatFunctionStyleComponent(directives, nodes);
+            }
+            else
+            {
+                FormatDirectives(directives);
+                FormatNodeList(nodes, topLevel: true);
+            }
 
             // Trim any trailing whitespace/newlines and add exactly one trailing \n.
             var result = _sb.ToString().TrimEnd('\r', '\n', ' ', '\t');
@@ -132,6 +139,39 @@ namespace ReactiveUITK.Language.Formatter
             // Blank separator between the directive block and the markup.
             if (any)
                 _sb.Append('\n');
+        }
+
+        private void FormatFunctionStyleComponent(DirectiveSet directives, ImmutableArray<AstNode> nodes)
+        {
+            var componentName = string.IsNullOrWhiteSpace(directives.ComponentName)
+                ? "Component"
+                : directives.ComponentName;
+
+            Ln($"component {componentName} {{");
+            _indent++;
+
+            var setupCode = directives.FunctionSetupCode?.Trim();
+            if (!string.IsNullOrWhiteSpace(setupCode))
+            {
+                var normalizedSetupCode = setupCode!;
+                string tabExp = new string(' ', _opts.IndentSize);
+                EmitCSharpLines(
+                    normalizedSetupCode,
+                    tabExp,
+                    firstLineStripped: false,
+                    suppressLastNewline: false
+                );
+                _sb.Append('\n');
+            }
+
+            Ln("return (");
+            _indent++;
+            FormatNodeList(nodes, topLevel: false);
+            _indent--;
+            Ln(");");
+
+            _indent--;
+            Ln("}");
         }
 
         // ═══════════════════════════════════════════════════════════════════════

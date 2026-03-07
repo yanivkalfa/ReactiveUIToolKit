@@ -75,6 +75,30 @@ public class EmitterTests
         );
     }
 
+    [Fact]
+    public void FunctionStyleComponent_GeneratesClassAndMarkup()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                var (count, setCount) = useState(0);
+                return (
+                    <Box>
+                        <Label text={$"{count}"} />
+                    </Box>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "CounterPanel.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("partial class CounterPanel"));
+        Assert.True(result.SourceContains("V.Box("));
+        Assert.True(result.SourceContains("V.Label("));
+        Assert.True(result.SourceContains("Hooks.UseState(") || result.SourceContains("useState("));
+    }
+
     // ── @code hoisting ───────────────────────────────────────────────────────
 
     [Fact]

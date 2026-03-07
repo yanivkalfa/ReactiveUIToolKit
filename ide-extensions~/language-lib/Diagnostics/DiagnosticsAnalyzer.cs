@@ -50,7 +50,7 @@ namespace ReactiveUITK.Language.Diagnostics
             var d = parseResult.Directives;
 
             // ── T2: UITKX0101 — Missing @namespace ───────────────────────────
-            if (string.IsNullOrEmpty(d.Namespace))
+            if (!d.IsFunctionStyle && string.IsNullOrEmpty(d.Namespace))
             {
                 diags.Add(
                     MakeDiag(
@@ -63,7 +63,7 @@ namespace ReactiveUITK.Language.Diagnostics
             }
 
             // ── T2: UITKX0102 — Missing @component ───────────────────────────
-            if (string.IsNullOrEmpty(d.ComponentName))
+            if (!d.IsFunctionStyle && string.IsNullOrEmpty(d.ComponentName))
             {
                 diags.Add(
                     MakeDiag(

@@ -50,17 +50,16 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 ### After — `.uitkx` file
 
 ```uitkx
-@namespace ReactiveUITK.Samples.FunctionalComponents
-@component SimpleCounter
-
-@code {
+component SimpleCounter {
     var (count, setCount) = Hooks.UseState(0);
-}
 
-<VisualElement>
-    <Text text={$"Count: {count}"}/>
-    <Button text="+" onClick={() => setCount(count + 1)}/>
-</VisualElement>
+    return (
+        <VisualElement>
+            <Text text={$"Count: {count}"}/>
+            <Button text="+" onClick={() => setCount(count + 1)}/>
+        </VisualElement>
+    );
+}
 ```
 
 ### After — companion `.cs` file (minimal)
@@ -94,22 +93,33 @@ Find the `public static VirtualNode Render(...)` method you want to migrate. Con
 
 Create `<ComponentName>.uitkx` next to the existing `.cs` file.
 
-Add the three required directives at the top:
+Use function-style component syntax:
 
 ```uitkx
-@namespace <your.namespace>
-@component <ClassName>
+component <ClassName> {
+    // setup C#
+    return (
+        <VisualElement />
+    );
+}
 ```
 
-### Step 3 — Move hook calls to `@code`
+Namespace is taken from the companion partial `.cs` file.
+`@namespace` / `@component` directives are only needed for legacy directive-header files.
+
+### Step 3 — Move hook calls to function setup section
 
 Everything that was inside `Render()` before the `return` statement goes into
-`@code { }`:
+the setup section before `return (...)`:
 
 ```uitkx
-@code {
+component <ClassName> {
     var (count, setCount) = Hooks.UseState(0);
     var (mode,  setMode)  = Hooks.UseState("normal");
+
+    return (
+        <VisualElement />
+    );
 }
 ```
 

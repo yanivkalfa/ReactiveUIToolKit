@@ -21,7 +21,7 @@
 | P6 | Embedded Markup in `@code` | `[DONE]` |
 | P7 | `PropsHelper.Bind<T>` + `[UitkxElement]` | `[DONE]` |
 | P8 | Integration, Samples, Migration Docs | `[DONE]` |
-| P8.6 | Developer Experience Improvements (IDE Polish) | `[~]` IN PROGRESS (only #9 remaining) |
+| P8.6 | Developer Experience Improvements (IDE Polish) | `[DONE]` |
 | P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[ ]` NOT STARTED |
 | P10 | Rider Plugin | `[ ]` NOT STARTED |
 
@@ -1350,7 +1350,7 @@ Estimated effort: **~4–6 hours** (Medium).
 ## Phase 8.6 Status
 
 > Consolidated here from the former `UITKX_P8_6_BUGS.md` tracker.
-> Active remaining scope for Phase 8.6 is now **only #9**.
+> Phase 8.6 scope is complete.
 > **#4 `{/*` auto-close wraps wrong` was removed from scope by product decision**.
 
 | Sub-task | Status |
@@ -1363,9 +1363,9 @@ Estimated effort: **~4–6 hours** (Medium).
 | #6 Unreachable code dimming | `[x]` COMPLETED (v1.0.53) |
 | #7 Unity console click navigation | `[x]` COMPLETED |
 | #8 Missing `;` auto-fix on save/format | `[x]` COMPLETED (v1.0.57) |
-| #9 `@for` / `@while` support `break` / `continue` flow handling | `[ ]` NOT STARTED (ONLY REMAINING 8.6 ITEM) |
+| #9 `@for` / `@while` support `break` / `continue` flow handling | `[x]` COMPLETED |
 
-### 8.6 Remaining Scope — #9 (Information Only)
+### 8.6 Scope — #9 (Completed)
 
 `#9` means UITKX loop bodies should support normal loop-control statements:
 

@@ -33,7 +33,28 @@ namespace ReactiveUITK.Language.Parser
         /// Character index into the source string where the markup begins.
         /// Passed to the tokenizer/parser so they start at the correct position.
         /// </summary>
-        int MarkupStartIndex
+        int MarkupStartIndex,
+        /// <summary>
+        /// Optional exclusive end index for markup parsing in function-style files.
+        /// <c>-1</c> means parse until EOF (legacy directive-based form).
+        /// </summary>
+        int MarkupEndIndex = -1,
+        /// <summary>
+        /// True when source uses the function-style component form:
+        /// <c>component Name { ... return (...) ... }</c>.
+        /// </summary>
+        bool IsFunctionStyle = false,
+        /// <summary>
+        /// Setup C# statements extracted from function-style body (all top-level
+        /// statements except the <c>return (...)</c> statement). Injected as a
+        /// synthetic <c>@code</c> block before markup emission.
+        /// </summary>
+        string? FunctionSetupCode = null,
+        /// <summary>
+        /// 1-based line where function-style setup code begins inside
+        /// <c>component Name { ... }</c>. <c>-1</c> when unavailable.
+        /// </summary>
+        int FunctionSetupStartLine = -1
     );
 
     // ── Full parse result ─────────────────────────────────────────────────────

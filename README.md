@@ -25,17 +25,16 @@ syntax highlighting, IntelliSense, and auto-format for `.uitkx` files.
 Add `MyComponent.uitkx` to your project (anywhere Unity picks up scripts):
 
 ```uitkx
-@namespace MyGame.UI
-@component MyComponent
-
-@code {
+component MyComponent {
     var (count, setCount) = Hooks.UseState(0);
-}
 
-<Box>
-    <Label text={$"Count: {count}"}/>
-    <Button text="+" onClick={() => setCount(count + 1)}/>
-</Box>
+    return (
+        <Box>
+            <Label text={$"Count: {count}"}/>
+            <Button text="+" onClick={() => setCount(count + 1)}/>
+        </Box>
+    );
+}
 ```
 
 **3. Add a companion `.cs` file**
@@ -50,6 +49,9 @@ namespace MyGame.UI
 
 The source generator emits `Render()` into the partial class automatically on
 the next Unity compile.
+
+For function-style `.uitkx` files, `@namespace` is not required in markup.
+Namespace is inferred from the companion partial `.cs` file.
 
 **4. Use the component**
 

@@ -94,7 +94,9 @@ public sealed class CompletionHandler : ICompletionHandler
         int offset = ToOffset(text, request.Position);
         string? triggerChar = request.Context?.TriggerCharacter;
 
-        bool inDirectiveHeader = line1 <= parseResult.Directives.MarkupStartLine;
+        bool inDirectiveHeader =
+            !parseResult.Directives.IsFunctionStyle
+            && line1 <= parseResult.Directives.MarkupStartLine;
         bool inCodeBlockLine = IsInsideCodeBlockAtOffset(text, offset);
         bool inEmbeddedMarkupInCode = inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
 

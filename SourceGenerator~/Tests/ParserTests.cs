@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using ReactiveUITK.Language;
 using ReactiveUITK.Language.Nodes;
@@ -93,6 +94,175 @@ public class ParserTests
         Assert.Contains(diags, d => d.Code == "UITKX0012");
     }
 
+    [Fact]
+    public void Directives_FunctionStyle_ParsesComponentAndReturnRange()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                var (count, setCount) = useState(0);
+                return (
+                    <Box><Label text={$"{count}"} /></Box>
+                );
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.True(set.IsFunctionStyle);
+        Assert.Equal("CounterPanel", set.ComponentName);
+        Assert.Equal("ReactiveUITK.FunctionStyle", set.Namespace);
+        Assert.True(set.MarkupStartIndex > 0);
+        Assert.True(set.MarkupEndIndex > set.MarkupStartIndex);
+        Assert.Contains("useState", set.FunctionSetupCode ?? string.Empty);
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_InfersNamespace_FromCompanionPartialClass()
+    {
+        string dir = Path.Combine(
+            Path.GetTempPath(),
+            "uitkx-func-ns-" + System.Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(dir);
+
+        try
+        {
+            string uitkxPath = Path.Combine(dir, "CounterPanel.uitkx");
+            string companionPath = Path.Combine(dir, "CounterPanel.cs");
+
+            File.WriteAllText(
+                companionPath,
+                "namespace MyGame.Sample.UI { public partial class CounterPanel { } }"
+            );
+
+            const string src =
+                """
+                component CounterPanel {
+                    return (<Box />);
+                }
+                """;
+
+            var diags = new List<ParseDiagnostic>();
+            var set = DirectiveParser.Parse(src, uitkxPath, diags);
+
+            Assert.True(set.IsFunctionStyle);
+            Assert.Equal("CounterPanel", set.ComponentName);
+            Assert.Equal("MyGame.Sample.UI", set.Namespace);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_WithLeadingComments_IsDetected()
+    {
+        const string src =
+            """
+            // file banner
+            /* parser should skip this block comment */
+            <!-- and this UITKX comment -->
+            component CounterPanel {
+                return (<Box />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.True(set.IsFunctionStyle);
+        Assert.Equal("CounterPanel", set.ComponentName);
+        Assert.Equal("ReactiveUITK.FunctionStyle", set.Namespace);
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0005");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_MissingReturn_EmitsUITKX2101()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                var (count, setCount) = useState(0);
+                <Box />
+            }
+            """;
+
+        ParseDirectives(src, out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX2101");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_NonPascalName_EmitsUITKX2100()
+    {
+        const string src = "component counterPanel { return (<Box />); }";
+
+        ParseDirectives(src, out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX2100");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_ReturnNonMarkup_EmitsUITKX2102()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                var count = 1;
+                return (count);
+            }
+            """;
+
+        ParseDirectives(src, out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX2102");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_MalformedReturn_EmitsUITKX2102()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                return count;
+            }
+            """;
+
+        ParseDirectives(src, out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX2102");
+    }
+
+    [Fact]
+    public void Directives_MixedHeaderAndFunctionStyle_EmitsUITKX2104()
+    {
+        const string src =
+            """
+            @namespace Test.NS
+            @component LegacyComp
+            component CounterPanel {
+                return (<Box />);
+            }
+            """;
+
+        ParseDirectives(src, out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX2104");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_WithTrailingDirective_EmitsUITKX2104()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                return (<Box />);
+            }
+            @namespace Test.NS
+            """;
+
+        ParseDirectives(src, out var diags);
+        Assert.Contains(diags, d => d.Code == "UITKX2104");
+    }
+
     // ── Markup: elements ─────────────────────────────────────────────────────
 
     [Fact]
@@ -103,6 +273,25 @@ public class ParserTests
         var el = Assert.Single(nodes.OfType<ElementNode>());
         Assert.Equal("label", el.TagName);
         Assert.Empty(el.Children);
+    }
+
+    [Fact]
+    public void Markup_FunctionStyle_ReturnMarkup_ProducesElementNode()
+    {
+        const string src =
+            """
+            component CounterPanel {
+                var (count, setCount) = useState(0);
+                return (
+                    <Box><Label text={$"{count}"} /></Box>
+                );
+            }
+            """;
+
+        var nodes = ParseMarkup(src, out _);
+
+        var box = Assert.Single(nodes.OfType<ElementNode>());
+        Assert.Equal("Box", box.TagName);
     }
 
     [Fact]
