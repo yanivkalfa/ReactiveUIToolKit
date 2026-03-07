@@ -300,11 +300,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ("useTransition(", "Hooks.UseTransition("),
         };
 
-        // Matches generic hook calls such as useContext<Color>( or useRef<Label>(.
+        // Matches generic hook calls including up to 3 levels of nested type args:
+        //   useContext<Color>(                         → level 1
+        //   useRef<List<int>>(                         → level 2
+        //   useMemo<Dictionary<string, List<Color>>>(  → level 3
         // The non-generic form is handled by s_hookAliases simple replacements above.
         private static readonly System.Text.RegularExpressions.Regex s_genericHookAliasRe =
             new System.Text.RegularExpressions.Regex(
-                @"\b(useState|useEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<[^>]+>)\s*\(",
+                @"\b(useState|useEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 

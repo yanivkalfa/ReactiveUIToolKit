@@ -125,7 +125,7 @@ namespace ReactiveUITK.Samples.Shared
             );
 
             return V.VisualElement(
-                new Style { (StyleKeys.FlexDirection, "column"), (Padding, 12f) },
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column"), (Padding, 12f) } },
                 null,
                 V.Label(
                     new LabelProps
@@ -138,20 +138,17 @@ namespace ReactiveUITK.Samples.Shared
                     new AnimateProps { Tracks = flashAnimTracks },
                     null,
                     V.VisualElement(
-                        new Dictionary<string, object>
+                        new VisualElementProps
                         {
+                            Style = new Style
                             {
-                                "style",
-                                new Style
-                                {
-                                    (Width, 160f),
-                                    (Height, 60f),
-                                    (BackgroundColor, new UColor(0.3f, 0.6f, 0.9f, 1f)),
-                                    (BorderRadius, 6f),
-                                    (JustifyContent, "center"),
-                                    (AlignItems, "center"),
-                                    (MarginTop, 6f),
-                                }
+                                (Width, 160f),
+                                (Height, 60f),
+                                (BackgroundColor, new UColor(0.3f, 0.6f, 0.9f, 1f)),
+                                (BorderRadius, 6f),
+                                (JustifyContent, "center"),
+                                (AlignItems, "center"),
+                                (MarginTop, 6f),
                             },
                         },
                         null,
@@ -168,20 +165,17 @@ namespace ReactiveUITK.Samples.Shared
                     new AnimateProps { Tracks = multiTracks },
                     null,
                     V.VisualElement(
-                        new Dictionary<string, object>
+                        new VisualElementProps
                         {
+                            Style = new Style
                             {
-                                "style",
-                                new Style
-                                {
-                                    (Width, 200f),
-                                    (Height, 120f),
-                                    (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
-                                    (BorderRadius, 8f),
-                                    (JustifyContent, "center"),
-                                    (AlignItems, "center"),
-                                    (MarginTop, 8f),
-                                }
+                                (Width, 200f),
+                                (Height, 120f),
+                                (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
+                                (BorderRadius, 8f),
+                                (JustifyContent, "center"),
+                                (AlignItems, "center"),
+                                (MarginTop, 8f),
                             },
                         },
                         null,

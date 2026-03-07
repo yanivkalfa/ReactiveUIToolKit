@@ -40,33 +40,33 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
 
             var interactiveArea = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
+                        (StyleKeys.Height, 200f),
+                        (StyleKeys.BorderRadius, 6f),
+                        (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.25f, 0.9f)),
+                        (StyleKeys.JustifyContent, "center"),
+                        (StyleKeys.AlignItems, "center"),
+                        (StyleKeys.MarginBottom, 10f),
+                    },
+                    ExtraProps = new Dictionary<string, object>
+                    {
                         {
-                            (StyleKeys.Height, 200f),
-                            (StyleKeys.BorderRadius, 6f),
-                            (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.25f, 0.9f)),
-                            (StyleKeys.JustifyContent, "center"),
-                            (StyleKeys.AlignItems, "center"),
-                            (StyleKeys.MarginBottom, 10f),
-                        }
+                            "onPointerDown",
+                            (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerDown", e))
+                        },
+                        {
+                            "onPointerMove",
+                            (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerMove", e))
+                        },
+                        {
+                            "onPointerUp",
+                            (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerUp", e))
+                        },
+                        { "onWheel", (Action<SyntheticWheelEvent>)(e => UpdateLog("Wheel", e)) },
                     },
-                    {
-                        "onPointerDown",
-                        (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerDown", e))
-                    },
-                    {
-                        "onPointerMove",
-                        (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerMove", e))
-                    },
-                    {
-                        "onPointerUp",
-                        (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerUp", e))
-                    },
-                    { "onWheel", (Action<SyntheticWheelEvent>)(e => UpdateLog("Wheel", e)) },
                 },
                 key: null,
                 V.Label(
@@ -79,7 +79,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) },
+                new VisualElementProps { Style = new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) } },
                 null,
                 V.Label(
                     new LabelProps

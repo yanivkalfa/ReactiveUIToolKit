@@ -18,11 +18,14 @@ internal static class GeneratorTestHelper
     // Both Guards in UitkxPipeline must pass:
     //
     //  Guard 1: compilation must resolve ReactiveUITK.Core.VirtualNode
-    //  Guard 2: at least one SyntaxTree in the compilation must share a directory
-    //           with the .uitkx AdditionalText path.
+    //  Guard 2: compilation.AssemblyName must match the nearest ancestor .asmdef
+    //           "name" field, OR (when no .asmdef exists) must start with
+    //           "Assembly-CSharp" (the Unity default assembly).
     //
-    // We satisfy both by placing the stub syntax tree and the uitkx file in the
-    // same temp directory.
+    // We satisfy Guard 1 by including a stub VirtualNode declaration.
+    // We satisfy Guard 2 by using "Assembly-CSharp" as the assembly name,
+    // which matches the no-.asmdef fallback path used for all test .uitkx files
+    // that live in a temp directory with no ancestor .asmdef.
 
     private const string StubSource = """
         namespace ReactiveUITK.Core
@@ -48,7 +51,7 @@ internal static class GeneratorTestHelper
         var stubTree = CSharpSyntaxTree.ParseText(StubSource, path: stubPath);
 
         var compilation = CSharpCompilation.Create(
-            assemblyName: "TestAssembly",
+            assemblyName: "Assembly-CSharp",
             syntaxTrees: new[] { stubTree },
             references: new[]
             {

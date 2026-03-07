@@ -5,15 +5,13 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TabViewProps : global::ReactiveUITK.Core.IProps
+    public sealed class TabViewProps : BaseProps
     {
         public int? SelectedIndex { get; set; }
         public int? SelectedTabIndex { get; set; }
         public List<TabDef> Tabs { get; set; }
-        public Style Style { get; set; }
         public Delegate SelectedIndexChanged { get; set; }
         public Delegate ActiveTabChanged { get; set; }
-        public object Ref { get; set; }
 
         public sealed class TabDef : global::ReactiveUITK.Core.IProps
         {
@@ -40,9 +38,9 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var d = new Dictionary<string, object>();
+            var d = base.ToDictionary();
             int? selected = SelectedTabIndex ?? SelectedIndex;
             if (selected.HasValue)
             {
@@ -56,10 +54,6 @@ namespace ReactiveUITK.Props.Typed
                     list.Add(t?.ToDictionary());
                 }
                 d["tabs"] = list;
-            }
-            if (Style != null)
-            {
-                d["style"] = Style;
             }
             if (SelectedIndexChanged != null)
             {
@@ -94,10 +88,6 @@ namespace ReactiveUITK.Props.Typed
                 {
                     d["activeTabChanged"] = generic;
                 }
-            }
-            if (Ref != null)
-            {
-                d["ref"] = Ref;
             }
             return d;
         }

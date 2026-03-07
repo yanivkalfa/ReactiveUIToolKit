@@ -263,6 +263,107 @@ public class ParserTests
         Assert.Contains(diags, d => d.Code == "UITKX2104");
     }
 
+    [Fact]
+    public void Directives_FunctionStyle_LeadingUsingLines_AreParsedIntoDirectiveSet()
+    {
+        const string src =
+            """
+            using MyGame.Models;
+            using System.Collections.Generic;
+            component PlayerHUD {
+                return (<Box />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.True(set.IsFunctionStyle);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Contains(set.Usings, u => u == "MyGame.Models");
+        Assert.Contains(set.Usings, u => u == "System.Collections.Generic");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_InlineNamespaceDirective_UsedOverDefault()
+    {
+        const string src =
+            """
+            @namespace MyGame.UI
+            component PlayerHUD {
+                return (<Box />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.True(set.IsFunctionStyle);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Equal("PlayerHUD", set.ComponentName);
+        Assert.Equal("MyGame.UI", set.Namespace);
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_InlineNamespaceDirective_AfterUsings()
+    {
+        const string src =
+            """
+            using System.Collections.Generic;
+            @namespace MyGame.Screens
+            component PlayerHUD {
+                return (<Box />);
+            }
+            """;
+
+        var set = ParseDirectives(src, out var diags);
+
+        Assert.True(set.IsFunctionStyle);
+        Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+        Assert.Equal("MyGame.Screens", set.Namespace);
+        Assert.Contains(set.Usings, u => u == "System.Collections.Generic");
+    }
+
+    [Fact]
+    public void Directives_FunctionStyle_InlineNamespaceDirective_TakesPriorityOverCompanion()
+    {
+        string dir = Path.Combine(
+            Path.GetTempPath(),
+            "uitkx-ns-priority-" + System.Guid.NewGuid().ToString("N")
+        );
+        Directory.CreateDirectory(dir);
+
+        try
+        {
+            string uitkxPath = Path.Combine(dir, "PlayerHUD.uitkx");
+            string companionPath = Path.Combine(dir, "PlayerHUD.cs");
+
+            File.WriteAllText(
+                companionPath,
+                "namespace CompanionNamespace { public partial class PlayerHUD { } }"
+            );
+
+            const string src =
+                """
+                @namespace InlineNamespace
+                component PlayerHUD {
+                    return (<Box />);
+                }
+                """;
+
+            var diags = new List<ParseDiagnostic>();
+            var set = DirectiveParser.Parse(src, uitkxPath, diags);
+
+            Assert.True(set.IsFunctionStyle);
+            Assert.DoesNotContain(diags, d => d.Severity == ParseSeverity.Error);
+            // Inline @namespace must win over the companion .cs
+            Assert.Equal("InlineNamespace", set.Namespace);
+        }
+        finally
+        {
+            if (Directory.Exists(dir))
+                Directory.Delete(dir, recursive: true);
+        }
+    }
+
     // ── Markup: elements ─────────────────────────────────────────────────────
 
     [Fact]

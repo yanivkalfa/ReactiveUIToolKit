@@ -43,15 +43,12 @@ namespace ReactiveUITK.Samples.Shared
             };
 
             var btnRow = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (Props.Typed.StyleKeys.FlexDirection, "row"),
-                            (Props.Typed.StyleKeys.MarginTop, 6f),
-                        }
+                        (Props.Typed.StyleKeys.FlexDirection, "row"),
+                        (Props.Typed.StyleKeys.MarginTop, 6f),
                     },
                 },
                 null,

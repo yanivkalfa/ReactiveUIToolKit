@@ -26,6 +26,24 @@ namespace ReactiveUITK
         }
 
         public static VirtualNode VisualElement(
+            VisualElementProps props = null,
+            string key = null,
+            params VirtualNode[] children
+        )
+        {
+            IReadOnlyDictionary<string, object> map = props?.ToDictionary();
+            map = CloneStyleDictionary(map);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "VisualElement",
+                textContent: null,
+                key: key,
+                properties: map ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
+        }
+
+        private static VirtualNode VisualElement_Dict(
             IReadOnlyDictionary<string, object> elementProperties = null,
             string key = null,
             params VirtualNode[] children
@@ -84,20 +102,6 @@ namespace ReactiveUITK
             );
         }
 
-        public static VirtualNode VisualElement(
-            Style style,
-            string key = null,
-            params VirtualNode[] children
-        )
-        {
-            var props = new Dictionary<string, object>(1);
-            if (style != null)
-            {
-                props["style"] = style;
-            }
-            return VisualElement(props, key, children);
-        }
-
         public static VirtualNode VisualElementSafe(
             object elementPropsOrStyle = null,
             string key = null,
@@ -138,7 +142,7 @@ namespace ReactiveUITK
 
             props["style"] = BuildSafeAreaStyle(userStyle);
 
-            return VisualElement(props, key, children);
+            return VisualElement_Dict(props, key, children);
         }
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)

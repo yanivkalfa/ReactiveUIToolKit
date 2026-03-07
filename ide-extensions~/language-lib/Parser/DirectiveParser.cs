@@ -321,6 +321,28 @@ namespace ReactiveUITK.Language.Parser
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
 
+            // Parse optional leading `using X.Y.Z;` lines AND an optional
+            // `@namespace X.Y` directive before the component keyword, in any order.
+            var usings = new List<string>();
+            string? inlineNamespace = null;
+            bool parsedPreambleLine;
+            do
+            {
+                parsedPreambleLine = false;
+                if (TryReadFunctionStyleUsing(source, ref i, ref line, usings))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    parsedPreambleLine = true;
+                }
+                if (inlineNamespace == null
+                    && TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out string? parsedNs))
+                {
+                    inlineNamespace = parsedNs;
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    parsedPreambleLine = true;
+                }
+            } while (parsedPreambleLine);
+
             if (!TryReadKeyword(source, ref i, "component"))
                 return false;
 
@@ -350,7 +372,7 @@ namespace ReactiveUITK.Language.Parser
                 });
             }
 
-            string functionNamespace = InferFunctionStyleNamespace(filePath);
+            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
 
             // ── Optional typed-props parameter list ───────────────────────────
             // Supports: component Name(Type param = default, ...)
@@ -380,7 +402,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentName: componentName,
                     PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
-                    Usings: ImmutableArray<string>.Empty,
+                    Usings: usings.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
@@ -409,7 +431,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentName: componentName,
                     PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
-                    Usings: ImmutableArray<string>.Empty,
+                    Usings: usings.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
@@ -453,7 +475,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentName: componentName,
                     PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
-                    Usings: ImmutableArray<string>.Empty,
+                    Usings: usings.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
@@ -511,7 +533,7 @@ namespace ReactiveUITK.Language.Parser
                 ComponentName: componentName,
                 PropsTypeName: functionPropsTypeName,
                 DefaultKey: null,
-                Usings: ImmutableArray<string>.Empty,
+                Usings: usings.ToImmutableArray(),
                 Injects: ImmutableArray<(string Type, string Name)>.Empty,
                 MarkupStartLine: markupLine,
                 MarkupStartIndex: markupStart,
@@ -782,8 +804,144 @@ namespace ReactiveUITK.Language.Parser
             int i = start;
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
-
+            // Skip any leading `using X.Y.Z;` and `@namespace X.Y` lines, in any order.
+            var dummy = new List<string>();
+            bool skippedSomething;
+            do
+            {
+                skippedSomething = false;
+                if (TryReadFunctionStyleUsing(source, ref i, ref line, dummy))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+                if (TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out _))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+            } while (skippedSomething);
             return TryReadKeywordAt(source, i, "component");
+        }
+
+        /// <summary>
+        /// Tries to read a single <c>@namespace X.Y</c> line at the current position.
+        /// On success advances <paramref name="i"/> past the line terminator and sets
+        /// <paramref name="namespaceName"/>. On failure restores <paramref name="i"/>
+        /// and returns false.
+        /// </summary>
+        private static bool TryReadFunctionStyleNamespaceDirective(
+            string source,
+            ref int i,
+            ref int line,
+            out string? namespaceName
+        )
+        {
+            namespaceName = null;
+            int savedI = i;
+            int savedLine = line;
+
+            // Allow leading spaces/tabs.
+            while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
+                i++;
+
+            // Must start with '@'.
+            if (i >= source.Length || source[i] != '@')
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            i++; // consume '@'
+
+            if (!TryReadKeyword(source, ref i, "namespace"))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            SkipSpaces(source, ref i);
+
+            // Read namespace name up to ';' or end-of-line.
+            int nameStart = i;
+            while (i < source.Length && source[i] != ';' && !IsNewline(source[i]))
+                i++;
+
+            string ns = source.Substring(nameStart, i - nameStart).Trim();
+
+            // Consume optional ';'.
+            if (i < source.Length && source[i] == ';')
+                i++;
+
+            // Skip remainder of line and the newline.
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            if (string.IsNullOrWhiteSpace(ns))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            namespaceName = ns;
+            return true;
+        }
+
+        /// <summary>
+        /// Tries to read a single <c>using Namespace.Name;</c> line at the current
+        /// position. On success advances <paramref name="i"/> past the line terminator
+        /// and appends the namespace string to <paramref name="usings"/>.
+        /// On failure restores <paramref name="i"/> and returns false.
+        /// </summary>
+        private static bool TryReadFunctionStyleUsing(
+            string source,
+            ref int i,
+            ref int line,
+            List<string> usings
+        )
+        {
+            int savedI = i;
+            int savedLine = line;
+
+            // Allow leading spaces/tabs — newlines are already consumed by trivia before each call.
+            while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
+                i++;
+
+            if (!TryReadKeyword(source, ref i, "using"))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            SkipSpaces(source, ref i);
+
+            // Read namespace name up to ';' or end-of-line.
+            int nameStart = i;
+            while (i < source.Length && source[i] != ';' && !IsNewline(source[i]))
+                i++;
+
+            string namespaceName = source.Substring(nameStart, i - nameStart).Trim();
+
+            // Consume optional ';'.
+            if (i < source.Length && source[i] == ';')
+                i++;
+
+            // Skip rest of line and the newline.
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            if (!string.IsNullOrWhiteSpace(namespaceName))
+                usings.Add(namespaceName);
+
+            return true;
         }
 
         private static void SkipLeadingFunctionStyleTrivia(string source, ref int i, ref int line)

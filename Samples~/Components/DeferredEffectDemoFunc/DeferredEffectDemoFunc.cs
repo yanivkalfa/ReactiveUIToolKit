@@ -87,7 +87,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             };
 
             return V.VisualElement(
-                containerStyle,
+                new VisualElementProps { Style = containerStyle },
                 null,
                 V.Text("Deferred UseEffect — Step 3 Test"),
                 V.Label(
@@ -113,7 +113,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     }
                 ),
                 V.VisualElement(
-                    cardStyle,
+                    new VisualElementProps { Style = cardStyle },
                     null,
                     V.Label(
                         new LabelProps
@@ -147,7 +147,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    cardStyle,
+                    new VisualElementProps { Style = cardStyle },
                     null,
                     V.Text("Last timestamps:"),
                     V.Label(

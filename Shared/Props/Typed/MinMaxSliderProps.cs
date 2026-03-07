@@ -3,18 +3,16 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class MinMaxSliderProps : global::ReactiveUITK.Core.IProps
+    public sealed class MinMaxSliderProps : BaseProps
     {
         public float? MinValue { get; set; }
         public float? MaxValue { get; set; }
         public float? LowLimit { get; set; }
         public float? HighLimit { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var map = new Dictionary<string, object>();
+            var map = base.ToDictionary();
             if (MinValue.HasValue)
                 map["minValue"] = MinValue.Value;
             if (MaxValue.HasValue)
@@ -23,10 +21,6 @@ namespace ReactiveUITK.Props.Typed
                 map["lowLimit"] = LowLimit.Value;
             if (HighLimit.HasValue)
                 map["highLimit"] = HighLimit.Value;
-            if (Style != null)
-                map["style"] = Style;
-            if (Ref != null)
-                map["ref"] = Ref;
             return map;
         }
     }

@@ -32,7 +32,7 @@ namespace ReactiveUITK.Samples.Shared
                     ? ($"shared-row-{rowItem.Id}-{index}")
                     : ($"shared-row-missing-{index}");
             return V.VisualElement(
-                new Style { (FlexDirection, "row"), (AlignItems, "center") },
+                new VisualElementProps { Style = new Style { (FlexDirection, "row"), (AlignItems, "center") } },
                 key: key,
                 V.Button(
                     new ButtonProps

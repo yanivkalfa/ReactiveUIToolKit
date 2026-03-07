@@ -17,14 +17,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var (syncCount, setSyncCount) = Hooks.UseState(0);
 
             return V.VisualElement(
-                new Style
+                new VisualElementProps
                 {
-                    (FlexDirection, "column"),
-                    (PaddingLeft, 12f),
-                    (PaddingRight, 12f),
-                    (PaddingTop, 12f),
-                    (PaddingBottom, 12f),
-                    (BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 1f)),
+                    Style = new Style
+                    {
+                        (FlexDirection, "column"),
+                        (PaddingLeft, 12f),
+                        (PaddingRight, 12f),
+                        (PaddingTop, 12f),
+                        (PaddingBottom, 12f),
+                        (BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 1f)),
+                    }
                 },
                 null,
                 V.Label(new LabelProps { Text = "FlushSync vs batched updates" }),

@@ -34,7 +34,7 @@ namespace ReactiveUITK.Core.AnimationComponents
                         ? new List<VirtualNode>(children).ToArray()
                         : Array.Empty<VirtualNode>()
                 );
-            return ReactiveUITK.V.VisualElement(style, null, arr);
+            return ReactiveUITK.V.VisualElement(new VisualElementProps { Style = style }, null, arr);
         }
     }
 }

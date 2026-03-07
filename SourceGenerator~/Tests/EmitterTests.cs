@@ -396,4 +396,43 @@ public class EmitterTests
             "Expression attribute should appear verbatim in generated source"
         );
     }
+
+    [Fact]
+    public void FunctionStyleComponent_LeadingUsings_EmittedInGeneratedSource()
+    {
+        const string src =
+            """
+            using MyGame.Models;
+            using System.Collections.Generic;
+            component PlayerHUD {
+                return (<Box />);
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "PlayerHUD.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("using MyGame.Models;"), "Expected using MyGame.Models;");
+        Assert.True(result.SourceContains("using System.Collections.Generic;"), "Expected using System.Collections.Generic;");
+    }
+
+    [Fact]
+    public void HookAlias_NestedGenericTypeArg_IsExpanded()
+    {
+        const string src =
+            """
+            component Foo {
+                var ctx = useContext<Dictionary<string, int>>("myKey");
+                return (<Box />);
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Foo.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("Hooks.UseContext<Dictionary<string, int>>("),
+            "Nested generic hook alias should be expanded"
+        );
+    }
 }

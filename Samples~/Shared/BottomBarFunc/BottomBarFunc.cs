@@ -86,7 +86,7 @@ namespace ReactiveUITK.Samples.Shared
                 Text = $"Bottom Right ({rightClicks})",
             };
 
-            var barProps = new Dictionary<string, object> { { "style", BarStyle } };
+            var barProps = new VisualElementProps { Style = BarStyle };
 
             return V.VisualElement(
                 barProps,

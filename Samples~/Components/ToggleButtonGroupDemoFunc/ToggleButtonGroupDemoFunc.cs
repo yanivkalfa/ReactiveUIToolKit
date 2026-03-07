@@ -32,7 +32,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var (selected, setSelected) = Hooks.UseState(0);
 
             return V.VisualElement(
-                ContainerStyle,
+                new VisualElementProps { Style = ContainerStyle },
                 null,
                 V.Label(new LabelProps { Text = "ToggleButtonGroup (Buttons inside)" }),
                 V.ToggleButtonGroup(

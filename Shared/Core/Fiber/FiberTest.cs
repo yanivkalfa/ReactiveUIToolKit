@@ -24,7 +24,7 @@ namespace ReactiveUITK.Tests
 
             // Test 2: Nested elements
             var nested = V.VisualElement(
-                elementProperties: null,
+                props: null,
                 key: null,
                 children: new[]
                 {
@@ -59,7 +59,7 @@ namespace ReactiveUITK.Tests
                     var (count, setCount) = Hooks.UseState(0);
 
                     return V.VisualElement(
-                        elementProperties: null,
+                        props: null,
                         key: null,
                         children: new[]
                         {

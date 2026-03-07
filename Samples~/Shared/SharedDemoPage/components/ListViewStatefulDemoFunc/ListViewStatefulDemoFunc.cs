@@ -91,16 +91,13 @@ namespace ReactiveUITK.Samples.Shared
             Action Safe(Action candidate) => candidate ?? (() => { });
 
             var controls = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (ReactiveUITK.Props.Typed.StyleKeys.FlexDirection, "row"),
-                            (ReactiveUITK.Props.Typed.StyleKeys.FlexShrink, 0f),
-                            (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 6f),
-                        }
+                        (ReactiveUITK.Props.Typed.StyleKeys.FlexDirection, "row"),
+                        (ReactiveUITK.Props.Typed.StyleKeys.FlexShrink, 0f),
+                        (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 6f),
                     },
                 },
                 null,

@@ -29,7 +29,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 : "Valid props";
 
             return V.VisualElement(
-                new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) } },
                 null,
                 V.Label(
                     new LabelProps
@@ -92,13 +92,16 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 Color color = p?.StatusColor ?? new Color(0.3f, 0.3f, 0.3f);
 
                 return V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (StyleKeys.Padding, 12f),
-                        (StyleKeys.BorderRadius, 6f),
-                        (StyleKeys.BackgroundColor, new Color(color.r, color.g, color.b, 0.2f)),
-                        (StyleKeys.BorderWidth, 1f),
-                        (StyleKeys.BorderColor, color),
+                        Style = new Style
+                        {
+                            (StyleKeys.Padding, 12f),
+                            (StyleKeys.BorderRadius, 6f),
+                            (StyleKeys.BackgroundColor, new Color(color.r, color.g, color.b, 0.2f)),
+                            (StyleKeys.BorderWidth, 1f),
+                            (StyleKeys.BorderColor, color),
+                        }
                     },
                     null,
                     V.Label(

@@ -1,7 +1,7 @@
 # Refactor: Typed `IProps` Records — Implementation Plan
 
 **Branch:** `refactory_types_in_core_library`  
-**Status:** Planning — not yet started  
+**Status:** ✅ COMPLETE  
 **Scope:** Framework core (Shared/), V.cs, built-in Props types, and the UITKX source generator
 
 ---

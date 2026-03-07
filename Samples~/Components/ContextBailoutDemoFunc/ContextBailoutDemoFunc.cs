@@ -64,7 +64,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             };
 
             return V.VisualElement(
-                style,
+                new VisualElementProps { Style = style },
                 null,
                 V.Label(
                     new LabelProps
@@ -117,7 +117,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             string rgb = $"R={themeColor.r:F2}  G={themeColor.g:F2}  B={themeColor.b:F2}";
 
             return V.VisualElement(
-                consumerCard,
+                new VisualElementProps { Style = consumerCard },
                 null,
                 V.Label(
                     new LabelProps
@@ -138,7 +138,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         },
                     }
                 ),
-                V.VisualElement(swatchStyle, null),
+                V.VisualElement(new VisualElementProps { Style = swatchStyle }, null),
                 V.Label(
                     new LabelProps
                     {
@@ -178,7 +178,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             };
 
             return V.VisualElement(
-                containerStyle,
+                new VisualElementProps { Style = containerStyle },
                 null,
                 V.Text("Context Through Bailout — Step 4 Test"),
                 V.Label(

@@ -139,11 +139,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     }
                 ),
                 V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (StyleKeys.FlexDirection, "row"),
-                        (StyleKeys.AlignItems, "center"),
-                        (StyleKeys.MarginBottom, 6f),
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.AlignItems, "center"),
+                            (StyleKeys.MarginBottom, 6f),
+                        }
                     },
                     null,
                     V.Label(new LabelProps { Text = $"Value: {value}", Style = badgeStyle }),
@@ -152,19 +155,22 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") },
+                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") } },
                     null,
                     Button("+1 three times", TripleIncrement),
                     Button("Reset then +5", ResetThenBoost),
                     Button("+1 then ×2", MultiplyAfterAdd)
                 ),
                 V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (StyleKeys.MarginTop, 8f),
-                        (StyleKeys.Padding, 8f),
-                        (StyleKeys.BackgroundColor, new Color(0.14f, 0.14f, 0.14f, 0.85f)),
-                        (StyleKeys.BorderRadius, 4f),
+                        Style = new Style
+                        {
+                            (StyleKeys.MarginTop, 8f),
+                            (StyleKeys.Padding, 8f),
+                            (StyleKeys.BackgroundColor, new Color(0.14f, 0.14f, 0.14f, 0.85f)),
+                            (StyleKeys.BorderRadius, 4f),
+                        }
                     },
                     null,
                     V.Label(
@@ -179,7 +185,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         }
                     ),
                     V.VisualElement(
-                        new Style { (StyleKeys.FlexDirection, "column") },
+                        new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column") } },
                         null,
                         logNodes.ToArray()
                     )

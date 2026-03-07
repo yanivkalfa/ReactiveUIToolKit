@@ -342,9 +342,9 @@ namespace ReactiveUITK.Samples.Shared
             };
             var sliderWidthStyle = new Style { (Width, 200f) };
 
-            var outerWrapperProps = new Dictionary<string, object>
+            var outerWrapperProps = new VisualElementProps
             {
-                { "style", outerWrapperStyle },
+                Style = outerWrapperStyle,
             };
 
             var groupBox1Props = new GroupBoxProps
@@ -1152,27 +1152,27 @@ namespace ReactiveUITK.Samples.Shared
 
             VirtualNode PageBody() =>
                 V.VisualElement(
-                    new Dictionary<string, object> { { "style", PageStyle } },
+                    new VisualElementProps { Style = PageStyle },
                     null,
                     V.VisualElement(
-                        new Dictionary<string, object> { { "style", TopBarStyle } },
+                        new VisualElementProps { Style = TopBarStyle },
                         null,
                         V.VisualElement(
-                            new Dictionary<string, object> { { "style", LeftBoxStyle } },
+                            new VisualElementProps { Style = LeftBoxStyle },
                             null,
                             V.Text("Left")
                         ),
                         V.TextField(inputTextFieldProps),
                         V.Button(setTextButtonProps),
                         V.VisualElement(
-                            new Dictionary<string, object> { { "style", RightBoxStyle } },
+                            new VisualElementProps { Style = RightBoxStyle },
                             null,
                             V.Text("Right")
                         )
                     ),
                     V.Label(new LabelProps { Text = "Now: " + currentTime.ToLongTimeString() }),
                     V.VisualElement(
-                        new Dictionary<string, object> { { "style", ExtrasContainerStyle } },
+                        new VisualElementProps { Style = ExtrasContainerStyle },
                         null,
                         V.Label(new LabelProps { Text = "Extras" }),
                         V.GroupBox(
@@ -1241,19 +1241,16 @@ namespace ReactiveUITK.Samples.Shared
                             }
                         ),
                         V.VisualElement(
-                            new Dictionary<string, object>
+                            new VisualElementProps
                             {
+                                Style = new Style
                                 {
-                                    "style",
-                                    new Style
-                                    {
-                                        (MaxHeight, 500f),
-                                        (FlexGrow, 0f),
-                                        (StyleKeys.Display, showTreeTabs ? "flex" : "none"),
-                                        (StyleKeys.FlexDirection, "column"),
-                                        (StyleKeys.Overflow, "visible"),
-                                    }
-                                },
+                                    (MaxHeight, 500f),
+                                    (FlexGrow, 0f),
+                                    (StyleKeys.Display, showTreeTabs ? "flex" : "none"),
+                                    (StyleKeys.FlexDirection, "column"),
+                                    (StyleKeys.Overflow, "visible"),
+                                }
                             },
                             null,
                             V.TabView(tabViewProps)
@@ -1276,19 +1273,16 @@ namespace ReactiveUITK.Samples.Shared
                             }
                         ),
                         V.VisualElement(
-                            new Dictionary<string, object>
+                            new VisualElementProps
                             {
+                                Style = new Style
                                 {
-                                    "style",
-                                    new Style
-                                    {
-                                        (MaxHeight, 500f),
-                                        (FlexGrow, 0f),
-                                        (StyleKeys.Display, showListTabs ? "flex" : "none"),
-                                        (StyleKeys.FlexDirection, "column"),
-                                        (StyleKeys.Overflow, "visible"),
-                                    }
-                                },
+                                    (MaxHeight, 500f),
+                                    (FlexGrow, 0f),
+                                    (StyleKeys.Display, showListTabs ? "flex" : "none"),
+                                    (StyleKeys.FlexDirection, "column"),
+                                    (StyleKeys.Overflow, "visible"),
+                                }
                             },
                             null,
                             V.TabView(listTabViewProps)
@@ -1494,7 +1488,7 @@ namespace ReactiveUITK.Samples.Shared
                     safeWrapperStyle,
                     null,
                     V.VisualElement(
-                        new Dictionary<string, object> { { "style", barSlotStyle } },
+                        new VisualElementProps { Style = barSlotStyle },
                         null,
                         V.Func<ValuesBarFunc.Props>(
                             ValuesBarFunc.Render,

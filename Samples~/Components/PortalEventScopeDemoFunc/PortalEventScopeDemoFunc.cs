@@ -49,7 +49,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) } },
                 null,
                 V.Label(
                     new LabelProps

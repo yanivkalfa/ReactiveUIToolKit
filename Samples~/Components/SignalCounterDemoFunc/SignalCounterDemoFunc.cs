@@ -19,23 +19,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             int count = Hooks.UseSignal(CounterSignal);
             return V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
-                    {
-                        "style",
-                        new Style { (StyleKeys.Padding, 12f), (StyleKeys.MarginTop, 8f) }
-                    },
+                    Style = new Style { (StyleKeys.Padding, 12f), (StyleKeys.MarginTop, 8f) },
                 },
                 null,
                 V.Text("Signal Counter (shared state)"),
                 V.Text($"Count: {count}"),
                 V.VisualElement(
-                    new Dictionary<string, object>
+                    new VisualElementProps
                     {
-                        {
-                            "style",
-                            new Style { (StyleKeys.FlexDirection, "row") }
-                        },
+                        Style = new Style { (StyleKeys.FlexDirection, "row") },
                     },
                     null,
                     V.Button(

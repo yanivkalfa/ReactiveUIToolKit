@@ -51,11 +51,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             };
 
             return V.VisualElement(
-                containerStyle,
+                new VisualElementProps { Style = containerStyle },
                 null,
                 V.Text("Render Depth Guard — Step 1 Test"),
                 V.VisualElement(
-                    infoStyle,
+                    new VisualElementProps { Style = infoStyle },
                     null,
                     V.Text(
                         "MaxRenderDepth = 25.  A tree deeper than that will be capped and an error "
@@ -63,7 +63,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 10f) },
+                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 10f) } },
                     null,
                     V.Button(
                         new ButtonProps
@@ -91,7 +91,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 ),
                 triggered
                     ? V.VisualElement(
-                        warnStyle,
+                        new VisualElementProps { Style = warnStyle },
                         null,
                         V.Text(
                             "⚠ Deep tree triggered — check Console for '[Fiber] Maximum render depth exceeded' error."
@@ -100,7 +100,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     : V.Fragment(),
                 depth > 0
                     ? V.VisualElement(
-                        new Style { (StyleKeys.MarginTop, 8f) },
+                        new VisualElementProps { Style = new Style { (StyleKeys.MarginTop, 8f) } },
                         null,
                         V.Text($"Tree root (requested depth: {depth}):"),
                         V.Func<DeepNodeFunc.Props>(
@@ -109,7 +109,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         )
                     )
                     : V.VisualElement(
-                        infoStyle,
+                        new VisualElementProps { Style = infoStyle },
                         null,
                         V.Text("No tree rendered yet — click a button above.")
                     )
@@ -148,14 +148,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 if (remaining <= 0)
                 {
                     return V.VisualElement(
-                        nodeStyle,
+                        new VisualElementProps { Style = nodeStyle },
                         null,
                         V.Text($"Level {currentLevel}: leaf node")
                     );
                 }
 
                 return V.VisualElement(
-                    nodeStyle,
+                    new VisualElementProps { Style = nodeStyle },
                     null,
                     V.Text($"Level {currentLevel}"),
                     V.Func<DeepNodeFunc.Props>(

@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TreeViewProps : global::ReactiveUITK.Core.IProps
+    public sealed class TreeViewProps : BaseProps
     {
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
@@ -15,13 +15,10 @@ namespace ReactiveUITK.Props.Typed
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
         public Delegate ItemExpandedChanged { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
-        public string ViewDataKey { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var d = new Dictionary<string, object>();
+            var d = base.ToDictionary();
             if (RootItems != null)
             {
                 d["rootItems"] = RootItems;
@@ -53,18 +50,6 @@ namespace ReactiveUITK.Props.Typed
             if (ItemExpandedChanged != null)
             {
                 d["itemExpandedChanged"] = ItemExpandedChanged;
-            }
-            if (Style != null)
-            {
-                d["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                d["ref"] = Ref;
-            }
-            if (!string.IsNullOrEmpty(ViewDataKey))
-            {
-                d["viewDataKey"] = ViewDataKey;
             }
             return d;
         }

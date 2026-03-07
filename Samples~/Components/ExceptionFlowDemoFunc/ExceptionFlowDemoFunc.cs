@@ -59,12 +59,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
 
             var actionRow = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
-                    {
-                        "style",
-                        new Style { (StyleKeys.FlexDirection, "row") }
-                    },
+                    Style = new Style { (StyleKeys.FlexDirection, "row") },
                 },
                 null,
                 V.Button(
@@ -89,21 +86,18 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             var suspenseFallback = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (StyleKeys.Padding, 8f),
-                            (StyleKeys.BackgroundColor, new Color32(33, 150, 243, 255)),
-                            (StyleKeys.Color, Color.white),
-                            (StyleKeys.BorderRadius, 4f),
-                            (StyleKeys.FlexGrow, 1f),
-                            (StyleKeys.MinHeight, 60f),
-                            (StyleKeys.AlignItems, "center"),
-                            (StyleKeys.JustifyContent, "center"),
-                        }
+                        (StyleKeys.Padding, 8f),
+                        (StyleKeys.BackgroundColor, new Color32(33, 150, 243, 255)),
+                        (StyleKeys.Color, Color.white),
+                        (StyleKeys.BorderRadius, 4f),
+                        (StyleKeys.FlexGrow, 1f),
+                        (StyleKeys.MinHeight, 60f),
+                        (StyleKeys.AlignItems, "center"),
+                        (StyleKeys.JustifyContent, "center"),
                     },
                 },
                 null,
@@ -111,21 +105,18 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             var errorFallback = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (StyleKeys.Padding, 8f),
-                            (StyleKeys.BackgroundColor, new Color32(244, 67, 54, 255)),
-                            (StyleKeys.Color, Color.white),
-                            (StyleKeys.BorderRadius, 4f),
-                            (StyleKeys.FlexGrow, 1f),
-                            (StyleKeys.MinHeight, 60f),
-                            (StyleKeys.AlignItems, "center"),
-                            (StyleKeys.JustifyContent, "center"),
-                        }
+                        (StyleKeys.Padding, 8f),
+                        (StyleKeys.BackgroundColor, new Color32(244, 67, 54, 255)),
+                        (StyleKeys.Color, Color.white),
+                        (StyleKeys.BorderRadius, 4f),
+                        (StyleKeys.FlexGrow, 1f),
+                        (StyleKeys.MinHeight, 60f),
+                        (StyleKeys.AlignItems, "center"),
+                        (StyleKeys.JustifyContent, "center"),
                     },
                 },
                 null,
@@ -141,23 +132,20 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
 
             return V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (StyleKeys.Padding, 14f),
-                            (StyleKeys.MarginTop, 10f),
-                            (StyleKeys.FlexGrow, 1f),
-                        }
+                        (StyleKeys.Padding, 14f),
+                        (StyleKeys.MarginTop, 10f),
+                        (StyleKeys.FlexGrow, 1f),
                     },
                 },
                 null,
                 V.Text("Error Boundary + Suspense Control-Flow Demo"),
                 actionRow,
                 V.VisualElement(
-                    new Dictionary<string, object> { { "style", CardStyle } },
+                    new VisualElementProps { Style = CardStyle },
                     null,
                     V.Text("Content area"),
                     V.ErrorBoundary(

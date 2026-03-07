@@ -120,13 +120,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private static HashSet<string> CollectPropertyNames(INamedTypeSymbol type)
         {
             var result = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var member in type.GetMembers().OfType<IPropertySymbol>())
+            // Walk up the inheritance chain so that properties declared in BaseProps
+            // (and any other ancestor) are visible to attribute validation.
+            var current = type;
+            while (current != null && current.SpecialType != SpecialType.System_Object)
             {
-                if (
-                    member.DeclaredAccessibility == Accessibility.Public
-                    && member.SetMethod != null
-                )
-                    result.Add(member.Name);
+                foreach (var member in current.GetMembers().OfType<IPropertySymbol>())
+                {
+                    if (
+                        member.DeclaredAccessibility == Accessibility.Public
+                        && member.SetMethod != null
+                    )
+                        result.Add(member.Name);
+                }
+                current = current.BaseType;
             }
             return result;
         }

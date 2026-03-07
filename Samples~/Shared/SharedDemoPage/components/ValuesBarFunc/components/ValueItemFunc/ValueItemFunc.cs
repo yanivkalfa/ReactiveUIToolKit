@@ -55,7 +55,7 @@ namespace ReactiveUITK.Samples.Shared
             string label = p?.TypeText ?? string.Empty;
             string valueText = p?.TypeValue ?? string.Empty;
 
-            var containerProps = new Dictionary<string, object> { { "style", ContainerStyle } };
+            var containerProps = new VisualElementProps { Style = ContainerStyle };
 
             var lblProps = new LabelProps
             {
