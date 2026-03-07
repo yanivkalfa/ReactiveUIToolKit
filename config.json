@@ -10,7 +10,9 @@
     "dist~/**",
     "Diagnostics/**",
     "scripts/**",
-    "ReactiveUIToolKitDocs~/**"
+    "ReactiveUIToolKitDocs~/**",
+    "Analyzers/publish",
+    "_docs_branch"
   ],
   "npmPath": "C:\\nvm4w\\nodejs\\npm.cmd"
 }
