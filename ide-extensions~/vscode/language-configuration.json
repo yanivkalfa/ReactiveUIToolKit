@@ -1,0 +1,96 @@
+{
+  "comments": {
+    "lineComment": "//",
+    "blockComment": [
+      "{/*",
+      "*/}"
+    ]
+  },
+  "brackets": [
+    [
+      "{",
+      "}"
+    ],
+    [
+      "(",
+      ")"
+    ]
+  ],
+  "autoClosingPairs": [
+    {
+      "open": "{/*",
+      "close": "*/}"
+    },
+    {
+      "open": "<!--",
+      "close": "-->"
+    },
+    {
+      "open": "{",
+      "close": "}"
+    },
+    {
+      "open": "(",
+      "close": ")"
+    },
+    {
+      "open": "\"",
+      "close": "\"",
+      "notIn": [
+        "string"
+      ]
+    }
+  ],
+  "surroundingPairs": [
+    [
+      "{",
+      "}"
+    ],
+    [
+      "(",
+      ")"
+    ],
+    [
+      "\"",
+      "\""
+    ]
+  ],
+  "wordPattern": "[A-Za-z][A-Za-z0-9_-]*",
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(?:.*\\{\\s*$|<[A-Za-z][A-Za-z0-9]*(\\s[^>]*[^/])?>[^<]*$)",
+    "decreaseIndentPattern": "^\\s*(?:\\}|</)"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^.*\\{\\s*$",
+      "action": {
+        "indentAction": "indent"
+      }
+    },
+    {
+      "beforeText": "^\\s*\\}",
+      "action": {
+        "indentAction": "outdent"
+      }
+    },
+    {
+      "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
+      "afterText": "^\\s*</[A-Za-z]",
+      "action": {
+        "indentAction": "indentOutdent"
+      }
+    },
+    {
+      "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
+      "action": {
+        "indentAction": "indent"
+      }
+    }
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*<!--\\s*#region\\b",
+      "end": "^\\s*<!--\\s*#endregion\\b"
+    }
+  }
+}

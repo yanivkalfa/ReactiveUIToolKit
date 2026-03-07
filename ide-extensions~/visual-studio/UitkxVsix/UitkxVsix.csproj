@@ -1,0 +1,65 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <AssemblyName>UitkxVsix</AssemblyName>
+    <RootNamespace>UitkxVsix</RootNamespace>
+    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <GenerateVsixContainer>true</GenerateVsixContainer>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <VsixOutputFileName>UitkxVsix.vsix</VsixOutputFileName>
+    <TargetVsixContainerName>UitkxVsix.vsix</TargetVsixContainerName>
+    <Nullable>enable</Nullable>
+    <LangVersion>10</LangVersion>
+    <UseWpf>false</UseWpf>
+    <UseWindowsForms>false</UseWindowsForms>
+    <BaseIntermediateOutputPath>obj\</BaseIntermediateOutputPath>
+    <IntermediateOutputPath>obj\$(Configuration)\</IntermediateOutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="PresentationCore" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference
+      Include="Microsoft.VSSDK.BuildTools"
+      Version="17.14.2120"
+      PrivateAssets="all"
+      GeneratePathProperty="true"
+    />
+    <PackageReference
+      Include="Microsoft.VisualStudio.SDK"
+      Version="17.14.40265"
+      PrivateAssets="all"
+    />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Embed the LSP server binary (published to bin/server/ by CI) -->
+    <Content Include="server\**\*.*">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <!-- License -->
+    <Content Include="LICENSE.txt">
+      <IncludeInVSIX>true</IncludeInVSIX>
+    </Content>
+    <!-- TextMate grammar: VSCode-only, not included in VS VSIX.
+         VS uses the MEF IClassifier (UitkxClassifier.cs) for syntax colouring.
+         Including tmLanguage.json in VS2026+ causes it to use TextMate scope
+         colours instead of our custom ClassificationFormatDefinition colours. -->
+    <Content Include="..\..\grammar\uitkx.tmLanguage.json">
+      <Link>Syntaxes\uitkx.tmLanguage.json</Link>
+      <IncludeInVSIX>false</IncludeInVSIX>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\grammar\uitkx.language-configuration.json">
+      <Link>Syntaxes\uitkx.language-configuration.json</Link>
+      <IncludeInVSIX>false</IncludeInVSIX>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <Import
+    Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets"
+    Condition="'$(PkgMicrosoft_VSSDK_BuildTools)' != '' And Exists('$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets')"
+  />
+</Project>

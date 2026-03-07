@@ -1,0 +1,15 @@
+{
+  "formatter": {
+    "printWidth": 100,
+    "indentSize": 4,
+    "indentStyle": "space",
+    "singleAttributePerLine": false,
+    "bracketSameLine": false,
+    "closingBracketSameLine": true,
+    "insertSpaceBeforeSelfClose": true,
+    "insertMissingSemicolonsOnFormat": true,
+    "preserveBlankLines": true,
+    "maxConsecutiveBlankLines": 1,
+    "trailingComma": false
+  }
+}

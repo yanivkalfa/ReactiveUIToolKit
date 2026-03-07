@@ -1,5 +1,4 @@
 #if UNITY_EDITOR
-using System.Collections.Generic;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.FunctionalComponents;
 using UnityEditor;
@@ -10,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorPortalDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Tests-(35-37-40)/Portal Event Scope")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(35-37-40)/Portal Event Scope")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorPortalDemoWindow>("Portal Event Scope");
@@ -61,10 +60,10 @@ namespace ReactiveUITK.Samples.Editor
             hostContainer.Add(portalOuter);
             root.Add(hostContainer);
 
-            var props = new Dictionary<string, object> { { "portalTarget", portalTarget } };
+            var props = new PortalEventScopeDemoFunc.Props { PortalTarget = portalTarget };
             EditorRootRendererUtility.Render(
                 contentContainer,
-                V.Func(PortalEventScopeDemoFunc.Render, props)
+                V.Func<PortalEventScopeDemoFunc.Props>(PortalEventScopeDemoFunc.Render, props)
             );
         }
 

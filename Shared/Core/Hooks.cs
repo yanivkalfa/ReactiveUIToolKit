@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ReactiveUITK.Core.Diagnostics;
@@ -1399,7 +1399,7 @@ namespace ReactiveUITK.Core
 
             // DEBUG LOG: CHECK COUNT
             var compName =
-                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             for (int i = 0; i < deps.Count; i++)
             {
                 var dep = deps[i];
@@ -1480,7 +1480,7 @@ namespace ReactiveUITK.Core
             // DEBUG UNCONDITIONAL
             var compName =
                 state.Fiber?.ElementType
-                ?? state.Fiber?.Render?.Method.DeclaringType?.Name
+                ?? state.Fiber?.TypedRender?.Method.DeclaringType?.Name
                 ?? "Unknown";
             return resolved is T result ? result : default;
         }
@@ -1592,10 +1592,7 @@ namespace ReactiveUITK.Core
             while (fiber != null)
             {
                 // A nested provider for this key shadows the outer one — stop here.
-                if (
-                    fiber.ProvidedContext != null
-                    && fiber.ProvidedContext.ContainsKey(key)
-                )
+                if (fiber.ProvidedContext != null && fiber.ProvidedContext.ContainsKey(key))
                 {
                     fiber = fiber.Sibling;
                     continue;
@@ -1605,10 +1602,7 @@ namespace ReactiveUITK.Core
                 bool childrenMarked = false;
 
                 // Check if this fiber directly consumes the key.
-                if (
-                    fiber.ReadsContext
-                    && fiber.ComponentState?.ContextDependencies != null
-                )
+                if (fiber.ReadsContext && fiber.ComponentState?.ContextDependencies != null)
                 {
                     foreach (var dep in fiber.ComponentState.ContextDependencies)
                     {

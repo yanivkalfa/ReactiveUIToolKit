@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class MultiColumnTreeViewProps
+    public sealed class MultiColumnTreeViewProps : global::ReactiveUITK.Core.IProps
     {
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
@@ -26,7 +26,7 @@ namespace ReactiveUITK.Props.Typed
         public object Ref { get; set; }
         public string ViewDataKey { get; set; }
 
-        public sealed class ColumnDef
+        public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
             public string Name { get; set; }
             public string Title { get; set; }
@@ -81,7 +81,7 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
-        public sealed class SortedColumnDef
+        public sealed class SortedColumnDef : global::ReactiveUITK.Core.IProps
         {
             public string Name { get; set; }
             public SortDirection? Direction { get; set; }
@@ -106,7 +106,7 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
-        public sealed class ColumnLayoutState
+        public sealed class ColumnLayoutState : global::ReactiveUITK.Core.IProps
         {
             public Dictionary<string, float> ColumnWidths { get; set; }
             public Dictionary<string, bool> ColumnVisibility { get; set; }

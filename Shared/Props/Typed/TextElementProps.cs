@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TextElementProps
+    public sealed class TextElementProps : global::ReactiveUITK.Core.IProps
     {
         public string Text { get; set; }
         public string Name { get; set; }

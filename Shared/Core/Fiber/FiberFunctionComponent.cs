@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Diagnostics;
@@ -26,7 +26,7 @@ namespace ReactiveUITK.Core.Fiber
             FiberReconciler reconciler
         )
         {
-            if (wipFiber.Render == null)
+            if (wipFiber.TypedRender == null)
             {
                 return null;
             }
@@ -46,7 +46,9 @@ namespace ReactiveUITK.Core.Fiber
             componentState.LayoutEffectIndex = 0;
 
             var componentName =
-                wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                wipFiber.ElementType
+                ?? wipFiber.TypedRender?.Method.DeclaringType?.Name
+                ?? "Unknown";
 
             // Wire up state updates to Fiber reconciler
             // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
@@ -54,8 +56,13 @@ namespace ReactiveUITK.Core.Fiber
             componentState.OnStateUpdated = () =>
                 reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
 
-            // Log render attempt
-            var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
+            // Props equality check (typed path — all function components use IProps now).
+            // IMPORTANT: TypedProps == null means this fiber has never been rendered (first mount).
+            // A null baseline must never be considered equal to any pending props — doing so would
+            // cause the bailout to fire on the very first render, producing empty windows.
+            var tp = wipFiber.TypedPendingProps ?? EmptyProps.Instance;
+            var cp = wipFiber.TypedProps; // null == "never rendered"; never equal to any pending props
+            bool propsEqual = cp != null && (ReferenceEquals(tp, cp) || tp.Equals(cp));
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
 
             // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
@@ -69,6 +76,8 @@ namespace ReactiveUITK.Core.Fiber
                 }
                 // Commit props so the next render cycle sees matching props for ArePropsEqual
                 wipFiber.Props = wipFiber.PendingProps;
+                // Also commit typed props so the next cycle's equality check works correctly
+                wipFiber.TypedProps = wipFiber.TypedPendingProps;
 
                 // CRITICAL FIX: We must carry over the existing child pointer to the WIP tree
                 // even if we don't visit it. Otherwise, this branch is severed in the new tree.
@@ -128,14 +137,11 @@ namespace ReactiveUITK.Core.Fiber
                     return null;
                 }
 
-                // Call the render function
-                var propsDict =
-                    wipFiber.PendingProps as Dictionary<string, object>
-                    ?? new Dictionary<string, object>(
-                        wipFiber.PendingProps ?? new Dictionary<string, object>()
-                    );
-
-                childVNode = wipFiber.Render(propsDict, wipFiber.Children);
+                // Call the render function (typed IProps path — all function components).
+                childVNode = wipFiber.TypedRender(
+                    wipFiber.TypedPendingProps ?? EmptyProps.Instance,
+                    wipFiber.Children
+                );
 
                 // Store rendered vnode
                 wipFiber.LastRenderedVNode = childVNode;
@@ -255,21 +261,15 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender)
-                        return true;
-
-                    // Handle method group conversion (creates new delegate instance)
-                    if (fiber.Render != null && vnode.FunctionRender != null)
-                    {
-                        return fiber.Render.Method == vnode.FunctionRender.Method
-                            && fiber.Render.Target == vnode.FunctionRender.Target;
-                    }
-                    return false;
+                    // All function components now use TypedRender.
+                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null) return false;
+                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)) return true;
+                    return fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
+                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target;
 
                 case VirtualNodeType.Suspense:
                     return fiber.Tag == FiberTag.FunctionComponent
-                        && fiber.Render == FiberIntrinsicComponents.SuspenseRender;
+                        && fiber.TypedRender == FiberIntrinsicComponents.SuspenseRender;
 
                 case VirtualNodeType.Portal:
                     return fiber.Tag == FiberTag.HostPortal;
@@ -320,7 +320,7 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    return new Dictionary<string, object>(); // Suspense uses TypedPendingProps; dict props not needed
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -547,32 +547,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             // TODO: Use proper scheduler
             effect?.Invoke();
-        }
-
-        /// <summary>
-        /// Check if props are equal (shallow comparison)
-        /// </summary>
-        private static bool ArePropsEqual(
-            IReadOnlyDictionary<string, object> props1,
-            IReadOnlyDictionary<string, object> props2
-        )
-        {
-            if (props1 == props2)
-                return true;
-            if (props1 == null || props2 == null)
-                return false;
-            if (props1.Count != props2.Count)
-                return false;
-
-            foreach (var kvp in props1)
-            {
-                if (!props2.TryGetValue(kvp.Key, out var value2))
-                    return false;
-                if (!object.Equals(kvp.Value, value2))
-                    return false;
-            }
-
-            return true;
         }
     }
 }

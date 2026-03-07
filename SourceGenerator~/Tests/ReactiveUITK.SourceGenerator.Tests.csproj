@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>ReactiveUITK.SourceGenerator.Tests</RootNamespace>
+    <!-- Suppress the RS1035 "do not use banned API" warning that fires when
+         test code calls File.ReadAllText etc. inside analyzer test helpers. -->
+    <!-- CS8785: Generator failed to generate source — expected here because the
+         test build's analyzer host uses an isolated load context that doesn't
+         have ReactiveUITK.Language.dll alongside it.  All 48 tests still pass
+         because GeneratorTestHelper.Run() instantiates UitkxGenerator directly
+         rather than going through the analyzer pipeline slot. -->
+    <NoWarn>RS1035;CS8785</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Reference the generator as a normal project (not as RoslynAnalyzer)
+         so xunit can instantiate its types directly. -->
+    <ProjectReference
+      Include="../ReactiveUITK.SourceGenerator.csproj"
+      ReferenceOutputAssembly="true"
+      OutputItemType="Analyzer"
+      SetTargetFramework="TargetFramework=netstandard2.0"
+    />
+    <!-- Direct reference to language-lib so test code can use its public types -->
+    <ProjectReference Include="../../ide-extensions~/language-lib/UitkxLanguage.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Use the same Roslyn version so types unify correctly. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.3.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+  </ItemGroup>
+</Project>

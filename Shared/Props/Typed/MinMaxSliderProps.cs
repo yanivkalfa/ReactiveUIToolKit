@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class MinMaxSliderProps
+    public sealed class MinMaxSliderProps : global::ReactiveUITK.Core.IProps
     {
         public float? MinValue { get; set; }
         public float? MaxValue { get; set; }

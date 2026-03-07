@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorHelloWorldDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Hello World")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Hello World")]
         public static void ShowWindow()
         {
             EditorHelloWorldDemoWindow window = GetWindow<EditorHelloWorldDemoWindow>(

@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TreeViewProps
+    public sealed class TreeViewProps : global::ReactiveUITK.Core.IProps
     {
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }

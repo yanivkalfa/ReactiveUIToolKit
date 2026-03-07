@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class UnsignedLongFieldProps
+    public sealed class UnsignedLongFieldProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }

@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorEditorControlsDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Editor Controls")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Editor Controls")]
         public static void Open()
         {
             var w = GetWindow<EditorEditorControlsDemoWindow>("RUITK Editor Controls");

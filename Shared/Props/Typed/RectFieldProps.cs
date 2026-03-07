@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class RectFieldProps
+    public sealed class RectFieldProps : global::ReactiveUITK.Core.IProps
     {
         public Rect? Value { get; set; }
         public Style Style { get; set; }

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ImageProps
+    public sealed class ImageProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }

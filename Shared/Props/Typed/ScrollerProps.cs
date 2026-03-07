@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ScrollerProps
+    public sealed class ScrollerProps : global::ReactiveUITK.Core.IProps
     {
         public float? LowValue { get; set; }
         public float? HighValue { get; set; }

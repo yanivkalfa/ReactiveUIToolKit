@@ -1,0 +1,633 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "UITKX",
+  "scopeName": "source.uitkx",
+  "fileTypes": [
+    "uitkx"
+  ],
+  "patterns": [
+    {
+      "include": "#function-style-declaration"
+    },
+    {
+      "include": "#jsx-comment"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#directive-declaration"
+    },
+    {
+      "include": "#function-style-setup-keyword"
+    },
+    {
+      "include": "#function-style-return-keyword"
+    },
+    {
+      "include": "#control-flow-with-expression"
+    },
+    {
+      "include": "#case-directive-expression"
+    },
+    {
+      "include": "#control-flow-keyword"
+    },
+    {
+      "include": "#code-block"
+    },
+    {
+      "include": "#code-block-newline-brace"
+    },
+    {
+      "include": "#inline-expression"
+    },
+    {
+      "include": "#switch-arm-label"
+    },
+    {
+      "include": "#tag-self-closing"
+    },
+    {
+      "include": "#tag-close"
+    },
+    {
+      "include": "#tag-open"
+    }
+  ],
+  "repository": {
+    "jsx-comment": {
+      "name": "comment.block.uitkx",
+      "begin": "\\{/\\*",
+      "end": "\\*/\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      }
+    },
+    "comment": {
+      "name": "comment.block.uitkx",
+      "begin": "<!--",
+      "end": "-->",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.uitkx"
+        }
+      }
+    },
+    "directive-declaration": {
+      "comment": "Handles @namespace X, @component X, @using X, @props X, @key X, @inject T N",
+      "name": "meta.directive.uitkx",
+      "match": "^(@)(namespace|component|using|props|key|inject)\\b(.*)$",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.keyword.uitkx"
+        },
+        "2": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "3": {
+          "name": "entity.name.type.uitkx"
+        }
+      }
+    },
+    "function-style-declaration": {
+      "comment": "Handles function-style component declarations: component Name {",
+      "name": "meta.component.function-style.uitkx",
+      "match": "^(\\s*)(component)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\{)?\\s*$",
+      "captures": {
+        "2": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "3": {
+          "name": "entity.name.type.uitkx"
+        },
+        "4": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      }
+    },
+    "control-flow-with-expression": {
+      "comment": "Handles control-flow directives with parenthesized expressions and tokenizes inner C# content",
+      "name": "meta.control.uitkx",
+      "begin": "(@)(if|else\\s+if|for|foreach|switch|while)\\b\\s*(\\()",
+      "end": "(\\))",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.keyword.uitkx"
+        },
+        "2": {
+          "name": "keyword.control.uitkx"
+        },
+        "3": {
+          "name": "punctuation.section.group.begin.uitkx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.group.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#expression-content"
+        }
+      ]
+    },
+    "control-flow-keyword": {
+      "comment": "Handles standalone control-flow directives without parenthesized expressions",
+      "name": "meta.control.uitkx",
+      "match": "(@)(else|default|break|continue)\\b",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.keyword.uitkx"
+        },
+        "2": {
+          "name": "keyword.control.uitkx"
+        }
+      }
+    },
+    "case-directive-expression": {
+      "comment": "Handles @case expression up to the colon terminator (@case \"x\":)",
+      "name": "meta.control.uitkx",
+      "begin": "(@)(case)\\b\\s*",
+      "end": ":",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.keyword.uitkx"
+        },
+        "2": {
+          "name": "keyword.control.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#expression-content"
+        }
+      ]
+    },
+    "switch-arm-label": {
+      "comment": "Handles switch-arm label token before => (0, 1, _, identifier)",
+      "match": "^(\\s*)([_]|\\d+(?:\\.\\d+)?|[A-Za-z_][A-Za-z0-9_]*)(\\s*)(=>)",
+      "captures": {
+        "2": {
+          "name": "variable.other.uitkx"
+        },
+        "4": {
+          "name": "keyword.operator.uitkx"
+        }
+      }
+    },
+    "code-block": {
+      "comment": "Handles @code { ... } with brace on the same line",
+      "begin": "(@code)\\s*(\\{)",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "2": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#code-block-body"
+        }
+      ]
+    },
+    "code-block-newline-brace": {
+      "comment": "Handles @code on its own line followed by { ... } on the next line",
+      "begin": "(@code)\\s*$",
+      "end": "\\}",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.directive.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.block.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "match": "\\{",
+          "name": "punctuation.section.block.begin.uitkx"
+        },
+        {
+          "include": "#code-block-body"
+        }
+      ]
+    },
+    "inline-expression": {
+      "comment": "Handles @(expr) inline C# expressions",
+      "begin": "@(?=\\()",
+      "end": "(?<=\\))",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.expression.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#cs-paren-expression"
+        }
+      ]
+    },
+    "cs-paren-expression": {
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#tag-open"
+        },
+        {
+          "include": "#expression-content"
+        }
+      ]
+    },
+    "tag-self-closing": {
+      "name": "meta.tag.self-closing.uitkx",
+      "begin": "(<)([A-Za-z][A-Za-z0-9]*)",
+      "end": "(/>|(?<![=!<])>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.uitkx"
+        },
+        "2": {}
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#control-flow-with-expression"
+        },
+        {
+          "include": "#case-directive-expression"
+        },
+        {
+          "include": "#control-flow-keyword"
+        },
+        {
+          "include": "#inline-expression"
+        },
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#code-block"
+        },
+        {
+          "include": "#tag-attributes"
+        }
+      ]
+    },
+    "tag-close": {
+      "name": "meta.tag.close.uitkx",
+      "match": "(</)(\\w+)(>)",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.uitkx"
+        },
+        "2": {},
+        "3": {
+          "name": "punctuation.definition.tag.end.uitkx"
+        }
+      }
+    },
+    "tag-open": {
+      "name": "meta.tag.open.uitkx",
+      "begin": "(<)([A-Za-z][A-Za-z0-9]*)",
+      "end": "((?<![=!<])>)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.uitkx"
+        },
+        "2": {}
+      },
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#control-flow-with-expression"
+        },
+        {
+          "include": "#case-directive-expression"
+        },
+        {
+          "include": "#control-flow-keyword"
+        },
+        {
+          "include": "#inline-expression"
+        },
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#code-block"
+        },
+        {
+          "include": "#tag-attributes"
+        }
+      ]
+    },
+    "tag-attributes": {
+      "patterns": [
+        {
+          "include": "#attribute-key"
+        },
+        {
+          "include": "#attribute-value-string"
+        },
+        {
+          "include": "#attribute-value-expression"
+        },
+        {
+          "include": "#attribute-boolean-shorthand"
+        }
+      ]
+    },
+    "attribute-key": {
+      "name": "entity.other.attribute-name.uitkx",
+      "match": "[A-Za-z][A-Za-z0-9\\-_]*(?=\\s*[={\\s/>])"
+    },
+    "attribute-value-string": {
+      "name": "string.quoted.double.uitkx",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.uitkx",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "attribute-value-expression": {
+      "comment": "Only match { immediately preceded by = so control-flow braces like @switch(x){ are never consumed",
+      "begin": "(?<==)\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.begin.uitkx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.end.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#expression-content"
+        }
+      ]
+    },
+    "attribute-boolean-shorthand": {
+      "comment": "Lone attribute name without = used as boolean true shorthand",
+      "name": "entity.other.attribute-name.uitkx",
+      "match": "\\b[A-Za-z][A-Za-z0-9\\-_]*\\b"
+    },
+    "brace-expression": {
+      "comment": "Nested { } — allows { } inside attribute-value-expression and cs-paren-expression",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "include": "#expression-content"
+        }
+      ]
+    },
+    "expression-content": {
+      "comment": "C# expression token patterns — ordered: strings first, then keywords, operators, numbers, calls, identifiers",
+      "patterns": [
+        {
+          "include": "#cs-line-comment"
+        },
+        {
+          "include": "#cs-block-comment"
+        },
+        {
+          "include": "#interpolated-string"
+        },
+        {
+          "include": "#double-quoted-string"
+        },
+        {
+          "include": "#cs-keywords"
+        },
+        {
+          "include": "#cs-type-name"
+        },
+        {
+          "include": "#numeric-literal"
+        },
+        {
+          "include": "#lambda-arrow"
+        },
+        {
+          "include": "#cs-operator"
+        },
+        {
+          "include": "#brace-expression"
+        },
+        {
+          "include": "#cs-paren-expression"
+        },
+        {
+          "include": "#function-call"
+        },
+        {
+          "include": "#identifier"
+        }
+      ]
+    },
+    "interpolated-string": {
+      "comment": "C# $\"...\" — only literal text portions get string color; { } holes are unscoped so inner tokens get expression colors",
+      "begin": "(\\$\")",
+      "end": "(\")",
+      "beginCaptures": {
+        "1": {
+          "name": "string.quoted.double.uitkx"
+        }
+      },
+      "endCaptures": {
+        "1": {
+          "name": "string.quoted.double.uitkx"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#string-interpolation"
+        },
+        {
+          "name": "constant.character.escape.uitkx",
+          "match": "\\\\."
+        },
+        {
+          "name": "string.quoted.double.uitkx",
+          "match": "[^{}'\"\\\\]+"
+        }
+      ]
+    },
+    "string-interpolation": {
+      "comment": "{ } hole inside $\"...\" — no scope on braces (they go default), inner expression tokens get their own colors",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "include": "#expression-content"
+        }
+      ]
+    },
+    "double-quoted-string": {
+      "comment": "Plain string literal — prevents } inside strings from closing brace-expression",
+      "name": "string.quoted.double.uitkx",
+      "begin": "\"(?!\"\")",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.uitkx",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "cs-keywords": {
+      "comment": "C# keywords and built-in type names / literals",
+      "name": "keyword.control.uitkx",
+      "match": "\\b(true|false|null|new|typeof|nameof|this|var|int|string|bool|float|double|decimal|long|uint|ulong|byte|char|object|void|return|await|async|if|else|for|foreach|while|do|break|continue|throw|catch|finally|using|static|readonly|const|private|public|protected|internal|class|interface|enum|struct|record|is|as|in|out|ref)\\b"
+    },
+    "function-style-setup-keyword": {
+      "comment": "Optional function-style setup marker: setup;",
+      "name": "keyword.control.uitkx",
+      "match": "\\bsetup\\b(?=\\s*;)"
+    },
+    "function-style-return-keyword": {
+      "comment": "Function-style return keyword before markup expression: return (...)",
+      "name": "keyword.control.uitkx",
+      "match": "\\breturn\\b(?=\\s*\\()"
+    },
+    "cs-type-name": {
+      "comment": "PascalCase type/class names — e.g. List, Dictionary, MyComponent",
+      "name": "entity.name.type.uitkx",
+      "match": "\\b[A-Z][A-Za-z0-9]*\\b"
+    },
+    "numeric-literal": {
+      "comment": "C# numeric literals",
+      "name": "constant.numeric.uitkx",
+      "match": "\\b\\d+(\\.\\d+)?([fFdDmMuUlL]*)\\b"
+    },
+    "lambda-arrow": {
+      "comment": "Lambda arrow => — must come before cs-operator so it matches as a unit",
+      "name": "keyword.operator.uitkx",
+      "match": "=>"
+    },
+    "cs-operator": {
+      "comment": "Arithmetic, comparison, logical, and null-coalescing operators",
+      "name": "keyword.operator.uitkx",
+      "match": "(\\+\\+|--|\\?\\?|&&|\\|\\||[+\\-*/%&|^~!<>=]=?|\\?)"
+    },
+    "function-call": {
+      "comment": "Function/method call: identifier immediately followed by ( — must come before plain identifier",
+      "match": "\\b([a-z_][A-Za-z0-9_]*)(?=\\s*\\()",
+      "captures": {
+        "1": {
+          "name": "entity.name.function.uitkx"
+        }
+      }
+    },
+    "identifier": {
+      "comment": "Plain camelCase/underscore identifier — variables and parameters",
+      "name": "variable.other.uitkx",
+      "match": "\\b[a-z_][A-Za-z0-9_]*\\b"
+    },
+    "cs-line-comment": {
+      "name": "comment.line.double-slash.uitkx",
+      "begin": "//",
+      "end": "$"
+    },
+    "cs-block-comment": {
+      "name": "comment.block.uitkx",
+      "begin": "/\\*",
+      "end": "\\*/"
+    },
+    "code-block-body": {
+      "comment": "Content inside @code { } — full expression tokenization PLUS embedded markup highlighting",
+      "patterns": [
+        {
+          "include": "#function-style-setup-keyword"
+        },
+        {
+          "include": "#jsx-comment"
+        },
+        {
+          "include": "#control-flow-with-expression"
+        },
+        {
+          "include": "#case-directive-expression"
+        },
+        {
+          "include": "#control-flow-keyword"
+        },
+        {
+          "include": "#cs-line-comment"
+        },
+        {
+          "include": "#cs-block-comment"
+        },
+        {
+          "include": "#comment"
+        },
+        {
+          "include": "#tag-self-closing"
+        },
+        {
+          "include": "#tag-close"
+        },
+        {
+          "include": "#tag-open"
+        },
+        {
+          "include": "#inline-expression"
+        },
+        {
+          "include": "#expression-content"
+        }
+      ]
+    }
+  }
+}

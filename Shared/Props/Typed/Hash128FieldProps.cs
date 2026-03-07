@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class Hash128FieldProps
+    public sealed class Hash128FieldProps : global::ReactiveUITK.Core.IProps
     {
         public Hash128? Value { get; set; }
         public Style Style { get; set; }

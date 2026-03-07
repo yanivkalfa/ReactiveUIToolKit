@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TabProps
+    public sealed class TabProps : global::ReactiveUITK.Core.IProps
     {
         public string Text { get; set; }
         public Style Style { get; set; }

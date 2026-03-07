@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TwoPaneSplitViewProps
+    public sealed class TwoPaneSplitViewProps : global::ReactiveUITK.Core.IProps
     {
         public string Orientation { get; set; } // "horizontal" | "vertical"
         public int? FixedPaneIndex { get; set; }

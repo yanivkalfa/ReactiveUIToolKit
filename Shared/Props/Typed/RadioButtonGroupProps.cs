@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class RadioButtonGroupProps
+    public sealed class RadioButtonGroupProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }

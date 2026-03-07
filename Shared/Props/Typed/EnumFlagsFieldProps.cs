@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class EnumFlagsFieldProps
+    public sealed class EnumFlagsFieldProps : global::ReactiveUITK.Core.IProps
     {
         public Enum Value { get; set; }
         public Style Style { get; set; }

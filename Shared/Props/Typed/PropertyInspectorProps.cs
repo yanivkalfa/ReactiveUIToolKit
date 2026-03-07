@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class PropertyFieldProps
+    public sealed class PropertyFieldProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -35,7 +35,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class InspectorElementProps
+    public sealed class InspectorElementProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }

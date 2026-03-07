@@ -3,7 +3,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ToggleButtonGroupProps
+    public sealed class ToggleButtonGroupProps : global::ReactiveUITK.Core.IProps
     {
         public int? Value { get; set; }
         public Style Style { get; set; }
