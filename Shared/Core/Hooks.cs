@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ReactiveUITK.Core.Diagnostics;
@@ -1399,7 +1399,7 @@ namespace ReactiveUITK.Core
 
             // DEBUG LOG: CHECK COUNT
             var compName =
-                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             for (int i = 0; i < deps.Count; i++)
             {
                 var dep = deps[i];
@@ -1480,7 +1480,7 @@ namespace ReactiveUITK.Core
             // DEBUG UNCONDITIONAL
             var compName =
                 state.Fiber?.ElementType
-                ?? state.Fiber?.Render?.Method.DeclaringType?.Name
+                ?? state.Fiber?.TypedRender?.Method.DeclaringType?.Name
                 ?? "Unknown";
             return resolved is T result ? result : default;
         }

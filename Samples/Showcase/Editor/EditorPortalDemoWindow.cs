@@ -1,5 +1,4 @@
 #if UNITY_EDITOR
-using System.Collections.Generic;
 using ReactiveUITK.EditorSupport;
 using ReactiveUITK.Samples.FunctionalComponents;
 using UnityEditor;
@@ -61,10 +60,10 @@ namespace ReactiveUITK.Samples.Editor
             hostContainer.Add(portalOuter);
             root.Add(hostContainer);
 
-            var props = new Dictionary<string, object> { { "portalTarget", portalTarget } };
+            var props = new PortalEventScopeDemoFunc.Props { PortalTarget = portalTarget };
             EditorRootRendererUtility.Render(
                 contentContainer,
-                V.Func(PortalEventScopeDemoFunc.Render, props)
+                V.Func<PortalEventScopeDemoFunc.Props>(PortalEventScopeDemoFunc.Render, props)
             );
         }
 

@@ -21,7 +21,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         BuiltinText,
 
         /// <summary>
-        /// A user-defined function component: V.Func(TypeName.Render, dict, key: key)
+        /// A user-defined function component: V.Func&lt;TypeName.Props&gt;(TypeName.Render, ...) or V.Func(TypeName.Render, ...)
         /// </summary>
         FuncComponent,
 
@@ -56,11 +56,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     ///   For <see cref="TagResolutionKind.FuncComponent"/>, the type whose <c>Render</c>
     ///   static method is called (e.g. "PlayerHUD").
     /// </param>
+    /// <param name="FuncPropsTypeName">
+    ///   For <see cref="TagResolutionKind.FuncComponent"/>, the simple name of the companion
+    ///   props class if one was found in the compilation (e.g. "PlayerHUDProps"),
+    /// or <c>null</c> when no typed-props class exists (falls back to the no-props <c>V.Func(TypeName.Render)</c> call).
+    /// </param>
     public sealed record TagResolution(
         TagResolutionKind Kind,
         string MethodName,
         string? PropsTypeName,
         bool AcceptsChildren,
-        string? FuncTypeName = null
+        string? FuncTypeName = null,
+        string? FuncPropsTypeName = null
     );
 }

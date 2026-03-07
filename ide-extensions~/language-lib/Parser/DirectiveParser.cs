@@ -321,6 +321,28 @@ namespace ReactiveUITK.Language.Parser
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
 
+            // Parse optional leading `using X.Y.Z;` lines AND an optional
+            // `@namespace X.Y` directive before the component keyword, in any order.
+            var usings = new List<string>();
+            string? inlineNamespace = null;
+            bool parsedPreambleLine;
+            do
+            {
+                parsedPreambleLine = false;
+                if (TryReadFunctionStyleUsing(source, ref i, ref line, usings))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    parsedPreambleLine = true;
+                }
+                if (inlineNamespace == null
+                    && TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out string? parsedNs))
+                {
+                    inlineNamespace = parsedNs;
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    parsedPreambleLine = true;
+                }
+            } while (parsedPreambleLine);
+
             if (!TryReadKeyword(source, ref i, "component"))
                 return false;
 
@@ -350,7 +372,19 @@ namespace ReactiveUITK.Language.Parser
                 });
             }
 
-            string functionNamespace = InferFunctionStyleNamespace(filePath);
+            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+
+            // ── Optional typed-props parameter list ───────────────────────────
+            // Supports: component Name(Type param = default, ...)
+            SkipSpaces(source, ref i);
+            var functionParams = ImmutableArray<FunctionParam>.Empty;
+            string? functionPropsTypeName = null;
+            if (i < source.Length && source[i] == '(')
+            {
+                functionParams = ParseFunctionParamList(source, ref i, ref line, componentLine, diagnosticBag);
+                if (!functionParams.IsEmpty)
+                    functionPropsTypeName = componentName + "Props";
+            }
 
             SkipWhitespaceAndNewlines(source, ref i, ref line);
             if (i >= source.Length || source[i] != '{')
@@ -366,16 +400,17 @@ namespace ReactiveUITK.Language.Parser
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
-                    PropsTypeName: null,
+                    PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
-                    Usings: ImmutableArray<string>.Empty,
+                    Usings: usings.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
                     FunctionSetupCode: string.Empty,
-                    FunctionSetupStartLine: componentLine
+                    FunctionSetupStartLine: componentLine,
+                    FunctionParams: functionParams
                 );
                 return true;
             }
@@ -394,16 +429,17 @@ namespace ReactiveUITK.Language.Parser
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
-                    PropsTypeName: null,
+                    PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
-                    Usings: ImmutableArray<string>.Empty,
+                    Usings: usings.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
                     FunctionSetupCode: string.Empty,
-                    FunctionSetupStartLine: componentLine
+                    FunctionSetupStartLine: componentLine,
+                    FunctionParams: functionParams
                 );
                 return true;
             }
@@ -437,16 +473,17 @@ namespace ReactiveUITK.Language.Parser
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
-                    PropsTypeName: null,
+                    PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
-                    Usings: ImmutableArray<string>.Empty,
+                    Usings: usings.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
                     FunctionSetupCode: source.Substring(bodyStart, Math.Max(0, bodyEndExclusive - bodyStart)).Trim(),
-                    FunctionSetupStartLine: LineAtPos(source, bodyStart)
+                    FunctionSetupStartLine: LineAtPos(source, bodyStart),
+                    FunctionParams: functionParams
                 );
                 return true;
             }
@@ -494,16 +531,17 @@ namespace ReactiveUITK.Language.Parser
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
                 ComponentName: componentName,
-                PropsTypeName: null,
+                PropsTypeName: functionPropsTypeName,
                 DefaultKey: null,
-                Usings: ImmutableArray<string>.Empty,
+                Usings: usings.ToImmutableArray(),
                 Injects: ImmutableArray<(string Type, string Name)>.Empty,
                 MarkupStartLine: markupLine,
                 MarkupStartIndex: markupStart,
                 MarkupEndIndex: markupEnd,
                 IsFunctionStyle: true,
                 FunctionSetupCode: setupCode.Trim(),
-                FunctionSetupStartLine: LineAtPos(source, bodyStart)
+                FunctionSetupStartLine: LineAtPos(source, bodyStart),
+                FunctionParams: functionParams
             );
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
@@ -531,6 +569,190 @@ namespace ReactiveUITK.Language.Parser
             }
 
             return true;
+        }
+
+        // ── Function param-list parser ────────────────────────────────────────
+
+        /// <summary>
+        /// Parses a comma-separated parameter list that follows a function-style
+        /// component name: <c>component Foo(int X = 0, string Label = "hi")</c>.
+        ///
+        /// The opening <c>(</c> must be the character at <paramref name="i"/> on entry;
+        /// on exit <paramref name="i"/> points past the closing <c>)</c>.
+        /// </summary>
+        private static ImmutableArray<FunctionParam> ParseFunctionParamList(
+            string source,
+            ref int i,
+            ref int line,
+            int componentLine,
+            List<ParseDiagnostic> diagnosticBag
+        )
+        {
+            // Consume '('
+            i++;
+
+            var result = ImmutableArray.CreateBuilder<FunctionParam>();
+
+            while (i < source.Length)
+            {
+                SkipWhitespaceAndNewlines(source, ref i, ref line);
+
+                if (i >= source.Length)
+                    break;
+
+                if (source[i] == ')')
+                {
+                    i++; // consume ')'
+                    break;
+                }
+
+                // Parse type name (may include generics: List<int>, Dictionary<string,int>)
+                if (!TryReadTypeName(source, ref i, ref line, out string typeName))
+                {
+                    // Skip to next comma or closing paren
+                    while (i < source.Length && source[i] != ',' && source[i] != ')')
+                        i++;
+                    if (i < source.Length && source[i] == ',')
+                        i++;
+                    continue;
+                }
+
+                SkipSpaces(source, ref i);
+
+                // Parse parameter name
+                if (!TryReadIdentifier(source, ref i, out string paramName))
+                {
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = "UITKX2106",
+                        Severity = ParseSeverity.Warning,
+                        SourceLine = componentLine,
+                        Message = $"Expected parameter name after type '{typeName}' in component parameter list.",
+                    });
+                    // Skip to next comma or closing paren
+                    while (i < source.Length && source[i] != ',' && source[i] != ')')
+                        i++;
+                    if (i < source.Length && source[i] == ',')
+                        i++;
+                    continue;
+                }
+
+                SkipSpaces(source, ref i);
+
+                string? defaultValue = null;
+                if (i < source.Length && source[i] == '=')
+                {
+                    i++; // consume '='
+                    SkipSpaces(source, ref i);
+                    defaultValue = ReadDefaultValue(source, ref i);
+                }
+
+                result.Add(new FunctionParam(typeName, paramName, defaultValue));
+
+                SkipSpaces(source, ref i);
+                if (i < source.Length && source[i] == ',')
+                    i++; // consume comma, loop continues
+            }
+
+            return result.ToImmutable();
+        }
+
+        /// <summary>
+        /// Reads a C# type name, including optional generic type arguments
+        /// (balanced &lt; … &gt; pairs), arrays (<c>[]</c>), and nullable markers
+        /// (<c>?</c>).  Does NOT handle tuple types or complex pointer types.
+        /// </summary>
+        private static bool TryReadTypeName(
+            string source,
+            ref int i,
+            ref int line,
+            out string typeName
+        )
+        {
+            typeName = string.Empty;
+            int start = i;
+
+            // Leading identifier (required)
+            if (i >= source.Length || !(char.IsLetter(source[i]) || source[i] == '_'))
+                return false;
+
+            while (i < source.Length && (char.IsLetterOrDigit(source[i]) || source[i] == '_'))
+                i++;
+
+            // Dotted qualifier: System.Collections.Generic.List
+            while (i < source.Length && source[i] == '.')
+            {
+                i++; // consume '.'
+                while (i < source.Length && (char.IsLetterOrDigit(source[i]) || source[i] == '_'))
+                    i++;
+            }
+
+            // Generic type arguments: <T1, T2>
+            if (i < source.Length && source[i] == '<')
+            {
+                int depth = 1;
+                i++; // consume '<'
+                while (i < source.Length && depth > 0)
+                {
+                    if (source[i] == '<') { depth++; i++; }
+                    else if (source[i] == '>') { depth--; i++; }
+                    else i++;
+                }
+            }
+
+            // Array suffix: [], [,], etc.
+            while (i + 1 < source.Length && source[i] == '[')
+            {
+                i++;
+                while (i < source.Length && source[i] != ']')
+                    i++;
+                if (i < source.Length)
+                    i++; // consume ']'
+            }
+
+            // Nullable marker
+            if (i < source.Length && source[i] == '?')
+                i++;
+
+            typeName = source.Substring(start, i - start);
+            return typeName.Length > 0;
+        }
+
+        /// <summary>
+        /// Reads the default-value expression for a parameter, stopping at the
+        /// first unbalanced <c>,</c> or <c>)</c> (i.e., the next parameter or the
+        /// closing paren of the list).
+        /// Handles nested parentheses, brackets, braces, string literals, and
+        /// char literals correctly so that commas inside them are not mistaken for
+        /// parameter separators.
+        /// </summary>
+        private static string ReadDefaultValue(string source, ref int i)
+        {
+            int start = i;
+            int parenDepth = 0;
+            int braceDepth = 0;
+            int bracketDepth = 0;
+
+            while (i < source.Length)
+            {
+                // Skip string / char literals so commas inside them are ignored
+                if (TrySkipNonCodeSpan(source, ref i, source.Length))
+                    continue;
+
+                char c = source[i];
+
+                if (c == '(') { parenDepth++; i++; continue; }
+                if (c == ')') { if (parenDepth > 0) { parenDepth--; i++; continue; } break; }
+                if (c == '{') { braceDepth++; i++; continue; }
+                if (c == '}') { if (braceDepth > 0) { braceDepth--; i++; continue; } break; }
+                if (c == '[') { bracketDepth++; i++; continue; }
+                if (c == ']') { if (bracketDepth > 0) { bracketDepth--; i++; continue; } break; }
+                if (c == ',' && parenDepth == 0 && braceDepth == 0 && bracketDepth == 0) break;
+
+                i++;
+            }
+
+            return source.Substring(start, i - start).Trim();
         }
 
         private static string InferFunctionStyleNamespace(string filePath)
@@ -582,8 +804,144 @@ namespace ReactiveUITK.Language.Parser
             int i = start;
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
-
+            // Skip any leading `using X.Y.Z;` and `@namespace X.Y` lines, in any order.
+            var dummy = new List<string>();
+            bool skippedSomething;
+            do
+            {
+                skippedSomething = false;
+                if (TryReadFunctionStyleUsing(source, ref i, ref line, dummy))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+                if (TryReadFunctionStyleNamespaceDirective(source, ref i, ref line, out _))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+            } while (skippedSomething);
             return TryReadKeywordAt(source, i, "component");
+        }
+
+        /// <summary>
+        /// Tries to read a single <c>@namespace X.Y</c> line at the current position.
+        /// On success advances <paramref name="i"/> past the line terminator and sets
+        /// <paramref name="namespaceName"/>. On failure restores <paramref name="i"/>
+        /// and returns false.
+        /// </summary>
+        private static bool TryReadFunctionStyleNamespaceDirective(
+            string source,
+            ref int i,
+            ref int line,
+            out string? namespaceName
+        )
+        {
+            namespaceName = null;
+            int savedI = i;
+            int savedLine = line;
+
+            // Allow leading spaces/tabs.
+            while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
+                i++;
+
+            // Must start with '@'.
+            if (i >= source.Length || source[i] != '@')
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            i++; // consume '@'
+
+            if (!TryReadKeyword(source, ref i, "namespace"))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            SkipSpaces(source, ref i);
+
+            // Read namespace name up to ';' or end-of-line.
+            int nameStart = i;
+            while (i < source.Length && source[i] != ';' && !IsNewline(source[i]))
+                i++;
+
+            string ns = source.Substring(nameStart, i - nameStart).Trim();
+
+            // Consume optional ';'.
+            if (i < source.Length && source[i] == ';')
+                i++;
+
+            // Skip remainder of line and the newline.
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            if (string.IsNullOrWhiteSpace(ns))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            namespaceName = ns;
+            return true;
+        }
+
+        /// <summary>
+        /// Tries to read a single <c>using Namespace.Name;</c> line at the current
+        /// position. On success advances <paramref name="i"/> past the line terminator
+        /// and appends the namespace string to <paramref name="usings"/>.
+        /// On failure restores <paramref name="i"/> and returns false.
+        /// </summary>
+        private static bool TryReadFunctionStyleUsing(
+            string source,
+            ref int i,
+            ref int line,
+            List<string> usings
+        )
+        {
+            int savedI = i;
+            int savedLine = line;
+
+            // Allow leading spaces/tabs — newlines are already consumed by trivia before each call.
+            while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
+                i++;
+
+            if (!TryReadKeyword(source, ref i, "using"))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            SkipSpaces(source, ref i);
+
+            // Read namespace name up to ';' or end-of-line.
+            int nameStart = i;
+            while (i < source.Length && source[i] != ';' && !IsNewline(source[i]))
+                i++;
+
+            string namespaceName = source.Substring(nameStart, i - nameStart).Trim();
+
+            // Consume optional ';'.
+            if (i < source.Length && source[i] == ';')
+                i++;
+
+            // Skip rest of line and the newline.
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            if (!string.IsNullOrWhiteSpace(namespaceName))
+                usings.Add(namespaceName);
+
+            return true;
         }
 
         private static void SkipLeadingFunctionStyleTrivia(string source, ref int i, ref int line)

@@ -101,12 +101,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Still emit V.Func(TagName.Render, ...) — let C# compiler report missing type
             }
 
+            string? funcPropsTypeName = TryGetFuncComponentPropsTypeName(tagName, usingNamespaces);
+
             return new TagResolution(
                 TagResolutionKind.FuncComponent,
                 "Func",
                 null,
                 AcceptsChildren: true,
-                FuncTypeName: tagName
+                FuncTypeName: tagName,
+                FuncPropsTypeName: funcPropsTypeName
             );
         }
 
@@ -143,6 +146,35 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     return CollectPropertyNames(type);
             }
             return new HashSet<string>();
+        }
+
+        /// <summary>
+        /// Returns the simple type name of the companion props class for a PascalCase
+        /// function component (convention: "{ComponentName}Props"), or <c>null</c> when
+        /// no such class is found in the compilation.
+        ///
+        /// When a props class is found the emitter uses the typed <c>V.Func&lt;TProps&gt;</c>
+        /// overload; otherwise it falls back to the no-props <c>V.Func(TypeName.Render)</c> call.
+        /// </summary>
+        public string? TryGetFuncComponentPropsTypeName(
+            string componentTypeName,
+            ImmutableArray<string> usingNamespaces
+        )
+        {
+            string candidate = $"{componentTypeName}Props";
+
+            // Try unqualified (global namespace)
+            if (_compilation.GetTypeByMetadataName(candidate) != null)
+                return candidate;
+
+            // Try each @using namespace
+            foreach (var ns in usingNamespaces)
+            {
+                var sym = _compilation.GetTypeByMetadataName($"{ns}.{candidate}");
+                if (sym != null) return sym.Name;
+            }
+
+            return null;
         }
 
         // ── Private helpers ───────────────────────────────────────────────────

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ButtonProps
+    public sealed class ButtonProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }

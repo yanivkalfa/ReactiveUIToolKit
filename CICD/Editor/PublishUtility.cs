@@ -184,7 +184,7 @@ namespace ReactiveUITK.CICD
 
                 string branch = "dist";
                 string remote = "origin";
-                string worktree = Path.Combine(repoRoot, "_dist_branch");
+                string worktree = Path.Combine(repoRoot, "_dist_branch~");
 
                 if (Directory.Exists(worktree))
                 {

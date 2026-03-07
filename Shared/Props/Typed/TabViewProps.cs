@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TabViewProps
+    public sealed class TabViewProps : global::ReactiveUITK.Core.IProps
     {
         public int? SelectedIndex { get; set; }
         public int? SelectedTabIndex { get; set; }
@@ -15,7 +15,7 @@ namespace ReactiveUITK.Props.Typed
         public Delegate ActiveTabChanged { get; set; }
         public object Ref { get; set; }
 
-        public sealed class TabDef
+        public sealed class TabDef : global::ReactiveUITK.Core.IProps
         {
             public string Title { get; set; }
             public Func<VirtualNode> Content { get; set; }

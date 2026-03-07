@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.0.87]
+- **Fix: function-style components no longer require a companion `.cs` file.**
+  The source generator now determines assembly ownership by walking up the
+  directory tree to find the nearest `.asmdef` file (Unity's own rule), instead
+  of requiring a sibling `.cs` file in the same folder. A `.uitkx` file placed
+  anywhere under `Assets/` is routed to the correct assembly automatically.
+  Projects with no `.asmdef` files fall back to `Assembly-CSharp` as expected.
+- **Feature: optional `@namespace` directive in function-style components.**
+  Function-style files now accept an optional `@namespace My.Game.UI` line
+  before the `component` keyword (interleaved with `using` lines in any order).
+  Priority: inline `@namespace` > companion `.cs` namespace > `ReactiveUITK.FunctionStyle`.
+
+## [1.0.86]
+- **Feature: `using` directives in function-style components.**
+  Function-style files (`component Name { ... }`) now accept `using X.Y.Z;` lines
+  before the `component` keyword. The declared namespaces are emitted as `using`
+  statements in the generated C# output alongside the built-in framework usings.
+- **Fix: nested generic type arguments in hook shorthands.**
+  `useContext<Dictionary<string, Color>>()` and similar 2–3 level nested generics
+  now correctly expand to `Hooks.UseContext<Dictionary<string, Color>>()`. The
+  previous regex stopped at the first `>` making nested types silently unmatched.
+
 ## [1.0.85]
 - **Fix: stabilize function-style diagnostics and reduce false broken-file errors.**
   Added defensive function-style parsing around leading comments/trivia,

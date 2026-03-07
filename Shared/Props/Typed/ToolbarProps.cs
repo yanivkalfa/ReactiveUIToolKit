@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ToolbarProps
+    public sealed class ToolbarProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -26,7 +26,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarButtonProps
+    public sealed class ToolbarButtonProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -54,7 +54,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarToggleProps
+    public sealed class ToolbarToggleProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -85,7 +85,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarMenuProps
+    public sealed class ToolbarMenuProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -113,7 +113,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarBreadcrumbsProps
+    public sealed class ToolbarBreadcrumbsProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -141,7 +141,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarPopupSearchFieldProps
+    public sealed class ToolbarPopupSearchFieldProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -169,7 +169,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarSearchFieldProps
+    public sealed class ToolbarSearchFieldProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -197,7 +197,7 @@ namespace ReactiveUITK.Props.Typed
         }
     }
 
-    public sealed class ToolbarSpacerProps
+    public sealed class ToolbarSpacerProps : global::ReactiveUITK.Core.IProps
     {
         public string Name { get; set; }
         public string ClassName { get; set; }

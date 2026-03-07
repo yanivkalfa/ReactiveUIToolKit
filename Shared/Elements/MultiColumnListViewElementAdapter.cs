@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -122,7 +122,6 @@ namespace ReactiveUITK.Elements
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
-                functionRender: null,
                 textContent: null,
                 key: node.Key,
                 properties: new Dictionary<string, object>(0),

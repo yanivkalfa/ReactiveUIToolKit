@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class BoundsIntFieldProps
+    public sealed class BoundsIntFieldProps : global::ReactiveUITK.Core.IProps
     {
         public BoundsInt? Value { get; set; }
         public Style Style { get; set; }

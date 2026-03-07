@@ -4,7 +4,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class IMGUIContainerProps
+    public sealed class IMGUIContainerProps : global::ReactiveUITK.Core.IProps
     {
         public Action OnGUI { get; set; }
         public string Name { get; set; }

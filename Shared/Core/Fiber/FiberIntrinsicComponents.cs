@@ -8,6 +8,14 @@ using UnityEngine;
 namespace ReactiveUITK.Core.Fiber
 {
     /// <summary>
+    /// Typed props wrapper for Suspense intrinsic nodes.
+    /// </summary>
+    internal sealed class SuspenseProps : global::ReactiveUITK.Core.IProps
+    {
+        public VirtualNode Node { get; set; }
+    }
+
+    /// <summary>
     /// Built-in function components used by the Fiber reconciler
     /// for intrinsic nodes like Suspense.
     /// </summary>
@@ -22,15 +30,13 @@ namespace ReactiveUITK.Core.Fiber
         /// and can reschedule rendering when an async task completes.
         /// </summary>
         public static VirtualNode SuspenseRender(
-            Dictionary<string, object> props,
+            global::ReactiveUITK.Core.IProps rawProps,
             IReadOnlyList<VirtualNode> children
         )
         {
-            if (
-                props == null
-                || !props.TryGetValue(SuspenseNodePropKey, out var raw)
-                || raw is not VirtualNode suspenseNode
-            )
+            var suspenseNode = (rawProps as SuspenseProps)?.Node;
+
+            if (suspenseNode == null)
             {
                 // Fallback: behave like a fragment over the children.
                 return WrapChildrenAsFragment(children);
@@ -282,11 +288,9 @@ namespace ReactiveUITK.Core.Fiber
             return V.Fragment(null, buffer);
         }
 
-        internal static Dictionary<string, object> CreateSuspenseProps(VirtualNode suspenseNode)
+        internal static SuspenseProps CreateSuspenseProps(VirtualNode suspenseNode)
         {
-            var dict = new Dictionary<string, object>(1);
-            dict[SuspenseNodePropKey] = suspenseNode;
-            return dict;
+            return new SuspenseProps { Node = suspenseNode };
         }
     }
 }

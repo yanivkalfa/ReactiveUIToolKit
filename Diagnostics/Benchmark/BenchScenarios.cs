@@ -232,7 +232,7 @@ namespace ReactiveUITK.Bench
                 lastShouldThrow = shouldThrow;
 
                 VirtualNode guardedChild = V.Func(
-                    (props, children) =>
+                    (IProps props, IReadOnlyList<VirtualNode> children) =>
                     {
                         if (shouldThrow)
                         {

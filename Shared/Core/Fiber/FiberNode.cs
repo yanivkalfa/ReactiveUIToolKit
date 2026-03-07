@@ -35,9 +35,16 @@ namespace ReactiveUITK.Core.Fiber
         public string ElementType;
 
         // ==== For Function Components ====
-        /// <summary>The render function</summary>
-        /// <summary>The render function</summary>
-        public Func<Dictionary<string, object>, IReadOnlyList<VirtualNode>, VirtualNode> Render;
+        /// <summary>
+        /// Typed render function — set for all function components (typed props or no-props).
+        /// </summary>
+        public Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> TypedRender;
+
+        /// <summary>Pending typed props for the next render (typed path only).</summary>
+        public IProps TypedPendingProps;
+
+        /// <summary>Committed typed props from the last successful render (typed path only).</summary>
+        public IProps TypedProps;
 
         /// <summary>Component state (hooks, effects)</summary>
         internal FunctionComponentState ComponentState;

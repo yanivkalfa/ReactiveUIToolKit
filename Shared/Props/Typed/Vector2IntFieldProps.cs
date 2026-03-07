@@ -5,7 +5,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class Vector2IntFieldProps
+    public sealed class Vector2IntFieldProps : global::ReactiveUITK.Core.IProps
     {
         public Vector2Int? Value { get; set; }
         public Style Style { get; set; }

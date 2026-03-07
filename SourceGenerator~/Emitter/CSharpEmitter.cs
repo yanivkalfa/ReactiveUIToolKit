@@ -147,17 +147,27 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             // ── Render method signature ───────────────────────────────────────
             L($"{I2}public static {QVNode} Render(");
-            L($"{I2}    Dictionary<string, object> __rawProps,");
+            L($"{I2}    global::ReactiveUITK.Core.IProps __rawProps,");
             L($"{I2}    IReadOnlyList<{QVNode}> __children)");
             L($"{I2}{{");
 
             // Props binding
             if (_directives.PropsTypeName is { } propsType)
             {
-                L($"{I3}var props = __rawProps != null");
-                L($"{I3}    && __rawProps.TryGetValue(\"__typed\", out var __tp)");
-                L($"{I3}    && __tp is {propsType} __p");
-                L($"{I3}    ? __p : new {propsType}();");
+                L($"{I3}var props = (__rawProps as {propsType}) ?? new {propsType}();");
+                L("");
+            }
+
+            // Function-style param variable bindings: var x = props.X;
+            if (_directives.IsFunctionStyle
+                && !_directives.FunctionParams.IsDefault
+                && !_directives.FunctionParams.IsEmpty)
+            {
+                foreach (var fp in _directives.FunctionParams)
+                {
+                    string propName = ToPropName(fp.Name);
+                    L($"{I3}var {fp.Name} = props.{propName};");
+                }
                 L("");
             }
 
@@ -193,6 +203,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
 
             L($"{I2}}}"); // close Render
+
+            // ── Auto-generated props class for function-style components ──────
+            // Emitted INSIDE the namespace but OUTSIDE the partial class, after
+            // the closing brace of the Render-containing partial class.
+            if (_directives.IsFunctionStyle
+                && !_directives.FunctionParams.IsDefault
+                && !_directives.FunctionParams.IsEmpty)
+            {
+                EmitFunctionPropsClass();
+            }
+
             L("    }"); // close class
             L("}"); // close namespace
 
@@ -279,11 +300,33 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ("useTransition(", "Hooks.UseTransition("),
         };
 
+        // Matches generic hook calls including up to 3 levels of nested type args:
+        //   useContext<Color>(                         → level 1
+        //   useRef<List<int>>(                         → level 2
+        //   useMemo<Dictionary<string, List<Color>>>(  → level 3
+        // The non-generic form is handled by s_hookAliases simple replacements above.
+        private static readonly System.Text.RegularExpressions.Regex s_genericHookAliasRe =
+            new System.Text.RegularExpressions.Regex(
+                @"\b(useState|useEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+                System.Text.RegularExpressions.RegexOptions.Compiled
+            );
+
         private static string ApplyHookAliases(string code)
         {
             // Fast path: bail early if no lowercase hook names are present
             if (code.IndexOf("use", StringComparison.Ordinal) < 0)
                 return code;
+            // Handle generic hook calls (e.g. useContext<Color>() → Hooks.UseContext<Color>())
+            code = s_genericHookAliasRe.Replace(
+                code,
+                m =>
+                {
+                    string hookName = m.Groups[1].Value;
+                    string typeArgs = m.Groups[2].Value;
+                    string pascalName = char.ToUpper(hookName[3]) + hookName.Substring(4);
+                    return $"Hooks.Use{pascalName}{typeArgs}(";
+                }
+            );
             foreach (var (from, to) in s_hookAliases)
                 code = code.Replace(from, to);
             return code;
@@ -527,20 +570,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             string typeName = res.FuncTypeName!;
 
-            bool hasAttrs = false;
-            foreach (var a in attrs)
+            if (res.FuncPropsTypeName != null)
             {
-                if (!IsKey(a.Name))
-                {
-                    hasAttrs = true;
-                    break;
-                }
-            }
+                // ── Typed path: V.Func<PropsType>(TypeName.Render, new PropsType { ... }) ──
+                string propsTypeName = res.FuncPropsTypeName;
+                _sb.Append($"V.Func<{propsTypeName}>({typeName}.Render, new {propsTypeName} {{");
 
-            if (hasAttrs)
-            {
-                _sb.Append($"V.Func({typeName}.Render, new Dictionary<string, object>");
-                _sb.Append(" {");
                 bool first = true;
                 foreach (var attr in attrs)
                 {
@@ -549,13 +584,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (!first)
                         _sb.Append(", ");
                     first = false;
-                    _sb.Append($" {{ \"{attr.Name}\", {AttrVal(attr.Value)} }}");
+                    _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
                 }
+
                 _sb.Append(" }");
             }
             else
             {
-                _sb.Append($"V.Func({typeName}.Render, (Dictionary<string, object>)null");
+                // ── No-props path: V.Func(TypeName.Render, ...) ──
+                _sb.Append($"V.Func({typeName}.Render");
             }
 
             _sb.Append($", key: {keyExpr}");
@@ -568,6 +605,82 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
 
             _sb.Append(")");
+        }
+
+        // ── Auto-generated props class ────────────────────────────────────────
+
+        /// <summary>
+        /// Emits a public sealed class <c>{ComponentName}Props : IProps</c> that
+        /// holds one auto-property per entry in <see cref="DirectiveSet.FunctionParams"/>.
+        ///
+        /// Generated structure (inside the same namespace, after the partial class closing brace):
+        /// <code>
+        ///   public sealed class FooProps : global::ReactiveUITK.Core.IProps
+        ///   {
+        ///       public int X { get; set; } = 0;
+        ///       public string Label { get; set; } = "hi";
+        ///
+        ///       public override bool Equals(object obj) { ... }
+        ///       public override int GetHashCode() { ... }
+        ///   }
+        /// </code>
+        /// </summary>
+        private void EmitFunctionPropsClass()
+        {
+            string className = _directives.ComponentName + "Props";
+            var fps = _directives.FunctionParams;
+
+            L("");
+            L($"    /// <summary>Auto-generated typed props for <see cref=\"{_directives.ComponentName}\"/>.</summary>");
+            L($"    public sealed class {className} : global::ReactiveUITK.Core.IProps");
+            L("    {");
+
+            // Properties
+            foreach (var fp in fps)
+            {
+                string propName = ToPropName(fp.Name);
+                string def = string.IsNullOrWhiteSpace(fp.DefaultValue) ? "default" : fp.DefaultValue!;
+                L($"        public {fp.Type} {propName} {{ get; set; }} = {def};");
+            }
+
+            L("");
+
+            // Equals
+            L("        public override bool Equals(object? obj)");
+            L("        {");
+            L($"            if (obj is not {className} other) return false;");
+            bool firstEq = true;
+            foreach (var fp in fps)
+            {
+                string propName = ToPropName(fp.Name);
+                string conjunction = firstEq ? "            return " : "                && ";
+                firstEq = false;
+                L($"{conjunction}global::System.Collections.Generic.EqualityComparer<{fp.Type}>.Default.Equals({propName}, other.{propName})");
+            }
+            if (firstEq) // no params — always equal
+                L("            return true;");
+            else
+                L("                ;"); // close the boolean chain with a dangling semicolon
+            L("        }");
+
+            L("");
+
+            // GetHashCode
+            L("        public override int GetHashCode()");
+            L("        {");
+            L("            unchecked");
+            L("            {");
+            L("                int hash = 17;");
+            foreach (var fp in fps)
+            {
+                string propName = ToPropName(fp.Name);
+                L($"                hash = hash * 31 + global::System.Collections.Generic.EqualityComparer<{fp.Type}>.Default.GetHashCode({propName}!);");
+            }
+            L("                return hash;");
+            L("            }");
+            L("        }");
+
+            L("    }");
         }
 
         private void EmitFragment(string keyExpr, ImmutableArray<AstNode> children)

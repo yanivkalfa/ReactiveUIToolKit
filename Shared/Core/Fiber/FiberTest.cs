@@ -37,7 +37,7 @@ namespace ReactiveUITK.Tests
 
             // Test 3: Function component
             var funcComp = V.Func(
-                (props, children) =>
+                (IProps props, IReadOnlyList<VirtualNode> children) =>
                 {
                     return V.Button(new ButtonProps { Text = "From Function Component" });
                 }
@@ -54,7 +54,7 @@ namespace ReactiveUITK.Tests
 
             // Test with stateful function component
             var counterFunc = V.Func(
-                (props, children) =>
+                (IProps props, IReadOnlyList<VirtualNode> children) =>
                 {
                     var (count, setCount) = Hooks.UseState(0);
 
@@ -93,7 +93,7 @@ namespace ReactiveUITK.Tests
             int effectRuns = 0;
 
             var effectComp = V.Func(
-                (props, children) =>
+                (IProps props, IReadOnlyList<VirtualNode> children) =>
                 {
                     Hooks.UseEffect(
                         () =>
@@ -126,7 +126,7 @@ namespace ReactiveUITK.Tests
             var signal = ReactiveUITK.Signals.Signals.Get<int>("FiberTest.SignalCounter", 0);
 
             var signalComp = V.Func(
-                (props, children) =>
+                (IProps props, IReadOnlyList<VirtualNode> children) =>
                 {
                     var value = Hooks.UseSignal(signal);
 

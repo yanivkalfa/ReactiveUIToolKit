@@ -2,6 +2,20 @@ using System.Collections.Immutable;
 
 namespace ReactiveUITK.Language.Parser
 {
+    // ── Typed-props function parameter ───────────────────────────────────────
+
+    /// <summary>
+    /// A single typed parameter declared inside the function-style component header:
+    /// <c>component Name(int X = 0, string Label = "")</c>.
+    ///
+    /// <list type="bullet">
+    ///   <item><description><see cref="Type"/> — verbatim C# type (may include generics, e.g. <c>List&lt;string&gt;</c>).</description></item>
+    ///   <item><description><see cref="Name"/> — identifier used both as local variable in the body and (PascalCase) as the property name in the generated props class.</description></item>
+    ///   <item><description><see cref="DefaultValue"/> — verbatim default expression, or <c>null</c> if omitted (maps to <c>default</c> in the generated class).</description></item>
+    /// </list>
+    /// </summary>
+    public sealed record FunctionParam(string Type, string Name, string? DefaultValue);
+
     // ── Directive data ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -54,7 +68,18 @@ namespace ReactiveUITK.Language.Parser
         /// 1-based line where function-style setup code begins inside
         /// <c>component Name { ... }</c>. <c>-1</c> when unavailable.
         /// </summary>
-        int FunctionSetupStartLine = -1
+        int FunctionSetupStartLine = -1,
+        /// <summary>
+        /// Parameters declared in the function-style component header:
+        /// <c>component Name(int X = 0, string Label = "")</c>.
+        ///
+        /// When non-empty the source generator auto-derives a companion props class
+        /// named <c>{ComponentName}Props</c> and exposes each parameter as a local
+        /// variable in the Render method body.
+        ///
+        /// Default: <c>default</c> (empty / not used).
+        /// </summary>
+        ImmutableArray<FunctionParam> FunctionParams = default
     );
 
     // ── Full parse result ─────────────────────────────────────────────────────

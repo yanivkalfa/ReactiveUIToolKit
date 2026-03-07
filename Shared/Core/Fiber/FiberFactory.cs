@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 
 namespace ReactiveUITK.Core.Fiber
@@ -48,13 +48,14 @@ namespace ReactiveUITK.Core.Fiber
 
                 case VirtualNodeType.FunctionComponent:
                     fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = vnode.FunctionRender;
+                    fiber.TypedRender = vnode.TypedFunctionRender;
+                    fiber.TypedPendingProps = vnode.TypedProps;
                     break;
 
                 case VirtualNodeType.Suspense:
                     fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = FiberIntrinsicComponents.SuspenseRender;
-                    fiber.PendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    fiber.TypedRender = FiberIntrinsicComponents.SuspenseRender;
+                    fiber.TypedPendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
                     fiber.EffectTag = EffectFlags.None;
                     break;
 
@@ -102,7 +103,9 @@ namespace ReactiveUITK.Core.Fiber
                 Tag = current.Tag,
                 ElementType = current.ElementType,
                 Key = current.Key,
-                Render = current.Render,
+                TypedRender = current.TypedRender,
+                TypedProps = current.TypedProps,
+                TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps,
                 HostElement = current.HostElement,
                 ComponentState = current.ComponentState, // CRITICAL: Share, don't clone! Callbacks reference this.
                 Props = current.Props,
@@ -144,7 +147,7 @@ namespace ReactiveUITK.Core.Fiber
             // isn't fully connected yet. The update happens in CommitRoot after tree swap
             // when all parent references are guaranteed to be correct.
 
-            var name = clone.ElementType ?? clone.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            var name = clone.ElementType ?? clone.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             return clone;
         }
 
@@ -157,12 +160,12 @@ namespace ReactiveUITK.Core.Fiber
             if (parent?.Alternate?.Child == null)
             {
                 var parentName =
-                    parent?.ElementType ?? parent?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    parent?.ElementType ?? parent?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 return null;
             }
 
             var parentName2 =
-                parent.ElementType ?? parent.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                parent.ElementType ?? parent.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             var current = parent.Alternate.Child;
 
             // Clone first child - pass null VNode to preserve prop identity
@@ -199,7 +202,7 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    return new Dictionary<string, object>();
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>

@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 using ReactiveUITK.Language;
@@ -92,56 +93,23 @@ namespace ReactiveUITK.SourceGenerator
             // ReactiveUITK.Samples both pass Guard 1). Emitting the same partial class
             // into both causes CS0436 "conflicts with imported type".
             //
-            // Ownership is determined by two checks in priority order:
+            // Ownership is determined by walking up the directory tree from the .uitkx
+            // file looking for the nearest *.asmdef file. Unity always uses the nearest
+            // ancestor .asmdef to decide which compiled assembly owns a given source file
+            // — this generator uses the same rule so no companion .cs is required.
             //
-            //  (A) Companion-file check — the compilation has a SyntaxTree whose
-            //      filename stem matches the .uitkx stem (e.g. "UitkxCounterFunc").
-            //      This is the canonical Unity convention: every .uitkx has a partner
-            //      .cs file in the same folder, and the partner belongs to exactly one
-            //      assembly.
-            //
-            //  (B) Directory check — as a fallback, the compilation has a SyntaxTree
-            //      whose resolved directory path matches the .uitkx file's directory.
-            //      Uses suffix-based matching to handle both absolute and relative
-            //      SyntaxTree.FilePath values (Unity can emit either).
-            //
-            // NOTE: Unity uses forward-slash paths in SyntaxTree.FilePath while the
-            // AdditionalText paths (from UitkxCsprojPostprocessor) use backslashes.
-            // We normalise to the OS separator before comparing.
-            string uitkxStem = Path.GetFileNameWithoutExtension(filePath);
-            string uitkxDir  = NormalizeDir(Path.GetDirectoryName(filePath));
-            bool ownedByThisCompilation = false;
+            //   - Found .asmdef  → read its "name" field; owned when that equals
+            //                      compilation.AssemblyName.
+            //   - No .asmdef    → file lives in the default Assembly-CSharp (or
+            //     found before       Assembly-CSharp-Editor) assembly; owned when
+            //     reaching Assets/   compilation.AssemblyName starts with
+            //                      "Assembly-CSharp".
+            string? ownerAsmName = FindOwningAsmdefAssemblyName(filePath);
+            bool ownedByThisCompilation = ownerAsmName != null
+                ? string.Equals(ownerAsmName, compilation.AssemblyName, StringComparison.Ordinal)
+                : (compilation.AssemblyName ?? string.Empty).StartsWith(
+                      "Assembly-CSharp", StringComparison.Ordinal);
 
-            foreach (var tree in compilation.SyntaxTrees)
-            {
-                if (string.IsNullOrEmpty(tree.FilePath)) continue;
-
-                string treeStem = Path.GetFileNameWithoutExtension(tree.FilePath);
-                string treeDir  = NormalizeDir(Path.GetDirectoryName(tree.FilePath));
-
-                // (A) Companion-file match — stem AND same directory.
-                // Stem-only matching is intentionally avoided: two .uitkx files with
-                // the same component name but in different folders (e.g. Samples/Legacy
-                // and Samples/UITKX) both have companion .cs files in the same
-                // assembly. Without the directory check both would claim ownership and
-                // their generated sources would be bound to the same hint name,
-                // causing the second AddSource call to be silently dropped and one
-                // component's Render method to never be emitted.
-                if (string.Equals(treeStem, uitkxStem, StringComparison.OrdinalIgnoreCase)
-                    && DirsMatch(uitkxDir, treeDir))
-                {
-                    ownedByThisCompilation = true;
-                    break;
-                }
-
-                // (B) Directory suffix / exact match — fallback when no companion
-                // .cs file exists yet (new component, not yet created).
-                if (DirsMatch(uitkxDir, treeDir))
-                {
-                    ownedByThisCompilation = true;
-                    break;
-                }
-            }
             if (!ownedByThisCompilation)
             {
                 return new UitkxPipelineResult(
@@ -226,6 +194,50 @@ namespace ReactiveUITK.SourceGenerator
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
+        // Matches the "name" field in a Unity .asmdef JSON file.
+        private static readonly Regex s_asmdefNameRegex = new Regex(
+            @"""name""\s*:\s*""([^""]+)""",
+            RegexOptions.CultureInvariant
+        );
+
+        /// <summary>
+        /// Walks up the directory tree from <paramref name="uitkxFilePath"/> looking
+        /// for the nearest <c>*.asmdef</c> file. Returns the assembly name declared
+        /// in that file's <c>"name"</c> JSON field, or <c>null</c> when no .asmdef
+        /// is found (meaning the file belongs to the default <c>Assembly-CSharp</c>
+        /// assembly). The walk stops at the <c>Assets</c> directory boundary.
+        /// </summary>
+        private static string? FindOwningAsmdefAssemblyName(string uitkxFilePath)
+        {
+            try
+            {
+                string? dir = Path.GetDirectoryName(uitkxFilePath);
+                while (!string.IsNullOrEmpty(dir))
+                {
+                    foreach (string asmdef in Directory.GetFiles(dir, "*.asmdef"))
+                    {
+                        string json = File.ReadAllText(asmdef);
+                        var m = s_asmdefNameRegex.Match(json);
+                        if (m.Success)
+                            return m.Groups[1].Value.Trim();
+                    }
+
+                    // Stop at the Assets folder — above it is the Unity project root,
+                    // not part of any assembly.
+                    string dirName = Path.GetFileName(dir);
+                    if (string.Equals(dirName, "Assets", StringComparison.OrdinalIgnoreCase))
+                        break;
+
+                    dir = Path.GetDirectoryName(dir);
+                }
+            }
+            catch
+            {
+                // Never crash the generator on filesystem errors.
+            }
+            return null;
+        }
+
         private static Diagnostic ParseDiagToRoslyn(ParseDiagnostic pd)
         {
             var severity = pd.Severity == ParseSeverity.Error
@@ -242,59 +254,6 @@ namespace ReactiveUITK.SourceGenerator
                 isEnabledByDefault: true
             );
             return Diagnostic.Create(desc, Location.None);
-        }
-
-        /// <summary>
-        /// Normalises a directory path for cross-platform comparison.
-        /// Converts forward slashes to backslashes (Windows canonical form) and
-        /// strips any trailing separator so that two equivalent paths always compare
-        /// equal regardless of how Unity or the OS produced them.
-        /// </summary>
-        private static string NormalizeDir(string? dir)
-        {
-            if (dir == null) return string.Empty;
-            // Use the OS separator everywhere, then strip trailing separators.
-            return dir
-                .Replace('/', Path.DirectorySeparatorChar)
-                .Replace('\\', Path.DirectorySeparatorChar)
-                .TrimEnd(Path.DirectorySeparatorChar)
-                .TrimEnd(Path.AltDirectorySeparatorChar);
-        }
-
-        /// <summary>
-        /// Returns true when two normalised directory paths refer to the same
-        /// location, handling the case where one path is an absolute form of the
-        /// other (Unity can emit relative SyntaxTree.FilePath values while
-        /// AdditionalText paths are absolute).
-        ///
-        /// The suffix rule: "X:\absolute\path\Samples\Components" matches the
-        /// relative path "Assets\ReactiveUIToolKit\Samples\Components" because
-        /// the longer absolute path ends with the separator-prefixed shorter path.
-        /// </summary>
-        private static bool DirsMatch(string dir1, string dir2)
-        {
-            if (string.IsNullOrEmpty(dir1) || string.IsNullOrEmpty(dir2))
-                return false;
-
-            // Fast path: exact equality (both absolute on same machine).
-            if (string.Equals(dir1, dir2, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            // One path is a relative suffix of the other.
-            // Require a path separator immediately before the shorter string
-            // starts inside the longer one, to avoid false prefix matches.
-            string longer  = dir1.Length >= dir2.Length ? dir1 : dir2;
-            string shorter = dir1.Length <  dir2.Length ? dir1 : dir2;
-
-            if (longer.Length > shorter.Length
-                && longer.EndsWith(shorter, StringComparison.OrdinalIgnoreCase))
-            {
-                char sep = longer[longer.Length - shorter.Length - 1];
-                if (sep == Path.DirectorySeparatorChar || sep == Path.AltDirectorySeparatorChar)
-                    return true;
-            }
-
-            return false;
         }
 
         private static string BuildHintName(string filePath)

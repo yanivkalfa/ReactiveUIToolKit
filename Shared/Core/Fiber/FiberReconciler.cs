@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ReactiveUITK.Core;
@@ -155,7 +155,7 @@ namespace ReactiveUITK.Core.Fiber
             bool isDeleted = false;
 
             var fiberName =
-                fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber?.ElementType ?? fiber?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             // Mark the target fiber as having an update
             if (fiber != null)
             {
@@ -175,7 +175,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var parentName =
                         rootCurrent.Parent.ElementType
-                        ?? rootCurrent.Parent.Render?.Method.DeclaringType?.Name
+                        ?? rootCurrent.Parent.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                     rootCurrent.Parent.SubtreeHasUpdates = true;
                 }
@@ -183,7 +183,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var currName =
                         rootCurrent.ElementType
-                        ?? rootCurrent.Render?.Method.DeclaringType?.Name
+                        ?? rootCurrent.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                 }
 
@@ -245,7 +245,7 @@ namespace ReactiveUITK.Core.Fiber
                 // Queue the specific fiber update to replay it after commit
                 _deferredUpdates.Enqueue((fiber, vnode));
                 var fiberName2 =
-                    fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    fiber?.ElementType ?? fiber?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 return;
             }
 
@@ -549,7 +549,7 @@ namespace ReactiveUITK.Core.Fiber
 
             // Propagate update flags to WIP - root is special case, doesn't use factory
             var componentName =
-                current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "root";
+                current.ElementType ?? current.TypedRender?.Method.DeclaringType?.Name ?? "root";
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
@@ -693,7 +693,7 @@ namespace ReactiveUITK.Core.Fiber
                     var (fiber, vnode) = _deferredUpdates.Dequeue();
                     var name =
                         fiber?.ElementType
-                        ?? fiber?.Render?.Method.DeclaringType?.Name
+                        ?? fiber?.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                     // Update flags/WIP but DON'T schedule work yet
                     ScheduleUpdateOnFiber(fiber, vnode, scheduleWork: false);
@@ -1006,7 +1006,7 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             var fiberName =
-                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             // Depth-first delete: clean up subtree before removing the current node.
             // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
@@ -1258,38 +1258,6 @@ namespace ReactiveUITK.Core.Fiber
             // behind FiberConfig.EnableFiberLogging if needed.
         }
 
-        private FiberNode CreateFiberFromVNode(VirtualNode vnode)
-        {
-            if (vnode == null)
-                return null;
-
-            var fiber = new FiberNode
-            {
-                Key = vnode.Key,
-                PendingProps = ExtractProps(vnode),
-                Children = vnode.Children,
-            };
-
-            switch (vnode.NodeType)
-            {
-                case VirtualNodeType.Element:
-                    fiber.Tag = FiberTag.HostComponent;
-                    fiber.ElementType = vnode.ElementTypeName;
-                    break;
-
-                case VirtualNodeType.FunctionComponent:
-                    fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = vnode.FunctionRender;
-                    break;
-
-                case VirtualNodeType.Fragment:
-                    fiber.Tag = FiberTag.Fragment;
-                    break;
-            }
-
-            return fiber;
-        }
-
         // ===== Helper methods =====
 
         private IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
@@ -1302,7 +1270,7 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    return new Dictionary<string, object>(); // Suspense uses TypedPendingProps (SuspenseProps)
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -1387,10 +1355,19 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber == null)
                 return;
 
-            var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            var name = fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
 
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
+
+            // Commit typed props so the next render cycle's IProps equality check sees
+            // the last-rendered props as the baseline (not stale pre-bailout props).
+            // Without this, TypedProps would only be updated by the bailout path,
+            // causing unnecessary re-renders whenever props change (even to same value).
+            if (fiber.TypedPendingProps != null)
+            {
+                fiber.TypedProps = fiber.TypedPendingProps;
+            }
 
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;
