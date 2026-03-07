@@ -45,9 +45,9 @@ namespace ReactiveUITK.Props.Typed
         public EventCallback<WheelEvent> OnScroll { get; set; }
 
         // --- Drag events (editor-only) ---
+#if UNITY_EDITOR
         public EventCallback<DragEnterEvent> OnDragEnter { get; set; }
         public EventCallback<DragLeaveEvent> OnDragLeave { get; set; }
-#if UNITY_EDITOR
         public EventCallback<DragUpdatedEvent> OnDragUpdated { get; set; }
         public EventCallback<DragPerformEvent> OnDragPerform { get; set; }
         public EventCallback<DragExitedEvent> OnDragExited { get; set; }
@@ -101,9 +101,9 @@ namespace ReactiveUITK.Props.Typed
             if (OnPointerLeave != null) dict["onPointerLeave"] = OnPointerLeave;
             if (OnWheel != null) dict["onWheel"] = OnWheel;
             if (OnScroll != null) dict["onScroll"] = OnScroll;
+#if UNITY_EDITOR
             if (OnDragEnter != null) dict["onDragEnter"] = OnDragEnter;
             if (OnDragLeave != null) dict["onDragLeave"] = OnDragLeave;
-#if UNITY_EDITOR
             if (OnDragUpdated != null) dict["onDragUpdated"] = OnDragUpdated;
             if (OnDragPerform != null) dict["onDragPerform"] = OnDragPerform;
             if (OnDragExited != null) dict["onDragExited"] = OnDragExited;
