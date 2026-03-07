@@ -95,16 +95,19 @@ namespace ReactiveUITK.CICD
                             if (Directory.Exists(abs))
                             {
                                 DeleteDirectory(abs);
+                                TryDeleteFile(abs + ".meta");
                                 continue;
                             }
 
                             DeleteAllStartingWith(distRoot, basePath);
+                            TryDeleteFile(abs + ".meta");
                             continue;
                         }
 
                         if (Directory.Exists(abs))
                         {
                             DeleteDirectory(abs);
+                            TryDeleteFile(abs + ".meta");
                             continue;
                         }
                         if (File.Exists(abs))
