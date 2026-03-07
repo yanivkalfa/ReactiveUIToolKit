@@ -122,6 +122,17 @@ namespace ReactiveUITK
                     userStyle = style;
                     break;
 
+                case BaseProps baseProps:
+                    props = new Dictionary<string, object>(baseProps.ToDictionary());
+                    if (
+                        props.TryGetValue("style", out var basePropStyleObj)
+                        && basePropStyleObj is Style basePropStyle
+                    )
+                    {
+                        userStyle = basePropStyle;
+                    }
+                    break;
+
                 case IReadOnlyDictionary<string, object> dictionary:
                     props = new Dictionary<string, object>(dictionary);
                     if (
@@ -135,7 +146,7 @@ namespace ReactiveUITK
 
                 default:
                     throw new ArgumentException(
-                        "VisualElementSafe expects either a Style or a props dictionary as the first argument.",
+                        "VisualElementSafe expects either a Style, a BaseProps, or a props dictionary as the first argument.",
                         nameof(elementPropsOrStyle)
                     );
             }
