@@ -108,7 +108,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Force Re-render (change trigger)",
-                        OnClick = () => setTrigger.Set(t => t + 1),
+                        OnClick = _ => setTrigger.Set(t => t + 1),
                         Style = new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 240f) },
                     }
                 ),

@@ -42,15 +42,15 @@ component UitkxCounterFunc {
             }
             @(component)
             <VisualElement>
-                <Button text="-5" onClick={() => setCount(count - 5)} />
-                <Button text="-" onClick={() => setCount(count - 1)} />
+                <Button text="-5" onClick={_ => setCount(count - 5)} />
+                <Button text="-" onClick={_ => setCount(count - 1)} />
                 <Label text={$"{count}"} />
-                <Button text="+" onClick={() => setCount(count + 1)} />
-                <Button text="+5" onClick={() => setCount(count + 5)} />
+                <Button text="+" onClick={_ => setCount(count + 1)} />
+                <Button text="+5" onClick={_ => setCount(count + 5)} />
             </VisualElement>
             <VisualElement>
-                <Button text="Normal" onClick={() => setMode("normal")} />
-                <Button text="Squared" onClick={() => setMode("squared")} />
+                <Button text="Normal" onClick={_ => setMode("normal")} />
+                <Button text="Squared" onClick={_ => setMode("squared")} />
             </VisualElement>
         </VisualElement>
     );

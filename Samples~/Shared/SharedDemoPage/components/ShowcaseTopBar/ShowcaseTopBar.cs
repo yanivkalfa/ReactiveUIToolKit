@@ -12,7 +12,7 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public string InputText { get; set; }
-            public Action<ChangeEvent<string>> OnInputChange { get; set; }
+            public ChangeEventHandler<string> OnInputChange { get; set; }
             public Action OnSetText { get; set; }
             public DateTime CurrentTime { get; set; }
         }
@@ -42,7 +42,7 @@ namespace ReactiveUITK.Samples.Shared
                 V.Button(new ButtonProps
                 {
                     Text = "Set Text",
-                    OnClick = p?.OnSetText,
+                    OnClick = _ => p?.OnSetText?.Invoke(),
                     Style = new Style { (MarginLeft, 6f), (Height, 28f) },
                 }),
                 V.VisualElement(

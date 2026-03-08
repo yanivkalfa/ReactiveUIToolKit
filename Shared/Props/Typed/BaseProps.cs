@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -35,38 +36,41 @@ namespace ReactiveUITK.Props.Typed
         public LanguageDirection? LanguageDirection { get; set; }
 
         // --- Pointer events ---
-        public Action OnClick { get; set; }
-        public EventCallback<PointerDownEvent> OnPointerDown { get; set; }
-        public EventCallback<PointerUpEvent> OnPointerUp { get; set; }
-        public EventCallback<PointerMoveEvent> OnPointerMove { get; set; }
-        public EventCallback<PointerEnterEvent> OnPointerEnter { get; set; }
-        public EventCallback<PointerLeaveEvent> OnPointerLeave { get; set; }
-        public EventCallback<WheelEvent> OnWheel { get; set; }
-        public EventCallback<WheelEvent> OnScroll { get; set; }
+        public PointerEventHandler     OnClick          { get; set; }
+        public PointerEventHandler     OnPointerDown    { get; set; }
+        public PointerEventHandler     OnPointerUp      { get; set; }
+        public PointerEventHandler     OnPointerMove    { get; set; }
+        public PointerEventHandler     OnPointerEnter   { get; set; }
+        public PointerEventHandler     OnPointerLeave   { get; set; }
+        public WheelEventHandler       OnWheel          { get; set; }
+        public WheelEventHandler       OnScroll         { get; set; }
 
         // --- Drag events (editor-only) ---
 #if UNITY_EDITOR
-        public EventCallback<DragEnterEvent> OnDragEnter { get; set; }
-        public EventCallback<DragLeaveEvent> OnDragLeave { get; set; }
-        public EventCallback<DragUpdatedEvent> OnDragUpdated { get; set; }
-        public EventCallback<DragPerformEvent> OnDragPerform { get; set; }
-        public EventCallback<DragExitedEvent> OnDragExited { get; set; }
+        public DragEventHandler        OnDragEnter      { get; set; }
+        public DragEventHandler        OnDragLeave      { get; set; }
+        public DragEventHandler        OnDragUpdated    { get; set; }
+        public DragEventHandler        OnDragPerform    { get; set; }
+        public DragEventHandler        OnDragExited     { get; set; }
 #endif
 
         // --- Focus events ---
-        public EventCallback<FocusEvent> OnFocus { get; set; }
-        public EventCallback<BlurEvent> OnBlur { get; set; }
-        public EventCallback<FocusInEvent> OnFocusIn { get; set; }
-        public EventCallback<FocusOutEvent> OnFocusOut { get; set; }
+        public FocusEventHandler       OnFocus          { get; set; }
+        public FocusEventHandler       OnBlur           { get; set; }
+        public FocusEventHandler       OnFocusIn        { get; set; }
+        public FocusEventHandler       OnFocusOut       { get; set; }
 
         // --- Keyboard events ---
-        public EventCallback<KeyDownEvent> OnKeyDown { get; set; }
-        public EventCallback<KeyUpEvent> OnKeyUp { get; set; }
+        public KeyboardEventHandler    OnKeyDown        { get; set; }
+        public KeyboardEventHandler    OnKeyUp          { get; set; }
+
+        // --- Input event (fires on every keystroke) ---
+        public InputEventHandler       OnInput          { get; set; }
 
         // --- Lifecycle events ---
-        public EventCallback<GeometryChangedEvent> OnGeometryChanged { get; set; }
-        public EventCallback<AttachToPanelEvent> OnAttachToPanel { get; set; }
-        public EventCallback<DetachFromPanelEvent> OnDetachFromPanel { get; set; }
+        public GeometryChangedEventHandler OnGeometryChanged  { get; set; }
+        public PanelLifecycleEventHandler  OnAttachToPanel    { get; set; }
+        public PanelLifecycleEventHandler  OnDetachFromPanel  { get; set; }
 
         // --- Escape hatch for non-standard / custom prop keys ---
         /// <summary>
@@ -147,6 +151,8 @@ namespace ReactiveUITK.Props.Typed
                 dict["onKeyDown"] = OnKeyDown;
             if (OnKeyUp != null)
                 dict["onKeyUp"] = OnKeyUp;
+            if (OnInput != null)
+                dict["onInput"] = OnInput;
             if (OnGeometryChanged != null)
                 dict["onGeometryChanged"] = OnGeometryChanged;
             if (OnAttachToPanel != null)

@@ -1,13 +1,14 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine.UIElements;
 
+using ReactiveUITK.Core;
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class ToggleProps : BaseProps
     {
         public bool? Value { get; set; }
         public string Text { get; set; }
-        public System.Action<ChangeEvent<bool>> OnChange { get; set; }
+        public ChangeEventHandler<bool> OnChange { get; set; }
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> Checkmark { get; set; }

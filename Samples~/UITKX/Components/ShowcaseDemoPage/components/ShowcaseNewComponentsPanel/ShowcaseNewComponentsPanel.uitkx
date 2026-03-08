@@ -1,20 +1,21 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
+@using ReactiveUITK.Core
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ShowcaseNewComponentsPanel(
     bool foldoutOpen = true,
-    Action<ChangeEvent<bool>>? onFoldoutChange = null,
+    ChangeEventHandler<bool>? onFoldoutChange = null,
     float sliderValue = 0.5f,
-    Action<ChangeEvent<float>>? onSliderChange = null,
+    ChangeEventHandler<float>? onSliderChange = null,
     int sliderIntValue = 5,
-    Action<ChangeEvent<int>>? onSliderIntChange = null,
+    ChangeEventHandler<int>? onSliderIntChange = null,
     List<string>? ddChoices = null,
     string ddValue = "",
-    Action<ChangeEvent<string>>? onDdChange = null
+    ChangeEventHandler<string>? onDdChange = null
 ) {
     var groupContentStyle = new Style {
         (PaddingLeft, 8f), (PaddingRight, 8f),
@@ -26,14 +27,14 @@ component ShowcaseNewComponentsPanel(
     return (
         <GroupBox
             text="New Components"
-            contentContainer={new System.Collections.Generic.Dictionary<string, object> { { "style", groupContentStyle } }}
+            contentContainer={new Dictionary<string, object> { { "style", groupContentStyle } }}
         >
             <Foldout
                 text="More settings"
                 value={foldoutOpen}
                 onChange={onFoldoutChange}
-                header={new System.Collections.Generic.Dictionary<string, object> { { "style", new Style { (BackgroundColor, new Color(0.95f, 0.95f, 0.95f, 1f)), (PaddingLeft, 4f), (PaddingTop, 2f), (PaddingBottom, 2f) } } }}
-                contentContainer={new System.Collections.Generic.Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f) } } }}
+                header={new Dictionary<string, object> { { "style", new Style { (BackgroundColor, new Color(0.95f, 0.95f, 0.95f, 1f)), (PaddingLeft, 4f), (PaddingTop, 2f), (PaddingBottom, 2f) } } }}
+                contentContainer={new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f) } } }}
             >
                 <Label text="Inside foldout" />
             </Foldout>

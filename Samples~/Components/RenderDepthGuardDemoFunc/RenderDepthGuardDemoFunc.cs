@@ -69,7 +69,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = $"Render Safe Tree (depth {SafeDepth})",
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 setDepth(SafeDepth);
                                 setTriggered(false);
@@ -81,7 +81,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = $"Trigger Deep Tree (depth {DangerDepth} > 25) ⚠",
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 setDepth(DangerDepth);
                                 setTriggered(true);

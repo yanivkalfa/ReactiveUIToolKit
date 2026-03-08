@@ -28,8 +28,8 @@ namespace ReactiveUITK.Samples.Shared
             var (showTabs, setShowTabs) = Hooks.UseState(true);
             var (listRows, setListRows) = Hooks.UseState(new List<ListViewRowState>());
             var (mclvRows, setMclvRows) = Hooks.UseState(new List<MultiColumnListViewRowState>());
-            var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<List<MultiColumnListViewProps.SortedColumnDef>>(null);
-            var (mclvLayout, setMclvLayout) = Hooks.UseState<MultiColumnListViewProps.ColumnLayoutState>(null);
+            var (mclvSortDefs, setMclvSortDefs) = Hooks.UseState<List<SortedColumnDef>>(null);
+            var (mclvLayout, setMclvLayout) = Hooks.UseState<ColumnLayoutState>(null);
 
             // Propagate tab index to parent for ValuesBar
             Hooks.UseEffect(
@@ -131,17 +131,17 @@ namespace ReactiveUITK.Samples.Shared
                 });
             };
 
-            Action<MultiColumnListViewProps.ColumnLayoutState> mclvLayoutChanged = layout =>
+            ColumnLayoutEventHandler mclvLayoutChanged = layout =>
             {
-                var clone = SharedDemoPageUtils.CloneListLayout(layout);
-                if (SharedDemoPageUtils.ListLayoutEqual(clone, mclvLayout)) return;
+                var clone = SharedDemoPageUtils.CloneLayout(layout);
+                if (SharedDemoPageUtils.LayoutEqual(clone, mclvLayout)) return;
                 setMclvLayout.Set(_ => clone);
             };
 
-            Action<List<MultiColumnListViewProps.SortedColumnDef>> mclvSortChanged = defs =>
+            ColumnSortEventHandler mclvSortChanged = defs =>
             {
                 setMclvSortDefs(
-                    defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null
+                    defs != null ? new List<SortedColumnDef>(defs) : null
                 );
             };
 
@@ -149,7 +149,7 @@ namespace ReactiveUITK.Samples.Shared
             var listTabViewProps = new TabViewProps
             {
                 SelectedTabIndex = listTabIndex,
-                SelectedIndexChanged = (Action<int>)(index => setListTabIndex(index)),
+                SelectedIndexChanged = index => setListTabIndex(index),
                 Tabs = new List<TabViewProps.TabDef>
                 {
                     new()
@@ -202,7 +202,7 @@ namespace ReactiveUITK.Samples.Shared
                 V.Button(new ButtonProps
                 {
                     Text = showTabs ? "Hide List Tabs" : "Show List Tabs",
-                    OnClick = () => setShowTabs(!showTabs),
+                    OnClick = _ => setShowTabs(!showTabs),
                 }),
                 V.Label(new LabelProps
                 {

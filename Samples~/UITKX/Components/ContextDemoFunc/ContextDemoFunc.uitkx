@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 component ContextDemoFunc {
     var (usePrimaryTheme, setUsePrimaryTheme) = useState(true);
@@ -21,7 +21,7 @@ component ContextDemoFunc {
             <Label text="Context Demo (toggle theme to see consumers update)" />
             <Button
                 text={usePrimaryTheme ? "Switch To Warm Theme" : "Switch To Cool Theme"}
-                onClick={() => setUsePrimaryTheme(prev => !prev)}
+                onClick={_ => setUsePrimaryTheme(prev => !prev)}
                 style={new Style { (StyleKeys.Width, 220f) }}
             />
             <ContextConsumer />

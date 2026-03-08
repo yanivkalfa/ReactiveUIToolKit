@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
+using UnityEngine;
 using UnityEngine.UIElements;
+using static ReactiveUITK.Props.Typed.StyleKeys;
 
 namespace ReactiveUITK.Samples.Shared
 {
@@ -29,10 +31,9 @@ namespace ReactiveUITK.Samples.Shared
             var setTopItem = p?.SetTopItem;
             var deleteLast = p?.DeleteLast;
 
-            var rowRenderer = Hooks.UseMemo(
+            var rowRenderer = Hooks.UseMemo<RowRenderer>(
                 () =>
-                    (Func<int, object, VirtualNode>)(
-                        (index, obj) =>
+                    (index, obj) =>
                         {
                             var r = obj as ListViewRowState;
                             if (r == null)
@@ -48,8 +49,7 @@ namespace ReactiveUITK.Samples.Shared
                                 ? V.Label(new LabelProps { Text = r.Text ?? "<null>" }, funcKey)
                                 : V.Func(IntroCounterFunc.Render, null, funcKey);
                             return V.VisualElement(null, key: $"lv-wrap-{id}", childrenNode);
-                        }
-                    ),
+                        },
                 items
             );
 
@@ -80,24 +80,24 @@ namespace ReactiveUITK.Samples.Shared
                 Row = rowRenderer,
                 Style = new Style
                 {
-                    (ReactiveUITK.Props.Typed.StyleKeys.FlexGrow, 1f),
+                    (FlexGrow, 1f),
                     (
-                        ReactiveUITK.Props.Typed.StyleKeys.BackgroundColor,
-                        new UnityEngine.Color(0.15f, 0.15f, 0.15f, 1f)
+                        BackgroundColor,
+                        new Color(0.15f, 0.15f, 0.15f, 1f)
                     ),
                 },
             };
 
-            Action Safe(Action candidate) => candidate ?? (() => { });
+            PointerEventHandler Safe(Action candidate) => _ => candidate?.Invoke();
 
             var controls = V.VisualElement(
                 new VisualElementProps
                 {
                     Style = new Style
                     {
-                        (ReactiveUITK.Props.Typed.StyleKeys.FlexDirection, "row"),
-                        (ReactiveUITK.Props.Typed.StyleKeys.FlexShrink, 0f),
-                        (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 6f),
+                        (StyleKeys.FlexDirection, "row"),
+                        (FlexShrink, 0f),
+                        (MarginBottom, 6f),
                     },
                 },
                 null,

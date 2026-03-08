@@ -36,7 +36,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Increment batched",
-                        OnClick = () => setBatchedCount.Set(v => v + 1),
+                        OnClick = _ => setBatchedCount.Set(v => v + 1),
                     }
                 ),
                 V.Label(new LabelProps { Text = $"FlushSync counter: {syncCount}" }),
@@ -44,7 +44,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Increment with FlushSync",
-                        OnClick = () => Hooks.FlushSync(() => setSyncCount.Set(v => v + 1)),
+                        OnClick = _ => Hooks.FlushSync(() => setSyncCount.Set(v => v + 1)),
                     }
                 )
             );

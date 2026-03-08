@@ -67,7 +67,7 @@ namespace ReactiveUITK.Samples.Shared
             var leftButtonProps = new ButtonProps
             {
                 Style = LeftButtonStyle,
-                OnClick = () =>
+                OnClick = _ =>
                 {
                     setLeftClicks(leftClicks + 1);
                     setParentText?.Invoke("left");
@@ -78,7 +78,7 @@ namespace ReactiveUITK.Samples.Shared
             var rightButtonProps = new ButtonProps
             {
                 Style = RightButtonStyle,
-                OnClick = () =>
+                OnClick = _ =>
                 {
                     setRightClicks(rightClicks + 1);
                     setParentText?.Invoke("right");

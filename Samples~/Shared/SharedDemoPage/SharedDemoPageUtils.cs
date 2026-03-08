@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 
 namespace ReactiveUITK.Samples.Shared
@@ -28,12 +29,10 @@ namespace ReactiveUITK.Samples.Shared
             return true;
         }
 
-        internal static MultiColumnListViewProps.ColumnLayoutState CloneListLayout(
-            MultiColumnListViewProps.ColumnLayoutState layout
-        )
+        internal static ColumnLayoutState CloneLayout(ColumnLayoutState layout)
         {
             if (layout == null) return null;
-            return new MultiColumnListViewProps.ColumnLayoutState
+            return new ColumnLayoutState
             {
                 ColumnWidths = CloneDict(layout.ColumnWidths),
                 ColumnVisibility = CloneDict(layout.ColumnVisibility),
@@ -41,33 +40,7 @@ namespace ReactiveUITK.Samples.Shared
             };
         }
 
-        internal static bool ListLayoutEqual(
-            MultiColumnListViewProps.ColumnLayoutState a,
-            MultiColumnListViewProps.ColumnLayoutState b
-        )
-        {
-            return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
-                && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)
-                && DictEqual(a?.ColumnDisplayIndex, b?.ColumnDisplayIndex);
-        }
-
-        internal static MultiColumnTreeViewProps.ColumnLayoutState CloneTreeLayout(
-            MultiColumnTreeViewProps.ColumnLayoutState layout
-        )
-        {
-            if (layout == null) return null;
-            return new MultiColumnTreeViewProps.ColumnLayoutState
-            {
-                ColumnWidths = CloneDict(layout.ColumnWidths),
-                ColumnVisibility = CloneDict(layout.ColumnVisibility),
-                ColumnDisplayIndex = CloneDict(layout.ColumnDisplayIndex),
-            };
-        }
-
-        internal static bool TreeLayoutEqual(
-            MultiColumnTreeViewProps.ColumnLayoutState a,
-            MultiColumnTreeViewProps.ColumnLayoutState b
-        )
+        internal static bool LayoutEqual(ColumnLayoutState a, ColumnLayoutState b)
         {
             return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
                 && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)

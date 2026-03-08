@@ -1,5 +1,6 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
+using ReactiveUITK.Core;
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class RadioButtonGroupProps : BaseProps
@@ -7,7 +8,7 @@ namespace ReactiveUITK.Props.Typed
         public IList<string> Choices { get; set; }
         public string Value { get; set; }
         public int? Index { get; set; }
-        public System.Action<UnityEngine.UIElements.ChangeEvent<int>> OnChange { get; set; }
+        public ChangeEventHandler<int> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {

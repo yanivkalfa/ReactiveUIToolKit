@@ -18,6 +18,8 @@ namespace ReactiveUITK.SourceGenerator
     ///   UITKX0017       Multiple root elements (Phase 5)
     ///   UITKX0018       UseEffect missing dependency array (Phase 5)
     ///   UITKX0019       Loop index used as element key (Phase 5)
+    ///   UITKX0020       ref={} on user component with no Ref<T> param
+    ///   UITKX0021       ref={} on user component with multiple Ref<T> params (ambiguous)
     ///   UITKX0300–0305  Parse errors
     /// </summary>
     internal static class UitkxDiagnostics
@@ -268,6 +270,50 @@ namespace ReactiveUITK.SourceGenerator
             defaultSeverity: DiagnosticSeverity.Error,
             isEnabledByDefault: true,
             description: "Move the hook call into the @code block at the top of the file."
+        );
+
+        // ── ref-as-prop routing ───────────────────────────────────────────────
+
+        /// <summary>
+        /// UITKX0020 — <c>ref={...}</c> was used on a user component that declares no
+        /// <c>Ref&lt;T&gt;</c> parameter (or the deprecated <c>Hooks.MutableRef&lt;T&gt;</c>),
+        /// so the ref cannot be routed.
+        /// </summary>
+        public static readonly DiagnosticDescriptor RefOnComponentWithNoRefParam = new DiagnosticDescriptor(
+            id: "UITKX0020",
+            title: "ref attribute on component with no Ref<T> parameter",
+            messageFormat: "Component '{0}' does not declare a 'Ref<T>' parameter. "
+                + "Remove 'ref={{...}}' or add a 'Ref<T>?' parameter to the component.",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true,
+            description: """
+                The ref-as-prop pattern requires the target component to accept a
+                Ref<T> parameter so the emitter knows which prop to populate.
+                Either remove the ref attribute or declare a suitable parameter in the component.
+                (Hooks.MutableRef<T> is deprecated; use Ref<T> obtained via Hooks.UseRef<T>().)
+                """
+        );
+
+        /// <summary>
+        /// UITKX0021 — <c>ref={...}</c> was used on a user component that declares <em>multiple</em>
+        /// <c>Ref&lt;T&gt;</c> parameters (or deprecated <c>Hooks.MutableRef&lt;T&gt;</c>);
+        /// the emitter cannot determine which one to populate without an explicit prop name.
+        /// </summary>
+        public static readonly DiagnosticDescriptor RefOnComponentWithAmbiguousRefParam = new DiagnosticDescriptor(
+            id: "UITKX0021",
+            title: "ref attribute is ambiguous — component has multiple Ref<T> parameters",
+            messageFormat: "Component '{0}' declares multiple 'Ref<T>' parameters. "
+                + "Use an explicit prop name (e.g. inputRef={{x}}) instead of the 'ref={{...}}' shorthand.",
+            category: Category,
+            defaultSeverity: DiagnosticSeverity.Error,
+            isEnabledByDefault: true,
+            description: """
+                The ref={} shorthand can only be used when the target component has exactly one
+                Ref<T> parameter.  When multiple Ref<T> parameters exist, pass
+                the ref by its explicit prop name to avoid ambiguity.
+                (Hooks.MutableRef<T> is deprecated; use Ref<T> obtained via Hooks.UseRef<T>().)
+                """
         );
     }
 }

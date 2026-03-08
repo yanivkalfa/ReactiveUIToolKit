@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
 {
@@ -39,6 +40,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private readonly ImmutableHashSet<string> _peerPropsComponentTypeNames;
 
+        /// <summary>
+        /// The parsed <see cref="FunctionParam"/> list for each peer-UITKX component that
+        /// uses the function-style declaration syntax.  Keyed by component simple name.
+        /// Used by <see cref="TryGetRefParamPropName"/> to locate the <c>Hooks.MutableRef&lt;T&gt;</c>
+        /// parameter so that a bare <c>ref={x}</c> attribute can be routed to the correct prop.
+        /// </summary>
+        private readonly ImmutableDictionary<string, ImmutableArray<FunctionParam>> _peerFunctionParams;
+
         /// <summary>Lowercase tag → TagResolution for every V.* built-in.</summary>
         private readonly Dictionary<string, TagResolution> _builtinMap;
 
@@ -65,16 +74,208 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         public PropsResolver(
             Compilation compilation,
             ImmutableHashSet<string>? peerComponentTypeNames = null,
-            ImmutableHashSet<string>? peerPropsComponentTypeNames = null
+            ImmutableHashSet<string>? peerPropsComponentTypeNames = null,
+            ImmutableDictionary<string, ImmutableArray<FunctionParam>>? peerFunctionParams = null
         )
         {
             _compilation = compilation;
             _peerComponentTypeNames      = peerComponentTypeNames      ?? ImmutableHashSet<string>.Empty;
             _peerPropsComponentTypeNames = peerPropsComponentTypeNames ?? ImmutableHashSet<string>.Empty;
+            _peerFunctionParams          = peerFunctionParams          ?? ImmutableDictionary<string, ImmutableArray<FunctionParam>>.Empty;
             _builtinMap = BuildBuiltinMapFromCompilation(compilation);
         }
 
         // ── Public API ────────────────────────────────────────────────────────
+
+        // ── ref-as-prop routing ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Outcome of a <see cref="TryGetRefParamPropName"/> look-up.
+        /// </summary>
+        internal enum RefParamLookupResult
+        {
+            /// <summary>No <c>Hooks.MutableRef&lt;T&gt;</c> parameter was found.</summary>
+            None,
+            /// <summary>Exactly one param found; <c>refPropName</c> is set.</summary>
+            Found,
+            /// <summary>Multiple params found; routing is ambiguous.</summary>
+            Ambiguous,
+        }
+
+        /// <summary>
+        /// Attempts to find the single unambiguous <c>Hooks.MutableRef&lt;T&gt;</c> parameter
+        /// for <paramref name="componentTypeName"/> so that a bare <c>ref={x}</c> attribute
+        /// can be routed to the correct Props property name.
+        ///
+        /// Two resolution paths are tried in order:
+        /// <list type="number">
+        ///   <item>Peer-UITKX path — scans <see cref="_peerFunctionParams"/> for directly parsed
+        ///     <see cref="FunctionParam"/> entries whose type string indicates <c>MutableRef&lt;T&gt;</c>.</item>
+        ///   <item>Roslyn path — inspects the compiled Props type (<paramref name="propsTypeName"/>)
+        ///     for public settable properties whose Roslyn type is <c>Hooks.MutableRef&lt;T&gt;</c>.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="componentTypeName">Simple C# type name of the component (e.g. "RefChild").</param>
+        /// <param name="propsTypeName">Qualified or simple props type name, or <c>null</c> when the
+        ///   component has no props class.</param>
+        /// <param name="refPropName">PascalCase property name to emit (e.g. "InputRef").</param>
+        /// <returns>The lookup outcome.</returns>
+        internal RefParamLookupResult TryGetRefParamPropName(
+            string componentTypeName,
+            string? propsTypeName,
+            ImmutableArray<string> searchNamespaces,
+            out string? refPropName
+        )
+        {
+            refPropName = null;
+
+            // ── Path A: peer-UITKX component (same code-gen pass) ─────────────
+            if (_peerFunctionParams.TryGetValue(componentTypeName, out var fpList))
+            {
+                var mutableRefParams = fpList
+                    .Where(fp => IsMutableRefTypeName(fp.Type))
+                    .ToList();
+
+                if (mutableRefParams.Count == 0)
+                    return RefParamLookupResult.None;
+
+                if (mutableRefParams.Count > 1)
+                    return RefParamLookupResult.Ambiguous;
+
+                // Exactly one — convert camelCase param name to PascalCase prop name.
+                refPropName = ToPropName(mutableRefParams[0].Name);
+                return RefParamLookupResult.Found;
+            }
+
+            // ── Path B: C# component — inspect compiled Props type ────────────
+            if (propsTypeName == null)
+                return RefParamLookupResult.None;
+
+            var propNames = GetMutableRefPropertyNames(propsTypeName, searchNamespaces);
+            if (propNames.Count == 0)
+                return RefParamLookupResult.None;
+
+            if (propNames.Count > 1)
+                return RefParamLookupResult.Ambiguous;
+
+            refPropName = propNames[0];
+            return RefParamLookupResult.Found;
+        }
+
+        // ── ref-detection helpers ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="typeName"/> (as it appears in a .uitkx
+        /// function-style parameter list) denotes a <c>Ref&lt;T&gt;</c> or the deprecated
+        /// <c>Hooks.MutableRef&lt;T&gt;</c> type.
+        /// Handles optional nullable suffix and fully-qualified form.
+        /// </summary>
+        private static bool IsMutableRefTypeName(string typeName)
+        {
+            string stripped = typeName.TrimEnd('?').Trim();
+            return stripped.StartsWith("Ref<", StringComparison.Ordinal)
+                || stripped.StartsWith("ReactiveUITK.Core.Ref<", StringComparison.Ordinal)
+                || stripped.StartsWith("Hooks.MutableRef<", StringComparison.Ordinal)   // [Obsolete] compat
+                || stripped.StartsWith("ReactiveUITK.Core.Hooks.MutableRef<", StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Converts a camelCase identifier to PascalCase — e.g. "inputRef" → "InputRef".
+        /// No op if the first character is already uppercase.
+        /// </summary>
+        private static string ToPropName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            return char.IsUpper(name[0]) ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
+        }
+
+        /// <summary>
+        /// Collects the names of all public settable properties on the given
+        /// <paramref name="propsTypeName"/> that are typed as <c>Ref&lt;T&gt;</c> or the
+        /// deprecated <c>Hooks.MutableRef&lt;T&gt;</c>, walking the inheritance chain.
+        /// Returns an empty list when the type cannot be resolved by Roslyn.
+        /// </summary>
+        private List<string> GetMutableRefPropertyNames(string propsTypeName, ImmutableArray<string> searchNamespaces)
+        {
+            INamedTypeSymbol? typeSymbol = null;
+
+            // Try the propsTypeName as-is (may be fully qualified via TryGetFuncComponentPropsTypeName).
+            typeSymbol = _compilation.GetTypeByMetadataName(propsTypeName);
+
+            // Try each @using namespace as a qualifier.
+            if (typeSymbol == null)
+            {
+                foreach (var ns in searchNamespaces)
+                {
+                    typeSymbol = _compilation.GetTypeByMetadataName($"{ns}.{propsTypeName}");
+                    if (typeSymbol != null) break;
+
+                    // Nested type variant (e.g. RouterFunc+Props)
+                    typeSymbol = _compilation.GetTypeByMetadataName($"{ns}.{propsTypeName.Replace('.', '+')}" );
+                    if (typeSymbol != null) break;
+                }
+            }
+
+            if (typeSymbol == null)
+                return new List<string>();
+
+            var result = new List<string>();
+            var current = typeSymbol;
+            while (current != null && current.SpecialType != SpecialType.System_Object)
+            {
+                foreach (var member in current.GetMembers().OfType<IPropertySymbol>())
+                {
+                    if (member.DeclaredAccessibility == Accessibility.Public
+                        && member.SetMethod != null
+                        && IsRoslynMutableRefType(member.Type))
+                    {
+                        result.Add(member.Name);
+                    }
+                }
+                current = current.BaseType;
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="typeSymbol"/> is the top-level
+        /// <c>Ref&lt;T&gt;</c> from <c>ReactiveUITK.Core</c>, or the deprecated
+        /// <c>Hooks.MutableRef&lt;T&gt;</c> type.
+        /// Also matches nullable wrappers by unwrapping via Nullable.
+        /// </summary>
+        private static bool IsRoslynMutableRefType(ITypeSymbol typeSymbol)
+        {
+            // Unwrap Nullable<T> → T
+            if (typeSymbol is INamedTypeSymbol { ConstructedFrom: { SpecialType: SpecialType.System_Nullable_T } }
+                && typeSymbol is INamedTypeSymbol nullable)
+            {
+                typeSymbol = nullable.TypeArguments[0];
+            }
+
+            if (typeSymbol is not INamedTypeSymbol named || !named.IsGenericType)
+                return false;
+
+            var def = named.ConstructedFrom;
+
+            // Match top-level Ref<T> in ReactiveUITK.Core namespace (not nested)
+            if (string.Equals(def.Name, "Ref", StringComparison.Ordinal)
+                && def.ContainingType == null
+                && string.Equals(
+                    def.ContainingNamespace?.ToDisplayString(),
+                    "ReactiveUITK.Core",
+                    StringComparison.Ordinal
+                ))
+                return true;
+
+            // Match Hooks.MutableRef<T> — [Obsolete] backward compat
+            return string.Equals(def.Name, "MutableRef", StringComparison.Ordinal)
+                && string.Equals(def.ContainingType?.Name, "Hooks", StringComparison.Ordinal)
+                && string.Equals(
+                    def.ContainingNamespace?.ToDisplayString(),
+                    "ReactiveUITK.Core",
+                    StringComparison.Ordinal
+                );
+        }
 
         /// <summary>
         /// Resolves <paramref name="tagName"/> (as it appears in markup) to a

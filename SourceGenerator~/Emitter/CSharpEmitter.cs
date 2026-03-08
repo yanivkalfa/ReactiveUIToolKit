@@ -468,7 +468,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     break;
 
                 case TagResolutionKind.FuncComponent:
-                    EmitFuncComponent(res, el.Attributes, keyExpr, el.Children);
+                    EmitFuncComponent(res, el.Attributes, keyExpr, el.Children, searchNamespaces);
                     break;
 
                 case TagResolutionKind.Unknown:
@@ -595,10 +595,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             TagResolution res,
             ImmutableArray<AttributeNode> attrs,
             string keyExpr,
-            ImmutableArray<AstNode> children
+            ImmutableArray<AstNode> children,
+            ImmutableArray<string> searchNamespaces
         )
         {
             string typeName = res.FuncTypeName!;
+
+            // Pull out a bare ref={x} attribute before the loop so it can be
+            // routed to the component's MutableRef<T> param rather than rendered
+            // as a literal "ref" property (which doesn't exist on any Props class).
+            AttributeNode? refAttr = null;
+            foreach (var a in attrs)
+            {
+                if (IsRefAttr(a.Name)) { refAttr = a; break; }
+            }
 
             if (res.FuncPropsTypeName != null)
             {
@@ -609,7 +619,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 bool first = true;
                 foreach (var attr in attrs)
                 {
-                    if (IsKey(attr.Name))
+                    if (IsKey(attr.Name) || IsRefAttr(attr.Name))
                         continue;
                     if (!first)
                         _sb.Append(", ");
@@ -617,11 +627,64 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
                 }
 
+                // Route ref={x} to the component's MutableRef<T> parameter.
+                if (refAttr != null)
+                {
+                    var lookupResult = _resolver.TryGetRefParamPropName(
+                        typeName, propsTypeName, searchNamespaces, out string? refPropName
+                    );
+                    switch (lookupResult)
+                    {
+                        case PropsResolver.RefParamLookupResult.Found:
+                            if (!first) _sb.Append(",");
+                            _sb.Append($" {refPropName} = {AttrVal(refAttr.Value)}");
+                            break;
+
+                        case PropsResolver.RefParamLookupResult.None:
+                        {
+                            var loc = Location.Create(_filePath, default, default);
+                            _diagnostics.Add(
+                                Diagnostic.Create(
+                                    UitkxDiagnostics.RefOnComponentWithNoRefParam,
+                                    loc,
+                                    typeName
+                                )
+                            );
+                            break;
+                        }
+
+                        case PropsResolver.RefParamLookupResult.Ambiguous:
+                        {
+                            var loc = Location.Create(_filePath, default, default);
+                            _diagnostics.Add(
+                                Diagnostic.Create(
+                                    UitkxDiagnostics.RefOnComponentWithAmbiguousRefParam,
+                                    loc,
+                                    typeName
+                                )
+                            );
+                            break;
+                        }
+                    }
+                }
+
                 _sb.Append(" }");
             }
             else
             {
                 // ── No-props path: V.Func(TypeName.Render, ...) ──
+                // ref={x} on a no-props component has no route — emit UITKX0020.
+                if (refAttr != null)
+                {
+                    var loc = Location.Create(_filePath, default, default);
+                    _diagnostics.Add(
+                        Diagnostic.Create(
+                            UitkxDiagnostics.RefOnComponentWithNoRefParam,
+                            loc,
+                            typeName
+                        )
+                    );
+                }
                 _sb.Append($"V.Func({typeName}.Render");
             }
 
@@ -1232,6 +1295,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private static bool IsKey(string name) =>
             string.Equals(name, "key", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsRefAttr(string name) =>
+            string.Equals(name, "ref", StringComparison.OrdinalIgnoreCase);
 
         private static string ToPropName(string attrName)
         {

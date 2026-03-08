@@ -68,7 +68,7 @@ namespace ReactiveUITK.Tests
                                 new ButtonProps
                                 {
                                     Text = "Increment",
-                                    OnClick = () => setCount(count + 1),
+                                    OnClick = _ => setCount(count + 1),
                                 }
                             ),
                         }
@@ -134,7 +134,7 @@ namespace ReactiveUITK.Tests
                         new ButtonProps
                         {
                             Text = $"Signal: {value}",
-                            OnClick = () => signal.Set(value + 1),
+                            OnClick = _ => signal.Set(value + 1),
                         }
                     );
                 }

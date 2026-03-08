@@ -68,9 +68,9 @@ component HookStateQueueDemoFunc {
                 <Label text={$"Flush count: {flushCount}"} style={badgeStyle} />
             </VisualElement>
             <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}>
-                <Button text="+1 three times" onClick={TripleIncrement} style={btnStyle} />
-                <Button text="Reset then +5" onClick={ResetThenBoost} style={btnStyle} />
-                <Button text="+1 then ×2" onClick={MultiplyAfterAdd} style={btnStyle} />
+                <Button text="+1 three times" onClick={_ => TripleIncrement()} style={btnStyle} />
+                <Button text="Reset then +5" onClick={_ => ResetThenBoost()} style={btnStyle} />
+                <Button text="+1 then ×2" onClick={_ => MultiplyAfterAdd()} style={btnStyle} />
             </VisualElement>
             <VisualElement style={new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.Padding, 8f), (StyleKeys.BackgroundColor, new Color(0.14f, 0.14f, 0.14f, 0.85f)), (StyleKeys.BorderRadius, 4f) }}>
                 <Label text="Recent operations" style={new Style { (StyleKeys.MarginBottom, 4f), ("unityFontStyleAndWeight", FontStyle.Bold) }} />

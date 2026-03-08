@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
+using static ReactiveUITK.Props.Typed.StyleKeys;
 
 namespace ReactiveUITK.Samples.Shared
 {
@@ -11,15 +12,15 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public IReadOnlyList<MultiColumnListViewRowState> Items { get; set; }
-            public List<MultiColumnListViewProps.SortedColumnDef> SortDefs { get; set; }
+            public List<SortedColumnDef> SortDefs { get; set; }
             public Dictionary<string, float> ColumnWidths { get; set; }
             public Dictionary<string, bool> ColumnVisibility { get; set; }
             public Dictionary<string, int> ColumnDisplayIndex { get; set; }
             public Action AddItem { get; set; }
             public Action SetTopItem { get; set; }
             public Action DeleteLast { get; set; }
-            public Action<List<MultiColumnListViewProps.SortedColumnDef>> OnSortChanged { get; set; }
-            public Delegate OnLayoutChanged { get; set; }
+            public ColumnSortEventHandler OnSortChanged { get; set; }
+            public ColumnLayoutEventHandler OnLayoutChanged { get; set; }
             public Action<int> OnCountChanged { get; set; }
         }
 
@@ -38,7 +39,7 @@ namespace ReactiveUITK.Samples.Shared
             var setTopItem = p?.SetTopItem;
             var deleteLast = p?.DeleteLast;
             var sortChanged = p?.OnSortChanged;
-            Delegate columnLayoutChanged = p?.OnLayoutChanged;
+            ColumnLayoutEventHandler columnLayoutChanged = p?.OnLayoutChanged;
 
             var columns = Hooks.UseMemo(
                 () =>
@@ -104,13 +105,13 @@ namespace ReactiveUITK.Samples.Shared
                     var defsTree =
                         sortDefs == null
                             ? null
-                            : new List<MultiColumnTreeViewProps.SortedColumnDef>(sortDefs.Count);
+                            : new List<SortedColumnDef>(sortDefs.Count);
                     if (sortDefs != null)
                     {
                         foreach (var d in sortDefs)
                         {
                             defsTree.Add(
-                                new MultiColumnTreeViewProps.SortedColumnDef
+                                new SortedColumnDef
                                 {
                                     Name = d?.Name,
                                     Direction = d?.Direction,
@@ -158,19 +159,19 @@ namespace ReactiveUITK.Samples.Shared
                 ColumnVisibility = columnVisibility,
                 ColumnDisplayIndex = columnDisplayIndex,
                 ColumnLayoutChanged = columnLayoutChanged,
-                Style = new Style { (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 30f) },
+                Style = new Style { (MarginBottom, 30f) },
             };
 
-            Action Safe(Action candidate) => candidate ?? (() => { });
+            PointerEventHandler Safe(Action candidate) => _ => candidate?.Invoke();
 
             var controls = V.VisualElement(
                 new VisualElementProps
                 {
                     Style = new Style
                     {
-                        (ReactiveUITK.Props.Typed.StyleKeys.FlexDirection, "row"),
-                        (ReactiveUITK.Props.Typed.StyleKeys.MarginBottom, 6f),
-                        (ReactiveUITK.Props.Typed.StyleKeys.FlexShrink, 0f),
+                        (StyleKeys.FlexDirection, "row"),
+                        (MarginBottom, 6f),
+                        (FlexShrink, 0f),
                     },
                 },
                 key: "controls",

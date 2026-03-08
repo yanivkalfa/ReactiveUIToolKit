@@ -51,8 +51,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             // UseRef: mutation during render doesn't trigger re-renders → no infinite loop.
             var renderCountRef = Hooks.UseRef(0);
-            renderCountRef.Value++;
-            int renderCount = renderCountRef.Value;
+            renderCountRef.Current++;
+            int renderCount = renderCountRef.Current;
 
             var color = new Color(0.2f, 0.2f, 0.2f, 1f);
             var style = new Style
@@ -92,8 +92,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             // UseRef: mutation during render doesn't trigger re-renders → no infinite loop.
             var renderCountRef = Hooks.UseRef(0);
-            renderCountRef.Value++;
-            int renderCount = renderCountRef.Value;
+            renderCountRef.Current++;
+            int renderCount = renderCountRef.Current;
 
             var themeColor = Hooks.UseContext<Color>("bailout-test-theme");
 
@@ -200,7 +200,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = $"Toggle Theme  (now: {(useBlue ? "Blue" : "Orange")})",
-                        OnClick = () => setUseBlue.Set(b => !b),
+                        OnClick = _ => setUseBlue.Set(b => !b),
                         Style = new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 220f) },
                     }
                 ),

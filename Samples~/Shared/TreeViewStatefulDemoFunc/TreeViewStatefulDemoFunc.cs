@@ -19,7 +19,7 @@ namespace ReactiveUITK.Samples.Shared
             public Action SetChild { get; set; }
             public Action DeleteLast { get; set; }
             public IList<int> ExpandedItemIds { get; set; }
-            public Delegate OnExpandedChanged { get; set; }
+            public TreeExpansionEventHandler OnExpandedChanged { get; set; }
             public Action<int> OnCountChanged { get; set; }
         }
 
@@ -38,7 +38,7 @@ namespace ReactiveUITK.Samples.Shared
             // Pass ExpandedItemIds reference directly — copying it to a new List<int> every render
             // causes the TreeView to see a reference change, fire ItemExpandedChanged, and loop.
             var expandedItemIds = p?.ExpandedItemIds;
-            Delegate expandedChanged = p?.OnExpandedChanged;
+            TreeExpansionEventHandler expandedChanged = p?.OnExpandedChanged;
 
             var rootItems = Hooks.UseMemo(
                 () =>
@@ -92,10 +92,9 @@ namespace ReactiveUITK.Samples.Shared
                 new object[] { rows }
             );
 
-            var rowRenderer = Hooks.UseMemo(
+            var rowRenderer = Hooks.UseMemo<RowRenderer>(
                 () =>
-                    (Func<int, object, VirtualNode>)(
-                        (i, obj) =>
+                    (i, obj) =>
                         {
                             var row = obj as SharedTreeRowItem;
                             if (row == null)
@@ -115,8 +114,7 @@ namespace ReactiveUITK.Samples.Shared
                                 : V.Func(IntroCounterFunc.Render, null, funcKey);
 
                             return V.VisualElement(null, key: $"tv-wrap-{prefix}-{id}", childNode);
-                        }
-                    ),
+                        },
                 rows
             );
 
@@ -151,7 +149,7 @@ namespace ReactiveUITK.Samples.Shared
             }
             catch { }
 
-            Action Safe(Action candidate) => candidate ?? (() => { });
+            PointerEventHandler Safe(Action candidate) => _ => candidate?.Invoke();
 
             var btnRow = V.VisualElement(
                 new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) } },

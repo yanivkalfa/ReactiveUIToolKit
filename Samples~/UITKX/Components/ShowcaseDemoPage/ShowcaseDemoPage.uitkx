@@ -34,7 +34,7 @@ component ShowcaseDemoPage {
 
     // ── Timer ───────────────────────────────────────────────────────────────
     useEffect(() => {
-        var el = rootRef?.Value;
+        var el = rootRef?.Current;
         if (el == null) return null;
         var h = el.schedule.Execute(() => setCurrentTime(DateTime.Now)).Every(1000);
         return () => { try { h?.Pause(); } catch { } };

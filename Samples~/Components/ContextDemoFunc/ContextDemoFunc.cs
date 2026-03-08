@@ -42,7 +42,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = usePrimaryTheme ? "Switch To Warm Theme" : "Switch To Cool Theme",
-                        OnClick = () => setUsePrimaryTheme.Set(prev => !prev),
+                        OnClick = _ => setUsePrimaryTheme.Set(prev => !prev),
                         Style = new Style { (StyleKeys.Width, 220f) },
                     }
                 ),

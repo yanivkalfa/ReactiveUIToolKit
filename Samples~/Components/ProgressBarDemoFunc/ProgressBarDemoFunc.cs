@@ -94,7 +94,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "-10%",
-                        OnClick = () => setProgress.Set(value => Clamp(value - 10f)),
+                        OnClick = _ => setProgress.Set(value => Clamp(value - 10f)),
                         Style = ButtonStyle,
                     }
                 ),
@@ -102,7 +102,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "+10%",
-                        OnClick = () => setProgress.Set(value => Clamp(value + 10f)),
+                        OnClick = _ => setProgress.Set(value => Clamp(value + 10f)),
                         Style = ButtonStyle,
                     }
                 ),
@@ -110,7 +110,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Reset",
-                        OnClick = () => setProgress.Set(15f),
+                        OnClick = _ => setProgress.Set(15f),
                         Style = ButtonStyle,
                     }
                 )

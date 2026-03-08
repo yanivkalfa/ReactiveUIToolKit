@@ -23,6 +23,8 @@ namespace ReactiveUITK.Core
 
         public static bool EnableHookAutoRealign { get; set; } = true;
 
+        /// <summary>Use <see cref="Ref{T}"/> (top-level class) instead.</summary>
+        [Obsolete("Hooks.MutableRef<T> is deprecated. Use Ref<T> instead (obtained via Hooks.UseRef<T>()).")]
         public sealed class MutableRef<T>
         {
             public T Value;
@@ -1090,21 +1092,21 @@ namespace ReactiveUITK.Core
             return tuple.handle;
         }
 
-        public static MutableRef<T> UseRef<T>(T initial = default)
+        public static Ref<T> UseRef<T>(T initial = default)
         {
             NodeMetadata metadata = HookContext.Current?.Owner;
             var state = EnsureState(metadata);
             if (state == null)
             {
-                return new MutableRef<T> { Value = initial };
+                return new Ref<T> { Current = initial };
             }
             RecordHook(metadata, state, HookIdMutableRef);
             state.HookStates ??= new List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
-                state.HookStates.Add(new MutableRef<T> { Value = initial });
+                state.HookStates.Add(new Ref<T> { Current = initial });
             }
-            var stored = (MutableRef<T>)state.HookStates[state.HookIndex];
+            var stored = (Ref<T>)state.HookStates[state.HookIndex];
             state.HookIndex++;
             SyncState(metadata, state);
             return stored;

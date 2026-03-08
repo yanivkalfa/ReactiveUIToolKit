@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 
+using ReactiveUITK.Core;
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class TreeViewProps : BaseProps
@@ -11,10 +12,10 @@ namespace ReactiveUITK.Props.Typed
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }
         public int? SelectedIndex { get; set; }
-        public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
+        public RowRenderer Row { get; set; }
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
-        public Delegate ItemExpandedChanged { get; set; }
+        public TreeExpansionEventHandler ItemExpandedChanged { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {

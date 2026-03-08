@@ -24,7 +24,7 @@ component ContextBailoutDemoFunc {
             />
             <Button
                 text={$"Toggle Theme  (now: {(useBlue ? "Blue" : "Orange")})"}
-                onClick={() => setUseBlue(b => !b)}
+                onClick={_ => setUseBlue(b => !b)}
                 style={new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 220f) }}
             />
             <MiddleLayer />

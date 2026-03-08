@@ -33,12 +33,12 @@ component RenderDepthGuardDemoFunc {
             <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 10f) }}>
                 <Button
                     text="Render Safe Tree (depth 10)"
-                    onClick={() => { setDepth(10); setTriggered(false); }}
+                    onClick={_ => { setDepth(10); setTriggered(false); }}
                     style={new Style { (StyleKeys.MarginRight, 8f) }}
                 />
                 <Button
                     text="Trigger Deep Tree (depth 30 > 25) ⚠"
-                    onClick={() => { setDepth(30); setTriggered(true); }}
+                    onClick={_ => { setDepth(30); setTriggered(true); }}
                 />
             </VisualElement>
             @if (triggered) {

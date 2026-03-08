@@ -1,5 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
+@using UnityEngine
 component MainMenuSidebar {
     var navigate = RouterHooks.UseNavigate();
 
@@ -10,7 +11,7 @@ component MainMenuSidebar {
         (StyleKeys.JustifyContent, "flex-start"),
         (StyleKeys.AlignItems, "stretch"),
         (StyleKeys.BorderWidth, 1f),
-        (StyleKeys.BorderColor, new UnityEngine.Color(0.25f, 0.25f, 0.25f, 1f)),
+        (StyleKeys.BorderColor, new Color(0.25f, 0.25f, 0.25f, 1f)),
         (StyleKeys.BorderRadius, 6f),
     };
 
@@ -19,10 +20,10 @@ component MainMenuSidebar {
     return (
         <VisualElement style={sidebarStyle}>
             <Text text="Sidebar" />
-            <Button text="Home" onClick={() => navigate(string.Empty)} style={btnStyle} />
-            <Button text="Profile" onClick={() => navigate("profile")} style={btnStyle} />
-            <Button text="Store" onClick={() => navigate("store")} style={btnStyle} />
-            <Button text="Settings" onClick={() => navigate("settings")} style={btnStyle} />
+            <Button text="Home" onClick={_ => navigate(string.Empty)} style={btnStyle} />
+            <Button text="Profile" onClick={_ => navigate("profile")} style={btnStyle} />
+            <Button text="Store" onClick={_ => navigate("store")} style={btnStyle} />
+            <Button text="Settings" onClick={_ => navigate("settings")} style={btnStyle} />
         </VisualElement>
     );
 }

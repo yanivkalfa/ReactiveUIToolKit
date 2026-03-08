@@ -214,7 +214,7 @@ namespace ReactiveUITK.Router
                 {
                     Text = label,
                     Style = style,
-                    OnClick = navigate,
+                    OnClick = _ => navigate(),
                 }
             );
             return button;

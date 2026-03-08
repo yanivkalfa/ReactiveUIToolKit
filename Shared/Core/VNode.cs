@@ -37,7 +37,7 @@ namespace ReactiveUITK.Core
         public IReadOnlyDictionary<string, object> Properties { get; }
         public IReadOnlyList<VirtualNode> Children { get; }
         public VirtualNode ErrorFallback { get; }
-        public Action<Exception> ErrorHandler { get; }
+        public ErrorEventHandler ErrorHandler { get; }
         public string ErrorResetToken { get; }
 
         // ── Typed-props path ─────────────────────────────────────────────────
@@ -74,7 +74,7 @@ namespace ReactiveUITK.Core
             System.Func<bool> suspenseReady = null,
             System.Threading.Tasks.Task suspenseReadyTask = null,
             VirtualNode errorFallback = null,
-            Action<Exception> errorHandler = null,
+            ErrorEventHandler errorHandler = null,
             string errorResetToken = null,
             IReadOnlyList<PropTypeDefinition> propTypes = null,
             System.Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> typedFunctionRender = null,

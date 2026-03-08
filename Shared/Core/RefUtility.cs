@@ -16,11 +16,19 @@ namespace ReactiveUITK.Core
 
             try
             {
+                if (refTarget is Ref<VisualElement> directRefNew)
+                {
+                    directRefNew.Current = element;
+                    return;
+                }
+
+#pragma warning disable CS0618
                 if (refTarget is Hooks.MutableRef<VisualElement> directRef)
                 {
                     directRef.Value = element;
                     return;
                 }
+#pragma warning restore CS0618
 
                 if (TrySetGenericMutableRef(refTarget, element))
                 {
@@ -58,10 +66,14 @@ namespace ReactiveUITK.Core
         private static bool TrySetGenericMutableRef(object refTarget, VisualElement element)
         {
             Type type = refTarget.GetType();
-            if (
-                !type.IsGenericType
-                || type.GetGenericTypeDefinition() != typeof(Hooks.MutableRef<>)
-            )
+            if (!type.IsGenericType)
+            {
+                return false;
+            }
+            var genDef = type.GetGenericTypeDefinition();
+#pragma warning disable CS0618
+            if (genDef != typeof(Ref<>) && genDef != typeof(Hooks.MutableRef<>))
+#pragma warning restore CS0618
             {
                 return false;
             }

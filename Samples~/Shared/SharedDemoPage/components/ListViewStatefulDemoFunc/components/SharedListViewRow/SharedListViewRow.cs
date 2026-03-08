@@ -38,7 +38,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "+",
-                        OnClick = () => setCounter(counter + 1),
+                        OnClick = _ => setCounter(counter + 1),
                         Style = new Style { (Width, 24f), (Height, 18f), (MarginRight, 6f) },
                     }
                 ),
@@ -47,7 +47,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = " X ",
-                        OnClick = () => onRemove?.Invoke(rowItem),
+                        OnClick = _ => onRemove?.Invoke(rowItem),
                         Style = new Style { (MarginLeft, 8f), (Width, 24f), (Height, 18f) },
                     }
                 ),

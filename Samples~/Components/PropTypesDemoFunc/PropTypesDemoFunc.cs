@@ -54,7 +54,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = useDefaults ? "Switch to valid props" : "Show default fallbacks",
-                        OnClick = () => setUseDefaults(!useDefaults),
+                        OnClick = _ => setUseDefaults(!useDefaults),
                         Style = new Style
                         {
                             (StyleKeys.MinWidth, 160f),

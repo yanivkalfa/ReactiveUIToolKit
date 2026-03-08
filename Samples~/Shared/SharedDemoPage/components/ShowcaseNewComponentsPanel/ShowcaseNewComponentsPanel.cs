@@ -12,14 +12,14 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public bool FoldoutOpen { get; set; }
-            public Action<ChangeEvent<bool>> OnFoldoutChange { get; set; }
+            public ChangeEventHandler<bool> OnFoldoutChange { get; set; }
             public float SliderValue { get; set; }
-            public Action<ChangeEvent<float>> OnSliderChange { get; set; }
+            public ChangeEventHandler<float> OnSliderChange { get; set; }
             public int SliderIntValue { get; set; }
-            public Action<ChangeEvent<int>> OnSliderIntChange { get; set; }
+            public ChangeEventHandler<int> OnSliderIntChange { get; set; }
             public List<string> DdChoices { get; set; }
             public string DdValue { get; set; }
-            public Action<ChangeEvent<string>> OnDdChange { get; set; }
+            public ChangeEventHandler<string> OnDdChange { get; set; }
         }
 
         public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)

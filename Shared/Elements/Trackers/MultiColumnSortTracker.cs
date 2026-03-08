@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
@@ -50,17 +51,13 @@ namespace ReactiveUITK.Elements
                     {
                         if (state.UserSortNotify != null)
                         {
-                            var defsTree = ToTreeSortedDefs(state.SortedColumns);
-                            var defsList = ToListSortedDefs(state.SortedColumns);
+                            var defs = ToSortedDefs(state.SortedColumns);
 #if UNITY_EDITOR
                             UnityEditor.EditorApplication.delayCall += () =>
                             {
                                 try
                                 {
-                                    if (!DispatchUserNotify(tv, state.UserSortNotify, defsTree))
-                                    {
-                                        DispatchUserNotify(tv, state.UserSortNotify, defsList);
-                                    }
+                                    DispatchUserNotify(tv, state.UserSortNotify, defs);
                                 }
                                 catch { }
                             };
@@ -71,18 +68,11 @@ namespace ReactiveUITK.Elements
                                     {
                                         try
                                         {
-                                            if (
-                                                !DispatchUserNotify(
-                                                    tv,
-                                                    state.UserSortNotify,
-                                                    defsTree
-                                                )
-                                            )
-                                                DispatchUserNotify(
-                                                    tv,
-                                                    state.UserSortNotify,
-                                                    defsList
-                                                );
+                                            DispatchUserNotify(
+                                                tv,
+                                                state.UserSortNotify,
+                                                defs
+                                            );
                                         }
                                         catch { }
                                     })
@@ -92,10 +82,7 @@ namespace ReactiveUITK.Elements
                             {
                                 try
                                 {
-                                    if (!DispatchUserNotify(tv, state.UserSortNotify, defsTree))
-                                    {
-                                        DispatchUserNotify(tv, state.UserSortNotify, defsList);
-                                    }
+                                    DispatchUserNotify(tv, state.UserSortNotify, defs);
                                 }
                                 catch { }
                             }
@@ -289,11 +276,11 @@ namespace ReactiveUITK.Elements
             return list;
         }
 
-        private static List<ReactiveUITK.Props.Typed.MultiColumnTreeViewProps.SortedColumnDef> ToTreeSortedDefs(
+        private static List<SortedColumnDef> ToSortedDefs(
             List<(string name, SortDirection direction, int index)> src
         )
         {
-            var list = new List<MultiColumnTreeViewProps.SortedColumnDef>();
+            var list = new List<SortedColumnDef>();
             if (src == null)
             {
                 return list;
@@ -301,7 +288,7 @@ namespace ReactiveUITK.Elements
             foreach (var (name, direction, index) in src.OrderBy(x => x.index))
             {
                 list.Add(
-                    new MultiColumnTreeViewProps.SortedColumnDef
+                    new SortedColumnDef
                     {
                         Name = name,
                         Direction = direction,
@@ -312,95 +299,46 @@ namespace ReactiveUITK.Elements
             return list;
         }
 
-        private static List<MultiColumnListViewProps.SortedColumnDef> ToListSortedDefs(
-            List<(string name, SortDirection direction, int index)> src
-        )
-        {
-            var list = new List<MultiColumnListViewProps.SortedColumnDef>();
-            if (src == null)
-            {
-                return list;
-            }
-            foreach (var (name, direction, index) in src.OrderBy(x => x.index))
-            {
-                list.Add(
-                    new MultiColumnListViewProps.SortedColumnDef
-                    {
-                        Name = name,
-                        Direction = direction,
-                        Index = index,
-                    }
-                );
-            }
-            return list;
-        }
-
-        private static bool DispatchUserNotify(
+        private static void DispatchUserNotify(
             UnityEngine.UIElements.VisualElement tv,
             Delegate notify,
-            List<MultiColumnTreeViewProps.SortedColumnDef> defsTree
+            List<SortedColumnDef> defs
         )
         {
             if (notify == null)
             {
-                return true;
+                return;
+            }
+            if (notify is ColumnSortEventHandler cseh)
+            {
+                cseh.Invoke(defs);
+                return;
             }
             if (
                 notify
                 is Action<
                     UnityEngine.UIElements.VisualElement,
-                    List<MultiColumnTreeViewProps.SortedColumnDef>
+                    List<SortedColumnDef>
                 > a2
             )
             {
-                a2.Invoke(tv, defsTree);
-                return true;
+                a2.Invoke(tv, defs);
+                return;
             }
-            if (notify is Action<List<MultiColumnTreeViewProps.SortedColumnDef>> a)
+            if (notify is Action<List<SortedColumnDef>> a)
             {
-                a.Invoke(defsTree);
-                return true;
-            }
-            return false;
-        }
-
-        private static bool DispatchUserNotify(
-            UnityEngine.UIElements.VisualElement tv,
-            Delegate notify,
-            List<MultiColumnListViewProps.SortedColumnDef> defsList
-        )
-        {
-            if (notify == null)
-            {
-                return true;
-            }
-            if (
-                notify
-                is Action<
-                    UnityEngine.UIElements.VisualElement,
-                    List<MultiColumnListViewProps.SortedColumnDef>
-                > a2
-            )
-            {
-                a2.Invoke(tv, defsList);
-                return true;
-            }
-            if (notify is Action<List<MultiColumnListViewProps.SortedColumnDef>> a)
-            {
-                a.Invoke(defsList);
-                return true;
+                a.Invoke(defs);
+                return;
             }
             if (notify is Action<object> ao)
             {
-                ao.Invoke(defsList);
-                return true;
+                ao.Invoke(defs);
+                return;
             }
             if (notify is Action g)
             {
                 g.Invoke();
-                return true;
             }
-            return false;
         }
 
         private static bool SortedEqual(

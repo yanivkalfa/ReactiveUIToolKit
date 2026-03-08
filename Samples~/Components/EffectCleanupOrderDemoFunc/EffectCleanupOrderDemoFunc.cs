@@ -39,12 +39,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var logRef = Hooks.UseRef<LogRef>();
 
             // Initialise the ref once.
-            if (logRef.Value == null)
-                logRef.Value = new LogRef();
+            if (logRef.Current == null)
+                logRef.Current = new LogRef();
 
             // Snapshot log for display (freeze at render time so we display
             // whatever was accumulated up to this render).
-            var displayLog = new List<string>(logRef.Value.Entries);
+            var displayLog = new List<string>(logRef.Current.Entries);
 
             var containerStyle = new Style
             {
@@ -108,9 +108,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Next Generation (triggers both effects)",
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
-                                logRef.Value.Entries.Add(
+                                logRef.Current.Entries.Add(
                                     $"── generation {generation + 1} ──────────────"
                                 );
                                 setGeneration.Set(g => g + 1);
@@ -121,9 +121,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Clear Log",
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
-                                logRef.Value.Entries.Clear();
+                                logRef.Current.Entries.Clear();
                                 setGeneration.Set(g => g); // force re-render to refresh display
                             },
                             Style = new Style { (StyleKeys.MarginLeft, 8f) },
@@ -140,11 +140,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 // Two child panels — both will run effects in the same commit.
                 V.Func<EffectPanelFunc.Props>(
                     EffectPanelFunc.Render,
-                    new EffectPanelFunc.Props { Label = "Panel A", Generation = generation, Log = logRef.Value }
+                    new EffectPanelFunc.Props { Label = "Panel A", Generation = generation, Log = logRef.Current }
                 ),
                 V.Func<EffectPanelFunc.Props>(
                     EffectPanelFunc.Render,
-                    new EffectPanelFunc.Props { Label = "Panel B", Generation = generation, Log = logRef.Value }
+                    new EffectPanelFunc.Props { Label = "Panel B", Generation = generation, Log = logRef.Current }
                 ),
                 V.VisualElement(
                     new VisualElementProps { Style = logBoxStyle },

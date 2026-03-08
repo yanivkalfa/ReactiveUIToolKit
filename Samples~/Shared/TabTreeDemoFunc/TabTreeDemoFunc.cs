@@ -258,7 +258,7 @@ namespace ReactiveUITK.Samples.Shared
                                 SetChild = TreeSetChild,
                                 DeleteLast = TreeDeleteLast,
                                 ExpandedItemIds = treeExpandedIds,
-                                OnExpandedChanged = (Action<TreeViewExpansionChangedArgs>)TreeExpandedChanged,
+                                OnExpandedChanged = TreeExpandedChanged,
                             }),
                     },
                     new()
@@ -294,7 +294,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Intro",
-                        OnClick = () => setTabIndex(0),
+                        OnClick = _ => setTabIndex(0),
                         Style = new Style { (Props.Typed.StyleKeys.Width, 80f) },
                     },
                     key: "tabs-btn-intro"
@@ -303,7 +303,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Tree",
-                        OnClick = () => setTabIndex(1),
+                        OnClick = _ => setTabIndex(1),
                         Style = new Style
                         {
                             (Props.Typed.StyleKeys.MarginLeft, 6f),
@@ -316,7 +316,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Columns",
-                        OnClick = () => setTabIndex(2),
+                        OnClick = _ => setTabIndex(2),
                         Style = new Style
                         {
                             (Props.Typed.StyleKeys.MarginLeft, 6f),

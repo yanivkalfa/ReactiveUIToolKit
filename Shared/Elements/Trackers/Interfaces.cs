@@ -37,6 +37,7 @@ namespace ReactiveUITK.Elements
         Dictionary<int, bool> ExpandAllById { get; set; }
         bool OurHandlerAttached { get; set; }
         Delegate UserExpandedHandler { get; set; }
+        Action<TreeViewExpansionChangedArgs> UserExpandedHandlerWrapped { get; set; }
         bool TrackUserExpansion { get; set; }
     }
 

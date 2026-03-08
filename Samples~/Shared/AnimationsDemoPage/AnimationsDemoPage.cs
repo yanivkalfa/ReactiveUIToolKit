@@ -14,7 +14,7 @@ namespace ReactiveUITK.Samples.Shared
     {
         public static ReactiveUITK.Core.VirtualNode Render(
             IProps rawProps,
-            System.Collections.Generic.IReadOnlyList<ReactiveUITK.Core.VirtualNode> children
+            IReadOnlyList<VirtualNode> children
         )
         {
             var (repeatClickCount, setRepeatClickCount) = Hooks.UseState(0);
@@ -23,7 +23,7 @@ namespace ReactiveUITK.Samples.Shared
             var repeatButtonProps = new RepeatButtonProps
             {
                 Text = $"Repeat ({repeatClickCount})",
-                OnClick = () => setRepeatClickCount(repeatClickCount + 1),
+                OnClick = _ => setRepeatClickCount(repeatClickCount + 1),
             };
 
             var repeatPulseTracks = Hooks.UseMemo(
@@ -192,7 +192,7 @@ namespace ReactiveUITK.Samples.Shared
                     new ButtonProps
                     {
                         Text = "Re-seed Multi-track",
-                        OnClick = () => setAnimNonce(animNonce + 1),
+                        OnClick = _ => setAnimNonce(animNonce + 1),
                     }
                 )
             );

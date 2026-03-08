@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine.UIElements;
 
+using ReactiveUITK.Core;
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class SliderIntProps : BaseProps
@@ -11,7 +12,7 @@ namespace ReactiveUITK.Props.Typed
         public int? Value { get; set; }
         public string Direction { get; set; }
 
-        public Action<ChangeEvent<int>> OnChange { get; set; }
+        public ChangeEventHandler<int> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {

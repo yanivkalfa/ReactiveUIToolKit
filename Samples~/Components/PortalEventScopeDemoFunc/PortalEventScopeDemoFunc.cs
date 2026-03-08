@@ -41,7 +41,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Portal Button (click me)",
-                            OnClick = () => AppendLog("Portal button clicked"),
+                            OnClick = _ => AppendLog("Portal button clicked"),
                             Style = new Style { (StyleKeys.MarginTop, 6f) },
                         }
                     )
@@ -66,7 +66,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = mounted ? "Unmount Portal" : "Mount Portal",
-                        OnClick = () => setMounted(!mounted),
+                        OnClick = _ => setMounted(!mounted),
                         Style = new Style
                         {
                             (StyleKeys.MinWidth, 140f),

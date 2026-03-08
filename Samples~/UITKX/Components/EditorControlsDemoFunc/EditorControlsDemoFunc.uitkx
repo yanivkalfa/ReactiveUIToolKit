@@ -6,7 +6,7 @@ component EditorControlsDemoFunc {
     return (
         <VisualElement style={new Style { (FlexGrow, 1f), (FlexDirection, "column"), (Padding, 8f) }}>
             <Toolbar style={new Style { (FlexShrink, 0f), (MarginBottom, 6f) }}>
-                <ToolbarButton text="Ping" onClick={() => UnityEngine.Debug.Log("Ping clicked")} />
+                <ToolbarButton text="Ping" onClick={_ => UnityEngine.Debug.Log("Ping clicked")} />
                 <ToolbarToggle text="Toggle" value={false} />
                 <ToolbarMenu
                     text="Menu"

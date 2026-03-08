@@ -2317,7 +2317,7 @@ namespace ReactiveUITK.Props
                 }
             }
             catch { }
-            SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
+            ReactiveEvent syntheticEvent = ReactiveEvent.Create(evt);
             if (syntheticEvent != null)
             {
                 syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;

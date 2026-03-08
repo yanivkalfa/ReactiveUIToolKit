@@ -1,14 +1,15 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
+using ReactiveUITK.Core;
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class ColorFieldProps : BaseProps
     {
         public Color? Value { get; set; }
-        public Action<ChangeEvent<Color>> OnChange { get; set; }
+        public ChangeEventHandler<Color> OnChange { get; set; }
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 

@@ -16,7 +16,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 null,
                 null,
                 V.Text($"Count: {count}"),
-                V.Button(new ButtonProps { Text = "+", OnClick = () => setCount(count + 1) })
+                V.Button(new ButtonProps { Text = "+", OnClick = _ => setCount(count + 1) })
             );
         }
     }

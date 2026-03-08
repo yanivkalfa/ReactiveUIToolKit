@@ -1,12 +1,14 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
+@using System.Collections.Generic
+@using System.Threading
 @using System.Threading.Tasks
 @using ReactiveUITK.Core.Fiber
 
 component LatestFeaturesDemoFunc {
     var defaultItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta" };
 
-    var (items, setItems) = useState(new System.Collections.Generic.List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta" }));
+    var (items, setItems) = useState(new List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta" }));
     var (pendingTask, setPendingTask) = useState<Task?>(null);
     var (loadCount, setLoadCount) = useState(0);
     var (status, setStatus) = useState("Click \"Simulate async load\" to exercise Suspense.");
@@ -40,14 +42,14 @@ component LatestFeaturesDemoFunc {
         var task = pendingTask;
         if (task == null) return null;
         bool cancelled = false;
-        var syncContext = System.Threading.SynchronizationContext.Current;
+        var syncContext = SynchronizationContext.Current;
         task.ContinueWith(t => {
             if (cancelled) return;
             void Apply() {
                 if (t.IsFaulted) { setStatus("Load failed (check console)."); }
                 else if (t.IsCanceled) { setStatus("Load cancelled."); }
                 else {
-                    setItems(new System.Collections.Generic.List<string>(defaultItems));
+                    setItems(new List<string>(defaultItems));
                     setLoadCount(count => count + 1);
                     setStatus($"Data loaded ({DateTime.Now:HH:mm:ss}).");
                 }
@@ -55,31 +57,31 @@ component LatestFeaturesDemoFunc {
             }
             if (syncContext != null) { try { syncContext.Post(_ => Apply(), null); } catch { Apply(); } }
             else { Apply(); }
-        }, System.Threading.CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         return () => { cancelled = true; };
     }, new object[] { pendingTask });
 
     void SimulateAsyncLoad() {
         if (pendingTask != null && !pendingTask.IsCompleted) return;
         setStatus("Loading sample data...");
-        setItems(new System.Collections.Generic.List<string>());
+        setItems(new List<string>());
         setPendingTask(Task.Run(async () => { await Task.Delay(1500); }));
     }
 
     void ResetOrder() {
-        setItems(new System.Collections.Generic.List<string>(defaultItems));
+        setItems(new List<string>(defaultItems));
     }
 
     void ReverseOrder() {
         if (items.Count == 0) return;
-        var reversed = new System.Collections.Generic.List<string>(items);
+        var reversed = new List<string>(items);
         reversed.Reverse();
         setItems(reversed);
     }
 
     void RotateOrder() {
         if (items.Count == 0) return;
-        var rotated = new System.Collections.Generic.List<string>(items.Count);
+        var rotated = new List<string>(items.Count);
         for (int i = 1; i < items.Count; i++) rotated.Add(items[i]);
         rotated.Add(items[0]);
         setItems(rotated);
@@ -110,7 +112,7 @@ component LatestFeaturesDemoFunc {
             <VisualElement key="controls-row" style={new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 6f) }}>
                 <Button
                     text={pendingTask != null && !pendingTask.IsCompleted ? "Loading..." : "Simulate async load"}
-                    onClick={SimulateAsyncLoad}
+                    onClick={_ => SimulateAsyncLoad()}
                     style={btnStyle}
                 />
             </VisualElement>
@@ -130,9 +132,9 @@ component LatestFeaturesDemoFunc {
                     <VisualElement key="lis-section">
                         <Label text="Keyed diff demo (Point 13): use the controls to reorder." />
                         <VisualElement key="reorder-controls" style={new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 4f) }}>
-                            <Button text="Reverse order" onClick={ReverseOrder} style={btnStyle} />
-                            <Button text="Rotate left" onClick={RotateOrder} style={btnStyle} />
-                            <Button text="Reset order" onClick={ResetOrder} style={btnStyle} />
+                            <Button text="Reverse order" onClick={_ => ReverseOrder()} style={btnStyle} />
+                            <Button text="Rotate left" onClick={_ => RotateOrder()} style={btnStyle} />
+                            <Button text="Reset order" onClick={_ => ResetOrder()} style={btnStyle} />
                         </VisualElement>
                         <Label text={$"Current order: {orderText}"} />
                     </VisualElement>

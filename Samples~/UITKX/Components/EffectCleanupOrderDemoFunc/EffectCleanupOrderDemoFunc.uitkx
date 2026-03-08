@@ -7,7 +7,7 @@ component EffectCleanupOrderDemoFunc {
     var logRef = useRef<List<string>>(new List<string>());
 
     // Snapshot log for display (freeze at render time).
-    var displayLog = new List<string>(logRef.Value);
+    var displayLog = new List<string>(logRef.Current);
     displayLog.Reverse();
 
     var containerStyle = new Style {
@@ -38,17 +38,17 @@ component EffectCleanupOrderDemoFunc {
             <VisualElement style={sectionStyle}>
                 <Button
                     text="Next Generation (triggers both effects)"
-                    onClick={() => { logRef.Value.Add($"── generation {generation + 1} ────────────"); setGeneration(g => g + 1); }}
+                    onClick={_ => { logRef.Current.Add($"── generation {generation + 1} ────────────"); setGeneration(g => g + 1); }}
                 />
                 <Button
                     text="Clear Log"
-                    onClick={() => { logRef.Value.Clear(); setGeneration(g => g); }}
+                    onClick={_ => { logRef.Current.Clear(); setGeneration(g => g); }}
                     style={new Style { (StyleKeys.MarginLeft, 8f) }}
                 />
             </VisualElement>
             <Label text={$"Current generation: {generation}"} style={new Style { (StyleKeys.MarginTop, 6f) }} />
-            <EffectPanel label="Panel A" generation={generation} log={logRef.Value} />
-            <EffectPanel label="Panel B" generation={generation} log={logRef.Value} />
+            <EffectPanel label="Panel A" generation={generation} log={logRef.Current} />
+            <EffectPanel label="Panel B" generation={generation} log={logRef.Current} />
             <VisualElement style={logBoxStyle}>
                 @if (displayLog.Count == 0) {
                     <Text text="Log is empty — click 'Next Generation' to start." />

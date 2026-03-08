@@ -14,7 +14,7 @@ component PropTypesDemoFunc {
             <Label text={modeText} style={new Style { (StyleKeys.WhiteSpace, "normal") }} />
             <Button
                 text={useDefaults ? "Switch to valid props" : "Show default fallbacks"}
-                onClick={() => setUseDefaults(!useDefaults)}
+                onClick={_ => setUseDefaults(!useDefaults)}
                 style={new Style { (StyleKeys.MinWidth, 160f), (StyleKeys.MarginBottom, 6f) }}
             />
             <Label

@@ -224,8 +224,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             IReadOnlyList<VirtualNode> children
         )
         {
-            Hooks.MutableRef<TextField> pathRef = Hooks.UseRef<TextField>();
-            Hooks.MutableRef<TextField> stateRef = Hooks.UseRef<TextField>();
+            Ref<TextField> pathRef = Hooks.UseRef<TextField>();
+            Ref<TextField> stateRef = Hooks.UseRef<TextField>();
 
             var navigate = RouterHooks.UseNavigate();
             var replace = RouterHooks.UseNavigate(replace: true);
@@ -265,14 +265,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Push",
                             Style = new Style { (StyleKeys.Width, 80f) },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
-                                string rawPath = pathRef?.Value?.value;
+                                string rawPath = pathRef?.Current?.value;
                                 string effectivePath = string.IsNullOrEmpty(rawPath)
                                     ? "/"
                                     : rawPath;
 
-                                string rawState = stateRef?.Value?.value;
+                                string rawState = stateRef?.Current?.value;
                                 object statePayload = string.IsNullOrEmpty(rawState)
                                     ? null
                                     : rawState;
@@ -286,14 +286,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Replace",
                             Style = new Style { (StyleKeys.Width, 80f) },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
-                                string rawPath = pathRef?.Value?.value;
+                                string rawPath = pathRef?.Current?.value;
                                 string effectivePath = string.IsNullOrEmpty(rawPath)
                                     ? "/"
                                     : rawPath;
 
-                                string rawState = stateRef?.Value?.value;
+                                string rawState = stateRef?.Current?.value;
                                 object statePayload = string.IsNullOrEmpty(rawState)
                                     ? null
                                     : rawState;
@@ -514,7 +514,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                 (StyleKeys.MarginRight, 6f),
                                 (StyleKeys.Width, 80f),
                             },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 if (canBack)
                                 {
@@ -528,7 +528,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Forward",
                             Style = new Style { (StyleKeys.Width, 80f) },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 if (canForward)
                                 {
@@ -553,7 +553,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var (lastBlockedTo, setLastBlockedTo) = Hooks.UseState<RouterLocation>(null);
 
             // Used to allow a single navigation to bypass the guard
-            Hooks.MutableRef<bool> allowNextRef = Hooks.UseRef<bool>();
+            Ref<bool> allowNextRef = Hooks.UseRef<bool>();
 
             // For re-issuing confirmed navigations
             var navigate = RouterHooks.UseNavigate();
@@ -570,9 +570,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
                     // If a confirmation just set allowNextRef, let this
                     // transition pass and reset the flag.
-                    if (allowNextRef.Value)
+                    if (allowNextRef.Current)
                     {
-                        allowNextRef.Value = false;
+                        allowNextRef.Current = false;
                         return true;
                     }
 
@@ -616,7 +616,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = $"Test clicks: {clicks}",
-                        OnClick = () => setClicks(clicks + 1),
+                        OnClick = _ => setClicks(clicks + 1),
                         Style = new Style { (StyleKeys.MarginTop, 4f) },
                     }
                 ),
@@ -634,7 +634,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                     ? $"Allow last: {lastBlockedFrom?.Path ?? "(unknown)"} → {lastBlockedTo.Path}"
                                     : "Allow last blocked",
                             Enabled = lastBlockedTo != null,
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 if (lastBlockedTo == null)
                                 {
@@ -642,7 +642,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                 }
 
                                 string targetPath = BuildPathWithQuery(lastBlockedTo);
-                                allowNextRef.Value = true;
+                                allowNextRef.Current = true;
 
                                 navigate(targetPath, lastBlockedTo.State);
                                 setLastBlockedFrom(default);
@@ -657,7 +657,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Dismiss",
                             Enabled = lastBlockedTo != null,
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 setLastBlockedFrom(default);
                                 setLastBlockedTo(default);

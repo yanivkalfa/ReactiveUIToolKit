@@ -6,7 +6,7 @@ component SimpleCounterFunc {
     return (
         <VisualElement>
             <Text text={$"Count: {count}"} />
-            <Button text="+" onClick={() => setCount(count + 1)} />
+            <Button text="+" onClick={_ => setCount(count + 1)} />
         </VisualElement>
     );
 }

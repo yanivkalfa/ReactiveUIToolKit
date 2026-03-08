@@ -50,3 +50,63 @@ This means all components are effectively memo'd by default through `IProps.Equa
 - Search all call sites for `memoize: true` in Samples and game projects before deleting.
 - Remove all `memoize` / `memoCompare` parameters and fields.
 - If a custom-comparator escape hatch is ever needed, design it as a real named feature, not a silent no-op parameter.
+
+---
+
+# Tech Debt - `SyntheticEventDemoFunc` Uses `extraProps` Unnecessarily
+
+## Summary
+`SyntheticEventDemoFunc.uitkx` passes `onPointerDown`, `onPointerMove`, `onPointerUp`, and `onWheel`
+handlers via the `extraProps` escape hatch with full-namespace casts:
+
+```csharp
+extraProps={new System.Collections.Generic.Dictionary<string, object> {
+    { "onPointerDown", (System.Action<SyntheticPointerEvent>)(e => UpdateLog("PointerDown", e)) },
+    { "onPointerMove", (System.Action<SyntheticPointerEvent>)(e => UpdateLog("PointerMove", e)) },
+    { "onPointerUp",   (System.Action<SyntheticPointerEvent>)(e => UpdateLog("PointerUp", e)) },
+    { "onWheel",       (System.Action<SyntheticWheelEvent>)(e => UpdateLog("Wheel", e)) }
+}}
+```
+
+This is incorrect. All four events (`onPointerDown`, `onPointerMove`, `onPointerUp`, `onWheel`) are
+**already hardcoded in `PropsApplier.ApplyEvent`** and typed on `BaseProps`. They can and should be
+passed as plain JSX attributes � no `extraProps` escape hatch required.
+
+Additional redundancy: `System.Collections.Generic.` and `System.` prefixes are unnecessary �
+the emitter always injects `using System;` and `using System.Collections.Generic;` into generated code.
+
+## Why This Is Tech Debt
+- The demo was written defensively before the `Action<SyntheticPointerEvent>` handler path was
+  confirmed to work through direct typed props, so `extraProps` was used as a workaround.
+- Leaving it in place gives the false impression that `extraProps` is needed for synthetic event
+  handlers, which it is not � it is purely an escape hatch for non-standard / custom prop keys.
+- The excess `System.` namespace prefixes make the code look more verbose than necessary.
+
+## Correct Fix (when prioritized)
+Replace the `extraProps` block in `SyntheticEventDemoFunc.uitkx` with direct JSX attributes:
+
+```uitkx
+<VisualElement
+    onPointerDown={(Action<SyntheticPointerEvent>)(e => UpdateLog("PointerDown", e))}
+    onPointerMove={(Action<SyntheticPointerEvent>)(e => UpdateLog("PointerMove", e))}
+    onPointerUp={(Action<SyntheticPointerEvent>)(e => UpdateLog("PointerUp", e))}
+    onWheel={(Action<SyntheticWheelEvent>)(e => UpdateLog("Wheel", e))}
+    ...
+>
+```
+
+Once `SyntheticPointerHandler` / `SyntheticWheelHandler` shorthand delegates are defined in
+`ReactiveUITK.Core`, the casts simplify further to:
+
+```uitkx
+    onPointerDown={(SyntheticPointerHandler)(e => UpdateLog("PointerDown", e))}
+```
+
+## Related Design Inconsistency (separate concern - do not conflate)
+`BaseProps.OnPointerDown` etc. are typed as `EventCallback<PointerDownEvent>` (raw UIToolkit struct),
+while `InvokeHandler` in `PropsApplier` **also** accepts `Action<SyntheticPointerEvent>` for the same
+prop keys via the dynamic dispatch fallback. These two paths are not unified:
+- Setting via the typed `BaseProps.OnPointerDown` property => you receive a raw `PointerDownEvent`
+- Setting it as a direct `Action<SyntheticPointerEvent>` JSX prop => you receive the richer synthetic wrapper
+
+This inconsistency should be resolved if a single-path event model is ever prioritised.

@@ -32,8 +32,8 @@ namespace ReactiveUITK.Samples.Shared
             var (_, setTreeNextPid) = Hooks.UseState(1000);
             var (mctvRows, setMctvRows)         = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
             var (mctvNextPid, setMctvNextPid)   = Hooks.UseState(2000);
-            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<MultiColumnTreeViewProps.SortedColumnDef>>(null);
-            var (mctvLayout, setMctvLayout)     = Hooks.UseState<MultiColumnTreeViewProps.ColumnLayoutState>(null);
+            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<SortedColumnDef>>(null);
+            var (mctvLayout, setMctvLayout)     = Hooks.UseState<ColumnLayoutState>(null);
 
             // Propagate tab index to parent for ValuesBar
             Hooks.UseEffect(
@@ -157,7 +157,7 @@ namespace ReactiveUITK.Samples.Shared
                     setTreeExpandedIds.Set(prev => SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev));
             };
 
-            Action<TreeViewExpansionChangedArgs> treeExpandedChanged = args =>
+            TreeExpansionEventHandler treeExpandedChanged = args =>
             {
                 setTreeExpandedIds.Set(prev =>
                 {
@@ -282,17 +282,17 @@ namespace ReactiveUITK.Samples.Shared
                 });
             };
 
-            Action<MultiColumnTreeViewProps.ColumnLayoutState> mctvLayoutChanged = layout =>
+            ColumnLayoutEventHandler mctvLayoutChanged = layout =>
             {
-                var clone = SharedDemoPageUtils.CloneTreeLayout(layout);
-                if (SharedDemoPageUtils.TreeLayoutEqual(clone, mctvLayout)) return;
+                var clone = SharedDemoPageUtils.CloneLayout(layout);
+                if (SharedDemoPageUtils.LayoutEqual(clone, mctvLayout)) return;
                 setMctvLayout.Set(_ => clone);
             };
 
-            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> mctvSortChanged = defs =>
+            ColumnSortEventHandler mctvSortChanged = defs =>
             {
                 setMctvSortDefs(
-                    defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null
+                    defs != null ? new List<SortedColumnDef>(defs) : null
                 );
             };
 
@@ -300,7 +300,7 @@ namespace ReactiveUITK.Samples.Shared
             var tabViewProps = new TabViewProps
             {
                 SelectedTabIndex = treeTabIndex,
-                SelectedIndexChanged = (Action<int>)(index => setTreeTabIndex(index)),
+                SelectedIndexChanged = index => setTreeTabIndex(index),
                 Tabs = new List<TabViewProps.TabDef>
                 {
                     new()
@@ -359,7 +359,7 @@ namespace ReactiveUITK.Samples.Shared
                 V.Button(new ButtonProps
                 {
                     Text = showTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
-                    OnClick = () => setShowTabs(!showTabs),
+                    OnClick = _ => setShowTabs(!showTabs),
                 }),
                 V.Label(new LabelProps
                 {

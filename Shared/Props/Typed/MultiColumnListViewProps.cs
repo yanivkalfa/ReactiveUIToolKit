@@ -17,11 +17,11 @@ namespace ReactiveUITK.Props.Typed
 
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
-        public Delegate ColumnSortingChanged { get; set; }
+        public ColumnSortEventHandler ColumnSortingChanged { get; set; }
         public Dictionary<string, float> ColumnWidths { get; set; }
         public Dictionary<string, bool> ColumnVisibility { get; set; }
         public Dictionary<string, int> ColumnDisplayIndex { get; set; }
-        public Delegate ColumnLayoutChanged { get; set; }
+        public ColumnLayoutEventHandler ColumnLayoutChanged { get; set; }
 
         public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
@@ -33,7 +33,7 @@ namespace ReactiveUITK.Props.Typed
             public bool? Resizable { get; set; }
             public bool? Stretchable { get; set; }
             public bool? Sortable { get; set; }
-            public Func<int, object, ReactiveUITK.Core.VirtualNode> Cell { get; set; }
+            public RowRenderer Cell { get; set; }
 
             public Dictionary<string, object> ToDictionary()
             {
@@ -78,38 +78,6 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
-        public sealed class SortedColumnDef : global::ReactiveUITK.Core.IProps
-        {
-            public string Name { get; set; }
-            public SortDirection? Direction { get; set; }
-            public int? Index { get; set; }
-
-            public Dictionary<string, object> ToDictionary()
-            {
-                var d = new Dictionary<string, object>();
-                if (!string.IsNullOrEmpty(Name))
-                {
-                    d["name"] = Name;
-                }
-                if (Direction.HasValue)
-                {
-                    d["direction"] = Direction.Value;
-                }
-                if (Index.HasValue)
-                {
-                    d["index"] = Index.Value;
-                }
-                return d;
-            }
-        }
-
-        public sealed class ColumnLayoutState : global::ReactiveUITK.Core.IProps
-        {
-            public Dictionary<string, float> ColumnWidths { get; set; }
-            public Dictionary<string, bool> ColumnVisibility { get; set; }
-            public Dictionary<string, int> ColumnDisplayIndex { get; set; }
-        }
-
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -151,13 +119,9 @@ namespace ReactiveUITK.Props.Typed
             {
                 dict["sortingMode"] = SortingMode;
             }
-            if (ColumnSortingChanged is Hooks.StateSetter<List<SortedColumnDef>> setter)
+            if (ColumnSortingChanged != null)
             {
-                dict["columnSortingChanged"] = setter.ToValueAction();
-            }
-            else if (ColumnSortingChanged is Action<List<SortedColumnDef>> action)
-            {
-                dict["columnSortingChanged"] = action;
+                dict["columnSortingChanged"] = ColumnSortingChanged;
             }
             if (ColumnWidths != null)
             {
@@ -171,15 +135,7 @@ namespace ReactiveUITK.Props.Typed
             {
                 dict["columnDisplayIndex"] = ColumnDisplayIndex;
             }
-            if (ColumnLayoutChanged is Hooks.StateSetter<ColumnLayoutState> layoutSetter)
-            {
-                dict["columnLayoutChanged"] = layoutSetter.ToValueAction();
-            }
-            else if (ColumnLayoutChanged is Action<ColumnLayoutState> layoutAction)
-            {
-                dict["columnLayoutChanged"] = layoutAction;
-            }
-            else if (ColumnLayoutChanged != null)
+            if (ColumnLayoutChanged != null)
             {
                 dict["columnLayoutChanged"] = ColumnLayoutChanged;
             }

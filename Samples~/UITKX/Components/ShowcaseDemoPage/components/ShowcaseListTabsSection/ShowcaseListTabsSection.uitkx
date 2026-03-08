@@ -1,6 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
+@using ReactiveUITK.Props.Typed
 @using ReactiveUITK.Samples.Shared
 @using UnityEngine
 @using UnityEngine.UIElements
@@ -17,8 +18,8 @@ component ShowcaseListTabsSection(
 
     var (listRows, setListRows) = useState(new List<ListViewRowState>());
     var (mclvRows, setMclvRows) = useState(new List<MultiColumnListViewRowState>());
-    var (mclvSortDefs, setMclvSortDefs) = useState<List<MultiColumnListViewProps.SortedColumnDef>?>(null);
-    var (mclvLayout, setMclvLayout) = useState<MultiColumnListViewProps.ColumnLayoutState?>(null);
+    var (mclvSortDefs, setMclvSortDefs) = useState<List<SortedColumnDef>?>(null);
+    var (mclvLayout, setMclvLayout) = useState<ColumnLayoutState?>(null);
 
     // Propagate tab index to parent
     useEffect(() => {
@@ -101,21 +102,21 @@ component ShowcaseListTabsSection(
         });
     }
 
-    void MclvLayoutChanged(MultiColumnListViewProps.ColumnLayoutState layout) {
-        var clone = SharedDemoPageUtils.CloneListLayout(layout);
-        if (SharedDemoPageUtils.ListLayoutEqual(clone, mclvLayout)) return;
+    void MclvLayoutChanged(ColumnLayoutState layout) {
+        var clone = SharedDemoPageUtils.CloneLayout(layout);
+        if (SharedDemoPageUtils.LayoutEqual(clone, mclvLayout)) return;
         setMclvLayout(_ => clone);
     }
 
-    void MclvSortChanged(List<MultiColumnListViewProps.SortedColumnDef> defs) {
-        setMclvSortDefs(defs != null ? new List<MultiColumnListViewProps.SortedColumnDef>(defs) : null);
+    void MclvSortChanged(List<SortedColumnDef> defs) {
+        setMclvSortDefs(defs != null ? new List<SortedColumnDef>(defs) : null);
     }
 
     // ── TabView ─────────────────────────────────────────────────────────────
-    var tabViewProps = new ReactiveUITK.Props.Typed.TabViewProps {
+    var tabViewProps = new TabViewProps {
         SelectedTabIndex = listTabIndex,
-        SelectedIndexChanged = (Action<int>)(idx => setListTabIndex(idx)),
-        Tabs = new List<ReactiveUITK.Props.Typed.TabViewProps.TabDef> {
+        SelectedIndexChanged = idx => setListTabIndex(idx),
+        Tabs = new List<TabViewProps.TabDef> {
             new() { Title = "Intro", Content = () => V.Func(IntroCounterFunc.Render) },
             new() {
                 Title = "List",
@@ -141,7 +142,7 @@ component ShowcaseListTabsSection(
                         SetTopItem = MclvSetTopItem,
                         DeleteLast = MclvDeleteLast,
                         OnSortChanged = MclvSortChanged,
-                        OnLayoutChanged = (Action<MultiColumnListViewProps.ColumnLayoutState>)MclvLayoutChanged,
+                        OnLayoutChanged = MclvLayoutChanged,
                         OnCountChanged = count => onMclvCountChanged?.Invoke(count),
                     })
             },
@@ -158,7 +159,7 @@ component ShowcaseListTabsSection(
 
     return (
         <VisualElement>
-            <Button text={showTabs ? "Hide List Tabs" : "Show List Tabs"} onClick={() => setShowTabs(!showTabs)} />
+            <Button text={showTabs ? "Hide List Tabs" : "Show List Tabs"} onClick={_ => setShowTabs(!showTabs)} />
             <Label text="TabView + ListViews" style={sectionHeaderStyle} />
             <VisualElement style={tabsWrapStyle}>
                 <TabView

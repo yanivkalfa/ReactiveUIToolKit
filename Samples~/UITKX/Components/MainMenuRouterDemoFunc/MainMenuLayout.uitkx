@@ -1,5 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
+@using UnityEngine
 component MainMenuLayout {
     var location = RouterHooks.UseLocationInfo();
 
@@ -14,7 +15,7 @@ component MainMenuLayout {
         (StyleKeys.Padding, 12f),
         (StyleKeys.MarginLeft, 12f),
         (StyleKeys.BorderWidth, 1f),
-        (StyleKeys.BorderColor, new UnityEngine.Color(0.3f, 0.3f, 0.3f, 1f)),
+        (StyleKeys.BorderColor, new Color(0.3f, 0.3f, 0.3f, 1f)),
         (StyleKeys.BorderRadius, 6f),
         (StyleKeys.FlexDirection, "column"),
     };

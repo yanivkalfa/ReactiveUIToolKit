@@ -81,7 +81,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = text,
-                        OnClick = onClick,
+                        OnClick = _ => onClick?.Invoke(),
                         Style = new Style
                         {
                             (StyleKeys.MinWidth, 160f),

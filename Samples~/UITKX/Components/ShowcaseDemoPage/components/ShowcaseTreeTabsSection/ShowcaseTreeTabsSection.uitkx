@@ -1,6 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
+@using ReactiveUITK.Props.Typed
 @using ReactiveUITK.Samples.Shared
 @using UnityEngine
 @using UnityEngine.UIElements
@@ -21,8 +22,8 @@ component ShowcaseTreeTabsSection(
 
     var (mctvRows, setMctvRows) = useState(new List<MultiColumnTreeViewRowState>());
     var (mctvNextPid, setMctvNextPid) = useState(2000);
-    var (mctvSortDefs, setMctvSortDefs) = useState<List<MultiColumnTreeViewProps.SortedColumnDef>?>(null);
-    var (mctvLayout, setMctvLayout) = useState<MultiColumnTreeViewProps.ColumnLayoutState?>(null);
+    var (mctvSortDefs, setMctvSortDefs) = useState<List<SortedColumnDef>?>(null);
+    var (mctvLayout, setMctvLayout) = useState<ColumnLayoutState?>(null);
 
     // Propagate tab index to parent
     useEffect(() => {
@@ -217,21 +218,21 @@ component ShowcaseTreeTabsSection(
         });
     }
 
-    void MctvLayoutChanged(MultiColumnTreeViewProps.ColumnLayoutState layout) {
-        var clone = SharedDemoPageUtils.CloneTreeLayout(layout);
-        if (SharedDemoPageUtils.TreeLayoutEqual(clone, mctvLayout)) return;
+    void MctvLayoutChanged(ColumnLayoutState layout) {
+        var clone = SharedDemoPageUtils.CloneLayout(layout);
+        if (SharedDemoPageUtils.LayoutEqual(clone, mctvLayout)) return;
         setMctvLayout(_ => clone);
     }
 
-    void MctvSortChanged(List<MultiColumnTreeViewProps.SortedColumnDef> defs) {
-        setMctvSortDefs(defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null);
+    void MctvSortChanged(List<SortedColumnDef> defs) {
+        setMctvSortDefs(defs != null ? new List<SortedColumnDef>(defs) : null);
     }
 
     // ── TabView ─────────────────────────────────────────────────────────────
-    var tabViewProps = new ReactiveUITK.Props.Typed.TabViewProps {
+    var tabViewProps = new TabViewProps {
         SelectedTabIndex = treeTabIndex,
-        SelectedIndexChanged = (Action<int>)(idx => setTreeTabIndex(idx)),
-        Tabs = new List<ReactiveUITK.Props.Typed.TabViewProps.TabDef> {
+        SelectedIndexChanged = idx => setTreeTabIndex(idx),
+        Tabs = new List<TabViewProps.TabDef> {
             new() { Title = "Intro", Content = () => V.Func(IntroCounterFunc.Render) },
             new() {
                 Title = "Tree",
@@ -244,7 +245,7 @@ component ShowcaseTreeTabsSection(
                         SetChild = TreeSetChild,
                         DeleteLast = TreeDeleteLast,
                         ExpandedItemIds = treeExpandedIds,
-                        OnExpandedChanged = (Action<TreeViewExpansionChangedArgs>)TreeExpandedChanged,
+                        OnExpandedChanged = TreeExpandedChanged,
                         OnCountChanged = count => onTreeCountChanged?.Invoke(count),
                     })
             },
@@ -263,7 +264,7 @@ component ShowcaseTreeTabsSection(
                         SetChild = MctvSetChild,
                         DeleteLast = MctvDeleteLast,
                         OnSortChanged = MctvSortChanged,
-                        OnLayoutChanged = (Action<MultiColumnTreeViewProps.ColumnLayoutState>)MctvLayoutChanged,
+                        OnLayoutChanged = MctvLayoutChanged,
                         OnCountChanged = count => onMctvCountChanged?.Invoke(count),
                     })
             },
@@ -280,7 +281,7 @@ component ShowcaseTreeTabsSection(
 
     return (
         <VisualElement>
-            <Button text={showTabs ? "Hide Tree Tabs" : "Show Tree Tabs"} onClick={() => setShowTabs(!showTabs)} />
+            <Button text={showTabs ? "Hide Tree Tabs" : "Show Tree Tabs"} onClick={_ => setShowTabs(!showTabs)} />
             <Label text="TabView + TreeView" style={sectionHeaderStyle} />
             <VisualElement style={tabsWrapStyle}>
                 <TabView

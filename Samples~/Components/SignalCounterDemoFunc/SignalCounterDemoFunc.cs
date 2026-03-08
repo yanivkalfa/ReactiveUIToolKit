@@ -36,7 +36,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Increment",
-                            OnClick = () => CounterSignal.Dispatch(v => v + 1),
+                            OnClick = _ => CounterSignal.Dispatch(v => v + 1),
                             Style = new Style { (StyleKeys.MarginRight, 6f) },
                         }
                     ),
@@ -44,7 +44,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Decrement",
-                            OnClick = () => CounterSignal.Dispatch(v => v - 1),
+                            OnClick = _ => CounterSignal.Dispatch(v => v - 1),
                             Style = new Style { (StyleKeys.MarginRight, 6f) },
                         }
                     ),
@@ -52,7 +52,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Reset",
-                            OnClick = () => CounterSignal.Dispatch(0),
+                            OnClick = _ => CounterSignal.Dispatch(0),
                         }
                     )
                 )

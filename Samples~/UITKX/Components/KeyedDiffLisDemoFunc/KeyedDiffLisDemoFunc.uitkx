@@ -1,20 +1,21 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
+@using System.Collections.Generic
 @using UnityEngine
 component KeyedDiffLisDemoFunc {
     var seedItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf" };
-    var rng = useMemo(() => new System.Random(), System.Array.Empty<object>());
+    var rng = useMemo(() => new System.Random(), Array.Empty<object>());
 
-    var (items, setItems) = useState(new System.Collections.Generic.List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf" }));
+    var (items, setItems) = useState(new List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf" }));
     var (operationCount, setOperationCount) = useState(0);
 
     void Reset() {
-        setItems(new System.Collections.Generic.List<string>(seedItems));
+        setItems(new List<string>(seedItems));
         setOperationCount(0);
     }
 
     void Reverse() {
-        var next = new System.Collections.Generic.List<string>(items);
+        var next = new List<string>(items);
         next.Reverse();
         setItems(next);
         setOperationCount(operationCount + 1);
@@ -22,7 +23,7 @@ component KeyedDiffLisDemoFunc {
 
     void RotateTailToHead() {
         if (items.Count == 0) return;
-        var next = new System.Collections.Generic.List<string>(items.Count);
+        var next = new List<string>(items.Count);
         next.Add(items[items.Count - 1]);
         for (int i = 0; i < items.Count - 1; i++) next.Add(items[i]);
         setItems(next);
@@ -31,7 +32,7 @@ component KeyedDiffLisDemoFunc {
 
     void Shuffle() {
         if (items.Count < 2) return;
-        var next = new System.Collections.Generic.List<string>(items);
+        var next = new List<string>(items);
         for (int i = next.Count - 1; i > 0; i--) {
             int j = rng.Next(i + 1);
             (next[i], next[j]) = (next[j], next[i]);
@@ -41,7 +42,7 @@ component KeyedDiffLisDemoFunc {
     }
 
     void InsertNew() {
-        var next = new System.Collections.Generic.List<string>(items);
+        var next = new List<string>(items);
         string newKey = $"New-{DateTime.Now.Ticks % 1000}";
         int index = next.Count == 0 ? 0 : rng.Next(0, next.Count);
         next.Insert(index, newKey);
@@ -51,7 +52,7 @@ component KeyedDiffLisDemoFunc {
 
     void RemoveMiddle() {
         if (items.Count == 0) return;
-        var next = new System.Collections.Generic.List<string>(items);
+        var next = new List<string>(items);
         next.RemoveAt(items.Count / 2);
         setItems(next);
         setOperationCount(operationCount + 1);
@@ -82,17 +83,17 @@ component KeyedDiffLisDemoFunc {
             />
             <Label text={$"Operations performed: {operationCount}"} style={new Style { (StyleKeys.MarginBottom, 4f) }} />
             <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap"), (StyleKeys.MarginBottom, 8f) }}>
-                <Button text="Reset order" onClick={Reset} style={btnStyle} />
-                <Button text="Reverse order" onClick={Reverse} style={btnStyle} />
-                <Button text="Rotate tail → head" onClick={RotateTailToHead} style={btnStyle} />
-                <Button text="Shuffle" onClick={Shuffle} style={btnStyle} />
-                <Button text="Insert new key" onClick={InsertNew} style={btnStyle} />
-                <Button text="Remove middle" onClick={RemoveMiddle} style={btnStyle} />
+                <Button text="Reset order" onClick={_ => Reset()} style={btnStyle} />
+                <Button text="Reverse order" onClick={_ => Reverse()} style={btnStyle} />
+                <Button text="Rotate tail → head" onClick={_ => RotateTailToHead()} style={btnStyle} />
+                <Button text="Shuffle" onClick={_ => Shuffle()} style={btnStyle} />
+                <Button text="Insert new key" onClick={_ => InsertNew()} style={btnStyle} />
+                <Button text="Remove middle" onClick={_ => RemoveMiddle()} style={btnStyle} />
             </VisualElement>
             @foreach (var item in items) {
                 <VisualElement style={rowItemStyle} key={item}>
                     <Label text={$"Key: {item}"} />
-                    <Label text={$"Index {items.IndexOf(item)}"} style={new Style { (StyleKeys.TextColor, UnityEngine.Color.cyan) }} />
+                    <Label text={$"Index {items.IndexOf(item)}"} style={new Style { (StyleKeys.TextColor, Color.cyan) }} />
                 </VisualElement>
             }
         </ScrollView>

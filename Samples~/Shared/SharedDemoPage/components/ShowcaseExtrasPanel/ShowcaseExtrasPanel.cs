@@ -12,12 +12,12 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public bool IsOptionEnabled { get; set; }
-            public Action<ChangeEvent<bool>> OnOptionEnabledChange { get; set; }
+            public ChangeEventHandler<bool> OnOptionEnabledChange { get; set; }
             public bool IsRadioSingleSelected { get; set; }
-            public Action<ChangeEvent<bool>> OnRadioSingleChange { get; set; }
+            public ChangeEventHandler<bool> OnRadioSingleChange { get; set; }
             public List<string> SelectionChoices { get; set; }
             public int SelectionIndex { get; set; }
-            public Action<ChangeEvent<int>> OnSelectionChange { get; set; }
+            public ChangeEventHandler<int> OnSelectionChange { get; set; }
             /// <summary>Used to fill the ProgressBar (repeatClickCount % 100).</summary>
             public int ProgressValue { get; set; }
             public int BatchClicks { get; set; }
@@ -76,7 +76,7 @@ namespace ReactiveUITK.Samples.Shared
                 V.Button(new ButtonProps
                 {
                     Text = $"Batch Test ({p?.BatchClicks ?? 0})",
-                    OnClick = p?.OnBatchClick,
+                    OnClick = _ => p?.OnBatchClick?.Invoke(),
                     Style = new Style { (MarginLeft, 6f) },
                 })
             );

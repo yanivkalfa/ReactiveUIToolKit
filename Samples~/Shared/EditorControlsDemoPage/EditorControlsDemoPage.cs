@@ -58,7 +58,7 @@ namespace ReactiveUITK.Samples.Shared
                         new ToolbarButtonProps
                         {
                             Text = "Ping",
-                            OnClick = () => Debug.Log("Ping clicked"),
+                            OnClick = _ => Debug.Log("Ping clicked"),
                         }
                     ),
                     V.ToolbarToggle(new ToolbarToggleProps { Text = "Toggle", Value = false }),
