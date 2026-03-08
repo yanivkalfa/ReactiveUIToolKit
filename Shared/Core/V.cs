@@ -1150,68 +1150,6 @@ namespace ReactiveUITK
             );
         }
 
-        /// <summary>
-        /// Creates a typed-props forward-ref function component VirtualNode.
-        /// <para>
-        /// The <paramref name="renderFunction"/> receives:
-        /// <list type="number">
-        ///   <item><see cref="Core.IProps"/> — cast to <typeparamref name="TProps"/> inside the method.</item>
-        ///   <item><c>object forwardedRef</c> — the ref passed as <paramref name="forwardedRef"/>.</item>
-        ///   <item><see cref="IReadOnlyList{VirtualNode}"/> children.</item>
-        /// </list>
-        /// </para>
-        /// </summary>
-        public static VirtualNode ForwardRef<TProps>(
-            Func<Core.IProps, object, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
-            TProps typedProps = null,
-            object forwardedRef = null,
-            string key = null,
-            bool memoize = false,
-            System.Func<TProps, TProps, bool> memoCompare = null,
-            params VirtualNode[] children
-        )
-            where TProps : class, Core.IProps
-        {
-            if (renderFunction == null)
-            {
-                throw new ArgumentNullException(nameof(renderFunction));
-            }
-
-            // Capture forwardedRef in closure; props flow through IProps normally.
-            VirtualNode Wrapper(Core.IProps incomingProps, IReadOnlyList<VirtualNode> childNodes)
-            {
-                return renderFunction(incomingProps, forwardedRef, childNodes);
-            }
-
-            return Func<TProps>(Wrapper, typedProps, key, memoize, memoCompare, children);
-        }
-
-        /// <summary>
-        /// Creates an untyped IProps forward-ref function component VirtualNode.
-        /// </summary>
-        public static VirtualNode ForwardRef(
-            Func<Core.IProps, object, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
-            Core.IProps props = null,
-            object forwardedRef = null,
-            string key = null,
-            bool memoize = false,
-            System.Func<Core.IProps, Core.IProps, bool> memoCompare = null,
-            params VirtualNode[] children
-        )
-        {
-            if (renderFunction == null)
-            {
-                throw new ArgumentNullException(nameof(renderFunction));
-            }
-
-            VirtualNode Wrapper(Core.IProps incomingProps, IReadOnlyList<VirtualNode> childNodes)
-            {
-                return renderFunction(incomingProps, forwardedRef, childNodes);
-            }
-
-            return Func(Wrapper, props, key, memoize, memoCompare, children);
-        }
-
         public static VirtualNode Fragment(string key = null, params VirtualNode[] children)
         {
             return new VirtualNode(

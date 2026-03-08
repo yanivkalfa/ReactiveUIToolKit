@@ -613,4 +613,190 @@ public class EmitterTests
             $"Expected 'Items = items' in generated source. Got:\n{result.GeneratedSource}"
         );
     }
+
+    // ── ref={x} routing on user (UITKX) components ────────────────────────────
+
+    [Fact]
+    public void UserComponent_SingleRefParam_RefAttrRoutedToMutableRefProp()
+    {
+        // ChildComp.uitkx — declares a single Hooks.MutableRef parameter.
+        const string childSrc =
+            """
+            component ChildComp(
+                Hooks.MutableRef<object>? inputRef = null
+            ) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        // ParentComp.uitkx — uses ref={myRef} shorthand on ChildComp.
+        const string parentSrc =
+            """
+            component ParentComp {
+                return (
+                    <ChildComp ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("ChildComp.uitkx",  childSrc),
+                ("ParentComp.uitkx", parentSrc),
+            },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
+
+        // The ref={myRef} attribute must be routed to InputRef (PascalCase of inputRef).
+        Assert.True(
+            result.SourceContains("InputRef = myRef"),
+            $"Expected 'InputRef = myRef' in generated source. Source:\n{result.GeneratedSource}"
+        );
+
+        // No ref-routing diagnostics should be emitted.
+        Assert.False(
+            result.HasDiagnostic("UITKX0020"),
+            "Did not expect UITKX0020 (no ref param) when child has exactly one MutableRef param."
+        );
+        Assert.False(
+            result.HasDiagnostic("UITKX0021"),
+            "Did not expect UITKX0021 (ambiguous ref) when child has exactly one MutableRef param."
+        );
+    }
+
+    [Fact]
+    public void UserComponent_NoRefParam_RefAttrEmitsDiagnosticUITKX0020()
+    {
+        // ChildComp.uitkx — no MutableRef parameter; ref={} cannot be routed.
+        const string childSrc =
+            """
+            component ChildComp(string? label = null) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc =
+            """
+            component ParentComp {
+                return (
+                    <ChildComp ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("ChildComp.uitkx",  childSrc),
+                ("ParentComp.uitkx", parentSrc),
+            },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(
+            result.HasDiagnostic("UITKX0020"),
+            $"Expected UITKX0020 when ref={{}} is used on a component with no MutableRef param. "
+            + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id))}"
+        );
+    }
+
+    [Fact]
+    public void UserComponent_MultipleRefParams_RefAttrEmitsDiagnosticUITKX0021()
+    {
+        // ChildComp.uitkx — two MutableRef parameters; ref={} is ambiguous.
+        const string childSrc =
+            """
+            component ChildComp(
+                Hooks.MutableRef<object>? inputRef  = null,
+                Hooks.MutableRef<object>? secondRef = null
+            ) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc =
+            """
+            component ParentComp {
+                return (
+                    <ChildComp ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("ChildComp.uitkx",  childSrc),
+                ("ParentComp.uitkx", parentSrc),
+            },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(
+            result.HasDiagnostic("UITKX0021"),
+            $"Expected UITKX0021 when ref={{}} is used on a component with multiple MutableRef params. "
+            + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id))}"
+        );
+    }
+
+    [Fact]
+    public void UserComponent_RefAttrAndOtherProps_CombineCorrectly()
+    {
+        // ChildComp.uitkx — has a regular string prop + one MutableRef prop.
+        const string childSrc =
+            """
+            component ChildComp(
+                string? label = null,
+                Hooks.MutableRef<object>? inputRef = null
+            ) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        // ParentComp.uitkx — passes both a regular attribute and ref={}.
+        const string parentSrc =
+            """
+            component ParentComp {
+                return (
+                    <ChildComp label="hello" ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("ChildComp.uitkx",  childSrc),
+                ("ParentComp.uitkx", parentSrc),
+            },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
+
+        // Regular prop must appear in the Props initializer.
+        Assert.True(
+            result.SourceContains("Label = \"hello\""),
+            $"Expected 'Label = \"hello\"' in generated source. Source:\n{result.GeneratedSource}"
+        );
+
+        // ref={} must be routed to InputRef.
+        Assert.True(
+            result.SourceContains("InputRef = myRef"),
+            $"Expected 'InputRef = myRef' in generated source. Source:\n{result.GeneratedSource}"
+        );
+
+        // No routing diagnostics.
+        Assert.False(result.HasDiagnostic("UITKX0020"), "Unexpected UITKX0020.");
+        Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
+    }
 }

@@ -39,7 +39,8 @@ namespace ReactiveUITK.SourceGenerator
             Compilation compilation,
             CancellationToken ct,
             ImmutableHashSet<string>? peerComponentTypeNames = null,
-            ImmutableHashSet<string>? peerPropsComponentTypeNames = null
+            ImmutableHashSet<string>? peerPropsComponentTypeNames = null,
+            ImmutableDictionary<string, ImmutableArray<FunctionParam>>? peerFunctionParams = null
         )
         {
             ct.ThrowIfCancellationRequested();
@@ -164,7 +165,12 @@ namespace ReactiveUITK.SourceGenerator
             ct.ThrowIfCancellationRequested();
 
             // ── Stage 3: PropsResolver ────────────────────────────────────────
-            var resolver = new PropsResolver(compilation, peerComponentTypeNames, peerPropsComponentTypeNames);
+            var resolver = new PropsResolver(
+                compilation,
+                peerComponentTypeNames,
+                peerPropsComponentTypeNames,
+                peerFunctionParams
+            );
 
             ct.ThrowIfCancellationRequested();
 

@@ -1,16 +1,14 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
-// RefForwardingDemoFunc exercises useRef and reading DOM-level element properties.
-// V.ForwardRef (passing a ref handle across component boundaries) does not have
-// dedicated UITKX syntax yet — that feature is tracked under P10.
-// This version demonstrates useRef on both a TextField and a Label within a single
-// component, which exercises ref assignment, ref reading, and conditional rendering
-// based on ref.current availability.
+// Demonstrates the ref-as-prop pattern (React 19 model):
+//   - Parent owns the MutableRef<T> instances (created via useRef).
+//   - Refs are passed to the child component as plain typed props.
+//   - No V.ForwardRef wrapper or special 3-argument render signature is needed.
 component RefForwardingDemoFunc {
-    var inputRef = useRef<UnityEngine.UIElements.TextField?>(null);
-    var labelRef = useRef<UnityEngine.UIElements.Label?>(null);
+    var inputRef = useRef<UnityEngine.UIElements.TextField>();
+    var labelRef = useRef<UnityEngine.UIElements.Label>();
 
-    var (snapshot, setSnapshot) = useState("Click \"Read refs\" to inspect ref.current assignments.");
+    var (snapshot, setSnapshot) = useState("Click \"Read refs\" to inspect ref assignments.");
 
     void UpdateSnapshot() {
         var textField = inputRef?.Value;
@@ -18,45 +16,44 @@ component RefForwardingDemoFunc {
         bool isFocused = textField?.focusController?.focusedElement == textField;
         string textSummary = textField == null
             ? "input ref is null"
-            : $"input ref current: value=\"{textField.value}\" focused={isFocused}";
+            : $"input ref: value=\"{textField.value}\" focused={isFocused}";
         string labelSummary = label == null
             ? "label ref is null"
-            : $"label ref current: text=\"{label.text}\"";
+            : $"label ref: text=\"{label.text}\"";
         setSnapshot($"{textSummary}; {labelSummary}");
     }
 
     return (
         <VisualElement style={new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.Padding, 12f), (StyleKeys.FlexGrow, 1f) }}>
-            <Label text="useRef demo (ForwardRef syntax is tracked separately as P10)" />
+            <Label text="useRef + ref-as-prop demo" />
             <Label
-                text="Parent holds MutableRef<TextField> and MutableRef<Label>. Click 'Focus input' to verify .Focus() works via the ref."
+                text="Parent holds MutableRef<TextField> and MutableRef<Label>, passes them to the child as plain typed props."
                 style={new Style { (StyleKeys.Color, new Color(0.75f, 0.75f, 0.75f, 1f)), (StyleKeys.WhiteSpace, "normal"), (StyleKeys.MarginTop, 4f) }}
             />
             <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.AlignItems, "center"), (StyleKeys.MarginTop, 6f) }}>
-                <Button text="Read refs" onClick={UpdateSnapshot} />
+                <Button text="Read refs (parent)" onClick={UpdateSnapshot} />
                 <Button
-                    text="Focus input"
+                    text="Focus input (parent)"
                     onClick={() => inputRef?.Value?.Focus()}
                     style={new Style { (StyleKeys.MarginLeft, 6f) }}
                 />
             </VisualElement>
-            <Label
-                text="Ref'd label:"
-                ref={labelRef}
-                style={new Style { (StyleKeys.MarginTop, 10f) }}
-            />
-            <TextField
-                value="Hello ReactiveUITK refs!"
-                ref={inputRef}
-                style={new Style { (StyleKeys.MarginTop, 6f) }}
+            <RefChild
+                inputRef={inputRef}
+                labelRef={labelRef}
+                onSnapshot={UpdateSnapshot}
             />
             <Label
                 text={snapshot}
                 style={new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FontSize, 13f) }}
             />
             <Label
-                text={inputRef?.Value != null ? $"Parent sees ref.current: TextField name='{inputRef.Value.name}'" : "Parent sees ref.current == null"}
+                text={inputRef?.Value != null ? $"Parent sees inputRef.current: TextField name='{inputRef.Value.name}'" : "Parent sees inputRef.current == null"}
                 style={new Style { (StyleKeys.MarginTop, 4f) }}
+            />
+            <Label
+                text={labelRef?.Value != null ? $"Parent sees labelRef.current.text = '{labelRef.Value.text}'" : "Parent sees labelRef.current == null"}
+                style={new Style { (StyleKeys.MarginTop, 2f) }}
             />
         </VisualElement>
     );

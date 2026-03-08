@@ -5,6 +5,8 @@ using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using ReactiveUITK.Language;
+using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator
 {
@@ -138,6 +140,7 @@ namespace ReactiveUITK.SourceGenerator
                     // same pass via GetTypeByMetadataName).
                     var peerNamesBuilder      = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
                     var peerPropsNamesBuilder = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+                    var peerFuncParamsBuilder = ImmutableDictionary.CreateBuilder<string, ImmutableArray<FunctionParam>>(StringComparer.Ordinal);
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
@@ -146,16 +149,26 @@ namespace ReactiveUITK.SourceGenerator
                         string? src = txt.GetText(ct)?.ToString();
                         if (src == null)
                             continue;
-                        string? name = ExtractComponentName(src);
+                        var throwawayDiags = new List<ParseDiagnostic>();
+                        var ds = DirectiveParser.Parse(src, txt.Path, throwawayDiags);
+                        string? name = ds.ComponentName ?? ExtractComponentName(src);
                         if (name != null)
                         {
                             peerNamesBuilder.Add(name);
-                            if (HasFunctionStyleParams(src))
+                            if (ds.IsFunctionStyle && !ds.FunctionParams.IsDefaultOrEmpty)
+                            {
                                 peerPropsNamesBuilder.Add(name);
+                                peerFuncParamsBuilder[name] = ds.FunctionParams;
+                            }
+                            else if (!ds.IsFunctionStyle && HasFunctionStyleParams(src))
+                            {
+                                peerPropsNamesBuilder.Add(name);
+                            }
                         }
                     }
                     ImmutableHashSet<string> peerComponentNames      = peerNamesBuilder.ToImmutable();
                     ImmutableHashSet<string> peerPropsComponentNames = peerPropsNamesBuilder.ToImmutable();
+                    ImmutableDictionary<string, ImmutableArray<FunctionParam>> peerFunctionParams = peerFuncParamsBuilder.ToImmutable();
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
@@ -168,7 +181,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = txt.GetText(ct)?.ToString();
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponentNames, peerPropsComponentNames));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponentNames, peerPropsComponentNames, peerFunctionParams));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -185,20 +198,31 @@ namespace ReactiveUITK.SourceGenerator
                             // Pre-scan for peer component names (same as the AdditionalTexts path)
                             var diskPeerBuilder      = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
                             var diskPeerPropsBuilder = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+                            var diskFuncParamsBuilder = ImmutableDictionary.CreateBuilder<string, ImmutableArray<FunctionParam>>(StringComparer.Ordinal);
                             foreach (string fp in diskFiles)
                             {
                                 if (IsInsideIgnoredFolder(fp)) continue;
                                 string raw = File.ReadAllText(fp);
-                                string? n = ExtractComponentName(raw);
+                                var throwawayDiags = new List<ParseDiagnostic>();
+                                var ds = DirectiveParser.Parse(raw, fp, throwawayDiags);
+                                string? n = ds.ComponentName ?? ExtractComponentName(raw);
                                 if (n != null)
                                 {
                                     diskPeerBuilder.Add(n);
-                                    if (HasFunctionStyleParams(raw))
+                                    if (ds.IsFunctionStyle && !ds.FunctionParams.IsDefaultOrEmpty)
+                                    {
                                         diskPeerPropsBuilder.Add(n);
+                                        diskFuncParamsBuilder[n] = ds.FunctionParams;
+                                    }
+                                    else if (!ds.IsFunctionStyle && HasFunctionStyleParams(raw))
+                                    {
+                                        diskPeerPropsBuilder.Add(n);
+                                    }
                                 }
                             }
                             ImmutableHashSet<string> diskPeerNames      = diskPeerBuilder.ToImmutable();
                             ImmutableHashSet<string> diskPeerPropsNames = diskPeerPropsBuilder.ToImmutable();
+                            ImmutableDictionary<string, ImmutableArray<FunctionParam>> diskFuncParams = diskFuncParamsBuilder.ToImmutable();
 
                             foreach (string filePath in diskFiles)
                             {
@@ -206,7 +230,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerNames, diskPeerPropsNames));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerNames, diskPeerPropsNames, diskFuncParams));
                             }
                         }
                     }
