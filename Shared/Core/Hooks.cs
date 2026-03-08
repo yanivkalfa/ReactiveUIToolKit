@@ -1513,7 +1513,7 @@ namespace ReactiveUITK.Core
 
         public static T UseSignal<T>(string key, T initialValue = default)
         {
-            return UseSignal(ReactiveUITK.Signals.Signals.Get<T>(key, initialValue));
+            return UseSignal(ReactiveUITK.Signals.SignalFactory.Get<T>(key, initialValue));
         }
 
         public static TSlice UseSignal<T, TSlice>(
@@ -1524,7 +1524,7 @@ namespace ReactiveUITK.Core
         )
         {
             return UseSignal(
-                ReactiveUITK.Signals.Signals.Get<T>(key, initialValue),
+                ReactiveUITK.Signals.SignalFactory.Get<T>(key, initialValue),
                 selector,
                 comparer
             );

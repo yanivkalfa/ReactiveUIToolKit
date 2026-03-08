@@ -1,0 +1,80 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using ReactiveUITK.Router
+component RouterNavigationGuardPanel {
+    var (enabled, setEnabled) = useState(false);
+    var (message, setMessage) = useState("Guard disabled; all navigation allowed.");
+    var (clicks, setClicks) = useState(0);
+    var (lastBlockedFrom, setLastBlockedFrom) = useState<RouterLocation?>(null);
+    var (lastBlockedTo, setLastBlockedTo) = useState<RouterLocation?>(null);
+
+    var allowNextRef = useRef<bool>(false);
+    var navigate = RouterHooks.UseNavigate();
+
+    RouterHooks.UseBlocker(
+        (from, to) => {
+            if (!enabled) return true;
+            if (allowNextRef.Value) { allowNextRef.Value = false; return true; }
+            setLastBlockedFrom(from);
+            setLastBlockedTo(to);
+            string fromPath = from?.Path ?? "(unknown)";
+            string toPath = to?.Path ?? "(unknown)";
+            setMessage($"Blocked navigation from '{fromPath}' to '{toPath}'. Disable the guard to allow navigation.");
+            return false;
+        },
+        enabled: enabled
+    );
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FlexDirection, "column") }}>
+            <Toggle
+                text="Require confirmation before navigation"
+                value={enabled}
+                onChange={evt => {
+                    setEnabled(evt.newValue);
+                    setMessage(evt.newValue ? "Guard enabled; navigation requires confirmation." : "Guard disabled; all navigation allowed.");
+                }}
+            />
+            <Button
+                text={$"Test clicks: {clicks}"}
+                onClick={() => setClicks(clicks + 1)}
+                style={new Style { (StyleKeys.MarginTop, 4f) }}
+            />
+            <Text text={$"Guard enabled: {enabled}"} />
+            <Text text={message} />
+            <Text text="Use the button above to require confirmation before navigation." />
+            <VisualElement style={new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.FlexDirection, "row") }}>
+                <Button
+                    text={lastBlockedTo != null ? $"Allow last: {lastBlockedFrom?.Path ?? "(unknown)"} → {lastBlockedTo.Path}" : "Allow last blocked"}
+                    enabled={lastBlockedTo != null}
+                    onClick={() => {
+                        if (lastBlockedTo == null) return;
+                        string targetPath = lastBlockedTo.Path;
+                        var q = lastBlockedTo.Query;
+                        if (q != null && q.Count > 0) {
+                            var parts = new System.Collections.Generic.List<string>();
+                            foreach (var kv in q) parts.Add($"{Uri.EscapeDataString(kv.Key ?? "")}={Uri.EscapeDataString(kv.Value ?? "")}");
+                            targetPath = $"{targetPath}?{string.Join("&", parts)}";
+                        }
+                        allowNextRef.Value = true;
+                        navigate(targetPath, lastBlockedTo.State);
+                        setLastBlockedFrom(default);
+                        setLastBlockedTo(default);
+                        setMessage("Guard enabled; last navigation was allowed.");
+                    }}
+                    style={new Style { (StyleKeys.Width, 180f) }}
+                />
+                <Button
+                    text="Dismiss"
+                    enabled={lastBlockedTo != null}
+                    onClick={() => {
+                        setLastBlockedFrom(default);
+                        setLastBlockedTo(default);
+                        setMessage(enabled ? "Guard enabled; navigation requires confirmation." : "Guard disabled; all navigation allowed.");
+                    }}
+                    style={new Style { (StyleKeys.MarginLeft, 4f), (StyleKeys.Width, 100f) }}
+                />
+            </VisualElement>
+        </VisualElement>
+    );
+}

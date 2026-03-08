@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.CodeAnalysis;
@@ -81,6 +82,156 @@ internal static class GeneratorTestHelper
         {
             // Skip UITKX_Loaded.g.cs (the always-present marker stub) and pick
             // the first source that actually contains generated component code.
+            foreach (var src in runResult.Results[0].GeneratedSources)
+            {
+                string text = src.SourceText.ToString();
+                if (text.Contains("partial class") || text.Contains("namespace "))
+                {
+                    generatedSource = text;
+                    break;
+                }
+            }
+        }
+
+        return new GeneratorRunOutput(allDiags, generatedSource);
+    }
+
+    /// <summary>
+    /// Runs the generator with <b>multiple</b> .uitkx files so that peer-component
+    /// name and props-type resolution can be exercised across files.
+    /// Returns the generated output for <paramref name="primaryFileName"/>.
+    /// </summary>
+    public static GeneratorRunOutput RunMultiple(
+        (string fileName, string content)[] files,
+        string primaryFileName
+    )
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "uitkx_tests");
+        string stubPath = Path.Combine(testDir, "_Stubs.g.cs");
+
+        var stubTree = CSharpSyntaxTree.ParseText(StubSource, path: stubPath);
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "Assembly-CSharp",
+            syntaxTrees: new[] { stubTree },
+            references: new[]
+            {
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            },
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        );
+
+        var generator = new UitkxGenerator();
+        var addlTexts = ImmutableArray.CreateRange(
+            files.Select(f =>
+                (AdditionalText)new InMemoryAdditionalText(
+                    Path.Combine(testDir, f.fileName),
+                    f.content
+                )
+            )
+        );
+
+        var driver = CSharpGeneratorDriver
+            .Create(generator)
+            .AddAdditionalTexts(addlTexts);
+
+        driver = (CSharpGeneratorDriver)
+            driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+
+        var runResult = driver.GetRunResult();
+
+        var allDiags = ImmutableArray<Diagnostic>.Empty;
+        foreach (var r in runResult.Results)
+            allDiags = allDiags.AddRange(r.Diagnostics);
+
+        // Find the generated source for the primary file
+        string? generatedSource = null;
+        string primaryBase = Path.GetFileNameWithoutExtension(primaryFileName); // e.g. "Parent"
+        foreach (var r in runResult.Results)
+        {
+            foreach (var src in r.GeneratedSources)
+            {
+                string text = src.SourceText.ToString();
+                // Match by hint name containing the primary component name
+                if (src.HintName.Contains(primaryBase) &&
+                    (text.Contains("partial class") || text.Contains("namespace ")))
+                {
+                    generatedSource = text;
+                    break;
+                }
+            }
+            if (generatedSource != null) break;
+        }
+
+        // Fallback: first source with component code
+        if (generatedSource == null)
+        {
+            foreach (var r in runResult.Results)
+            {
+                foreach (var src in r.GeneratedSources)
+                {
+                    string text = src.SourceText.ToString();
+                    if (text.Contains("partial class") || text.Contains("namespace "))
+                    {
+                        generatedSource = text;
+                        break;
+                    }
+                }
+                if (generatedSource != null) break;
+            }
+        }
+
+        return new GeneratorRunOutput(allDiags, generatedSource);
+    }
+
+    /// <summary>
+    /// Like <see cref="Run"/> but also compiles additional C# source into the
+    /// Roslyn snapshot so that external types (e.g. a C# class with a nested
+    /// <c>Props</c> class) are visible to <see cref="PropsResolver"/>.
+    /// </summary>
+    public static GeneratorRunOutput RunWithExtraCSharp(
+        string uitkxContent,
+        string extraCSharpSource,
+        string fileName = "TestComponent.uitkx"
+    )
+    {
+        string testDir = Path.Combine(Path.GetTempPath(), "uitkx_tests");
+        string uitkxPath = Path.Combine(testDir, fileName);
+        string stubPath = Path.Combine(testDir, "_Stubs.g.cs");
+        string extraPath = Path.Combine(testDir, "_Extra.g.cs");
+
+        var stubTree = CSharpSyntaxTree.ParseText(StubSource, path: stubPath);
+        var extraTree = CSharpSyntaxTree.ParseText(extraCSharpSource, path: extraPath);
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "Assembly-CSharp",
+            syntaxTrees: new[] { stubTree, extraTree },
+            references: new[]
+            {
+                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
+            },
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
+        );
+
+        var generator = new UitkxGenerator();
+        var addlText = new InMemoryAdditionalText(uitkxPath, uitkxContent);
+
+        var driver = CSharpGeneratorDriver
+            .Create(generator)
+            .AddAdditionalTexts(ImmutableArray.Create<AdditionalText>(addlText));
+
+        driver = (CSharpGeneratorDriver)
+            driver.RunGeneratorsAndUpdateCompilation(compilation, out _, out _);
+
+        var runResult = driver.GetRunResult();
+
+        var allDiags = ImmutableArray<Diagnostic>.Empty;
+        foreach (var r in runResult.Results)
+            allDiags = allDiags.AddRange(r.Diagnostics);
+
+        string? generatedSource = null;
+        if (runResult.Results.Length > 0)
+        {
             foreach (var src in runResult.Results[0].GeneratedSources)
             {
                 string text = src.SourceText.ToString();

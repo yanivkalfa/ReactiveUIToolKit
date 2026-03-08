@@ -347,7 +347,7 @@ Special cases:
 
 ### Phase 5 — Delete `VisualElement_Dict` and finalize
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 After Phase 4, the private `VisualElement_Dict` overload should have zero callers.
 
@@ -466,7 +466,7 @@ Only do this where the original intent was a plain `VisualElement` container. `<
 | 2 | Migrate all existing Props classes to inherit `BaseProps` | 🔲 |
 | 3 | Add typed `V.VisualElement` overload; privatize dict overload | 🔲 |
 | 4 | Migrate ~100 `V.VisualElement(dict)` call sites | 🔲 |
-| 5 | Delete private dict overload; finalize | 🔲 |
+| 5 | Delete private dict overload; finalize | ✅ |
 | 6 | Wire 14 new `PropsApplier` keys (`visible`, `enabled`, `tooltip`, `viewDataKey`, lifecycle events, …) | 🔲 |
 | 7 | Tests + v1.1.0 version bump | 🔲 |
 | 8 | Migrate `JustStayOn` game UI (`C:\Yanivs\GameDev\JustStayOn\Assets\UI`) | 🔲 |

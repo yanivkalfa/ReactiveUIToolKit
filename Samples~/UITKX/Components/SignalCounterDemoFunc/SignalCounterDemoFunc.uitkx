@@ -1,0 +1,39 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Signals
+@using UnityEngine
+component SignalCounterDemoFunc {
+    var counterSignal = useMemo(() => ReactiveUITK.Signals.SignalFactory.Get<int>("demo.counter", 0), System.Array.Empty<object>());
+    var count = useSignal(counterSignal);
+
+    var containerStyle = new Style {
+        (StyleKeys.Padding, 12f),
+        (StyleKeys.MarginTop, 8f),
+    };
+
+    var rowStyle = new Style {
+        (StyleKeys.FlexDirection, "row"),
+    };
+
+    return (
+        <VisualElement style={containerStyle}>
+            <Text text="Signal Counter (shared state)" />
+            <Text text={$"Count: {count}"} />
+            <VisualElement style={rowStyle}>
+                <Button
+                    text="Increment"
+                    onClick={() => counterSignal.Dispatch(v => v + 1)}
+                    style={new Style { (StyleKeys.MarginRight, 6f) }}
+                />
+                <Button
+                    text="Decrement"
+                    onClick={() => counterSignal.Dispatch(v => v - 1)}
+                    style={new Style { (StyleKeys.MarginRight, 6f) }}
+                />
+                <Button
+                    text="Reset"
+                    onClick={() => counterSignal.Dispatch(0)}
+                />
+            </VisualElement>
+        </VisualElement>
+    );
+}

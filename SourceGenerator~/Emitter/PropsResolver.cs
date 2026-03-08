@@ -24,6 +24,21 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     {
         private readonly Compilation _compilation;
 
+        /// <summary>
+        /// Simple names of component types that will be generated from other .uitkx files
+        /// in the same source-generator run.  Used to suppress UITKX0008 for peer
+        /// components that cannot be found in the compilation (because they are generated
+        /// in the same pass and therefore not yet compiled into the snapshot).
+        /// </summary>
+        private readonly ImmutableHashSet<string> _peerComponentTypeNames;
+
+        /// <summary>
+        /// Subset of <see cref="_peerComponentTypeNames"/> for peers that declare
+        /// function-style params (and therefore have a generated <c>XxxProps</c> nested
+        /// class).  Only these peers get the typed <c>V.Func&lt;T&gt;</c> code path.
+        /// </summary>
+        private readonly ImmutableHashSet<string> _peerPropsComponentTypeNames;
+
         /// <summary>Lowercase tag → TagResolution for every V.* built-in.</summary>
         private readonly Dictionary<string, TagResolution> _builtinMap;
 
@@ -31,13 +46,31 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private const string VTypeName = "ReactiveUITK.V";
         private const string VirtualNodeName = "VirtualNode";
 
+        // ── Well-known component tag aliases ────────────────────────────────────
+        // Maps short markup tag names to their implementing C# class names.
+        // This lets users write <Router>, <Route>, <Link> in .uitkx markup
+        // without knowing the Func-suffixed class names that back them.
+        private static readonly Dictionary<string, string> s_componentTagAliases =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Router"] = "RouterFunc",
+                ["Route"]  = "RouteFunc",
+                ["Link"]   = "LinkFunc",
+            };
+
         // ── Fallback hard-coded map (used when V type not resolvable) ─────────
         private static readonly IReadOnlyDictionary<string, TagResolution> s_fallbackMap =
             BuildFallbackMap();
 
-        public PropsResolver(Compilation compilation)
+        public PropsResolver(
+            Compilation compilation,
+            ImmutableHashSet<string>? peerComponentTypeNames = null,
+            ImmutableHashSet<string>? peerPropsComponentTypeNames = null
+        )
         {
             _compilation = compilation;
+            _peerComponentTypeNames      = peerComponentTypeNames      ?? ImmutableHashSet<string>.Empty;
+            _peerPropsComponentTypeNames = peerPropsComponentTypeNames ?? ImmutableHashSet<string>.Empty;
             _builtinMap = BuildBuiltinMapFromCompilation(compilation);
         }
 
@@ -94,21 +127,28 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
 
             // ── PascalCase → function component ──────────────────────────────
-            bool typeFound = TryFindFuncComponentType(tagName, usingNamespaces);
+            // Apply well-known component tag aliases first so that short markup
+            // names like <Router>, <Route>, <Link> transparently resolve to their
+            // Func-suffixed implementation classes.
+            string lookupTypeName = s_componentTagAliases.TryGetValue(tagName, out var aliased)
+                ? aliased
+                : tagName;
+
+            bool typeFound = TryFindFuncComponentType(lookupTypeName, usingNamespaces);
             if (!typeFound)
             {
                 unknownDiagnostic = UitkxDiagnostics.UnknownComponent;
-                // Still emit V.Func(TagName.Render, ...) — let C# compiler report missing type
+                // Still emit V.Func(LookupTypeName.Render, ...) — let C# compiler report missing type
             }
 
-            string? funcPropsTypeName = TryGetFuncComponentPropsTypeName(tagName, usingNamespaces);
+            string? funcPropsTypeName = TryGetFuncComponentPropsTypeName(lookupTypeName, usingNamespaces);
 
             return new TagResolution(
                 TagResolutionKind.FuncComponent,
                 "Func",
                 null,
                 AcceptsChildren: true,
-                FuncTypeName: tagName,
+                FuncTypeName: lookupTypeName,
                 FuncPropsTypeName: funcPropsTypeName
             );
         }
@@ -181,6 +221,39 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (sym != null) return sym.Name;
             }
 
+            // Fall back to convention for peer-generated components that have props.
+            // Same-pass generated types are absent from the Roslyn snapshot, so
+            // GetTypeByMetadataName returns null even though {Name}Props WILL exist
+            // after code generation.  The Props class is emitted as a nested type
+            // inside the component's partial class (e.g. UnstableChild.UnstableChildProps),
+            // so qualify the name with the declaring type to avoid CS0246.
+            // Only do this for peers that actually declare function-style params;
+            // peers with no params never emit a Props class and must take the no-props path.
+            //
+            // IMPORTANT: this check runs before the nested-Props scan below.
+            // Both a C# legacy class (e.g. ShowcaseTopBar.cs with nested Props) and
+            // its UITKX peer counterpart (ShowcaseTopBar.uitkx with ShowcaseTopBarProps)
+            // may be present in the same compilation.  Peer components must always win
+            // so the UITKX-generated typed V.Func<X.XProps> call is used, not the C#
+            // legacy V.Func<X.Props> call which would target the wrong namespace.
+            if (_peerPropsComponentTypeNames.Contains(componentTypeName))
+                return $"{componentTypeName}.{candidate}";
+
+            // Also check for a nested Props class (convention: TypeName.Props).
+            // In Roslyn metadata names, nested classes use '+': TypeName+Props.
+            // If found, return "TypeName.Props" so the emitter emits
+            //   V.Func<TypeName.Props>(TypeName.Render, new TypeName.Props { ... })
+            // This supports legacy C# static classes that follow the ValuesBarFunc
+            // pattern (nested Props class rather than a sibling {TypeName}Props class).
+            if (_compilation.GetTypeByMetadataName($"{componentTypeName}+Props") != null)
+                return $"{componentTypeName}.Props";
+
+            foreach (var ns in usingNamespaces)
+            {
+                var sym = _compilation.GetTypeByMetadataName($"{ns}.{componentTypeName}+Props");
+                if (sym != null) return $"{componentTypeName}.Props";
+            }
+
             return null;
         }
 
@@ -201,6 +274,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (TryGetFuncType($"{ns}.{typeName}"))
                     return true;
             }
+
+            // Fall back to peer-generated component names.
+            // Types generated from other .uitkx files in the same pass are not yet
+            // compiled into the Roslyn snapshot, so GetTypeByMetadataName returns null
+            // for them.  If the simple type name matches a peer component we suppress
+            // UITKX0008 — the C# compiler will catch any real mismatch.
+            if (_peerComponentTypeNames.Contains(typeName))
+                return true;
 
             return false;
         }
@@ -326,6 +407,19 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     true
                 );
 
+            // Suspense is a first-class built-in: V.Suspense() arguments are emitted
+            // by a dedicated code path (EmitSuspense) that maps well-known attribute
+            // names (isReady, pendingTask, fallback) to the correct overload.
+            // V.Suspense's first param is Func<bool> — the Roslyn scanner skips it,
+            // so we register it manually here.
+            if (!map.ContainsKey("suspense"))
+                map["suspense"] = new TagResolution(
+                    TagResolutionKind.BuiltinSuspense,
+                    "Suspense",
+                    null,
+                    AcceptsChildren: true
+                );
+
             return map;
         }
 
@@ -374,6 +468,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     "Fragment",
                     null,
                     true
+                ),
+                ["suspense"] = new TagResolution(
+                    TagResolutionKind.BuiltinSuspense,
+                    "Suspense",
+                    null,
+                    AcceptsChildren: true
+                ),
+                ["errorboundary"] = Typed(
+                    "ErrorBoundary",
+                    "ErrorBoundaryProps",
+                    children: true
                 ),
             };
         }

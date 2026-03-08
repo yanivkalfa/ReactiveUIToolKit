@@ -123,7 +123,7 @@ namespace ReactiveUITK.Tests
         {
             Debug.Log("[FiberTest] Starting signal test...");
 
-            var signal = ReactiveUITK.Signals.Signals.Get<int>("FiberTest.SignalCounter", 0);
+            var signal = ReactiveUITK.Signals.SignalFactory.Get<int>("FiberTest.SignalCounter", 0);
 
             var signalComp = V.Func(
                 (IProps props, IReadOnlyList<VirtualNode> children) =>

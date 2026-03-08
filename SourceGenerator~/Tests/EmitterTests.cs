@@ -435,4 +435,182 @@ public class EmitterTests
             "Nested generic hook alias should be expanded"
         );
     }
+
+    // ── ErrorBoundary emission ───────────────────────────────────────────────
+
+    [Fact]
+    public void ErrorBoundary_GeneratesVErrorBoundaryCall()
+    {
+        const string src =
+            """
+            component MyComp {
+                return (
+                    <ErrorBoundary>
+                        <Label text="child" />
+                    </ErrorBoundary>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("V.ErrorBoundary("),
+            $"Expected V.ErrorBoundary( call in generated source. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("ErrorBoundaryProps"),
+            "Expected ErrorBoundaryProps in generated source"
+        );
+    }
+
+    [Fact]
+    public void ErrorBoundary_WithFallbackProp_GeneratesCorrectProps()
+    {
+        const string src =
+            """
+            component MyComp {
+                var fallback = (<Label text="error!" />);
+                return (
+                    <ErrorBoundary fallback={fallback} resetKey="v1">
+                        <Label text="child" />
+                    </ErrorBoundary>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.ErrorBoundary("), $"Expected V.ErrorBoundary( call. Got:\n{result.GeneratedSource}");
+        Assert.True(result.SourceContains("Fallback = fallback"), "Expected Fallback prop assignment");
+        Assert.True(result.SourceContains("ResetKey = \"v1\""), "Expected ResetKey prop assignment");
+    }
+
+    [Fact]
+    public void Suspense_WithIsReadyAndFallback_GeneratesVSuspenseCall()
+    {
+        const string src =
+            """
+            component MyComp {
+                bool IsReady() => true;
+                var fallback = (<Label text="loading..." />);
+                return (
+                    <Suspense isReady={IsReady} fallback={fallback}>
+                        <Label text="content" />
+                    </Suspense>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Suspense("), $"Expected V.Suspense( call. Got:\n{result.GeneratedSource}");
+        Assert.True(result.SourceContains("IsReady"), "Expected IsReady expression in V.Suspense call");
+        Assert.True(result.SourceContains("fallback"), "Expected fallback expression in V.Suspense call");
+    }
+
+    // ── Peer component props resolution ──────────────────────────────────────
+
+    [Fact]
+    public void PeerComponent_WithProps_EmitsTypedVFuncAndPassesAttributes()
+    {
+        // ChildComp.uitkx — sub-component with a bool prop
+        const string childSrc =
+            """
+            component ChildComp(bool active = false) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        // ParentComp.uitkx — references ChildComp; its props type is peer-generated
+        const string parentSrc =
+            """
+            component ParentComp {
+                var flag = true;
+                return (
+                    <ChildComp active={flag} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("ChildComp.uitkx", childSrc),
+                ("ParentComp.uitkx", parentSrc),
+            },
+            primaryFileName: "ParentComp.uitkx"
+        );
+
+        Assert.True(result.SourceWasProduced, $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+        // Props are generated as nested types (ChildComp.ChildCompProps), so the
+        // qualified form must be used to avoid CS0246 at the call site.
+        Assert.True(
+            result.SourceContains("V.Func<ChildComp.ChildCompProps>"),
+            $"Expected typed V.Func<ChildComp.ChildCompProps> call. Got:\n{result.GeneratedSource}"
+        );
+        // The 'active' attribute must be passed through as 'Active = flag'
+        Assert.True(
+            result.SourceContains("Active = flag"),
+            $"Expected 'Active = flag' prop in generated source. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    // ── Nested Props class resolution (C# convention: TypeName.Props) ─────────
+
+    [Fact]
+    public void FuncComponent_WithNestedPropsClass_EmitsTypedVFuncAndPassesAttributes()
+    {
+        // A C# static class that follows the legacy ValuesBarFunc pattern:
+        // nested Props class rather than the {TypeName}Props sibling convention.
+        const string extraCSharp =
+            """
+            using ReactiveUITK.Core;
+            using System.Collections.Generic;
+
+            namespace MyApp
+            {
+                public static class ValuesBarFunc
+                {
+                    public sealed class Props : IProps
+                    {
+                        public IEnumerable<System.Collections.Generic.KeyValuePair<string,string>> Items { get; set; }
+                    }
+
+                    public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
+                        => null;
+                }
+            }
+            """;
+
+        const string uitkx =
+            """
+            @namespace MyApp.UI
+            @using MyApp
+
+            component MyPage {
+                var items = new List<System.Collections.Generic.KeyValuePair<string,string>>();
+                return (<ValuesBarFunc items={items} />);
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunWithExtraCSharp(uitkx, extraCSharp, "MyPage.uitkx");
+
+        Assert.True(result.SourceWasProduced, $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+
+        // Must use the typed V.Func<ValuesBarFunc.Props> overload, not the no-props fallback
+        Assert.True(
+            result.SourceContains("V.Func<ValuesBarFunc.Props>"),
+            $"Expected typed V.Func<ValuesBarFunc.Props> call. Got:\n{result.GeneratedSource}"
+        );
+
+        // The 'items' attribute must be forwarded as 'Items = items'
+        Assert.True(
+            result.SourceContains("Items = items"),
+            $"Expected 'Items = items' in generated source. Got:\n{result.GeneratedSource}"
+        );
+    }
 }

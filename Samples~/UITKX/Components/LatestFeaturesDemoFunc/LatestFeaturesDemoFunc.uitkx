@@ -1,0 +1,143 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Threading.Tasks
+@using ReactiveUITK.Core.Fiber
+
+component LatestFeaturesDemoFunc {
+    var defaultItems = new string[] { "Alpha", "Bravo", "Charlie", "Delta" };
+
+    var (items, setItems) = useState(new System.Collections.Generic.List<string>(new string[] { "Alpha", "Bravo", "Charlie", "Delta" }));
+    var (pendingTask, setPendingTask) = useState<Task?>(null);
+    var (loadCount, setLoadCount) = useState(0);
+    var (status, setStatus) = useState("Click \"Simulate async load\" to exercise Suspense.");
+    var (metricsLastMs, setMetricsLastMs) = useState<long>(-1);
+    var (metricsWorkUnits, setMetricsWorkUnits) = useState(0);
+    var (metricsCommits, setMetricsCommits) = useState(0);
+    var (metricsSlices, setMetricsSlices) = useState(0);
+    var (metricsYields, setMetricsYields) = useState(0);
+    var (metricsEffects, setMetricsEffects) = useState(0);
+
+    // Capture a single Fiber metrics snapshot so we can show
+    // some numbers without causing a render loop.
+    useEffect(() => {
+        bool captured = false;
+        void OnMetrics(FiberReconciler.FiberReconcilerMetrics m) {
+            if (captured) return;
+            captured = true;
+            setMetricsLastMs(m.LastRenderMs);
+            setMetricsWorkUnits(m.WorkUnits);
+            setMetricsCommits(m.Commits);
+            setMetricsSlices(m.Slices);
+            setMetricsYields(m.Yields);
+            setMetricsEffects(m.EffectsCommitted);
+        }
+        FiberReconciler.MetricsEmitted += OnMetrics;
+        return () => { FiberReconciler.MetricsEmitted -= OnMetrics; };
+    }, new object[] { });
+
+    // Wire async task completion back into state
+    useEffect(() => {
+        var task = pendingTask;
+        if (task == null) return null;
+        bool cancelled = false;
+        var syncContext = System.Threading.SynchronizationContext.Current;
+        task.ContinueWith(t => {
+            if (cancelled) return;
+            void Apply() {
+                if (t.IsFaulted) { setStatus("Load failed (check console)."); }
+                else if (t.IsCanceled) { setStatus("Load cancelled."); }
+                else {
+                    setItems(new System.Collections.Generic.List<string>(defaultItems));
+                    setLoadCount(count => count + 1);
+                    setStatus($"Data loaded ({DateTime.Now:HH:mm:ss}).");
+                }
+                setPendingTask(default);
+            }
+            if (syncContext != null) { try { syncContext.Post(_ => Apply(), null); } catch { Apply(); } }
+            else { Apply(); }
+        }, System.Threading.CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return () => { cancelled = true; };
+    }, new object[] { pendingTask });
+
+    void SimulateAsyncLoad() {
+        if (pendingTask != null && !pendingTask.IsCompleted) return;
+        setStatus("Loading sample data...");
+        setItems(new System.Collections.Generic.List<string>());
+        setPendingTask(Task.Run(async () => { await Task.Delay(1500); }));
+    }
+
+    void ResetOrder() {
+        setItems(new System.Collections.Generic.List<string>(defaultItems));
+    }
+
+    void ReverseOrder() {
+        if (items.Count == 0) return;
+        var reversed = new System.Collections.Generic.List<string>(items);
+        reversed.Reverse();
+        setItems(reversed);
+    }
+
+    void RotateOrder() {
+        if (items.Count == 0) return;
+        var rotated = new System.Collections.Generic.List<string>(items.Count);
+        for (int i = 1; i < items.Count; i++) rotated.Add(items[i]);
+        rotated.Add(items[0]);
+        setItems(rotated);
+    }
+
+    bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
+
+    var orderText = items.Count == 0
+        ? "No items loaded yet. Click the button above to fetch sample data."
+        : string.Join(", ", items);
+
+    var metricsLine = metricsLastMs < 0
+        ? "Waiting for Fiber metrics..."
+        : $"Last render {metricsLastMs} ms | work units {metricsWorkUnits}, commits {metricsCommits}, slices {metricsSlices}, yields {metricsYields}, effects {metricsEffects}.";
+
+    var btnStyle = new Style { (StyleKeys.MinWidth, 140f) };
+
+    var fallbackContent = (
+        <VisualElement key="suspense-fallback">
+            <Label text="Loading sample content..." />
+            <Label text="This fallback disappears once the Task finishes." />
+        </VisualElement>
+    );
+
+    return (
+        <VisualElement key="latest-demo-root" style={new Style { ("padding", 12f), ("flexDirection", "column"), ("gap", 8f) }}>
+            <Label text="ReactiveUITK Latest Changes Showcase" />
+            <VisualElement key="controls-row" style={new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 6f) }}>
+                <Button
+                    text={pendingTask != null && !pendingTask.IsCompleted ? "Loading..." : "Simulate async load"}
+                    onClick={SimulateAsyncLoad}
+                    style={btnStyle}
+                />
+            </VisualElement>
+            <Label text={status} />
+            <Suspense
+                isReady={SuspenseReady}
+                pendingTask={pendingTask}
+                fallback={fallbackContent}
+                key="latest-demo-suspense"
+            >
+                <VisualElement key="suspense-content">
+                    <Label text={$"Completed async loads: {loadCount}"} />
+                    <VisualElement key="metrics-section">
+                        <Label text="Diff metrics throttle (Point 12):" />
+                        <Label text={metricsLine} />
+                    </VisualElement>
+                    <VisualElement key="lis-section">
+                        <Label text="Keyed diff demo (Point 13): use the controls to reorder." />
+                        <VisualElement key="reorder-controls" style={new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 4f) }}>
+                            <Button text="Reverse order" onClick={ReverseOrder} style={btnStyle} />
+                            <Button text="Rotate left" onClick={RotateOrder} style={btnStyle} />
+                            <Button text="Reset order" onClick={ResetOrder} style={btnStyle} />
+                        </VisualElement>
+                        <Label text={$"Current order: {orderText}"} />
+                    </VisualElement>
+                </VisualElement>
+            </Suspense>
+        </VisualElement>
+    );
+}

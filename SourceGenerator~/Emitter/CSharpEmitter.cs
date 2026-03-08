@@ -111,6 +111,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("#nullable enable");
             L("#pragma warning disable CS0105  // duplicate using directives");
             L("#pragma warning disable CS8600  // null literal to non-nullable");
+            L("#pragma warning disable CS8601  // null literal to nullable reference type");
+            L("#pragma warning disable CS8602  // dereference of possibly null reference");
             L("#pragma warning disable CS8603  // possible null reference return");
             L("");
 
@@ -205,8 +207,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L($"{I2}}}"); // close Render
 
             // ── Auto-generated props class for function-style components ──────
-            // Emitted INSIDE the namespace but OUTSIDE the partial class, after
-            // the closing brace of the Render-containing partial class.
+            // Emitted as a NESTED type INSIDE the partial class, before its
+            // closing brace (e.g. ComponentName.ComponentNameProps).
             if (_directives.IsFunctionStyle
                 && !_directives.FunctionParams.IsDefault
                 && !_directives.FunctionParams.IsEmpty)
@@ -290,6 +292,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             ("useState(", "Hooks.UseState("),
             ("useEffect(", "Hooks.UseEffect("),
+            ("useLayoutEffect(", "Hooks.UseLayoutEffect("),
             ("useRef(", "Hooks.UseRef("),
             ("useCallback(", "Hooks.UseCallback("),
             ("useMemo(", "Hooks.UseMemo("),
@@ -298,6 +301,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ("useSignal(", "Hooks.UseSignal("),
             ("useDeferredValue(", "Hooks.UseDeferredValue("),
             ("useTransition(", "Hooks.UseTransition("),
+            ("provideContext(", "Hooks.ProvideContext("),
         };
 
         // Matches generic hook calls including up to 3 levels of nested type args:
@@ -307,12 +311,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         // The non-generic form is handled by s_hookAliases simple replacements above.
         private static readonly System.Text.RegularExpressions.Regex s_genericHookAliasRe =
             new System.Text.RegularExpressions.Regex(
-                @"\b(useState|useEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
+                @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
         private static string ApplyHookAliases(string code)
         {
+            // State-setter lambda sugar applies regardless of whether hooks are present:
+            //   setFoo(v => v + 1)  →  setFoo.Set(v => v + 1)
+            // Matches conventional React-style setter names: set followed by an
+            // upper-case letter, called with a lambda argument.
+            // Replacement: "$1.Set(" — group 1 is the setter name; the matched
+            // opening "(" is consumed by "\(" in the pattern and rebuilt as ".Set(".
+            code = s_setterLambdaRe.Replace(code, "$1.Set(");
+
             // Fast path: bail early if no lowercase hook names are present
             if (code.IndexOf("use", StringComparison.Ordinal) < 0)
                 return code;
@@ -329,8 +341,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             );
             foreach (var (from, to) in s_hookAliases)
                 code = code.Replace(from, to);
+
             return code;
         }
+
+        // Matches:  setX(   setFoo(   setState(  followed immediately by a lambda
+        // arg (single or multiple params), but NOT when it's setX.Set( already.
+        private static readonly System.Text.RegularExpressions.Regex s_setterLambdaRe =
+            new System.Text.RegularExpressions.Regex(
+                @"\b(set[A-Z][a-zA-Z0-9_]*)\(\s*(?=[a-zA-Z_][a-zA-Z0-9_]*\s*=>|\([^)]*\)\s*=>)",
+                System.Text.RegularExpressions.RegexOptions.Compiled
+            );
 
         // ── __C helper method ─────────────────────────────────────────────────
 
@@ -406,7 +427,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitElementNode(ElementNode el)
         {
-            var res = _resolver.Resolve(el.TagName, _directives.Usings, out var diagDesc);
+            // Include the declaring namespace so that sibling components (defined
+            // in the same @namespace) are found without requiring an explicit @using.
+            var searchNamespaces = string.IsNullOrEmpty(_directives.Namespace)
+                ? _directives.Usings
+                : _directives.Usings.Add(_directives.Namespace!);
+            var res = _resolver.Resolve(el.TagName, searchNamespaces, out var diagDesc);
 
             if (diagDesc != null)
             {
@@ -436,6 +462,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     _sb.Append($"V.Text({txt}, key: {keyExpr})");
                     break;
                 }
+
+                case TagResolutionKind.BuiltinSuspense:
+                    EmitSuspense(el.Attributes, keyExpr, el.Children);
+                    break;
 
                 case TagResolutionKind.FuncComponent:
                     EmitFuncComponent(res, el.Attributes, keyExpr, el.Children);
@@ -599,7 +629,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (!children.IsEmpty)
             {
-                _sb.Append(", __C(");
+                // Use named parameter to skip the optional 'bool memoize' and
+                // 'Func<TProps,TProps,bool> memoCompare' slots that sit between
+                // 'key' and 'children' in the V.Func<TProps> overload.
+                _sb.Append(", children: __C(");
                 EmitChildArgs(children);
                 _sb.Append(")");
             }
@@ -681,6 +714,43 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("        }");
 
             L("    }");
+        }
+
+        // ── Suspense built-in ─────────────────────────────────────────────────
+        // Emits V.Suspense(isReady, [pendingTask,] fallback, key:..., children...)
+        // from well-known attribute names: isReady / is-ready, pendingTask /
+        // pending-task, and fallback.
+        private void EmitSuspense(
+            ImmutableArray<AttributeNode> attrs,
+            string keyExpr,
+            ImmutableArray<AstNode> children
+        )
+        {
+            string? isReady      = GetAttrValue(attrs, "isReady") ?? GetAttrValue(attrs, "is-ready");
+            string? pendingTask  = GetAttrValue(attrs, "pendingTask") ?? GetAttrValue(attrs, "pending-task");
+            string? fallbackAttr = GetAttrValue(attrs, "fallback");
+
+            string isReadyArg    = isReady      ?? "() => false";
+            string fallbackArg   = fallbackAttr ?? $"({QVNode})null";
+
+            _sb.Append("V.Suspense(");
+            _sb.Append(isReadyArg);
+            _sb.Append(", ");
+            if (pendingTask != null)
+            {
+                _sb.Append(pendingTask);
+                _sb.Append(", ");
+            }
+            _sb.Append(fallbackArg);
+            _sb.Append($", key: {keyExpr}");
+
+            if (!children.IsEmpty)
+            {
+                _sb.Append(", ");
+                EmitChildArgs(children);
+            }
+
+            _sb.Append(")");
         }
 
         private void EmitFragment(string keyExpr, ImmutableArray<AstNode> children)
@@ -1154,7 +1224,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             v switch
             {
                 StringLiteralValue slv => $"\"{EscStr(slv.Value)}\"",
-                CSharpExpressionValue cev => cev.Expression,
+                // Apply setter-lambda sugar: setFoo(v => v+1) → setFoo.Set(v => v+1)
+                CSharpExpressionValue cev => s_setterLambdaRe.Replace(cev.Expression, "$1.Set("),
                 BooleanShorthandValue => "true",
                 _ => "null",
             };

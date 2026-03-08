@@ -43,23 +43,6 @@ namespace ReactiveUITK
             );
         }
 
-        private static VirtualNode VisualElement_Dict(
-            IReadOnlyDictionary<string, object> elementProperties = null,
-            string key = null,
-            params VirtualNode[] children
-        )
-        {
-            elementProperties = CloneStyleDictionary(elementProperties);
-            return new VirtualNode(
-                VirtualNodeType.Element,
-                elementTypeName: "VisualElement",
-                textContent: null,
-                key: key,
-                properties: elementProperties ?? EmptyProps(),
-                children: children ?? EmptyChildren()
-            );
-        }
-
         public static VirtualNode Button(ButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
@@ -153,7 +136,15 @@ namespace ReactiveUITK
 
             props["style"] = BuildSafeAreaStyle(userStyle);
 
-            return VisualElement_Dict(props, key, children);
+            IReadOnlyDictionary<string, object> finalProps = CloneStyleDictionary(props);
+            return new VirtualNode(
+                VirtualNodeType.Element,
+                elementTypeName: "VisualElement",
+                textContent: null,
+                key: key,
+                properties: finalProps ?? EmptyProps(),
+                children: children ?? EmptyChildren()
+            );
         }
 
         public static VirtualNode TextField(TextFieldProps props, string key = null)
@@ -1074,9 +1065,10 @@ namespace ReactiveUITK
             params VirtualNode[] children
         )
         {
-            var propsDict = hostProps != null
-                ? CloneStyleDictionary(hostProps.ToDictionary())
-                : (IReadOnlyDictionary<string, object>)EmptyProps();
+            var propsDict =
+                hostProps != null
+                    ? CloneStyleDictionary(hostProps.ToDictionary())
+                    : (IReadOnlyDictionary<string, object>)EmptyProps();
             return new VirtualNode(
                 VirtualNodeType.Host,
                 elementTypeName: null,
@@ -1103,17 +1095,14 @@ namespace ReactiveUITK
         /// get structural equality automatically.
         /// </summary>
         public static VirtualNode Func<TProps>(
-            System.Func<
-                Core.IProps,
-                IReadOnlyList<VirtualNode>,
-                VirtualNode
-            > renderFunction,
+            System.Func<Core.IProps, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
             TProps typedProps,
             string key = null,
             bool memoize = false,
             System.Func<TProps, TProps, bool> memoCompare = null,
             params VirtualNode[] children
-        ) where TProps : class, Core.IProps
+        )
+            where TProps : class, Core.IProps
         {
             System.Func<Core.IProps, Core.IProps, bool> wrappedCompare =
                 memoCompare != null
@@ -1139,11 +1128,7 @@ namespace ReactiveUITK
         /// when you only need reference equality for bailout via <see cref="Core.EmptyProps.Instance"/>).
         /// </summary>
         public static VirtualNode Func(
-            System.Func<
-                Core.IProps,
-                IReadOnlyList<VirtualNode>,
-                VirtualNode
-            > render,
+            System.Func<Core.IProps, IReadOnlyList<VirtualNode>, VirtualNode> render,
             Core.IProps props = null,
             string key = null,
             bool memoize = false,
@@ -1177,19 +1162,15 @@ namespace ReactiveUITK
         /// </para>
         /// </summary>
         public static VirtualNode ForwardRef<TProps>(
-            Func<
-                Core.IProps,
-                object,
-                IReadOnlyList<VirtualNode>,
-                VirtualNode
-            > renderFunction,
+            Func<Core.IProps, object, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
             TProps typedProps = null,
             object forwardedRef = null,
             string key = null,
             bool memoize = false,
             System.Func<TProps, TProps, bool> memoCompare = null,
             params VirtualNode[] children
-        ) where TProps : class, Core.IProps
+        )
+            where TProps : class, Core.IProps
         {
             if (renderFunction == null)
             {
@@ -1209,12 +1190,7 @@ namespace ReactiveUITK
         /// Creates an untyped IProps forward-ref function component VirtualNode.
         /// </summary>
         public static VirtualNode ForwardRef(
-            Func<
-                Core.IProps,
-                object,
-                IReadOnlyList<VirtualNode>,
-                VirtualNode
-            > renderFunction,
+            Func<Core.IProps, object, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
             Core.IProps props = null,
             object forwardedRef = null,
             string key = null,
@@ -1292,7 +1268,12 @@ namespace ReactiveUITK
         {
             return Func<RouteFuncProps>(
                 RouteFunc.Render,
-                new RouteFuncProps { Path = path, Exact = exact, Element = element },
+                new RouteFuncProps
+                {
+                    Path = path,
+                    Exact = exact,
+                    Element = element,
+                },
                 key,
                 false,
                 null,
@@ -1309,7 +1290,18 @@ namespace ReactiveUITK
             object state = null
         )
         {
-            return Func<LinkFuncProps>(LinkFunc.Render, new LinkFuncProps { To = to, Label = label, Replace = replace, Style = style, State = state }, key);
+            return Func<LinkFuncProps>(
+                LinkFunc.Render,
+                new LinkFuncProps
+                {
+                    To = to,
+                    Label = label,
+                    Replace = replace,
+                    Style = style,
+                    State = state,
+                },
+                key
+            );
         }
 
         public static VirtualNode Animate(

@@ -25,10 +25,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private const float SimulatedLoadSeconds = 1.2f;
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (shouldThrow, setShouldThrow) = Hooks.UseState(false);
             var (pendingTask, setPendingTask) = Hooks.UseState<Task>(null);
@@ -58,11 +55,22 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 setPendingTask(loadTask);
             }
 
-            var actionRow = V.VisualElement(
-                new VisualElementProps
+            // Clear pendingTask once it finishes so the button resets to "Simulate Async Load".
+            // Without this the parent never re-renders after the task completes, leaving the
+            // button stuck on "Loading…" and keeping the old pendingTask reference in state.
+            Hooks.UseEffect(
+                () =>
                 {
-                    Style = new Style { (StyleKeys.FlexDirection, "row") },
+                    if (pendingTask == null || pendingTask.IsCompleted)
+                        return null;
+                    pendingTask.ContinueWith(_ => setPendingTask((Task)null));
+                    return null;
                 },
+                new object[] { pendingTask }
+            );
+
+            var actionRow = V.VisualElement(
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row") } },
                 null,
                 V.Button(
                     new ButtonProps

@@ -47,7 +47,10 @@ namespace ReactiveUITK.Samples.Shared
             var onSortChanged = p?.OnSortChanged;
             Delegate columnLayoutChanged = p?.OnLayoutChanged;
 
-            var rootsNow = BuildRoots(rows, sortDefs);
+            var rootsNow = Hooks.UseMemo(
+                () => BuildRoots(rows, sortDefs),
+                new object[] { rows, sortDefs }
+            );
 
             var columns = Hooks.UseMemo(
                 () =>

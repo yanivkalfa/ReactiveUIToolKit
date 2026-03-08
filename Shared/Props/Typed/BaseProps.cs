@@ -79,44 +79,80 @@ namespace ReactiveUITK.Props.Typed
         public virtual Dictionary<string, object> ToDictionary()
         {
             var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name)) dict["name"] = Name;
-            if (!string.IsNullOrEmpty(ClassName)) dict["className"] = ClassName;
-            if (Style != null) dict["style"] = Style;
-            if (Ref != null) dict["ref"] = Ref;
-            if (ContentContainer != null) dict["contentContainer"] = ContentContainer;
-            if (Visible.HasValue) dict["visible"] = Visible.Value;
-            if (Enabled.HasValue) dict["enabled"] = Enabled.Value;
-            if (!string.IsNullOrEmpty(Tooltip)) dict["tooltip"] = Tooltip;
-            if (!string.IsNullOrEmpty(ViewDataKey)) dict["viewDataKey"] = ViewDataKey;
-            if (PickingMode.HasValue) dict["pickingMode"] = PickingMode.Value;
-            if (Focusable.HasValue) dict["focusable"] = Focusable.Value;
-            if (TabIndex.HasValue) dict["tabIndex"] = TabIndex.Value;
-            if (DelegatesFocus.HasValue) dict["delegatesFocus"] = DelegatesFocus.Value;
-            if (LanguageDirection.HasValue) dict["languageDirection"] = LanguageDirection.Value;
-            if (OnClick != null) dict["onClick"] = OnClick;
-            if (OnPointerDown != null) dict["onPointerDown"] = OnPointerDown;
-            if (OnPointerUp != null) dict["onPointerUp"] = OnPointerUp;
-            if (OnPointerMove != null) dict["onPointerMove"] = OnPointerMove;
-            if (OnPointerEnter != null) dict["onPointerEnter"] = OnPointerEnter;
-            if (OnPointerLeave != null) dict["onPointerLeave"] = OnPointerLeave;
-            if (OnWheel != null) dict["onWheel"] = OnWheel;
-            if (OnScroll != null) dict["onScroll"] = OnScroll;
+            if (!string.IsNullOrEmpty(Name))
+                dict["name"] = Name;
+            if (!string.IsNullOrEmpty(ClassName))
+                dict["className"] = ClassName;
+            if (Style != null)
+                dict["style"] = Style;
+            if (Ref != null)
+                dict["ref"] = Ref;
+            if (ContentContainer != null)
+                dict["contentContainer"] = ContentContainer;
+            if (Visible.HasValue)
+                dict["visible"] = Visible.Value;
+            if (Enabled.HasValue)
+                dict["enabled"] = Enabled.Value;
+            if (!string.IsNullOrEmpty(Tooltip))
+                dict["tooltip"] = Tooltip;
+            if (!string.IsNullOrEmpty(ViewDataKey))
+                dict["viewDataKey"] = ViewDataKey;
+            if (PickingMode.HasValue)
+                dict["pickingMode"] = PickingMode.Value;
+            if (Focusable.HasValue)
+                dict["focusable"] = Focusable.Value;
+            if (TabIndex.HasValue)
+                dict["tabIndex"] = TabIndex.Value;
+            if (DelegatesFocus.HasValue)
+                dict["delegatesFocus"] = DelegatesFocus.Value;
+            if (LanguageDirection.HasValue)
+                dict["languageDirection"] = LanguageDirection.Value;
+            if (OnClick != null)
+                dict["onClick"] = OnClick;
+            if (OnPointerDown != null)
+                dict["onPointerDown"] = OnPointerDown;
+            if (OnPointerUp != null)
+                dict["onPointerUp"] = OnPointerUp;
+            if (OnPointerMove != null)
+                dict["onPointerMove"] = OnPointerMove;
+            if (OnPointerEnter != null)
+                dict["onPointerEnter"] = OnPointerEnter;
+            if (OnPointerLeave != null)
+                dict["onPointerLeave"] = OnPointerLeave;
+            if (OnWheel != null)
+                dict["onWheel"] = OnWheel;
+            if (OnScroll != null)
+                dict["onScroll"] = OnScroll;
 #if UNITY_EDITOR
-            if (OnDragEnter != null) dict["onDragEnter"] = OnDragEnter;
-            if (OnDragLeave != null) dict["onDragLeave"] = OnDragLeave;
-            if (OnDragUpdated != null) dict["onDragUpdated"] = OnDragUpdated;
-            if (OnDragPerform != null) dict["onDragPerform"] = OnDragPerform;
-            if (OnDragExited != null) dict["onDragExited"] = OnDragExited;
+            if (OnDragEnter != null)
+                dict["onDragEnter"] = OnDragEnter;
+            if (OnDragLeave != null)
+                dict["onDragLeave"] = OnDragLeave;
+            if (OnDragUpdated != null)
+                dict["onDragUpdated"] = OnDragUpdated;
+            if (OnDragPerform != null)
+                dict["onDragPerform"] = OnDragPerform;
+            if (OnDragExited != null)
+                dict["onDragExited"] = OnDragExited;
 #endif
-            if (OnFocus != null) dict["onFocus"] = OnFocus;
-            if (OnBlur != null) dict["onBlur"] = OnBlur;
-            if (OnFocusIn != null) dict["onFocusIn"] = OnFocusIn;
-            if (OnFocusOut != null) dict["onFocusOut"] = OnFocusOut;
-            if (OnKeyDown != null) dict["onKeyDown"] = OnKeyDown;
-            if (OnKeyUp != null) dict["onKeyUp"] = OnKeyUp;
-            if (OnGeometryChanged != null) dict["onGeometryChanged"] = OnGeometryChanged;
-            if (OnAttachToPanel != null) dict["onAttachToPanel"] = OnAttachToPanel;
-            if (OnDetachFromPanel != null) dict["onDetachFromPanel"] = OnDetachFromPanel;
+            if (OnFocus != null)
+                dict["onFocus"] = OnFocus;
+            if (OnBlur != null)
+                dict["onBlur"] = OnBlur;
+            if (OnFocusIn != null)
+                dict["onFocusIn"] = OnFocusIn;
+            if (OnFocusOut != null)
+                dict["onFocusOut"] = OnFocusOut;
+            if (OnKeyDown != null)
+                dict["onKeyDown"] = OnKeyDown;
+            if (OnKeyUp != null)
+                dict["onKeyUp"] = OnKeyUp;
+            if (OnGeometryChanged != null)
+                dict["onGeometryChanged"] = OnGeometryChanged;
+            if (OnAttachToPanel != null)
+                dict["onAttachToPanel"] = OnAttachToPanel;
+            if (OnDetachFromPanel != null)
+                dict["onDetachFromPanel"] = OnDetachFromPanel;
             if (ExtraProps != null)
             {
                 foreach (var kv in ExtraProps)

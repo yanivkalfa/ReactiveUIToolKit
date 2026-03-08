@@ -1,0 +1,12 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+
+component SimpleCounterFunc {
+    var (count, setCount) = useState(0);
+
+    return (
+        <VisualElement>
+            <Text text={$"Count: {count}"} />
+            <Button text="+" onClick={() => setCount(count + 1)} />
+        </VisualElement>
+    );
+}

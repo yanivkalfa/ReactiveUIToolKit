@@ -7,7 +7,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SignalCounterDemoFunc
     {
-        private static readonly Signal<int> CounterSignal = ReactiveUITK.Signals.Signals.Get<int>(
+        private static readonly Signal<int> CounterSignal = ReactiveUITK.Signals.SignalFactory.Get<int>(
             "demo.counter",
             0
         );

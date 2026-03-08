@@ -97,11 +97,21 @@ public sealed class CompletionHandler : ICompletionHandler
         bool inDirectiveHeader =
             !parseResult.Directives.IsFunctionStyle
             && line1 <= parseResult.Directives.MarkupStartLine;
+        // Preamble of a function-style file: lines before the component body opens.
+        // FunctionSetupStartLine is the first line inside the { }, so anything before
+        // it (including the `component Name {` declaration line) is preamble.
+        bool inFunctionStylePreamble =
+            parseResult.Directives.IsFunctionStyle
+            && parseResult.Directives.FunctionSetupStartLine > 0
+            && line1 < parseResult.Directives.FunctionSetupStartLine;
         bool inCodeBlockLine = IsInsideCodeBlockAtOffset(text, offset);
         bool inEmbeddedMarkupInCode = inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
 
         var items = ctx.Kind switch
         {
+            CursorKind.DirectiveName when inFunctionStylePreamble  => FunctionStylePreambleItems(ctx.Prefix),
+            CursorKind.ControlFlowName when inFunctionStylePreamble => FunctionStylePreambleItems(ctx.Prefix),
+            CursorKind.None when inFunctionStylePreamble           => FunctionStylePreambleItems(ctx.Prefix),
             CursorKind.DirectiveName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
             CursorKind.DirectiveName when inCodeBlockLine && !inEmbeddedMarkupInCode => Enumerable.Empty<CompletionItem>(),
             CursorKind.DirectiveName   => ControlFlowItems(ctx.Prefix, text, request.Position),
@@ -126,6 +136,51 @@ public sealed class CompletionHandler : ICompletionHandler
     }
 
     // ── Completion item builders ─────────────────────────────────────────────
+
+    // ── Function-style preamble items (@namespace / @using / component) ────
+
+    private static IEnumerable<CompletionItem> FunctionStylePreambleItems(string prefix)
+    {
+        prefix ??= string.Empty;
+
+        var candidates = new[]
+        {
+            (
+                label: "@namespace",
+                insert: "@namespace ${1:My.Namespace}",
+                detail: "Declares the C# namespace for the generated component class.",
+                doc: "Sets the namespace for this component, e.g. `@namespace MyGame.UI`."
+            ),
+            (
+                label: "@using",
+                insert: "@using ${1:System.Collections.Generic}",
+                detail: "Imports a C# namespace into the generated component class.",
+                doc: "Adds a `using` directive to the generated file, e.g. `@using UnityEngine`."
+            ),
+            (
+                label: "component",
+                insert: "component ${1:MyComponent} {\n\treturn (\n\t\t$0\n\t);\n}",
+                detail: "Declares a function-style UITKX component.",
+                doc: "Defines the component body. Use hooks (`useState`, `useEffect`, …) before the `return (…)` statement."
+            ),
+        };
+
+        return candidates
+            .Where(c => c.label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(c => new CompletionItem
+            {
+                Label            = c.label,
+                Kind             = CompletionItemKind.Keyword,
+                InsertText       = c.insert,
+                InsertTextFormat = InsertTextFormat.Snippet,
+                Detail           = c.detail,
+                Documentation    = new MarkupContent
+                {
+                    Kind  = MarkupKind.Markdown,
+                    Value = c.doc,
+                },
+            });
+    }
 
     private IEnumerable<CompletionItem> DirectiveItems(string prefix) =>
         _schema

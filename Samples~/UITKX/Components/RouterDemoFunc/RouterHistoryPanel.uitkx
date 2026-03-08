@@ -1,0 +1,28 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+component RouterHistoryPanel {
+    var go = RouterHooks.UseGo();
+    var canBack = RouterHooks.UseCanGo(-1);
+    var canForward = RouterHooks.UseCanGo(1);
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.MarginTop, 4f) }}>
+            <Text text="History controls:" />
+            <Text text={$"Can go back: {canBack}, can go forward: {canForward}"} />
+            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) }}>
+                <Button
+                    text="Back"
+                    enabled={canBack}
+                    onClick={() => { if (canBack) go(-1); }}
+                    style={new Style { (StyleKeys.MarginRight, 6f), (StyleKeys.Width, 80f) }}
+                />
+                <Button
+                    text="Forward"
+                    enabled={canForward}
+                    onClick={() => { if (canForward) go(1); }}
+                    style={new Style { (StyleKeys.Width, 80f) }}
+                />
+            </VisualElement>
+        </VisualElement>
+    );
+}
