@@ -3,27 +3,15 @@ using UnityEngine;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ImageProps : global::ReactiveUITK.Core.IProps
+    public sealed class ImageProps : BaseProps
     {
-        public string Name { get; set; }
-        public string ClassName { get; set; }
         public Texture2D Texture { get; set; }
         public Sprite Sprite { get; set; }
         public string ScaleMode { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name))
-            {
-                dict["name"] = Name;
-            }
-            if (!string.IsNullOrEmpty(ClassName))
-            {
-                dict["className"] = ClassName;
-            }
+            var dict = base.ToDictionary();
             if (Texture != null)
             {
                 dict["texture"] = Texture;
@@ -35,14 +23,6 @@ namespace ReactiveUITK.Props.Typed
             if (!string.IsNullOrEmpty(ScaleMode))
             {
                 dict["scaleMode"] = ScaleMode;
-            }
-            if (Style != null)
-            {
-                dict["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                dict["ref"] = Ref;
             }
             return dict;
         }

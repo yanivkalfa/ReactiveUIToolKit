@@ -88,7 +88,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             VirtualNode buttons = V.VisualElement(
-                ButtonRowStyle,
+                new VisualElementProps { Style = ButtonRowStyle },
                 null,
                 V.Button(
                     new ButtonProps
@@ -117,7 +117,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                ContainerStyle,
+                new VisualElementProps { Style = ContainerStyle },
                 null,
                 V.Text("ProgressBar component demo"),
                 progressBar,

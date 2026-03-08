@@ -12,7 +12,10 @@
     "scripts/**",
     "ReactiveUIToolKitDocs~/**",
     "Analyzers/publish",
-    "_docs_branch"
+    "_docs_branch",
+    "Analyzers/ReactiveUITK.Language.pdb",
+    "Analyzers/ReactiveUITK.SourceGenerator.pdb",
+    "Analyzers/ReactiveUITK.SourceGenerator.deps.json"
   ],
   "npmPath": "C:\\nvm4w\\nodejs\\npm.cmd"
 }

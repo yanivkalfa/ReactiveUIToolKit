@@ -7,7 +7,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SignalCounterDemoFunc
     {
-        private static readonly Signal<int> CounterSignal = ReactiveUITK.Signals.Signals.Get<int>(
+        private static readonly Signal<int> CounterSignal = ReactiveUITK.Signals.SignalFactory.Get<int>(
             "demo.counter",
             0
         );
@@ -19,23 +19,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             int count = Hooks.UseSignal(CounterSignal);
             return V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
-                    {
-                        "style",
-                        new Style { (StyleKeys.Padding, 12f), (StyleKeys.MarginTop, 8f) }
-                    },
+                    Style = new Style { (StyleKeys.Padding, 12f), (StyleKeys.MarginTop, 8f) },
                 },
                 null,
                 V.Text("Signal Counter (shared state)"),
                 V.Text($"Count: {count}"),
                 V.VisualElement(
-                    new Dictionary<string, object>
+                    new VisualElementProps
                     {
-                        {
-                            "style",
-                            new Style { (StyleKeys.FlexDirection, "row") }
-                        },
+                        Style = new Style { (StyleKeys.FlexDirection, "row") },
                     },
                     null,
                     V.Button(

@@ -201,10 +201,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (keyAttr == null)
                     continue;
 
-                // Flag when the key expression is exactly the bare loop variable: key={i}
+                // Flag when the key expression is exactly the bare loop variable AND the
+                // variable name looks like a positional index ("i", "j", "idx", ...).  
+                // Descriptive names like 'entry' or 'item' indicate the loop variable IS
+                // the item identity — using it directly as a key is correct and intentional.
                 if (
                     keyAttr.Value is CSharpExpressionValue kv
                     && string.Equals(kv.Expression.Trim(), loopVar, StringComparison.Ordinal)
+                    && IsPositionalIndexVar(loopVar)
                 )
                 {
                     var loc = Location.Create(filePath, default, default);
@@ -221,6 +225,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
         }
+
+        /// <summary>
+        /// Returns true when <paramref name="name"/> looks like a numeric loop index
+        /// (one or two characters, or a well-known alias such as "index" or "idx").
+        /// This guards UITKX0019 against false-positives on descriptive loop variables
+        /// like <c>entry</c>, <c>item</c>, or <c>link</c>, where using the variable
+        /// directly as a key is correct because it represents the item's identity.
+        /// </summary>
+        private static bool IsPositionalIndexVar(string name) =>
+            name.Length <= 2
+            || string.Equals(name, "index",    StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "idx",      StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "pos",      StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "position", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>
         /// Extracts the loop variable name from an iterator declaration.

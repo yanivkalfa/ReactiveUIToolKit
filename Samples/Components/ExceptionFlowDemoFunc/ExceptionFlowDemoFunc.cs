@@ -25,10 +25,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private const float SimulatedLoadSeconds = 1.2f;
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (shouldThrow, setShouldThrow) = Hooks.UseState(false);
             var (pendingTask, setPendingTask) = Hooks.UseState<Task>(null);
@@ -58,14 +55,22 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 setPendingTask(loadTask);
             }
 
-            var actionRow = V.VisualElement(
-                new Dictionary<string, object>
+            // Clear pendingTask once it finishes so the button resets to "Simulate Async Load".
+            // Without this the parent never re-renders after the task completes, leaving the
+            // button stuck on "Loading…" and keeping the old pendingTask reference in state.
+            Hooks.UseEffect(
+                () =>
                 {
-                    {
-                        "style",
-                        new Style { (StyleKeys.FlexDirection, "row") }
-                    },
+                    if (pendingTask == null || pendingTask.IsCompleted)
+                        return null;
+                    pendingTask.ContinueWith(_ => setPendingTask((Task)null));
+                    return null;
                 },
+                new object[] { pendingTask }
+            );
+
+            var actionRow = V.VisualElement(
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row") } },
                 null,
                 V.Button(
                     new ButtonProps
@@ -89,21 +94,18 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             var suspenseFallback = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (StyleKeys.Padding, 8f),
-                            (StyleKeys.BackgroundColor, new Color32(33, 150, 243, 255)),
-                            (StyleKeys.Color, Color.white),
-                            (StyleKeys.BorderRadius, 4f),
-                            (StyleKeys.FlexGrow, 1f),
-                            (StyleKeys.MinHeight, 60f),
-                            (StyleKeys.AlignItems, "center"),
-                            (StyleKeys.JustifyContent, "center"),
-                        }
+                        (StyleKeys.Padding, 8f),
+                        (StyleKeys.BackgroundColor, new Color32(33, 150, 243, 255)),
+                        (StyleKeys.Color, Color.white),
+                        (StyleKeys.BorderRadius, 4f),
+                        (StyleKeys.FlexGrow, 1f),
+                        (StyleKeys.MinHeight, 60f),
+                        (StyleKeys.AlignItems, "center"),
+                        (StyleKeys.JustifyContent, "center"),
                     },
                 },
                 null,
@@ -111,21 +113,18 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             var errorFallback = V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (StyleKeys.Padding, 8f),
-                            (StyleKeys.BackgroundColor, new Color32(244, 67, 54, 255)),
-                            (StyleKeys.Color, Color.white),
-                            (StyleKeys.BorderRadius, 4f),
-                            (StyleKeys.FlexGrow, 1f),
-                            (StyleKeys.MinHeight, 60f),
-                            (StyleKeys.AlignItems, "center"),
-                            (StyleKeys.JustifyContent, "center"),
-                        }
+                        (StyleKeys.Padding, 8f),
+                        (StyleKeys.BackgroundColor, new Color32(244, 67, 54, 255)),
+                        (StyleKeys.Color, Color.white),
+                        (StyleKeys.BorderRadius, 4f),
+                        (StyleKeys.FlexGrow, 1f),
+                        (StyleKeys.MinHeight, 60f),
+                        (StyleKeys.AlignItems, "center"),
+                        (StyleKeys.JustifyContent, "center"),
                     },
                 },
                 null,
@@ -141,23 +140,20 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
 
             return V.VisualElement(
-                new Dictionary<string, object>
+                new VisualElementProps
                 {
+                    Style = new Style
                     {
-                        "style",
-                        new Style
-                        {
-                            (StyleKeys.Padding, 14f),
-                            (StyleKeys.MarginTop, 10f),
-                            (StyleKeys.FlexGrow, 1f),
-                        }
+                        (StyleKeys.Padding, 14f),
+                        (StyleKeys.MarginTop, 10f),
+                        (StyleKeys.FlexGrow, 1f),
                     },
                 },
                 null,
                 V.Text("Error Boundary + Suspense Control-Flow Demo"),
                 actionRow,
                 V.VisualElement(
-                    new Dictionary<string, object> { { "style", CardStyle } },
+                    new VisualElementProps { Style = CardStyle },
                     null,
                     V.Text("Content area"),
                     V.ErrorBoundary(

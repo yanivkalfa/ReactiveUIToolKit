@@ -65,7 +65,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 children: new[]
                 {
                     V.VisualElement(
-                        RootStyle,
+                        new VisualElementProps { Style = RootStyle },
                         null,
                         V.Text("Main menu router shell"),
                         V.Func(NavigationRow),
@@ -91,7 +91,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             var navigate = RouterHooks.UseNavigate();
             return V.VisualElement(
-                NavRowStyle,
+                new VisualElementProps { Style = NavRowStyle },
                 null,
                 V.Button(
                     new ButtonProps
@@ -120,11 +120,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var location = RouterHooks.UseLocationInfo();
             var navigationBase = RouterHooks.UseNavigationBase();
             return V.VisualElement(
-                LayoutRow,
+                new VisualElementProps { Style = LayoutRow },
                 null,
                 BuildSidebar(),
                 V.VisualElement(
-                    OutletStyle,
+                    new VisualElementProps { Style = OutletStyle },
                     null,
                     V.Text($"Outlet (current: {location?.Path ?? "/"})"),
                     V.Route(
@@ -155,7 +155,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var currentPath = RouterHooks.UseLocation();
 
             return V.VisualElement(
-                SidebarStyle,
+                new VisualElementProps { Style = SidebarStyle },
                 null,
                 V.Text("Sidebar"),
                 V.Button(

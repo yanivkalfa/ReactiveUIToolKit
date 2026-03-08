@@ -129,7 +129,10 @@ namespace ReactiveUITK.CICD
                     }
                     Directory.Move(samples, samplesTilde);
 
-                    TryMoveMeta(samples, samplesTilde);
+                    // Delete Samples.meta — Samples~ is tilde-hidden (excluded from Unity's
+                    // AssetDatabase entirely), so a .meta file for it causes "meta exists but
+                    // asset not found" warnings in any project that installs this package.
+                    TryDeleteFile(samples + ".meta");
                 }
 
                 string pkgJson = Path.Combine(distRoot, "package.json");

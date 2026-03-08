@@ -912,6 +912,10 @@ namespace ReactiveUITK.Language.Parser
             while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
                 i++;
 
+            // Accept both `using X.Y.Z;` (C# form) and `@using X.Y.Z` (directive form).
+            if (i < source.Length && source[i] == '@')
+                i++;
+
             if (!TryReadKeyword(source, ref i, "using"))
             {
                 i = savedI;

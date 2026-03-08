@@ -24,14 +24,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             Hooks.ProvideContext(ThemeKey, themeColor);
 
             return V.VisualElement(
-                new Style
+                new VisualElementProps
                 {
-                    (StyleKeys.FlexDirection, "column"),
-                    (StyleKeys.MarginBottom, 0f),
-                    (StyleKeys.PaddingBottom, 0f),
-                    (StyleKeys.Padding, 12f),
-                    (StyleKeys.BackgroundColor, new Color(0.12f, 0.12f, 0.12f, 1f)),
-                    (StyleKeys.FlexGrow, 1f),
+                    Style = new Style
+                    {
+                        (StyleKeys.FlexDirection, "column"),
+                        (StyleKeys.MarginBottom, 0f),
+                        (StyleKeys.PaddingBottom, 0f),
+                        (StyleKeys.Padding, 12f),
+                        (StyleKeys.BackgroundColor, new Color(0.12f, 0.12f, 0.12f, 1f)),
+                        (StyleKeys.FlexGrow, 1f),
+                    }
                 },
                 null,
                 V.Text("Context Demo (toggle theme to see consumers update)"),
@@ -82,7 +85,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 }
 
                 return V.VisualElement(
-                    style,
+                    new VisualElementProps { Style = style },
                     null,
                     V.Text($"{label}: rgba({theme.r:F2}, {theme.g:F2}, {theme.b:F2})")
                 );

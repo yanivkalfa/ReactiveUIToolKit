@@ -5,17 +5,17 @@ component UitkxCounterFunc {
 
     
     var component = (
-        <Box>
+        <VisualElement>
             @if (true) {
-                <Box>
+                <VisualElement>
                     <Label text="ssssssssssssssssssssssssssssssss" />
-                </Box>
+                </VisualElement>
             }
-        </Box>
+        </VisualElement>
     );
     
     return (
-        <Box>
+        <VisualElement>
             @switch (mode) {
                 @case "squared":
                     <Label text={$"Mode: Squared — Count²: {count * count}"} />
@@ -41,17 +41,17 @@ component UitkxCounterFunc {
                 <Label text={$"Total rows: {count}"} />
             }
             @(component)
-            <Box>
+            <VisualElement>
                 <Button text="-5" onClick={() => setCount(count - 5)} />
                 <Button text="-" onClick={() => setCount(count - 1)} />
                 <Label text={$"{count}"} />
                 <Button text="+" onClick={() => setCount(count + 1)} />
                 <Button text="+5" onClick={() => setCount(count + 5)} />
-            </Box>
-            <Box>
+            </VisualElement>
+            <VisualElement>
                 <Button text="Normal" onClick={() => setMode("normal")} />
                 <Button text="Squared" onClick={() => setMode("squared")} />
-            </Box>
-        </Box>
+            </VisualElement>
+        </VisualElement>
     );
 }

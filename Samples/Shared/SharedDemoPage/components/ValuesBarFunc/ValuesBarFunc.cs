@@ -53,7 +53,7 @@ namespace ReactiveUITK.Samples.Shared
             IEnumerable<KeyValuePair<string, string>> items =
                 p?.Items ?? Array.Empty<KeyValuePair<string, string>>();
 
-            var containerProps = new Dictionary<string, object> { { "style", BarContainerStyle } };
+            var containerProps = new VisualElementProps { Style = BarContainerStyle };
 
             var itemNodes = new List<VirtualNode>();
             foreach (var kv in items)

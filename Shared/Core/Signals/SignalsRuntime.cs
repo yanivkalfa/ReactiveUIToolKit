@@ -50,7 +50,7 @@ namespace ReactiveUITK.Signals
         }
     }
 
-    public static class Signals
+    public static class SignalFactory
     {
         public static Signal<T> Get<T>(string key, T initialValue = default)
         {

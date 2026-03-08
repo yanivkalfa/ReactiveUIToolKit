@@ -1,0 +1,85 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+component HookStateQueueDemoFunc {
+    var (value, setValue) = useState(0);
+    var (flushCount, setFlushCount) = useState(0);
+    var (logEntries, setLogEntries) = useState(new List<string> { "Click a button to queue multiple state updates." });
+
+    useLayoutEffect(() => {
+        setFlushCount(count => count + 1);
+        return null;
+    }, new object[] { value });
+
+    void AppendLog(string message) {
+        var next = new List<string>(logEntries.Count + 1) {
+            $"{DateTime.Now:HH:mm:ss}: {message}",
+        };
+        next.AddRange(logEntries);
+        if (next.Count > 8) next.RemoveRange(8, next.Count - 8);
+        setLogEntries(next);
+    }
+
+    void TripleIncrement() {
+        setValue(v => v + 1);
+        setValue(v => v + 1);
+        setValue(v => v + 1);
+        AppendLog("Queued +1 functional update three times");
+    }
+
+    void ResetThenBoost() {
+        setValue(0);
+        setValue(v => v + 5);
+        AppendLog("Reset to 0 and applied +5 in the same event");
+    }
+
+    void MultiplyAfterAdd() {
+        setValue(v => v + 1);
+        setValue(v => v * 2);
+        AppendLog("Applied +1 then ×2 to verify preview chaining");
+    }
+
+    var badgeStyle = new Style {
+        (StyleKeys.BackgroundColor, new Color(0.2f, 0.4f, 0.2f, 0.8f)),
+        (StyleKeys.PaddingLeft, 8f),
+        (StyleKeys.PaddingRight, 8f),
+        (StyleKeys.PaddingTop, 2f),
+        (StyleKeys.PaddingBottom, 2f),
+        (StyleKeys.BorderRadius, 4f),
+        (StyleKeys.MarginRight, 6f),
+    };
+
+    var btnStyle = new Style {
+        (StyleKeys.MinWidth, 160f),
+        (StyleKeys.MarginRight, 6f),
+        (StyleKeys.MarginBottom, 6f),
+    };
+
+    return (
+        <ScrollView style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f), (StyleKeys.WhiteSpace, "normal") }}>
+            <Label text="Hook queue merging test" style={new Style { (StyleKeys.FontSize, 16f), ("unityFontStyleAndWeight", FontStyle.Bold), (StyleKeys.MarginBottom, 6f) }} />
+            <Label
+                text="Each button issues several setState calls back-to-back. The per-hook queue stores them until commit so the final value matches the combined functional updates."
+                style={new Style { (StyleKeys.MarginBottom, 8f) }}
+            />
+            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.AlignItems, "center"), (StyleKeys.MarginBottom, 6f) }}>
+                <Label text={$"Value: {value}"} style={badgeStyle} />
+                <Label text={$"Flush count: {flushCount}"} style={badgeStyle} />
+            </VisualElement>
+            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}>
+                <Button text="+1 three times" onClick={TripleIncrement} style={btnStyle} />
+                <Button text="Reset then +5" onClick={ResetThenBoost} style={btnStyle} />
+                <Button text="+1 then ×2" onClick={MultiplyAfterAdd} style={btnStyle} />
+            </VisualElement>
+            <VisualElement style={new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.Padding, 8f), (StyleKeys.BackgroundColor, new Color(0.14f, 0.14f, 0.14f, 0.85f)), (StyleKeys.BorderRadius, 4f) }}>
+                <Label text="Recent operations" style={new Style { (StyleKeys.MarginBottom, 4f), ("unityFontStyleAndWeight", FontStyle.Bold) }} />
+                <VisualElement style={new Style { (StyleKeys.FlexDirection, "column") }}>
+                    @foreach (var entry in logEntries) {
+                        <Label text={entry} key={entry} style={new Style { (StyleKeys.MarginBottom, 2f) }} />
+                    }
+                </VisualElement>
+            </VisualElement>
+        </ScrollView>
+    );
+}

@@ -34,11 +34,14 @@ namespace ReactiveUITK.Samples.Shared
             }
 
             return V.VisualElement(
-                new Style
+                new VisualElementProps
                 {
-                    { StyleKeys.FlexGrow, 1f },
-                    { StyleKeys.FlexDirection, "column" },
-                    { StyleKeys.Padding, 8f },
+                    Style = new Style
+                    {
+                        { StyleKeys.FlexGrow, 1f },
+                        { StyleKeys.FlexDirection, "column" },
+                        { StyleKeys.Padding, 8f },
+                    }
                 },
                 key: "editor-controls-root",
                 V.Toolbar(
@@ -83,21 +86,27 @@ namespace ReactiveUITK.Samples.Shared
                     new ScrollViewProps { Mode = "vertical" },
                     key: "scroll",
                     V.VisualElement(
-                        new Style { { StyleKeys.FlexDirection, "column" } },
+                        new VisualElementProps { Style = new Style { { StyleKeys.FlexDirection, "column" } } },
                         key: "content",
                         V.VisualElement(
-                            new Style
+                            new VisualElementProps
                             {
-                                { StyleKeys.FlexDirection, FlexDirection.Row },
-                                { StyleKeys.AlignItems, "flex-start" },
-                                { StyleKeys.MarginTop, 8f },
+                                Style = new Style
+                                {
+                                    { StyleKeys.FlexDirection, FlexDirection.Row },
+                                    { StyleKeys.AlignItems, "flex-start" },
+                                    { StyleKeys.MarginTop, 8f },
+                                }
                             },
                             key: "row",
                             V.VisualElement(
-                                new Style
+                                new VisualElementProps
                                 {
-                                    { StyleKeys.FlexGrow, 1f },
-                                    { StyleKeys.MarginRight, 8f },
+                                    Style = new Style
+                                    {
+                                        { StyleKeys.FlexGrow, 1f },
+                                        { StyleKeys.MarginRight, 8f },
+                                    }
                                 },
                                 key: "lhs",
                                 V.Label(new LabelProps { Text = "PropertyField Example" }),
@@ -111,7 +120,7 @@ namespace ReactiveUITK.Samples.Shared
                                 )
                             ),
                             V.VisualElement(
-                                new Style { { StyleKeys.FlexGrow, 1f } },
+                                new VisualElementProps { Style = new Style { { StyleKeys.FlexGrow, 1f } } },
                                 key: "rhs",
                                 V.Label(new LabelProps { Text = "InspectorElement Example" }),
                                 V.InspectorElement(new InspectorElementProps { Target = sel })
@@ -132,20 +141,23 @@ namespace ReactiveUITK.Samples.Shared
                             },
                             key: "split",
                             V.VisualElement(
-                                new Style
+                                new VisualElementProps
                                 {
-                                    { StyleKeys.FlexGrow, 1f },
-                                    { StyleKeys.Padding, 6f },
+                                    Style = new Style
                                     {
-                                        StyleKeys.BackgroundColor,
-                                        new Color(0.93f, 0.93f, 0.93f, 1f)
-                                    },
+                                        { StyleKeys.FlexGrow, 1f },
+                                        { StyleKeys.Padding, 6f },
+                                        {
+                                            StyleKeys.BackgroundColor,
+                                            new Color(0.93f, 0.93f, 0.93f, 1f)
+                                        },
+                                    }
                                 },
                                 key: "pane1",
                                 V.Label(new LabelProps { Text = "Pane 1" })
                             ),
                             V.VisualElement(
-                                new Style { { StyleKeys.FlexGrow, 1f }, { StyleKeys.Padding, 6f } },
+                                new VisualElementProps { Style = new Style { { StyleKeys.FlexGrow, 1f }, { StyleKeys.Padding, 6f } } },
                                 key: "pane2",
                                 V.Label(new LabelProps { Text = "Pane 2" })
                             )

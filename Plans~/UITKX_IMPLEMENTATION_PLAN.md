@@ -24,6 +24,8 @@
 | P8.6 | Developer Experience Improvements (IDE Polish) | `[DONE]` |
 | P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[ ]` NOT STARTED |
 | P10 | Rider Plugin | `[ ]` NOT STARTED |
+| P11 | ForwardRef UITKX Syntax — `ref={...}` on user-defined components | `[ ]` NOT STARTED |
+| P12 | Portal with External VisualElement Target | `[ ]` NOT STARTED |
 
 **Pre-existing work already done (do not re-do):**
 - Checkmark TextMate grammar (`grammar/uitkx.tmLanguage.json`) -- covers all directives, elements, expressions, `@case` fix deployed in v1.0.17
@@ -580,6 +582,8 @@ Test cases required in `ide-extensions~/language-lib.Tests/FormatterTests.cs`:
 - [ ] Format Document in VS2022 produces correct output
 - [ ] `uitkx.config.json` options all take effect
 - [ ] `@code` block content is never modified by the formatter
+- [ ] All formatting options (`printWidth`, `indentSize`, `useTabIndent`) are exposed in `uitkx.config.json` and take effect at runtime
+- [ ] Enter-key indentation in all supported IDEs respects the configured `indentSize` / `useTabIndent` from `uitkx.config.json` (tracked: not yet implemented)
 
 ---
 
@@ -691,6 +695,7 @@ Pure text scanning with regex on `.cs` files -- no Roslyn required for Tier 2.
 - [ ] `<ItemSlot />` with no `ItemSlotProps.cs` in workspace -- warning underline
 - [ ] `@foreach` child without `key` -- yellow squiggle
 - [ ] Diagnostics update within 500 ms of typing
+- [ ] `@if` / `@foreach` body containing multiple root elements (no fragment wrapper) reports a structural diagnostic (new code: UITKX0107 or similar)
 
 ---
 
@@ -772,6 +777,9 @@ Server advertises:
 - [ ] `{ expression }` gets `uitkxExpression` colour
 - [ ] Colour follows theme changes without restarting server
 - [ ] VS2022: no change -- TextMate grammar colours unchanged
+- [ ] Unused `@inject` / `@code` variables rendered with a dim semantic token modifier
+- [ ] Markup following `@return` / `@break` / `@continue` (unreachable) rendered with a greyed-out semantic modifier
+- [ ] Token type definitions and legend are IDE-agnostic; VSCode and Rider adapters are separated from the core provider
 
 ---
 
@@ -842,6 +850,7 @@ and target range (the line in the `.cs` file).
 - [ ] Hover over `text=` shows `string text -- The label text`
 - [ ] Ctrl+Click on `<ItemSlot />` jumps to `ItemSlotProps.cs`
 - [ ] All of the above work in VSCode and VS2022
+- [ ] Completions are context-aware: in an empty file, suggest `@namespace` / `@component` skeleton; inside the component body, suggest appropriate usage forms
 
 ---
 
@@ -1446,6 +1455,44 @@ from `#line` directives. No separate source-map data structure needed.
 - [ ] Roslyn errors do not duplicate Tier 1/2 errors (dedup by range + message)
 - [ ] Large project (1000+ .cs files) -- Tier 3 analysis completes < 3 seconds
 
+## 9.6 -- Implementation checklist
+
+### 9.6.1 -- Diagnostic scope definition
+- [ ] Define MVP semantic diagnostics (symbols, types, unresolved references, invalid member access).
+- [ ] Define severity strategy (error/warning/info) and default categories.
+- [ ] Map diagnostic codes to user-facing messages and quick-fix intent.
+- [ ] Identify explicit non-goals for first release (to keep scope controlled).
+
+### 9.6.2 -- Semantic model foundation
+- [ ] Build/bind symbol tables for UITKX scopes (component, parameters, locals, loops).
+- [ ] Resolve identifiers and type contexts across markup/code boundaries.
+- [ ] Track inferred expression types where available.
+- [ ] Add incremental invalidation strategy for changed files.
+
+### 9.6.3 -- Roslyn-backed validation
+- [ ] Integrate generated C# semantic checks using Roslyn compilation APIs.
+- [ ] Map Roslyn diagnostics back to UITKX source spans.
+- [ ] Add filtering/deduplication to avoid duplicate parser/semantic reports.
+- [ ] Ensure deterministic results in partial/incomplete editor states.
+
+### 9.6.4 -- LSP diagnostics pipeline
+- [ ] Extend LSP diagnostics publisher for semantic tiers.
+- [ ] Add stable tier ordering and source tagging (parser/structural/semantic/roslyn).
+- [ ] Implement debounce/cancellation for responsive editing.
+- [ ] Validate multi-file workspace diagnostics consistency.
+
+### 9.6.5 -- Quality + regression suite
+- [ ] Add unit tests for symbol/type binding edge cases.
+- [ ] Add golden diagnostics tests for common authoring mistakes.
+- [ ] Add performance benchmarks on medium and large UITKX sets.
+- [ ] Verify no regression in existing Tier-1/Tier-2 diagnostics.
+
+### 9.6.6 -- Documentation + release
+- [ ] Document diagnostic catalog and troubleshooting guidance.
+- [ ] Update implementation plan status and release notes.
+- [ ] Execute extension release flow (version bump, build, publish, local install).
+- [ ] Gather community feedback and schedule post-MVP diagnostic expansions.
+
 ---
 
 # Phase 10 -- Rider Plugin
@@ -1623,3 +1670,33 @@ The language library must not attempt to parse C# from `@code` blocks -- only th
 5. **`PropsHelper.Bind<T>` expression trees**: Expression trees require .NET Standard 2.1+.
    Ensure the Runtime assembly targets `.NET Standard 2.1`, or use a Roslyn-generated
    proxy approach if constrained to 2.0.
+
+6. **VS2022 follow-up work**: Remaining VS2022-specific issues (e.g. format trigger edge
+   cases, VSIX packaging, feature parity gaps) are explicitly deferred until VSCode
+   support is fully stable. Address as a follow-up release once the VSCode baseline
+   is solid and proven in real-world use.
+
+7. **[CRITICAL — P11] ForwardRef syntax not implemented**: `ref={...}` on user-defined
+   UITKX components has no parser or emitter support. A child component cannot declare
+   that it accepts and forwards a ref handle to its inner DOM element. Concretely:
+   `<MyInput ref={myRef} />` silently drops the ref instead of forwarding it.
+   The C# `V.ForwardRef` API exists but there is no `.uitkx` surface for it.
+   **Impact**: Any component that wraps an input/element and needs the parent to access
+   the underlying `VisualElement` via ref cannot be expressed in UITKX today.
+   The `RefForwardingDemoFunc.uitkx` sample is a simplified substitute.
+   **Fix scope**: Parser must recognise `ref` as a special prop on PascalCase tags;
+   emitter must route it through `V.ForwardRef` wrapping. Tracked as P11.
+
+8. **[CRITICAL — P12] Portal with external VisualElement target**: `<Portal target={ve}>`
+   requires passing a live `VisualElement` handle that lives outside the component tree
+   (e.g. a panel owned by the Unity EditorWindow). Typed function parameters now work
+   (`component MyPortal(VisualElement target = null)`), so the props side is unblocked.
+   The remaining gap is ergonomics: a `.uitkx` component has no built-in way to receive
+   a `VisualElement` that comes from an imperative C# host (root renderer setup code).
+   The recommended pattern is to use `@inject VisualElement PortalTarget` (static field
+   injection) or pass it via a Context, but neither is demonstrated or documented yet.
+   **Impact**: Portal-based overlays, tooltips anchored to external panels, and
+   cross-panel event scoping cannot be expressed end-to-end in UITKX without workarounds.
+   The `PortalEventScopeDemoFunc.uitkx` sample is a simplified substitute.
+   **Fix scope**: Document the `@inject` + Portal pattern; update the demo; add a
+   code example to the docs site. Tracked as P12.

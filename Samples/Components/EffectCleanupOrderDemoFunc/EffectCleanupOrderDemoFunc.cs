@@ -86,7 +86,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
 
             return V.VisualElement(
-                containerStyle,
+                new VisualElementProps { Style = containerStyle },
                 null,
                 V.Text("Effect Cleanup Order — Step 2 Test"),
                 V.Label(
@@ -102,7 +102,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     }
                 ),
                 V.VisualElement(
-                    sectionStyle,
+                    new VisualElementProps { Style = sectionStyle },
                     null,
                     V.Button(
                         new ButtonProps
@@ -147,7 +147,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new EffectPanelFunc.Props { Label = "Panel B", Generation = generation, Log = logRef.Value }
                 ),
                 V.VisualElement(
-                    logBoxStyle,
+                    new VisualElementProps { Style = logBoxStyle },
                     null,
                     displayLog.Count == 0
                         ? V.Text("Log is empty — click 'Next Generation' to start.")
@@ -201,7 +201,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 };
 
                 return V.VisualElement(
-                    panelStyle,
+                    new VisualElementProps { Style = panelStyle },
                     null,
                     V.Text($"{label}  —  generation {generation}")
                 );

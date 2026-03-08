@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.CodeAnalysis;
 
@@ -129,6 +131,32 @@ namespace ReactiveUITK.SourceGenerator
 
                     var results = new List<UitkxPipelineResult>();
 
+                    // ── Pre-scan: build the set of component type names from all .uitkx
+                    // files so that PropsResolver can suppress UITKX0008 for peer components
+                    // that exist in this batch but are not yet compiled into the Roslyn
+                    // snapshot (Roslyn source generators cannot see types generated in the
+                    // same pass via GetTypeByMetadataName).
+                    var peerNamesBuilder      = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+                    var peerPropsNamesBuilder = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+                    foreach (var txt in uitkxFiles)
+                    {
+                        ct.ThrowIfCancellationRequested();
+                        if (IsInsideIgnoredFolder(txt.Path))
+                            continue;
+                        string? src = txt.GetText(ct)?.ToString();
+                        if (src == null)
+                            continue;
+                        string? name = ExtractComponentName(src);
+                        if (name != null)
+                        {
+                            peerNamesBuilder.Add(name);
+                            if (HasFunctionStyleParams(src))
+                                peerPropsNamesBuilder.Add(name);
+                        }
+                    }
+                    ImmutableHashSet<string> peerComponentNames      = peerNamesBuilder.ToImmutable();
+                    ImmutableHashSet<string> peerPropsComponentNames = peerPropsNamesBuilder.ToImmutable();
+
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
                     // UitkxCsprojPostprocessor, so they arrive here as AdditionalTexts.
@@ -140,7 +168,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = txt.GetText(ct)?.ToString();
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponentNames, peerPropsComponentNames));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -151,19 +179,34 @@ namespace ReactiveUITK.SourceGenerator
                         string assetsDir = Path.Combine(root, "Assets");
                         if (Directory.Exists(assetsDir))
                         {
-                            foreach (
-                                string filePath in Directory.GetFiles(
-                                    assetsDir,
-                                    "*.uitkx",
-                                    SearchOption.AllDirectories
-                                )
-                            )
+                            var diskFiles = Directory.GetFiles(
+                                assetsDir, "*.uitkx", SearchOption.AllDirectories);
+
+                            // Pre-scan for peer component names (same as the AdditionalTexts path)
+                            var diskPeerBuilder      = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+                            var diskPeerPropsBuilder = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
+                            foreach (string fp in diskFiles)
+                            {
+                                if (IsInsideIgnoredFolder(fp)) continue;
+                                string raw = File.ReadAllText(fp);
+                                string? n = ExtractComponentName(raw);
+                                if (n != null)
+                                {
+                                    diskPeerBuilder.Add(n);
+                                    if (HasFunctionStyleParams(raw))
+                                        diskPeerPropsBuilder.Add(n);
+                                }
+                            }
+                            ImmutableHashSet<string> diskPeerNames      = diskPeerBuilder.ToImmutable();
+                            ImmutableHashSet<string> diskPeerPropsNames = diskPeerPropsBuilder.ToImmutable();
+
+                            foreach (string filePath in diskFiles)
                             {
                                 ct.ThrowIfCancellationRequested();
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerNames, diskPeerPropsNames));
                             }
                         }
                     }
@@ -202,5 +245,40 @@ namespace ReactiveUITK.SourceGenerator
             }
             return false;
         }
+
+        // Matches the component-name declaration in a .uitkx file in both styles:
+        //   function style:  component FooBarFunc {
+        //   directive style: @component FooBarFunc
+        private static readonly Regex s_componentNameRe = new Regex(
+            @"(?:^component\s+|@component\s+)([A-Z][a-zA-Z0-9_]*)",
+            RegexOptions.Multiline | RegexOptions.Compiled
+        );
+
+        // Matches a function-style component that declares at least one typed param:
+        //   component FooBar(type param = default) {
+        // Used to distinguish props-bearing components from no-params ones so that
+        // PropsResolver only generates a typed V.Func<T> call when a Props class
+        // will actually be emitted for the peer component.
+        private static readonly Regex s_funcParamsRe = new Regex(
+            @"^component\s+[A-Z][a-zA-Z0-9_]*\s*\(\s*[a-zA-Z]",
+            RegexOptions.Multiline | RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// Quickly extracts the declared component type name from raw .uitkx source text.
+        /// Returns null if no component declaration is found.
+        /// </summary>
+        private static string? ExtractComponentName(string source)
+        {
+            var m = s_componentNameRe.Match(source);
+            return m.Success ? m.Groups[1].Value : null;
+        }
+
+        /// <summary>
+        /// Returns true when the source declares a function-style component with at
+        /// least one typed param — i.e. a <c>XxxProps</c> class will be generated.
+        /// </summary>
+        private static bool HasFunctionStyleParams(string source)
+            => s_funcParamsRe.IsMatch(source);
     }
 }

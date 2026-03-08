@@ -105,7 +105,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     }
                 ),
                 V.VisualElement(
-                    statBoxStyle,
+                    new VisualElementProps { Style = statBoxStyle },
                     null,
                     V.Label(new LabelProps { Text = $"Value: {batchedValue}" }),
                     V.Label(new LabelProps { Text = $"Render count (tracked): {renderCount}" }),
@@ -118,7 +118,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") },
+                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") } },
                     null,
                     Button("Add +5, -2, +1", TripleUpdate),
                     Button("Set 10 then -3", ValueThenUpdater),

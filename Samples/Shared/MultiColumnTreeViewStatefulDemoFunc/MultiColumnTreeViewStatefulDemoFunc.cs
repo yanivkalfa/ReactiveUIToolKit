@@ -47,7 +47,10 @@ namespace ReactiveUITK.Samples.Shared
             var onSortChanged = p?.OnSortChanged;
             Delegate columnLayoutChanged = p?.OnLayoutChanged;
 
-            var rootsNow = BuildRoots(rows, sortDefs);
+            var rootsNow = Hooks.UseMemo(
+                () => BuildRoots(rows, sortDefs),
+                new object[] { rows, sortDefs }
+            );
 
             var columns = Hooks.UseMemo(
                 () =>
@@ -144,7 +147,7 @@ namespace ReactiveUITK.Samples.Shared
             Action Safe(Action candidate) => candidate ?? (() => { });
 
             var btnRow = V.VisualElement(
-                new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) } },
                 null,
                 V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
                 V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),

@@ -131,11 +131,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 );
 
             var controls = V.VisualElement(
-                new Style
+                new VisualElementProps
                 {
-                    (StyleKeys.FlexDirection, "row"),
-                    (StyleKeys.FlexWrap, "wrap"),
-                    (StyleKeys.MarginBottom, 8f),
+                    Style = new Style
+                    {
+                        (StyleKeys.FlexDirection, "row"),
+                        (StyleKeys.FlexWrap, "wrap"),
+                        (StyleKeys.MarginBottom, 8f),
+                    }
                 },
                 null,
                 Button("Reset order", Reset),
@@ -152,18 +155,21 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 string key = items[i];
                 rows.Add(
                     V.VisualElement(
-                        new Style
+                        new VisualElementProps
                         {
-                            (StyleKeys.FlexDirection, "row"),
-                            (StyleKeys.AlignItems, "center"),
-                            (StyleKeys.PaddingLeft, 10f),
-                            (StyleKeys.PaddingRight, 10f),
-                            (StyleKeys.PaddingTop, 6f),
-                            (StyleKeys.PaddingBottom, 6f),
-                            (StyleKeys.MarginBottom, 4f),
-                            (StyleKeys.BackgroundColor, new Color(0.17f, 0.17f, 0.2f, 0.85f)),
-                            (StyleKeys.BorderRadius, 4f),
-                            (StyleKeys.JustifyContent, "space-between"),
+                            Style = new Style
+                            {
+                                (StyleKeys.FlexDirection, "row"),
+                                (StyleKeys.AlignItems, "center"),
+                                (StyleKeys.PaddingLeft, 10f),
+                                (StyleKeys.PaddingRight, 10f),
+                                (StyleKeys.PaddingTop, 6f),
+                                (StyleKeys.PaddingBottom, 6f),
+                                (StyleKeys.MarginBottom, 4f),
+                                (StyleKeys.BackgroundColor, new Color(0.17f, 0.17f, 0.2f, 0.85f)),
+                                (StyleKeys.BorderRadius, 4f),
+                                (StyleKeys.JustifyContent, "space-between"),
+                            }
                         },
                         key,
                         V.Label(new LabelProps { Text = $"Key: {key}" }),
@@ -202,7 +208,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 ),
                 controls,
                 V.VisualElement(
-                    new Style { (StyleKeys.FlexDirection, "column") },
+                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column") } },
                     null,
                     rows.ToArray()
                 )

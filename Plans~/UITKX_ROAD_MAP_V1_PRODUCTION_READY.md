@@ -56,6 +56,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [ ] Verify completions/hover/go-to-definition quality and accuracy.
 - [ ] Verify diagnostics publish/cancel/debounce behavior.
 - [ ] Verify extension start-up and crash recovery behavior.
+- [ ] Each extension surface (commands, settings, snippets) has a clear user-visible description in the extension manifest and README.
 
 ### LSP Server Packaging
 - [ ] Ensure server binaries are rebuilt for every extension release.
@@ -84,6 +85,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [ ] Validate from clean clone to first successful build.
 - [ ] Validate common migration scenarios from handwritten UITK C#.
 - [ ] Validate sample projects on at least one Windows and one macOS setup.
+- [ ] Convert existing ReactiveUIToolKit demo / sample projects to UITKX syntax to serve as live end-to-end test coverage.
 
 ### Release Gates
 - [ ] Define mandatory green checks before any release tag.
@@ -122,6 +124,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [ ] Verify extension package includes all required binaries/assets.
 - [ ] Verify sample assets import cleanly.
 - [ ] Verify package size and unnecessary artifacts are minimized.
+- [ ] Evaluate splitting into leaner package variants (e.g. runtime-only, no IDE tooling) to reduce install footprint for users who do not need the editor extension.
 
 ### Distribution
 - [ ] Define official distribution channels (repo/package/marketplace).
@@ -199,6 +202,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [ ] Major language-surface expansions beyond V1 scope.
 - [ ] Advanced semantic diagnostics beyond agreed V1 boundary.
 - [ ] Evaluate JS-style collection helpers/directives for markup and `@code` (e.g., map/filter/forEach forms such as `@map()` and collection-scoped variants).
+- [ ] Rethink style writing ergonomics — explore more fluent / ergonomic patterns for inline styles (e.g. CSS-in-C# helpers, style composition API).
 
 ---
 

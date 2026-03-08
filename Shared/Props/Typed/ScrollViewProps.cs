@@ -4,30 +4,16 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class ScrollViewProps : global::ReactiveUITK.Core.IProps
+    public sealed class ScrollViewProps : BaseProps
     {
-        public string Name { get; set; }
-        public string ClassName { get; set; }
         public string Mode { get; set; }
         public ScrollerVisibility? VerticalScrollerVisibility { get; set; }
         public ScrollerVisibility? HorizontalScrollerVisibility { get; set; }
         public Vector2? ScrollOffset { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
 
-        public Dictionary<string, object> ContentContainer { get; set; }
-
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name))
-            {
-                dict["name"] = Name;
-            }
-            if (!string.IsNullOrEmpty(ClassName))
-            {
-                dict["className"] = ClassName;
-            }
+            var dict = base.ToDictionary();
             if (!string.IsNullOrEmpty(Mode))
             {
                 dict["mode"] = Mode;
@@ -43,18 +29,6 @@ namespace ReactiveUITK.Props.Typed
             if (ScrollOffset.HasValue)
             {
                 dict["scrollOffset"] = ScrollOffset.Value;
-            }
-            if (ContentContainer != null)
-            {
-                dict["contentContainer"] = ContentContainer;
-            }
-            if (Style != null)
-            {
-                dict["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                dict["ref"] = Ref;
             }
             return dict;
         }

@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class MultiColumnTreeViewProps : global::ReactiveUITK.Core.IProps
+    public sealed class MultiColumnTreeViewProps : BaseProps
     {
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
@@ -22,9 +22,6 @@ namespace ReactiveUITK.Props.Typed
         public object SortingMode { get; set; }
         public Delegate ColumnSortingChanged { get; set; }
         public Delegate ColumnLayoutChanged { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
-        public string ViewDataKey { get; set; }
 
         public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
@@ -113,9 +110,9 @@ namespace ReactiveUITK.Props.Typed
             public Dictionary<string, int> ColumnDisplayIndex { get; set; }
         }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var d = new Dictionary<string, object>();
+            var d = base.ToDictionary();
             if (RootItems != null)
             {
                 d["rootItems"] = RootItems;
@@ -197,18 +194,6 @@ namespace ReactiveUITK.Props.Typed
             else if (ColumnLayoutChanged != null)
             {
                 d["columnLayoutChanged"] = ColumnLayoutChanged;
-            }
-            if (Style != null)
-            {
-                d["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                d["ref"] = Ref;
-            }
-            if (!string.IsNullOrEmpty(ViewDataKey))
-            {
-                d["viewDataKey"] = ViewDataKey;
             }
             return d;
         }

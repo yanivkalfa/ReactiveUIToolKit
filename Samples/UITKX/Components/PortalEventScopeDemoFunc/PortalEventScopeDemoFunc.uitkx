@@ -1,0 +1,42 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+// PortalEventScopeDemoFunc requires an external VisualElement target passed from
+// the Unity scene host — this is not expressible as UITKX props without @props syntax.
+// This version demonstrates Portal mount/unmount behavior with an in-tree target.
+// TODO: revisit when @props is available for typed prop declarations.
+component PortalEventScopeDemoFunc {
+    var (mounted, setMounted) = useState(true);
+    var (log, setLog) = useState("Click the portal button to verify event scoping.");
+
+    void AppendLog(string message) {
+        setLog(prev => $"{System.DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
+    }
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) }}>
+            <Label text="Portal event scope demo" style={new Style { (StyleKeys.FontSize, 16f), (StyleKeys.MarginBottom, 6f) }} />
+            <Label
+                text="NOTE: Full portal demo requires an external VisualElement target from the host scene. This version exercises mount/unmount toggle only."
+                style={new Style { (StyleKeys.WhiteSpace, "normal"), (StyleKeys.MarginBottom, 8f), (StyleKeys.Color, new Color(0.9f, 0.85f, 0.3f, 1f)) }}
+            />
+            <Button
+                text={mounted ? "Unmount Portal" : "Mount Portal"}
+                onClick={() => setMounted(!mounted)}
+                style={new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f) }}
+            />
+            @if (mounted) {
+                <Button
+                    text="Portal Button (click me)"
+                    onClick={() => AppendLog("Portal button clicked")}
+                    style={new Style { (StyleKeys.MarginTop, 6f) }}
+                />
+            } @else {
+                <Label text="Portal unmounted." />
+            }
+            <Label
+                text={log}
+                style={new Style { (StyleKeys.WhiteSpace, "normal"), (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 0.9f)), (StyleKeys.Padding, 6f), (StyleKeys.BorderRadius, 4f), (StyleKeys.MarginTop, 8f) }}
+            />
+        </VisualElement>
+    );
+}

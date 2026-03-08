@@ -1,6 +1,6 @@
-using System.Collections.Generic;
 using ReactiveUITK;
 using ReactiveUITK.Core;
+using ReactiveUITK.Props.Typed;
 using ReactiveUITK.Samples.Shared;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -31,10 +31,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 return;
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
-            var hostProps = new Dictionary<string, object>
-            {
-                { "pickingMode", PickingMode.Ignore },
-            };
+            var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
             rootRenderer.Render(V.Host(hostProps, null, V.Func(SharedDemoPage.Render)));
         }
     }

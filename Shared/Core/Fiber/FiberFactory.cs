@@ -143,6 +143,16 @@ namespace ReactiveUITK.Core.Fiber
             // Link back to clone
             current.Alternate = clone;
 
+            // Fix: Suspense VNodes always have TypedProps=null because SuspenseProps is
+            // internal infrastructure, not exposed as IProps on the VirtualNode.
+            // Without this patch, CloneForReuse falls back to current.TypedPendingProps
+            // (the STALE SuspenseProps from the initial render), causing the bailout check
+            // in RenderFunctionComponent to see propsEqual=true and skip re-rendering.
+            // Result: Suspense always renders its first-ever children regardless of what
+            // the parent re-rendered — breaking ErrorBoundary and async load updates.
+            if (newVNode?.NodeType == VirtualNodeType.Suspense)
+                clone.TypedPendingProps = FiberIntrinsicComponents.CreateSuspenseProps(newVNode);
+
             // NOTE: We DON'T update ComponentState.Fiber here because the clone's parent chain
             // isn't fully connected yet. The update happens in CommitRoot after tree swap
             // when all parent references are guaranteed to be correct.

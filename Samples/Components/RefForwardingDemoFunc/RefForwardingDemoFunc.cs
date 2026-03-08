@@ -38,11 +38,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
 
             VirtualNode controlsRow = V.VisualElement(
-                new Style
+                new VisualElementProps
                 {
-                    (SK.FlexDirection, "row"),
-                    (SK.AlignItems, "center"),
-                    (SK.MarginTop, 6f),
+                    Style = new Style
+                    {
+                        (SK.FlexDirection, "row"),
+                        (SK.AlignItems, "center"),
+                        (SK.MarginTop, 6f),
+                    }
                 },
                 "ref-forward-controls",
                 V.Button(
@@ -68,7 +71,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new Style { (SK.FlexDirection, "column"), (SK.Padding, 12f), (SK.FlexGrow, 1f) },
+                new VisualElementProps { Style = new Style { (SK.FlexDirection, "column"), (SK.Padding, 12f), (SK.FlexGrow, 1f) } },
                 "ref-forward-root",
                 V.Text("Forward refs + useRef demo", key: "title"),
                 V.Text(
@@ -134,13 +137,16 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 string currentValue = typedForwardedRef?.Value?.value ?? "Hello ReactiveUITK refs!";
 
                 return V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (SK.FlexDirection, "column"),
-                        (SK.MarginTop, 10f),
-                        (SK.Padding, 8f),
-                        (SK.BorderWidth, 1f),
-                        (SK.BorderColor, new Color(0.82f, 0.82f, 0.82f, 1f)),
+                        Style = new Style
+                        {
+                            (SK.FlexDirection, "column"),
+                            (SK.MarginTop, 10f),
+                            (SK.Padding, 8f),
+                            (SK.BorderWidth, 1f),
+                            (SK.BorderColor, new Color(0.82f, 0.82f, 0.82f, 1f)),
+                        }
                     },
                     "ref-forward-child-root",
                     V.Label(

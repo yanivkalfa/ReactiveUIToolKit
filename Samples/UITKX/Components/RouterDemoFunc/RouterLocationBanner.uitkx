@@ -1,0 +1,28 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+component RouterLocationBanner {
+    var location = RouterHooks.UseLocationInfo();
+    var query = RouterHooks.UseQuery();
+    var navState = RouterHooks.UseNavigationState();
+
+    string DescribeQuery(System.Collections.Generic.IReadOnlyDictionary<string, string> q) {
+        if (q == null || q.Count == 0) return "(none)";
+        var parts = new System.Collections.Generic.List<string>();
+        foreach (var kv in q) parts.Add($"{kv.Key}={kv.Value}");
+        return string.Join(", ", parts);
+    }
+
+    string DescribeState(object s) {
+        if (s == null) return "(none)";
+        if (s is string str) return string.IsNullOrEmpty(str) ? "(empty string)" : str;
+        return s.ToString();
+    }
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.FlexDirection, "column") }}>
+            <Text text={$"Current path: {location?.Path ?? "/"}"} />
+            <Text text={$"Query params: {DescribeQuery(query)}"} />
+            <Text text={$"Navigation state: {DescribeState(navState)}"} />
+        </VisualElement>
+    );
+}

@@ -4,30 +4,18 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class SliderIntProps : global::ReactiveUITK.Core.IProps
+    public sealed class SliderIntProps : BaseProps
     {
-        public string Name { get; set; }
-        public string ClassName { get; set; }
         public int? LowValue { get; set; }
         public int? HighValue { get; set; }
         public int? Value { get; set; }
         public string Direction { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
 
         public Action<ChangeEvent<int>> OnChange { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name))
-            {
-                dict["name"] = Name;
-            }
-            if (!string.IsNullOrEmpty(ClassName))
-            {
-                dict["className"] = ClassName;
-            }
+            var dict = base.ToDictionary();
             if (LowValue.HasValue)
             {
                 dict["lowValue"] = LowValue.Value;
@@ -47,14 +35,6 @@ namespace ReactiveUITK.Props.Typed
             if (OnChange != null)
             {
                 dict["onChange"] = OnChange;
-            }
-            if (Style != null)
-            {
-                dict["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                dict["ref"] = Ref;
             }
             return dict;
         }

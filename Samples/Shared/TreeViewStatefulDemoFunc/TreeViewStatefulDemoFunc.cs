@@ -35,7 +35,9 @@ namespace ReactiveUITK.Samples.Shared
             var setParent = p?.SetParent;
             var setChild = p?.SetChild;
             var deleteLast = p?.DeleteLast;
-            var expandedItemIds = p?.ExpandedItemIds != null ? new List<int>(p.ExpandedItemIds) : null;
+            // Pass ExpandedItemIds reference directly — copying it to a new List<int> every render
+            // causes the TreeView to see a reference change, fire ItemExpandedChanged, and loop.
+            var expandedItemIds = p?.ExpandedItemIds;
             Delegate expandedChanged = p?.OnExpandedChanged;
 
             var rootItems = Hooks.UseMemo(
@@ -152,7 +154,7 @@ namespace ReactiveUITK.Samples.Shared
             Action Safe(Action candidate) => candidate ?? (() => { });
 
             var btnRow = V.VisualElement(
-                new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
+                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) } },
                 null,
                 V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
                 V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),

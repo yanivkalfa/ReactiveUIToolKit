@@ -24,7 +24,7 @@ namespace ReactiveUITK.Samples.Shared
             };
 
             return ReactiveUITK.V.VisualElement(
-                new Dictionary<string, object> { { "style", rowStyle } },
+                new VisualElementProps { Style = rowStyle },
                 null,
                 ReactiveUITK.V.Label(new LabelProps { Text = $"Count: {count}" }),
                 ReactiveUITK.V.Button(buttonProps)

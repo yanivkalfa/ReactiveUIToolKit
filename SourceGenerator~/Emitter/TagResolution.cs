@@ -31,6 +31,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         Fragment,
 
         /// <summary>
+        /// The V.Suspense(...) primitive.  Emitted via a dedicated code path that maps the
+        /// well-known <c>isReady</c>, <c>pendingTask</c>, and <c>fallback</c> attributes
+        /// directly to V.Suspense overload arguments.
+        /// </summary>
+        BuiltinSuspense,
+
+        /// <summary>
         /// The tag could not be resolved. A UITKX0001 / UITKX0008 diagnostic is emitted.
         /// The emitter still produces a best-effort call.
         /// </summary>

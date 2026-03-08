@@ -24,7 +24,7 @@ namespace ReactiveUITK.Tests
 
             // Test 2: Nested elements
             var nested = V.VisualElement(
-                elementProperties: null,
+                props: null,
                 key: null,
                 children: new[]
                 {
@@ -59,7 +59,7 @@ namespace ReactiveUITK.Tests
                     var (count, setCount) = Hooks.UseState(0);
 
                     return V.VisualElement(
-                        elementProperties: null,
+                        props: null,
                         key: null,
                         children: new[]
                         {
@@ -123,7 +123,7 @@ namespace ReactiveUITK.Tests
         {
             Debug.Log("[FiberTest] Starting signal test...");
 
-            var signal = ReactiveUITK.Signals.Signals.Get<int>("FiberTest.SignalCounter", 0);
+            var signal = ReactiveUITK.Signals.SignalFactory.Get<int>("FiberTest.SignalCounter", 0);
 
             var signalComp = V.Func(
                 (IProps props, IReadOnlyList<VirtualNode> children) =>
