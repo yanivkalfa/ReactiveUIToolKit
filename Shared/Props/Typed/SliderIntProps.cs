@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -11,7 +12,7 @@ namespace ReactiveUITK.Props.Typed
         public int? Value { get; set; }
         public string Direction { get; set; }
 
-        public Action<ChangeEvent<int>> OnChange { get; set; }
+        public ChangeEventHandler<int> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {

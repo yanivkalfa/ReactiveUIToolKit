@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -30,20 +31,37 @@ namespace ReactiveUITK.Elements
             {
                 if (!ReferenceEquals(state.UserExpandedHandler, userHandler))
                 {
-                    if (state.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> prev)
+                    // Unsubscribe whatever was previously subscribed
+                    var prevSubscribed =
+                        state.UserExpandedHandlerWrapped
+                        ?? (state.UserExpandedHandler as Action<TreeViewExpansionChangedArgs>);
+                    if (prevSubscribed != null)
                     {
                         try
                         {
-                            hooks.Unsubscribe(view, prev);
+                            hooks.Unsubscribe(view, prevSubscribed);
                         }
                         catch { }
                     }
+
                     state.UserExpandedHandler = userHandler as Delegate;
+                    state.UserExpandedHandlerWrapped = null;
+
                     if (state.UserExpandedHandler is Action<TreeViewExpansionChangedArgs> nextH)
                     {
                         try
                         {
                             hooks.Subscribe(view, nextH);
+                        }
+                        catch { }
+                    }
+                    else if (state.UserExpandedHandler is TreeExpansionEventHandler teh)
+                    {
+                        Action<TreeViewExpansionChangedArgs> wrapped = args => teh(args);
+                        state.UserExpandedHandlerWrapped = wrapped;
+                        try
+                        {
+                            hooks.Subscribe(view, wrapped);
                         }
                         catch { }
                     }

@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -20,7 +21,7 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Handle { get; set; }
         public Dictionary<string, object> HandleBorder { get; set; }
 
-        public Action<ChangeEvent<float>> OnChange { get; set; }
+        public ChangeEventHandler<float> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {

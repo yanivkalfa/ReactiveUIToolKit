@@ -14,10 +14,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             public VisualElement PortalTarget { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var portalTarget = (rawProps as Props)?.PortalTarget;
             if (portalTarget == null)
@@ -41,7 +38,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         new ButtonProps
                         {
                             Text = "Portal Button (click me)",
-                            OnClick = () => AppendLog("Portal button clicked"),
+                            OnClick = _ => AppendLog("Portal button clicked"),
                             Style = new Style { (StyleKeys.MarginTop, 6f) },
                         }
                     )
@@ -49,7 +46,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
+                },
                 null,
                 V.Label(
                     new LabelProps
@@ -66,7 +66,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = mounted ? "Unmount Portal" : "Mount Portal",
-                        OnClick = () => setMounted(!mounted),
+                        OnClick = _ => setMounted(!mounted),
                         Style = new Style
                         {
                             (StyleKeys.MinWidth, 140f),

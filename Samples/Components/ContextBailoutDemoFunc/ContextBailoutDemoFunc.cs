@@ -51,8 +51,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             // UseRef: mutation during render doesn't trigger re-renders → no infinite loop.
             var renderCountRef = Hooks.UseRef(0);
-            renderCountRef.Value++;
-            int renderCount = renderCountRef.Value;
+            renderCountRef.Current++;
+            int renderCount = renderCountRef.Current;
 
             var color = new Color(0.2f, 0.2f, 0.2f, 1f);
             var style = new Style
@@ -92,8 +92,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             // UseRef: mutation during render doesn't trigger re-renders → no infinite loop.
             var renderCountRef = Hooks.UseRef(0);
-            renderCountRef.Value++;
-            int renderCount = renderCountRef.Value;
+            renderCountRef.Current++;
+            int renderCount = renderCountRef.Current;
 
             var themeColor = Hooks.UseContext<Color>("bailout-test-theme");
 
@@ -160,10 +160,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static readonly Color s_blue = new Color(0.2f, 0.45f, 0.9f, 1f);
         private static readonly Color s_orange = new Color(0.9f, 0.5f, 0.15f, 1f);
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (useBlue, setUseBlue) = Hooks.UseState(true);
             Color themeColor = useBlue ? s_blue : s_orange;
@@ -200,7 +197,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = $"Toggle Theme  (now: {(useBlue ? "Blue" : "Orange")})",
-                        OnClick = () => setUseBlue.Set(b => !b),
+                        OnClick = _ => setUseBlue.Set(b => !b),
                         Style = new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 220f) },
                     }
                 ),

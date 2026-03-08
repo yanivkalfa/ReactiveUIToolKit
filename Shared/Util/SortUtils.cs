@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ReactiveUITK.Props.Typed;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Shared.Util
@@ -9,7 +9,7 @@ namespace ReactiveUITK.Shared.Util
     public static class SortUtils
     {
         public static List<T> MultiSort<T>(
-            IEnumerable<MultiColumnTreeViewProps.SortedColumnDef> descriptors,
+            IEnumerable<SortedColumnDef> descriptors,
             IEnumerable<T> rows,
             Func<T, string, object> valueGetter,
             StringComparer comparer = null

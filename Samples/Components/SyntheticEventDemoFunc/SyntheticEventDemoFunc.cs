@@ -9,16 +9,13 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SyntheticEventDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (log, setLog) = Hooks.UseState(
                 "Click, drag, or scroll inside the panel to inspect normalized synthetic events."
             );
 
-            void UpdateLog(string label, SyntheticEvent evt)
+            void UpdateLog(string label, ReactiveEvent evt)
             {
                 if (evt == null)
                 {
@@ -26,12 +23,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     return;
                 }
                 string summary = $"{label}: type={evt.Type}";
-                if (evt is SyntheticWheelEvent wheel)
+                if (evt is ReactiveWheelEvent wheel)
                 {
                     summary =
                         $"{label}: Δ={wheel.Delta.x:0.0},{wheel.Delta.y:0.0} pos={wheel.Position.x:0.0},{wheel.Position.y:0.0} button={wheel.Button}";
                 }
-                else if (evt is SyntheticPointerEvent pointer)
+                else if (evt is ReactivePointerEvent pointer)
                 {
                     summary =
                         $"{label}: pointerId={pointer.PointerId} pos={pointer.Position.x:0.0},{pointer.Position.y:0.0} button={pointer.Button} clicks={pointer.ClickCount} pressure={pointer.Pressure:0.00}";
@@ -55,17 +52,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     {
                         {
                             "onPointerDown",
-                            (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerDown", e))
+                            (PointerEventHandler)(e => UpdateLog("PointerDown", e))
                         },
                         {
                             "onPointerMove",
-                            (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerMove", e))
+                            (PointerEventHandler)(e => UpdateLog("PointerMove", e))
                         },
-                        {
-                            "onPointerUp",
-                            (Action<SyntheticPointerEvent>)(e => UpdateLog("PointerUp", e))
-                        },
-                        { "onWheel", (Action<SyntheticWheelEvent>)(e => UpdateLog("Wheel", e)) },
+                        { "onPointerUp", (PointerEventHandler)(e => UpdateLog("PointerUp", e)) },
+                        { "onWheel", (WheelEventHandler)(e => UpdateLog("Wheel", e)) },
                     },
                 },
                 key: null,
@@ -79,7 +73,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) },
+                },
                 null,
                 V.Label(
                     new LabelProps

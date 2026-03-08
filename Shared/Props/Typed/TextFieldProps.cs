@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -17,7 +18,7 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> TextElement { get; set; }
 
-        public System.Action<ChangeEvent<string>> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChange { get; set; }
 
         public string LabelText { get; set; }
 

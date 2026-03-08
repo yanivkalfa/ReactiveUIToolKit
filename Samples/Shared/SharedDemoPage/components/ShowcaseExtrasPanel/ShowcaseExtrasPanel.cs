@@ -12,12 +12,13 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public bool IsOptionEnabled { get; set; }
-            public Action<ChangeEvent<bool>> OnOptionEnabledChange { get; set; }
+            public ChangeEventHandler<bool> OnOptionEnabledChange { get; set; }
             public bool IsRadioSingleSelected { get; set; }
-            public Action<ChangeEvent<bool>> OnRadioSingleChange { get; set; }
+            public ChangeEventHandler<bool> OnRadioSingleChange { get; set; }
             public List<string> SelectionChoices { get; set; }
             public int SelectionIndex { get; set; }
-            public Action<ChangeEvent<int>> OnSelectionChange { get; set; }
+            public ChangeEventHandler<int> OnSelectionChange { get; set; }
+
             /// <summary>Used to fill the ProgressBar (repeatClickCount % 100).</summary>
             public int ProgressValue { get; set; }
             public int BatchClicks { get; set; }
@@ -33,7 +34,10 @@ namespace ReactiveUITK.Samples.Shared
                 Text = "GroupBox",
                 ContentContainer = new Dictionary<string, object>
                 {
-                    { "style", new Style { (PaddingLeft, 6f), (PaddingTop, 4f) } },
+                    {
+                        "style",
+                        new Style { (PaddingLeft, 6f), (PaddingTop, 4f) }
+                    },
                 },
             };
 
@@ -41,23 +45,23 @@ namespace ReactiveUITK.Samples.Shared
                 new VisualElementProps { Style = SharedDemoPageStyles.ExtrasContainerStyle },
                 null,
                 V.Label(new LabelProps { Text = "Extras" }),
-                V.GroupBox(
-                    groupBox1Props,
-                    null,
-                    V.Label(new LabelProps { Text = "Inside group" })
+                V.GroupBox(groupBox1Props, null, V.Label(new LabelProps { Text = "Inside group" })),
+                V.Toggle(
+                    new ToggleProps
+                    {
+                        Text = "Enable option",
+                        Value = p?.IsOptionEnabled ?? false,
+                        OnChange = p?.OnOptionEnabledChange,
+                    }
                 ),
-                V.Toggle(new ToggleProps
-                {
-                    Text = "Enable option",
-                    Value = p?.IsOptionEnabled ?? false,
-                    OnChange = p?.OnOptionEnabledChange,
-                }),
-                V.RadioButton(new RadioButtonProps
-                {
-                    Text = "Single radio",
-                    Value = p?.IsRadioSingleSelected ?? false,
-                    OnChange = p?.OnRadioSingleChange,
-                }),
+                V.RadioButton(
+                    new RadioButtonProps
+                    {
+                        Text = "Single radio",
+                        Value = p?.IsRadioSingleSelected ?? false,
+                        OnChange = p?.OnRadioSingleChange,
+                    }
+                ),
                 V.RadioButtonGroup(
                     new RadioButtonGroupProps
                     {
@@ -68,17 +72,17 @@ namespace ReactiveUITK.Samples.Shared
                     null,
                     V.Label(new LabelProps { Text = "Pick one" })
                 ),
-                V.ProgressBar(new ProgressBarProps
-                {
-                    Value = p?.ProgressValue ?? 0,
-                    Title = "Progress",
-                }),
-                V.Button(new ButtonProps
-                {
-                    Text = $"Batch Test ({p?.BatchClicks ?? 0})",
-                    OnClick = p?.OnBatchClick,
-                    Style = new Style { (MarginLeft, 6f) },
-                })
+                V.ProgressBar(
+                    new ProgressBarProps { Value = p?.ProgressValue ?? 0, Title = "Progress" }
+                ),
+                V.Button(
+                    new ButtonProps
+                    {
+                        Text = $"Batch Test ({p?.BatchClicks ?? 0})",
+                        OnClick = _ => p?.OnBatchClick?.Invoke(),
+                        Style = new Style { (MarginLeft, 6f) },
+                    }
+                )
             );
         }
     }

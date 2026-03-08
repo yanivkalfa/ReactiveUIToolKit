@@ -24,10 +24,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private static readonly string[] Options = new[] { "Alpha", "Beta", "Gamma" };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (selected, setSelected) = Hooks.UseState(0);
 
@@ -38,9 +35,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.ToggleButtonGroup(
                     new ToggleButtonGroupProps { Value = selected },
                     null,
-                    V.Button(new ButtonProps { Text = "0", OnClick = () => setSelected.Set(0) }),
-                    V.Button(new ButtonProps { Text = "1", OnClick = () => setSelected.Set(1) }),
-                    V.Button(new ButtonProps { Text = "2", OnClick = () => setSelected.Set(2) })
+                    V.Button(new ButtonProps { Text = "0", OnClick = _ => setSelected.Set(0) }),
+                    V.Button(new ButtonProps { Text = "1", OnClick = _ => setSelected.Set(1) }),
+                    V.Button(new ButtonProps { Text = "2", OnClick = _ => setSelected.Set(2) })
                 ),
                 V.Label(
                     new LabelProps

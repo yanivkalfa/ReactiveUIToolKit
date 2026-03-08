@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -8,7 +9,7 @@ namespace ReactiveUITK.Props.Typed
     public sealed class Vector4FieldProps : BaseProps
     {
         public Vector4? Value { get; set; }
-        public Action<ChangeEvent<Vector4>> OnChange { get; set; }
+        public ChangeEventHandler<Vector4> OnChange { get; set; }
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 

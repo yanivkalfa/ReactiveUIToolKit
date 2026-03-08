@@ -56,10 +56,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             (StyleKeys.FlexDirection, "column"),
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             return V.Router(
                 children: new[]
@@ -97,7 +94,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Go Home (/)",
-                        OnClick = () => navigate("/"),
+                        OnClick = _ => navigate("/"),
                         Style = NavButtonStyle,
                     }
                 ),
@@ -105,7 +102,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Open Main Menu (/mainMenu)",
-                        OnClick = () => navigate("/mainMenu"),
+                        OnClick = _ => navigate("/mainMenu"),
                         Style = NavButtonStyle,
                     }
                 )
@@ -162,7 +159,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Home",
-                        OnClick = () => navigate(string.Empty),
+                        OnClick = _ => navigate(string.Empty),
                         Style = SidebarButtonStyle,
                     }
                 ),
@@ -170,7 +167,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Profile",
-                        OnClick = () => navigate("profile"),
+                        OnClick = _ => navigate("profile"),
                         Style = SidebarButtonStyle,
                     }
                 ),
@@ -178,7 +175,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Store",
-                        OnClick = () => navigate("store"),
+                        OnClick = _ => navigate("store"),
                         Style = SidebarButtonStyle,
                     }
                 ),
@@ -186,7 +183,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Settings",
-                        OnClick = () => navigate("settings"),
+                        OnClick = _ => navigate("settings"),
                         Style = SidebarButtonStyle,
                     }
                 )

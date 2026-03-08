@@ -1,15 +1,16 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
-// RefChild receives MutableRef<T> instances as plain typed props.
+@using UnityEngine.UIElements
+// RefChild receives Ref<T> instances as plain typed props.
 // The parent owns and creates the refs; the child simply accepts them, attaches them
 // to built-in elements via ref={...}, and can call methods on them.
 // This is the React 19 ref-as-prop model: no ForwardRef wrapper is required.
 component RefChild(
-    Hooks.MutableRef<UnityEngine.UIElements.TextField>? inputRef = null,
-    Hooks.MutableRef<UnityEngine.UIElements.Label>?    labelRef  = null,
+    Ref<TextField>? inputRef = null,
+    Ref<Label>?    labelRef  = null,
     Action? onSnapshot = null
 ) {
-    var value = inputRef?.Value?.value ?? "Hello ReactiveUITK refs!";
+    var value = inputRef?.Current?.value ?? "Hello ReactiveUITK refs!";
 
     return (
         <VisualElement style={new Style {
@@ -30,7 +31,7 @@ component RefChild(
             />
             <Button
                 text="Focus input (child via ref)"
-                onClick={() => { inputRef?.Value?.Focus(); onSnapshot?.Invoke(); }}
+                onClick={_ => { inputRef?.Current?.Focus(); onSnapshot?.Invoke(); }}
                 style={new Style { (StyleKeys.MarginTop, 8f) }}
             />
         </VisualElement>

@@ -68,10 +68,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             (MarginRight, 4f),
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (progress, setProgress) = Hooks.UseState(15f);
             float Clamp(float value) => Mathf.Clamp(value, 0f, 100f);
@@ -94,7 +91,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "-10%",
-                        OnClick = () => setProgress.Set(value => Clamp(value - 10f)),
+                        OnClick = _ => setProgress.Set(value => Clamp(value - 10f)),
                         Style = ButtonStyle,
                     }
                 ),
@@ -102,7 +99,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "+10%",
-                        OnClick = () => setProgress.Set(value => Clamp(value + 10f)),
+                        OnClick = _ => setProgress.Set(value => Clamp(value + 10f)),
                         Style = ButtonStyle,
                     }
                 ),
@@ -110,7 +107,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Reset",
-                        OnClick = () => setProgress.Set(15f),
+                        OnClick = _ => setProgress.Set(15f),
                         Style = ButtonStyle,
                     }
                 )

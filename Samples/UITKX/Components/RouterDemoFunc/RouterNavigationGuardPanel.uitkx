@@ -1,5 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
+@using System.Collections.Generic
 @using ReactiveUITK.Router
 component RouterNavigationGuardPanel {
     var (enabled, setEnabled) = useState(false);
@@ -14,7 +15,7 @@ component RouterNavigationGuardPanel {
     RouterHooks.UseBlocker(
         (from, to) => {
             if (!enabled) return true;
-            if (allowNextRef.Value) { allowNextRef.Value = false; return true; }
+            if (allowNextRef.Current) { allowNextRef.Current = false; return true; }
             setLastBlockedFrom(from);
             setLastBlockedTo(to);
             string fromPath = from?.Path ?? "(unknown)";
@@ -37,7 +38,7 @@ component RouterNavigationGuardPanel {
             />
             <Button
                 text={$"Test clicks: {clicks}"}
-                onClick={() => setClicks(clicks + 1)}
+                onClick={_ => setClicks(clicks + 1)}
                 style={new Style { (StyleKeys.MarginTop, 4f) }}
             />
             <Text text={$"Guard enabled: {enabled}"} />
@@ -47,16 +48,16 @@ component RouterNavigationGuardPanel {
                 <Button
                     text={lastBlockedTo != null ? $"Allow last: {lastBlockedFrom?.Path ?? "(unknown)"} → {lastBlockedTo.Path}" : "Allow last blocked"}
                     enabled={lastBlockedTo != null}
-                    onClick={() => {
+                    onClick={_ => {
                         if (lastBlockedTo == null) return;
                         string targetPath = lastBlockedTo.Path;
                         var q = lastBlockedTo.Query;
                         if (q != null && q.Count > 0) {
-                            var parts = new System.Collections.Generic.List<string>();
+                            var parts = new List<string>();
                             foreach (var kv in q) parts.Add($"{Uri.EscapeDataString(kv.Key ?? "")}={Uri.EscapeDataString(kv.Value ?? "")}");
                             targetPath = $"{targetPath}?{string.Join("&", parts)}";
                         }
-                        allowNextRef.Value = true;
+                        allowNextRef.Current = true;
                         navigate(targetPath, lastBlockedTo.State);
                         setLastBlockedFrom(default);
                         setLastBlockedTo(default);
@@ -67,7 +68,7 @@ component RouterNavigationGuardPanel {
                 <Button
                     text="Dismiss"
                     enabled={lastBlockedTo != null}
-                    onClick={() => {
+                    onClick={_ => {
                         setLastBlockedFrom(default);
                         setLastBlockedTo(default);
                         setMessage(enabled ? "Guard enabled; navigation requires confirmation." : "Guard disabled; all navigation allowed.");

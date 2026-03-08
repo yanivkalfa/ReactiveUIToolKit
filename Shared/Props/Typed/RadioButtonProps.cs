@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -7,7 +8,7 @@ namespace ReactiveUITK.Props.Typed
     {
         public bool? Value { get; set; }
         public string Text { get; set; }
-        public System.Action<ChangeEvent<bool>> OnChange { get; set; }
+        public ChangeEventHandler<bool> OnChange { get; set; }
         public Dictionary<string, object> Label { get; set; }
 
         public override Dictionary<string, object> ToDictionary()

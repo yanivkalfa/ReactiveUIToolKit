@@ -52,9 +52,9 @@ component AnimationsDemoPage {
             </Animate>
             <Label text="Animated Repeat Button" />
             <Animate tracks={repeatPulseTracks}>
-                <RepeatButton text={$"Repeat ({repeatClickCount})"} onClick={() => setRepeatClickCount(repeatClickCount + 1)} />
+                <RepeatButton text={$"Repeat ({repeatClickCount})"} onClick={_ => setRepeatClickCount(repeatClickCount + 1)} />
             </Animate>
-            <Button text="Re-seed Multi-track" onClick={() => setAnimNonce(animNonce + 1)} />
+            <Button text="Re-seed Multi-track" onClick={_ => setAnimNonce(animNonce + 1)} />
         </Box>
     );
 }

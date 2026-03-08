@@ -12,14 +12,14 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public bool FoldoutOpen { get; set; }
-            public Action<ChangeEvent<bool>> OnFoldoutChange { get; set; }
+            public ChangeEventHandler<bool> OnFoldoutChange { get; set; }
             public float SliderValue { get; set; }
-            public Action<ChangeEvent<float>> OnSliderChange { get; set; }
+            public ChangeEventHandler<float> OnSliderChange { get; set; }
             public int SliderIntValue { get; set; }
-            public Action<ChangeEvent<int>> OnSliderIntChange { get; set; }
+            public ChangeEventHandler<int> OnSliderIntChange { get; set; }
             public List<string> DdChoices { get; set; }
             public string DdValue { get; set; }
-            public Action<ChangeEvent<string>> OnDdChange { get; set; }
+            public ChangeEventHandler<string> OnDdChange { get; set; }
         }
 
         public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
@@ -55,45 +55,50 @@ namespace ReactiveUITK.Samples.Shared
             return V.GroupBox(
                 newComponentsGroupProps,
                 null,
-                V.Foldout(
-                    foldoutProps,
-                    null,
-                    V.Label(new LabelProps { Text = "Inside foldout" })
-                ),
+                V.Foldout(foldoutProps, null, V.Label(new LabelProps { Text = "Inside foldout" })),
                 V.Image(new ImageProps { Style = SharedDemoPageStyles.ImageDemoStyle }),
                 V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
-                V.Slider(new SliderProps
-                {
-                    LowValue = 0f,
-                    HighValue = 1f,
-                    Value = sliderValue,
-                    Direction = "horizontal",
-                    OnChange = p?.OnSliderChange,
-                    Style = SharedDemoPageStyles.SliderWidthStyle,
-                }),
+                V.Slider(
+                    new SliderProps
+                    {
+                        LowValue = 0f,
+                        HighValue = 1f,
+                        Value = sliderValue,
+                        Direction = "horizontal",
+                        OnChange = p?.OnSliderChange,
+                        Style = SharedDemoPageStyles.SliderWidthStyle,
+                    }
+                ),
                 V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
-                V.SliderInt(new SliderIntProps
-                {
-                    LowValue = 0,
-                    HighValue = 10,
-                    Value = sliderIntValue,
-                    OnChange = p?.OnSliderIntChange,
-                }),
+                V.SliderInt(
+                    new SliderIntProps
+                    {
+                        LowValue = 0,
+                        HighValue = 10,
+                        Value = sliderIntValue,
+                        OnChange = p?.OnSliderIntChange,
+                    }
+                ),
 #if UNITY_EDITOR
-                V.HelpBox(new HelpBoxProps
-                {
-                    MessageType = sliderIntValue % 3 == 0
-                        ? "error"
-                        : (sliderIntValue % 2 == 0 ? "warning" : "info"),
-                    Text = "This is a HelpBox showing state-driven message type.",
-                }),
+                V.HelpBox(
+                    new HelpBoxProps
+                    {
+                        MessageType =
+                            sliderIntValue % 3 == 0
+                                ? "error"
+                                : (sliderIntValue % 2 == 0 ? "warning" : "info"),
+                        Text = "This is a HelpBox showing state-driven message type.",
+                    }
+                ),
 #endif
-                V.DropdownField(new DropdownFieldProps
-                {
-                    Choices = p?.DdChoices,
-                    Value = p?.DdValue,
-                    OnChange = p?.OnDdChange,
-                })
+                V.DropdownField(
+                    new DropdownFieldProps
+                    {
+                        Choices = p?.DdChoices,
+                        Value = p?.DdValue,
+                        OnChange = p?.OnDdChange,
+                    }
+                )
             );
         }
     }

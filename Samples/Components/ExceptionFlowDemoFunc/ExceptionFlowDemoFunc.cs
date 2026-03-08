@@ -76,7 +76,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = shouldThrow ? "Clear Error" : "Trigger Error",
-                        OnClick = ToggleError,
+                        OnClick = _ => ToggleError(),
                         Style = new Style { (StyleKeys.Width, 140f), (StyleKeys.MarginRight, 8f) },
                     }
                 ),
@@ -87,7 +87,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             pendingTask != null && !pendingTask.IsCompleted
                                 ? "Loading…"
                                 : "Simulate Async Load",
-                        OnClick = StartSimulatedLoad,
+                        OnClick = _ => StartSimulatedLoad(),
                         Style = new Style { (StyleKeys.Width, 180f) },
                     }
                 )

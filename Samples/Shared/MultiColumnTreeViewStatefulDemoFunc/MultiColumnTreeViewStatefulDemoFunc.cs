@@ -14,7 +14,7 @@ namespace ReactiveUITK.Samples.Shared
         public sealed class Props : IProps
         {
             public IReadOnlyList<MultiColumnTreeViewRowState> Rows { get; set; }
-            public List<MultiColumnTreeViewProps.SortedColumnDef> SortDefs { get; set; }
+            public List<SortedColumnDef> SortDefs { get; set; }
             public Dictionary<string, float> ColumnWidths { get; set; }
             public Dictionary<string, bool> ColumnVisibility { get; set; }
             public Dictionary<string, int> ColumnDisplayIndex { get; set; }
@@ -23,15 +23,12 @@ namespace ReactiveUITK.Samples.Shared
             public Action SetParent { get; set; }
             public Action SetChild { get; set; }
             public Action DeleteLast { get; set; }
-            public Action<List<MultiColumnTreeViewProps.SortedColumnDef>> OnSortChanged { get; set; }
-            public Delegate OnLayoutChanged { get; set; }
+            public ColumnSortEventHandler OnSortChanged { get; set; }
+            public ColumnLayoutEventHandler OnLayoutChanged { get; set; }
             public Action<int> OnCountChanged { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             var rows = p?.Rows ?? Array.Empty<MultiColumnTreeViewRowState>();
@@ -45,7 +42,7 @@ namespace ReactiveUITK.Samples.Shared
             var setChild = p?.SetChild;
             var deleteLast = p?.DeleteLast;
             var onSortChanged = p?.OnSortChanged;
-            Delegate columnLayoutChanged = p?.OnLayoutChanged;
+            ColumnLayoutEventHandler columnLayoutChanged = p?.OnLayoutChanged;
 
             var rootsNow = Hooks.UseMemo(
                 () => BuildRoots(rows, sortDefs),
@@ -144,10 +141,13 @@ namespace ReactiveUITK.Samples.Shared
             }
             catch { }
 
-            Action Safe(Action candidate) => candidate ?? (() => { });
+            PointerEventHandler Safe(Action candidate) => _ => candidate?.Invoke();
 
             var btnRow = V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
+                },
                 null,
                 V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
                 V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),
@@ -177,7 +177,7 @@ namespace ReactiveUITK.Samples.Shared
 
         private static List<TreeViewItemData<object>> BuildRoots(
             IReadOnlyList<MultiColumnTreeViewRowState> rows,
-            IReadOnlyList<MultiColumnTreeViewProps.SortedColumnDef> sortDefs
+            IReadOnlyList<SortedColumnDef> sortDefs
         )
         {
             var rowBuffer = new List<MultiColumnTreeViewRowState>();

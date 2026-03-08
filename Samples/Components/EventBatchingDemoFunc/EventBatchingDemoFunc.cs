@@ -8,10 +8,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class EventBatchingDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (batchedValue, setBatchedValue) = Hooks.UseState(0);
             var (renderCount, setRenderCount) = Hooks.UseState(0);
@@ -63,7 +60,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = text,
-                        OnClick = onClick,
+                        OnClick = _ => onClick?.Invoke(),
                         Style = new Style
                         {
                             (StyleKeys.MinWidth, 180f),
@@ -118,7 +115,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.FlexWrap, "wrap"),
+                        },
+                    },
                     null,
                     Button("Add +5, -2, +1", TripleUpdate),
                     Button("Set 10 then -3", ValueThenUpdater),

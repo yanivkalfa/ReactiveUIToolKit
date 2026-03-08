@@ -1,9 +1,10 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
+@using System.Collections.Generic
 component ProgressBarDemoFunc {
     var (progress, setProgress) = useState(15f);
 
-    float Clamp(float v) => UnityEngine.Mathf.Clamp(v, 0f, 100f);
+    float Clamp(float v) => Mathf.Clamp(v, 0f, 100f);
 
     var containerStyle = new Style {
         (StyleKeys.FlexDirection, "column"),
@@ -56,14 +57,14 @@ component ProgressBarDemoFunc {
                 value={progress}
                 title={$"Downloading - {progress:0}%"}
                 style={progressBarStyle}
-                progress={new System.Collections.Generic.Dictionary<string, object> { { "style", progressFillStyle } }}
-                titleElement={new System.Collections.Generic.Dictionary<string, object> { { "style", titleStyle } }}
+                progress={new Dictionary<string, object> { { "style", progressFillStyle } }}
+                titleElement={new Dictionary<string, object> { { "style", titleStyle } }}
             />
             <Text text={$"Current value: {progress:0}%"} />
             <VisualElement style={buttonRowStyle}>
-                <Button text="-10%" onClick={() => setProgress(v => Clamp(v - 10f))} style={btnStyle} />
-                <Button text="+10%" onClick={() => setProgress(v => Clamp(v + 10f))} style={btnStyle} />
-                <Button text="Reset" onClick={() => setProgress(15f)} style={btnStyle} />
+                <Button text="-10%" onClick={_ => setProgress(v => Clamp(v - 10f))} style={btnStyle} />
+                <Button text="+10%" onClick={_ => setProgress(v => Clamp(v + 10f))} style={btnStyle} />
+                <Button text="Reset" onClick={_ => setProgress(15f)} style={btnStyle} />
             </VisualElement>
         </VisualElement>
     );

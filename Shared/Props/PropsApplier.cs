@@ -1957,7 +1957,8 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<GeometryChangedEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    EventCallback<GeometryChangedEvent> w = e =>
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1979,7 +1980,8 @@ namespace ReactiveUITK.Props
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    EventCallback<DetachFromPanelEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    EventCallback<DetachFromPanelEvent> w = e =>
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -2196,21 +2198,30 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
-            if (eventPropName == "onGeometryChanged" && handler is EventCallback<GeometryChangedEvent> gc)
+            if (
+                eventPropName == "onGeometryChanged"
+                && handler is EventCallback<GeometryChangedEvent> gc
+            )
             {
                 element.UnregisterCallback(gc);
                 meta.EventHandlers.Remove(eventPropName);
                 totalEventsRemoved++;
                 return;
             }
-            if (eventPropName == "onAttachToPanel" && handler is EventCallback<AttachToPanelEvent> atp)
+            if (
+                eventPropName == "onAttachToPanel"
+                && handler is EventCallback<AttachToPanelEvent> atp
+            )
             {
                 element.UnregisterCallback(atp);
                 meta.EventHandlers.Remove(eventPropName);
                 totalEventsRemoved++;
                 return;
             }
-            if (eventPropName == "onDetachFromPanel" && handler is EventCallback<DetachFromPanelEvent> dfp)
+            if (
+                eventPropName == "onDetachFromPanel"
+                && handler is EventCallback<DetachFromPanelEvent> dfp
+            )
             {
                 element.UnregisterCallback(dfp);
                 meta.EventHandlers.Remove(eventPropName);
@@ -2317,7 +2328,7 @@ namespace ReactiveUITK.Props
                 }
             }
             catch { }
-            SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
+            ReactiveEvent syntheticEvent = ReactiveEvent.Create(evt);
             if (syntheticEvent != null)
             {
                 syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;

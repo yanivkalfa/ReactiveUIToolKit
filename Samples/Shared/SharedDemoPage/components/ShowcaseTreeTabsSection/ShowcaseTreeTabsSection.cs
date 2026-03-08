@@ -14,8 +14,10 @@ namespace ReactiveUITK.Samples.Shared
         {
             /// <summary>Called when the TreeView row count changes.</summary>
             public Action<int> OnTreeCountChanged { get; set; }
+
             /// <summary>Called when the MultiColumnTreeView row count changes.</summary>
             public Action<int> OnMctvCountChanged { get; set; }
+
             /// <summary>Called when the selected tab index changes (for ValuesBar).</summary>
             public Action<int> OnTreeTabIndexChanged { get; set; }
         }
@@ -26,18 +28,22 @@ namespace ReactiveUITK.Samples.Shared
 
             // ── State ────────────────────────────────────────────────────────
             var (treeTabIndex, setTreeTabIndex) = Hooks.UseState(0);
-            var (showTabs, setShowTabs)         = Hooks.UseState(true);
-            var (treeRows, setTreeRows)         = Hooks.UseState(new List<TreeViewRowState>());
+            var (showTabs, setShowTabs) = Hooks.UseState(true);
+            var (treeRows, setTreeRows) = Hooks.UseState(new List<TreeViewRowState>());
             var (treeExpandedIds, setTreeExpandedIds) = Hooks.UseState(new List<int>());
             var (_, setTreeNextPid) = Hooks.UseState(1000);
-            var (mctvRows, setMctvRows)         = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
-            var (mctvNextPid, setMctvNextPid)   = Hooks.UseState(2000);
-            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<MultiColumnTreeViewProps.SortedColumnDef>>(null);
-            var (mctvLayout, setMctvLayout)     = Hooks.UseState<MultiColumnTreeViewProps.ColumnLayoutState>(null);
+            var (mctvRows, setMctvRows) = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
+            var (mctvNextPid, setMctvNextPid) = Hooks.UseState(2000);
+            var (mctvSortDefs, setMctvSortDefs) = Hooks.UseState<List<SortedColumnDef>>(null);
+            var (mctvLayout, setMctvLayout) = Hooks.UseState<ColumnLayoutState>(null);
 
             // Propagate tab index to parent for ValuesBar
             Hooks.UseEffect(
-                () => { p?.OnTreeTabIndexChanged?.Invoke(treeTabIndex); return null; },
+                () =>
+                {
+                    p?.OnTreeTabIndexChanged?.Invoke(treeTabIndex);
+                    return null;
+                },
                 new object[] { treeTabIndex }
             );
 
@@ -45,24 +51,37 @@ namespace ReactiveUITK.Samples.Shared
             Action treeAddParent = () =>
             {
                 int assignedPid = 0;
-                setTreeNextPid.Set(prev => { assignedPid = prev; return prev + 2; });
+                setTreeNextPid.Set(prev =>
+                {
+                    assignedPid = prev;
+                    return prev + 2;
+                });
                 List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
-                    var next = prev != null
-                        ? new List<TreeViewRowState>(prev)
-                        : new List<TreeViewRowState>();
-                    next.Add(new TreeViewRowState
-                    {
-                        Pid = assignedPid,
-                        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
-                        HasChild = false,
-                    });
+                    var next =
+                        prev != null
+                            ? new List<TreeViewRowState>(prev)
+                            : new List<TreeViewRowState>();
+                    next.Add(
+                        new TreeViewRowState
+                        {
+                            Pid = assignedPid,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
                     latestRows = next;
                     return next;
                 });
                 if (latestRows != null)
-                    setTreeExpandedIds.Set(prev => SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev));
+                    setTreeExpandedIds.Set(prev =>
+                        SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev)
+                    );
             };
 
             Action treeAddChild = () =>
@@ -70,23 +89,33 @@ namespace ReactiveUITK.Samples.Shared
                 List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
+                    if (source == null)
+                        return prev;
                     var next = new List<TreeViewRowState>(prev);
                     next[next.Count - 1] = new TreeViewRowState
                     {
                         Pid = source.Pid,
                         Parent = source.Parent,
-                        Child = source.Child ?? new SharedTreeRowItem
-                            { Id = Guid.NewGuid().ToString("N"), Text = "Child", IsChild = true },
+                        Child =
+                            source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
                         HasChild = true,
                     };
                     latestRows = next;
                     return next;
                 });
                 if (latestRows != null)
-                    setTreeExpandedIds.Set(prev => SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev));
+                    setTreeExpandedIds.Set(prev =>
+                        SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev)
+                    );
             };
 
             Action treeSetParent = () =>
@@ -94,10 +123,14 @@ namespace ReactiveUITK.Samples.Shared
                 List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
-                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    if (source == null)
+                        return prev;
+                    var parentItem =
+                        source.Parent
+                        ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
                     var next = new List<TreeViewRowState>(prev);
@@ -112,7 +145,9 @@ namespace ReactiveUITK.Samples.Shared
                     return next;
                 });
                 if (latestRows != null)
-                    setTreeExpandedIds.Set(prev => SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev));
+                    setTreeExpandedIds.Set(prev =>
+                        SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev)
+                    );
             };
 
             Action treeSetChild = () =>
@@ -120,11 +155,18 @@ namespace ReactiveUITK.Samples.Shared
                 List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null || !source.HasChild) return prev;
-                    var childItem = source.Child ?? new SharedTreeRowItem
-                        { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem =
+                        source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
                     childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
                     childItem.ShouldOverrideElement = true;
                     var next = new List<TreeViewRowState>(prev);
@@ -139,7 +181,9 @@ namespace ReactiveUITK.Samples.Shared
                     return next;
                 });
                 if (latestRows != null)
-                    setTreeExpandedIds.Set(prev => SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev));
+                    setTreeExpandedIds.Set(prev =>
+                        SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev)
+                    );
             };
 
             Action treeDeleteLast = () =>
@@ -147,40 +191,48 @@ namespace ReactiveUITK.Samples.Shared
                 List<TreeViewRowState> latestRows = null;
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var next = new List<TreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     latestRows = next;
                     return next;
                 });
                 if (latestRows != null)
-                    setTreeExpandedIds.Set(prev => SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev));
+                    setTreeExpandedIds.Set(prev =>
+                        SharedDemoPageUtils.PruneTreeExpandedIds(latestRows, prev)
+                    );
             };
 
-            Action<TreeViewExpansionChangedArgs> treeExpandedChanged = args =>
+            TreeExpansionEventHandler treeExpandedChanged = args =>
             {
                 setTreeExpandedIds.Set(prev =>
                 {
                     var nextSet = prev != null ? new HashSet<int>(prev) : new HashSet<int>();
                     if (args != null)
                     {
-                        if (args.isExpanded) nextSet.Add(args.id);
-                        else nextSet.Remove(args.id);
+                        if (args.isExpanded)
+                            nextSet.Add(args.id);
+                        else
+                            nextSet.Remove(args.id);
                     }
                     var valid = SharedDemoPageUtils.BuildTreeValidIds(treeRows);
                     if (valid.Count > 0)
                     {
                         var removals = new List<int>();
                         foreach (var id in nextSet)
-                            if (!valid.Contains(id)) removals.Add(id);
-                        for (int i = 0; i < removals.Count; i++) nextSet.Remove(removals[i]);
+                            if (!valid.Contains(id))
+                                removals.Add(id);
+                        for (int i = 0; i < removals.Count; i++)
+                            nextSet.Remove(removals[i]);
                     }
                     var nextList = new List<int>(nextSet);
                     nextList.Sort();
                     if (prev != null && prev.Count == nextList.Count)
                     {
                         var prevSet = new HashSet<int>(prev);
-                        if (prevSet.SetEquals(nextSet)) return prev;
+                        if (prevSet.SetEquals(nextSet))
+                            return prev;
                     }
                     return nextList;
                 });
@@ -192,15 +244,22 @@ namespace ReactiveUITK.Samples.Shared
                 int pidBase = mctvNextPid;
                 setMctvRows.Set(prev =>
                 {
-                    var next = prev != null
-                        ? new List<MultiColumnTreeViewRowState>(prev)
-                        : new List<MultiColumnTreeViewRowState>();
-                    next.Add(new MultiColumnTreeViewRowState
-                    {
-                        Pid = pidBase,
-                        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
-                        HasChild = false,
-                    });
+                    var next =
+                        prev != null
+                            ? new List<MultiColumnTreeViewRowState>(prev)
+                            : new List<MultiColumnTreeViewRowState>();
+                    next.Add(
+                        new MultiColumnTreeViewRowState
+                        {
+                            Pid = pidBase,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
                     return next;
                 });
                 setMctvNextPid(pidBase + 2);
@@ -210,16 +269,24 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
+                    if (source == null)
+                        return prev;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
                     next[next.Count - 1] = new MultiColumnTreeViewRowState
                     {
                         Pid = source.Pid,
                         Parent = source.Parent,
-                        Child = source.Child ?? new SharedTreeRowItem
-                            { Id = Guid.NewGuid().ToString("N"), Text = "Child", IsChild = true },
+                        Child =
+                            source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
                         HasChild = true,
                     };
                     return next;
@@ -230,10 +297,14 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
-                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    if (source == null)
+                        return prev;
+                    var parentItem =
+                        source.Parent
+                        ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
@@ -252,11 +323,18 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null || !source.HasChild) return prev;
-                    var childItem = source.Child ?? new SharedTreeRowItem
-                        { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem =
+                        source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
                     childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
                     childItem.ShouldOverrideElement = true;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
@@ -275,78 +353,78 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     return next;
                 });
             };
 
-            Action<MultiColumnTreeViewProps.ColumnLayoutState> mctvLayoutChanged = layout =>
+            ColumnLayoutEventHandler mctvLayoutChanged = layout =>
             {
-                var clone = SharedDemoPageUtils.CloneTreeLayout(layout);
-                if (SharedDemoPageUtils.TreeLayoutEqual(clone, mctvLayout)) return;
+                var clone = SharedDemoPageUtils.CloneLayout(layout);
+                if (SharedDemoPageUtils.LayoutEqual(clone, mctvLayout))
+                    return;
                 setMctvLayout.Set(_ => clone);
             };
 
-            Action<List<MultiColumnTreeViewProps.SortedColumnDef>> mctvSortChanged = defs =>
+            ColumnSortEventHandler mctvSortChanged = defs =>
             {
-                setMctvSortDefs(
-                    defs != null ? new List<MultiColumnTreeViewProps.SortedColumnDef>(defs) : null
-                );
+                setMctvSortDefs(defs != null ? new List<SortedColumnDef>(defs) : null);
             };
 
             // ── TabView props ────────────────────────────────────────────────
             var tabViewProps = new TabViewProps
             {
                 SelectedTabIndex = treeTabIndex,
-                SelectedIndexChanged = (Action<int>)(index => setTreeTabIndex(index)),
+                SelectedIndexChanged = index => setTreeTabIndex(index),
                 Tabs = new List<TabViewProps.TabDef>
                 {
-                    new()
-                    {
-                        Title = "Intro",
-                        Content = () => V.Func(IntroCounterFunc.Render),
-                    },
+                    new() { Title = "Intro", Content = () => V.Func(IntroCounterFunc.Render) },
                     new()
                     {
                         Title = "Tree",
-                        Content = () => V.Func<TreeViewStatefulDemoFunc.Props>(
-                            TreeViewStatefulDemoFunc.Render,
-                            new TreeViewStatefulDemoFunc.Props
-                            {
-                                Rows = treeRows,
-                                AddParent = treeAddParent,
-                                AddChild = treeAddChild,
-                                SetParent = treeSetParent,
-                                SetChild = treeSetChild,
-                                DeleteLast = treeDeleteLast,
-                                ExpandedItemIds = treeExpandedIds,
-                                OnExpandedChanged = treeExpandedChanged,
-                                OnCountChanged = count => p?.OnTreeCountChanged?.Invoke(count),
-                            }),
+                        Content = () =>
+                            V.Func<TreeViewStatefulDemoFunc.Props>(
+                                TreeViewStatefulDemoFunc.Render,
+                                new TreeViewStatefulDemoFunc.Props
+                                {
+                                    Rows = treeRows,
+                                    AddParent = treeAddParent,
+                                    AddChild = treeAddChild,
+                                    SetParent = treeSetParent,
+                                    SetChild = treeSetChild,
+                                    DeleteLast = treeDeleteLast,
+                                    ExpandedItemIds = treeExpandedIds,
+                                    OnExpandedChanged = treeExpandedChanged,
+                                    OnCountChanged = count => p?.OnTreeCountChanged?.Invoke(count),
+                                }
+                            ),
                     },
                     new()
                     {
                         Title = "Columns",
-                        Content = () => V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(
-                            MultiColumnTreeViewStatefulDemoFunc.Render,
-                            new MultiColumnTreeViewStatefulDemoFunc.Props
-                            {
-                                Rows = mctvRows,
-                                SortDefs = mctvSortDefs,
-                                ColumnWidths = mctvLayout?.ColumnWidths,
-                                ColumnVisibility = mctvLayout?.ColumnVisibility,
-                                ColumnDisplayIndex = mctvLayout?.ColumnDisplayIndex,
-                                AddParent = mctvAddParent,
-                                AddChild = mctvAddChild,
-                                SetParent = mctvSetParent,
-                                SetChild = mctvSetChild,
-                                DeleteLast = mctvDeleteLast,
-                                OnSortChanged = mctvSortChanged,
-                                OnLayoutChanged = mctvLayoutChanged,
-                                OnCountChanged = count => p?.OnMctvCountChanged?.Invoke(count),
-                            }),
+                        Content = () =>
+                            V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(
+                                MultiColumnTreeViewStatefulDemoFunc.Render,
+                                new MultiColumnTreeViewStatefulDemoFunc.Props
+                                {
+                                    Rows = mctvRows,
+                                    SortDefs = mctvSortDefs,
+                                    ColumnWidths = mctvLayout?.ColumnWidths,
+                                    ColumnVisibility = mctvLayout?.ColumnVisibility,
+                                    ColumnDisplayIndex = mctvLayout?.ColumnDisplayIndex,
+                                    AddParent = mctvAddParent,
+                                    AddChild = mctvAddChild,
+                                    SetParent = mctvSetParent,
+                                    SetChild = mctvSetChild,
+                                    DeleteLast = mctvDeleteLast,
+                                    OnSortChanged = mctvSortChanged,
+                                    OnLayoutChanged = mctvLayoutChanged,
+                                    OnCountChanged = count => p?.OnMctvCountChanged?.Invoke(count),
+                                }
+                            ),
                     },
                 },
                 Style = new Style { (Height, 240f) },
@@ -356,20 +434,24 @@ namespace ReactiveUITK.Samples.Shared
             return V.VisualElement(
                 null,
                 null,
-                V.Button(new ButtonProps
-                {
-                    Text = showTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
-                    OnClick = () => setShowTabs(!showTabs),
-                }),
-                V.Label(new LabelProps
-                {
-                    Text = "TabView + TreeView",
-                    Style = new Style
+                V.Button(
+                    new ButtonProps
                     {
-                        (FontSize, 16f),
-                        (TextColor, new Color(0.1f, 0.1f, 0.1f, 1f)),
-                    },
-                }),
+                        Text = showTabs ? "Hide Tree Tabs" : "Show Tree Tabs",
+                        OnClick = _ => setShowTabs(!showTabs),
+                    }
+                ),
+                V.Label(
+                    new LabelProps
+                    {
+                        Text = "TabView + TreeView",
+                        Style = new Style
+                        {
+                            (FontSize, 16f),
+                            (TextColor, new Color(0.1f, 0.1f, 0.1f, 1f)),
+                        },
+                    }
+                ),
                 V.VisualElement(
                     new VisualElementProps
                     {

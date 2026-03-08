@@ -57,9 +57,9 @@ component EventBatchingDemoFunc {
                 <Label text={status} style={new Style { (StyleKeys.MarginTop, 4f) }} />
             </VisualElement>
             <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}>
-                <Button text="Add +5, -2, +1" onClick={TripleUpdate} style={btnStyle} />
-                <Button text="Set 10 then -3" onClick={ValueThenUpdater} style={btnStyle} />
-                <Button text="Loop +1 five times" onClick={RapidClicks} style={btnStyle} />
+                <Button text="Add +5, -2, +1" onClick={_ => TripleUpdate()} style={btnStyle} />
+                <Button text="Set 10 then -3" onClick={_ => ValueThenUpdater()} style={btnStyle} />
+                <Button text="Loop +1 five times" onClick={_ => RapidClicks()} style={btnStyle} />
             </VisualElement>
         </ScrollView>
     );

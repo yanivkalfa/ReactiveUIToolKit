@@ -189,14 +189,19 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 new ButtonProps
                 {
                     Text = text,
-                    OnClick = onClick,
+                    OnClick = _ => onClick?.Invoke(),
                     Style = new Style { ("minWidth", 140f) },
                 };
 
             VirtualNode controlsRow = V.VisualElement(
                 new VisualElementProps
                 {
-                    Style = new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 6f) },
+                    Style = new Style
+                    {
+                        ("flexDirection", "row"),
+                        ("gap", 6f),
+                        ("marginBottom", 6f),
+                    },
                 },
                 "controls-row",
                 V.Button(
@@ -228,7 +233,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             VirtualNode reorderControls = V.VisualElement(
                 new VisualElementProps
                 {
-                    Style = new Style { ("flexDirection", "row"), ("gap", 6f), ("marginBottom", 4f) },
+                    Style = new Style
+                    {
+                        ("flexDirection", "row"),
+                        ("gap", 6f),
+                        ("marginBottom", 4f),
+                    },
                 },
                 "reorder-controls",
                 V.Button(CreateButton("Reverse order", ReverseOrder)),
@@ -272,7 +282,12 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             return V.VisualElement(
                 new VisualElementProps
                 {
-                    Style = new Style { ("padding", 12f), ("flexDirection", "column"), ("gap", 8f) },
+                    Style = new Style
+                    {
+                        ("padding", 12f),
+                        ("flexDirection", "column"),
+                        ("gap", 8f),
+                    },
                 },
                 "latest-demo-root",
                 V.Label(new LabelProps { Text = "ReactiveUITK Latest Changes Showcase" }),

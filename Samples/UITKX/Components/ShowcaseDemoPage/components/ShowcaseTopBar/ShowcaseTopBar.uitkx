@@ -1,14 +1,15 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
+@using ReactiveUITK.Core
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ShowcaseTopBar(
     string inputText = "",
-    Action<ChangeEvent<string>>? onInputChange = null,
+    ChangeEventHandler<string>? onInputChange = null,
     Action? onSetText = null,
-    System.DateTime currentTime = default
+    DateTime currentTime = default
 ) {
     var topBarStyle = new Style {
         (StyleKeys.FlexDirection, "row"),
@@ -65,7 +66,7 @@ component ShowcaseTopBar(
             />
             <Button
                 text="Set Text"
-                onClick={onSetText}
+                onClick={_ => onSetText?.Invoke()}
                 style={new Style { (MarginLeft, 6f), (Height, 28f) }}
             />
             <VisualElement style={rightBoxStyle}>

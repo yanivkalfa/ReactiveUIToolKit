@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -26,7 +27,7 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
         public bool? Value { get; set; }
-        public Action<ChangeEvent<bool>> OnChange { get; set; }
+        public ChangeEventHandler<bool> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -44,7 +45,7 @@ namespace ReactiveUITK.Props.Typed
     public sealed class ToolbarMenuProps : BaseProps
     {
         public string Text { get; set; }
-        public Action<DropdownMenu> PopulateMenu { get; set; }
+        public MenuBuilderHandler PopulateMenu { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -76,7 +77,7 @@ namespace ReactiveUITK.Props.Typed
     public sealed class ToolbarPopupSearchFieldProps : BaseProps
     {
         public string Value { get; set; }
-        public Action<ChangeEvent<string>> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -92,7 +93,7 @@ namespace ReactiveUITK.Props.Typed
     public sealed class ToolbarSearchFieldProps : BaseProps
     {
         public string Value { get; set; }
-        public Action<ChangeEvent<string>> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChange { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {

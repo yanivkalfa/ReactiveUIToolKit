@@ -1,18 +1,19 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
+@using UnityEngine.UIElements
 // Demonstrates the ref-as-prop pattern (React 19 model):
-//   - Parent owns the MutableRef<T> instances (created via useRef).
+//   - Parent owns the Ref<T> instances (created via useRef).
 //   - Refs are passed to the child component as plain typed props.
 //   - No V.ForwardRef wrapper or special 3-argument render signature is needed.
 component RefForwardingDemoFunc {
-    var inputRef = useRef<UnityEngine.UIElements.TextField>();
-    var labelRef = useRef<UnityEngine.UIElements.Label>();
+    var inputRef = useRef<TextField>();
+    var labelRef = useRef<Label>();
 
     var (snapshot, setSnapshot) = useState("Click \"Read refs\" to inspect ref assignments.");
 
     void UpdateSnapshot() {
-        var textField = inputRef?.Value;
-        var label = labelRef?.Value;
+        var textField = inputRef?.Current;
+        var label = labelRef?.Current;
         bool isFocused = textField?.focusController?.focusedElement == textField;
         string textSummary = textField == null
             ? "input ref is null"
@@ -27,14 +28,14 @@ component RefForwardingDemoFunc {
         <VisualElement style={new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.Padding, 12f), (StyleKeys.FlexGrow, 1f) }}>
             <Label text="useRef + ref-as-prop demo" />
             <Label
-                text="Parent holds MutableRef<TextField> and MutableRef<Label>, passes them to the child as plain typed props."
+                text="Parent holds Ref<TextField> and Ref<Label>, passes them to the child as plain typed props."
                 style={new Style { (StyleKeys.Color, new Color(0.75f, 0.75f, 0.75f, 1f)), (StyleKeys.WhiteSpace, "normal"), (StyleKeys.MarginTop, 4f) }}
             />
             <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.AlignItems, "center"), (StyleKeys.MarginTop, 6f) }}>
-                <Button text="Read refs (parent)" onClick={UpdateSnapshot} />
+                <Button text="Read refs (parent)" onClick={_ => UpdateSnapshot()} />
                 <Button
                     text="Focus input (parent)"
-                    onClick={() => inputRef?.Value?.Focus()}
+                    onClick={_ => inputRef?.Current?.Focus()}
                     style={new Style { (StyleKeys.MarginLeft, 6f) }}
                 />
             </VisualElement>
@@ -48,11 +49,11 @@ component RefForwardingDemoFunc {
                 style={new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FontSize, 13f) }}
             />
             <Label
-                text={inputRef?.Value != null ? $"Parent sees inputRef.current: TextField name='{inputRef.Value.name}'" : "Parent sees inputRef.current == null"}
+                text={inputRef?.Current != null ? $"Parent sees inputRef.current: TextField name='{inputRef.Current.name}'" : "Parent sees inputRef.current == null"}
                 style={new Style { (StyleKeys.MarginTop, 4f) }}
             />
             <Label
-                text={labelRef?.Value != null ? $"Parent sees labelRef.current.text = '{labelRef.Value.text}'" : "Parent sees labelRef.current == null"}
+                text={labelRef?.Current != null ? $"Parent sees labelRef.current.text = '{labelRef.Current.text}'" : "Parent sees labelRef.current == null"}
                 style={new Style { (StyleKeys.MarginTop, 2f) }}
             />
         </VisualElement>

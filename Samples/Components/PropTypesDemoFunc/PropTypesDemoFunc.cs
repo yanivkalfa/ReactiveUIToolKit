@@ -9,10 +9,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class PropTypesDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (useDefaults, setUseDefaults) = Hooks.UseState(false);
 
@@ -29,7 +26,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 : "Valid props";
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
+                },
                 null,
                 V.Label(
                     new LabelProps
@@ -54,7 +54,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = useDefaults ? "Switch to valid props" : "Show default fallbacks",
-                        OnClick = () => setUseDefaults(!useDefaults),
+                        OnClick = _ => setUseDefaults(!useDefaults),
                         Style = new Style
                         {
                             (StyleKeys.MinWidth, 160f),
@@ -82,10 +82,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 public Color StatusColor { get; set; } = new Color(0.3f, 0.3f, 0.3f);
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var p = rawProps as Props;
                 string label = p?.Label ?? "<missing>";
@@ -101,7 +98,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.BackgroundColor, new Color(color.r, color.g, color.b, 0.2f)),
                             (StyleKeys.BorderWidth, 1f),
                             (StyleKeys.BorderColor, color),
-                        }
+                        },
                     },
                     null,
                     V.Label(

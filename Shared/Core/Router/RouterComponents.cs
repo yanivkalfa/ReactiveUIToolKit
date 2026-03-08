@@ -10,10 +10,7 @@ namespace ReactiveUITK.Router
 {
     public static class RouterFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as RouterFuncProps;
             var providedHistory = p?.History;
@@ -91,10 +88,7 @@ namespace ReactiveUITK.Router
 
     public static class RouteFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var router = RouterHooks.UseRouter();
             if (router == null)
@@ -161,10 +155,7 @@ namespace ReactiveUITK.Router
 
     public static class LinkFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var router = RouterHooks.UseRouter();
             if (router == null)
@@ -214,7 +205,7 @@ namespace ReactiveUITK.Router
                 {
                     Text = label,
                     Style = style,
-                    OnClick = navigate,
+                    OnClick = _ => navigate(),
                 }
             );
             return button;

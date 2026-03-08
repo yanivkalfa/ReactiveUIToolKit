@@ -1,5 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
+@using UnityEngine
 component RouterDemoFunc {
     var paddedContainer = new Style {
         (StyleKeys.FlexGrow, 1f),
@@ -9,7 +10,7 @@ component RouterDemoFunc {
 
     var cardStyle = new Style {
         (StyleKeys.Padding, 10f),
-        (StyleKeys.BorderColor, new UnityEngine.Color32(210, 210, 210, 255)),
+        (StyleKeys.BorderColor, new Color32(210, 210, 210, 255)),
         (StyleKeys.BorderWidth, 1f),
         (StyleKeys.BorderRadius, 6f),
         (StyleKeys.MarginTop, 6f),

@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
@@ -10,11 +11,11 @@ namespace ReactiveUITK.Props.Typed
         public IList Items { get; set; }
         public int? SelectedIndex { get; set; }
         public float? FixedItemHeight { get; set; }
-        public System.Func<VisualElement> MakeItem { get; set; }
-        public System.Action<VisualElement, int> BindItem { get; set; }
-        public System.Action<VisualElement, int> UnbindItem { get; set; }
+        public ItemFactory MakeItem { get; set; }
+        public ItemBinder BindItem { get; set; }
+        public ItemBinder UnbindItem { get; set; }
 
-        public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
+        public RowRenderer Row { get; set; }
         public SelectionType? Selection { get; set; }
 
         public Dictionary<string, object> ScrollView { get; set; }

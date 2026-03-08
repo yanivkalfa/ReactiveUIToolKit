@@ -25,10 +25,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
     /// </summary>
     public static class DeferredEffectDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (commitCount, setCommitCount) = Hooks.UseState(0);
             var (effectCount, setEffectCount) = Hooks.UseState(0);
@@ -108,7 +105,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Force Re-render (change trigger)",
-                        OnClick = () => setTrigger.Set(t => t + 1),
+                        OnClick = _ => setTrigger.Set(t => t + 1),
                         Style = new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 240f) },
                     }
                 ),

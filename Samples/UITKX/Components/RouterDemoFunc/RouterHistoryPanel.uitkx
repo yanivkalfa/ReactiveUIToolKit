@@ -13,13 +13,13 @@ component RouterHistoryPanel {
                 <Button
                     text="Back"
                     enabled={canBack}
-                    onClick={() => { if (canBack) go(-1); }}
+                    onClick={_ => { if (canBack) go(-1); }}
                     style={new Style { (StyleKeys.MarginRight, 6f), (StyleKeys.Width, 80f) }}
                 />
                 <Button
                     text="Forward"
                     enabled={canForward}
-                    onClick={() => { if (canForward) go(1); }}
+                    onClick={_ => { if (canForward) go(1); }}
                     style={new Style { (StyleKeys.Width, 80f) }}
                 />
             </VisualElement>

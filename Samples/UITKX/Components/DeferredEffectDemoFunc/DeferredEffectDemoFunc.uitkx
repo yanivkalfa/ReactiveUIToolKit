@@ -1,5 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
+@using System
 component DeferredEffectDemoFunc {
     var (commitCount, setCommitCount) = useState(0);
     var (effectCount, setEffectCount) = useState(0);
@@ -9,13 +10,13 @@ component DeferredEffectDemoFunc {
 
     useLayoutEffect(() => {
         setCommitCount(n => n + 1);
-        setLastCommitTime(System.DateTime.Now.ToString("HH:mm:ss.fff"));
+        setLastCommitTime(DateTime.Now.ToString("HH:mm:ss.fff"));
         return null;
     }, new object[] { trigger });
 
     useEffect(() => {
         setEffectCount(n => n + 1);
-        setLastEffectTime(System.DateTime.Now.ToString("HH:mm:ss.fff"));
+        setLastEffectTime(DateTime.Now.ToString("HH:mm:ss.fff"));
         return null;
     }, new object[] { trigger });
 
@@ -55,7 +56,7 @@ component DeferredEffectDemoFunc {
             />
             <Button
                 text="Force Re-render (change trigger)"
-                onClick={() => setTrigger(t => t + 1)}
+                onClick={_ => setTrigger(t => t + 1)}
                 style={new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 240f) }}
             />
             <VisualElement style={cardStyle}>

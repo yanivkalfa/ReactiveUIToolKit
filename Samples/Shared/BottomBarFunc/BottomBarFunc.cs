@@ -52,10 +52,7 @@ namespace ReactiveUITK.Samples.Shared
             (BackgroundColor, new UColor(0.7f, 0.2f, 0.6f, 1f)),
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (leftClicks, setLeftClicks) = Hooks.UseState(0);
             var (rightClicks, setRightClicks) = Hooks.UseState(0);
@@ -67,7 +64,7 @@ namespace ReactiveUITK.Samples.Shared
             var leftButtonProps = new ButtonProps
             {
                 Style = LeftButtonStyle,
-                OnClick = () =>
+                OnClick = _ =>
                 {
                     setLeftClicks(leftClicks + 1);
                     setParentText?.Invoke("left");
@@ -78,7 +75,7 @@ namespace ReactiveUITK.Samples.Shared
             var rightButtonProps = new ButtonProps
             {
                 Style = RightButtonStyle,
-                OnClick = () =>
+                OnClick = _ =>
                 {
                     setRightClicks(rightClicks + 1);
                     setParentText?.Invoke("right");

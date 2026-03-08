@@ -20,9 +20,9 @@ component ToggleButtonGroupDemoFunc {
         <VisualElement style={containerStyle}>
             <Label text="ToggleButtonGroup (Buttons inside)" />
             <ToggleButtonGroup value={selected}>
-                <Button text="0" onClick={() => setSelected(0)} />
-                <Button text="1" onClick={() => setSelected(1)} />
-                <Button text="2" onClick={() => setSelected(2)} />
+                <Button text="0" onClick={_ => setSelected(0)} />
+                <Button text="1" onClick={_ => setSelected(1)} />
+                <Button text="2" onClick={_ => setSelected(2)} />
             </ToggleButtonGroup>
             <Label text={$"Selected option: {options[selected]}"} style={statusStyle} />
         </VisualElement>

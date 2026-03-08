@@ -102,10 +102,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             return parts.Count == 0 ? path : $"{path}?{string.Join("&", parts)}";
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             return V.Router(
                 children: new[]
@@ -162,7 +159,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                             {
                                                 (StyleKeys.MarginTop, 6f),
                                                 (StyleKeys.FlexDirection, "column"),
-                                            }
+                                            },
                                         },
                                         null,
                                         V.Func(UserDetails),
@@ -191,7 +188,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static VirtualNode BuildNavigationBar()
         {
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 4f) } },
+                new VisualElementProps
+                {
+                    Style = new Style
+                    {
+                        (StyleKeys.FlexDirection, "row"),
+                        (StyleKeys.MarginBottom, 4f),
+                    },
+                },
                 null,
                 NavLink.Create("/", "Home", exact: true),
                 NavLink.Create("/about", "About"),
@@ -211,7 +215,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var navState = RouterHooks.UseNavigationState();
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column") } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexDirection, "column") },
+                },
                 null,
                 V.Text($"Current path: {location?.Path ?? "/"}"),
                 V.Text($"Query params: {DescribeQuery(query)}"),
@@ -224,13 +231,20 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             IReadOnlyList<VirtualNode> children
         )
         {
-            Hooks.MutableRef<TextField> pathRef = Hooks.UseRef<TextField>();
-            Hooks.MutableRef<TextField> stateRef = Hooks.UseRef<TextField>();
+            Ref<TextField> pathRef = Hooks.UseRef<TextField>();
+            Ref<TextField> stateRef = Hooks.UseRef<TextField>();
 
             var navigate = RouterHooks.UseNavigate();
             var replace = RouterHooks.UseNavigate(replace: true);
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.MarginTop, 4f) } },
+                new VisualElementProps
+                {
+                    Style = new Style
+                    {
+                        (StyleKeys.FlexDirection, "column"),
+                        (StyleKeys.MarginTop, 4f),
+                    },
+                },
                 null,
                 V.Text("Jump to any path:"),
                 V.TextField(
@@ -257,7 +271,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.FlexDirection, "row"),
                             (StyleKeys.MarginTop, 4f),
                             (StyleKeys.MarginBottom, 2f),
-                        }
+                        },
                     },
                     null,
                     V.Button(
@@ -265,14 +279,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Push",
                             Style = new Style { (StyleKeys.Width, 80f) },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
-                                string rawPath = pathRef?.Value?.value;
+                                string rawPath = pathRef?.Current?.value;
                                 string effectivePath = string.IsNullOrEmpty(rawPath)
                                     ? "/"
                                     : rawPath;
 
-                                string rawState = stateRef?.Value?.value;
+                                string rawState = stateRef?.Current?.value;
                                 object statePayload = string.IsNullOrEmpty(rawState)
                                     ? null
                                     : rawState;
@@ -286,14 +300,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Replace",
                             Style = new Style { (StyleKeys.Width, 80f) },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
-                                string rawPath = pathRef?.Value?.value;
+                                string rawPath = pathRef?.Current?.value;
                                 string effectivePath = string.IsNullOrEmpty(rawPath)
                                     ? "/"
                                     : rawPath;
 
-                                string rawState = stateRef?.Value?.value;
+                                string rawState = stateRef?.Current?.value;
                                 object statePayload = string.IsNullOrEmpty(rawState)
                                     ? null
                                     : rawState;
@@ -336,10 +350,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 new QuickLink("/settings/preferences?panel=alerts", "Settings alerts panel"),
             };
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var linkNodes = new List<VirtualNode>(QuickLinks.Length);
                 foreach (var link in QuickLinks)
@@ -358,17 +369,21 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     );
                 }
                 return V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.FlexWrap, "wrap"),
+                        },
+                    },
                     null,
                     linkNodes.ToArray()
                 );
             }
         }
 
-        private static VirtualNode UserDetails(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        private static VirtualNode UserDetails(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var match = RouterHooks.UseRouteMatch();
             var query = RouterHooks.UseQuery();
@@ -414,7 +429,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 null,
                 V.Text("Settings route (demonstrates nested sub-routes):"),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.MarginTop, 4f),
+                        },
+                    },
                     null,
                     NavLink.Create("/settings/profile", "Profile", exact: true),
                     NavLink.Create("/settings/preferences", "Preferences", exact: true)
@@ -452,10 +474,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 );
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var p = rawProps as Props;
                 string path = p?.Path ?? "/";
@@ -503,7 +522,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Text("History controls:"),
                 V.Text($"Can go back: {canBack}, can go forward: {canForward}"),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.MarginTop, 4f),
+                        },
+                    },
                     null,
                     V.Button(
                         new ButtonProps
@@ -514,7 +540,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                 (StyleKeys.MarginRight, 6f),
                                 (StyleKeys.Width, 80f),
                             },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 if (canBack)
                                 {
@@ -528,7 +554,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Forward",
                             Style = new Style { (StyleKeys.Width, 80f) },
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 if (canForward)
                                 {
@@ -553,7 +579,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var (lastBlockedTo, setLastBlockedTo) = Hooks.UseState<RouterLocation>(null);
 
             // Used to allow a single navigation to bypass the guard
-            Hooks.MutableRef<bool> allowNextRef = Hooks.UseRef<bool>();
+            Ref<bool> allowNextRef = Hooks.UseRef<bool>();
 
             // For re-issuing confirmed navigations
             var navigate = RouterHooks.UseNavigate();
@@ -570,9 +596,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
                     // If a confirmation just set allowNextRef, let this
                     // transition pass and reset the flag.
-                    if (allowNextRef.Value)
+                    if (allowNextRef.Current)
                     {
-                        allowNextRef.Value = false;
+                        allowNextRef.Current = false;
                         return true;
                     }
 
@@ -590,7 +616,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FlexDirection, "column") } },
+                new VisualElementProps
+                {
+                    Style = new Style
+                    {
+                        (StyleKeys.MarginTop, 8f),
+                        (StyleKeys.FlexDirection, "column"),
+                    },
+                },
                 null,
                 V.Toggle(
                     new ToggleProps
@@ -616,7 +649,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = $"Test clicks: {clicks}",
-                        OnClick = () => setClicks(clicks + 1),
+                        OnClick = _ => setClicks(clicks + 1),
                         Style = new Style { (StyleKeys.MarginTop, 4f) },
                     }
                 ),
@@ -624,7 +657,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Text(message),
                 V.Text("Use the button above to require confirmation before navigation."),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.FlexDirection, "row") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.MarginTop, 4f),
+                            (StyleKeys.FlexDirection, "row"),
+                        },
+                    },
                     null,
                     V.Button(
                         new ButtonProps
@@ -634,7 +674,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                     ? $"Allow last: {lastBlockedFrom?.Path ?? "(unknown)"} → {lastBlockedTo.Path}"
                                     : "Allow last blocked",
                             Enabled = lastBlockedTo != null,
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 if (lastBlockedTo == null)
                                 {
@@ -642,7 +682,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                 }
 
                                 string targetPath = BuildPathWithQuery(lastBlockedTo);
-                                allowNextRef.Value = true;
+                                allowNextRef.Current = true;
 
                                 navigate(targetPath, lastBlockedTo.State);
                                 setLastBlockedFrom(default);
@@ -657,7 +697,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         {
                             Text = "Dismiss",
                             Enabled = lastBlockedTo != null,
-                            OnClick = () =>
+                            OnClick = _ =>
                             {
                                 setLastBlockedFrom(default);
                                 setLastBlockedTo(default);

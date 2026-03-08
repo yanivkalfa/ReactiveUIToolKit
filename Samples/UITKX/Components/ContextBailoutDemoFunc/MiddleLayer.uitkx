@@ -3,8 +3,8 @@
 // Sub-component: middle layer with stable props — expected to bail out
 component MiddleLayer {
     var renderCountRef = useRef<int>(0);
-    renderCountRef.Value++;
-    var renderCount = renderCountRef.Value;
+    renderCountRef.Current++;
+    var renderCount = renderCountRef.Current;
 
     var style = new Style {
         (StyleKeys.Padding, 10f),

@@ -8,10 +8,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class FlushSyncDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (batchedCount, setBatchedCount) = Hooks.UseState(0);
             var (syncCount, setSyncCount) = Hooks.UseState(0);
@@ -27,7 +24,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (PaddingTop, 12f),
                         (PaddingBottom, 12f),
                         (BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 1f)),
-                    }
+                    },
                 },
                 null,
                 V.Label(new LabelProps { Text = "FlushSync vs batched updates" }),
@@ -36,7 +33,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Increment batched",
-                        OnClick = () => setBatchedCount.Set(v => v + 1),
+                        OnClick = _ => setBatchedCount.Set(v => v + 1),
                     }
                 ),
                 V.Label(new LabelProps { Text = $"FlushSync counter: {syncCount}" }),
@@ -44,7 +41,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new ButtonProps
                     {
                         Text = "Increment with FlushSync",
-                        OnClick = () => Hooks.FlushSync(() => setSyncCount.Set(v => v + 1)),
+                        OnClick = _ => Hooks.FlushSync(() => setSyncCount.Set(v => v + 1)),
                     }
                 )
             );

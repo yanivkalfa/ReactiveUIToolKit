@@ -1,7 +1,8 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
+@using System
 // PortalEventScopeDemoFunc requires an external VisualElement target passed from
-// the Unity scene host — this is not expressible as UITKX props without @props syntax.
+// the Unity scene host ï¿½ this is not expressible as UITKX props without @props syntax.
 // This version demonstrates Portal mount/unmount behavior with an in-tree target.
 // TODO: revisit when @props is available for typed prop declarations.
 component PortalEventScopeDemoFunc {
@@ -9,7 +10,7 @@ component PortalEventScopeDemoFunc {
     var (log, setLog) = useState("Click the portal button to verify event scoping.");
 
     void AppendLog(string message) {
-        setLog(prev => $"{System.DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
+        setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
     }
 
     return (
@@ -21,13 +22,13 @@ component PortalEventScopeDemoFunc {
             />
             <Button
                 text={mounted ? "Unmount Portal" : "Mount Portal"}
-                onClick={() => setMounted(!mounted)}
+                onClick={_ => setMounted(!mounted)}
                 style={new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f) }}
             />
             @if (mounted) {
                 <Button
                     text="Portal Button (click me)"
-                    onClick={() => AppendLog("Portal button clicked")}
+                    onClick={_ => AppendLog("Portal button clicked")}
                     style={new Style { (StyleKeys.MarginTop, 6f) }}
                 />
             } @else {

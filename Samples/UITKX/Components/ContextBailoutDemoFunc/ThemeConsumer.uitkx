@@ -3,8 +3,8 @@
 // Sub-component: reads bailout-test-theme context
 component ThemeConsumer {
     var renderCountRef = useRef<int>(0);
-    renderCountRef.Value++;
-    var renderCount = renderCountRef.Value;
+    renderCountRef.Current++;
+    var renderCount = renderCountRef.Current;
 
     var themeColor = useContext<Color>("bailout-test-theme");
 

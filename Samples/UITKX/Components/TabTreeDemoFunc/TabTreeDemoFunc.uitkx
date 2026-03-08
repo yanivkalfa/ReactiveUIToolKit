@@ -2,6 +2,8 @@
 @using ReactiveUITK.Samples.Shared
 @using System
 @using System.Collections.Generic
+@using ReactiveUITK.Props.Typed
+@using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
 component TabTreeDemoFunc {
@@ -94,7 +96,7 @@ component TabTreeDemoFunc {
         });
     }
 
-    void TreeExpandedChanged(UnityEngine.UIElements.TreeViewExpansionChangedArgs args) {
+    void TreeExpandedChanged(TreeViewExpansionChangedArgs args) {
         setTreeExpandedIds(prev => {
             var nextSet = prev != null ? new HashSet<int>(prev) : new HashSet<int>();
             if (args != null) {
@@ -192,12 +194,12 @@ component TabTreeDemoFunc {
     }
 
     // ── Tab definitions (capture closures with current state + actions) ──
-    var tabViewProps = new ReactiveUITK.Props.Typed.TabViewProps
+    var tabViewProps = new TabViewProps
     {
         SelectedIndex = tabIndex,
-        Tabs = new List<ReactiveUITK.Props.Typed.TabViewProps.TabDef>
+        Tabs = new List<TabViewProps.TabDef>
         {
-            new() { Title = "Intro",          Content = () => V.Label(new ReactiveUITK.Props.Typed.LabelProps { Text = "This is a TabView + TreeView demo." }) },
+            new() { Title = "Intro",          Content = () => V.Label(new LabelProps { Text = "This is a TabView + TreeView demo." }) },
             new() { Title = "Tree",           Content = () => V.Func<TreeViewStatefulDemoFunc.Props>(TreeViewStatefulDemoFunc.Render, new TreeViewStatefulDemoFunc.Props {
                 Rows = treeRows,
                 AddParent = TreeAddParent,
@@ -206,7 +208,7 @@ component TabTreeDemoFunc {
                 SetChild = TreeSetChild,
                 DeleteLast = TreeDeleteLast,
                 ExpandedItemIds = treeExpandedIds,
-                OnExpandedChanged = (Action<UnityEngine.UIElements.TreeViewExpansionChangedArgs>)TreeExpandedChanged,
+                OnExpandedChanged = TreeExpandedChanged,
             }) },
             new() { Title = "Tree (Columns)", Content = () => V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(MultiColumnTreeViewStatefulDemoFunc.Render, new MultiColumnTreeViewStatefulDemoFunc.Props {
                 Rows = mctvRows,
@@ -222,10 +224,10 @@ component TabTreeDemoFunc {
 
     return (
         <GroupBox text="Tabs + TreeView" style={new Style { (PaddingLeft, 6f), (PaddingTop, 4f) }}>
-            <VisualElement style={new Style { (FlexDirection, "row"), (MarginTop, 6f) }}>
-                <Button text="Intro"   onClick={() => setTabIndex(0)} style={new Style { (Width, 80f) }} key="tabs-btn-intro" />
-                <Button text="Tree"    onClick={() => setTabIndex(1)} style={new Style { (Width, 80f), (MarginLeft, 6f) }} key="tabs-btn-tree" />
-                <Button text="Columns" onClick={() => setTabIndex(2)} style={new Style { (Width, 90f), (MarginLeft, 6f) }} key="tabs-btn-columns" />
+            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (MarginTop, 6f) }}>
+                <Button text="Intro"   onClick={_ => setTabIndex(0)} style={new Style { (Width, 80f) }} key="tabs-btn-intro" />
+                <Button text="Tree"    onClick={_ => setTabIndex(1)} style={new Style { (Width, 80f), (MarginLeft, 6f) }} key="tabs-btn-tree" />
+                <Button text="Columns" onClick={_ => setTabIndex(2)} style={new Style { (Width, 90f), (MarginLeft, 6f) }} key="tabs-btn-columns" />
             </VisualElement>
             <TabView
                 selectedIndex={tabViewProps.SelectedIndex}

@@ -19,14 +19,11 @@ namespace ReactiveUITK.Samples.Shared
             public Action SetChild { get; set; }
             public Action DeleteLast { get; set; }
             public IList<int> ExpandedItemIds { get; set; }
-            public Delegate OnExpandedChanged { get; set; }
+            public TreeExpansionEventHandler OnExpandedChanged { get; set; }
             public Action<int> OnCountChanged { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             var rows = p?.Rows ?? Array.Empty<TreeViewRowState>();
@@ -38,7 +35,7 @@ namespace ReactiveUITK.Samples.Shared
             // Pass ExpandedItemIds reference directly — copying it to a new List<int> every render
             // causes the TreeView to see a reference change, fire ItemExpandedChanged, and loop.
             var expandedItemIds = p?.ExpandedItemIds;
-            Delegate expandedChanged = p?.OnExpandedChanged;
+            TreeExpansionEventHandler expandedChanged = p?.OnExpandedChanged;
 
             var rootItems = Hooks.UseMemo(
                 () =>
@@ -92,31 +89,29 @@ namespace ReactiveUITK.Samples.Shared
                 new object[] { rows }
             );
 
-            var rowRenderer = Hooks.UseMemo(
+            var rowRenderer = Hooks.UseMemo<RowRenderer>(
                 () =>
-                    (Func<int, object, VirtualNode>)(
-                        (i, obj) =>
+                    (i, obj) =>
+                    {
+                        var row = obj as SharedTreeRowItem;
+                        if (row == null)
                         {
-                            var row = obj as SharedTreeRowItem;
-                            if (row == null)
-                            {
-                                return V.Label(
-                                    new LabelProps { Text = "<invalid row payload>" },
-                                    $"tv-invalid-{i}"
-                                );
-                            }
-
-                            var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
-                            var prefix = (row.IsChild == true) ? "child" : "parent";
-                            var funcKey = $"tv-{prefix}-{id}";
-
-                            var childNode = row.ShouldOverrideElement
-                                ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
-                                : V.Func(IntroCounterFunc.Render, null, funcKey);
-
-                            return V.VisualElement(null, key: $"tv-wrap-{prefix}-{id}", childNode);
+                            return V.Label(
+                                new LabelProps { Text = "<invalid row payload>" },
+                                $"tv-invalid-{i}"
+                            );
                         }
-                    ),
+
+                        var id = !string.IsNullOrEmpty(row.Id) ? row.Id : i.ToString();
+                        var prefix = (row.IsChild == true) ? "child" : "parent";
+                        var funcKey = $"tv-{prefix}-{id}";
+
+                        var childNode = row.ShouldOverrideElement
+                            ? V.Label(new LabelProps { Text = row.Text ?? "<null>" }, funcKey)
+                            : V.Func(IntroCounterFunc.Render, null, funcKey);
+
+                        return V.VisualElement(null, key: $"tv-wrap-{prefix}-{id}", childNode);
+                    },
                 rows
             );
 
@@ -151,10 +146,13 @@ namespace ReactiveUITK.Samples.Shared
             }
             catch { }
 
-            Action Safe(Action candidate) => candidate ?? (() => { });
+            PointerEventHandler Safe(Action candidate) => _ => candidate?.Invoke();
 
             var btnRow = V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
+                },
                 null,
                 V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
                 V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),

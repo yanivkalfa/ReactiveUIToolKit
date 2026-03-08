@@ -46,7 +46,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// Used by <see cref="TryGetRefParamPropName"/> to locate the <c>Hooks.MutableRef&lt;T&gt;</c>
         /// parameter so that a bare <c>ref={x}</c> attribute can be routed to the correct prop.
         /// </summary>
-        private readonly ImmutableDictionary<string, ImmutableArray<FunctionParam>> _peerFunctionParams;
+        private readonly ImmutableDictionary<
+            string,
+            ImmutableArray<FunctionParam>
+        > _peerFunctionParams;
 
         /// <summary>Lowercase tag → TagResolution for every V.* built-in.</summary>
         private readonly Dictionary<string, TagResolution> _builtinMap;
@@ -59,13 +62,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         // Maps short markup tag names to their implementing C# class names.
         // This lets users write <Router>, <Route>, <Link> in .uitkx markup
         // without knowing the Func-suffixed class names that back them.
-        private static readonly Dictionary<string, string> s_componentTagAliases =
-            new Dictionary<string, string>(StringComparer.Ordinal)
-            {
-                ["Router"] = "RouterFunc",
-                ["Route"]  = "RouteFunc",
-                ["Link"]   = "LinkFunc",
-            };
+        private static readonly Dictionary<string, string> s_componentTagAliases = new Dictionary<
+            string,
+            string
+        >(StringComparer.Ordinal)
+        {
+            ["Router"] = "RouterFunc",
+            ["Route"] = "RouteFunc",
+            ["Link"] = "LinkFunc",
+        };
 
         // ── Fallback hard-coded map (used when V type not resolvable) ─────────
         private static readonly IReadOnlyDictionary<string, TagResolution> s_fallbackMap =
@@ -79,9 +84,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         )
         {
             _compilation = compilation;
-            _peerComponentTypeNames      = peerComponentTypeNames      ?? ImmutableHashSet<string>.Empty;
-            _peerPropsComponentTypeNames = peerPropsComponentTypeNames ?? ImmutableHashSet<string>.Empty;
-            _peerFunctionParams          = peerFunctionParams          ?? ImmutableDictionary<string, ImmutableArray<FunctionParam>>.Empty;
+            _peerComponentTypeNames = peerComponentTypeNames ?? ImmutableHashSet<string>.Empty;
+            _peerPropsComponentTypeNames =
+                peerPropsComponentTypeNames ?? ImmutableHashSet<string>.Empty;
+            _peerFunctionParams =
+                peerFunctionParams
+                ?? ImmutableDictionary<string, ImmutableArray<FunctionParam>>.Empty;
             _builtinMap = BuildBuiltinMapFromCompilation(compilation);
         }
 
@@ -96,8 +104,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             /// <summary>No <c>Hooks.MutableRef&lt;T&gt;</c> parameter was found.</summary>
             None,
+
             /// <summary>Exactly one param found; <c>refPropName</c> is set.</summary>
             Found,
+
             /// <summary>Multiple params found; routing is ambiguous.</summary>
             Ambiguous,
         }
@@ -132,9 +142,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // ── Path A: peer-UITKX component (same code-gen pass) ─────────────
             if (_peerFunctionParams.TryGetValue(componentTypeName, out var fpList))
             {
-                var mutableRefParams = fpList
-                    .Where(fp => IsMutableRefTypeName(fp.Type))
-                    .ToList();
+                var mutableRefParams = fpList.Where(fp => IsMutableRefTypeName(fp.Type)).ToList();
 
                 if (mutableRefParams.Count == 0)
                     return RefParamLookupResult.None;
@@ -166,14 +174,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         /// <summary>
         /// Returns <c>true</c> when <paramref name="typeName"/> (as it appears in a .uitkx
-        /// function-style parameter list) denotes a <c>Hooks.MutableRef&lt;T&gt;</c> type.
+        /// function-style parameter list) denotes a <c>Ref&lt;T&gt;</c> or the deprecated
+        /// <c>Hooks.MutableRef&lt;T&gt;</c> type.
         /// Handles optional nullable suffix and fully-qualified form.
         /// </summary>
         private static bool IsMutableRefTypeName(string typeName)
         {
             string stripped = typeName.TrimEnd('?').Trim();
-            return stripped.StartsWith("Hooks.MutableRef<", StringComparison.Ordinal)
-                || stripped.StartsWith("ReactiveUITK.Core.Hooks.MutableRef<", StringComparison.Ordinal);
+            return stripped.StartsWith("Ref<", StringComparison.Ordinal)
+                || stripped.StartsWith("ReactiveUITK.Core.Ref<", StringComparison.Ordinal)
+                || stripped.StartsWith("Hooks.MutableRef<", StringComparison.Ordinal) // [Obsolete] compat
+                || stripped.StartsWith(
+                    "ReactiveUITK.Core.Hooks.MutableRef<",
+                    StringComparison.Ordinal
+                );
         }
 
         /// <summary>
@@ -182,17 +196,23 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private static string ToPropName(string name)
         {
-            if (string.IsNullOrEmpty(name)) return name;
-            return char.IsUpper(name[0]) ? name : char.ToUpperInvariant(name[0]) + name.Substring(1);
+            if (string.IsNullOrEmpty(name))
+                return name;
+            return char.IsUpper(name[0])
+                ? name
+                : char.ToUpperInvariant(name[0]) + name.Substring(1);
         }
 
         /// <summary>
         /// Collects the names of all public settable properties on the given
-        /// <paramref name="propsTypeName"/> that are typed as <c>Hooks.MutableRef&lt;T&gt;</c>,
-        /// walking the inheritance chain.
+        /// <paramref name="propsTypeName"/> that are typed as <c>Ref&lt;T&gt;</c> or the
+        /// deprecated <c>Hooks.MutableRef&lt;T&gt;</c>, walking the inheritance chain.
         /// Returns an empty list when the type cannot be resolved by Roslyn.
         /// </summary>
-        private List<string> GetMutableRefPropertyNames(string propsTypeName, ImmutableArray<string> searchNamespaces)
+        private List<string> GetMutableRefPropertyNames(
+            string propsTypeName,
+            ImmutableArray<string> searchNamespaces
+        )
         {
             INamedTypeSymbol? typeSymbol = null;
 
@@ -205,11 +225,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 foreach (var ns in searchNamespaces)
                 {
                     typeSymbol = _compilation.GetTypeByMetadataName($"{ns}.{propsTypeName}");
-                    if (typeSymbol != null) break;
+                    if (typeSymbol != null)
+                        break;
 
                     // Nested type variant (e.g. RouterFunc+Props)
-                    typeSymbol = _compilation.GetTypeByMetadataName($"{ns}.{propsTypeName.Replace('.', '+')}" );
-                    if (typeSymbol != null) break;
+                    typeSymbol = _compilation.GetTypeByMetadataName(
+                        $"{ns}.{propsTypeName.Replace('.', '+')}"
+                    );
+                    if (typeSymbol != null)
+                        break;
                 }
             }
 
@@ -222,9 +246,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 foreach (var member in current.GetMembers().OfType<IPropertySymbol>())
                 {
-                    if (member.DeclaredAccessibility == Accessibility.Public
+                    if (
+                        member.DeclaredAccessibility == Accessibility.Public
                         && member.SetMethod != null
-                        && IsRoslynMutableRefType(member.Type))
+                        && IsRoslynMutableRefType(member.Type)
+                    )
                     {
                         result.Add(member.Name);
                     }
@@ -235,16 +261,22 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         }
 
         /// <summary>
-        /// Returns <c>true</c> when <paramref name="typeSymbol"/> is a constructed
-        /// <c>Hooks.MutableRef&lt;T&gt;</c> type from the ReactiveUITK.Core assembly.
-        /// Also matches nullable wrapper <c>MutableRef&lt;T&gt;?</c> by unwrapping the
-        /// underlying type via Nullable.
+        /// Returns <c>true</c> when <paramref name="typeSymbol"/> is the top-level
+        /// <c>Ref&lt;T&gt;</c> from <c>ReactiveUITK.Core</c>, or the deprecated
+        /// <c>Hooks.MutableRef&lt;T&gt;</c> type.
+        /// Also matches nullable wrappers by unwrapping via Nullable.
         /// </summary>
         private static bool IsRoslynMutableRefType(ITypeSymbol typeSymbol)
         {
             // Unwrap Nullable<T> → T
-            if (typeSymbol is INamedTypeSymbol { ConstructedFrom: { SpecialType: SpecialType.System_Nullable_T } }
-                && typeSymbol is INamedTypeSymbol nullable)
+            if (
+                typeSymbol
+                    is INamedTypeSymbol
+                    {
+                        ConstructedFrom: { SpecialType: SpecialType.System_Nullable_T }
+                    }
+                && typeSymbol is INamedTypeSymbol nullable
+            )
             {
                 typeSymbol = nullable.TypeArguments[0];
             }
@@ -253,6 +285,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 return false;
 
             var def = named.ConstructedFrom;
+
+            // Match top-level Ref<T> in ReactiveUITK.Core namespace (not nested)
+            if (
+                string.Equals(def.Name, "Ref", StringComparison.Ordinal)
+                && def.ContainingType == null
+                && string.Equals(
+                    def.ContainingNamespace?.ToDisplayString(),
+                    "ReactiveUITK.Core",
+                    StringComparison.Ordinal
+                )
+            )
+                return true;
+
+            // Match Hooks.MutableRef<T> — [Obsolete] backward compat
             return string.Equals(def.Name, "MutableRef", StringComparison.Ordinal)
                 && string.Equals(def.ContainingType?.Name, "Hooks", StringComparison.Ordinal)
                 && string.Equals(
@@ -327,7 +373,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Still emit V.Func(LookupTypeName.Render, ...) — let C# compiler report missing type
             }
 
-            string? funcPropsTypeName = TryGetFuncComponentPropsTypeName(lookupTypeName, usingNamespaces);
+            string? funcPropsTypeName = TryGetFuncComponentPropsTypeName(
+                lookupTypeName,
+                usingNamespaces
+            );
 
             return new TagResolution(
                 TagResolutionKind.FuncComponent,
@@ -404,7 +453,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             foreach (var ns in usingNamespaces)
             {
                 var sym = _compilation.GetTypeByMetadataName($"{ns}.{candidate}");
-                if (sym != null) return sym.Name;
+                if (sym != null)
+                    return sym.Name;
             }
 
             // Fall back to convention for peer-generated components that have props.
@@ -437,7 +487,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             foreach (var ns in usingNamespaces)
             {
                 var sym = _compilation.GetTypeByMetadataName($"{ns}.{componentTypeName}+Props");
-                if (sym != null) return $"{componentTypeName}.Props";
+                if (sym != null)
+                    return $"{componentTypeName}.Props";
             }
 
             return null;
@@ -661,11 +712,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     null,
                     AcceptsChildren: true
                 ),
-                ["errorboundary"] = Typed(
-                    "ErrorBoundary",
-                    "ErrorBoundaryProps",
-                    children: true
-                ),
+                ["errorboundary"] = Typed("ErrorBoundary", "ErrorBoundaryProps", children: true),
             };
         }
     }

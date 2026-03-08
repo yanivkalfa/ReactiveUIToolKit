@@ -7,10 +7,7 @@ namespace ReactiveUITK.Samples.Shared
 {
     public static class IntroCounterFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (count, setCount) = Hooks.UseState(0);
 
@@ -19,7 +16,7 @@ namespace ReactiveUITK.Samples.Shared
             var buttonProps = new ButtonProps
             {
                 Text = "+1",
-                OnClick = () => setCount(count + 1),
+                OnClick = _ => setCount(count + 1),
                 Style = new Style { (MarginLeft, 8f) },
             };
 

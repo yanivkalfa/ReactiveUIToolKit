@@ -20,7 +20,7 @@ namespace ReactiveUITK.Elements
         {
             public IList LastItems;
             internal List<ColumnSignature> LastColSignature;
-            public List<Func<int, object, VirtualNode>> CellFns;
+            public List<RowRenderer> CellFns;
 
             internal Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
@@ -217,7 +217,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
 
-            var payload = new MultiColumnListViewProps.ColumnLayoutState
+            var payload = new ColumnLayoutState
             {
                 ColumnWidths = CloneDict(snapshot?.Widths),
                 ColumnVisibility = CloneDict(snapshot?.Visibility),
@@ -260,7 +260,7 @@ namespace ReactiveUITK.Elements
         private static bool TryDispatchLayoutDelegate(
             MultiColumnListView view,
             Delegate callback,
-            MultiColumnListViewProps.ColumnLayoutState payload
+            ColumnLayoutState payload
         )
         {
             if (callback == null || payload == null)
@@ -270,13 +270,13 @@ namespace ReactiveUITK.Elements
 
             switch (callback)
             {
-                case Action<MultiColumnListViewProps.ColumnLayoutState> typed:
+                case ColumnLayoutEventHandler typedNew:
+                    typedNew(payload);
+                    return true;
+                case Action<ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<
-                    VisualElement,
-                    MultiColumnListViewProps.ColumnLayoutState
-                > typedWithView:
+                case Action<VisualElement, ColumnLayoutState> typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:
@@ -315,7 +315,7 @@ namespace ReactiveUITK.Elements
                         args[i] = view;
                         continue;
                     }
-                    if (typeof(MultiColumnListViewProps.ColumnLayoutState).IsAssignableFrom(pt))
+                    if (typeof(ColumnLayoutState).IsAssignableFrom(pt))
                     {
                         args[i] = payload;
                         continue;
@@ -634,7 +634,7 @@ namespace ReactiveUITK.Elements
 
             view.columns.Clear();
 
-            var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
+            var cellFnByName = new Dictionary<string, RowRenderer>();
             if (
                 parts?.LastColSignature != null
                 && parts?.CellFns != null
@@ -721,8 +721,8 @@ namespace ReactiveUITK.Elements
                 }
                 string name = entry.name;
                 string title = colMap.TryGetValue("title", out var t) ? t as string : null;
-                Func<int, object, VirtualNode> cellFn = null;
-                if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
+                RowRenderer cellFn = null;
+                if (colMap.TryGetValue("cell", out var c) && c is RowRenderer cf)
                 {
                     cellFn = cf;
                 }
@@ -875,7 +875,7 @@ namespace ReactiveUITK.Elements
                         ve.Add(entry.mount);
                     }
 
-                    Func<int, object, VirtualNode> activeFn = null;
+                    RowRenderer activeFn = null;
                     if (
                         !string.IsNullOrEmpty(column.name)
                         && cellFnByName.TryGetValue(column.name, out var byName)
