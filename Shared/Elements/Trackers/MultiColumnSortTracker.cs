@@ -68,11 +68,7 @@ namespace ReactiveUITK.Elements
                                     {
                                         try
                                         {
-                                            DispatchUserNotify(
-                                                tv,
-                                                state.UserSortNotify,
-                                                defs
-                                            );
+                                            DispatchUserNotify(tv, state.UserSortNotify, defs);
                                         }
                                         catch { }
                                     })
@@ -314,13 +310,7 @@ namespace ReactiveUITK.Elements
                 cseh.Invoke(defs);
                 return;
             }
-            if (
-                notify
-                is Action<
-                    UnityEngine.UIElements.VisualElement,
-                    List<SortedColumnDef>
-                > a2
-            )
+            if (notify is Action<UnityEngine.UIElements.VisualElement, List<SortedColumnDef>> a2)
             {
                 a2.Invoke(tv, defs);
                 return;

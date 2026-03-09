@@ -19,10 +19,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private const int SafeDepth = 10;
         private const int DangerDepth = 30; // deliberately exceeds MaxRenderDepth=25
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (depth, setDepth) = Hooks.UseState(0);
             var (triggered, setTriggered) = Hooks.UseState(false);
@@ -63,7 +60,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 10f) } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.MarginTop, 10f),
+                        },
+                    },
                     null,
                     V.Button(
                         new ButtonProps
@@ -125,10 +129,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 public int MaxDisplay { get; set; }
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var p = rawProps as Props;
                 int remaining = p?.Remaining ?? 0;
@@ -160,7 +161,11 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     V.Text($"Level {currentLevel}"),
                     V.Func<DeepNodeFunc.Props>(
                         DeepNodeFunc.Render,
-                        new DeepNodeFunc.Props { Remaining = remaining - 1, MaxDisplay = maxDisplay }
+                        new DeepNodeFunc.Props
+                        {
+                            Remaining = remaining - 1,
+                            MaxDisplay = maxDisplay,
+                        }
                     )
                 );
             }

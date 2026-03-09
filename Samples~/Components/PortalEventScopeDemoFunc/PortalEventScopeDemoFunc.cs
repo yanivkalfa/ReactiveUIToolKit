@@ -14,10 +14,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             public VisualElement PortalTarget { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var portalTarget = (rawProps as Props)?.PortalTarget;
             if (portalTarget == null)
@@ -49,7 +46,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) },
+                },
                 null,
                 V.Label(
                     new LabelProps

@@ -9,20 +9,17 @@ namespace ReactiveUITK.Samples.Shared
 {
     public static class TabTreeDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (tabIndex, setTabIndex) = Hooks.UseState(0);
 
             // ── TreeView state ──────────────────────────────────────────────────
-            var (treeRows,        setTreeRows)        = Hooks.UseState(new List<TreeViewRowState>());
-            var (treeNextPid,     setTreeNextPid)     = Hooks.UseState(2);
+            var (treeRows, setTreeRows) = Hooks.UseState(new List<TreeViewRowState>());
+            var (treeNextPid, setTreeNextPid) = Hooks.UseState(2);
             var (treeExpandedIds, setTreeExpandedIds) = Hooks.UseState<List<int>>(null);
 
             // ── MultiColumnTreeView state ───────────────────────────────────────
-            var (mctvRows,    setMctvRows)    = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
+            var (mctvRows, setMctvRows) = Hooks.UseState(new List<MultiColumnTreeViewRowState>());
             var (mctvNextPid, setMctvNextPid) = Hooks.UseState(2);
 
             // ── TreeView actions ────────────────────────────────────────────────
@@ -32,13 +29,22 @@ namespace ReactiveUITK.Samples.Shared
                 setTreeNextPid(treeNextPid + 2);
                 setTreeRows.Set(prev =>
                 {
-                    var next = prev != null ? new List<TreeViewRowState>(prev) : new List<TreeViewRowState>();
-                    next.Add(new TreeViewRowState
-                    {
-                        Pid = pid,
-                        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
-                        HasChild = false,
-                    });
+                    var next =
+                        prev != null
+                            ? new List<TreeViewRowState>(prev)
+                            : new List<TreeViewRowState>();
+                    next.Add(
+                        new TreeViewRowState
+                        {
+                            Pid = pid,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
                     return next;
                 });
             }
@@ -47,15 +53,24 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
+                    if (source == null)
+                        return prev;
                     var next = new List<TreeViewRowState>(prev);
                     next[next.Count - 1] = new TreeViewRowState
                     {
                         Pid = source.Pid,
                         Parent = source.Parent,
-                        Child = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Child", IsChild = true },
+                        Child =
+                            source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
                         HasChild = true,
                     };
                     return next;
@@ -66,10 +81,14 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
-                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    if (source == null)
+                        return prev;
+                    var parentItem =
+                        source.Parent
+                        ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
                     var next = new List<TreeViewRowState>(prev);
@@ -88,10 +107,18 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null || !source.HasChild) return prev;
-                    var childItem = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem =
+                        source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
                     childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
                     childItem.ShouldOverrideElement = true;
                     var next = new List<TreeViewRowState>(prev);
@@ -110,7 +137,8 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setTreeRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var next = new List<TreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     return next;
@@ -124,8 +152,10 @@ namespace ReactiveUITK.Samples.Shared
                     var nextSet = prev != null ? new HashSet<int>(prev) : new HashSet<int>();
                     if (args != null)
                     {
-                        if (args.isExpanded) nextSet.Add(args.id);
-                        else nextSet.Remove(args.id);
+                        if (args.isExpanded)
+                            nextSet.Add(args.id);
+                        else
+                            nextSet.Remove(args.id);
                     }
                     var nextList = new List<int>(nextSet);
                     nextList.Sort();
@@ -147,13 +177,22 @@ namespace ReactiveUITK.Samples.Shared
                 setMctvNextPid(mctvNextPid + 2);
                 setMctvRows.Set(prev =>
                 {
-                    var next = prev != null ? new List<MultiColumnTreeViewRowState>(prev) : new List<MultiColumnTreeViewRowState>();
-                    next.Add(new MultiColumnTreeViewRowState
-                    {
-                        Pid = pid,
-                        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
-                        HasChild = false,
-                    });
+                    var next =
+                        prev != null
+                            ? new List<MultiColumnTreeViewRowState>(prev)
+                            : new List<MultiColumnTreeViewRowState>();
+                    next.Add(
+                        new MultiColumnTreeViewRowState
+                        {
+                            Pid = pid,
+                            Parent = new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Parent",
+                            },
+                            HasChild = false,
+                        }
+                    );
                     return next;
                 });
             }
@@ -162,15 +201,24 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
+                    if (source == null)
+                        return prev;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
                     next[next.Count - 1] = new MultiColumnTreeViewRowState
                     {
                         Pid = source.Pid,
                         Parent = source.Parent,
-                        Child = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Child", IsChild = true },
+                        Child =
+                            source.Child
+                            ?? new SharedTreeRowItem
+                            {
+                                Id = Guid.NewGuid().ToString("N"),
+                                Text = "Child",
+                                IsChild = true,
+                            },
                         HasChild = true,
                     };
                     return next;
@@ -181,10 +229,14 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null) return prev;
-                    var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+                    if (source == null)
+                        return prev;
+                    var parentItem =
+                        source.Parent
+                        ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
                     parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
                     parentItem.ShouldOverrideElement = true;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
@@ -203,10 +255,18 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var source = prev[prev.Count - 1];
-                    if (source == null || !source.HasChild) return prev;
-                    var childItem = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+                    if (source == null || !source.HasChild)
+                        return prev;
+                    var childItem =
+                        source.Child
+                        ?? new SharedTreeRowItem
+                        {
+                            Id = Guid.NewGuid().ToString("N"),
+                            IsChild = true,
+                        };
                     childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
                     childItem.ShouldOverrideElement = true;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
@@ -225,7 +285,8 @@ namespace ReactiveUITK.Samples.Shared
             {
                 setMctvRows.Set(prev =>
                 {
-                    if (prev == null || prev.Count == 0) return prev;
+                    if (prev == null || prev.Count == 0)
+                        return prev;
                     var next = new List<MultiColumnTreeViewRowState>(prev);
                     next.RemoveAt(next.Count - 1);
                     return next;
@@ -247,34 +308,38 @@ namespace ReactiveUITK.Samples.Shared
                     new()
                     {
                         Title = "Tree",
-                        Content = () => V.Func<TreeViewStatefulDemoFunc.Props>(
-                            TreeViewStatefulDemoFunc.Render,
-                            new TreeViewStatefulDemoFunc.Props
-                            {
-                                Rows = treeRows,
-                                AddParent = TreeAddParent,
-                                AddChild = TreeAddChild,
-                                SetParent = TreeSetParent,
-                                SetChild = TreeSetChild,
-                                DeleteLast = TreeDeleteLast,
-                                ExpandedItemIds = treeExpandedIds,
-                                OnExpandedChanged = TreeExpandedChanged,
-                            }),
+                        Content = () =>
+                            V.Func<TreeViewStatefulDemoFunc.Props>(
+                                TreeViewStatefulDemoFunc.Render,
+                                new TreeViewStatefulDemoFunc.Props
+                                {
+                                    Rows = treeRows,
+                                    AddParent = TreeAddParent,
+                                    AddChild = TreeAddChild,
+                                    SetParent = TreeSetParent,
+                                    SetChild = TreeSetChild,
+                                    DeleteLast = TreeDeleteLast,
+                                    ExpandedItemIds = treeExpandedIds,
+                                    OnExpandedChanged = TreeExpandedChanged,
+                                }
+                            ),
                     },
                     new()
                     {
                         Title = "Tree (Columns)",
-                        Content = () => V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(
-                            MultiColumnTreeViewStatefulDemoFunc.Render,
-                            new MultiColumnTreeViewStatefulDemoFunc.Props
-                            {
-                                Rows = mctvRows,
-                                AddParent = MctvAddParent,
-                                AddChild = MctvAddChild,
-                                SetParent = MctvSetParent,
-                                SetChild = MctvSetChild,
-                                DeleteLast = MctvDeleteLast,
-                            }),
+                        Content = () =>
+                            V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(
+                                MultiColumnTreeViewStatefulDemoFunc.Render,
+                                new MultiColumnTreeViewStatefulDemoFunc.Props
+                                {
+                                    Rows = mctvRows,
+                                    AddParent = MctvAddParent,
+                                    AddChild = MctvAddChild,
+                                    SetParent = MctvSetParent,
+                                    SetChild = MctvSetChild,
+                                    DeleteLast = MctvDeleteLast,
+                                }
+                            ),
                     },
                 },
                 Style = new Style { (Props.Typed.StyleKeys.Height, 240f) },

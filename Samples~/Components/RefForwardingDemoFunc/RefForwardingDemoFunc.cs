@@ -15,13 +15,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
     /// </summary>
     public static class RefForwardingDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             Ref<TextField> inputRef = Hooks.UseRef<TextField>();
-            Ref<Label>     labelRef  = Hooks.UseRef<Label>();
+            Ref<Label> labelRef = Hooks.UseRef<Label>();
             var (snapshot, setSnapshot) = Hooks.UseState(
                 "Click \"Read refs\" to inspect ref assignments."
             );
@@ -29,16 +26,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             void UpdateSnapshot()
             {
                 TextField textField = inputRef?.Current;
-                Label     label     = labelRef?.Current;
+                Label label = labelRef?.Current;
                 bool isFocused = textField?.focusController?.focusedElement == textField;
                 string textSummary =
                     textField == null
                         ? "input ref is null"
                         : $"input ref: value=\"{textField.value}\" focused={isFocused}";
                 string labelSummary =
-                    label == null
-                        ? "label ref is null"
-                        : $"label ref: text=\"{label.text}\"";
+                    label == null ? "label ref is null" : $"label ref: text=\"{label.text}\"";
                 setSnapshot($"{textSummary}; {labelSummary}");
             }
 
@@ -50,19 +45,23 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (SK.FlexDirection, "row"),
                         (SK.AlignItems, "center"),
                         (SK.MarginTop, 6f),
-                    }
+                    },
                 },
                 "ref-demo-controls",
                 V.Button(
-                    new ButtonProps { Text = "Read refs (parent)", OnClick = _ => UpdateSnapshot() },
+                    new ButtonProps
+                    {
+                        Text = "Read refs (parent)",
+                        OnClick = _ => UpdateSnapshot(),
+                    },
                     key: "read-refs-btn"
                 ),
                 V.Button(
                     new ButtonProps
                     {
-                        Text    = "Focus input (parent)",
+                        Text = "Focus input (parent)",
                         OnClick = _ => inputRef?.Current?.Focus(),
-                        Style   = new Style { (SK.MarginLeft, 6f) },
+                        Style = new Style { (SK.MarginLeft, 6f) },
                     },
                     key: "focus-parent-btn"
                 )
@@ -73,8 +72,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 RefChild.Render,
                 new RefChild.Props
                 {
-                    InputRef   = inputRef,
-                    LabelRef   = labelRef,
+                    InputRef = inputRef,
+                    LabelRef = labelRef,
                     OnSnapshot = UpdateSnapshot,
                 },
                 key: "ref-child"
@@ -88,7 +87,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (SK.FlexDirection, "column"),
                         (SK.Padding, 12f),
                         (SK.FlexGrow, 1f),
-                    }
+                    },
                 },
                 "ref-demo-root",
                 V.Text("useRef + ref-as-prop demo", key: "title"),
@@ -101,7 +100,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Label(
                     new LabelProps
                     {
-                        Text  = snapshot,
+                        Text = snapshot,
                         Style = new Style { (SK.MarginTop, 8f), (SK.FontSize, 13f) },
                     },
                     key: "snapshot-label"
@@ -140,15 +139,16 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         {
             public sealed class Props : IProps
             {
-                public Ref<TextField> InputRef   { get; set; }
-                public Ref<Label>     LabelRef   { get; set; }
-                public Action                      OnSnapshot { get; set; }
+                public Ref<TextField> InputRef { get; set; }
+                public Ref<Label> LabelRef { get; set; }
+                public Action OnSnapshot { get; set; }
 
                 public override bool Equals(object obj)
                 {
-                    if (obj is not Props other) return false;
-                    return ReferenceEquals(InputRef,   other.InputRef)
-                        && ReferenceEquals(LabelRef,   other.LabelRef)
+                    if (obj is not Props other)
+                        return false;
+                    return ReferenceEquals(InputRef, other.InputRef)
+                        && ReferenceEquals(LabelRef, other.LabelRef)
                         && ReferenceEquals(OnSnapshot, other.OnSnapshot);
                 }
 
@@ -157,20 +157,17 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     unchecked
                     {
                         int h = 17;
-                        h = h * 31 + (InputRef   != null ? InputRef.GetHashCode()   : 0);
-                        h = h * 31 + (LabelRef   != null ? LabelRef.GetHashCode()   : 0);
+                        h = h * 31 + (InputRef != null ? InputRef.GetHashCode() : 0);
+                        h = h * 31 + (LabelRef != null ? LabelRef.GetHashCode() : 0);
                         h = h * 31 + (OnSnapshot != null ? OnSnapshot.GetHashCode() : 0);
                         return h;
                     }
                 }
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
-                var p     = (rawProps as Props) ?? new Props();
+                var p = (rawProps as Props) ?? new Props();
                 string value = p.InputRef?.Current?.value ?? "Hello ReactiveUITK refs!";
 
                 return V.VisualElement(
@@ -183,22 +180,18 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (SK.Padding, 8f),
                             (SK.BorderWidth, 1f),
                             (SK.BorderColor, new Color(0.82f, 0.82f, 0.82f, 1f)),
-                        }
+                        },
                     },
                     "ref-child-root",
                     V.Label(
-                        new LabelProps
-                        {
-                            Text = $"Child sees value: {value}",
-                            Ref  = p.LabelRef,
-                        },
+                        new LabelProps { Text = $"Child sees value: {value}", Ref = p.LabelRef },
                         key: "child-label"
                     ),
                     V.TextField(
                         new TextFieldProps
                         {
                             Value = value,
-                            Ref   = p.InputRef,
+                            Ref = p.InputRef,
                             Style = new Style { (SK.MarginTop, 6f) },
                         },
                         key: "child-input"
@@ -206,7 +199,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     V.Button(
                         new ButtonProps
                         {
-                            Text    = "Focus input (child via ref)",
+                            Text = "Focus input (child via ref)",
                             OnClick = _ =>
                             {
                                 p.InputRef?.Current?.Focus();

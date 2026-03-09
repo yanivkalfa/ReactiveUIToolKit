@@ -11,10 +11,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static List<string> BootstrapLog() =>
             new List<string> { "Click a button to queue multiple state updates." };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (value, setValue) = Hooks.UseState(0);
             var (flushCount, setFlushCount) = Hooks.UseState(0);
@@ -146,7 +143,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.FlexDirection, "row"),
                             (StyleKeys.AlignItems, "center"),
                             (StyleKeys.MarginBottom, 6f),
-                        }
+                        },
                     },
                     null,
                     V.Label(new LabelProps { Text = $"Value: {value}", Style = badgeStyle }),
@@ -155,7 +152,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     )
                 ),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.FlexWrap, "wrap"),
+                        },
+                    },
                     null,
                     Button("+1 three times", TripleIncrement),
                     Button("Reset then +5", ResetThenBoost),
@@ -170,7 +174,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.Padding, 8f),
                             (StyleKeys.BackgroundColor, new Color(0.14f, 0.14f, 0.14f, 0.85f)),
                             (StyleKeys.BorderRadius, 4f),
-                        }
+                        },
                     },
                     null,
                     V.Label(
@@ -185,7 +189,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         }
                     ),
                     V.VisualElement(
-                        new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column") } },
+                        new VisualElementProps
+                        {
+                            Style = new Style { (StyleKeys.FlexDirection, "column") },
+                        },
                         null,
                         logNodes.ToArray()
                     )

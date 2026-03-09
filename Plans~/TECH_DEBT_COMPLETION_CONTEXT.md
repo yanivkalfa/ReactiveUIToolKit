@@ -110,3 +110,26 @@ prop keys via the dynamic dispatch fallback. These two paths are not unified:
 - Setting it as a direct `Action<SyntheticPointerEvent>` JSX prop => you receive the richer synthetic wrapper
 
 This inconsistency should be resolved if a single-path event model is ever prioritised.
+
+
+---
+
+# Tech Debt - Burst AOT Error: `Failed to resolve assembly: Assembly-CSharp-Editor`
+
+## Summary
+Unity's Burst compiler logs `Mono.Cecil.AssemblyResolutionException: Failed to resolve assembly: 'Assembly-CSharp-Editor'` on every domain reload / asset import. The error appears in the Unity console even outside Play mode.
+
+## Root Cause
+Burst performs an AOT assembly scan at editor-time to discover `[BurstCompile]` entry points. It walks a static list of assembly directories, but `Assembly-CSharp-Editor.dll` is dynamically compiled into `Library/ScriptAssemblies` — a directory not in Burst's hardcoded search path — so resolution fails with an exception.
+
+ReactiveUITK has no `[BurstCompile]` methods, so there is no functional impact. However the log noise is distracting and counts as a red error in the console.
+
+## Why This Is Tech Debt
+- The error is a false positive — no Burst functionality is broken.
+- Red console errors create noise that masks real issues and erodes confidence in build health.
+- The fix requires either a Project Settings change or an assembly attribute audit.
+
+## Follow-up (when prioritized)
+- Audit all `.asmdef` files in `ReactiveUITK` and any game project for any `[BurstCompile]` assembly-level attributes that should be removed.
+- In **Edit > Project Settings > Burst AOT Settings** (Unity 6), add `Assembly-CSharp-Editor` to the assembly exclusion list or restrict the scan to an explicit allowlist.
+- Add a note to the package README / setup guide so new project integrators can apply the setting post-installation.

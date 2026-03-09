@@ -25,10 +25,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
     /// </summary>
     public static class DeferredEffectDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (commitCount, setCommitCount) = Hooks.UseState(0);
             var (effectCount, setEffectCount) = Hooks.UseState(0);

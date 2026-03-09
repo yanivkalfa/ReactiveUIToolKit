@@ -24,7 +24,9 @@ namespace ReactiveUITK.Core
         public static bool EnableHookAutoRealign { get; set; } = true;
 
         /// <summary>Use <see cref="Ref{T}"/> (top-level class) instead.</summary>
-        [Obsolete("Hooks.MutableRef<T> is deprecated. Use Ref<T> instead (obtained via Hooks.UseRef<T>()).")]
+        [Obsolete(
+            "Hooks.MutableRef<T> is deprecated. Use Ref<T> instead (obtained via Hooks.UseRef<T>())."
+        )]
         public sealed class MutableRef<T>
         {
             public T Value;

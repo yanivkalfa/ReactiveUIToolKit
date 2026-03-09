@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-
 using ReactiveUITK.Core;
+
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class FoldoutProps : BaseProps

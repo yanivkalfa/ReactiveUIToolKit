@@ -188,6 +188,5 @@ namespace ReactiveUITK.Core
             }
             return Array.AsReadOnly(buffer);
         }
-
     }
 }

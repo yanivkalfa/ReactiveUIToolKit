@@ -30,6 +30,19 @@ namespace ReactiveUITK.Language.IntelliSense
 
         /// <summary>Cursor is inside an attribute value: <c>attr="…"</c> or <c>attr={…}</c>.</summary>
         AttributeValue,
+
+        /// <summary>
+        /// Cursor is inside an inline <c>@(expr)</c> expression — C# IntelliSense applies.
+        /// The <see cref="CursorContext.Prefix"/> and <see cref="CursorContext.Word"/>
+        /// fields hold the partial identifier under the cursor.
+        /// </summary>
+        CSharpExpression,
+
+        /// <summary>
+        /// Cursor is inside an <c>@code { … }</c> block (or a function-style
+        /// component body) — C# IntelliSense applies.
+        /// </summary>
+        CSharpCodeBlock,
     }
 
     // ── CursorContext ─────────────────────────────────────────────────────────
@@ -161,9 +174,9 @@ namespace ReactiveUITK.Language.IntelliSense
                     if (col0 >= inner && col0 <= j)
                         return new CursorContext
                         {
-                            Kind = CursorKind.None, // no completion list, but Word is set for nav
+                            Kind   = CursorKind.CSharpExpression,
                             Prefix = prefix,
-                            Word = word,
+                            Word   = word,
                         };
                 }
             }

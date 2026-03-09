@@ -16,10 +16,7 @@ namespace ReactiveUITK.Samples.Shared
             public Action<SharedRowItem> OnRemove { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             var rowItem = p?.Item;
@@ -32,7 +29,10 @@ namespace ReactiveUITK.Samples.Shared
                     ? ($"shared-row-{rowItem.Id}-{index}")
                     : ($"shared-row-missing-{index}");
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (FlexDirection, "row"), (AlignItems, "center") } },
+                new VisualElementProps
+                {
+                    Style = new Style { (FlexDirection, "row"), (AlignItems, "center") },
+                },
                 key: key,
                 V.Button(
                     new ButtonProps

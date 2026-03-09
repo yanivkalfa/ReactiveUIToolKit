@@ -55,45 +55,50 @@ namespace ReactiveUITK.Samples.Shared
             return V.GroupBox(
                 newComponentsGroupProps,
                 null,
-                V.Foldout(
-                    foldoutProps,
-                    null,
-                    V.Label(new LabelProps { Text = "Inside foldout" })
-                ),
+                V.Foldout(foldoutProps, null, V.Label(new LabelProps { Text = "Inside foldout" })),
                 V.Image(new ImageProps { Style = SharedDemoPageStyles.ImageDemoStyle }),
                 V.Label(new LabelProps { Text = $"Slider: {sliderValue:F2}" }),
-                V.Slider(new SliderProps
-                {
-                    LowValue = 0f,
-                    HighValue = 1f,
-                    Value = sliderValue,
-                    Direction = "horizontal",
-                    OnChange = p?.OnSliderChange,
-                    Style = SharedDemoPageStyles.SliderWidthStyle,
-                }),
+                V.Slider(
+                    new SliderProps
+                    {
+                        LowValue = 0f,
+                        HighValue = 1f,
+                        Value = sliderValue,
+                        Direction = "horizontal",
+                        OnChange = p?.OnSliderChange,
+                        Style = SharedDemoPageStyles.SliderWidthStyle,
+                    }
+                ),
                 V.Label(new LabelProps { Text = $"SliderInt: {sliderIntValue}" }),
-                V.SliderInt(new SliderIntProps
-                {
-                    LowValue = 0,
-                    HighValue = 10,
-                    Value = sliderIntValue,
-                    OnChange = p?.OnSliderIntChange,
-                }),
+                V.SliderInt(
+                    new SliderIntProps
+                    {
+                        LowValue = 0,
+                        HighValue = 10,
+                        Value = sliderIntValue,
+                        OnChange = p?.OnSliderIntChange,
+                    }
+                ),
 #if UNITY_EDITOR
-                V.HelpBox(new HelpBoxProps
-                {
-                    MessageType = sliderIntValue % 3 == 0
-                        ? "error"
-                        : (sliderIntValue % 2 == 0 ? "warning" : "info"),
-                    Text = "This is a HelpBox showing state-driven message type.",
-                }),
+                V.HelpBox(
+                    new HelpBoxProps
+                    {
+                        MessageType =
+                            sliderIntValue % 3 == 0
+                                ? "error"
+                                : (sliderIntValue % 2 == 0 ? "warning" : "info"),
+                        Text = "This is a HelpBox showing state-driven message type.",
+                    }
+                ),
 #endif
-                V.DropdownField(new DropdownFieldProps
-                {
-                    Choices = p?.DdChoices,
-                    Value = p?.DdValue,
-                    OnChange = p?.OnDdChange,
-                })
+                V.DropdownField(
+                    new DropdownFieldProps
+                    {
+                        Choices = p?.DdChoices,
+                        Value = p?.DdValue,
+                        OnChange = p?.OnDdChange,
+                    }
+                )
             );
         }
     }

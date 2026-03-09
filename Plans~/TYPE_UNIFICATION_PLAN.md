@@ -31,7 +31,7 @@ automatically in scope in every `.uitkx` file because the emitter always injects
 | 9 | Sample C# files — update usage | ✅ Done |
 | 10 | Run full test suite — verify 98/98 pass | ✅ Done — 98/98 passed |
 | 11 | Delete `SyntheticEvents.cs` (old file, after all [Obsolete] are gone) | ✅ Done |
-| 12 | Game project — update usage | ⬜ Skipped (out of scope) |
+| 12 | Game project — update usage | ✅ Done |
 
 ---
 
@@ -423,20 +423,22 @@ Once the game (Phase 12) is fully migrated:
 
 ---
 
-### Phase 12 — Game project
+### Phase 12 — Game project ✅ DONE
 
-> ⬜ **Game project UI root:** `c:\Yanivs\GameDev\JustStayOn\Assets\UI`
+> **Game project UI root:** `c:\Yanivs\GameDev\JustStayOn\Assets\UI`
 
-Search the game project for the same patterns listed in Phase 9.
-The `[Obsolete]` attributes on `MutableRef<T>` and `SyntheticEvent` ensure the game
-still compiles before this phase, so it can be done at any point after Phase 10.
+**Changes applied:**
 
-Priority order within the game:
-1. `Hooks.MutableRef<T>` → `Ref<T>` (most common, `[Obsolete]` warning highly visible)
-2. `Action<ChangeEvent<T>>` → `ChangeEventHandler<T>` (most common handler type)
-3. `EventCallback<*>` usages → appropriate `*EventHandler`
-4. `SyntheticPointerEvent` / `SyntheticWheelEvent` etc. → `Reactive*Event`
-5. `Func<int, object, VirtualNode>` → `RowRenderer`
+1. **`Button.cs`** — Wrapped `Action resolvedOnClick` into `PointerEventHandler` at `ButtonProps.OnClick` assignment: `_ => resolvedOnClick()`
+2. **`DialogHost.cs`** — Changed `(Action)(() => ...)` cast to `_ => ...` on `VisualElementProps.OnClick`
+3. **`ActionButtons.util.cs`** — Changed `(Action)(() => { ... })` cast to `_ => { ... }` on `VisualElementProps.OnClick`
+4. **`ToggleSettingRow.cs`** — Changed `() => handleSelect(0/1)` to `_ => handleSelect(0/1)` on `ButtonProps.OnClick`
+5. **`ConsentDialogPreset.cs`** — Changed `() => context.Resolve(false/true)` to `_ => ...` on `ButtonProps.OnClick`
+6. **`HomePage.cs`** — Changed `() => setRunVersion.Set(...)` to `_ => ...` on `ButtonProps.OnClick`
+7. **`Sidebar.cs`** — Shortened `ReactiveUITK.Props.Typed.Style` → `Style` (4 occurrences; `using ReactiveUITK.Props.Typed` already present)
+8. **`DialogPresets.cs`** — Added `using ReactiveUITK.Props.Typed;` and `using static ReactiveUITK.Props.Typed.StyleKeys;`; shortened all qualified `Style` and `StyleKeys.*` references
+9. **`GameOverPageSidebar.cs`** — Added `using ReactiveUITK.Core;`; shortened `ReactiveUITK.Core.VirtualNode` → `VirtualNode`
+10. **`MetricDisplay.cs`** — Shortened `ReactiveUITK.Core.Fiber.FiberConfig.EnableFiberLogging` → `Fiber.FiberConfig.EnableFiberLogging`
 
 ---
 

@@ -276,10 +276,7 @@ namespace ReactiveUITK.Elements
                 case Action<ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<
-                    VisualElement,
-                    ColumnLayoutState
-                > typedWithView:
+                case Action<VisualElement, ColumnLayoutState> typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:

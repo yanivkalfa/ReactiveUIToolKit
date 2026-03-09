@@ -37,7 +37,21 @@ namespace ReactiveUITK.Language.Nodes
     /// The expression is embedded verbatim in the generated C#.
     /// </summary>
     public sealed record ExpressionNode(string Expression, int SourceLine, string SourceFile)
-        : AstNode(SourceLine, SourceFile);
+        : AstNode(SourceLine, SourceFile)
+    {
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where the trimmed
+        /// expression content begins (i.e. after the <c>@(</c> and any leading
+        /// whitespace). 0 when not tracked.
+        /// </summary>
+        public int ExpressionOffset { get; init; } = 0;
+
+        /// <summary>
+        /// Length of the trimmed expression string in the source.
+        /// 0 when not tracked.
+        /// </summary>
+        public int ExpressionLength { get; init; } = 0;
+    }
 
     /// <summary>
     /// A JSX-style comment <c>{/* ... */}</c> in markup.
@@ -59,6 +73,19 @@ namespace ReactiveUITK.Language.Nodes
         /// </summary>
         public ImmutableArray<ReturnMarkupNode> ReturnMarkups { get; init; } =
             ImmutableArray<ReturnMarkupNode>.Empty;
+
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where the trimmed
+        /// <see cref="Code"/> content begins (i.e. after the opening <c>{</c> and
+        /// any leading whitespace). 0 when not tracked.
+        /// </summary>
+        public int CodeContentOffset { get; init; } = 0;
+
+        /// <summary>
+        /// Length of the trimmed <see cref="Code"/> content in the source.
+        /// 0 when not tracked.
+        /// </summary>
+        public int CodeContentLength { get; init; } = 0;
     }
 
     /// <summary>
@@ -85,7 +112,15 @@ namespace ReactiveUITK.Language.Nodes
     public sealed record StringLiteralValue(string Value) : AttributeValue;
 
     /// <summary><c>attr={someExpr}</c> — an arbitrary C# expression.</summary>
-    public sealed record CSharpExpressionValue(string Expression) : AttributeValue;
+    public sealed record CSharpExpressionValue(
+        string Expression,
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where the trimmed
+        /// expression content begins (after the opening <c>{</c> and leading
+        /// whitespace). 0 when not tracked.
+        /// </summary>
+        int ExpressionOffset = 0
+    ) : AttributeValue;
 
     /// <summary>
     /// <c>disabled</c> — boolean shorthand: attribute present → <c>true</c>,

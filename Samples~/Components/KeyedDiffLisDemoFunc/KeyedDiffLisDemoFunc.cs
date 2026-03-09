@@ -23,10 +23,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private static List<string> CreateDefaultItems() => new List<string>(SeedItems);
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (items, setItems) = Hooks.UseState(CreateDefaultItems());
             var (operationCount, setOperationCount) = Hooks.UseState(0);
@@ -138,7 +135,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (StyleKeys.FlexDirection, "row"),
                         (StyleKeys.FlexWrap, "wrap"),
                         (StyleKeys.MarginBottom, 8f),
-                    }
+                    },
                 },
                 null,
                 Button("Reset order", Reset),
@@ -169,7 +166,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                 (StyleKeys.BackgroundColor, new Color(0.17f, 0.17f, 0.2f, 0.85f)),
                                 (StyleKeys.BorderRadius, 4f),
                                 (StyleKeys.JustifyContent, "space-between"),
-                            }
+                            },
                         },
                         key,
                         V.Label(new LabelProps { Text = $"Key: {key}" }),
@@ -208,7 +205,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 ),
                 controls,
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style { (StyleKeys.FlexDirection, "column") },
+                    },
                     null,
                     rows.ToArray()
                 )

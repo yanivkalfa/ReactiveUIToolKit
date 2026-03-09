@@ -24,10 +24,7 @@ namespace ReactiveUITK.Samples.Shared
             public Action<int> OnCountChanged { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             var items = p?.Items ?? Array.Empty<MultiColumnListViewRowState>();
@@ -103,9 +100,7 @@ namespace ReactiveUITK.Samples.Shared
                 () =>
                 {
                     var defsTree =
-                        sortDefs == null
-                            ? null
-                            : new List<SortedColumnDef>(sortDefs.Count);
+                        sortDefs == null ? null : new List<SortedColumnDef>(sortDefs.Count);
                     if (sortDefs != null)
                     {
                         foreach (var d in sortDefs)

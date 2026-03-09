@@ -217,9 +217,22 @@ namespace ReactiveUITK.Language.Parser
             if (IsEof || Current != '{')
                 return string.Empty;
             var (expr, afterClose) = ExpressionExtractor.FromBrace(_source, _pos);
-            // Advance to afterClose, tracking newlines by counting them in the span
             AdvanceTo(afterClose);
             return expr;
+        }
+
+        /// <summary>
+        /// Like <see cref="ReadBraceExpression"/> but also returns the absolute character
+        /// offset in the source where the trimmed expression content begins.
+        /// Used by the parser to populate <c>ExpressionOffset</c> on AST nodes.
+        /// </summary>
+        public (string Expression, int ContentOffset) ReadBraceExpressionWithOffset()
+        {
+            if (IsEof || Current != '{')
+                return (string.Empty, _pos);
+            var (expr, afterClose, contentOffset) = ExpressionExtractor.FromBraceWithOffset(_source, _pos);
+            AdvanceTo(afterClose);
+            return (expr, contentOffset);
         }
 
         /// <summary>
@@ -234,6 +247,20 @@ namespace ReactiveUITK.Language.Parser
             var (expr, afterClose) = ExpressionExtractor.FromParen(_source, _pos);
             AdvanceTo(afterClose);
             return expr;
+        }
+
+        /// <summary>
+        /// Like <see cref="ReadParenExpression"/> but also returns the absolute character
+        /// offset in the source where the trimmed expression content begins.
+        /// Used by the parser to populate <c>ExpressionOffset</c> on <see cref="Nodes.ExpressionNode"/>.
+        /// </summary>
+        public (string Expression, int ContentOffset) ReadParenExpressionWithOffset()
+        {
+            if (IsEof || Current != '(')
+                return (string.Empty, _pos);
+            var (expr, afterClose, contentOffset) = ExpressionExtractor.FromParenWithOffset(_source, _pos);
+            AdvanceTo(afterClose);
+            return (expr, contentOffset);
         }
 
         /// <summary>

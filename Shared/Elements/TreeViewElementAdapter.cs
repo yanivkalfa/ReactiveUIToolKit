@@ -111,10 +111,7 @@ namespace ReactiveUITK.Elements
             }
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            if (
-                properties.TryGetValue("row", out var rowFn)
-                && rowFn is RowRenderer rf
-            )
+            if (properties.TryGetValue("row", out var rowFn) && rowFn is RowRenderer rf)
             {
                 parts.RowFn = rf;
                 if (!parts.RowWired)

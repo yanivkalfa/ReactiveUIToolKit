@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
-
 using ReactiveUITK.Core;
+
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class RadioButtonGroupProps : BaseProps

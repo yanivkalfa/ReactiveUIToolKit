@@ -13,6 +13,19 @@
   <ItemGroup>
     <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <!--
+      Roslyn for Tier-3 C# diagnostics, semantic tokens, and IntelliSense inside
+      .uitkx @code / @(expr) regions.
+      CSharp = core compilation API (SyntaxTree, Compilation, SemanticModel).
+      CSharp.Workspaces = AdhocWorkspace, Classifier, Formatter (code formatting).
+      Workspaces.Common = CompletionService base, Recommender (symbol recommendations).
+      Both ship net8.0 + netstandard2.0 targets; no conflict with Unity's internal
+      Roslyn 4.3.1 because lsp-server runs in a completely separate process.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.9.2" />
+    <!-- Explicit reference for Recommender and type-lookup APIs. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.9.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../language-lib/UitkxLanguage.csproj" />

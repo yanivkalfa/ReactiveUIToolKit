@@ -1,11 +1,11 @@
 {
   "formatter": {
-    "printWidth": 100,
-    "indentSize": 4,
+    "printWidth": 80,
+    "indentSize": 2,
     "indentStyle": "space",
     "singleAttributePerLine": false,
     "bracketSameLine": false,
-    "closingBracketSameLine": true,
+    "closingBracketSameLine": false,
     "insertSpaceBeforeSelfClose": true,
     "insertMissingSemicolonsOnFormat": true,
     "preserveBlankLines": true,

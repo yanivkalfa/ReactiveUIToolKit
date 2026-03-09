@@ -27,4 +27,6 @@ ide-extensions~/visual-studio/UitkxVsix/.vsix/
 # LSP server build artifacts (bin/obj — the committed DLLs live directly in lsp-server/bin/Release/net8.0/)
 ide-extensions~/lsp-server/obj/
 
+# Publisher credentials — never commit the real token
+publisher-secrets.json
 

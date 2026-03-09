@@ -70,10 +70,25 @@ namespace ReactiveUITK.Core
             Unmount();
         }
 
-        public void Initialize(VisualElement uiRootElement)
+        /// <summary>
+        /// Configures the root VisualElement and optionally seeds named environment slots
+        /// (portal targets, feature flags, etc.) into the shared <see cref="HostContext"/>.
+        /// Must be called before the first <see cref="Render"/> call.
+        /// </summary>
+        /// <param name="uiRootElement">The VisualElement that acts as the React root.</param>
+        /// <param name="env">
+        /// Optional callback invoked with the <see cref="HostContext"/> after built-in keys
+        /// (scheduler, env, etc.) are set.  Use this to seed named portal target slots:
+        /// <code>
+        /// rootRenderer.Initialize(uiDoc.rootVisualElement,
+        ///     env: ctx => ctx.Environment[PortalContextKeys.ModalRoot] = overlayLayer);
+        /// </code>
+        /// </param>
+        public void Initialize(VisualElement uiRootElement, Action<HostContext> env = null)
         {
             EnsureSetup();
             rootElement = uiRootElement;
+            env?.Invoke(sharedHostContext);
         }
 
         public void Render(VirtualNode rootNode)

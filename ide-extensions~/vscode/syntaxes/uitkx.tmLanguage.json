@@ -277,7 +277,9 @@
         "1": {
           "name": "punctuation.definition.tag.begin.uitkx"
         },
-        "2": {}
+        "2": {
+          "name": "entity.name.tag.uitkx"
+        }
       },
       "endCaptures": {
         "1": {
@@ -332,7 +334,9 @@
         "1": {
           "name": "punctuation.definition.tag.begin.uitkx"
         },
-        "2": {}
+        "2": {
+          "name": "entity.name.tag.uitkx"
+        }
       },
       "endCaptures": {
         "1": {
@@ -418,9 +422,9 @@
       ]
     },
     "attribute-boolean-shorthand": {
-      "comment": "Lone attribute name without = used as boolean true shorthand",
+      "comment": "Lone attribute name (boolean shorthand): must precede =, />, >, or whitespace — prevents over-matching tag-body content",
       "name": "entity.other.attribute-name.uitkx",
-      "match": "\\b[A-Za-z][A-Za-z0-9\\-_]*\\b"
+      "match": "\\b[A-Za-z][A-Za-z0-9\\-_]*\\b(?=\\s*(?:[=/> \\t\\r\\n]|$))"
     },
     "brace-expression": {
       "comment": "Nested { } — allows { } inside attribute-value-expression and cs-paren-expression",

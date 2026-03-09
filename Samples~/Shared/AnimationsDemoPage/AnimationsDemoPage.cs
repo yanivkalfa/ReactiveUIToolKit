@@ -125,7 +125,10 @@ namespace ReactiveUITK.Samples.Shared
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column"), (Padding, 12f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexDirection, "column"), (Padding, 12f) },
+                },
                 null,
                 V.Label(
                     new LabelProps

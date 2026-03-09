@@ -1,14 +1,20 @@
+using System;
 using System.IO;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using ReactiveUITK.Language.Formatter;
+using UitkxLanguageServer.Roslyn;
 
 namespace UitkxLanguageServer;
 
 public sealed class FormattingHandler : IDocumentFormattingHandler
 {
     private readonly DocumentStore _store;
+
+    // Singleton Roslyn-backed C# formatter: reused across all formatting requests
+    // to avoid repeated AdhocWorkspace allocation.
+    private readonly RoslynCSharpFormatter _csharpFormatter = new RoslynCSharpFormatter();
 
     public FormattingHandler(DocumentStore store) => _store = store;
 
@@ -38,9 +44,18 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
         var fileDir = localPath is not null ? Path.GetDirectoryName(localPath) : null;
 
         var opts = ConfigLoader.LoadFormatterOptions(fileDir);
-        var formatter = new AstFormatter(opts);
+        var formatter = new AstFormatter(opts, _csharpFormatter);
 
-        var formatted = formatter.Format(text, localPath ?? string.Empty);
+        string formatted;
+        try
+        {
+            formatted = formatter.Format(text, localPath ?? string.Empty);
+        }
+        catch (Exception ex)
+        {
+            ServerLog.Log($"[Formatting] Format error for '{localPath}': {ex.Message}");
+            return Task.FromResult<TextEditContainer?>(null);
+        }
 
         if (formatted == text)
             return Task.FromResult<TextEditContainer?>(null);

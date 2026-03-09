@@ -9,10 +9,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SyntheticEventDemoFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (log, setLog) = Hooks.UseState(
                 "Click, drag, or scroll inside the panel to inspect normalized synthetic events."
@@ -61,10 +58,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             "onPointerMove",
                             (PointerEventHandler)(e => UpdateLog("PointerMove", e))
                         },
-                        {
-                            "onPointerUp",
-                            (PointerEventHandler)(e => UpdateLog("PointerUp", e))
-                        },
+                        { "onPointerUp", (PointerEventHandler)(e => UpdateLog("PointerUp", e)) },
                         { "onWheel", (WheelEventHandler)(e => UpdateLog("Wheel", e)) },
                     },
                 },
@@ -79,7 +73,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.Padding, 10f), (StyleKeys.FlexGrow, 1f) },
+                },
                 null,
                 V.Label(
                     new LabelProps

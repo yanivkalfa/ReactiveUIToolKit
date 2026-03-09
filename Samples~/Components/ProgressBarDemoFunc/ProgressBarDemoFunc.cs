@@ -68,10 +68,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             (MarginRight, 4f),
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (progress, setProgress) = Hooks.UseState(15f);
             float Clamp(float value) => Mathf.Clamp(value, 0f, 100f);

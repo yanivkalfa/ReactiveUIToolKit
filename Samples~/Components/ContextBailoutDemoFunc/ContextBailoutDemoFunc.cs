@@ -160,10 +160,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static readonly Color s_blue = new Color(0.2f, 0.45f, 0.9f, 1f);
         private static readonly Color s_orange = new Color(0.9f, 0.5f, 0.15f, 1f);
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (useBlue, setUseBlue) = Hooks.UseState(true);
             Color themeColor = useBlue ? s_blue : s_orange;

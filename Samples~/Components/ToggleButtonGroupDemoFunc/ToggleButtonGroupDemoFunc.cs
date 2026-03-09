@@ -24,10 +24,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private static readonly string[] Options = new[] { "Alpha", "Beta", "Gamma" };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (selected, setSelected) = Hooks.UseState(0);
 

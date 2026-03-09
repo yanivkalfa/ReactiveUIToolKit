@@ -28,10 +28,7 @@ namespace ReactiveUITK.Samples.Shared
             public Action<int> OnCountChanged { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             var rows = p?.Rows ?? Array.Empty<MultiColumnTreeViewRowState>();
@@ -147,7 +144,10 @@ namespace ReactiveUITK.Samples.Shared
             PointerEventHandler Safe(Action candidate) => _ => candidate?.Invoke();
 
             var btnRow = V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexDirection, "row"), (MarginBottom, 6f) },
+                },
                 null,
                 V.Button(new ButtonProps { Text = "Add Parent", OnClick = Safe(addParent) }),
                 V.Button(new ButtonProps { Text = "Add Child", OnClick = Safe(addChild) }),

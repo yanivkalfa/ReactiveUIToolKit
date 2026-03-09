@@ -9,6 +9,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using ReactiveUITK.Language.IntelliSense;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
+using UitkxLanguageServer.Roslyn;
 
 namespace UitkxLanguageServer;
 
@@ -17,6 +18,7 @@ public sealed class CompletionHandler : ICompletionHandler
     private readonly UitkxSchema  _schema;
     private readonly DocumentStore _store;
     private readonly WorkspaceIndex _index;
+    private readonly RoslynCompletionProvider _roslynCompletion;
 
     private static readonly HashSet<string> s_headerDirectives =
         new(StringComparer.OrdinalIgnoreCase)
@@ -24,11 +26,12 @@ public sealed class CompletionHandler : ICompletionHandler
             "code",
         };
 
-    public CompletionHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index)
+    public CompletionHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index, RoslynHost roslynHost)
     {
-        _schema = schema;
-        _store  = store;
-        _index  = index;
+        _schema          = schema;
+        _store           = store;
+        _index           = index;
+        _roslynCompletion = new RoslynCompletionProvider(roslynHost);
     }
 
     public CompletionRegistrationOptions GetRegistrationOptions(
@@ -40,13 +43,13 @@ public sealed class CompletionHandler : ICompletionHandler
             DocumentSelector = new TextDocumentSelector(
                 new TextDocumentFilter { Pattern = "**/*.uitkx" }
             ),
-            TriggerCharacters = new Container<string>("<", "@", " ", "\n", "{"),
+            TriggerCharacters = new Container<string>("<", "@", "{"),
             ResolveProvider = false,
         };
 
     private static void Log(string msg) => ServerLog.Log(msg);
 
-    public Task<CompletionList> Handle(
+    public async Task<CompletionList> Handle(
         CompletionParams request,
         CancellationToken cancellationToken
     )
@@ -73,7 +76,7 @@ public sealed class CompletionHandler : ICompletionHandler
             else
             {
                 Log($"completion: store miss + disk miss — returning empty");
-                return Task.FromResult(new CompletionList());
+                return new CompletionList();
             }
         }
 
@@ -107,6 +110,41 @@ public sealed class CompletionHandler : ICompletionHandler
         bool inCodeBlockLine = IsInsideCodeBlockAtOffset(text, offset);
         bool inEmbeddedMarkupInCode = inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
 
+        // ── Roslyn C# completions (async, @(expr) or @code block interior) ───
+        // Skip the '<' trigger (handled below as tag completions) and @/control-flow
+        // positions (those produce UITKX-specific items).
+        bool wantsRoslynCompletion =
+            ctx.Kind == CursorKind.CSharpExpression
+            || (inCodeBlockLine
+                && !inEmbeddedMarkupInCode
+                && ctx.Kind != CursorKind.DirectiveName
+                && ctx.Kind != CursorKind.ControlFlowName
+                && triggerChar != "<");
+
+        if (wantsRoslynCompletion && !string.IsNullOrEmpty(localPath))
+        {
+            var roslynList = await _roslynCompletion
+                .GetCompletionsAsync(localPath, text, parseResult, offset, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (roslynList.Count > 0)
+            {
+                Log($"completion: Roslyn kind={ctx.Kind} → {roslynList.Count} items");
+                return new CompletionList(roslynList);
+            }
+
+            // Roslyn workspace not yet ready or returned nothing.
+            // For expression positions, return incomplete rather than falling through
+            // to UITKX items (which would be meaningless here).
+            // isIncomplete: true tells VS Code to retry when the user types more,
+            // so completions will appear once Roslyn finishes compiling.
+            if (ctx.Kind == CursorKind.CSharpExpression)
+            {
+                Log("completion: CSharpExpression — Roslyn not ready, returning incomplete");
+                return new CompletionList(isIncomplete: true);
+            }
+        }
+
         var items = ctx.Kind switch
         {
             CursorKind.DirectiveName when inFunctionStylePreamble  => FunctionStylePreambleItems(ctx.Prefix),
@@ -132,7 +170,7 @@ public sealed class CompletionHandler : ICompletionHandler
         if (!inDirectiveHeader)
             list = list.Where(i => !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase)).ToList();
         Log($"completion: kind={ctx.Kind} prefix='{ctx.Prefix}' → {list.Count} items");
-        return Task.FromResult(new CompletionList(list));
+        return new CompletionList(list);
     }
 
     // ── Completion item builders ─────────────────────────────────────────────

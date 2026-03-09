@@ -30,10 +30,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             public List<string> Entries = new List<string>();
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (generation, setGeneration) = Hooks.UseState(0);
             var logRef = Hooks.UseRef<LogRef>();
@@ -140,11 +137,21 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 // Two child panels — both will run effects in the same commit.
                 V.Func<EffectPanelFunc.Props>(
                     EffectPanelFunc.Render,
-                    new EffectPanelFunc.Props { Label = "Panel A", Generation = generation, Log = logRef.Current }
+                    new EffectPanelFunc.Props
+                    {
+                        Label = "Panel A",
+                        Generation = generation,
+                        Log = logRef.Current,
+                    }
                 ),
                 V.Func<EffectPanelFunc.Props>(
                     EffectPanelFunc.Render,
-                    new EffectPanelFunc.Props { Label = "Panel B", Generation = generation, Log = logRef.Current }
+                    new EffectPanelFunc.Props
+                    {
+                        Label = "Panel B",
+                        Generation = generation,
+                        Log = logRef.Current,
+                    }
                 ),
                 V.VisualElement(
                     new VisualElementProps { Style = logBoxStyle },
@@ -165,10 +172,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 public LogRef Log { get; set; }
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var p = rawProps as Props;
                 string label = p?.Label ?? "Panel";

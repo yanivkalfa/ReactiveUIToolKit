@@ -7,9 +7,7 @@ namespace ReactiveUITK.Elements
 {
     internal static class ColumnSignatureUtil
     {
-        public static (List<ColumnSignature> sig, List<RowRenderer> fns) Extract(
-            IEnumerable cols
-        )
+        public static (List<ColumnSignature> sig, List<RowRenderer> fns) Extract(IEnumerable cols)
         {
             var list = new List<ColumnSignature>();
             var fns = new List<RowRenderer>();

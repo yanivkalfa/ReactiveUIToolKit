@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-using ReactiveUITK.Core;
 namespace ReactiveUITK.Props.Typed
 {
     public sealed class Vector4FieldProps : BaseProps

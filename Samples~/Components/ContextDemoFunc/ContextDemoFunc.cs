@@ -10,10 +10,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
     {
         private const string ThemeKey = "context-demo-theme";
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (usePrimaryTheme, setUsePrimaryTheme) = Hooks.UseState(true);
 
@@ -34,7 +31,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         (StyleKeys.Padding, 12f),
                         (StyleKeys.BackgroundColor, new Color(0.12f, 0.12f, 0.12f, 1f)),
                         (StyleKeys.FlexGrow, 1f),
-                    }
+                    },
                 },
                 null,
                 V.Text("Context Demo (toggle theme to see consumers update)"),
@@ -61,10 +58,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 public string Label { get; set; }
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var theme = Hooks.UseContext<Color>(ThemeKey);
                 var p = rawProps as Props;

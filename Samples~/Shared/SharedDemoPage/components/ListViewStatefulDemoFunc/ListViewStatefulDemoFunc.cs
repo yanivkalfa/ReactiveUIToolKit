@@ -20,10 +20,7 @@ namespace ReactiveUITK.Samples.Shared
             public Action<int> OnCountChanged { get; set; }
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             var items = p?.Items ?? Array.Empty<ListViewRowState>();
@@ -34,22 +31,22 @@ namespace ReactiveUITK.Samples.Shared
             var rowRenderer = Hooks.UseMemo<RowRenderer>(
                 () =>
                     (index, obj) =>
+                    {
+                        var r = obj as ListViewRowState;
+                        if (r == null)
                         {
-                            var r = obj as ListViewRowState;
-                            if (r == null)
-                            {
-                                return V.Label(
-                                    new LabelProps { Text = "<invalid>" },
-                                    key: $"lv-invalid-{index}"
-                                );
-                            }
-                            var id = !string.IsNullOrEmpty(r.Id) ? r.Id : index.ToString();
-                            var funcKey = $"lv-row-{id}";
-                            var childrenNode = r.ShouldOverrideElement
-                                ? V.Label(new LabelProps { Text = r.Text ?? "<null>" }, funcKey)
-                                : V.Func(IntroCounterFunc.Render, null, funcKey);
-                            return V.VisualElement(null, key: $"lv-wrap-{id}", childrenNode);
-                        },
+                            return V.Label(
+                                new LabelProps { Text = "<invalid>" },
+                                key: $"lv-invalid-{index}"
+                            );
+                        }
+                        var id = !string.IsNullOrEmpty(r.Id) ? r.Id : index.ToString();
+                        var funcKey = $"lv-row-{id}";
+                        var childrenNode = r.ShouldOverrideElement
+                            ? V.Label(new LabelProps { Text = r.Text ?? "<null>" }, funcKey)
+                            : V.Func(IntroCounterFunc.Render, null, funcKey);
+                        return V.VisualElement(null, key: $"lv-wrap-{id}", childrenNode);
+                    },
                 items
             );
 
@@ -81,10 +78,7 @@ namespace ReactiveUITK.Samples.Shared
                 Style = new Style
                 {
                     (FlexGrow, 1f),
-                    (
-                        BackgroundColor,
-                        new Color(0.15f, 0.15f, 0.15f, 1f)
-                    ),
+                    (BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 1f)),
                 },
             };
 

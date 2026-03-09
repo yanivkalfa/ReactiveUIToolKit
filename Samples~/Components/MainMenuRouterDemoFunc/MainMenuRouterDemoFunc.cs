@@ -56,10 +56,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             (StyleKeys.FlexDirection, "column"),
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             return V.Router(
                 children: new[]

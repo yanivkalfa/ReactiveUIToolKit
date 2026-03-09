@@ -36,41 +36,41 @@ namespace ReactiveUITK.Props.Typed
         public LanguageDirection? LanguageDirection { get; set; }
 
         // --- Pointer events ---
-        public PointerEventHandler     OnClick          { get; set; }
-        public PointerEventHandler     OnPointerDown    { get; set; }
-        public PointerEventHandler     OnPointerUp      { get; set; }
-        public PointerEventHandler     OnPointerMove    { get; set; }
-        public PointerEventHandler     OnPointerEnter   { get; set; }
-        public PointerEventHandler     OnPointerLeave   { get; set; }
-        public WheelEventHandler       OnWheel          { get; set; }
-        public WheelEventHandler       OnScroll         { get; set; }
+        public PointerEventHandler OnClick { get; set; }
+        public PointerEventHandler OnPointerDown { get; set; }
+        public PointerEventHandler OnPointerUp { get; set; }
+        public PointerEventHandler OnPointerMove { get; set; }
+        public PointerEventHandler OnPointerEnter { get; set; }
+        public PointerEventHandler OnPointerLeave { get; set; }
+        public WheelEventHandler OnWheel { get; set; }
+        public WheelEventHandler OnScroll { get; set; }
 
         // --- Drag events (editor-only) ---
 #if UNITY_EDITOR
-        public DragEventHandler        OnDragEnter      { get; set; }
-        public DragEventHandler        OnDragLeave      { get; set; }
-        public DragEventHandler        OnDragUpdated    { get; set; }
-        public DragEventHandler        OnDragPerform    { get; set; }
-        public DragEventHandler        OnDragExited     { get; set; }
+        public DragEventHandler OnDragEnter { get; set; }
+        public DragEventHandler OnDragLeave { get; set; }
+        public DragEventHandler OnDragUpdated { get; set; }
+        public DragEventHandler OnDragPerform { get; set; }
+        public DragEventHandler OnDragExited { get; set; }
 #endif
 
         // --- Focus events ---
-        public FocusEventHandler       OnFocus          { get; set; }
-        public FocusEventHandler       OnBlur           { get; set; }
-        public FocusEventHandler       OnFocusIn        { get; set; }
-        public FocusEventHandler       OnFocusOut       { get; set; }
+        public FocusEventHandler OnFocus { get; set; }
+        public FocusEventHandler OnBlur { get; set; }
+        public FocusEventHandler OnFocusIn { get; set; }
+        public FocusEventHandler OnFocusOut { get; set; }
 
         // --- Keyboard events ---
-        public KeyboardEventHandler    OnKeyDown        { get; set; }
-        public KeyboardEventHandler    OnKeyUp          { get; set; }
+        public KeyboardEventHandler OnKeyDown { get; set; }
+        public KeyboardEventHandler OnKeyUp { get; set; }
 
         // --- Input event (fires on every keystroke) ---
-        public InputEventHandler       OnInput          { get; set; }
+        public InputEventHandler OnInput { get; set; }
 
         // --- Lifecycle events ---
-        public GeometryChangedEventHandler OnGeometryChanged  { get; set; }
-        public PanelLifecycleEventHandler  OnAttachToPanel    { get; set; }
-        public PanelLifecycleEventHandler  OnDetachFromPanel  { get; set; }
+        public GeometryChangedEventHandler OnGeometryChanged { get; set; }
+        public PanelLifecycleEventHandler OnAttachToPanel { get; set; }
+        public PanelLifecycleEventHandler OnDetachFromPanel { get; set; }
 
         // --- Escape hatch for non-standard / custom prop keys ---
         /// <summary>

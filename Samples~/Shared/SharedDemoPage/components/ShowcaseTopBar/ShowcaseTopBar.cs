@@ -30,21 +30,27 @@ namespace ReactiveUITK.Samples.Shared
                     null,
                     V.Text("Left")
                 ),
-                V.TextField(new TextFieldProps
-                {
-                    Style = SharedDemoPageStyles.TextInputStyle,
-                    Placeholder = "Type here...",
-                    HidePlaceholderOnFocus = false,
-                    Value = inputText,
-                    LabelText = string.IsNullOrEmpty(inputText) ? string.Empty : "Value: " + inputText,
-                    OnChange = p?.OnInputChange,
-                }),
-                V.Button(new ButtonProps
-                {
-                    Text = "Set Text",
-                    OnClick = _ => p?.OnSetText?.Invoke(),
-                    Style = new Style { (MarginLeft, 6f), (Height, 28f) },
-                }),
+                V.TextField(
+                    new TextFieldProps
+                    {
+                        Style = SharedDemoPageStyles.TextInputStyle,
+                        Placeholder = "Type here...",
+                        HidePlaceholderOnFocus = false,
+                        Value = inputText,
+                        LabelText = string.IsNullOrEmpty(inputText)
+                            ? string.Empty
+                            : "Value: " + inputText,
+                        OnChange = p?.OnInputChange,
+                    }
+                ),
+                V.Button(
+                    new ButtonProps
+                    {
+                        Text = "Set Text",
+                        OnClick = _ => p?.OnSetText?.Invoke(),
+                        Style = new Style { (MarginLeft, 6f), (Height, 28f) },
+                    }
+                ),
                 V.VisualElement(
                     new VisualElementProps { Style = SharedDemoPageStyles.RightBoxStyle },
                     null,

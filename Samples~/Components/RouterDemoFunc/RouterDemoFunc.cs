@@ -102,10 +102,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             return parts.Count == 0 ? path : $"{path}?{string.Join("&", parts)}";
         }
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             return V.Router(
                 children: new[]
@@ -162,7 +159,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                                             {
                                                 (StyleKeys.MarginTop, 6f),
                                                 (StyleKeys.FlexDirection, "column"),
-                                            }
+                                            },
                                         },
                                         null,
                                         V.Func(UserDetails),
@@ -191,7 +188,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
         private static VirtualNode BuildNavigationBar()
         {
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 4f) } },
+                new VisualElementProps
+                {
+                    Style = new Style
+                    {
+                        (StyleKeys.FlexDirection, "row"),
+                        (StyleKeys.MarginBottom, 4f),
+                    },
+                },
                 null,
                 NavLink.Create("/", "Home", exact: true),
                 NavLink.Create("/about", "About"),
@@ -211,7 +215,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var navState = RouterHooks.UseNavigationState();
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column") } },
+                new VisualElementProps
+                {
+                    Style = new Style { (StyleKeys.FlexDirection, "column") },
+                },
                 null,
                 V.Text($"Current path: {location?.Path ?? "/"}"),
                 V.Text($"Query params: {DescribeQuery(query)}"),
@@ -230,7 +237,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             var navigate = RouterHooks.UseNavigate();
             var replace = RouterHooks.UseNavigate(replace: true);
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.MarginTop, 4f) } },
+                new VisualElementProps
+                {
+                    Style = new Style
+                    {
+                        (StyleKeys.FlexDirection, "column"),
+                        (StyleKeys.MarginTop, 4f),
+                    },
+                },
                 null,
                 V.Text("Jump to any path:"),
                 V.TextField(
@@ -257,7 +271,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             (StyleKeys.FlexDirection, "row"),
                             (StyleKeys.MarginTop, 4f),
                             (StyleKeys.MarginBottom, 2f),
-                        }
+                        },
                     },
                     null,
                     V.Button(
@@ -336,10 +350,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 new QuickLink("/settings/preferences?panel=alerts", "Settings alerts panel"),
             };
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var linkNodes = new List<VirtualNode>(QuickLinks.Length);
                 foreach (var link in QuickLinks)
@@ -358,17 +369,21 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     );
                 }
                 return V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.FlexWrap, "wrap"),
+                        },
+                    },
                     null,
                     linkNodes.ToArray()
                 );
             }
         }
 
-        private static VirtualNode UserDetails(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        private static VirtualNode UserDetails(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var match = RouterHooks.UseRouteMatch();
             var query = RouterHooks.UseQuery();
@@ -414,7 +429,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 null,
                 V.Text("Settings route (demonstrates nested sub-routes):"),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.MarginTop, 4f),
+                        },
+                    },
                     null,
                     NavLink.Create("/settings/profile", "Profile", exact: true),
                     NavLink.Create("/settings/preferences", "Preferences", exact: true)
@@ -452,10 +474,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 );
             }
 
-            public static VirtualNode Render(
-                IProps rawProps,
-                IReadOnlyList<VirtualNode> children
-            )
+            public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
             {
                 var p = rawProps as Props;
                 string path = p?.Path ?? "/";
@@ -503,7 +522,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Text("History controls:"),
                 V.Text($"Can go back: {canBack}, can go forward: {canForward}"),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.FlexDirection, "row"),
+                            (StyleKeys.MarginTop, 4f),
+                        },
+                    },
                     null,
                     V.Button(
                         new ButtonProps
@@ -590,7 +616,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             );
 
             return V.VisualElement(
-                new VisualElementProps { Style = new Style { (StyleKeys.MarginTop, 8f), (StyleKeys.FlexDirection, "column") } },
+                new VisualElementProps
+                {
+                    Style = new Style
+                    {
+                        (StyleKeys.MarginTop, 8f),
+                        (StyleKeys.FlexDirection, "column"),
+                    },
+                },
                 null,
                 V.Toggle(
                     new ToggleProps
@@ -624,7 +657,14 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 V.Text(message),
                 V.Text("Use the button above to require confirmation before navigation."),
                 V.VisualElement(
-                    new VisualElementProps { Style = new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.FlexDirection, "row") } },
+                    new VisualElementProps
+                    {
+                        Style = new Style
+                        {
+                            (StyleKeys.MarginTop, 4f),
+                            (StyleKeys.FlexDirection, "row"),
+                        },
+                    },
                     null,
                     V.Button(
                         new ButtonProps

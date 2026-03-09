@@ -4,9 +4,9 @@ using UColor = UnityEngine.Color;
 
 namespace ReactiveUITK.Samples.Shared
 {
-    internal static class SharedDemoPageStyles
+    public static class SharedDemoPageStyles
     {
-        internal static readonly Style TopBarStyle = new()
+        public static readonly Style TopBarStyle = new()
         {
             (StyleKeys.FlexDirection, "row"),
             (JustifyContent, "space-between"),
@@ -20,7 +20,7 @@ namespace ReactiveUITK.Samples.Shared
             (BorderBottomColor, new UColor(0.85f, 0.85f, 0.85f, 1f)),
         };
 
-        internal static readonly Style LeftBoxStyle = new()
+        public static readonly Style LeftBoxStyle = new()
         {
             (BackgroundColor, new UColor(0.2f, 0.4f, 0.9f, 1f)),
             (TextColor, UColor.white),
@@ -32,7 +32,7 @@ namespace ReactiveUITK.Samples.Shared
             (FontSize, 14f),
         };
 
-        internal static readonly Style RightBoxStyle = new()
+        public static readonly Style RightBoxStyle = new()
         {
             (BackgroundColor, new UColor(0.9f, 0.3f, 0.2f, 1f)),
             (TextColor, UColor.white),
@@ -44,7 +44,7 @@ namespace ReactiveUITK.Samples.Shared
             (FontSize, 14f),
         };
 
-        internal static readonly Style TextInputStyle = new()
+        public static readonly Style TextInputStyle = new()
         {
             (FlexGrow, 1f),
             (MarginLeft, 8f),
@@ -60,7 +60,7 @@ namespace ReactiveUITK.Samples.Shared
             (BackgroundColor, new UColor(1f, 1f, 1f, 1f)),
         };
 
-        internal static readonly Style PageStyle = new()
+        public static readonly Style PageStyle = new()
         {
             (StyleKeys.FlexDirection, "column"),
             (FlexGrow, 1f),
@@ -68,7 +68,7 @@ namespace ReactiveUITK.Samples.Shared
             (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
         };
 
-        internal static readonly Style ExtrasContainerStyle = new()
+        public static readonly Style ExtrasContainerStyle = new()
         {
             (MarginTop, 12f),
             (PaddingLeft, 12f),
@@ -81,32 +81,32 @@ namespace ReactiveUITK.Samples.Shared
             (StyleKeys.FlexDirection, "column"),
         };
 
-        internal static readonly Style OuterWrapperStyle = new()
+        public static readonly Style OuterWrapperStyle = new()
         {
             (BackgroundColor, new UColor(0.2f, 0.4f, 0.8f, 1f)),
             (FlexGrow, 1f),
         };
 
-        internal static readonly Style SafeWrapperStyle = new()
+        public static readonly Style SafeWrapperStyle = new()
         {
             (BackgroundColor, new UColor(0.2f, 0.6f, 0.2f, 1f)),
             (FlexGrow, 1f),
             (StyleKeys.FlexDirection, "column"),
         };
 
-        internal static readonly Style BarSlotStyle = new()
+        public static readonly Style BarSlotStyle = new()
         {
             (FlexShrink, 0f),
             (MinHeight, 110f),
         };
 
-        internal static readonly Style MainScrollStyle = new()
+        public static readonly Style MainScrollStyle = new()
         {
             (FlexGrow, 1f),
             (PaddingBottom, 20f),
         };
 
-        internal static readonly Style NewCompsGroupContentStyle = new()
+        public static readonly Style NewCompsGroupContentStyle = new()
         {
             (PaddingLeft, 8f),
             (PaddingRight, 8f),
@@ -114,7 +114,7 @@ namespace ReactiveUITK.Samples.Shared
             (PaddingBottom, 6f),
         };
 
-        internal static readonly Style FoldoutHeaderStyle = new()
+        public static readonly Style FoldoutHeaderStyle = new()
         {
             (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)),
             (PaddingLeft, 4f),
@@ -122,9 +122,9 @@ namespace ReactiveUITK.Samples.Shared
             (PaddingBottom, 2f),
         };
 
-        internal static readonly Style FoldoutContentStyle = new() { (PaddingLeft, 6f) };
+        public static readonly Style FoldoutContentStyle = new() { (PaddingLeft, 6f) };
 
-        internal static readonly Style ImageDemoStyle = new()
+        public static readonly Style ImageDemoStyle = new()
         {
             (Width, 96f),
             (Height, 96f),
@@ -132,6 +132,6 @@ namespace ReactiveUITK.Samples.Shared
             (BorderRadius, 6f),
         };
 
-        internal static readonly Style SliderWidthStyle = new() { (Width, 200f) };
+        public static readonly Style SliderWidthStyle = new() { (Width, 200f) };
     }
 }

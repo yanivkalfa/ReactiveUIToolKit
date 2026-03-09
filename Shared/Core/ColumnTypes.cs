@@ -55,7 +55,6 @@ namespace ReactiveUITK.Core
         public Dictionary<string, int> ColumnDisplayIndex { get; set; }
 
         /// <inheritdoc/>
-        public Dictionary<string, object> ToDictionary() =>
-            new Dictionary<string, object>();
+        public Dictionary<string, object> ToDictionary() => new Dictionary<string, object>();
     }
 }

@@ -7,15 +7,10 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 {
     public static class SignalCounterDemoFunc
     {
-        private static readonly Signal<int> CounterSignal = ReactiveUITK.Signals.SignalFactory.Get<int>(
-            "demo.counter",
-            0
-        );
+        private static readonly Signal<int> CounterSignal =
+            ReactiveUITK.Signals.SignalFactory.Get<int>("demo.counter", 0);
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             int count = Hooks.UseSignal(CounterSignal);
             return V.VisualElement(
@@ -49,11 +44,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                         }
                     ),
                     V.Button(
-                        new ButtonProps
-                        {
-                            Text = "Reset",
-                            OnClick = _ => CounterSignal.Dispatch(0),
-                        }
+                        new ButtonProps { Text = "Reset", OnClick = _ => CounterSignal.Dispatch(0) }
                     )
                 )
             );

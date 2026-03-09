@@ -123,10 +123,7 @@ namespace ReactiveUITK.Elements
                 listView.selectionType = sel;
             }
 
-            if (
-                properties.TryGetValue("row", out var rowObj)
-                && rowObj is RowRenderer rowFn
-            )
+            if (properties.TryGetValue("row", out var rowObj) && rowObj is RowRenderer rowFn)
             {
                 parts.RowFn = rowFn;
                 if (!parts.RowWired)
@@ -197,17 +194,11 @@ namespace ReactiveUITK.Elements
             {
                 listView.makeItem = () => make();
             }
-            if (
-                properties.TryGetValue("bindItem", out var bi)
-                && bi is ItemBinder bind
-            )
+            if (properties.TryGetValue("bindItem", out var bi) && bi is ItemBinder bind)
             {
                 listView.bindItem = (ve, i) => bind(ve, i);
             }
-            if (
-                properties.TryGetValue("unbindItem", out var ubi)
-                && ubi is ItemBinder unbind
-            )
+            if (properties.TryGetValue("unbindItem", out var ubi) && ubi is ItemBinder unbind)
             {
                 listView.unbindItem = (ve, i) => unbind(ve, i);
             }
@@ -265,10 +256,7 @@ namespace ReactiveUITK.Elements
                 }
             }
 
-            if (
-                next.TryGetValue("row", out var rowNext)
-                && rowNext is RowRenderer newRowFn
-            )
+            if (next.TryGetValue("row", out var rowNext) && rowNext is RowRenderer newRowFn)
             {
                 bool changed = !ReferenceEquals(parts.RowFn, newRowFn);
                 parts.RowFn = newRowFn;
@@ -356,19 +344,13 @@ namespace ReactiveUITK.Elements
             }
             previous.TryGetValue("bindItem", out var oldBindObj);
             next.TryGetValue("bindItem", out var newBindObj);
-            if (
-                !ReferenceEquals(oldBindObj, newBindObj)
-                && newBindObj is ItemBinder bind
-            )
+            if (!ReferenceEquals(oldBindObj, newBindObj) && newBindObj is ItemBinder bind)
             {
                 listView.bindItem = (ve, i) => bind(ve, i);
             }
             previous.TryGetValue("unbindItem", out var oldUnbindObj);
             next.TryGetValue("unbindItem", out var newUnbindObj);
-            if (
-                !ReferenceEquals(oldUnbindObj, newUnbindObj)
-                && newUnbindObj is ItemBinder unbind
-            )
+            if (!ReferenceEquals(oldUnbindObj, newUnbindObj) && newUnbindObj is ItemBinder unbind)
             {
                 listView.unbindItem = (ve, i) => unbind(ve, i);
             }

@@ -7,10 +7,7 @@ namespace ReactiveUITK.Samples.Shared
 {
     public static class IntroCounterFunc
     {
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var (count, setCount) = Hooks.UseState(0);
 

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OmniSharp.Extensions.LanguageServer.Server;
 using UitkxLanguageServer;
+using UitkxLanguageServer.Roslyn;
 
 // Redirect Console.Error to stderr (Console.Out is the LSP transport)
 Console.InputEncoding = System.Text.Encoding.UTF8;
@@ -28,6 +29,7 @@ var server = await LanguageServer.From(options =>
             services.AddSingleton<UitkxSchema>();
             services.AddSingleton<DocumentStore>();
             services.AddSingleton<WorkspaceIndex>();
+            services.AddSingleton<RoslynHost>();
             services.AddSingleton<DiagnosticsPublisher>();
             services.AddSingleton<OmniSharp.Extensions.LanguageServer.Protocol.Server.IOnLanguageServerStarted>(
                 new StartupLogger()
@@ -35,6 +37,14 @@ var server = await LanguageServer.From(options =>
             services.AddSingleton<OmniSharp.Extensions.LanguageServer.Protocol.Server.IOnLanguageServerStarted>(
                 sp => sp.GetRequiredService<WorkspaceIndex>()
             );
+            // Notify RoslynHost of the workspace root once the server has completed
+            // the Initialize handshake (rootUri / rootPath is available at that point).
+            services.AddSingleton<OmniSharp.Extensions.LanguageServer.Protocol.Server.IOnLanguageServerStarted>(
+                sp =>
+                {
+                    var roslynHost = sp.GetRequiredService<RoslynHost>();
+                    return new RoslynHostStartup(roslynHost);
+                });
         })
 );
 
