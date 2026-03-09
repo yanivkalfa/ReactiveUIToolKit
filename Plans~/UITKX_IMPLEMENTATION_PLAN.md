@@ -25,7 +25,7 @@
 | P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[ ]` NOT STARTED |
 | P10 | Rider Plugin | `[ ]` NOT STARTED |
 | P11 | ForwardRef UITKX Syntax — `ref={...}` on user-defined components | `[ ]` NOT STARTED |
-| P12 | Portal with External VisualElement Target | `[ ]` NOT STARTED |
+| P12 | Portal with External VisualElement Target | `[DONE]` |
 
 **Pre-existing work already done (do not re-do):**
 - Checkmark TextMate grammar (`grammar/uitkx.tmLanguage.json`) -- covers all directives, elements, expressions, `@case` fix deployed in v1.0.17
@@ -1687,16 +1687,13 @@ The language library must not attempt to parse C# from `@code` blocks -- only th
    **Fix scope**: Parser must recognise `ref` as a special prop on PascalCase tags;
    emitter must route it through `V.ForwardRef` wrapping. Tracked as P11.
 
-8. **[CRITICAL — P12] Portal with external VisualElement target**: `<Portal target={ve}>`
-   requires passing a live `VisualElement` handle that lives outside the component tree
-   (e.g. a panel owned by the Unity EditorWindow). Typed function parameters now work
-   (`component MyPortal(VisualElement target = null)`), so the props side is unblocked.
-   The remaining gap is ergonomics: a `.uitkx` component has no built-in way to receive
-   a `VisualElement` that comes from an imperative C# host (root renderer setup code).
-   The recommended pattern is to use `@inject VisualElement PortalTarget` (static field
-   injection) or pass it via a Context, but neither is demonstrated or documented yet.
-   **Impact**: Portal-based overlays, tooltips anchored to external panels, and
-   cross-panel event scoping cannot be expressed end-to-end in UITKX without workarounds.
-   The `PortalEventScopeDemoFunc.uitkx` sample is a simplified substitute.
-   **Fix scope**: Document the `@inject` + Portal pattern; update the demo; add a
-   code example to the docs site. Tracked as P12.
+8. **[DONE — P12] Portal with external VisualElement target**: `<Portal target={ve}>`
+   resolved via `HostContext.Environment` seeding + `useContext<VisualElement>` pattern.
+   **Implementation:**
+   - `Shared/Core/PortalContextKeys.cs` — public well-known keys (`ModalRoot`, `TooltipRoot`, `OverlayRoot`).
+   - `Editor/EditorRootRendererUtility` — `Mount`/`Render` accept `Action<HostContext> env = null`;
+     caller seeds named slots before the renderer is created.
+   - `Runtime/Core/RootRenderer` — `Initialize` accepts `Action<HostContext> env = null`.
+   - `EditorUitkxPortalDemoWindow` — builds split layout, seeds `PortalContextKeys.ModalRoot`.
+   - `PortalEventScopeDemoFunc.uitkx` — uses `useContext<VisualElement>(PortalContextKeys.ModalRoot)`
+     and `V.Portal(portalTarget, ...)`. The TODO workaround comment is removed.
