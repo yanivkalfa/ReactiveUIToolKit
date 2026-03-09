@@ -450,6 +450,7 @@ namespace ReactiveUITK.Core
     /// </summary>
     public delegate void FocusEventHandler(ReactiveFocusEvent e);
 
+#if UNITY_EDITOR
     /// <summary>
     /// Handler for drag events (Editor only).
     /// Covers props: onDragEnter, onDragLeave, onDragUpdated, onDragPerform,
@@ -458,6 +459,7 @@ namespace ReactiveUITK.Core
     /// Origin: EventCallback&lt;DragEnterEvent&gt; / etc.
     /// </summary>
     public delegate void DragEventHandler(ReactiveDragEvent e);
+#endif
 
     /// <summary>
     /// Handler for geometry-changed events.
