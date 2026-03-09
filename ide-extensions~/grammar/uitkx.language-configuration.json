@@ -6,41 +6,25 @@
   "brackets": [
     ["{", "}"],
     ["[", "]"],
-    ["(", ")"],
-    ["<", ">"]
+    ["(", ")"]
   ],
   "autoClosingPairs": [
     ["{", "}"],
     ["[", "]"],
     ["(", ")"],
     ["\"", "\""],
-    ["'", "'"],
-    ["<", ">"]
+    ["'", "'"]
   ],
   "surroundingPairs": [
     ["{", "}"],
     ["[", "]"],
     ["(", ")"],
     ["\"", "\""],
-    ["'", "'"],
-    ["<", ">"]
+    ["'", "'"]
   ],
   "indentationRules": {
     "increaseIndentPattern": "^((?!\\/\\/).)*(\\{[^}\"'`]*|\\([^)\"'`]*|\\[[^\\]\"'`]*|<[A-Za-z][^>]*[^/]?)$",
     "decreaseIndentPattern": "^\\s*(\\}|\\)|\\]|<\\/[A-Za-z])"
   },
-  "onEnterRules": [
-    {
-      "beforeText": "\\{[^}]*$",
-      "action": { "indent": "indent" }
-    },
-    {
-      "beforeText": "^\\s*\\}",
-      "action": { "indent": "outdent" }
-    },
-    {
-      "beforeText": "<([A-Za-z][A-Za-z0-9]*)(?:[^>]*)>\\s*$",
-      "action": { "indent": "indent" }
-    }
-  ]
+  "onEnterRules": []
 }

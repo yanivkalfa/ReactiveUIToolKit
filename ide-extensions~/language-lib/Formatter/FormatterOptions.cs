@@ -12,10 +12,10 @@ namespace ReactiveUITK.Language.Formatter
         // ── Output layout ────────────────────────────────────────────────────
 
         /// <summary>Soft column limit. Long attribute lists wrap when a tag would exceed this.</summary>
-        public int PrintWidth { get; init; } = 100;
+        public int PrintWidth { get; init; } = 80;
 
         /// <summary>Number of spaces (or tab-width equivalent) per indent level.</summary>
-        public int IndentSize { get; init; } = 4;
+        public int IndentSize { get; init; } = 2;
 
         /// <summary>When true, indent with hard tabs; otherwise use spaces.</summary>
         public bool UseTabIndent { get; init; } = false;
@@ -36,9 +36,10 @@ namespace ReactiveUITK.Language.Formatter
 
         /// <summary>
         /// Applies specifically to self-closing tags (<c>/&gt;</c>).
-        /// When true (default), <c>/&gt;</c> stays on the last attribute line.
+        /// When false (Biome/Prettier default), <c>/&gt;</c> goes on its own line
+        /// when the tag wraps, at the element's indent level.
         /// </summary>
-        public bool ClosingBracketSameLine { get; init; } = true;
+        public bool ClosingBracketSameLine { get; init; } = false;
 
         /// <summary>Emit <c>&lt;Foo /&gt;</c> (space before slash). Default true.</summary>
         public bool InsertSpaceBeforeSelfClose { get; init; } = true;

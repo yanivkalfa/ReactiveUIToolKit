@@ -1,4 +1,88 @@
-# Changelog
+﻿# Changelog
+
+## [1.0.109] - 2026-03-09
+- Skip block-body lambdas (CS1977 unsuppressable), add provideContext stub
+
+## [1.0.108] - 2026-03-09
+- Fix conditional JSX return (void->object render method), add useContext and useLayoutEffect stubs
+
+## [1.0.107] - 2026-03-09
+- Fix conditional JSX return (void->object render method), add useContext and useLayoutEffect stubs
+
+## [1.0.106] - 2026-03-09
+- Keep CS0428 method-group warning visible (orange = warning, not an error)
+
+## [1.0.105] - 2026-03-09
+- Fix useRef returning object (now Ref<T>), zero-arg lambdas cast to Action, method-group suppress CS0428
+
+## [1.0.104] - 2026-03-09
+- Fix 'object does not contain newValue': cast attribute lambdas to Action<dynamic> so e.newValue and similar event property accesses compile
+
+## [1.0.103] - 2026-03-09
+- Fix Color ambiguity: add using Color = UnityEngine.Color alias to virtual doc usings (same fix as CSharpEmitter)
+
+## [1.0.102] - 2026-03-09
+- Fix UnityEngine.UIElementsModule CS0433/CS0012: skip monolithic UnityEngine.dll forwarder from Managed/, use split module DLLs instead
+
+## [1.0.101] - 2026-03-09
+- Fix UnityEngine module DLL ambiguity (two-pass Managed scan); fix AnimationsDemoPage stray semicolons (PowerShell write)
+
+## [1.0.100] - 2026-03-09
+- Fix useState setter stub: use delegate T(T prev) covering both setX(value) and setX(prev=>{}) patterns; fix Managed DLL scan skipping UnityEngine module DLLs when monolithic UnityEngine.dll already present
+
+## [1.0.99] - 2026-03-09
+- Fix useState setter type (use Hooks.StateSetter<T>) so setX(prev => {...}) functional updates compile; fix reference locator walk-up and recursive managed dir scan for UnityEngine.UIElementsModule
+
+## [1.0.98] - 2026-03-09
+- Fix @for/@foreach/@while loop variables not in scope for attribute expressions inside body
+
+## [1.0.97] - 2026-03-09
+- Fix stray semicolons in AnimationsDemoPage useMemo dep args causing CS1026/CS1513 Unity compile errors
+
+## [1.0.97] - 2026-03-09
+- Fix stray semicolons in AnimationsDemoPage useMemo dep args causing CS1026/CS1513 Unity compile errors
+
+## [1.0.96] - 2026-03-09
+- Cast lambda attribute expressions to Action<object> instead of object to fix delegate inference errors
+
+## [1.0.95] - 2026-03-09
+- Suppress CS1026/CS1513/CS0411 virtual-doc noise; bump to v1.0.95
+
+## [1.0.94] - 2026-03-09
+- Suppress CS1026/CS1513 cascade errors and CS0411 lambda noise in virtual doc diagnostics (RoslynHost explicit filter + pragma)
+
+## [1.0.94] - 2026-03-09
+- Fix stray semicolons in AnimationsDemoPage useMemo dep args (CS1026/CS1513)
+
+## [1.0.94] - 2026-03-09
+- fix IsSuppressed filter
+
+## [1.0.94] - 2026-03-09
+- no-op reinstall
+
+## [1.0.94] - 2026-03-09
+- Fix CS0104 FlexDirection ambiguity, CS0411 lambda inference, skip setup JSX attribute collection
+
+## [1.0.94] - 2026-03-09
+- Fix CS0104 FlexDirection ambiguity, CS0411 lambda inference, skip setup JSX attribute collection
+
+## [1.0.93] - 2026-03-09
+- Fix (repackage): ensure rebuilt DLL is bundled — usings/hook stubs now correctly compiled into server
+
+## [1.0.92] - 2026-03-09
+- Fix: add Animation/Props.Typed namespaces + StyleKeys static using + UColor alias to virtual doc; fix CS0815 on JSX variable assignments
+
+## [1.0.91] - 2026-03-09
+- Fix: useState/useMemo/useEffect hook shorthands no longer cause CS0103/CS8130 errors in function-style components
+
+## [1.0.90] - 2026-03-09
+- Fix: JSX variable assignments in function-style setup code no longer cause cascading Roslyn errors
+
+## [1.0.89] - 2026-03-09
+- Fix tokenization, formatting (Biome/Prettier style), completions, and error squiggle columns
+
+## [1.0.88] - 2026-03-09
+- Add Roslyn-powered C# IntelliSense completions, semantic tokens, diagnostics, and formatting inside .uitkx files
 
 ## [1.0.87]
 - **Fix: function-style components no longer require a companion `.cs` file.**
@@ -18,7 +102,7 @@
   before the `component` keyword. The declared namespaces are emitted as `using`
   statements in the generated C# output alongside the built-in framework usings.
 - **Fix: nested generic type arguments in hook shorthands.**
-  `useContext<Dictionary<string, Color>>()` and similar 2–3 level nested generics
+  `useContext<Dictionary<string, Color>>()` and similar 2â€“3 level nested generics
   now correctly expand to `Hooks.UseContext<Dictionary<string, Color>>()`. The
   previous regex stopped at the first `>` making nested types silently unmatched.
 
@@ -166,7 +250,7 @@
 - **Fix: formatter no longer erases `{/* */}` JSX comments on save.** The formatter
   now detects `{/*` in the source and skips formatting entirely for that document,
   preserving all comments.
-- **Fix: `{/*` auto-closes correctly.** `{/*` → `*/}` is now listed before `{` → `}`
+- **Fix: `{/*` auto-closes correctly.** `{/*` â†’ `*/}` is now listed before `{` â†’ `}`
   in `autoClosingPairs`, so VS Code picks the longer match before the single-char one.
 - **Fix: Unity Console click now actually opens VS Code on Windows.** `code` is a
   `.cmd` script on Windows; the handler now uses `cmd.exe /c code --goto ...` so
@@ -181,14 +265,14 @@
   opens of `.uitkx` assets and redirects them to `code --goto path:line`, so
   clicking a Unity Console hyperlink (backed by the `#line` directives already
   emitted by the source generator) opens the exact `.uitkx` line in VS Code.
-- **Feature 8.6.2a: React-style hook shorthands** — `useState(0)`, `useEffect(...)`,
+- **Feature 8.6.2a: React-style hook shorthands** â€” `useState(0)`, `useEffect(...)`,
   `useMemo(...)` etc. are now valid in `@code` blocks. The emitter normalises them
   to `Hooks.UseState(0)` etc. before generating C#. The rules-of-hooks validator
   (UITKX0015/0016/0018) also fires on the camelCase shorthand forms.
-- **Feature 8.6.2b: Hook setter coloring** — in `var (count, setCount) = useState(0)`,
+- **Feature 8.6.2b: Hook setter coloring** â€” in `var (count, setCount) = useState(0)`,
   the setter variable `setCount` is now colored with the attribute/property theme
   color, making it visually distinct from the state variable.
-- **Feature 8.6.2c: Hook hover documentation** — hovering `useState`, `useEffect`,
+- **Feature 8.6.2c: Hook hover documentation** â€” hovering `useState`, `useEffect`,
   `Hooks.UseState` etc. shows a markdown tooltip with the hook's signature and
   a one-line description. Works for all 10 built-in hooks (both shorthand and
   fully-qualified forms).
@@ -212,13 +296,13 @@
 - **Fix: deleting `>` from an opening tag no longer corrupts children's syntax colors**.
   Root cause was in `UitkxParser.ParseAttributes()`. When `>` was missing, the attribute
   scanner had no exit condition for `@` or `<`, so it consumed the entire rest of the file
-  as attribute content — reading `@switch`, `(mode)`, `{...}` switch body, child elements,
+  as attribute content â€” reading `@switch`, `(mode)`, `{...}` switch body, child elements,
   all as bogus attribute tokens. The resulting mangled AST produced wrong semantic tokens
   and wrong diagnostics for the whole file.
 
   Fix: `ParseAttributes()` now breaks immediately when it encounters `@` or `<` at the
   top of the attribute loop. Both are unambiguous: `@` always signals a control-flow
-  directive and `<` always signals a child element — neither can appear as a valid
+  directive and `<` always signals a child element â€” neither can appear as a valid
   attribute start at this level (expressions are consumed atomically by `ReadBraceExpression`
   and string values by `ReadStringLiteral` before the outer loop sees them).
 
@@ -253,7 +337,7 @@
   Implementation: `SemanticTokensProvider.GetTokens` accepts an optional
   `HashSet<string>? knownElements`; `SemanticTokensHandler` passes
   `_index.IsReady ? _index.KnownElements : null`.  
-  Also changed `uitkxElement` `superType` from `"type"` → `"class"` in
+  Also changed `uitkxElement` `superType` from `"type"` â†’ `"class"` in
   `package.json` to avoid additional theme-driven underlines on the type token.
 
 ## [1.0.30]
@@ -313,7 +397,7 @@
 ## [1.0.1]
 
 ### Changed
-- LSP server now targets .NET 8 (was .NET 10) — compatible with .NET 8, 9, and 10 runtimes
+- LSP server now targets .NET 8 (was .NET 10) â€” compatible with .NET 8, 9, and 10 runtimes
 
 ## [1.0.0]
 

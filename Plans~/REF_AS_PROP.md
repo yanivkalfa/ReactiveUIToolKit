@@ -1,5 +1,7 @@
 # Ref-as-Prop — Implementation Plan
 
+**Status:** ✅ COMPLETE — All three phases done. `V.ForwardRef` deleted, demos rewritten, generator `ref=` sugar implemented.
+
 > **React 19 model applied to ReactiveUITK.**
 > `V.ForwardRef` is removed entirely. `ref` becomes a plain component prop.
 > No deprecation warnings, no compatibility shim — hard removal.
@@ -396,21 +398,21 @@ component FancyInput(Hooks.MutableRef<TextField>? componentRef = null, string la
 ## 9. File Checklist
 
 ### Phase 1 (delete V.ForwardRef)
-- [ ] `Shared/Core/V.cs` — delete `ForwardRef<TProps>` + `ForwardRef` + their XML doc comments
+- [x] `Shared/Core/V.cs` — delete `ForwardRef<TProps>` + `ForwardRef` + their XML doc comments
 
 ### Phase 2 (rewrite demos)
-- [ ] `Samples/Components/RefForwardingDemoFunc/RefForwardingDemoFunc.cs` — full rewrite
-- [ ] Create `Samples/UITKX/Components/RefForwardingDemoFunc/components/RefChild/RefChild.uitkx`
-- [ ] Update `Samples/UITKX/Components/RefForwardingDemoFunc/RefForwardingDemoFunc.uitkx`
+- [x] `Samples/Components/RefForwardingDemoFunc/RefForwardingDemoFunc.cs` — full rewrite
+- [x] Create `Samples/UITKX/Components/RefForwardingDemoFunc/components/RefChild/RefChild.uitkx`
+- [x] Update `Samples/UITKX/Components/RefForwardingDemoFunc/RefForwardingDemoFunc.uitkx`
 
 ### Phase 3 (generator changes)
-- [ ] `ide-extensions~/language-lib/Parser/ParseResult.cs` — no change needed (FunctionParam already sufficient)
-- [ ] `SourceGenerator~/UitkxGenerator.cs` — collect peer DirectiveSets in pre-scan loop
-- [ ] `SourceGenerator~/UitkxPipeline.cs` — thread `peerDirectiveSets` parameter through
-- [ ] `SourceGenerator~/Emitter/PropsResolver.cs` — add `TryGetRefParamPropName`
-- [ ] `SourceGenerator~/Emitter/CSharpEmitter.cs` — route `ref=` in EmitFuncComponent
-- [ ] `SourceGenerator~/Tests/EmitterTests.cs` — four new tests
-- [ ] Update `Plans~/UITKX_IMPLEMENTATION_PLAN.md` P11 status → IN PROGRESS → DONE
+- [x] `ide-extensions~/language-lib/Parser/ParseResult.cs` — no change needed (FunctionParam already sufficient)
+- [x] `SourceGenerator~/UitkxGenerator.cs` — collect peer DirectiveSets in pre-scan loop
+- [x] `SourceGenerator~/UitkxPipeline.cs` — thread `peerDirectiveSets` parameter through
+- [x] `SourceGenerator~/Emitter/PropsResolver.cs` — add `TryGetRefParamPropName`
+- [x] `SourceGenerator~/Emitter/CSharpEmitter.cs` — route `ref=` in EmitFuncComponent
+- [x] `SourceGenerator~/Tests/EmitterTests.cs` — four new tests
+- [x] Update `Plans~/UITKX_IMPLEMENTATION_PLAN.md` P11 status → IN PROGRESS → DONE
 
 ---
 

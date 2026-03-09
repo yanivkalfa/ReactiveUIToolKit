@@ -4,9 +4,9 @@ using ReactiveUITK.Props.Typed;
 
 namespace ReactiveUITK.Samples.Shared
 {
-    internal static class SharedDemoPageUtils
+    public static class SharedDemoPageUtils
     {
-        internal static Dictionary<string, T> CloneDict<T>(IReadOnlyDictionary<string, T> source)
+        public static Dictionary<string, T> CloneDict<T>(IReadOnlyDictionary<string, T> source)
         {
             if (source == null)
                 return null;
@@ -15,7 +15,7 @@ namespace ReactiveUITK.Samples.Shared
             return new Dictionary<string, T>(source);
         }
 
-        internal static bool DictEqual<T>(
+        public static bool DictEqual<T>(
             IReadOnlyDictionary<string, T> left,
             IReadOnlyDictionary<string, T> right
         )
@@ -36,7 +36,7 @@ namespace ReactiveUITK.Samples.Shared
             return true;
         }
 
-        internal static ColumnLayoutState CloneLayout(ColumnLayoutState layout)
+        public static ColumnLayoutState CloneLayout(ColumnLayoutState layout)
         {
             if (layout == null)
                 return null;
@@ -48,14 +48,14 @@ namespace ReactiveUITK.Samples.Shared
             };
         }
 
-        internal static bool LayoutEqual(ColumnLayoutState a, ColumnLayoutState b)
+        public static bool LayoutEqual(ColumnLayoutState a, ColumnLayoutState b)
         {
             return DictEqual(a?.ColumnWidths, b?.ColumnWidths)
                 && DictEqual(a?.ColumnVisibility, b?.ColumnVisibility)
                 && DictEqual(a?.ColumnDisplayIndex, b?.ColumnDisplayIndex);
         }
 
-        internal static HashSet<int> BuildTreeValidIds(IReadOnlyList<TreeViewRowState> rows)
+        public static HashSet<int> BuildTreeValidIds(IReadOnlyList<TreeViewRowState> rows)
         {
             var set = new HashSet<int>();
             if (rows == null)
@@ -72,7 +72,7 @@ namespace ReactiveUITK.Samples.Shared
             return set;
         }
 
-        internal static List<int> PruneTreeExpandedIds(
+        public static List<int> PruneTreeExpandedIds(
             IReadOnlyList<TreeViewRowState> rows,
             IList<int> expanded
         )

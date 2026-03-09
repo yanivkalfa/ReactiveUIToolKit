@@ -33,7 +33,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [ ] Ensure parser/generator output is deterministic across machines.
 - [ ] Validate generated C# compiles in clean Unity project import.
 - [ ] Validate line mapping and error localization back to `.uitkx`.
-- [ ] Validate no hidden runtime dependencies beyond intended toolkit.
+- [x] Validate no hidden runtime dependencies beyond intended toolkit. <!-- fixed: DragEnterEvent/Leave/Updated/Perform/Exited and ReactiveDragEvent/DragEventHandler wrapped in #if UNITY_EDITOR — these are Editor-only UIElements types that caused CS0246 in player builds -->
 
 ### Diagnostics Quality
 - [ ] Confirm Tier-1/Tier-2 diagnostics are complete for V1 scope.
@@ -197,8 +197,8 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 ---
 
 ## V2 Parking Lot (Explicitly Not Part of V1)
-- [ ] HMR / hot-reload architecture.
-- [ ] Single-process compile UX redesign.
+- [ ] Single-process build/compile — eliminate the current two-phase workflow (source-generator pass → Unity recompile + domain reload); the author triggers one operation and the UI updates without a manual second step.
+- [ ] HMR / hot-reload architecture — explore hot module replacement for component-level `.uitkx` changes that avoids a full Unity domain reload, enabling near-instant feedback during UI authoring. Builds on top of single-process compile.
 - [ ] Major language-surface expansions beyond V1 scope.
 - [ ] Advanced semantic diagnostics beyond agreed V1 boundary.
 - [ ] Evaluate JS-style collection helpers/directives for markup and `@code` (e.g., map/filter/forEach forms such as `@map()` and collection-scoped variants).

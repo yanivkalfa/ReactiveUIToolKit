@@ -114,6 +114,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("#pragma warning disable CS8601  // null literal to nullable reference type");
             L("#pragma warning disable CS8602  // dereference of possibly null reference");
             L("#pragma warning disable CS8603  // possible null reference return");
+            L("#pragma warning disable CS8604  // possible null reference argument");
             L("");
 
             // ── Usings ───────────────────────────────────────────────────────
@@ -122,9 +123,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using System.Linq;");
             L("using ReactiveUITK;");
             L("using ReactiveUITK.Core;");
+            L("using ReactiveUITK.Core.Animation;");
             L("using ReactiveUITK.Props.Typed;");
+            L("using static ReactiveUITK.Props.Typed.StyleKeys;");
+            L("using UColor = UnityEngine.Color;");
             foreach (var u in _directives.Usings)
                 L($"using {u};");
+            // `using static StyleKeys` imports Color (string constant = TextColor).
+            // Files with `@using UnityEngine` also get UnityEngine.Color → CS0229.
+            // An explicit alias always wins over both, so declare it last.
+            L("using Color = UnityEngine.Color;");
             L("");
 
             // ── Namespace + class ────────────────────────────────────────────

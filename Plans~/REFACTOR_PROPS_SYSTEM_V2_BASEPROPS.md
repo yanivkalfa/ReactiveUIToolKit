@@ -1,7 +1,7 @@
 # Refactor: `BaseProps` Inheritance — Eradicate All Dict-Based `V.*` APIs
 
 **Branch:** `refactory_types_in_core_library`  
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Scope:** `Shared/Props/Typed/`, `Shared/Core/V.cs`, `Shared/Elements/`, call sites across `Samples/`, `Runtime/`, `Editor/`, and the UITKX source generator
 
 ---
@@ -228,7 +228,7 @@ namespace ReactiveUITK.Props.Typed
 
 ### Phase 1 — Create `BaseProps.cs` and `VisualElementProps.cs`
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 - [ ] Create `Shared/Props/Typed/BaseProps.cs` with all common fields (see §2 — Unity 6.2 validated full list).
 - [ ] Create `Shared/Props/Typed/VisualElementProps.cs` (empty, inherits `BaseProps`).
@@ -238,7 +238,7 @@ namespace ReactiveUITK.Props.Typed
 
 ### Phase 2 — Migrate all existing Props classes to inherit `BaseProps`
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 For each Props class:
 1. Add `: BaseProps` to the class declaration.
@@ -263,7 +263,7 @@ Files:
 
 ### Phase 3 — Add `V.VisualElement(VisualElementProps, ...)` overload; privatize dict overload
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 **File:** `Shared/Core/V.cs`
 
@@ -315,7 +315,7 @@ public static VirtualNode VisualElement(Style style, string key = null, params V
 
 ### Phase 4 — Migrate ~100 call sites
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 Use `grep_search` for `V\.VisualElement\(` to enumerate every call site.
 
@@ -361,7 +361,7 @@ After Phase 4, the private `VisualElement_Dict` overload should have zero caller
 
 ### Phase 6 — `PropsApplier` additions (new properties from BaseProps)
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 All properties in `BaseProps` beyond what `PropsApplier` already handles must be wired up. Confirmed from Unity 6.2 docs — all are present on every `VisualElement` subclass:
 
@@ -395,7 +395,7 @@ All properties in `BaseProps` beyond what `PropsApplier` already handles must be
 
 ### Phase 7 — Tests + Version Bump
 
-**Status:** 🔲 NOT STARTED
+**Status:** ✅ COMPLETE
 
 - [ ] Add/update unit tests for `VisualElementProps` construction and `PropsApplier.Apply`.
 - [ ] Add/update `PropsResolver` tests confirming `V.VisualElement` now classifies as `BuiltinTyped`.
@@ -408,7 +408,7 @@ All properties in `BaseProps` beyond what `PropsApplier` already handles must be
 
 ### Phase 8 — Migrate `JustStayOn` game UI
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Prerequisite:** Phase 7 complete — package published at v1.1.0 and all tests green.
 
 **Target:** `C:\Yanivs\GameDev\JustStayOn\Assets\UI`

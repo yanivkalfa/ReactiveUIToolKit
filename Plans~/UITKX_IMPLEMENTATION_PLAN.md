@@ -24,7 +24,7 @@
 | P8.6 | Developer Experience Improvements (IDE Polish) | `[DONE]` |
 | P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[ ]` NOT STARTED |
 | P10 | Rider Plugin | `[ ]` NOT STARTED |
-| P11 | ForwardRef UITKX Syntax — `ref={...}` on user-defined components | `[ ]` NOT STARTED |
+| P11 | ForwardRef UITKX Syntax — `ref={...}` on user-defined components | `[DONE]` |
 | P12 | Portal with External VisualElement Target | `[DONE]` |
 
 **Pre-existing work already done (do not re-do):**
@@ -1392,106 +1392,53 @@ Expected language behavior:
 
 # Phase 9 -- Structural Diagnostics Tier 3 (Embedded Roslyn)
 
-> **This is Option A** -- highest-fidelity diagnostic tier. Done second-to-last
-> because it is the most complex and the tool is already valuable without it.
-> **Do not start Phase 9 until Phases 1-8 are complete and stable.**
+> **Full detailed plan:** `Plans~/EMBEDDED_ROSLYN_IMPLEMENTATION_PLAN.md`  
+> **Architecture overview:** `Plans~/UITKX_ARCHITECTURE_LANGUAGE_SERVER.md`  
+> **Status:** 🔲 NOT STARTED — all 10 phases tracked in the detailed plan above.
 
-**Goal:** Embed a Roslyn workspace inside the LSP server to provide full type-checking
-on `{ c# expression }` attribute values and inside `@code` blocks.
+P9 encompasses more than Tier-3 diagnostics alone.  The embedded Roslyn host, once built,
+simultaneously delivers all of the following (see detailed plan for phase breakdown):
 
-**Why Roslyn in the LSP server only:** The language library must stay
-`netstandard2.0` with zero Roslyn dependency (Unity source generator conflicts).
-The LSP server is `net8.0` and can take heavyweight NuGet dependencies.
+| Deliverable | Plan version gate |
+|-------------|-------------------|
+| Tier-3 diagnostics in `@code` / `@(expr)` — UITKX0200+ error codes | v1.2.0 |
+| Accurate C# semantic token coloring (IDE-agnostic, replaces regex heuristics) | v1.3.0 |
+| C# completions + hover inside `@code` and `@(expr)` | v1.3.0 |
+| C# formatting for `@code` blocks via Roslyn Formatter | v1.3.0 |
+| Automatic reference hot-reload when Unity recompiles | v1.3.1 |
 
-## 9.1 -- Architecture
+**High-level architecture (full detail in `UITKX_ARCHITECTURE_LANGUAGE_SERVER.md`):**
 
 ```
-LSP Server (net8.0)
-  +-- UitkxLanguage.dll             (zero-Roslyn)
-  +-- Microsoft.CodeAnalysis.CSharp.Workspaces  (added in this phase)
-  +-- RoslynDiagnosticsProvider
-        +-- AdhocWorkspace
-        +-- Synthetic project with:
-        |     +-- All .cs files in the Unity project
-        |     +-- A synthetic .cs file = emitted output of the .uitkx file
-        +-- Maps Roslyn diagnostic locations back to .uitkx positions
-              via the #line directives in the synthetic .cs
+language-lib/Roslyn/            (new — no Roslyn NuGet dep)
+  VirtualDocumentGenerator  →  ParseResult → virtual C# file + SourceMap
+
+lsp-server/Roslyn/              (new — Roslyn 5.0 NuGet dep here)
+  RoslynHost                →  AdhocWorkspace per open .uitkx file
+  ReferenceAssemblyLocator  →  Unity Library/ScriptAssemblies + BCL discovery
+  RoslynDiagnosticMapper    →  Roslyn Diagnostic → UITKX ParseDiagnostic (Tier 3)
 ```
 
-## 9.2 -- Roslyn provider
-
-`lsp-server/Roslyn/RoslynDiagnosticsProvider.cs`:
-
-```csharp
-public sealed class RoslynDiagnosticsProvider : IDisposable
-{
-    public async Task<IReadOnlyList<ParseDiagnostic>> GetDiagnosticsAsync(
-        string uitkxFilePath, string uitkxSource, CancellationToken ct)
-    {
-        // 1. Run UITKX emitter to get synthetic C# text
-        // 2. Update AdhocWorkspace synthetic document
-        // 3. GetSemanticModelAsync()
-        // 4. Filter diagnostics by mapped .uitkx position
-        // 5. Return as ParseDiagnostic list
-    }
-}
+**NuGet additions to `lsp-server` only:**
+```xml
+<PackageReference Include="Microsoft.CodeAnalysis.CSharp"            Version="5.0.0" />
+<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
 ```
 
-## 9.3 -- `#line` directive mapping
+**Implementation phases (summary — see detailed plan for all checklists):**
 
-`Diagnostic.Location.GetMappedLineSpan()` returns the .uitkx-mapped position directly
-from `#line` directives. No separate source-map data structure needed.
-
-## 9.4 -- Throttling
-
-- Trigger Tier 3 on `textDocument/didSave` and on 1500ms idle after `didChange`
-- Cancel previous analysis when a new one starts
-- Tier 1 and Tier 2 diagnostics still update on every keystroke
-
-## 9.5 -- Verification checklist
-- [ ] `<Label text={42} />` -- error "Cannot convert int to string" on the `{42}` span
-- [ ] Error disappears when corrected
-- [ ] No lag on fast typing (Tier 1/2 instant; Tier 3 batched)
-- [ ] Roslyn errors do not duplicate Tier 1/2 errors (dedup by range + message)
-- [ ] Large project (1000+ .cs files) -- Tier 3 analysis completes < 3 seconds
-
-## 9.6 -- Implementation checklist
-
-### 9.6.1 -- Diagnostic scope definition
-- [ ] Define MVP semantic diagnostics (symbols, types, unresolved references, invalid member access).
-- [ ] Define severity strategy (error/warning/info) and default categories.
-- [ ] Map diagnostic codes to user-facing messages and quick-fix intent.
-- [ ] Identify explicit non-goals for first release (to keep scope controlled).
-
-### 9.6.2 -- Semantic model foundation
-- [ ] Build/bind symbol tables for UITKX scopes (component, parameters, locals, loops).
-- [ ] Resolve identifiers and type contexts across markup/code boundaries.
-- [ ] Track inferred expression types where available.
-- [ ] Add incremental invalidation strategy for changed files.
-
-### 9.6.3 -- Roslyn-backed validation
-- [ ] Integrate generated C# semantic checks using Roslyn compilation APIs.
-- [ ] Map Roslyn diagnostics back to UITKX source spans.
-- [ ] Add filtering/deduplication to avoid duplicate parser/semantic reports.
-- [ ] Ensure deterministic results in partial/incomplete editor states.
-
-### 9.6.4 -- LSP diagnostics pipeline
-- [ ] Extend LSP diagnostics publisher for semantic tiers.
-- [ ] Add stable tier ordering and source tagging (parser/structural/semantic/roslyn).
-- [ ] Implement debounce/cancellation for responsive editing.
-- [ ] Validate multi-file workspace diagnostics consistency.
-
-### 9.6.5 -- Quality + regression suite
-- [ ] Add unit tests for symbol/type binding edge cases.
-- [ ] Add golden diagnostics tests for common authoring mistakes.
-- [ ] Add performance benchmarks on medium and large UITKX sets.
-- [ ] Verify no regression in existing Tier-1/Tier-2 diagnostics.
-
-### 9.6.6 -- Documentation + release
-- [ ] Document diagnostic catalog and troubleshooting guidance.
-- [ ] Update implementation plan status and release notes.
-- [ ] Execute extension release flow (version bump, build, publish, local install).
-- [ ] Gather community feedback and schedule post-MVP diagnostic expansions.
+| # | Description |
+|---|-------------|
+| P9-0 | Column/offset tracking in `MarkupTokenizer` + `AstNode` (pre-req for SourceMap) |
+| P9-1 | `VirtualDocumentGenerator` + `SourceMap` (language-lib, no Roslyn) |
+| P9-2 | `RoslynHost` + `ReferenceAssemblyLocator` (lsp-server) |
+| P9-3 | Tier-3 diagnostics wired into `DiagnosticsPublisher` |
+| P9-4 | C# semantic tokens via `SemanticTokensProvider` + TmLanguage cleanup |
+| P9-5 | C# completions + hover in `CompletionHandler` + `HoverHandler` |
+| P9-6 | C# formatting in `AstFormatter` |
+| P9-7 | Reference assembly hot-reload on Unity recompile |
+| P9-8 | Integration test project |
+| P9-9 | Rider + VS2022 validation |
 
 ---
 
@@ -1676,16 +1623,17 @@ The language library must not attempt to parse C# from `@code` blocks -- only th
    support is fully stable. Address as a follow-up release once the VSCode baseline
    is solid and proven in real-world use.
 
-7. **[CRITICAL — P11] ForwardRef syntax not implemented**: `ref={...}` on user-defined
-   UITKX components has no parser or emitter support. A child component cannot declare
-   that it accepts and forwards a ref handle to its inner DOM element. Concretely:
-   `<MyInput ref={myRef} />` silently drops the ref instead of forwarding it.
-   The C# `V.ForwardRef` API exists but there is no `.uitkx` surface for it.
-   **Impact**: Any component that wraps an input/element and needs the parent to access
-   the underlying `VisualElement` via ref cannot be expressed in UITKX today.
-   The `RefForwardingDemoFunc.uitkx` sample is a simplified substitute.
-   **Fix scope**: Parser must recognise `ref` as a special prop on PascalCase tags;
-   emitter must route it through `V.ForwardRef` wrapping. Tracked as P11.
+7. **[DONE — P11] ForwardRef / ref-as-prop**: `ref={...}` on user-defined components
+   is fully implemented via the **ref-as-prop** pattern (no `V.ForwardRef` wrapper needed).
+   **Implementation:**
+   - `V.ForwardRef` and `V.ForwardRef<TProps>` deleted from `Shared/Core/V.cs`.
+   - Child components accept `Action<VisualElement> ref` as a plain typed prop in
+     their `*Props` class; the generator emits it transparently.
+   - `RefForwardingDemoFunc.cs` fully rewritten: no 3-arg render, ref passed as
+     a normal `Action<VisualElement>` prop through `RefForwardingDemoFuncProps`.
+   - `RefForwardingDemoFunc.uitkx` and child `RefChild.uitkx` updated.
+   - Generator `ref={}` sugar: `ref` attribute on PascalCase tags is routed as a
+     prop rather than the old `V.ForwardRef` wrapping code path.
 
 8. **[DONE — P12] Portal with external VisualElement target**: `<Portal target={ve}>`
    resolved via `HostContext.Environment` seeding + `useContext<VisualElement>` pattern.

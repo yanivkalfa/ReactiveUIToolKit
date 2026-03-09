@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.87",
+  "version": "1.0.109",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {
@@ -45,10 +45,7 @@
       {
         "language": "uitkx",
         "scopeName": "source.uitkx",
-        "path": "./syntaxes/uitkx.tmLanguage.json",
-        "embeddedLanguages": {
-          "source.cs.embedded.uitkx": "csharp"
-        }
+        "path": "./syntaxes/uitkx.tmLanguage.json"
       }
     ],
     "configuration": {
@@ -104,7 +101,7 @@
       },
       {
         "id": "uitkxExpression",
-        "superType": "macro",
+        "superType": "operator",
         "description": "UITKX inline expression delimiters @(...)"
       },
       {
@@ -138,7 +135,8 @@
     "watch": "node esbuild.js --watch",
     "vscode:prepublish": "npm run prebuild && npm run build",
     "package": "vsce package",
-    "publish": "vsce publish"
+    "publish": "vsce publish",
+    "deploy": "vsce publish"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

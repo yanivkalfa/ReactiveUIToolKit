@@ -1,5 +1,6 @@
 using MediatR;
 using OmniSharp.Extensions.LanguageServer.Protocol;
+using UitkxLanguageServer.Roslyn;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -15,11 +16,13 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
 {
     private readonly DocumentStore _store;
     private readonly DiagnosticsPublisher _diagnostics;
+    private readonly RoslynHost _roslynHost;
 
-    public TextSyncHandler(DocumentStore store, DiagnosticsPublisher diagnostics)
+    public TextSyncHandler(DocumentStore store, DiagnosticsPublisher diagnostics, RoslynHost roslynHost)
     {
-        _store = store;
+        _store       = store;
         _diagnostics = diagnostics;
+        _roslynHost  = roslynHost;
     }
 
     public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri) =>
@@ -46,8 +49,8 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         ServerLog.Log(
             $"didOpen: {request.TextDocument.Uri}  lang={request.TextDocument.LanguageId}  len={request.TextDocument.Text?.Length}"
         );
-        _store.Set(request.TextDocument.Uri, request.TextDocument.Text);
-        _diagnostics.Publish(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty);
+        _store.Set(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty);
+        _diagnostics.Publish(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty, _roslynHost);
         return Unit.Task;
     }
 
@@ -59,7 +62,7 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         var text = request.ContentChanges.LastOrDefault()?.Text ?? "";
         ServerLog.Log($"didChange: {request.TextDocument.Uri}  len={text.Length}");
         _store.Set(request.TextDocument.Uri, text);
-        _diagnostics.Publish(request.TextDocument.Uri, text);
+        _diagnostics.Publish(request.TextDocument.Uri, text, _roslynHost);
         return Unit.Task;
     }
 
@@ -74,6 +77,10 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
     )
     {
         _store.Remove(request.TextDocument.Uri);
+        // Release Roslyn workspace resources for this file.
+        var localPath = request.TextDocument.Uri.ToUri().LocalPath;
+        if (!string.IsNullOrEmpty(localPath))
+            _roslynHost.CloseDocument(localPath);
         return Unit.Task;
     }
 }

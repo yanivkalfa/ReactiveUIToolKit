@@ -176,8 +176,12 @@ namespace ReactiveUITK.Language.Parser
 
                     if (!_scanner.IsEof && _scanner.Current == '(')
                     {
-                        string inlineExpr = _scanner.ReadParenExpression();
-                        nodes.Add(new ExpressionNode(inlineExpr, atLine, _filePath));
+                        var (inlineExpr, exprOffset) = _scanner.ReadParenExpressionWithOffset();
+                        nodes.Add(new ExpressionNode(inlineExpr, atLine, _filePath)
+                        {
+                            ExpressionOffset = exprOffset,
+                            ExpressionLength  = inlineExpr.Length,
+                        });
                         continue;
                     }
 
@@ -445,9 +449,9 @@ namespace ReactiveUITK.Language.Parser
                     }
                     else if (!_scanner.IsEof && _scanner.Current == '{')
                     {
-                        string expr = _scanner.ReadBraceExpression();
+                        var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
                         attrs.Add(
-                            new AttributeNode(name, new CSharpExpressionValue(expr), attrLine)
+                            new AttributeNode(name, new CSharpExpressionValue(expr, exprOffset), attrLine)
                         );
                     }
                     else
@@ -803,7 +807,12 @@ namespace ReactiveUITK.Language.Parser
                 startLine
             );
 
-            return new CodeBlockNode(code, startLine, _filePath) { ReturnMarkups = returnMarkups };
+            return new CodeBlockNode(code, startLine, _filePath)
+            {
+                ReturnMarkups      = returnMarkups,
+                CodeContentOffset  = codeBodyStart + leadingChars,
+                CodeContentLength  = code.Length,
+            };
         }
 
         /// <summary>

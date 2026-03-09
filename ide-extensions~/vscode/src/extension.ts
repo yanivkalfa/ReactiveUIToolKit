@@ -349,10 +349,21 @@ export function activate(context: vscode.ExtensionContext): void {
       // For @-triggered items the server returns insertText starting with '@'
       // (e.g. "@if ()\n{\n\t\n}"), which would produce "@@if..." because the
       // user's typed '@' is already in the buffer.
-      // Strip the leading '@' so VSCode inserts cleanly after the typed '@'.
+      // Only strip the leading '@' when the user actually typed '@' — otherwise
+      // (e.g. Ctrl+Space at line start) the '@' must be kept in insert text.
       provideCompletionItem(document, position, context, token, next) {
         return Promise.resolve(next(document, position, context, token)).then(result => {
           if (!result) return result;
+
+          // Determine whether the character immediately before the cursor is '@'.
+          const triggerIsAt = context.triggerCharacter === '@';
+          const charBefore = position.character > 0
+            ? document.getText(new vscode.Range(position.translate(0, -1), position))
+            : '';
+          const wordBeforeIsAt = charBefore === '@';
+
+          if (!triggerIsAt && !wordBeforeIsAt) return result;
+
           const items = Array.isArray(result) ? result : (result as vscode.CompletionList).items;
           for (const item of items) {
             const raw = item.insertText;

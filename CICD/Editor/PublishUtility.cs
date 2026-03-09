@@ -28,6 +28,17 @@ namespace ReactiveUITK.CICD
             public string npmPath;
         }
 
+        /// <summary>
+        /// Loaded from publisher-secrets.json at the package root (gitignored).
+        /// Never commit this file — it holds the VS Marketplace PAT.
+        /// </summary>
+        [Serializable]
+        private sealed class PublisherSecrets
+        {
+            /// <summary>Azure DevOps PAT with Marketplace → Manage scope.</summary>
+            public string vscePatToken;
+        }
+
         [MenuItem("ReactiveUITK/Publish/Build Dist", priority = 1000)]
         public static void BuildDist()
         {
@@ -307,11 +318,159 @@ namespace ReactiveUITK.CICD
             }
         }
 
-        [MenuItem("ReactiveUITK/Publish/Build Dist and Push to Store (stub)", priority = 1002)]
-        public static void BuildDistAndPushToStore()
+        /// <summary>
+        /// Full VS Code extension publish pipeline:
+        /// 1. Bump patch version in the extension's package.json
+        /// 2. npm run build  (esbuild bundle)
+        /// 3. vsce package   (produces .vsix)
+        /// 4. code --install-extension  (local install)
+        /// 5. vsce publish   (VS Marketplace, requires PAT)
+        ///
+        /// PAT is read from publisher-secrets.json → VSCE_PAT env var.
+        /// If neither is present the user is asked for a changelog entry and
+        /// whether to proceed without marketplace upload.
+        /// </summary>
+        [MenuItem("ReactiveUITK/Publish/Build VS Extension and Publish", priority = 1002)]
+        public static void BuildExtensionAndPublish()
         {
-            BuildDist();
-            Debug.Log("Publish: Store upload not implemented yet. Dist built.");
+            try
+            {
+                string packageRoot  = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
+                string extensionDir = Path.Combine(packageRoot, "ide-extensions~", "vscode");
+
+                if (!Directory.Exists(extensionDir))
+                {
+                    Debug.LogError("Publish: VS extension directory not found: " + extensionDir);
+                    return;
+                }
+
+                // ── locate PAT ───────────────────────────────────────────────
+                string pat = ReadSecrets(packageRoot)?.vscePatToken;
+                if (string.IsNullOrWhiteSpace(pat))
+                    pat = Environment.GetEnvironmentVariable("VSCE_PAT");
+
+                bool hasToken = !string.IsNullOrWhiteSpace(pat);
+                if (!hasToken)
+                {
+                    bool proceed = EditorUtility.DisplayDialog(
+                        "VS Extension Publish",
+                        "No VS Marketplace PAT found.\n\n" +
+                        "To publish to the marketplace, provide one of:\n" +
+                        "  • publisher-secrets.json  { \"vscePatToken\": \"<token>\" }\n" +
+                        "  • Environment variable VSCE_PAT\n" +
+                        "  • PowerShell: .\\scripts\\publish-extension.ps1 -PAT <token>\n\n" +
+                        "Package only (no marketplace upload)?",
+                        "Package Only",
+                        "Cancel"
+                    );
+                    if (!proceed) return;
+                }
+
+                // ── changelog entry ──────────────────────────────────────────
+                string changelogEntry = null;
+                // Simple one-shot dialog for the entry — use PS1 script for richer input
+                changelogEntry = EditorUtility.DisplayDialog(
+                    "Changelog Entry",
+                    "Open the PowerShell publish script for a rich changelog prompt, " +
+                    "or press Continue to use a default entry.",
+                    "Continue with default",
+                    "Cancel"
+                ) ? "Minor improvements and bug fixes." : null;
+
+                if (changelogEntry == null) return;
+
+                // ── read config for npm path ─────────────────────────────────
+                string cfgPath = Path.Combine(packageRoot, "config.json");
+                ConfigModel cfg = null;
+                if (File.Exists(cfgPath))
+                {
+                    try { cfg = JsonUtility.FromJson<ConfigModel>(File.ReadAllText(cfgPath)); }
+                    catch (Exception ex) { Debug.LogWarning("Publish: config.json: " + ex.Message); }
+                }
+                string npmPath = cfg?.npmPath;
+
+                // ── bump extension version ───────────────────────────────────
+                string extPkgJson    = Path.Combine(extensionDir, "package.json");
+                string bumpedVersion = BumpPatchVersion(extPkgJson);
+                if (!string.IsNullOrEmpty(bumpedVersion))
+                    Debug.Log("[Publish] Extension bumped to v" + bumpedVersion);
+
+                string extVersion = string.IsNullOrEmpty(bumpedVersion)
+                    ? ReadVersionFromPackageJson(extPkgJson)
+                    : bumpedVersion;
+
+                // ── prepend changelog entry ──────────────────────────────────
+                PrependChangelogEntry(
+                    Path.Combine(extensionDir, "CHANGELOG.md"),
+                    extVersion,
+                    changelogEntry
+                );
+
+                // ── 1. npm run build ─────────────────────────────────────────
+                Debug.Log("[Publish] Building extension (npm run build)...");
+                int buildExit = RunNpm("run build", extensionDir, npmPath, out _, out string buildErr);
+                if (buildExit != 0)
+                {
+                    Debug.LogError("Publish: npm run build failed.\n" + buildErr);
+                    return;
+                }
+
+                // ── 2. vsce package ──────────────────────────────────────────
+                Debug.Log("[Publish] Packaging extension (vsce package)...");
+                int pkgExit = RunVsce("package", extensionDir, npmPath, out _, out string pkgErr);
+                if (pkgExit != 0)
+                {
+                    Debug.LogError("Publish: vsce package failed.\n" + pkgErr);
+                    return;
+                }
+
+                // Locate generated VSIX
+                string vsixPath = Path.Combine(extensionDir, $"uitkx-{extVersion}.vsix");
+                if (!File.Exists(vsixPath))
+                {
+                    string fallback = Directory
+                        .GetFiles(extensionDir, "*.vsix", SearchOption.TopDirectoryOnly)
+                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                        .FirstOrDefault();
+                    if (!string.IsNullOrEmpty(fallback))
+                    {
+                        Debug.LogWarning($"[Publish] Expected uitkx-{extVersion}.vsix not found; using " + Path.GetFileName(fallback));
+                        vsixPath = fallback;
+                    }
+                    else
+                    {
+                        Debug.LogError($"Publish: VSIX not found at {vsixPath}");
+                        return;
+                    }
+                }
+                Debug.Log("[Publish] Packaged: " + vsixPath);
+
+                if (!hasToken)
+                {
+                    Debug.Log("[Publish] Marketplace publish skipped (no PAT). VSIX at: " + vsixPath);
+                    return;
+                }
+
+                // ── 3. vsce publish --pat <token> --packagePath <vsix> ───────
+                // Pass PAT via --pat flag directly — avoids env-var propagation issues.
+                Debug.Log("[Publish] Publishing to VS Marketplace...");
+                int publishExit = RunVsce(
+                    $"publish --pat \"{pat}\" --packagePath \"{vsixPath}\"",
+                    extensionDir, npmPath,
+                    out _, out string publishErr
+                );
+                if (publishExit != 0)
+                {
+                    Debug.LogError("Publish: vsce publish failed.\n" + publishErr);
+                    return;
+                }
+
+                Debug.Log($"[Publish] Extension v{extVersion} published to VS Marketplace.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("Publish: BuildExtensionAndPublish failed: " + ex);
+            }
         }
 
         [MenuItem("ReactiveUITK/Publish/Build Docs and Push", priority = 1100)]
@@ -843,6 +1002,318 @@ namespace ReactiveUITK.CICD
                 Debug.Log($"[npm:err] {args}\n{stderr}");
             }
             return p.ExitCode;
+        }
+
+        /// <summary>
+        /// Runs an npm command with additional environment variables injected for the
+        /// duration of the child process.  The caller's environment is not modified.
+        /// </summary>
+        private static int RunNpmWithEnv(
+            string args,
+            string workingDir,
+            string npmPath,
+            Dictionary<string, string> extraEnv,
+            out string stdout,
+            out string stderr
+        )
+        {
+            bool isWindows =
+                Application.platform == RuntimePlatform.WindowsEditor
+                || Application.platform == RuntimePlatform.WindowsPlayer;
+
+            string fileName  = string.Empty;
+            string finalArgs = string.Empty;
+            string npmDir    = null;
+
+            if (!string.IsNullOrEmpty(npmPath))
+            {
+                try { npmDir = Path.GetDirectoryName(npmPath); } catch { }
+
+                if (string.IsNullOrEmpty(npmDir))
+                {
+                    Debug.LogError("[npm] Invalid npmPath in config.json; falling back to PATH.");
+                    npmPath = null;
+                }
+                else
+                {
+                    fileName  = Path.Combine(npmDir, "node.exe");
+                    finalArgs = $"\"{Path.Combine(npmDir, "node_modules", "npm", "bin", "npm-cli.js")}\" {args}";
+                }
+            }
+
+            if (string.IsNullOrEmpty(npmPath))
+            {
+                if (isWindows) { fileName = "cmd.exe"; finalArgs = "/c npm " + args; }
+                else           { fileName = "npm";     finalArgs = args; }
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName               = fileName,
+                Arguments              = finalArgs,
+                WorkingDirectory       = workingDir,
+                UseShellExecute        = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                CreateNoWindow         = true,
+            };
+
+            if (!string.IsNullOrEmpty(npmDir))
+            {
+                try
+                {
+                    const string pathKey = "PATH";
+                    var existing = psi.EnvironmentVariables[pathKey] ?? string.Empty;
+                    if (!existing.Contains(npmDir))
+                        psi.EnvironmentVariables[pathKey] = string.IsNullOrEmpty(existing)
+                            ? npmDir : (npmDir + ";" + existing);
+                }
+                catch { }
+            }
+
+            if (extraEnv != null)
+            {
+                foreach (var kv in extraEnv)
+                {
+                    try { psi.EnvironmentVariables[kv.Key] = kv.Value; } catch { }
+                }
+            }
+
+            var p      = new System.Diagnostics.Process { StartInfo = psi };
+            var sbOut  = new StringBuilder();
+            var sbErr  = new StringBuilder();
+            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
+            p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+
+            try { p.Start(); }
+            catch (Exception ex)
+            {
+                stdout = string.Empty; stderr = ex.Message;
+                Debug.LogError("[npm] failed to start: " + ex.Message);
+                return -1;
+            }
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+            p.WaitForExit();
+            stdout = sbOut.ToString();
+            stderr = sbErr.ToString();
+            if (!string.IsNullOrEmpty(stdout)) Debug.Log($"[npm] {args}\n{stdout}");
+            if (!string.IsNullOrEmpty(stderr)) Debug.Log($"[npm:err] {args}\n{stderr}");
+            return p.ExitCode;
+        }
+
+        /// <summary>
+        /// Runs an arbitrary shell command via cmd.exe on Windows or directly on other
+        /// platforms.  Returns the process exit code; stdout/stderr go to the Unity log.
+        /// </summary>
+        private static int RunShellCommand(string command, string commandArgs, string workingDir)
+        {
+            bool isWindows =
+                Application.platform == RuntimePlatform.WindowsEditor
+                || Application.platform == RuntimePlatform.WindowsPlayer;
+
+            string fileName;
+            string finalArgs;
+            if (isWindows)
+            {
+                fileName  = "cmd.exe";
+                finalArgs = $"/c {command} {commandArgs}";
+            }
+            else
+            {
+                fileName  = command;
+                finalArgs = commandArgs;
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName               = fileName,
+                Arguments              = finalArgs,
+                WorkingDirectory       = workingDir,
+                UseShellExecute        = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                CreateNoWindow         = true,
+            };
+
+            var p     = new System.Diagnostics.Process { StartInfo = psi };
+            var sbOut = new StringBuilder();
+            var sbErr = new StringBuilder();
+            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
+            p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+
+            try { p.Start(); }
+            catch (Exception)
+            {
+                // Command not found on PATH is expected on some machines; caller handles -1.
+                return -1;
+            }
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+            p.WaitForExit();
+
+            string outText = sbOut.ToString();
+            string errText = sbErr.ToString();
+            if (!string.IsNullOrEmpty(outText)) Debug.Log($"[{command}] {outText}");
+            if (!string.IsNullOrEmpty(errText)) Debug.Log($"[{command}:err] {errText}");
+            return p.ExitCode;
+        }
+
+        /// <summary>
+        /// Prepends a versioned entry to CHANGELOG.md.
+        /// Format mirrors existing entries: ## [version] - yyyy-MM-dd followed by bullet lines.
+        /// </summary>
+        private static void PrependChangelogEntry(string changelogPath, string version, string entry)
+        {
+            try
+            {
+                string today    = DateTime.Now.ToString("yyyy-MM-dd");
+                string newBlock = $"## [{version}] - {today}\n- {entry}\n";
+                string existing = File.Exists(changelogPath)
+                    ? File.ReadAllText(changelogPath, Encoding.UTF8)
+                    : "# Changelog\n";
+
+                string updated;
+                int headerNewline = existing.IndexOf('\n');
+                if (headerNewline >= 0 && existing.TrimStart().StartsWith("# Changelog", StringComparison.OrdinalIgnoreCase))
+                {
+                    updated = existing.Substring(0, headerNewline + 1)
+                            + "\n" + newBlock
+                            + existing.Substring(headerNewline + 1);
+                }
+                else
+                {
+                    updated = "# Changelog\n\n" + newBlock + existing;
+                }
+
+                File.WriteAllText(changelogPath, updated, Encoding.UTF8);
+                Debug.Log($"[Publish] Changelog updated for v{version}.");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Publish] Could not update CHANGELOG.md: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Runs vsce directly (local node_modules bin) with the given arguments.
+        /// Passing --pat via args is more reliable than VSCE_PAT env var.
+        /// </summary>
+        private static int RunVsce(
+            string args,
+            string workingDir,
+            string npmPath,
+            out string stdout,
+            out string stderr
+        )
+        {
+            bool isWindows =
+                Application.platform == RuntimePlatform.WindowsEditor
+                || Application.platform == RuntimePlatform.WindowsPlayer;
+
+            // Prefer the locally installed vsce.cmd so version matches devDependencies.
+            string vsceBin = Path.Combine(workingDir, "node_modules", ".bin", "vsce.cmd");
+            if (!File.Exists(vsceBin))
+                vsceBin = null; // fall back to npx
+
+            string npmDir  = string.Empty;
+            if (!string.IsNullOrEmpty(npmPath))
+            {
+                try { npmDir = Path.GetDirectoryName(npmPath) ?? string.Empty; } catch { }
+            }
+
+            string fileName;
+            string finalArgs;
+            if (vsceBin != null)
+            {
+                fileName  = "cmd.exe";
+                finalArgs = $"/c \"{vsceBin}\" {args}";
+            }
+            else
+            {
+                fileName  = "cmd.exe";
+                finalArgs = $"/c npx @vscode/vsce {args}";
+            }
+
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName               = fileName,
+                Arguments              = finalArgs,
+                WorkingDirectory       = workingDir,
+                UseShellExecute        = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                CreateNoWindow         = true,
+            };
+
+            if (!string.IsNullOrEmpty(npmDir))
+            {
+                try
+                {
+                    const string pathKey = "PATH";
+                    var existing = psi.EnvironmentVariables[pathKey] ?? string.Empty;
+                    if (!existing.Contains(npmDir))
+                        psi.EnvironmentVariables[pathKey] = string.IsNullOrEmpty(existing)
+                            ? npmDir : (npmDir + ";" + existing);
+                }
+                catch { }
+            }
+
+            var p     = new System.Diagnostics.Process { StartInfo = psi };
+            var sbOut = new StringBuilder();
+            var sbErr = new StringBuilder();
+            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
+            p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+
+            try { p.Start(); }
+            catch (Exception ex)
+            {
+                stdout = string.Empty; stderr = ex.Message;
+                Debug.LogError("[vsce] failed to start: " + ex.Message);
+                return -1;
+            }
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+            p.WaitForExit();
+            stdout = sbOut.ToString();
+            stderr = sbErr.ToString();
+            if (!string.IsNullOrEmpty(stdout)) Debug.Log($"[vsce] {args}\n{stdout}");
+            if (!string.IsNullOrEmpty(stderr)) Debug.Log($"[vsce:err] {args}\n{stderr}");
+            return p.ExitCode;
+        }
+
+        /// <summary>Reads publisher-secrets.json from the package root.  Returns null on any failure.</summary>
+        private static PublisherSecrets ReadSecrets(string packageRoot)
+        {
+            string path = Path.Combine(packageRoot, "publisher-secrets.json");
+            if (!File.Exists(path)) return null;
+            try
+            {
+                return JsonUtility.FromJson<PublisherSecrets>(File.ReadAllText(path, Encoding.UTF8));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Publish] Could not parse publisher-secrets.json: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>Returns the version string from a package.json without bumping it.</summary>
+        private static string ReadVersionFromPackageJson(string packageJsonPath)
+        {
+            if (!File.Exists(packageJsonPath)) return "0.0.0";
+            try
+            {
+                var m = Regex.Match(
+                    File.ReadAllText(packageJsonPath), "\"version\"\\s*:\\s*\"([^\"]+)\"",
+                    RegexOptions.Multiline
+                );
+                return m.Success ? m.Groups[1].Value : "0.0.0";
+            }
+            catch { return "0.0.0"; }
         }
 
         private static void DeleteAllExceptGit(string dir)

@@ -22,6 +22,7 @@ namespace ReactiveUITK.Language.Formatter
     public sealed class AstFormatter
     {
         private readonly FormatterOptions _opts;
+        private readonly ICSharpFormatterDelegate? _csharpFormatter;
         private readonly StringBuilder _sb = new StringBuilder();
         private int _indent;
         private static readonly string[] NoSemicolonLeadingKeywords =
@@ -47,9 +48,10 @@ namespace ReactiveUITK.Language.Formatter
             "enum",
         };
 
-        public AstFormatter(FormatterOptions opts)
+        public AstFormatter(FormatterOptions opts, ICSharpFormatterDelegate? csharpFormatter = null)
         {
-            _opts = opts;
+            _opts            = opts;
+            _csharpFormatter = csharpFormatter;
         }
 
         public AstFormatter()
@@ -584,9 +586,26 @@ namespace ReactiveUITK.Language.Formatter
 
             if (cb.ReturnMarkups.IsEmpty)
             {
-                // No embedded JSX — emit C# lines with relative-indent only.
+                // No embedded JSX — the entire body is pure C#.
+                // Offer it to the pluggable Roslyn formatter first; fall back to
+                // the simple indentation-only formatter on failure or no delegate.
+                string codeToFormat = cb.Code ?? string.Empty;
+                if (_csharpFormatter != null)
+                {
+                    try
+                    {
+                        string? formatted = _csharpFormatter.Format(codeToFormat);
+                        if (!string.IsNullOrEmpty(formatted))
+                            codeToFormat = formatted;
+                    }
+                    catch
+                    {
+                        // Ignore delegate errors and proceed with built-in formatting.
+                    }
+                }
+
                 EmitCSharpLines(
-                    cb.Code,
+                    codeToFormat,
                     tabExp,
                     firstLineStripped: true,
                     suppressLastNewline: false

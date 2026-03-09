@@ -56,6 +56,41 @@ namespace ReactiveUITK.Language.Parser
             return (expr, after);
         }
 
+        /// <summary>
+        /// Like <see cref="FromBrace"/> but also returns the absolute character offset inside
+        /// <paramref name="source"/> where the trimmed expression content begins.
+        /// Useful for building source maps after the expression is extracted.
+        /// </summary>
+        public static (string Expression, int AfterClose, int ContentOffset) FromBraceWithOffset(
+            string source, int openBracePos)
+        {
+            int start = openBracePos + 1;
+            int closePos = FindMatchingClose(source, start, '{', '}');
+            int rawLen = closePos - start;
+            string raw = rawLen > 0 ? source.Substring(start, rawLen) : string.Empty;
+            int leading = CountLeadingWhitespace(raw);
+            string expr = raw.Trim();
+            int after = closePos < source.Length ? closePos + 1 : closePos;
+            return (expr, after, start + leading);
+        }
+
+        /// <summary>
+        /// Like <see cref="FromParen"/> but also returns the absolute character offset inside
+        /// <paramref name="source"/> where the trimmed expression content begins.
+        /// </summary>
+        public static (string Expression, int AfterClose, int ContentOffset) FromParenWithOffset(
+            string source, int openParenPos)
+        {
+            int start = openParenPos + 1;
+            int closePos = FindMatchingClose(source, start, '(', ')');
+            int rawLen = closePos - start;
+            string raw = rawLen > 0 ? source.Substring(start, rawLen) : string.Empty;
+            int leading = CountLeadingWhitespace(raw);
+            string expr = raw.Trim();
+            int after = closePos < source.Length ? closePos + 1 : closePos;
+            return (expr, after, start + leading);
+        }
+
         // ── Core matching logic ───────────────────────────────────────────────
 
         /// <summary>
@@ -162,7 +197,16 @@ namespace ReactiveUITK.Language.Parser
 
             return source.Length; // unclosed
         }
+        // ── Offset helpers ───────────────────────────────────────────────────
 
+        /// <summary>Returns the number of leading whitespace characters (space, tab, CR, LF).</summary>
+        private static int CountLeadingWhitespace(string s)
+        {
+            int i = 0;
+            while (i < s.Length && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r' || s[i] == '\n'))
+                i++;
+            return i;
+        }
         // ── String-skipping helpers ───────────────────────────────────────────
 
         // Returns index AFTER the closing '"'
