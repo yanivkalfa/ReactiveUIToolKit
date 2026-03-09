@@ -170,6 +170,7 @@ namespace ReactiveUITK.Core
             )
                 return new ReactiveFocusEvent(evt);
 
+#if UNITY_EDITOR
             if (
                 evt is DragEnterEvent
                 || evt is DragLeaveEvent
@@ -178,6 +179,7 @@ namespace ReactiveUITK.Core
                 || evt is DragExitedEvent
             )
                 return new ReactiveDragEvent(evt);
+#endif
 
             if (evt is GeometryChangedEvent geo)
                 return new ReactiveGeometryEvent(evt, geo);
@@ -334,6 +336,7 @@ namespace ReactiveUITK.Core
     // Event data — drag
     // =========================================================================
 
+#if UNITY_EDITOR
     /// <summary>
     /// Event data for drag events: onDragEnter, onDragLeave, onDragUpdated,
     /// onDragPerform, onDragExited.
@@ -346,6 +349,7 @@ namespace ReactiveUITK.Core
         internal ReactiveDragEvent(EventBase evt)
             : base(evt) { }
     }
+#endif
 
     // =========================================================================
     // Event data — geometry
