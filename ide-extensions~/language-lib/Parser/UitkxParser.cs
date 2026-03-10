@@ -516,7 +516,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string cond = _scanner.ReadParenExpression();
+            var (cond, condOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -536,7 +536,7 @@ namespace ReactiveUITK.Language.Parser
             _scanner.TryConsume('}');
             var branches = new List<IfBranch>
             {
-                new IfBranch(cond, firstBody.ToImmutableArray(), firstLine),
+                new IfBranch(cond, firstBody.ToImmutableArray(), firstLine) { ConditionOffset = condOffset },
             };
 
             // Chain @else if / @else
@@ -562,7 +562,7 @@ namespace ReactiveUITK.Language.Parser
                         EmitExpected("'(' after @else if", elseLine);
                         break;
                     }
-                    string elseCond = _scanner.ReadParenExpression();
+                    var (elseCond, elseCondOffset) = _scanner.ReadParenExpressionWithOffset();
                     _scanner.SkipWhitespaceAndNewlines();
                     if (!PeekAt('{'))
                     {
@@ -578,7 +578,7 @@ namespace ReactiveUITK.Language.Parser
                         loopDepth: loopDepth
                     );
                     _scanner.TryConsume('}');
-                    branches.Add(new IfBranch(elseCond, elseIfBody.ToImmutableArray(), elseLine));
+                    branches.Add(new IfBranch(elseCond, elseIfBody.ToImmutableArray(), elseLine) { ConditionOffset = elseCondOffset });
                 }
                 else
                 {
@@ -619,7 +619,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string forExpr = _scanner.ReadParenExpression();
+            var (forExpr, forExprOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -639,8 +639,9 @@ namespace ReactiveUITK.Language.Parser
 
             return new ForNode(forExpr, body.ToImmutableArray(), startLine, _filePath)
             {
-                SourceColumn = startCol,
-                EndColumn    = startCol + 4, // @for
+                SourceColumn       = startCol,
+                EndColumn          = startCol + 4, // @for
+                ForExpressionOffset = forExprOffset,
             };
         }
 
@@ -656,7 +657,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string condition = _scanner.ReadParenExpression();
+            var (condition, conditionOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -676,8 +677,9 @@ namespace ReactiveUITK.Language.Parser
 
             return new WhileNode(condition, body.ToImmutableArray(), startLine, _filePath)
             {
-                SourceColumn = startCol,
-                EndColumn    = startCol + 6, // @while
+                SourceColumn    = startCol,
+                EndColumn       = startCol + 6, // @while
+                ConditionOffset = conditionOffset,
             };
         }
 
@@ -693,7 +695,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string foreachExpr = _scanner.ReadParenExpression();
+            var (foreachExpr, foreachExprOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             // Split "var item in collection" on first standalone " in "
@@ -729,8 +731,10 @@ namespace ReactiveUITK.Language.Parser
                 _filePath
             )
             {
-                SourceColumn = startCol,
-                EndColumn    = startCol + 8, // @foreach
+                SourceColumn            = startCol,
+                EndColumn               = startCol + 8, // @foreach
+                ForeachExpression       = foreachExpr,
+                ForeachExpressionOffset = foreachExprOffset,
             };
         }
 

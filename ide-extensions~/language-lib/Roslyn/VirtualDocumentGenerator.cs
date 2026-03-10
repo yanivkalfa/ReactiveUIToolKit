@@ -716,24 +716,63 @@ namespace ReactiveUITK.Language.Roslyn
                     break;
 
                 case IfNode ifn:
+                {
+                    bool isFirstBranch = true;
                     foreach (var branch in ifn.Branches)
-                        EmitNodeExpressionsScoped(branch.Body, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                    {
+                        // Emit #line so Roslyn maps condition errors back to the .uitkx file
+                        b.Scaffold($"#line {branch.SourceLine} \"{escapedPath}\"\n");
+                        if (branch.Condition != null)
+                        {
+                            b.Scaffold(isFirstBranch ? $"{indent}if (" : $"{indent}else if (");
+                            // Tier 3: b.Mapped gives column-accurate squiggles inside the condition
+                            b.Mapped(branch.Condition, branch.ConditionOffset, SourceRegionKind.InlineExpression, branch.SourceLine);
+                            b.Scaffold($") {{\n");
+                        }
+                        else
+                        {
+                            b.Scaffold($"{indent}else {{\n");
+                        }
+                        b.Scaffold("#line hidden\n");
+                        EmitNodeExpressionsScoped(branch.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
+                        b.Scaffold($"{indent}}}\n");
+                        isFirstBranch = false;
+                    }
                     break;
+                }
 
                 case ForeachNode fe:
-                    b.Scaffold($"{indent}foreach ({fe.IteratorDeclaration} in {fe.CollectionExpression}) {{\n");
+                    // Tier 1: #line maps errors in the foreach header to the .uitkx line
+                    b.Scaffold($"#line {fe.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}foreach (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the iterator expression
+                    b.Mapped(fe.ForeachExpression, fe.ForeachExpressionOffset, SourceRegionKind.InlineExpression, fe.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
                     EmitNodeExpressionsScoped(fe.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
                     b.Scaffold($"{indent}}}\n");
                     break;
 
                 case ForNode fo:
-                    b.Scaffold($"{indent}for ({fo.ForExpression}) {{\n");
+                    // Tier 1: #line maps errors in the for header to the .uitkx line
+                    b.Scaffold($"#line {fo.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}for (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the for expression
+                    b.Mapped(fo.ForExpression, fo.ForExpressionOffset, SourceRegionKind.InlineExpression, fo.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
                     EmitNodeExpressionsScoped(fo.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
                     b.Scaffold($"{indent}}}\n");
                     break;
 
                 case WhileNode wh:
-                    b.Scaffold($"{indent}while ({wh.Condition}) {{\n");
+                    // Tier 1: #line maps errors in the while header to the .uitkx line
+                    b.Scaffold($"#line {wh.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}while (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the condition
+                    b.Mapped(wh.Condition, wh.ConditionOffset, SourceRegionKind.InlineExpression, wh.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
                     EmitNodeExpressionsScoped(wh.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
                     b.Scaffold($"{indent}}}\n");
                     break;

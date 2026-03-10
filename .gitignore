@@ -29,4 +29,5 @@ ide-extensions~/lsp-server/obj/
 
 # Publisher credentials — never commit the real token
 publisher-secrets.json
+publisher-secrets.json.meta
 

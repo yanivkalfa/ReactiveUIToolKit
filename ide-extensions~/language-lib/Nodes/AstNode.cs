@@ -170,7 +170,14 @@ namespace ReactiveUITK.Language.Nodes
     /// One branch of an <c>@if</c>/<c>@else if</c>/<c>@else</c> chain.
     /// <see cref="Condition"/> is <c>null</c> for the <c>@else</c> branch.
     /// </summary>
-    public sealed record IfBranch(string? Condition, ImmutableArray<AstNode> Body, int SourceLine);
+    public sealed record IfBranch(string? Condition, ImmutableArray<AstNode> Body, int SourceLine)
+    {
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where the trimmed condition
+        /// expression begins (after the opening <c>(</c>). 0 when not tracked (e.g. <c>@else</c>).
+        /// </summary>
+        public int ConditionOffset { get; init; } = 0;
+    }
 
     /// <summary>
     /// An <c>@if</c> control-flow block, holding one or more <see cref="IfBranch"/>
@@ -194,7 +201,20 @@ namespace ReactiveUITK.Language.Nodes
         ImmutableArray<AstNode> Body,
         int SourceLine,
         string SourceFile
-    ) : AstNode(SourceLine, SourceFile);
+    ) : AstNode(SourceLine, SourceFile)
+    {
+        /// <summary>
+        /// Verbatim content between the parentheses, e.g. <c>"var item in props.Items"</c>.
+        /// Stored alongside the split fields to enable column-accurate source mapping.
+        /// </summary>
+        public string ForeachExpression { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where <see cref="ForeachExpression"/>
+        /// begins (after the opening <c>(</c>). 0 when not tracked.
+        /// </summary>
+        public int ForeachExpressionOffset { get; init; } = 0;
+    }
 
     /// <summary>
     /// A <c>@for (init; condition; increment) { ... }</c> block.
@@ -205,7 +225,14 @@ namespace ReactiveUITK.Language.Nodes
         ImmutableArray<AstNode> Body,
         int SourceLine,
         string SourceFile
-    ) : AstNode(SourceLine, SourceFile);
+    ) : AstNode(SourceLine, SourceFile)
+    {
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where <see cref="ForExpression"/>
+        /// begins (after the opening <c>(</c>). 0 when not tracked.
+        /// </summary>
+        public int ForExpressionOffset { get; init; } = 0;
+    }
 
     /// <summary>
     /// A <c>@while (condition) { ... }</c> block.
@@ -215,7 +242,14 @@ namespace ReactiveUITK.Language.Nodes
         ImmutableArray<AstNode> Body,
         int SourceLine,
         string SourceFile
-    ) : AstNode(SourceLine, SourceFile);
+    ) : AstNode(SourceLine, SourceFile)
+    {
+        /// <summary>
+        /// Absolute character offset in the .uitkx source where <see cref="Condition"/>
+        /// begins (after the opening <c>(</c>). 0 when not tracked.
+        /// </summary>
+        public int ConditionOffset { get; init; } = 0;
+    }
 
     /// <summary>
     /// A loop-flow <c>@break;</c> statement.

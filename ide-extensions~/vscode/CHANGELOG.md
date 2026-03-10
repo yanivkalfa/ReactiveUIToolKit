@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.124] - 2026-03-10
+- @for/@foreach/@while/@if headers now validated by Roslyn with column-accurate squiggles
+
 ## [1.0.123] - 2026-03-10
 - UITKX0109 unknown attribute on a known element is now an Error (red) instead of Warning (yellow)
 
