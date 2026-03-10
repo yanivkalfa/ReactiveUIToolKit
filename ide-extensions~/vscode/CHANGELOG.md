@@ -1,5 +1,25 @@
 ﻿# Changelog
 
+## [1.0.126] - 2026-03-10
+- fix: closing tag no longer under-indented after Enter inside JSX tags
+
+## [1.0.126] - 2026-03-10
+- fix: closing tag no longer under-indented after Enter inside `<Tag>content</Tag>` — removed `</` from `decreaseIndentPattern` which was double-outdenting the closing tag already placed correctly by the `indentOutdent` onEnterRule
+
+## [1.0.125] - 2026-03-10
+- fix: formatter preserves @namespace/usings; fix body indent drift; fix double-indent on Enter after JSX tags
+
+## [1.0.125] - 2026-03-10
+- skip
+
+## [1.0.125] - 2026-03-10
+- fix: formatter preserves @namespace/usings in function-style components; fix body indent drift on successive saves; fix double-indent on Enter after JSX tags
+
+## [1.0.125] - 2026-03-10
+- fix: formatter re-emits `@namespace` / `using` preamble for function-style components so they are no longer stripped on save
+- fix: body indentation no longer drifts forward on successive saves (firstLineStripped anchor corrected for function-style setup code)
+- fix: on-enter after `<Tag>` no longer double-indents — removed JSX tag from `increaseIndentPattern` so only `onEnterRules` drives indent (was compounding with them)
+
 ## [1.0.124] - 2026-03-10
 - @for/@foreach/@while/@if headers now validated by Roslyn with column-accurate squiggles
 

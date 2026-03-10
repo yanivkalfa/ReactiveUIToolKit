@@ -149,6 +149,24 @@ namespace ReactiveUITK.Language.Formatter
                 ? "Component"
                 : directives.ComponentName;
 
+            // ── Preamble: re-emit @namespace / using lines before the component block ─
+            bool hasPreamble = false;
+
+            if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
+            {
+                Ln($"@namespace {directives.Namespace}");
+                hasPreamble = true;
+            }
+
+            foreach (var u in directives.Usings)
+            {
+                Ln($"using {u};");
+                hasPreamble = true;
+            }
+
+            if (hasPreamble)
+                _sb.Append('\n');
+
             Ln($"component {componentName} {{");
             _indent++;
 
@@ -160,7 +178,12 @@ namespace ReactiveUITK.Language.Formatter
                 EmitCSharpLines(
                     normalizedSetupCode,
                     tabExp,
-                    firstLineStripped: false,
+                    // firstLineStripped: true because FunctionSetupCode has already been
+                    // Trim()'d by the parser — line[0] has its leading whitespace removed.
+                    // Without this flag, baseSpaces is computed as 0 (from line[0]), which
+                    // means every subsequent line's relative indentation is preserved
+                    // as-is and grows by IndentSize on each successive format pass.
+                    firstLineStripped: true,
                     suppressLastNewline: false
                 );
                 _sb.Append('\n');

@@ -99,6 +99,7 @@ namespace ReactiveUITK.Language.Parser
                     MarkupStartIndex: source.Length,
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
+                    HasExplicitNamespace: false,
                     FunctionSetupCode: string.Empty,
                     FunctionSetupStartLine: fsLine
                 );
@@ -414,6 +415,7 @@ namespace ReactiveUITK.Language.Parser
                     MarkupStartIndex: source.Length,
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
+                    HasExplicitNamespace: inlineNamespace != null,
                     FunctionSetupCode: string.Empty,
                     FunctionSetupStartLine: componentLine,
                     FunctionParams: functionParams,
@@ -445,6 +447,7 @@ namespace ReactiveUITK.Language.Parser
                     MarkupStartIndex: source.Length,
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
+                    HasExplicitNamespace: inlineNamespace != null,
                     FunctionSetupCode: string.Empty,
                     FunctionSetupStartLine: componentLine,
                     FunctionParams: functionParams,
@@ -501,6 +504,7 @@ namespace ReactiveUITK.Language.Parser
                     FunctionParams: functionParams,
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol,
+                    HasExplicitNamespace: inlineNamespace != null,
                     SetupCodeMarkupRanges: FindJsxBlockRanges(source, bodyStart, bodyEndExclusive)
                 );
                 return true;
@@ -564,6 +568,7 @@ namespace ReactiveUITK.Language.Parser
                 FunctionParams: functionParams,
                 ComponentDeclarationLine: componentLine,
                 ComponentNameColumn: componentNameCol,
+                HasExplicitNamespace: inlineNamespace != null,
                 SetupCodeMarkupRanges: FindJsxBlockRanges(
                     source,
                     bodyStart,       returnStart,
