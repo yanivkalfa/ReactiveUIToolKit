@@ -70,6 +70,12 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         int FunctionSetupStartLine = -1,
         /// <summary>
+        /// Absolute character offset in the .uitkx source of the first character
+        /// of the trimmed <see cref="FunctionSetupCode"/>.
+        /// <c>-1</c> when not tracked (fallback: line-based approximation used).
+        /// </summary>
+        int FunctionSetupStartOffset = -1,
+        /// <summary>
         /// Parameters declared in the function-style component header:
         /// <c>component Name(int X = 0, string Label = "")</c>.
         ///
@@ -79,7 +85,31 @@ namespace ReactiveUITK.Language.Parser
         ///
         /// Default: <c>default</c> (empty / not used).
         /// </summary>
-        ImmutableArray<FunctionParam> FunctionParams = default
+        ImmutableArray<FunctionParam> FunctionParams = default,
+        /// <summary>
+        /// 1-based source line of the <c>component Name {</c> or <c>@component</c>
+        /// declaration. Used to attach UITKX0103 (filename mismatch) at the right
+        /// location. <c>-1</c> when not tracked.
+        /// </summary>
+        int ComponentDeclarationLine = -1,
+        /// <summary>
+        /// 0-based column of the first character of the component NAME (not the
+        /// <c>component</c> keyword itself). Used to aim the UITKX0103 squiggle at
+        /// the name token. <c>-1</c> when not tracked.
+        /// </summary>
+        int ComponentNameColumn = -1,
+        /// <summary>
+        /// Absolute (start, end, line) ranges in the original .uitkx source for each
+        /// JSX paren block embedded inside function-style setup code, e.g.
+        /// <c>var x = (&lt;Box&gt;...&lt;/Box&gt;)</c>.
+        /// <para>
+        /// <c>start</c> = char index just inside the opening <c>(</c>;<br/>
+        /// <c>end</c>   = exclusive index at the closing <c>)</c>;<br/>
+        /// <c>line</c>  = 1-based source line of <c>start</c>.
+        /// </para>
+        /// Default: empty / not used.
+        /// </summary>
+        ImmutableArray<(int Start, int End, int Line)> SetupCodeMarkupRanges = default
     );
 
     // ── Full parse result ─────────────────────────────────────────────────────

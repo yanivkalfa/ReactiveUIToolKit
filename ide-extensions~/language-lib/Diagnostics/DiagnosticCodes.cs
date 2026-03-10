@@ -4,7 +4,7 @@ namespace ReactiveUITK.Language.Diagnostics
     /// Diagnostic code constants used by the UITKX language library.
     ///
     /// ID ranges:
-    ///   UITKX0101–0106   T2 — Structural (directive + schema checks); language-lib
+    ///   UITKX0101–0108   T2 — Structural (directive + schema checks); language-lib
     ///   UITKX0300–0305   T1 — Parser syntax errors; emitted by UitkxParser /
     ///                         DirectiveParser into ParseResult.Diagnostics
     /// </summary>
@@ -42,6 +42,21 @@ namespace ReactiveUITK.Language.Diagnostics
         /// Severity: Hint (with Unnecessary tag in LSP layer).
         /// </summary>
         public const string UnreachableAfterReturn = "UITKX0107";
+
+        /// <summary>
+        /// The component's markup has more than one root render node.
+        /// A component must return a single root element; all siblings must be
+        /// wrapped in a container element.
+        /// Severity: Error.
+        /// </summary>
+        public const string MultipleRenderRoots = "UITKX0108";
+
+        /// <summary>
+        /// An attribute on an element is not part of that element's known prop set.
+        /// Only reported when the element's attribute list is available.
+        /// Severity: Warning.
+        /// </summary>
+        public const string UnknownAttribute = "UITKX0109";
 
         // ── T1 — Parser codes (emitted by UitkxParser / DirectiveParser) ─────
         // Listed here for cross-reference only; not produced by DiagnosticsAnalyzer.

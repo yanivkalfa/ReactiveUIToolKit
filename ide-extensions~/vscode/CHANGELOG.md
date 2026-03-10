@@ -1,5 +1,51 @@
 ﻿# Changelog
 
+## [1.0.118] - 2026-03-10
+- Fix diagnostic squiggle positions: attribute names now underline the name (not col 0), unclosed-tag errors land on the tag opener; suppress CS0246 false-positives from T3 Roslyn (Unity-only assembly types); workspace index now discovers function-style components from .uitkx files (fixes unknown-element warnings for peer components)
+
+## [1.0.117] - 2026-03-10
+- fix: UITKX0105 now fires for unknown elements (schema+workspace index wired to analyzer)
+- fix: UITKX2101 squiggle aims at component name column instead of col 0
+- fix: CS0219 suppressed (cascade false positive from broken parse)
+- fix: CS0246 no longer globally suppressed — user-authored type errors now show correctly
+- feat: UITKX0109 (warning) — unknown attribute on a known element
+
+## [1.0.115] - 2026-03-09
+- fix: UITKX0103 squiggle on component NAME column; unknown directive is error not warning
+
+## [1.0.114] - 2026-03-09
+- fix: validate UITKX markup inside setup-code JSX blocks; fix UITKX0103 squiggle on component name line
+
+## [1.0.114] - 2026-03-09
+- fix: validate UITKX markup inside setup-code JSX blocks; fix UITKX0103 squiggle on component name line
+
+## [1.0.113] - 2026-03-09
+- fix: validate UITKX markup inside setup-code JSX blocks; fix UITKX0103 squiggle on component name line
+
+## [1.0.113] - 2026-03-09
+- fix: correct column tracking for @else/@case/@default squiggles and unknown directive errors
+
+## [1.0.113] - 2026-03-09
+- powershell -ExecutionPolicy Bypass -File "c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\scripts\publish-extension.ps1" -BumpVersion 2>&1 | Select-Object -Last 30
+
+## [1.0.112] - 2026-03-09
+- Fix Roslyn diagnostic squiggle position: use exact trimmed-code start offset so errors land on the correct token
+
+## [1.0.111] - 2026-03-09
+- Fix squiggle positions: wire SourceColumn/EndColumn for all control-flow nodes (@if/@for/@foreach/@while/@switch/@break/@continue) and @(expr)
+
+## [1.0.110] - 2026-03-09
+- Revert grammar color regression - restore original tag-name and attribute-boolean-shorthand tokenization
+
+## [1.0.109] - 2026-03-09
+- Revert grammar color regression - restore original tag-name and attribute-boolean-shorthand tokenization
+
+## [1.0.109] - 2026-03-09
+- Add UITKX0108 diagnostic - error on multiple render roots at component level
+
+## [1.0.109] - 2026-03-09
+- Add UITKX0108 diagnostic: multiple render roots error
+
 ## [1.0.109] - 2026-03-09
 - Skip block-body lambdas (CS1977 unsuppressable), add provideContext stub
 

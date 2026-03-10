@@ -61,6 +61,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         @"^\s*public\s+(?<type>[\w<>\[\],\s\?]+?)\s+(?<name>[A-Z][A-Za-z0-9_]*)\s*\{",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // Matches function-style component declarations inside a .uitkx file:
+    //   component FooBar {
+    //   @component FooBar
+    private static readonly Regex s_uitkxComponentPattern = new(
+        @"^(?:@component|component)\s+([A-Z][A-Za-z0-9_]*)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
+
     // ── IOnLanguageServerStarted ─────────────────────────────────────────────
 
     public Task OnStarted(ILanguageServer server, CancellationToken cancellationToken)
@@ -141,17 +148,22 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     public void Refresh(string filePath)
     {
-        if (!filePath.EndsWith("Props.cs", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        if (!File.Exists(filePath))
+        if (filePath.EndsWith("Props.cs", StringComparison.OrdinalIgnoreCase))
         {
-            var dir = Path.GetDirectoryName(filePath);
-            if (dir is not null) ScanDirectory(dir);
-            return;
+            if (!File.Exists(filePath))
+            {
+                var dir = Path.GetDirectoryName(filePath);
+                if (dir is not null) ScanDirectory(dir);
+                return;
+            }
+            IndexFile(filePath);
         }
-
-        IndexFile(filePath);
+        else if (filePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!File.Exists(filePath))
+                return; // deletion — component will disappear on next full scan
+            IndexUitkxFile(filePath);
+        }
     }
 
     // ── Scanning ─────────────────────────────────────────────────────────────
@@ -170,10 +182,54 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             }
             ServerLog.Log(
                 $"WorkspaceIndex: indexed {count} Props file(s) → {_elements.Count} element name(s).");
+
+            // Also scan .uitkx files to discover function-style component names
+            // (e.g. `component FooBar { … }` or `@component FooBar`).
+            int uitkxCount = 0;
+            foreach (var file in Directory.EnumerateFiles(
+                rootPath, "*.uitkx", SearchOption.AllDirectories))
+            {
+                IndexUitkxFile(file);
+                uitkxCount++;
+            }
+            ServerLog.Log(
+                $"WorkspaceIndex: indexed {uitkxCount} .uitkx file(s) → {_elements.Count} total element name(s).");
         }
         catch (Exception ex)
         {
             ServerLog.Log($"WorkspaceIndex scan error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Extracts component names declared in a <c>.uitkx</c> file and adds them to the index.
+    /// Handles both the function-style syntax (<c>component FooBar { … }</c>) and the
+    /// classic directive syntax (<c>@component FooBar</c>).
+    /// No props are extracted — the element is added with an empty prop list so that
+    /// UITKX0105 (unknown element) checks can recognise it as a known component.
+    /// </summary>
+    private void IndexUitkxFile(string filePath)
+    {
+        try
+        {
+            string content = File.ReadAllText(filePath);
+            foreach (Match m in s_uitkxComponentPattern.Matches(content))
+            {
+                string componentName = m.Groups[1].Value;
+                if (string.IsNullOrEmpty(componentName))
+                    continue;
+
+                // Find the 1-based line number of the match
+                int lineNumber = 1;
+                for (int i = 0; i < m.Index && i < content.Length; i++)
+                    if (content[i] == '\n') lineNumber++;
+
+                CommitElement(filePath, componentName, lineNumber, new List<PropInfo>());
+            }
+        }
+        catch
+        {
+            // File read errors are silently ignored — best-effort index.
         }
     }
 

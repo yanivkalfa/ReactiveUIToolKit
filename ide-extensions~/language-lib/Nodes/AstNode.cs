@@ -131,7 +131,13 @@ namespace ReactiveUITK.Language.Nodes
     // ── Attribute ─────────────────────────────────────────────────────────────
 
     /// <summary>A single attribute on an element, e.g. <c>text="Hi"</c>.</summary>
-    public sealed record AttributeNode(string Name, AttributeValue Value, int SourceLine);
+    public sealed record AttributeNode(string Name, AttributeValue Value, int SourceLine)
+    {
+        /// <summary>0-based column of the first character of the attribute name. 0 when not tracked.</summary>
+        public int SourceColumn  { get; init; } = 0;
+        /// <summary>0-based column of the character after the last character of the attribute name. 0 when not tracked.</summary>
+        public int NameEndColumn { get; init; } = 0;
+    }
 
     // ── Element node ─────────────────────────────────────────────────────────
 

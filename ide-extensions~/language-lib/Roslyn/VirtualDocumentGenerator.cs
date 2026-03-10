@@ -385,10 +385,16 @@ namespace ReactiveUITK.Language.Roslyn
             // placeholder and never seen by Roslyn as markup.
             if (!string.IsNullOrEmpty(d.FunctionSetupCode) && d.FunctionSetupStartLine > 0)
             {
+                // Use the exact character offset of the trimmed content when available;
+                // fall back to line-start approximation for older/generated DirectiveSets.
+                int setupStartOffset = d.FunctionSetupStartOffset >= 0
+                    ? d.FunctionSetupStartOffset
+                    : OffsetOfLine(source, d.FunctionSetupStartLine);
+
                 EmitFunctionStyleSetupSegmented(
                     b,
                     d.FunctionSetupCode!,
-                    uitkxSetupStartOffset: OffsetOfLine(source, d.FunctionSetupStartLine),
+                    uitkxSetupStartOffset: setupStartOffset,
                     uitkxSetupStartLine:   d.FunctionSetupStartLine,
                     escapedPath:           escapedPath);
             }

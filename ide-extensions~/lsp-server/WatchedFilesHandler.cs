@@ -8,12 +8,12 @@ namespace UitkxLanguageServer;
 
 /// <summary>
 /// Handles <c>workspace/didChangeWatchedFiles</c> notifications so that the
-/// <see cref="WorkspaceIndex"/> (which tracks <c>*Props.cs</c> files for
-/// IntelliSense) stays up-to-date when files are added, removed, or modified
-/// without the user explicitly re-opening a <c>.uitkx</c> document.
+/// <see cref="WorkspaceIndex"/> (which tracks <c>*Props.cs</c> and <c>*.uitkx</c>
+/// files for IntelliSense) stays up-to-date when files are added, removed, or
+/// modified without the user explicitly re-opening a <c>.uitkx</c> document.
 ///
-/// The registration options tell the client to watch all <c>*Props.cs</c>
-/// files in the workspace; any change notification calls
+/// The registration options tell the client to watch all <c>*Props.cs</c> and
+/// <c>*.uitkx</c> files in the workspace; any change notification calls
 /// <see cref="WorkspaceIndex.Refresh"/> for the affected path.
 /// </summary>
 public sealed class WatchedFilesHandler : IDidChangeWatchedFilesHandler
@@ -30,12 +30,19 @@ public sealed class WatchedFilesHandler : IDidChangeWatchedFilesHandler
     ) =>
         new DidChangeWatchedFilesRegistrationOptions
         {
-            // Ask the client to watch every *Props.cs file in the workspace so
-            // we hear about create/change/delete without polling.
+            // Watch *Props.cs files so the element/props index stays up to date
+            // when files are added/removed outside the editor.
+            // Also watch *.uitkx so newly created function-style components are
+            // discovered and added to the element index (for UITKX0105 checks).
             Watchers = new Container<OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher>(
                 new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher
                 {
                     GlobPattern = "**/*Props.cs",
+                    Kind = WatchKind.Create | WatchKind.Change | WatchKind.Delete,
+                },
+                new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher
+                {
+                    GlobPattern = "**/*.uitkx",
                     Kind = WatchKind.Create | WatchKind.Change | WatchKind.Delete,
                 }
             ),

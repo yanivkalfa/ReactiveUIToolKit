@@ -113,6 +113,7 @@ namespace ReactiveUITK.Language.Parser
             var injects = new List<(string Type, string Name)>();
             int nsLine = -1;
             int componentLine = -1;
+            int componentNameColumn = -1;
 
             int i = 0;
             int line = 1;
@@ -190,6 +191,7 @@ namespace ReactiveUITK.Language.Parser
                     case "component":
                         component = value;
                         componentLine = line;
+                        componentNameColumn = ColAtPos(source, valueStart);
                         break;
                     case "props":
                         props = value;
@@ -299,7 +301,9 @@ namespace ReactiveUITK.Language.Parser
                 MarkupEndIndex: -1,
                 IsFunctionStyle: false,
                 FunctionSetupCode: null,
-                FunctionSetupStartLine: -1
+                FunctionSetupStartLine: -1,
+                ComponentDeclarationLine: componentLine > 0 ? componentLine : 1,
+                ComponentNameColumn: componentNameColumn
             );
         }
 
@@ -349,6 +353,7 @@ namespace ReactiveUITK.Language.Parser
             int componentLine = line;
 
             SkipSpaces(source, ref i);
+            int nameStartI = i; // column anchor — position of first char of component name
             if (!TryReadIdentifier(source, ref i, out string componentName))
             {
                 diagnosticBag.Add(new ParseDiagnostic
@@ -373,6 +378,7 @@ namespace ReactiveUITK.Language.Parser
             }
 
             string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+            int componentNameCol = ColAtPos(source, nameStartI);
 
             // ── Optional typed-props parameter list ───────────────────────────
             // Supports: component Name(Type param = default, ...)
@@ -410,7 +416,9 @@ namespace ReactiveUITK.Language.Parser
                     IsFunctionStyle: true,
                     FunctionSetupCode: string.Empty,
                     FunctionSetupStartLine: componentLine,
-                    FunctionParams: functionParams
+                    FunctionParams: functionParams,
+                    ComponentDeclarationLine: componentLine,
+                    ComponentNameColumn: componentNameCol
                 );
                 return true;
             }
@@ -439,7 +447,9 @@ namespace ReactiveUITK.Language.Parser
                     IsFunctionStyle: true,
                     FunctionSetupCode: string.Empty,
                     FunctionSetupStartLine: componentLine,
-                    FunctionParams: functionParams
+                    FunctionParams: functionParams,
+                    ComponentDeclarationLine: componentLine,
+                    ComponentNameColumn: componentNameCol
                 );
                 return true;
             }
@@ -465,11 +475,15 @@ namespace ReactiveUITK.Language.Parser
                     Code = malformedReturnPos >= 0 ? "UITKX2102" : "UITKX2101",
                     Severity = ParseSeverity.Error,
                     SourceLine = malformedReturnPos >= 0 ? LineAtPos(source, malformedReturnPos) : componentLine,
+                    // For UITKX2101 point the squiggle at the component name, matching UITKX0103.
+                    SourceColumn = malformedReturnPos >= 0 ? 0 : componentNameCol,
+                    EndColumn    = malformedReturnPos >= 0 ? 0 : componentNameCol + componentName.Length,
                     Message = malformedReturnPos >= 0
                         ? "'return' must return UITKX markup using 'return (...)'."
                         : "Function-style component must contain exactly one top-level 'return (...)' statement.",
                 });
 
+                int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
@@ -482,8 +496,12 @@ namespace ReactiveUITK.Language.Parser
                     MarkupEndIndex: source.Length,
                     IsFunctionStyle: true,
                     FunctionSetupCode: source.Substring(bodyStart, Math.Max(0, bodyEndExclusive - bodyStart)).Trim(),
-                    FunctionSetupStartLine: LineAtPos(source, bodyStart),
-                    FunctionParams: functionParams
+                    FunctionSetupStartLine: LineAtPos(source, fseTrimStart1),
+                    FunctionSetupStartOffset: fseTrimStart1,
+                    FunctionParams: functionParams,
+                    ComponentDeclarationLine: componentLine,
+                    ComponentNameColumn: componentNameCol,
+                    SetupCodeMarkupRanges: FindJsxBlockRanges(source, bodyStart, bodyEndExclusive)
                 );
                 return true;
             }
@@ -528,6 +546,7 @@ namespace ReactiveUITK.Language.Parser
                     Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
                 );
 
+            int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
                 ComponentName: componentName,
@@ -540,8 +559,15 @@ namespace ReactiveUITK.Language.Parser
                 MarkupEndIndex: markupEnd,
                 IsFunctionStyle: true,
                 FunctionSetupCode: setupCode.Trim(),
-                FunctionSetupStartLine: LineAtPos(source, bodyStart),
-                FunctionParams: functionParams
+                FunctionSetupStartLine: LineAtPos(source, fseTrimStart2),
+                FunctionSetupStartOffset: fseTrimStart2,
+                FunctionParams: functionParams,
+                ComponentDeclarationLine: componentLine,
+                ComponentNameColumn: componentNameCol,
+                SetupCodeMarkupRanges: FindJsxBlockRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive)
             );
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
@@ -1507,6 +1533,20 @@ namespace ReactiveUITK.Language.Parser
             }
         }
 
+        /// <summary>
+        /// Returns the first position in <paramref name="source"/> at or after
+        /// <paramref name="start"/> that is not ASCII whitespace.  Returns
+        /// <paramref name="start"/> if the character there is already non-whitespace
+        /// or if <paramref name="start"/> is at/past the end of the string.
+        /// </summary>
+        private static int FirstNonWhitespaceAt(string source, int start)
+        {
+            while (start < source.Length && (source[start] == ' ' || source[start] == '\t'
+                                          || source[start] == '\r' || source[start] == '\n'))
+                start++;
+            return start;
+        }
+
         private static int LineAtPos(string source, int pos)
         {
             int line = 1;
@@ -1516,7 +1556,103 @@ namespace ReactiveUITK.Language.Parser
             return line;
         }
 
+        /// <summary>
+        /// Returns the 0-based column of <paramref name="pos"/> within its line
+        /// (number of characters after the last '\n' before <paramref name="pos"/>).
+        /// </summary>
+        private static int ColAtPos(string source, int pos)
+        {
+            int col = 0;
+            while (pos > 0 && source[pos - 1] != '\n')
+            {
+                pos--;
+                col++;
+            }
+            return col;
+        }
+
         private static bool IsNewline(char c) => c == '\r' || c == '\n';
+
+        // ── JSX block range finder ────────────────────────────────────────────
+
+        /// <summary>
+        /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
+        /// <paramref name="rangeEnd"/> for UITKX JSX paren blocks of the form
+        /// <c>(&lt;Element&gt;...&lt;/Element&gt;)</c> and returns a list of
+        /// <c>(Start, End, Line)</c> tuples for each one found.
+        /// <para>
+        /// <c>Start</c> = char index just inside the opening <c>(</c>;<br/>
+        /// <c>End</c>   = exclusive index at the closing <c>)</c>;<br/>
+        /// <c>Line</c>  = 1-based source line of <c>Start</c>.
+        /// </para>
+        /// </summary>
+        private static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
+            string source, int rangeStart, int rangeEnd)
+        {
+            var result = ImmutableArray.CreateBuilder<(int, int, int)>();
+            int i = rangeStart;
+            while (i < rangeEnd)
+            {
+                if (source[i] != '(')
+                {
+                    i++;
+                    continue;
+                }
+
+                // Peek past whitespace / newlines to see if the next token is '<'
+                int peek = i + 1;
+                while (peek < rangeEnd &&
+                       (source[peek] == ' '  || source[peek] == '\t' ||
+                        source[peek] == '\r' || source[peek] == '\n'))
+                    peek++;
+
+                if (peek >= rangeEnd || source[peek] != '<')
+                {
+                    i++;
+                    continue;
+                }
+
+                // Balance parens to find the matching ')'
+                int depth = 1;
+                int j     = i + 1;
+                while (j < rangeEnd && depth > 0)
+                {
+                    if      (source[j] == '(') depth++;
+                    else if (source[j] == ')') depth--;
+                    j++;
+                }
+
+                if (depth == 0)
+                {
+                    int blockStart = i + 1;   // content starts after '('
+                    int blockEnd   = j - 1;   // exclusive — at the ')'
+                    int blockLine  = LineAtPos(source, blockStart);
+                    result.Add((blockStart, blockEnd, blockLine));
+                    i = j; // hop past the entire block
+                }
+                else
+                {
+                    i++; // unbalanced — skip
+                }
+            }
+            return result.ToImmutable();
+        }
+
+        /// <summary>
+        /// Scans two disjoint (start, end) ranges and returns the combined list.
+        /// Useful when setup code spans a gap where <c>return (...)</c> was removed.
+        /// </summary>
+        private static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
+            string source,
+            int range1Start, int range1End,
+            int range2Start, int range2End)
+        {
+            var r1 = FindJsxBlockRanges(source, range1Start, range1End);
+            var r2 = FindJsxBlockRanges(source, range2Start, range2End);
+            if (r2.IsDefaultOrEmpty) return r1;
+            if (r1.IsDefaultOrEmpty) return r2;
+            return r1.AddRange(r2);
+        }
 
         private static void ConsumeNewline(string source, ref int i, ref int line)
         {

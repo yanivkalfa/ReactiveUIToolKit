@@ -42,7 +42,13 @@ namespace UitkxLanguageServer.Roslyn
         private static readonly HashSet<string> s_suppressedIds =
             new HashSet<string>(StringComparer.Ordinal)
             {
-                "CS0246", // The type or namespace name '…' could not be found
+                // CS0246 — type/namespace not found.
+                // The LSP Roslyn compilation cannot reference Unity-specific assemblies
+                // (ReactiveUITK.Samples, ReadonlyUITK.Core, etc.) so any type from those
+                // assemblies fires a false-positive CS0246 in every .uitkx file.
+                // Unity's own compiler is the authoritative source for type-not-found errors;
+                // suppressing here prevents noisy red squiggles for valid user code.
+                "CS0246",
                 "CS8019", // Unnecessary using directive
                 "CS1591", // Missing XML comment
                 "CS0649", // Field '…' is never assigned to
@@ -50,6 +56,7 @@ namespace UitkxLanguageServer.Roslyn
                 "CS8618", // Non-nullable field '…' must contain a non-null value
                 "CS0169", // The field '…' is never used
                 "CS8625", // Cannot convert null literal to non-nullable reference type (scaffold default!)
+                "CS0219", // The variable '…' is assigned but its value is never used — cascade from broken parse
             };
 
         // ── Public API ────────────────────────────────────────────────────────
