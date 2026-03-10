@@ -41,6 +41,7 @@ namespace ReactiveUITK.Language.SemanticTokens
         };
 
         private static readonly string[] s_noMods = Array.Empty<string>();
+        private static readonly string[] s_unreachableMods = new[] { SemanticTokenModifiers.Unreachable };
 
         // ── Public API ────────────────────────────────────────────────────────
 
@@ -77,6 +78,10 @@ namespace ReactiveUITK.Language.SemanticTokens
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
                 CollectNodeTokens(node, source, lineStarts, tokens, knownElements);
+
+            // 3. Hook setter variables (var (state, setter) = useState(...))
+            //    Scans the full source so hooks at any nesting level are covered.
+            CollectHookSetterTokens(source, lineStarts, tokens);
 
             return NormalizeTokenConflicts(tokens)
                 .OrderBy(t => t.Line)
@@ -235,79 +240,107 @@ namespace ReactiveUITK.Language.SemanticTokens
 
         // ── AST node walk ─────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Emits semantic tokens for <paramref name="node"/>.
+        /// <paramref name="unreachable"/> is true when this node follows a scope-ending
+        /// statement (<c>@break</c> / <c>@continue</c>) in the same sibling list;
+        /// all tokens emitted will carry the <c>uitkxUnreachable</c> modifier so the
+        /// IDE can render them as dimmed/faded.
+        /// </summary>
         private static void CollectNodeTokens(
             AstNode node,
             string source,
             int[] lineStarts,
             List<SemanticTokenData> tokens,
-            HashSet<string>? knownElements
+            HashSet<string>? knownElements,
+            bool unreachable = false
         )
         {
             switch (node)
             {
                 case ElementNode el:
-                    CollectElementTokens(el, source, lineStarts, tokens, knownElements);
+                    CollectElementTokens(el, source, lineStarts, tokens, knownElements, unreachable);
                     break;
 
                 case IfNode ifN:
-                    CollectIfTokens(ifN, source, lineStarts, tokens, knownElements);
+                    CollectIfTokens(ifN, source, lineStarts, tokens, knownElements, unreachable);
                     break;
 
                 case ForeachNode fe:
-                    EmitKeyword(tokens, source, lineStarts, fe.SourceLine, "@foreach");
-                    foreach (var child in fe.Body)
-                        CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+                    EmitKeyword(tokens, source, lineStarts, fe.SourceLine, "@foreach", unreachable);
+                    CollectBodyNodes(fe.Body, source, lineStarts, tokens, knownElements, unreachable);
                     break;
 
                 case ForNode fo:
-                    EmitKeyword(tokens, source, lineStarts, fo.SourceLine, "@for");
-                    foreach (var child in fo.Body)
-                        CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+                    EmitKeyword(tokens, source, lineStarts, fo.SourceLine, "@for", unreachable);
+                    CollectBodyNodes(fo.Body, source, lineStarts, tokens, knownElements, unreachable);
                     break;
 
                 case WhileNode wh:
-                    EmitKeyword(tokens, source, lineStarts, wh.SourceLine, "@while");
-                    foreach (var child in wh.Body)
-                        CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+                    EmitKeyword(tokens, source, lineStarts, wh.SourceLine, "@while", unreachable);
+                    CollectBodyNodes(wh.Body, source, lineStarts, tokens, knownElements, unreachable);
                     break;
 
                 case SwitchNode sw:
-                    CollectSwitchTokens(sw, source, lineStarts, tokens, knownElements);
+                    CollectSwitchTokens(sw, source, lineStarts, tokens, knownElements, unreachable);
                     break;
 
                 case BreakNode br:
-                    EmitKeyword(tokens, source, lineStarts, br.SourceLine, "@break");
+                    EmitKeyword(tokens, source, lineStarts, br.SourceLine, "@break", unreachable);
                     break;
 
                 case ContinueNode cn:
-                    EmitKeyword(tokens, source, lineStarts, cn.SourceLine, "@continue");
+                    EmitKeyword(tokens, source, lineStarts, cn.SourceLine, "@continue", unreachable);
                     break;
 
                 case CodeBlockNode cb:
-                    EmitKeyword(tokens, source, lineStarts, cb.SourceLine, "@code");
-                    // Tokenize embedded markup directly from @code source spans so
-                    // markup colors stay consistent regardless of expression form.
-                    CollectEmbeddedMarkupTokensInCodeBlock(
-                        cb,
-                        source,
-                        lineStarts,
-                        tokens,
-                        knownElements
-                    );
+                    EmitKeyword(tokens, source, lineStarts, cb.SourceLine, "@code", unreachable);
+                    // Tokenize embedded markup AND the surrounding C# code.
+                    // CollectEmbeddedMarkupTokensInCodeBlock returns the set of source
+                    // lines it already covered so CollectCodeBlockBodyTokens can skip them.
+                    var markupLines = CollectEmbeddedMarkupTokensInCodeBlock(
+                        cb, source, lineStarts, tokens, knownElements);
+                    CollectCodeBlockBodyTokens(cb, source, lineStarts, tokens, markupLines);
                     break;
 
                 case ExpressionNode ex:
-                    EmitKeyword(tokens, source, lineStarts, ex.SourceLine, "@(");
+                    EmitKeyword(tokens, source, lineStarts, ex.SourceLine, "@(", unreachable);
                     break;
 
                 case JsxCommentNode jc:
-                {
                     EmitJsxCommentTokens(jc, source, lineStarts, tokens);
                     break;
-                }
 
                 case TextNode _:
                     break; // plain text — no semantic tokens
+            }
+        }
+
+        // ── Body-list traversal with scope-ender detection ────────────────────
+
+        /// <summary>
+        /// Iterates a body node list, emitting tokens for each node.
+        /// After the first <c>@break</c> or <c>@continue</c> node in the list,
+        /// all subsequent siblings are emitted with <c>unreachable = true</c> so
+        /// the IDE renders them as dimmed/faded.
+        /// </summary>
+        private static void CollectBodyNodes(
+            IEnumerable<AstNode> body,
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens,
+            HashSet<string>? knownElements,
+            bool unreachable
+        )
+        {
+            bool afterScopeEnder = unreachable;
+            foreach (var node in body)
+            {
+                CollectNodeTokens(node, source, lineStarts, tokens, knownElements, afterScopeEnder);
+                // @break and @continue end the current scope — everything that follows
+                // in the same sibling list is unreachable.
+                if (node is BreakNode || node is ContinueNode)
+                    afterScopeEnder = true;
             }
         }
 
@@ -318,9 +351,12 @@ namespace ReactiveUITK.Language.SemanticTokens
             string source,
             int[] lineStarts,
             List<SemanticTokenData> tokens,
-            HashSet<string>? knownElements
+            HashSet<string>? knownElements,
+            bool unreachable = false
         )
         {
+            var mods = unreachable ? s_unreachableMods : s_noMods;
+
             // Open-tag name column (search for '<TagName', not '</TagName')
             int openNameCol = FindOpenTagName(source, lineStarts, el.SourceLine, el.TagName);
             if (openNameCol >= 0)
@@ -330,7 +366,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                     openNameCol,
                     el.TagName.Length,
                     SemanticTokenTypes.Element,
-                    s_noMods
+                    mods
                 );
 
             // Attribute names (always emit — attributes on unknown elements are still valid)
@@ -344,13 +380,13 @@ namespace ReactiveUITK.Language.SemanticTokens
                         attrCol,
                         attr.Name.Length,
                         SemanticTokenTypes.Attribute,
-                        s_noMods
+                        mods
                     );
             }
 
-            // Recurse into children
+            // Recurse into children (propagate unreachable flag)
             foreach (var child in el.Children)
-                CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+                CollectNodeTokens(child, source, lineStarts, tokens, knownElements, unreachable);
 
             // Close-tag name (block elements only — self-closing have CloseTagLine == 0)
             if (el.CloseTagLine > 0)
@@ -368,7 +404,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                         closeNameCol,
                         el.TagName.Length,
                         SemanticTokenTypes.Element,
-                        s_noMods
+                        mods
                     );
             }
         }
@@ -380,7 +416,8 @@ namespace ReactiveUITK.Language.SemanticTokens
             string source,
             int[] lineStarts,
             List<SemanticTokenData> tokens,
-            HashSet<string>? knownElements
+            HashSet<string>? knownElements,
+            bool unreachable = false
         )
         {
             bool isFirst = true;
@@ -388,13 +425,13 @@ namespace ReactiveUITK.Language.SemanticTokens
             {
                 if (isFirst)
                 {
-                    EmitKeyword(tokens, source, lineStarts, branch.SourceLine, "@if");
+                    EmitKeyword(tokens, source, lineStarts, branch.SourceLine, "@if", unreachable);
                     isFirst = false;
                 }
                 else
                 {
                     // '@else if (cond)' or '@else'  – emit '@else' in both cases
-                    EmitKeyword(tokens, source, lineStarts, branch.SourceLine, "@else");
+                    EmitKeyword(tokens, source, lineStarts, branch.SourceLine, "@else", unreachable);
                     // If there is a condition, also emit 'if' keyword that follows '@else '
                     if (branch.Condition != null)
                     {
@@ -416,14 +453,13 @@ namespace ReactiveUITK.Language.SemanticTokens
                                     ifCol,
                                     2,
                                     SemanticTokenTypes.Directive,
-                                    s_noMods
+                                    unreachable ? s_unreachableMods : s_noMods
                                 );
                         }
                     }
                 }
 
-                foreach (var child in branch.Body)
-                    CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+                CollectBodyNodes(branch.Body, source, lineStarts, tokens, knownElements, unreachable);
             }
         }
 
@@ -434,18 +470,20 @@ namespace ReactiveUITK.Language.SemanticTokens
             string source,
             int[] lineStarts,
             List<SemanticTokenData> tokens,
-            HashSet<string>? knownElements
+            HashSet<string>? knownElements,
+            bool unreachable = false
         )
         {
-            EmitKeyword(tokens, source, lineStarts, sw.SourceLine, "@switch");
+            EmitKeyword(tokens, source, lineStarts, sw.SourceLine, "@switch", unreachable);
 
             foreach (var c in sw.Cases)
             {
                 string kw = c.ValueExpression != null ? "@case" : "@default";
-                EmitKeyword(tokens, source, lineStarts, c.SourceLine, kw);
+                EmitKeyword(tokens, source, lineStarts, c.SourceLine, kw, unreachable);
 
-                foreach (var child in c.Body)
-                    CollectNodeTokens(child, source, lineStarts, tokens, knownElements);
+                // Scope-enders inside a case body make *subsequent siblings within that*
+                // *case* unreachable; they do not propagate across cases.
+                CollectBodyNodes(c.Body, source, lineStarts, tokens, knownElements, unreachable);
             }
         }
 
@@ -1114,7 +1152,8 @@ namespace ReactiveUITK.Language.SemanticTokens
             string source,
             int[] lineStarts,
             int line1,
-            string keyword
+            string keyword,
+            bool unreachable = false
         )
         {
             int col = FindOnLine(source, lineStarts, line1, keyword);
@@ -1125,7 +1164,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                     col,
                     keyword.Length,
                     SemanticTokenTypes.Directive,
-                    s_noMods
+                    unreachable ? s_unreachableMods : s_noMods
                 );
         }
 

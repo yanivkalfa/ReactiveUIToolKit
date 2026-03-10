@@ -44,6 +44,7 @@ public sealed class DiagnosticsPublisher
     private readonly ILanguageServerFacade  _server;
     private readonly UitkxSchema           _schema;
     private readonly WorkspaceIndex        _index;
+    private readonly DocumentStore         _documentStore;
     private readonly DiagnosticsAnalyzer   _analyzer     = new DiagnosticsAnalyzer();
     private readonly RoslynDiagnosticMapper _roslynMapper = new RoslynDiagnosticMapper();
 
@@ -52,11 +53,33 @@ public sealed class DiagnosticsPublisher
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT1T2 =
         new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
 
-    public DiagnosticsPublisher(ILanguageServerFacade server, UitkxSchema schema, WorkspaceIndex index)
+    public DiagnosticsPublisher(ILanguageServerFacade server, UitkxSchema schema, WorkspaceIndex index, DocumentStore documentStore)
     {
-        _server = server;
-        _schema = schema;
-        _index  = index;
+        _server        = server;
+        _schema        = schema;
+        _index         = index;
+        _documentStore = documentStore;
+
+        // When the background workspace scan finishes, re-validate every open .uitkx
+        // document so that components indexed after initial open are no longer flagged
+        // as unknown elements.
+        _index.ScanCompleted += () =>
+        {
+            foreach (var (uriString, text) in _documentStore.GetAll())
+            {
+                if (!uriString.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                try
+                {
+                    var docUri = DocumentUri.From(uriString);
+                    Publish(docUri, text, roslynHost: null);
+                }
+                catch (Exception ex)
+                {
+                    ServerLog.Log($"[Diagnostics] ScanCompleted re-publish error: {ex.Message}");
+                }
+            }
+        };
     }
 
     // â”€â”€ Tier 1 + 2: immediate synchronous push â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -104,7 +127,10 @@ public sealed class DiagnosticsPublisher
             ImmutableArray.CreateRange(parseDiags));
 
         // â”€â”€ T2 structural analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var projectElements = BuildProjectElements();
+        // Seed projectElements with the component declared in this file so that
+        // self-referencing components (e.g. recursive <DeepNode />) and sibling
+        // components not yet reached by the async scan are never falsely flagged.
+        var projectElements = BuildProjectElements(directives.ComponentName);
         var knownAttributes = BuildKnownAttributes(projectElements);
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
 
@@ -232,13 +258,18 @@ public sealed class DiagnosticsPublisher
     /// (built-in UITKX elements) and the dynamic workspace index (*Props.cs scan).
     /// Used for UITKX0105 unknown-element checks.
     /// </summary>
-    private HashSet<string> BuildProjectElements()
+    private HashSet<string> BuildProjectElements(string? ownComponentName = null)
     {
         var set = new HashSet<string>(StringComparer.Ordinal);
         foreach (var key in _schema.Root.Elements.Keys)
             set.Add(key);
         foreach (var e in _index.KnownElements)
             set.Add(e);
+        // Always include the component declared in the file being validated so that
+        // recursive self-references and race conditions with the async scan never
+        // produce a false-positive UITKX0105 "Unknown element" diagnostic.
+        if (!string.IsNullOrEmpty(ownComponentName))
+            set.Add(ownComponentName);
         return set;
     }
 

@@ -1,5 +1,44 @@
 ﻿# Changelog
 
+## [1.0.138] - 2026-03-10
+- Fix member completions in function-style setup code: AstCursorContext now returns CSharpCodeBlock for code lines, CompletionHandler routes it to Roslyn. Add '.' as completion trigger character. Fix SourceMap.ToVirtualOffset boundary so cursor at end of expression (e.g. after typing '.') still maps into virtual doc.
+
+## [1.0.137] - 2026-03-10
+- Fix missing colors inside component declaration parameter list
+
+## [1.0.136] - 2026-03-10
+- Fix 'component' keyword color inconsistency — parametered declarations now match same color as bare declarations
+
+## [1.0.135] - 2026-03-10
+- Fix false 'Unknown element' diagnostics for recursive components (e.g. DeepNode) and cross-file references during workspace scan
+
+## [1.0.134] - 2026-03-10
+- Removed automatic semicolon insertion on format — users must write their own semicolons in .uitkx files
+
+## [1.0.133] - 2026-03-10
+- fix: formatter no longer injects spurious semicolons into object initializer expressions or ternary branches; fix: multi-line attribute expression values are now re-indented correctly on format
+
+## [1.0.132] - 2026-03-10
+- fix: formatter was dropping component parameters (e.g. string label = 'x') on save in function-style components
+
+## [1.0.131] - 2026-03-10
+- fix: formatter was stripping @ from @using directives on save in function-style components
+
+## [1.0.130] - 2026-03-10
+- fix: generic method calls like useState<T>() now colored as function calls instead of variables
+
+## [1.0.129] - 2026-03-10
+- fix: @ symbol in @if/@for/@switch etc. now always colored — uses keyword scope instead of punctuation scope which many themes don't color
+
+## [1.0.128] - 2026-03-10
+- fix: grammar coloring consistency — tag names always colored; @if/@for etc. colored inside paren expressions; control-flow body braces use full markup context
+
+## [1.0.127] - 2026-03-10
+- fix: function-style body C# coloring via grammar fallback; @code block semantic tokens now wired up; hook setter colors activated; unreachable code dimming after @break/@continue
+
+## [1.0.126] - 2026-03-10
+- fix: function-style body C# coloring via grammar fallback; @code block semantic tokens now wired up; hook setter colors activated; unreachable code dimming after @break/@continue
+
 ## [1.0.126] - 2026-03-10
 - fix: closing tag no longer under-indented after Enter inside JSX tags
 

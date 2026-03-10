@@ -114,7 +114,7 @@ namespace ReactiveUITK.Language.Roslyn
         {
             foreach (var e in _entries)
             {
-                if (uitkxOffset >= e.UitkxStart && uitkxOffset < e.UitkxEnd)
+                if (uitkxOffset >= e.UitkxStart && uitkxOffset <= e.UitkxEnd)
                     return (e.VirtualStart + (uitkxOffset - e.UitkxStart), e);
             }
             return null;

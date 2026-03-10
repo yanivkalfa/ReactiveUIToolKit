@@ -185,6 +185,23 @@ namespace ReactiveUITK.Language.IntelliSense
             string? astAttrName = null;
             FindAstContext(parseResult.RootNodes, line1, ref astTagName, ref astAttrName);
 
+            // ── 3a. Function-style setup code ─────────────────────────────────
+            // Lines at or after FunctionSetupStartLine are C# setup code unless
+            // the AST places the cursor inside a markup element's open-tag.
+            // This covers `allowNextRef.Current`, `StyleKeys.Color`, etc.
+            if (parseResult.Directives.IsFunctionStyle
+                && parseResult.Directives.FunctionSetupStartLine > 0
+                && line1 >= parseResult.Directives.FunctionSetupStartLine
+                && astTagName == null)
+            {
+                return new CursorContext
+                {
+                    Kind   = CursorKind.CSharpCodeBlock,
+                    Prefix = prefix,
+                    Word   = word,
+                };
+            }
+
             // ── 4. Single-line position scan ───────────────────────────────────
             return ClassifyTagPosition(lineText, col0, prefix, word, astTagName, astAttrName);
         }

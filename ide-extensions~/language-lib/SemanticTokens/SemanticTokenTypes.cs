@@ -77,9 +77,16 @@ namespace ReactiveUITK.Language.SemanticTokens
         public const string Declaration = "declaration";
 
         /// <summary>
+        /// Applied to any token that is unreachable due to a preceding
+        /// <c>@break</c>, <c>@continue</c>, or <c>return</c> within the same scope.
+        /// IDEs that support custom modifiers will render these as dimmed/faded.
+        /// </summary>
+        public const string Unreachable = "uitkxUnreachable";
+
+        /// <summary>
         /// All modifiers in registration order.
         /// Bit position <c>i</c> corresponds to modifier <c>All[i]</c> in the bitmask.
         /// </summary>
-        public static readonly string[] All = new[] { Declaration };
+        public static readonly string[] All = new[] { Declaration, Unreachable };
     }
 }

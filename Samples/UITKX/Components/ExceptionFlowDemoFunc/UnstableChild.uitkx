@@ -1,13 +1,11 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 
-// Sub-component: throws when shouldThrow is true
 component UnstableChild(bool shouldThrow = false) {
+  if (shouldThrow) {
+      throw new System.InvalidOperationException("Simulated child exception.");
+  }
 
-    if (shouldThrow) {
-        throw new System.InvalidOperationException("Simulated child exception.");
-    }
-
-    return (
-        <Text text="Child content rendered successfully." />
-    );
+  return (
+    <Text text="Child content rendered successfully." />
+  );
 }

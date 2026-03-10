@@ -63,12 +63,6 @@ namespace ReactiveUITK.Language.Formatter
         /// <summary>Reserved for future prop-spread trailing comma support.</summary>
         public bool TrailingComma { get; init; } = false;
 
-        /// <summary>
-        /// When true (default), the formatter inserts missing semicolons in safe
-        /// statement-ending contexts inside <c>@code</c> blocks.
-        /// </summary>
-        public bool InsertMissingSemicolonsOnFormat { get; init; } = true;
-
         // ── Singleton default ────────────────────────────────────────────────
 
         /// <summary>Immutable default options instance.</summary>
@@ -105,7 +99,6 @@ namespace ReactiveUITK.Language.Formatter
                 opts = opts with { ClosingBracketSameLine    = ReadBool(fmtBody, "closingBracketSameLine",    opts.ClosingBracketSameLine) };
                 opts = opts with { PreserveBlankLines        = ReadBool(fmtBody, "preserveBlankLines",        opts.PreserveBlankLines) };
                 opts = opts with { InsertSpaceBeforeSelfClose = ReadBool(fmtBody, "insertSpaceBeforeSelfClose", opts.InsertSpaceBeforeSelfClose) };
-                opts = opts with { InsertMissingSemicolonsOnFormat = ReadBool(fmtBody, "insertMissingSemicolonsOnFormat", opts.InsertMissingSemicolonsOnFormat) };
 
                 return opts;
             }

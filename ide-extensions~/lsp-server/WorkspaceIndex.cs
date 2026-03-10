@@ -82,6 +82,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     // ── IOnLanguageServerStarted ─────────────────────────────────────────────
 
+    /// <summary>
+    /// Fired once on the thread-pool after the initial <see cref="ScanDirectory"/> completes.
+    /// Subscribe to re-validate open documents that were diagnosed before the scan finished.
+    /// </summary>
+    public event Action? ScanCompleted;
+
     public Task OnStarted(ILanguageServer server, CancellationToken cancellationToken)
     {
         string? root = null;
@@ -97,7 +103,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             root = server.ClientSettings.RootPath;
 
         if (!string.IsNullOrEmpty(root))
-            _ = Task.Run(() => ScanDirectory(root), cancellationToken);
+            _ = Task.Run(() => { ScanDirectory(root); ScanCompleted?.Invoke(); }, cancellationToken);
 
         return Task.CompletedTask;
     }

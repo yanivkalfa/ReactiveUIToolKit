@@ -7,7 +7,6 @@
     "bracketSameLine": false,
     "closingBracketSameLine": false,
     "insertSpaceBeforeSelfClose": true,
-    "insertMissingSemicolonsOnFormat": true,
     "preserveBlankLines": true,
     "maxConsecutiveBlankLines": 1,
     "trailingComma": false

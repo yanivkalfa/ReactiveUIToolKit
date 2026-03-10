@@ -1,29 +1,42 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using UnityEngine
+
 component MainMenuSidebar {
-    var navigate = RouterHooks.UseNavigate();
+  var navigate = RouterHooks.UseNavigate();
 
-    var sidebarStyle = new Style {
-        (StyleKeys.Width, 220f),
-        (StyleKeys.Padding, 10f),
-        (StyleKeys.FlexDirection, "column"),
-        (StyleKeys.JustifyContent, "flex-start"),
-        (StyleKeys.AlignItems, "stretch"),
-        (StyleKeys.BorderWidth, 1f),
-        (StyleKeys.BorderColor, new Color(0.25f, 0.25f, 0.25f, 1f)),
-        (StyleKeys.BorderRadius, 6f),
-    };
+  var sidebarStyle = new Style {
+      (StyleKeys.Width, 220f),
+      (StyleKeys.Padding, 10f),
+      (StyleKeys.FlexDirection, "column"),
+      (StyleKeys.JustifyContent, "flex-start"),
+      (StyleKeys.AlignItems, "stretch"),
+      (StyleKeys.BorderWidth, 1f),
+      (StyleKeys.BorderColor, new Color(0.25f, 0.25f, 0.25f, 1f)),
+      (StyleKeys.BorderRadius, 6f),
+  };
 
-    var btnStyle = new Style { (StyleKeys.MarginTop, 6f) };
+  var btnStyle = new Style { (StyleKeys.MarginTop, 6f) };
 
-    return (
-        <VisualElement style={sidebarStyle}>
-            <Text text="Sidebar" />
-            <Button text="Home" onClick={_ => navigate(string.Empty)} style={btnStyle} />
-            <Button text="Profile" onClick={_ => navigate("profile")} style={btnStyle} />
-            <Button text="Store" onClick={_ => navigate("store")} style={btnStyle} />
-            <Button text="Settings" onClick={_ => navigate("settings")} style={btnStyle} />
-        </VisualElement>
-    );
+  return (
+    <VisualElement style={sidebarStyle}>
+      <Text text="Sidebar" />
+      <Button
+        text="Home"
+        onClick={_ => navigate(string.Empty)}
+        style={btnStyle}
+      />
+      <Button
+        text="Profile"
+        onClick={_ => navigate("profile")}
+        style={btnStyle}
+      />
+      <Button text="Store" onClick={_ => navigate("store")} style={btnStyle} />
+      <Button
+        text="Settings"
+        onClick={_ => navigate("settings")}
+        style={btnStyle}
+      />
+    </VisualElement>
+  );
 }

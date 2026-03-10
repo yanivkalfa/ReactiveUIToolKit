@@ -49,7 +49,7 @@ public sealed class CompletionHandler : ICompletionHandler
             DocumentSelector = new TextDocumentSelector(
                 new TextDocumentFilter { Pattern = "**/*.uitkx" }
             ),
-            TriggerCharacters = new Container<string>("<", "@", "{"),
+            TriggerCharacters = new Container<string>("<", "@", "{", "."),
             ResolveProvider = false,
         };
 
@@ -129,6 +129,7 @@ public sealed class CompletionHandler : ICompletionHandler
         // positions (those produce UITKX-specific items).
         bool wantsRoslynCompletion =
             ctx.Kind == CursorKind.CSharpExpression
+            || ctx.Kind == CursorKind.CSharpCodeBlock
             || (
                 inCodeBlockLine
                 && !inEmbeddedMarkupInCode
@@ -150,13 +151,13 @@ public sealed class CompletionHandler : ICompletionHandler
             }
 
             // Roslyn workspace not yet ready or returned nothing.
-            // For expression positions, return incomplete rather than falling through
+            // For C# positions, return incomplete rather than falling through
             // to UITKX items (which would be meaningless here).
             // isIncomplete: true tells VS Code to retry when the user types more,
             // so completions will appear once Roslyn finishes compiling.
-            if (ctx.Kind == CursorKind.CSharpExpression)
+            if (ctx.Kind == CursorKind.CSharpExpression || ctx.Kind == CursorKind.CSharpCodeBlock)
             {
-                Log("completion: CSharpExpression — Roslyn not ready, returning incomplete");
+                Log($"completion: {ctx.Kind} — Roslyn not ready, returning incomplete");
                 return new CompletionList(isIncomplete: true);
             }
         }

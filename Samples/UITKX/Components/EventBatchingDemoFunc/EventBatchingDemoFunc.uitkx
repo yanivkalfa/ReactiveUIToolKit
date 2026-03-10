@@ -1,66 +1,86 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using UnityEngine
+
 component EventBatchingDemoFunc {
-    var (batchedValue, setBatchedValue) = useState(0);
-    var (renderCount, setRenderCount) = useState(0);
-    var (status, setStatus) = useState("Click a button to enqueue updates.");
+  var (batchedValue, setBatchedValue) = useState(0);
+  var (renderCount, setRenderCount) = useState(0);
+  var (status, setStatus) = useState("Click a button to enqueue updates.");
 
-    useLayoutEffect(() => {
-        setRenderCount(count => count + 1);
-        return null;
-    }, new object[] { batchedValue });
+  useLayoutEffect(() => {
+      setRenderCount(count => count + 1);
+      return null;
+  }, new object[] { batchedValue });
 
-    void TripleUpdate() {
-        setBatchedValue(v => v + 5);
-        setBatchedValue(v => v - 2);
-        setBatchedValue(v => v + 1);
-        setStatus($"Queued 3 functional updates ({DateTime.Now:HH:mm:ss})");
-    }
+  void TripleUpdate() {
+      setBatchedValue(v => v + 5);
+      setBatchedValue(v => v - 2);
+      setBatchedValue(v => v + 1);
+      setStatus($"Queued 3 functional updates ({DateTime.Now:HH:mm:ss})");
+  }
 
-    void ValueThenUpdater() {
-        setBatchedValue(10);
-        setBatchedValue(v => v - 3);
-        setStatus($"Set direct value then updater ({DateTime.Now:HH:mm:ss})");
-    }
+  void ValueThenUpdater() {
+      setBatchedValue(10);
+      setBatchedValue(v => v - 3);
+      setStatus($"Set direct value then updater ({DateTime.Now:HH:mm:ss})");
+  }
 
-    void RapidClicks() {
-        for (int i = 0; i < 5; i++) {
-            setBatchedValue(v => v + 1);
-        }
-        setStatus($"Issued 5 increments ({DateTime.Now:HH:mm:ss})");
-    }
+  void RapidClicks() {
+      for (int i = 0; i < 5; i++) {
+          setBatchedValue(v => v + 1);
+      }
+      setStatus($"Issued 5 increments ({DateTime.Now:HH:mm:ss})");
+  }
 
-    var statBoxStyle = new Style {
-        (StyleKeys.Padding, 8f),
-        (StyleKeys.MarginBottom, 6f),
-        (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),
-        (StyleKeys.BorderRadius, 4f),
-    };
+  var statBoxStyle = new Style {
+      (StyleKeys.Padding, 8f),
+      (StyleKeys.MarginBottom, 6f),
+      (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),
+      (StyleKeys.BorderRadius, 4f),
+  };
 
-    var btnStyle = new Style {
-        (StyleKeys.MinWidth, 180f),
-        (StyleKeys.MarginRight, 6f),
-        (StyleKeys.MarginBottom, 6f),
-    };
+  var btnStyle = new Style {
+      (StyleKeys.MinWidth, 180f),
+      (StyleKeys.MarginRight, 6f),
+      (StyleKeys.MarginBottom, 6f),
+  };
 
-    return (
-        <ScrollView style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 12f), (StyleKeys.WhiteSpace, "normal") }}>
-            <Label text="Synthetic event batching test" style={new Style { (StyleKeys.FontSize, 16f), ("unityFontStyleAndWeight", FontStyle.Bold), (StyleKeys.MarginBottom, 6f) }} />
-            <Label
-                text="Each action sends several state updates during a single event handler. The scheduler wraps handlers in BeginBatch/EndBatch, so renders stay coalesced."
-                style={new Style { (StyleKeys.MarginBottom, 6f) }}
-            />
-            <VisualElement style={statBoxStyle}>
-                <Label text={$"Value: {batchedValue}"} />
-                <Label text={$"Render count (tracked): {renderCount}"} />
-                <Label text={status} style={new Style { (StyleKeys.MarginTop, 4f) }} />
-            </VisualElement>
-            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}>
-                <Button text="Add +5, -2, +1" onClick={_ => TripleUpdate()} style={btnStyle} />
-                <Button text="Set 10 then -3" onClick={_ => ValueThenUpdater()} style={btnStyle} />
-                <Button text="Loop +1 five times" onClick={_ => RapidClicks()} style={btnStyle} />
-            </VisualElement>
-        </ScrollView>
-    );
+  return (
+    <ScrollView
+      style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 12f), (StyleKeys.WhiteSpace, "normal") }}
+    >
+      <Label
+        text="Synthetic event batching test"
+        style={new Style { (StyleKeys.FontSize, 16f), ("unityFontStyleAndWeight", FontStyle.Bold), (StyleKeys.MarginBottom, 6f) }}
+      />
+      <Label
+        text="Each action sends several state updates during a single event handler. The scheduler wraps handlers in BeginBatch/EndBatch, so renders stay coalesced."
+        style={new Style { (StyleKeys.MarginBottom, 6f) }}
+      />
+      <VisualElement style={statBoxStyle}>
+        <Label text={$"Value: {batchedValue}"} />
+        <Label text={$"Render count (tracked): {renderCount}"} />
+        <Label text={status} style={new Style { (StyleKeys.MarginTop, 4f) }} />
+      </VisualElement>
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}
+      >
+        <Button
+          text="Add +5, -2, +1"
+          onClick={_ => TripleUpdate()}
+          style={btnStyle}
+        />
+        <Button
+          text="Set 10 then -3"
+          onClick={_ => ValueThenUpdater()}
+          style={btnStyle}
+        />
+        <Button
+          text="Loop +1 five times"
+          onClick={_ => RapidClicks()}
+          style={btnStyle}
+        />
+      </VisualElement>
+    </ScrollView>
+  );
 }

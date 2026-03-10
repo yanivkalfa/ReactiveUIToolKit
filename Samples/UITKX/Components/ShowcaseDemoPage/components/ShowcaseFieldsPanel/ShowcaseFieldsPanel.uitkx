@@ -3,79 +3,101 @@
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ShowcaseFieldsPanel {
-    var groupStyle = new Style { (MarginTop, 8f) };
+  var groupStyle = new Style { (MarginTop, 8f) };
 
-    return (
-        <VisualElement>
-            <Label text="New Fields" />
-            <GroupBox text="Numeric, Vector and Color Fields" style={groupStyle}>
-                <Label text="FloatField" />
-                <FloatField value={1.23f} />
-                <Label text="IntegerField" />
-                <IntegerField value={42} />
-                <Label text="LongField" />
-                <LongField value={123456789L} />
-                <Label text="DoubleField" />
-                <DoubleField value={3.14159} />
-                <Label text="UnsignedIntegerField" />
-                <UnsignedIntegerField value={77u} />
-                <Label text="UnsignedLongField" />
-                <UnsignedLongField value={9876543210uL} />
-                <Label text="Vector2Field" />
-                <Vector2Field value={new Vector2(1, 2)} />
-                <Label text="Vector3Field" />
-                <Vector3Field value={new Vector3(1, 2, 3)} />
-                <Label text="Vector4Field" />
-                <Vector4Field value={new Vector4(1, 2, 3, 4)} />
-                <Label text="ColorField" />
-                <ColorField value={new Color(0.2f, 0.6f, 0.9f, 1f)} />
-            </GroupBox>
-            <GroupBox text="More Fields" style={groupStyle}>
-                <Label text="EnumField (TextAnchor)" />
-                <EnumField enumType={typeof(TextAnchor).AssemblyQualifiedName} value={TextAnchor.MiddleCenter} />
-                <Label text="Scroller" />
-                <Scroller lowValue={0f} highValue={100f} value={25f} style={new Style { (Height, 18f), (Width, 160f) }} />
-                <Label text="TextElement" />
-                <TextElement text="This is a TextElement" style={new Style { (FontSize, 13f) }} />
-                <Label text="IMGUIContainer" />
-                <IMGUIContainer
-                    onGUI={() => { GUILayout.Label("IMGUI says hello"); }}
-                    style={new Style { (Height, 22f) }}
-                />
-                <Label text="Vector2IntField" />
-                <Vector2IntField value={new Vector2Int(3, 7)} />
-                <Label text="Vector3IntField" />
-                <Vector3IntField value={new Vector3Int(1, 2, 3)} />
-                <Label text="RectField" />
-                <RectField value={new Rect(10f, 20f, 80f, 40f)} />
-                <Label text="RectIntField" />
-                <RectIntField value={new RectInt(2, 4, 11, 9)} />
-                <Label text="BoundsField" />
-                <BoundsField value={new Bounds(new Vector3(0, 0, 0), new Vector3(1, 2, 3))} />
-                <Label text="ObjectField (Texture2D)" />
-                <ObjectField objectType={typeof(Texture2D).AssemblyQualifiedName} allowSceneObjects={false} />
-            </GroupBox>
-            <GroupBox text="Even More Fields" style={groupStyle}>
-                <Label text="MinMaxSlider" />
-                <MinMaxSlider minValue={20f} maxValue={80f} lowLimit={0f} highLimit={100f} style={new Style { (Width, 200f) }} />
-                <Label text="TemplateContainer" />
-                <TemplateContainer
-                    contentContainer={new Style { (Padding, 6f), (BackgroundColor, new Color(1f, 1f, 1f, 1f)) }}
-                    style={new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f, 0.85f, 0.85f, 1f)) }}
-                >
-                    <Label text="Inside TemplateContainer" />
-                </TemplateContainer>
-                <Label text="BoundsIntField" />
-                <BoundsIntField value={new BoundsInt(1, 2, 3, 4, 5, 6)} />
-                <Label text="Hash128Field" />
-                <Hash128Field value={new Hash128(1, 2, 3, 4)} />
-                <Label text="ToggleButtonGroup" />
-                <ToggleButtonGroup value={1}>
-                    <Button text="One" />
-                    <Button text="Two" />
-                    <Button text="Three" />
-                </ToggleButtonGroup>
-            </GroupBox>
-        </VisualElement>
-    );
+  return (
+    <VisualElement>
+      <Label text="New Fields" />
+      <GroupBox text="Numeric, Vector and Color Fields" style={groupStyle}>
+        <Label text="FloatField" />
+        <FloatField value={1.23f} />
+        <Label text="IntegerField" />
+        <IntegerField value={42} />
+        <Label text="LongField" />
+        <LongField value={123456789L} />
+        <Label text="DoubleField" />
+        <DoubleField value={3.14159} />
+        <Label text="UnsignedIntegerField" />
+        <UnsignedIntegerField value={77u} />
+        <Label text="UnsignedLongField" />
+        <UnsignedLongField value={9876543210uL} />
+        <Label text="Vector2Field" />
+        <Vector2Field value={new Vector2(1, 2)} />
+        <Label text="Vector3Field" />
+        <Vector3Field value={new Vector3(1, 2, 3)} />
+        <Label text="Vector4Field" />
+        <Vector4Field value={new Vector4(1, 2, 3, 4)} />
+        <Label text="ColorField" />
+        <ColorField value={new Color(0.2f, 0.6f, 0.9f, 1f)} />
+      </GroupBox>
+      <GroupBox text="More Fields" style={groupStyle}>
+        <Label text="EnumField (TextAnchor)" />
+        <EnumField
+          enumType={typeof(TextAnchor).AssemblyQualifiedName}
+          value={TextAnchor.MiddleCenter}
+        />
+        <Label text="Scroller" />
+        <Scroller
+          lowValue={0f}
+          highValue={100f}
+          value={25f}
+          style={new Style { (Height, 18f), (Width, 160f) }}
+        />
+        <Label text="TextElement" />
+        <TextElement
+          text="This is a TextElement"
+          style={new Style { (FontSize, 13f) }}
+        />
+        <Label text="IMGUIContainer" />
+        <IMGUIContainer
+          onGUI={() => { GUILayout.Label("IMGUI says hello"); }}
+          style={new Style { (Height, 22f) }}
+        />
+        <Label text="Vector2IntField" />
+        <Vector2IntField value={new Vector2Int(3, 7)} />
+        <Label text="Vector3IntField" />
+        <Vector3IntField value={new Vector3Int(1, 2, 3)} />
+        <Label text="RectField" />
+        <RectField value={new Rect(10f, 20f, 80f, 40f)} />
+        <Label text="RectIntField" />
+        <RectIntField value={new RectInt(2, 4, 11, 9)} />
+        <Label text="BoundsField" />
+        <BoundsField
+          value={new Bounds(new Vector3(0, 0, 0), new Vector3(1, 2, 3))}
+        />
+        <Label text="ObjectField (Texture2D)" />
+        <ObjectField
+          objectType={typeof(Texture2D).AssemblyQualifiedName}
+          allowSceneObjects={false}
+        />
+      </GroupBox>
+      <GroupBox text="Even More Fields" style={groupStyle}>
+        <Label text="MinMaxSlider" />
+        <MinMaxSlider
+          minValue={20f}
+          maxValue={80f}
+          lowLimit={0f}
+          highLimit={100f}
+          style={new Style { (Width, 200f) }}
+        />
+        <Label text="TemplateContainer" />
+        <TemplateContainer
+          contentContainer={new Style { (Padding, 6f), (BackgroundColor, new Color(1f, 1f, 1f, 1f)) }}
+          style={new Style { (BorderWidth, 1f), (BorderColor, new Color(0.85f, 0.85f, 0.85f, 1f)) }}
+        >
+          <Label text="Inside TemplateContainer" />
+        </TemplateContainer>
+        <Label text="BoundsIntField" />
+        <BoundsIntField value={new BoundsInt(1, 2, 3, 4, 5, 6)} />
+        <Label text="Hash128Field" />
+        <Hash128Field value={new Hash128(1, 2, 3, 4)} />
+        <Label text="ToggleButtonGroup" />
+        <ToggleButtonGroup value={1}>
+          <Button text="One" />
+          <Button text="Two" />
+          <Button text="Three" />
+        </ToggleButtonGroup>
+      </GroupBox>
+    </VisualElement>
+  );
 }

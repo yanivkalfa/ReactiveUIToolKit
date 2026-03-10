@@ -7,11 +7,14 @@ component UitkxCounterFunc {
 
   var component = (
       <VisualElement>
+        <Button text="-5" onClick={_ => setCount(count - 5)} />
           @if (true) {
               <VisualElement>
                   <Label text="ssssssssssssssssssssssssssssssss" />
+                  <Button text="-5" onClick={_ => setCount(count - 5)} />
               </VisualElement>
           }
+          <Button text="-5" onClick={_ => setCount(count - 5)} />
       </VisualElement>
   );
 
@@ -22,6 +25,7 @@ component UitkxCounterFunc {
           <Label text={$"Mode: Squared — Count²: {count * count}"} />
         @case "normal":
           <Label text={$"Mode: Normal — Count: {count}"} />
+          <Button text="-5" onClick={_ => setCount(count - 5)} />
         @default:
           <Label text={$"Mode: Unknown ({mode})"} />
       }
