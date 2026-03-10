@@ -1,0 +1,12 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+
+component SimpleTextFieldFunc {
+    var (text, setText) = useState("");
+
+    return (
+        <VisualElement>
+            <TextField value={text} onChange={e => setText(e.newValue)} placeholder="Type here..." />
+            <Text text={$"You typed: {text}"} />
+        </VisualElement>
+    );
+}

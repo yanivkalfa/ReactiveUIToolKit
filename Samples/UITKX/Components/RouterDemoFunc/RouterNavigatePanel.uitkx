@@ -1,0 +1,31 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+@using UnityEngine.UIElements
+component RouterNavigatePanel {
+    var pathRef = useRef<TextField?>(null);
+    var stateRef = useRef<TextField?>(null);
+
+    var navigate = RouterHooks.UseNavigate();
+    var replace = RouterHooks.UseNavigate(replace: true);
+
+    void DoNavigate(bool isReplace) {
+        string rawPath = pathRef?.Current?.value;
+        string effectivePath = string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
+        string rawState = stateRef?.Current?.value;
+        object statePayload = string.IsNullOrEmpty(rawState) ? null : rawState;
+        if (isReplace) replace(effectivePath, statePayload);
+        else navigate(effectivePath, statePayload);
+    }
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.MarginTop, 4f) }}>
+            <Text text="Jump to any path:" />
+            <TextField value="/users/42?tab=overview" placeholder="/users/42 or /settings/profile" ref={pathRef} />
+            <TextField placeholder="Optional state payload (stored with navigation)" ref={stateRef} />
+            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f), (StyleKeys.MarginBottom, 2f) }}>
+                <Button text="Push" onClick={_ => DoNavigate(false)} style={new Style { (StyleKeys.Width, 80f) }} />
+                <Button text="Replace" onClick={_ => DoNavigate(true)} style={new Style { (StyleKeys.Width, 80f) }} />
+            </VisualElement>
+        </VisualElement>
+    );
+}

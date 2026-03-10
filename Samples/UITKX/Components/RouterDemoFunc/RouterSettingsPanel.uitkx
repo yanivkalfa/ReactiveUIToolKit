@@ -1,0 +1,23 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+@using System
+component RouterSettingsPanel {
+    var locationPath = RouterHooks.UseLocation();
+
+    var settingsContent = locationPath.StartsWith("/settings/profile", StringComparison.OrdinalIgnoreCase)
+        ? "Profile settings go here."
+        : locationPath.StartsWith("/settings/preferences", StringComparison.OrdinalIgnoreCase)
+            ? "Preferences settings go here."
+            : "Select a settings section above.";
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.MarginTop, 6f) }}>
+            <Text text="Settings route (demonstrates nested sub-routes):" />
+            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 4f) }}>
+                <RouterNavLink path="/settings/profile" label="Profile" exact={true} />
+                <RouterNavLink path="/settings/preferences" label="Preferences" exact={true} />
+            </VisualElement>
+            <Text text={settingsContent} />
+        </VisualElement>
+    );
+}

@@ -232,8 +232,9 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold($"// Source: {EscapeForComment(uitkxFilePath)}\n");
             b.Scaffold("// DO NOT EDIT — regenerated on every document change.\n");
             b.Scaffold("#line hidden\n");
+            b.Scaffold("#nullable enable annotations\n");
             b.Scaffold(
-                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0246, CS0411, CS1660, CS1026, CS1513\n\n"
+                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0246, CS0411, CS1660, CS1026, CS1513, CS8632, CS8974\n\n"
             );
 
             // ── Using directives ─────────────────────────────────────────────
@@ -385,10 +386,16 @@ namespace ReactiveUITK.Language.Roslyn
             // placeholder and never seen by Roslyn as markup.
             if (!string.IsNullOrEmpty(d.FunctionSetupCode) && d.FunctionSetupStartLine > 0)
             {
+                // Use the exact character offset of the trimmed content when available;
+                // fall back to line-start approximation for older/generated DirectiveSets.
+                int setupStartOffset = d.FunctionSetupStartOffset >= 0
+                    ? d.FunctionSetupStartOffset
+                    : OffsetOfLine(source, d.FunctionSetupStartLine);
+
                 EmitFunctionStyleSetupSegmented(
                     b,
                     d.FunctionSetupCode!,
-                    uitkxSetupStartOffset: OffsetOfLine(source, d.FunctionSetupStartLine),
+                    uitkxSetupStartOffset: setupStartOffset,
                     uitkxSetupStartLine:   d.FunctionSetupStartLine,
                     escapedPath:           escapedPath);
             }
@@ -709,24 +716,63 @@ namespace ReactiveUITK.Language.Roslyn
                     break;
 
                 case IfNode ifn:
+                {
+                    bool isFirstBranch = true;
                     foreach (var branch in ifn.Branches)
-                        EmitNodeExpressionsScoped(branch.Body, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                    {
+                        // Emit #line so Roslyn maps condition errors back to the .uitkx file
+                        b.Scaffold($"#line {branch.SourceLine} \"{escapedPath}\"\n");
+                        if (branch.Condition != null)
+                        {
+                            b.Scaffold(isFirstBranch ? $"{indent}if (" : $"{indent}else if (");
+                            // Tier 3: b.Mapped gives column-accurate squiggles inside the condition
+                            b.Mapped(branch.Condition, branch.ConditionOffset, SourceRegionKind.InlineExpression, branch.SourceLine);
+                            b.Scaffold($") {{\n");
+                        }
+                        else
+                        {
+                            b.Scaffold($"{indent}else {{\n");
+                        }
+                        b.Scaffold("#line hidden\n");
+                        EmitNodeExpressionsScoped(branch.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
+                        b.Scaffold($"{indent}}}\n");
+                        isFirstBranch = false;
+                    }
                     break;
+                }
 
                 case ForeachNode fe:
-                    b.Scaffold($"{indent}foreach ({fe.IteratorDeclaration} in {fe.CollectionExpression}) {{\n");
+                    // Tier 1: #line maps errors in the foreach header to the .uitkx line
+                    b.Scaffold($"#line {fe.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}foreach (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the iterator expression
+                    b.Mapped(fe.ForeachExpression, fe.ForeachExpressionOffset, SourceRegionKind.InlineExpression, fe.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
                     EmitNodeExpressionsScoped(fe.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
                     b.Scaffold($"{indent}}}\n");
                     break;
 
                 case ForNode fo:
-                    b.Scaffold($"{indent}for ({fo.ForExpression}) {{\n");
+                    // Tier 1: #line maps errors in the for header to the .uitkx line
+                    b.Scaffold($"#line {fo.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}for (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the for expression
+                    b.Mapped(fo.ForExpression, fo.ForExpressionOffset, SourceRegionKind.InlineExpression, fo.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
                     EmitNodeExpressionsScoped(fo.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
                     b.Scaffold($"{indent}}}\n");
                     break;
 
                 case WhileNode wh:
-                    b.Scaffold($"{indent}while ({wh.Condition}) {{\n");
+                    // Tier 1: #line maps errors in the while header to the .uitkx line
+                    b.Scaffold($"#line {wh.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}while (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the condition
+                    b.Mapped(wh.Condition, wh.ConditionOffset, SourceRegionKind.InlineExpression, wh.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
                     EmitNodeExpressionsScoped(wh.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
                     b.Scaffold($"{indent}}}\n");
                     break;

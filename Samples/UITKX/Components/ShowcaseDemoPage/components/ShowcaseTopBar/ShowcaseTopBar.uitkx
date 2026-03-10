@@ -1,0 +1,77 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using ReactiveUITK.Core
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component ShowcaseTopBar(
+    string inputText = "",
+    ChangeEventHandler<string>? onInputChange = null,
+    Action? onSetText = null,
+    DateTime currentTime = default
+) {
+    var topBarStyle = new Style {
+        (StyleKeys.FlexDirection, "row"),
+        (JustifyContent, "space-between"),
+        (AlignItems, "center"),
+        (FlexGrow, 1f),
+        (PaddingLeft, 12f),
+        (PaddingRight, 12f),
+        (PaddingTop, 8f),
+        (PaddingBottom, 8f),
+        (BorderBottomWidth, 1f),
+        (BorderBottomColor, new Color(0.85f, 0.85f, 0.85f, 1f)),
+    };
+
+    var leftBoxStyle = new Style {
+        (BackgroundColor, new Color(0.2f, 0.4f, 0.9f, 1f)),
+        (StyleKeys.Color, UnityEngine.Color.white),
+        (PaddingLeft, 10f), (PaddingRight, 10f),
+        (PaddingTop, 6f), (PaddingBottom, 6f),
+        (BorderRadius, 4f), (FontSize, 14f),
+    };
+
+    var rightBoxStyle = new Style {
+        (BackgroundColor, new Color(0.9f, 0.3f, 0.2f, 1f)),
+        (StyleKeys.Color, UnityEngine.Color.white),
+        (PaddingLeft, 10f), (PaddingRight, 10f),
+        (PaddingTop, 6f), (PaddingBottom, 6f),
+        (BorderRadius, 4f), (FontSize, 14f),
+    };
+
+    var textInputStyle = new Style {
+        (FlexGrow, 1f),
+        (MarginLeft, 8f), (MarginRight, 8f),
+        (PaddingLeft, 6f), (PaddingRight, 6f),
+        (PaddingTop, 4f), (PaddingBottom, 4f),
+        (BorderRadius, 4f), (BorderWidth, 1f),
+        (StyleKeys.Color, UnityEngine.Color.black),
+        (BorderColor, new Color(0.8f, 0.8f, 0.8f, 1f)),
+        (BackgroundColor, new Color(1f, 1f, 1f, 1f)),
+    };
+
+    return (
+        <VisualElement style={topBarStyle}>
+            <VisualElement style={leftBoxStyle}>
+                <Text text="Left" />
+            </VisualElement>
+            <TextField
+                style={textInputStyle}
+                placeholder="Type here..."
+                hidePlaceholderOnFocus={false}
+                value={inputText}
+                labelText={string.IsNullOrEmpty(inputText) ? string.Empty : "Value: " + inputText}
+                onChange={onInputChange}
+            />
+            <Button
+                text="Set Text"
+                onClick={_ => onSetText?.Invoke()}
+                style={new Style { (MarginLeft, 6f), (Height, 28f) }}
+            />
+            <VisualElement style={rightBoxStyle}>
+                <Text text="Right" />
+            </VisualElement>
+        </VisualElement>
+    );
+}

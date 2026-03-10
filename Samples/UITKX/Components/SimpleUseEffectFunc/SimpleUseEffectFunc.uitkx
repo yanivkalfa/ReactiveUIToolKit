@@ -1,0 +1,17 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+
+component SimpleUseEffectFunc {
+    var (message, setMessage) = useState("Waiting...");
+
+    useEffect(() => {
+        setMessage("Effect ran!");
+        return null;
+    }, Array.Empty<object>());
+
+    return (
+        <VisualElement>
+            <Text text={$"Message: {message}"} />
+        </VisualElement>
+    );
+}

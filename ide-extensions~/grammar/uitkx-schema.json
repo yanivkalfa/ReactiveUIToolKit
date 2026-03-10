@@ -6,7 +6,45 @@
       "name": "key",
       "type": "string",
       "description": "Unique reconciler key. Stabilises element identity across re-renders."
-    }
+    },
+    { "name": "name",            "type": "string",  "description": "VisualElement.name." },
+    { "name": "className",       "type": "string",  "description": "USS class names (space-separated)." },
+    { "name": "style",           "type": "Style",   "description": "Inline style overrides." },
+    { "name": "ref",             "type": "object",  "description": "Ref to the underlying VisualElement." },
+    { "name": "contentContainer","type": "object",  "description": "Props forwarded to the inner content container." },
+    { "name": "visible",         "type": "bool",    "description": "Whether the element is visible." },
+    { "name": "enabled",         "type": "bool",    "description": "Whether the element is enabled." },
+    { "name": "tooltip",         "type": "string",  "description": "Tooltip text." },
+    { "name": "viewDataKey",     "type": "string",  "description": "View data persistence key." },
+    { "name": "pickingMode",     "type": "PickingMode", "description": "Mouse picking mode." },
+    { "name": "focusable",       "type": "bool",    "description": "Whether the element can receive focus." },
+    { "name": "tabIndex",        "type": "int",     "description": "Tab order index." },
+    { "name": "delegatesFocus",  "type": "bool",    "description": "Whether focus is delegated to a child." },
+    { "name": "languageDirection","type":"LanguageDirection", "description": "Text language direction." },
+    { "name": "extraProps",      "type": "Dictionary<string,object>", "description": "Arbitrary extra props forwarded to the element." },
+    { "name": "onClick",         "type": "PointerEventHandler",  "description": "Pointer click handler." },
+    { "name": "onPointerDown",   "type": "PointerEventHandler",  "description": "Pointer down handler." },
+    { "name": "onPointerUp",     "type": "PointerEventHandler",  "description": "Pointer up handler." },
+    { "name": "onPointerMove",   "type": "PointerEventHandler",  "description": "Pointer move handler." },
+    { "name": "onPointerEnter",  "type": "PointerEventHandler",  "description": "Pointer enter handler." },
+    { "name": "onPointerLeave",  "type": "PointerEventHandler",  "description": "Pointer leave handler." },
+    { "name": "onWheel",         "type": "WheelEventHandler",    "description": "Mouse wheel handler." },
+    { "name": "onScroll",        "type": "WheelEventHandler",    "description": "Scroll handler." },
+    { "name": "onDragEnter",     "type": "DragEventHandler",     "description": "Drag enter handler." },
+    { "name": "onDragLeave",     "type": "DragEventHandler",     "description": "Drag leave handler." },
+    { "name": "onDragUpdated",   "type": "DragEventHandler",     "description": "Drag updated handler." },
+    { "name": "onDragPerform",   "type": "DragEventHandler",     "description": "Drag perform handler." },
+    { "name": "onDragExited",    "type": "DragEventHandler",     "description": "Drag exited handler." },
+    { "name": "onFocus",         "type": "FocusEventHandler",    "description": "Focus gained handler." },
+    { "name": "onBlur",          "type": "FocusEventHandler",    "description": "Focus lost handler." },
+    { "name": "onFocusIn",       "type": "FocusEventHandler",    "description": "Focus-in (bubbling) handler." },
+    { "name": "onFocusOut",      "type": "FocusEventHandler",    "description": "Focus-out (bubbling) handler." },
+    { "name": "onKeyDown",       "type": "KeyboardEventHandler", "description": "Key down handler." },
+    { "name": "onKeyUp",         "type": "KeyboardEventHandler", "description": "Key up handler." },
+    { "name": "onInput",         "type": "InputEventHandler",    "description": "Input event handler." },
+    { "name": "onGeometryChanged",  "type": "GeometryChangedEventHandler",    "description": "Geometry changed handler." },
+    { "name": "onAttachToPanel",    "type": "PanelLifecycleEventHandler",     "description": "Attach to panel handler." },
+    { "name": "onDetachFromPanel",  "type": "PanelLifecycleEventHandler",     "description": "Detach from panel handler." }
   ],
   "directives": [
     {
@@ -1317,6 +1355,11 @@
       "acceptsChildren": false,
       "attributes": [
         {
+          "name": "text",
+          "type": "string",
+          "description": "Text content (preferred alias)."
+        },
+        {
           "name": "value",
           "type": "string",
           "description": "Text content."
@@ -1341,6 +1384,48 @@
           "type": "object",
           "description": "Ref to the underlying VisualElement."
         }
+      ]
+    },
+    "Router": {
+      "propsType": "RouterFuncProps",
+      "description": "Root router component. Provides routing context to all descendant Route/Link components.",
+      "acceptsChildren": true,
+      "attributes": [
+        { "name": "history",     "type": "IRouterHistory", "description": "Custom history implementation (defaults to in-memory history)." },
+        { "name": "initialPath", "type": "string",         "description": "Initial navigation path (default '/')." }
+      ]
+    },
+    "Route": {
+      "propsType": "RouteFuncProps",
+      "description": "Renders its children/element only when the current location matches the given path.",
+      "acceptsChildren": true,
+      "attributes": [
+        { "name": "path",       "type": "string",     "description": "URL path pattern to match (supports :param and *)." },
+        { "name": "exact",      "type": "bool",       "description": "When true the path must match exactly." },
+        { "name": "element",    "type": "VirtualNode","description": "VirtualNode to render when the route matches." },
+        { "name": "renderFunc", "type": "Func<RouteMatch,VirtualNode>", "description": "Factory delegate receiving the RouteMatch." }
+      ]
+    },
+    "Link": {
+      "propsType": "LinkFuncProps",
+      "description": "Navigates to the given path when clicked.",
+      "acceptsChildren": false,
+      "attributes": [
+        { "name": "to",      "type": "string", "description": "Target path to navigate to." },
+        { "name": "label",   "type": "string", "description": "Button label text." },
+        { "name": "replace", "type": "bool",   "description": "Replace history entry instead of pushing." },
+        { "name": "style",   "type": "Style",  "description": "Inline style overrides." },
+        { "name": "state",   "type": "object", "description": "Arbitrary navigation state passed to the target." }
+      ]
+    },
+    "Suspense": {
+      "propsType": "SuspenseProps",
+      "description": "Shows a fallback while content is loading; switches to children once ready.",
+      "acceptsChildren": true,
+      "attributes": [
+        { "name": "isReady",     "type": "Func<bool>",   "description": "Delegate that returns true when content is ready to render." },
+        { "name": "pendingTask", "type": "Task",         "description": "Task whose completion signals readiness." },
+        { "name": "fallback",    "type": "VirtualNode",  "description": "VirtualNode rendered while the content is not yet ready." }
       ]
     },
     "Fragment": {

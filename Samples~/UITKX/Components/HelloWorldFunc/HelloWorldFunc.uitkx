@@ -1,7 +1,0 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
-
-component HelloWorldFunc {
-    return (
-        <Text text="Hello, world! (Functional Component)" />
-    );
-}

@@ -1,0 +1,26 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+@using System.Collections.Generic
+component RouterQuickAccessPanel {
+    var links = new (string Path, string Label, object? State)[] {
+        ("/users/10", "User 10", null),
+        ("/users/20?tab=activity", "User 20 (tab=activity)", null),
+        ("/users/20/details?tab=history", "User 20 details (query)", null),
+        ("/users/30", "User 30 (state)", (object)new Dictionary<string, object> { { "source", "quick-access" } }),
+        ("/settings/profile?mode=compact", "Settings compact view", null),
+        ("/settings/preferences?panel=alerts", "Settings alerts panel", null),
+    };
+
+    var linkStyle = new Style {
+        (StyleKeys.MarginRight, 6f),
+        (StyleKeys.MarginBottom, 4f),
+    };
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}>
+            @foreach (var link in links) {
+                <Link to={link.Path} label={link.Label} style={linkStyle} key={link.Path} />
+            }
+        </VisualElement>
+    );
+}

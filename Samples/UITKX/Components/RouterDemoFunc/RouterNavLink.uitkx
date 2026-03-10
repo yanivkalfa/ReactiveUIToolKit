@@ -1,0 +1,25 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+@using System
+@using UnityEngine
+// Active NavLink: highlights when current path matches
+component RouterNavLink(string path = "/", string label = "", bool exact = false, bool replace = false) {
+    var displayLabel = string.IsNullOrEmpty(label) ? path : label;
+    var normalizedPath = RouterPath.Normalize(path);
+    var location = RouterHooks.UseLocation();
+    var isActive = exact
+        ? string.Equals(location, normalizedPath, StringComparison.OrdinalIgnoreCase)
+        : location.StartsWith(normalizedPath, StringComparison.OrdinalIgnoreCase);
+
+    var style = new Style { (StyleKeys.MarginRight, 6f) };
+    if (isActive) {
+        style[StyleKeys.BackgroundColor] = new Color32(64, 123, 255, 60);
+        style[StyleKeys.BorderRadius] = 4f;
+        style[StyleKeys.PaddingLeft] = 4f;
+        style[StyleKeys.PaddingRight] = 4f;
+    }
+
+    return (
+        <Link to={normalizedPath} label={displayLabel} replace={replace} style={style} />
+    );
+}

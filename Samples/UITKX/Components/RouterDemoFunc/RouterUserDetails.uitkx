@@ -1,0 +1,26 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+@using System.Collections.Generic
+component RouterUserDetails {
+    var match = RouterHooks.UseRouteMatch();
+    var query = RouterHooks.UseQuery();
+    var navState = RouterHooks.UseNavigationState();
+
+    string id = match?.Parameters != null && match.Parameters.TryGetValue("id", out var idVal) ? idVal : "(unknown)";
+    string tab = query != null && query.TryGetValue("tab", out var tabVal) ? tabVal : "(default)";
+
+    string DescribeState(object s) {
+        if (s == null) return "(none)";
+        if (s is string str) return string.IsNullOrEmpty(str) ? "(empty string)" : str;
+        if (s is IReadOnlyDictionary<string, object> rod) {
+            var p = new List<string>();
+            foreach (var kv in rod) p.Add($"{kv.Key}={kv.Value}");
+            return string.Join(", ", p);
+        }
+        return s.ToString();
+    }
+
+    return (
+        <Text text={$"User route matched with id: {id} (tab={tab}, state={DescribeState(navState)})"} />
+    );
+}

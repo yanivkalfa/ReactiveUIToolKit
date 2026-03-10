@@ -172,6 +172,7 @@ namespace ReactiveUITK.Language.Parser
                 if (c == '@')
                 {
                     int atLine = _scanner.Line;
+                    int atCol  = ColAtPos(_scanner.Pos); // 0-based column of '@'
                     _scanner.Advance(); // consume '@'
 
                     if (!_scanner.IsEof && _scanner.Current == '(')
@@ -181,6 +182,8 @@ namespace ReactiveUITK.Language.Parser
                         {
                             ExpressionOffset = exprOffset,
                             ExpressionLength  = inlineExpr.Length,
+                            SourceColumn      = atCol,
+                            EndColumn         = atCol + 1, // '@' itself
                         });
                         continue;
                     }
@@ -190,27 +193,27 @@ namespace ReactiveUITK.Language.Parser
                     switch (keyword)
                     {
                         case "if":
-                            var ifNode = ParseIf(atLine, loopDepth);
+                            var ifNode = ParseIf(atLine, atCol, loopDepth);
                             if (ifNode != null)
                                 nodes.Add(ifNode);
                             break;
                         case "foreach":
-                            var feNode = ParseForeach(atLine, loopDepth);
+                            var feNode = ParseForeach(atLine, atCol, loopDepth);
                             if (feNode != null)
                                 nodes.Add(feNode);
                             break;
                         case "for":
-                            var forNode = ParseFor(atLine, loopDepth);
+                            var forNode = ParseFor(atLine, atCol, loopDepth);
                             if (forNode != null)
                                 nodes.Add(forNode);
                             break;
                         case "while":
-                            var whileNode = ParseWhile(atLine, loopDepth);
+                            var whileNode = ParseWhile(atLine, atCol, loopDepth);
                             if (whileNode != null)
                                 nodes.Add(whileNode);
                             break;
                         case "switch":
-                            var swNode = ParseSwitch(atLine, loopDepth);
+                            var swNode = ParseSwitch(atLine, atCol, loopDepth);
                             if (swNode != null)
                                 nodes.Add(swNode);
                             break;
@@ -218,7 +221,11 @@ namespace ReactiveUITK.Language.Parser
                             if (loopDepth > 0)
                             {
                                 ConsumeOptionalDirectiveTerminator();
-                                nodes.Add(new BreakNode(atLine, _filePath));
+                                nodes.Add(new BreakNode(atLine, _filePath)
+                                {
+                                    SourceColumn = atCol,
+                                    EndColumn    = atCol + 6, // @break
+                                });
                             }
                             else
                             {
@@ -232,7 +239,11 @@ namespace ReactiveUITK.Language.Parser
                             if (loopDepth > 0)
                             {
                                 ConsumeOptionalDirectiveTerminator();
-                                nodes.Add(new ContinueNode(atLine, _filePath));
+                                nodes.Add(new ContinueNode(atLine, _filePath)
+                                {
+                                    SourceColumn = atCol,
+                                    EndColumn    = atCol + 9, // @continue
+                                });
                             }
                             else
                             {
@@ -252,18 +263,26 @@ namespace ReactiveUITK.Language.Parser
                                 nodes.Add(cbNode);
                             break;
                         case "else":
-                            _diagnostics.Add(ErrUnexpectedToken("@else", atLine, "@if block"));
+                            _diagnostics.Add(
+                                ErrUnexpectedToken("@else", atLine, "@if block", atCol, atCol + 5)
+                            );
                             SkipToEndOfLine();
                             break;
                         case "case":
                         case "default":
                             _diagnostics.Add(
-                                ErrUnexpectedToken("@" + keyword, atLine, "@switch block")
+                                ErrUnexpectedToken(
+                                    "@" + keyword,
+                                    atLine,
+                                    "@switch block",
+                                    atCol,
+                                    atCol + 1 + keyword.Length
+                                )
                             );
                             SkipToEndOfLine();
                             break;
                         default:
-                            _diagnostics.Add(ErrUnknownDirective(keyword, atLine));
+                            _diagnostics.Add(ErrUnknownDirective(keyword, atLine, atCol));
                             SkipToEndOfLine();
                             break;
                     }
@@ -378,7 +397,7 @@ namespace ReactiveUITK.Language.Parser
 
             if (_scanner.IsEof)
             {
-                _diagnostics.Add(ErrUnclosedTag(tagName, openLine));
+                _diagnostics.Add(ErrUnclosedTag(tagName, openLine, openCol));
             }
             else
             {
@@ -428,6 +447,7 @@ namespace ReactiveUITK.Language.Parser
                     break;
 
                 int attrLine = _scanner.Line;
+                int attrCol  = ColAtPos(_scanner.Pos); // 0-based column of attribute name start
                 string name = _scanner.ReadAttrName();
 
                 if (string.IsNullOrEmpty(name))
@@ -445,13 +465,21 @@ namespace ReactiveUITK.Language.Parser
                     if (!_scanner.IsEof && _scanner.Current == '"')
                     {
                         string lit = _scanner.ReadStringLiteral();
-                        attrs.Add(new AttributeNode(name, new StringLiteralValue(lit), attrLine));
+                        attrs.Add(new AttributeNode(name, new StringLiteralValue(lit), attrLine)
+                        {
+                            SourceColumn  = attrCol,
+                            NameEndColumn = attrCol + name.Length,
+                        });
                     }
                     else if (!_scanner.IsEof && _scanner.Current == '{')
                     {
                         var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
                         attrs.Add(
                             new AttributeNode(name, new CSharpExpressionValue(expr, exprOffset), attrLine)
+                            {
+                                SourceColumn  = attrCol,
+                                NameEndColumn = attrCol + name.Length,
+                            }
                         );
                     }
                     else
@@ -465,7 +493,11 @@ namespace ReactiveUITK.Language.Parser
                 else
                 {
                     // Boolean shorthand attribute
-                    attrs.Add(new AttributeNode(name, new BooleanShorthandValue(), attrLine));
+                    attrs.Add(new AttributeNode(name, new BooleanShorthandValue(), attrLine)
+                    {
+                        SourceColumn  = attrCol,
+                        NameEndColumn = attrCol + name.Length,
+                    });
                 }
             }
 
@@ -474,7 +506,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @if ───────────────────────────────────────────────────────────────
 
-        private IfNode? ParseIf(int startLine, int loopDepth)
+        private IfNode? ParseIf(int startLine, int startCol, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -484,7 +516,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string cond = _scanner.ReadParenExpression();
+            var (cond, condOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -504,7 +536,7 @@ namespace ReactiveUITK.Language.Parser
             _scanner.TryConsume('}');
             var branches = new List<IfBranch>
             {
-                new IfBranch(cond, firstBody.ToImmutableArray(), firstLine),
+                new IfBranch(cond, firstBody.ToImmutableArray(), firstLine) { ConditionOffset = condOffset },
             };
 
             // Chain @else if / @else
@@ -530,7 +562,7 @@ namespace ReactiveUITK.Language.Parser
                         EmitExpected("'(' after @else if", elseLine);
                         break;
                     }
-                    string elseCond = _scanner.ReadParenExpression();
+                    var (elseCond, elseCondOffset) = _scanner.ReadParenExpressionWithOffset();
                     _scanner.SkipWhitespaceAndNewlines();
                     if (!PeekAt('{'))
                     {
@@ -546,7 +578,7 @@ namespace ReactiveUITK.Language.Parser
                         loopDepth: loopDepth
                     );
                     _scanner.TryConsume('}');
-                    branches.Add(new IfBranch(elseCond, elseIfBody.ToImmutableArray(), elseLine));
+                    branches.Add(new IfBranch(elseCond, elseIfBody.ToImmutableArray(), elseLine) { ConditionOffset = elseCondOffset });
                 }
                 else
                 {
@@ -568,12 +600,16 @@ namespace ReactiveUITK.Language.Parser
                 }
             }
 
-            return new IfNode(branches.ToImmutableArray(), startLine, _filePath);
+            return new IfNode(branches.ToImmutableArray(), startLine, _filePath)
+            {
+                SourceColumn = startCol,
+                EndColumn    = startCol + 3, // @if
+            };
         }
 
         // ── @for ──────────────────────────────────────────────────────────────
 
-        private ForNode? ParseFor(int startLine, int loopDepth)
+        private ForNode? ParseFor(int startLine, int startCol, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -583,7 +619,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string forExpr = _scanner.ReadParenExpression();
+            var (forExpr, forExprOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -601,12 +637,17 @@ namespace ReactiveUITK.Language.Parser
             );
             _scanner.TryConsume('}');
 
-            return new ForNode(forExpr, body.ToImmutableArray(), startLine, _filePath);
+            return new ForNode(forExpr, body.ToImmutableArray(), startLine, _filePath)
+            {
+                SourceColumn       = startCol,
+                EndColumn          = startCol + 4, // @for
+                ForExpressionOffset = forExprOffset,
+            };
         }
 
         // ── @while ────────────────────────────────────────────────────────────
 
-        private WhileNode? ParseWhile(int startLine, int loopDepth)
+        private WhileNode? ParseWhile(int startLine, int startCol, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -616,7 +657,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string condition = _scanner.ReadParenExpression();
+            var (condition, conditionOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             if (!PeekAt('{'))
@@ -634,12 +675,17 @@ namespace ReactiveUITK.Language.Parser
             );
             _scanner.TryConsume('}');
 
-            return new WhileNode(condition, body.ToImmutableArray(), startLine, _filePath);
+            return new WhileNode(condition, body.ToImmutableArray(), startLine, _filePath)
+            {
+                SourceColumn    = startCol,
+                EndColumn       = startCol + 6, // @while
+                ConditionOffset = conditionOffset,
+            };
         }
 
         // ── @foreach ──────────────────────────────────────────────────────────
 
-        private ForeachNode? ParseForeach(int startLine, int loopDepth)
+        private ForeachNode? ParseForeach(int startLine, int startCol, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -649,7 +695,7 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
-            string foreachExpr = _scanner.ReadParenExpression();
+            var (foreachExpr, foreachExprOffset) = _scanner.ReadParenExpressionWithOffset();
             _scanner.SkipWhitespaceAndNewlines();
 
             // Split "var item in collection" on first standalone " in "
@@ -683,12 +729,18 @@ namespace ReactiveUITK.Language.Parser
                 body.ToImmutableArray(),
                 startLine,
                 _filePath
-            );
+            )
+            {
+                SourceColumn            = startCol,
+                EndColumn               = startCol + 8, // @foreach
+                ForeachExpression       = foreachExpr,
+                ForeachExpressionOffset = foreachExprOffset,
+            };
         }
 
         // ── @switch ───────────────────────────────────────────────────────────
 
-        private SwitchNode? ParseSwitch(int startLine, int loopDepth)
+        private SwitchNode? ParseSwitch(int startLine, int startCol, int loopDepth)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -724,6 +776,7 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 int caseLine = _scanner.Line;
+                int caseCol  = ColAtPos(_scanner.Pos);
                 _scanner.Advance(); // consume '@'
                 string keyword = _scanner.ReadIdentifier();
 
@@ -765,7 +818,13 @@ namespace ReactiveUITK.Language.Parser
                 else
                 {
                     _diagnostics.Add(
-                        ErrUnexpectedToken("@" + keyword, caseLine, "@case or @default")
+                        ErrUnexpectedToken(
+                            "@" + keyword,
+                            caseLine,
+                            "@case or @default",
+                            caseCol,
+                            caseCol + 1 + keyword.Length
+                        )
                     );
                     SkipToEndOfLine();
                 }
@@ -773,7 +832,11 @@ namespace ReactiveUITK.Language.Parser
 
             _scanner.TryConsume('}');
 
-            return new SwitchNode(switchExpr, cases.ToImmutableArray(), startLine, _filePath);
+            return new SwitchNode(switchExpr, cases.ToImmutableArray(), startLine, _filePath)
+            {
+                SourceColumn = startCol,
+                EndColumn    = startCol + 7, // @switch
+            };
         }
 
         // ── @code ─────────────────────────────────────────────────────────────
@@ -1376,12 +1439,21 @@ namespace ReactiveUITK.Language.Parser
 
         // ── ParseDiagnostic factory helpers ───────────────────────────────────
 
-        private ParseDiagnostic ErrUnexpectedToken(string got, int line, string expected) =>
+        private ParseDiagnostic ErrUnexpectedToken(
+            string got,
+            int line,
+            string expected,
+            int col = 0,
+            int endCol = 0
+        ) =>
             new ParseDiagnostic
             {
                 Code = "UITKX0300",
                 Severity = ParseSeverity.Error,
                 SourceLine = line,
+                SourceColumn = col,
+                EndLine = line,
+                EndColumn = endCol > 0 ? endCol : col,
                 Message =
                     $"Unexpected '{got}' at line {line} in '{_filePath}'. Expected {expected}.",
             };
@@ -1398,13 +1470,16 @@ namespace ReactiveUITK.Language.Parser
                 Message = $"Missing '>' or '/>' after tag '<{tagName}>' at line {line}.",
             };
 
-        private ParseDiagnostic ErrUnclosedTag(string tagName, int line) =>
+        private ParseDiagnostic ErrUnclosedTag(string tagName, int line, int openCol = 0) =>
             new ParseDiagnostic
             {
-                Code = "UITKX0301",
-                Severity = ParseSeverity.Error,
-                SourceLine = line,
-                Message =
+                Code        = "UITKX0301",
+                Severity    = ParseSeverity.Error,
+                SourceLine  = line,
+                SourceColumn = openCol,
+                EndLine     = line,
+                EndColumn   = openCol > 0 ? openCol + 1 + tagName.Length : 0,
+                Message     =
                     $"Tag '<{tagName}>' opened at line {line} in '{_filePath}' was never closed",
             };
 
@@ -1418,12 +1493,15 @@ namespace ReactiveUITK.Language.Parser
                     $"Found '</{got}>' but expected '</{expected}>' (opened at line {line}) in '{_filePath}'",
             };
 
-        private ParseDiagnostic ErrUnknownDirective(string keyword, int line) =>
+        private ParseDiagnostic ErrUnknownDirective(string keyword, int line, int col = 0) =>
             new ParseDiagnostic
             {
                 Code = "UITKX0305",
-                Severity = ParseSeverity.Warning,
+                Severity = ParseSeverity.Error,
                 SourceLine = line,
+                SourceColumn = col,
+                EndLine = line,
+                EndColumn = col > 0 ? col + 1 + keyword.Length : 0,
                 Message =
                     $"Unknown markup directive '@{keyword}' at line {line} in '{_filePath}'. "
                     + "Valid directives are: if, else, foreach, for, while, switch, case, default, break, continue, code.",

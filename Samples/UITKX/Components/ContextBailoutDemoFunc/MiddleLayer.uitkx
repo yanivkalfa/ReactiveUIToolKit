@@ -1,0 +1,25 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+// Sub-component: middle layer with stable props — expected to bail out
+component MiddleLayer {
+    var renderCountRef = useRef<int>(0);
+    renderCountRef.Current++;
+    var renderCount = renderCountRef.Current;
+
+    var style = new Style {
+        (StyleKeys.Padding, 10f),
+        (StyleKeys.MarginTop, 8f),
+        (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.2f, 1f)),
+        (StyleKeys.BorderRadius, 4f),
+    };
+
+    return (
+        <VisualElement style={style}>
+            <Label
+                text={$"Middle layer rendered {renderCount} times  (props never change → expects bailout)"}
+                style={new Style { (StyleKeys.Color, new Color(0.7f, 0.7f, 0.7f, 1f)), (StyleKeys.FontSize, 11f) }}
+            />
+            <ThemeConsumer />
+        </VisualElement>
+    );
+}

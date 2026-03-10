@@ -1,0 +1,51 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using UnityEngine.UIElements
+@using System
+component PortalEventScopeDemoFunc {
+    // Retrieve the named portal slot seeded by the host into HostContext.Environment.
+    // The host (EditorUitkxPortalDemoWindow) seeds it via:
+    //   EditorRootRendererUtility.Render(..., env: ctx => ctx.Environment[PortalContextKeys.ModalRoot] = sidePanel)
+    // This is the UITKX equivalent of document.getElementById('modal-root') in a React browser app.
+    var portalTarget = useContext<VisualElement>(PortalContextKeys.ModalRoot);
+
+    var (mounted, setMounted) = useState(true);
+    var (log, setLog) = useState("Click the portal button to verify event scoping.");
+
+    void AppendLog(string message) {
+        setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
+    }
+
+    // Build the portal node in code -- V.Portal is a C# API, not a UITKX tag.
+    // If the host did not supply a portal target the slot is null and nothing is rendered there.
+    var portalNode = portalTarget != null
+        ? V.Portal(
+            portalTarget,
+            null,
+            mounted
+                ? V.Button(new ButtonProps
+                    {
+                        Text = "Portal Button (click me)",
+                        OnClick = _ => AppendLog("Portal button clicked"),
+                        Style = new Style { (StyleKeys.MarginTop, 6f) },
+                    })
+                : V.Label(new LabelProps { Text = "Portal unmounted." })
+          )
+        : null;
+
+    return (
+        <VisualElement style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) }}>
+            <Label text="Portal event scope demo" style={new Style { (StyleKeys.FontSize, 16f), (StyleKeys.MarginBottom, 6f) }} />
+            <Button
+                text={mounted ? "Unmount Portal" : "Mount Portal"}
+                onClick={_ => setMounted(!mounted)}
+                style={new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f) }}
+            />
+            <Label
+                text={log}
+                style={new Style { (StyleKeys.WhiteSpace, "normal"), (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 0.9f)), (StyleKeys.Padding, 6f), (StyleKeys.BorderRadius, 4f), (StyleKeys.MarginTop, 8f) }}
+            />
+            @(portalNode)
+        </VisualElement>
+    );
+}

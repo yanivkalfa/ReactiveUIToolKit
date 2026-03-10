@@ -15,22 +15,28 @@ namespace UitkxLanguageServer;
 
 public sealed class CompletionHandler : ICompletionHandler
 {
-    private readonly UitkxSchema  _schema;
+    private readonly UitkxSchema _schema;
     private readonly DocumentStore _store;
     private readonly WorkspaceIndex _index;
     private readonly RoslynCompletionProvider _roslynCompletion;
 
-    private static readonly HashSet<string> s_headerDirectives =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            "code",
-        };
-
-    public CompletionHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index, RoslynHost roslynHost)
+    private static readonly HashSet<string> s_headerDirectives = new(
+        StringComparer.OrdinalIgnoreCase
+    )
     {
-        _schema          = schema;
-        _store           = store;
-        _index           = index;
+        "code",
+    };
+
+    public CompletionHandler(
+        UitkxSchema schema,
+        DocumentStore store,
+        WorkspaceIndex index,
+        RoslynHost roslynHost
+    )
+    {
+        _schema = schema;
+        _store = store;
+        _index = index;
         _roslynCompletion = new RoslynCompletionProvider(roslynHost);
     }
 
@@ -60,8 +66,14 @@ public sealed class CompletionHandler : ICompletionHandler
 
         // Extract local path once; reused for disk-read fallback and AST parse.
         string localPath;
-        try { localPath = new System.Uri(request.TextDocument.Uri.ToString()).LocalPath; }
-        catch { localPath = string.Empty; }
+        try
+        {
+            localPath = new System.Uri(request.TextDocument.Uri.ToString()).LocalPath;
+        }
+        catch
+        {
+            localPath = string.Empty;
+        }
 
         if (!_store.TryGet(request.TextDocument.Uri, out var text))
         {
@@ -83,16 +95,17 @@ public sealed class CompletionHandler : ICompletionHandler
         // Parse the document with the language-lib AST pipeline so completions
         // are derived from the real syntax tree instead of text scanning.
 
-        var parseDiags  = new List<ReactiveUITK.Language.ParseDiagnostic>();
-        var directives  = DirectiveParser.Parse(text, localPath, parseDiags);
-        var nodes       = UitkxParser.Parse(text, localPath, directives, parseDiags);
+        var parseDiags = new List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives = DirectiveParser.Parse(text, localPath, parseDiags);
+        var nodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
         var parseResult = new ParseResult(
             directives,
             nodes,
-            ImmutableArray.CreateRange(parseDiags));
+            ImmutableArray.CreateRange(parseDiags)
+        );
 
         int line1 = (int)request.Position.Line + 1;
-        int col0  = (int)request.Position.Character;
+        int col0 = (int)request.Position.Character;
         var ctx = AstCursorContext.Find(parseResult, text, line1, col0);
         int offset = ToOffset(text, request.Position);
         string? triggerChar = request.Context?.TriggerCharacter;
@@ -108,18 +121,21 @@ public sealed class CompletionHandler : ICompletionHandler
             && parseResult.Directives.FunctionSetupStartLine > 0
             && line1 < parseResult.Directives.FunctionSetupStartLine;
         bool inCodeBlockLine = IsInsideCodeBlockAtOffset(text, offset);
-        bool inEmbeddedMarkupInCode = inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
+        bool inEmbeddedMarkupInCode =
+            inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
 
         // ── Roslyn C# completions (async, @(expr) or @code block interior) ───
         // Skip the '<' trigger (handled below as tag completions) and @/control-flow
         // positions (those produce UITKX-specific items).
         bool wantsRoslynCompletion =
             ctx.Kind == CursorKind.CSharpExpression
-            || (inCodeBlockLine
+            || (
+                inCodeBlockLine
                 && !inEmbeddedMarkupInCode
                 && ctx.Kind != CursorKind.DirectiveName
                 && ctx.Kind != CursorKind.ControlFlowName
-                && triggerChar != "<");
+                && triggerChar != "<"
+            );
 
         if (wantsRoslynCompletion && !string.IsNullOrEmpty(localPath))
         {
@@ -147,28 +163,38 @@ public sealed class CompletionHandler : ICompletionHandler
 
         var items = ctx.Kind switch
         {
-            CursorKind.DirectiveName when inFunctionStylePreamble  => FunctionStylePreambleItems(ctx.Prefix),
-            CursorKind.ControlFlowName when inFunctionStylePreamble => FunctionStylePreambleItems(ctx.Prefix),
-            CursorKind.None when inFunctionStylePreamble           => FunctionStylePreambleItems(ctx.Prefix),
+            CursorKind.DirectiveName when inFunctionStylePreamble => FunctionStylePreambleItems(
+                ctx.Prefix
+            ),
+            CursorKind.ControlFlowName when inFunctionStylePreamble => FunctionStylePreambleItems(
+                ctx.Prefix
+            ),
+            CursorKind.None when inFunctionStylePreamble => FunctionStylePreambleItems(ctx.Prefix),
             CursorKind.DirectiveName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
-            CursorKind.DirectiveName when inCodeBlockLine && !inEmbeddedMarkupInCode => Enumerable.Empty<CompletionItem>(),
-            CursorKind.DirectiveName   => ControlFlowItems(ctx.Prefix, text, request.Position),
+            CursorKind.DirectiveName when inCodeBlockLine && !inEmbeddedMarkupInCode =>
+                Enumerable.Empty<CompletionItem>(),
+            CursorKind.DirectiveName => ControlFlowItems(ctx.Prefix, text, request.Position),
             CursorKind.ControlFlowName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
-            CursorKind.ControlFlowName when inCodeBlockLine && !inEmbeddedMarkupInCode => Enumerable.Empty<CompletionItem>(),
+            CursorKind.ControlFlowName when inCodeBlockLine && !inEmbeddedMarkupInCode =>
+                Enumerable.Empty<CompletionItem>(),
             CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
-            CursorKind.TagName         => TagItems(ctx.Prefix),
-            CursorKind.AttributeName   => AttributeItems(ctx.TagName ?? "", ctx.Prefix),
-            CursorKind.AttributeValue  => AttributeValueItems(
+            CursorKind.TagName => TagItems(ctx.Prefix),
+            CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix),
+            CursorKind.AttributeValue => AttributeValueItems(
                 ctx.TagName ?? "",
                 ctx.AttributeName ?? "",
-                ctx.Prefix),
-            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems("") ,
-            _                          => Enumerable.Empty<CompletionItem>(),
+                ctx.Prefix
+            ),
+            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems(""),
+            _ => Enumerable.Empty<CompletionItem>(),
         };
 
         var list = items.ToList();
         if (!inDirectiveHeader)
-            list = list.Where(i => !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase)).ToList();
+            list = list.Where(i =>
+                    !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase)
+                )
+                .ToList();
         Log($"completion: kind={ctx.Kind} prefix='{ctx.Prefix}' → {list.Count} items");
         return new CompletionList(list);
     }
@@ -207,16 +233,12 @@ public sealed class CompletionHandler : ICompletionHandler
             .Where(c => c.label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(c => new CompletionItem
             {
-                Label            = c.label,
-                Kind             = CompletionItemKind.Keyword,
-                InsertText       = c.insert,
+                Label = c.label,
+                Kind = CompletionItemKind.Keyword,
+                InsertText = c.insert,
                 InsertTextFormat = InsertTextFormat.Snippet,
-                Detail           = c.detail,
-                Documentation    = new MarkupContent
-                {
-                    Kind  = MarkupKind.Markdown,
-                    Value = c.doc,
-                },
+                Detail = c.detail,
+                Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = c.doc },
             });
     }
 
@@ -609,17 +631,22 @@ public sealed class CompletionHandler : ICompletionHandler
         string left = lineText.Substring(0, col).TrimStart();
         string full = lineText.TrimStart();
 
-        if (left.StartsWith("<", StringComparison.Ordinal) || full.StartsWith("<", StringComparison.Ordinal))
+        if (
+            left.StartsWith("<", StringComparison.Ordinal)
+            || full.StartsWith("<", StringComparison.Ordinal)
+        )
             return true;
 
-        if (full.StartsWith("@if", StringComparison.Ordinal)
+        if (
+            full.StartsWith("@if", StringComparison.Ordinal)
             || full.StartsWith("@else", StringComparison.Ordinal)
             || full.StartsWith("@for", StringComparison.Ordinal)
             || full.StartsWith("@foreach", StringComparison.Ordinal)
             || full.StartsWith("@while", StringComparison.Ordinal)
             || full.StartsWith("@switch", StringComparison.Ordinal)
             || full.StartsWith("@case", StringComparison.Ordinal)
-            || full.StartsWith("@default", StringComparison.Ordinal))
+            || full.StartsWith("@default", StringComparison.Ordinal)
+        )
             return true;
 
         // If a previous nearby non-empty line looks like markup, treat this line as markup context too.
@@ -631,7 +658,8 @@ public sealed class CompletionHandler : ICompletionHandler
             string t = prev.Trim();
             if (t.Length > 0)
             {
-                if (t.StartsWith("<", StringComparison.Ordinal)
+                if (
+                    t.StartsWith("<", StringComparison.Ordinal)
                     || t.StartsWith("</", StringComparison.Ordinal)
                     || t.StartsWith("@if", StringComparison.Ordinal)
                     || t.StartsWith("@else", StringComparison.Ordinal)
@@ -640,8 +668,9 @@ public sealed class CompletionHandler : ICompletionHandler
                     || t.StartsWith("@while", StringComparison.Ordinal)
                     || t.StartsWith("@switch", StringComparison.Ordinal)
                     || t.StartsWith("@case", StringComparison.Ordinal)
-                    || t.StartsWith("@default", StringComparison.Ordinal))
-                        return true;
+                    || t.StartsWith("@default", StringComparison.Ordinal)
+                )
+                    return true;
                 return false;
             }
             back = prevStart - 1;
@@ -675,43 +704,41 @@ public sealed class CompletionHandler : ICompletionHandler
             .Where(name => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             .Select(name =>
             {
-                var props  = _index.GetProps(name);
+                var props = _index.GetProps(name);
                 var detail = $"{name}Props";
-                var docMd  = props.Count == 0
-                    ? $"Component `{name}`"
-                    : $"Component `{name}` — {props.Count} prop(s):\n"
-                      + string.Join(", ", props.Take(5).Select(p => $"`{p.Name}`"));
+                var docMd =
+                    props.Count == 0
+                        ? $"Component `{name}`"
+                        : $"Component `{name}` — {props.Count} prop(s):\n"
+                            + string.Join(", ", props.Take(5).Select(p => $"`{p.Name}`"));
                 var acceptsChildren = _schema.TryGetElement(name)?.AcceptsChildren ?? true;
                 return new CompletionItem
                 {
-                    Label            = name,
-                    Kind             = CompletionItemKind.Class,
-                    InsertText       = acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
+                    Label = name,
+                    Kind = CompletionItemKind.Class,
+                    InsertText = acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
                     InsertTextFormat = InsertTextFormat.Snippet,
-                    Detail           = detail,
-                    Documentation    = new MarkupContent
-                    {
-                        Kind  = MarkupKind.Markdown,
-                        Value = docMd,
-                    },
+                    Detail = detail,
+                    Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = docMd },
                 };
             });
 
         // Schema built-ins not already covered by the workspace index
-        var schemaItems = _schema.Root.Elements
-            .Where(kv =>
+        var schemaItems = _schema
+            .Root.Elements.Where(kv =>
                 kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                && !knownElements.Contains(kv.Key))
+                && !knownElements.Contains(kv.Key)
+            )
             .Select(kv => new CompletionItem
             {
-                Label            = kv.Key,
-                Kind             = CompletionItemKind.Class,
-                InsertText       = BuildTagSnippet(kv.Key, kv.Value),
+                Label = kv.Key,
+                Kind = CompletionItemKind.Class,
+                InsertText = BuildTagSnippet(kv.Key, kv.Value),
                 InsertTextFormat = InsertTextFormat.Snippet,
-                Detail           = kv.Value.PropsType,
-                Documentation    = new MarkupContent
+                Detail = kv.Value.PropsType,
+                Documentation = new MarkupContent
                 {
-                    Kind  = MarkupKind.Markdown,
+                    Kind = MarkupKind.Markdown,
                     Value = kv.Value.Description,
                 },
             });
@@ -722,7 +749,7 @@ public sealed class CompletionHandler : ICompletionHandler
     private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix)
     {
         var workspaceProps = _index.GetProps(tagName);
-        var coveredNames   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var coveredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var p in workspaceProps)
         {
@@ -738,22 +765,16 @@ public sealed class CompletionHandler : ICompletionHandler
                 var canonicalName = CanonicalSchemaAttributeName(tagName, p.Name);
                 // Prefer {=} binding for non-string props; string=" " for string
                 var isString = p.Type.Equals("string", StringComparison.OrdinalIgnoreCase);
-                var insert   = isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
-                var doc      = string.IsNullOrEmpty(p.XmlDoc)
-                    ? $"**{p.Type}** `{p.Name}`"
-                    : p.XmlDoc;
+                var insert = isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
+                var doc = string.IsNullOrEmpty(p.XmlDoc) ? $"**{p.Type}** `{p.Name}`" : p.XmlDoc;
                 return new CompletionItem
                 {
-                    Label            = canonicalName,
-                    Kind             = CompletionItemKind.Property,
-                    InsertText       = insert,
+                    Label = canonicalName,
+                    Kind = CompletionItemKind.Property,
+                    InsertText = insert,
                     InsertTextFormat = InsertTextFormat.Snippet,
-                    Detail           = p.Type,
-                    Documentation    = new MarkupContent
-                    {
-                        Kind  = MarkupKind.Markdown,
-                        Value = doc,
-                    },
+                    Detail = p.Type,
+                    Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = doc },
                 };
             });
 
@@ -762,19 +783,20 @@ public sealed class CompletionHandler : ICompletionHandler
             .GetAttributesForElement(tagName)
             .Where(a =>
                 !coveredNames.Contains(a.Name)
-                && a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                && a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            )
             .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
             .Select(a => new CompletionItem
             {
-                Label            = a.Name,
-                Kind             = CompletionItemKind.Property,
-                InsertText       = a.Name + "=\"$1\"",
+                Label = a.Name,
+                Kind = CompletionItemKind.Property,
+                InsertText = a.Name + "=\"$1\"",
                 InsertTextFormat = InsertTextFormat.Snippet,
-                Detail           = a.Type,
-                Documentation    = new MarkupContent
+                Detail = a.Type,
+                Documentation = new MarkupContent
                 {
-                    Kind  = MarkupKind.Markdown,
+                    Kind = MarkupKind.Markdown,
                     Value = a.Description,
                 },
             });

@@ -1,0 +1,57 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+component UitkxCounterFunc {
+  var (count, setCount) = useState(0);
+                    var (mode, setMode) = useState("normal");
+
+
+                    var component = (
+                        <VisualElement>
+                            @if (true) {
+                                <VisualElement>
+                                    <Label text="ssssssssssssssssssssssssssssssss" />
+                                </VisualElement>
+                            }
+                        </VisualElement>
+                    );
+
+  return (
+    <VisualElement>
+      @switch (mode) {
+        @case "squared":
+          <Label text={$"Mode: Squared — Count²: {count * count}"} />
+        @case "normal":
+          <Label text={$"Mode: Normal — Count: {count}"} />
+        @default:
+          <Label text={$"Mode: Unknown ({mode})"} />
+      }
+      @if (count < -5) {
+        <Label text="Count cannot be less than -5!" />
+      } @else if (count < 0) {
+        <Label text="Count is negative!" />
+      } @else if (count == 0) {
+        <Label text="Count is zero" />
+      } @else {
+        @for (int i = 0; i < count; i++) {
+          @if (i % 2 == 0) {
+            <Label text={$"Even row {i}"} />
+          } @else {
+            <Label text={$"Odd row {i}"} />
+          }
+        }
+        <Label text={$"Total rows: {count}"} />
+      }
+      @(component)
+      <VisualElement>
+        <Button text="-5" onClick={_ => setCount(count - 5)} />
+        <Button text="-" onClick={_ => setCount(count - 1)} />
+        <Label text={$"{count}"} />
+        <Button text="+" onClick={_ => setCount(count + 1)} />
+        <Button text="+5" onClick={_ => setCount(count + 5)} />
+      </VisualElement>
+      <VisualElement>
+        <Button text="Normal" onClick={_ => setMode("normal")} />
+        <Button text="Squared" onClick={_ => setMode("squared")} />
+      </VisualElement>
+    </VisualElement>
+  );
+}

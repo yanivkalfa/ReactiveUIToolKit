@@ -42,6 +42,8 @@ namespace UitkxLanguageServer;
 public sealed class DiagnosticsPublisher
 {
     private readonly ILanguageServerFacade  _server;
+    private readonly UitkxSchema           _schema;
+    private readonly WorkspaceIndex        _index;
     private readonly DiagnosticsAnalyzer   _analyzer     = new DiagnosticsAnalyzer();
     private readonly RoslynDiagnosticMapper _roslynMapper = new RoslynDiagnosticMapper();
 
@@ -50,9 +52,11 @@ public sealed class DiagnosticsPublisher
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT1T2 =
         new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
 
-    public DiagnosticsPublisher(ILanguageServerFacade server)
+    public DiagnosticsPublisher(ILanguageServerFacade server, UitkxSchema schema, WorkspaceIndex index)
     {
         _server = server;
+        _schema = schema;
+        _index  = index;
     }
 
     // â”€â”€ Tier 1 + 2: immediate synchronous push â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -73,6 +77,25 @@ public sealed class DiagnosticsPublisher
         var parseDiags  = new List<ParseDiagnostic>();
         var directives  = DirectiveParser.Parse(text, localPath, parseDiags);
         var parsedNodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
+
+        // Also validate UITKX markup embedded inside setup-code JSX blocks,
+        // e.g. `var x = (<Box> @if (broken) { ... } </Box>)`.
+        // These blocks are replaced by (object)null! in the Roslyn virtual doc,
+        // so Roslyn never sees them — we must check them here at T1/T2 level.
+        if (!directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+        {
+            foreach (var (jsxStart, jsxEnd, jsxLine) in directives.SetupCodeMarkupRanges)
+            {
+                var jsxDirectives = directives with
+                {
+                    MarkupStartIndex = jsxStart,
+                    MarkupEndIndex   = jsxEnd,
+                    MarkupStartLine  = jsxLine,
+                };
+                UitkxParser.Parse(text, localPath, jsxDirectives, parseDiags);
+            }
+        }
+
         var nodes       = CanonicalLowering.LowerToRenderRoots(directives, parsedNodes, localPath);
 
         var parseResult = new ParseResult(
@@ -81,7 +104,9 @@ public sealed class DiagnosticsPublisher
             ImmutableArray.CreateRange(parseDiags));
 
         // â”€â”€ T2 structural analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var t2Diags = _analyzer.Analyze(parseResult, localPath);
+        var projectElements = BuildProjectElements();
+        var knownAttributes = BuildKnownAttributes(projectElements);
+        var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         var t1t2 = parseResult.Diagnostics.Concat(t2Diags).ToList();
@@ -198,5 +223,63 @@ public sealed class DiagnosticsPublisher
         {
             return null;
         }
+    }
+
+    // ── Project element / attribute helpers ───────────────────────────────────
+
+    /// <summary>
+    /// Builds the combined set of known element names from the static schema
+    /// (built-in UITKX elements) and the dynamic workspace index (*Props.cs scan).
+    /// Used for UITKX0105 unknown-element checks.
+    /// </summary>
+    private HashSet<string> BuildProjectElements()
+    {
+        var set = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var key in _schema.Root.Elements.Keys)
+            set.Add(key);
+        foreach (var e in _index.KnownElements)
+            set.Add(e);
+        return set;
+    }
+
+    /// <summary>
+    /// Builds a map of element-name → valid attribute names for the UITKX0109
+    /// unknown-attribute check.
+    /// Schema elements use the full attribute list from the schema JSON (including
+    /// universal attributes).  Workspace elements use their prop names plus
+    /// the schema's universal attributes.
+    /// </summary>
+    private IReadOnlyDictionary<string, IReadOnlyCollection<string>> BuildKnownAttributes(
+        HashSet<string> projectElements)
+    {
+        var result = new Dictionary<string, IReadOnlyCollection<string>>(
+            StringComparer.OrdinalIgnoreCase);
+
+        // Schema elements — use the schema's per-element + universal attributes.
+        foreach (var tagName in _schema.Root.Elements.Keys)
+        {
+            var attrs = _schema
+                .GetAttributesForElement(tagName)
+                .Select(a => a.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            result[tagName] = attrs;
+        }
+
+        // Workspace elements — prop names from *Props.cs + universal attributes.
+        foreach (var tagName in _index.KnownElements)
+        {
+            if (result.ContainsKey(tagName))
+                continue; // schema wins if there's a conflict
+
+            var props = _index.GetProps(tagName);
+            var attrs = props
+                .Select(p => p.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var ua in _schema.Root.UniversalAttributes)
+                attrs.Add(ua.Name);
+            result[tagName] = attrs;
+        }
+
+        return result;
     }
 }

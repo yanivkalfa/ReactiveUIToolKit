@@ -33,7 +33,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [ ] Ensure parser/generator output is deterministic across machines.
 - [ ] Validate generated C# compiles in clean Unity project import.
 - [ ] Validate line mapping and error localization back to `.uitkx`.
-- [ ] Validate no hidden runtime dependencies beyond intended toolkit.
+- [x] Validate no hidden runtime dependencies beyond intended toolkit. <!-- fixed: DragEnterEvent/Leave/Updated/Perform/Exited and ReactiveDragEvent/DragEventHandler wrapped in #if UNITY_EDITOR — these are Editor-only UIElements types that caused CS0246 in player builds -->
 
 ### Diagnostics Quality
 - [ ] Confirm Tier-1/Tier-2 diagnostics are complete for V1 scope.
