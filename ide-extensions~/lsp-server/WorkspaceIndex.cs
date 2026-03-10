@@ -55,6 +55,11 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         @"\b(?:class|record|struct)\s+(\w+)Props\b",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // Matches:  "class Props"  "record Props"  "struct Props"  (no prefix — component name = filename stem)
+    private static readonly Regex s_nestedPropsPattern = new(
+        @"\b(?:class|record|struct)\s+Props\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     // Matches public property declarations with a Pascal-case name.
     // E.g.  "public string Text {"  "public Action<int>? OnClick {"
     private static readonly Regex s_propPattern = new(
@@ -66,6 +71,13 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     //   @component FooBar
     private static readonly Regex s_uitkxComponentPattern = new(
         @"^(?:@component|component)\s+([A-Z][A-Za-z0-9_]*)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
+
+    // Extended declaration pattern that also captures the optional parameter list.
+    // Group "name" = component name.  Group "params" = raw param list if present.
+    //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
+    private static readonly Regex s_uitkxDeclPattern = new(
+        @"^(?:@component|component)\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
 
     // ── IOnLanguageServerStarted ─────────────────────────────────────────────
@@ -148,7 +160,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     public void Refresh(string filePath)
     {
-        if (filePath.EndsWith("Props.cs", StringComparison.OrdinalIgnoreCase))
+        if (filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
             {
@@ -172,10 +184,10 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     {
         try
         {
-            ServerLog.Log($"WorkspaceIndex: scanning '{rootPath}' for *Props.cs files…");
+            ServerLog.Log($"WorkspaceIndex: scanning '{rootPath}' for *.cs and *.uitkx filesâ€¦");
             int count = 0;
             foreach (var file in Directory.EnumerateFiles(
-                rootPath, "*Props.cs", SearchOption.AllDirectories))
+                rootPath, "*.cs", SearchOption.AllDirectories))
             {
                 IndexFile(file);
                 count++;
@@ -205,17 +217,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// Extracts component names declared in a <c>.uitkx</c> file and adds them to the index.
     /// Handles both the function-style syntax (<c>component FooBar { … }</c>) and the
     /// classic directive syntax (<c>@component FooBar</c>).
-    /// No props are extracted — the element is added with an empty prop list so that
-    /// UITKX0105 (unknown element) checks can recognise it as a known component.
+    /// When a parameter list is present (<c>component FooBar(type name = default, …)</c>)
+    /// the parameters are also stored as props so that UITKX0109 (unknown attribute) does
+    /// not fire for valid attributes on those components.
     /// </summary>
     private void IndexUitkxFile(string filePath)
     {
         try
         {
             string content = File.ReadAllText(filePath);
-            foreach (Match m in s_uitkxComponentPattern.Matches(content))
+            foreach (Match m in s_uitkxDeclPattern.Matches(content))
             {
-                string componentName = m.Groups[1].Value;
+                string componentName = m.Groups["name"].Value;
                 if (string.IsNullOrEmpty(componentName))
                     continue;
 
@@ -224,7 +237,33 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 for (int i = 0; i < m.Index && i < content.Length; i++)
                     if (content[i] == '\n') lineNumber++;
 
-                CommitElement(filePath, componentName, lineNumber, new List<PropInfo>());
+                // Parse function-style params if present.
+                // Each param looks like:  type paramName  or  type paramName = default
+                // Strategy: split by comma, then for each token split by "=" and take the
+                // last whitespace-separated word from the part before "=".
+                var props = new List<PropInfo>();
+                string paramsText = m.Groups["params"].Value;
+                if (!string.IsNullOrWhiteSpace(paramsText))
+                {
+                    foreach (string param in paramsText.Split(','))
+                    {
+                        string beforeEquals = param.Split('=')[0].Trim();
+                        string[] tokens = beforeEquals.Split(
+                            new[] { ' ', '\t', '\n', '\r' },
+                            StringSplitOptions.RemoveEmptyEntries);
+                        if (tokens.Length >= 2)
+                        {
+                            props.Add(new PropInfo
+                            {
+                                Name = tokens[tokens.Length - 1],
+                                Type = string.Join(" ", tokens, 0, tokens.Length - 1),
+                                Line = lineNumber,
+                            });
+                        }
+                    }
+                }
+
+                CommitElement(filePath, componentName, lineNumber, props);
             }
         }
         catch
@@ -256,6 +295,20 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                         CommitElement(filePath, currentElement, currentLine, currentProps);
 
                     currentElement = classMatch.Groups[1].Value;
+                    currentLine    = i + 1;
+                    currentProps   = new List<PropInfo>();
+                    xmlBuf.Clear();
+                    continue;
+                }
+
+                // ── Nested "class Props" without prefix — use filename stem ─
+                var nestedPropsMatch = s_nestedPropsPattern.Match(trimmed);
+                if (nestedPropsMatch.Success)
+                {
+                    if (currentElement is not null)
+                        CommitElement(filePath, currentElement, currentLine, currentProps);
+
+                    currentElement = Path.GetFileNameWithoutExtension(filePath);
                     currentLine    = i + 1;
                     currentProps   = new List<PropInfo>();
                     xmlBuf.Clear();

@@ -348,7 +348,7 @@ namespace ReactiveUITK.Language.Diagnostics
                         diags.Add(
                             MakeDiag(
                                 DiagnosticCodes.UnknownAttribute,
-                                ParseSeverity.Warning,
+                                ParseSeverity.Error,
                                 $"Unknown attribute '{attr.Name}' on <{el.TagName}>.",
                                 attr.SourceLine,
                                 attr.SourceColumn,

@@ -57,6 +57,7 @@ namespace UitkxLanguageServer.Roslyn
                 "CS0169", // The field '…' is never used
                 "CS8625", // Cannot convert null literal to non-nullable reference type (scaffold default!)
                 "CS0219", // The variable '…' is assigned but its value is never used — cascade from broken parse
+                "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
             };
 
         // ── Public API ────────────────────────────────────────────────────────

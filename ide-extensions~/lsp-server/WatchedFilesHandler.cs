@@ -30,14 +30,15 @@ public sealed class WatchedFilesHandler : IDidChangeWatchedFilesHandler
     ) =>
         new DidChangeWatchedFilesRegistrationOptions
         {
-            // Watch *Props.cs files so the element/props index stays up to date
-            // when files are added/removed outside the editor.
+            // Watch *.cs files so the element/props index stays up to date
+            // when files are added/removed outside the editor — covers both
+            // conventional *Props.cs files and components with a nested class Props.
             // Also watch *.uitkx so newly created function-style components are
             // discovered and added to the element index (for UITKX0105 checks).
             Watchers = new Container<OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher>(
                 new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher
                 {
-                    GlobPattern = "**/*Props.cs",
+                    GlobPattern = "**/*.cs",
                     Kind = WatchKind.Create | WatchKind.Change | WatchKind.Delete,
                 },
                 new OmniSharp.Extensions.LanguageServer.Protocol.Models.FileSystemWatcher

@@ -232,8 +232,9 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold($"// Source: {EscapeForComment(uitkxFilePath)}\n");
             b.Scaffold("// DO NOT EDIT — regenerated on every document change.\n");
             b.Scaffold("#line hidden\n");
+            b.Scaffold("#nullable enable annotations\n");
             b.Scaffold(
-                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0246, CS0411, CS1660, CS1026, CS1513\n\n"
+                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0246, CS0411, CS1660, CS1026, CS1513, CS8632, CS8974\n\n"
             );
 
             // ── Using directives ─────────────────────────────────────────────

@@ -64,6 +64,8 @@ namespace UitkxLanguageServer.Roslyn
                     ["CS0414"] = ReportDiagnostic.Suppress, // field assigned but never used
                     ["CS8618"] = ReportDiagnostic.Suppress, // non-nullable field uninitialized
                     ["CS0169"] = ReportDiagnostic.Suppress, // field never used
+                    ["CS8632"] = ReportDiagnostic.Suppress, // nullable annotation outside #nullable context (auto-generated)
+                    ["CS8974"] = ReportDiagnostic.Suppress, // converting method group to non-delegate type 'object'
                 });
 
         // ── Inner types ───────────────────────────────────────────────────────

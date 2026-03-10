@@ -1,5 +1,20 @@
 ﻿# Changelog
 
+## [1.0.123] - 2026-03-10
+- UITKX0109 unknown attribute on a known element is now an Error (red) instead of Warning (yellow)
+
+## [1.0.122] - 2026-03-10
+- Add Router, Route, Link, Suspense to schema as known elements with their attributes, fixing unknown-element and unknown-attribute warnings for those framework components
+
+## [1.0.121] - 2026-03-10
+- Fix nullable warnings: use #nullable enable annotations instead of #nullable enable so VisualElement? compiles without cascading CS8600/CS8603/CS8604 warnings; add all BaseProps event handlers (onClick, onPointerDown, extraProps etc.) to schema universalAttributes fixing unknown-attribute warnings on RepeatButton and all workspace elements; add text attribute to Text schema element
+
+## [1.0.120] - 2026-03-10
+- Fix CS8632: add #nullable enable to virtual doc and suppress at compile level; fix ValuesBarFunc: scan all *.cs files (not just *Props.cs) to index nested class Props components; fix BatchOnClick CS8974: suppress method-group-to-object conversion warning
+
+## [1.0.119] - 2026-03-10
+- Fix CS8632 nullable annotation warning in virtual documents; fix ValuesBarFunc (nested class Props) not indexed; parse function-style params from .uitkx components so attributes are validated correctly
+
 ## [1.0.118] - 2026-03-10
 - Fix diagnostic squiggle positions: attribute names now underline the name (not col 0), unclosed-tag errors land on the tag opener; suppress CS0246 false-positives from T3 Roslyn (Unity-only assembly types); workspace index now discovers function-style components from .uitkx files (fixes unknown-element warnings for peer components)
 
