@@ -1,27 +1,28 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
+
 component ThemeConsumer {
   var renderCountRef = useRef<int>(0);
-            renderCountRef.Current++;
-            var renderCount = renderCountRef.Current;
+  renderCountRef.Current++;
+  var renderCount = renderCountRef.Current;
 
-            var themeColor = useContext<Color>("bailout-test-theme");
+  var themeColor = useContext<Color>("bailout-test-theme");
 
-            var swatchStyle = new Style {
-                (StyleKeys.Width, 60f),
-                (StyleKeys.Height, 30f),
-                (StyleKeys.BackgroundColor, themeColor),
-                (StyleKeys.MarginTop, 6f),
-                (StyleKeys.BorderRadius, 3f),
-            };
+  var swatchStyle = new Style {
+      (StyleKeys.Width, 60f),
+      (StyleKeys.Height, 30f),
+      (StyleKeys.BackgroundColor, themeColor),
+      (StyleKeys.MarginTop, 6f),
+      (StyleKeys.BorderRadius, 3f),
+  };
 
-            var cardStyle = new Style {
-                (StyleKeys.Padding, 10f),
-                (StyleKeys.MarginTop, 8f),
-                (StyleKeys.BackgroundColor, new Color(0.08f, 0.08f, 0.1f, 1f)),
-                (StyleKeys.BorderRadius, 4f),
-            };
+  var cardStyle = new Style {
+      (StyleKeys.Padding, 10f),
+      (StyleKeys.MarginTop, 8f),
+      (StyleKeys.BackgroundColor, new Color(0.08f, 0.08f, 0.1f, 1f)),
+      (StyleKeys.BorderRadius, 4f),
+  };
 
-            var rgb = $"R={themeColor.r:F2}  G={themeColor.g:F2}  B={themeColor.b:F2}";
+  var rgb = $"R={themeColor.r:F2}  G={themeColor.g:F2}  B={themeColor.b:F2}";
 
   return (
     <VisualElement style={cardStyle}>

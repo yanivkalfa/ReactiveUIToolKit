@@ -27,4 +27,16 @@ public sealed class DocumentStore
         lock (_lock)
             return _docs.TryGetValue(uri.ToString(), out text!);
     }
+
+    /// <summary>Returns a snapshot of all currently open documents as (uriString, text) pairs.</summary>
+    public IReadOnlyList<(string UriString, string Text)> GetAll()
+    {
+        lock (_lock)
+        {
+            var list = new List<(string, string)>(_docs.Count);
+            foreach (var kvp in _docs)
+                list.Add((kvp.Key, kvp.Value));
+            return list;
+        }
+    }
 }

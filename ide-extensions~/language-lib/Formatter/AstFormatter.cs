@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
@@ -25,28 +26,6 @@ namespace ReactiveUITK.Language.Formatter
         private readonly ICSharpFormatterDelegate? _csharpFormatter;
         private readonly StringBuilder _sb = new StringBuilder();
         private int _indent;
-        private static readonly string[] NoSemicolonLeadingKeywords =
-        {
-            "if",
-            "for",
-            "foreach",
-            "while",
-            "switch",
-            "else",
-            "do",
-            "try",
-            "catch",
-            "finally",
-            "using",
-            "lock",
-            "fixed",
-            "namespace",
-            "class",
-            "struct",
-            "interface",
-            "record",
-            "enum",
-        };
 
         public AstFormatter(FormatterOptions opts, ICSharpFormatterDelegate? csharpFormatter = null)
         {
@@ -149,7 +128,35 @@ namespace ReactiveUITK.Language.Formatter
                 ? "Component"
                 : directives.ComponentName;
 
-            Ln($"component {componentName} {{");
+            // ── Preamble: re-emit @namespace / using lines before the component block ─
+            bool hasPreamble = false;
+
+            if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
+            {
+                Ln($"@namespace {directives.Namespace}");
+                hasPreamble = true;
+            }
+
+            foreach (var u in directives.Usings)
+            {
+                Ln($"@using {u}");
+                hasPreamble = true;
+            }
+
+            if (hasPreamble)
+                _sb.Append('\n');
+
+            string paramList = "";
+            if (!directives.FunctionParams.IsDefaultOrEmpty)
+            {
+                var parts = directives.FunctionParams.Select(p =>
+                    p.DefaultValue != null
+                        ? $"{p.Type} {p.Name} = {p.DefaultValue}"
+                        : $"{p.Type} {p.Name}");
+                paramList = $"({string.Join(", ", parts)})";
+            }
+
+            Ln($"component {componentName}{paramList} {{");
             _indent++;
 
             var setupCode = directives.FunctionSetupCode?.Trim();
@@ -160,7 +167,12 @@ namespace ReactiveUITK.Language.Formatter
                 EmitCSharpLines(
                     normalizedSetupCode,
                     tabExp,
-                    firstLineStripped: false,
+                    // firstLineStripped: true because FunctionSetupCode has already been
+                    // Trim()'d by the parser — line[0] has its leading whitespace removed.
+                    // Without this flag, baseSpaces is computed as 0 (from line[0]), which
+                    // means every subsequent line's relative indentation is preserved
+                    // as-is and grows by IndentSize on each successive format pass.
+                    firstLineStripped: true,
                     suppressLastNewline: false
                 );
                 _sb.Append('\n');
@@ -465,103 +477,11 @@ namespace ReactiveUITK.Language.Formatter
                 string relPrefix = rel > 0 ? new string(' ', rel) : string.Empty;
                 string content = stripped.TrimStart();
 
-                if (_opts.InsertMissingSemicolonsOnFormat)
-                {
-                    var nextMeaningful = FindNextMeaningfulLine(lines, li + 1, lastMeaningful);
-                    content = TryInsertMissingSemicolon(content, nextMeaningful);
-                }
-
                 if (li == lastMeaningful && suppressLastNewline)
                     _sb.Append(IndentStr() + relPrefix + content);
                 else
                     Ln(relPrefix + content);
             }
-        }
-
-        private static string? FindNextMeaningfulLine(string[] lines, int start, int lastMeaningful)
-        {
-            for (int i = start; i <= lastMeaningful; i++)
-            {
-                var candidate = lines[i].Trim();
-                if (candidate.Length > 0)
-                    return candidate;
-            }
-
-            return null;
-        }
-
-        private static string TryInsertMissingSemicolon(string content, string? nextMeaningfulLine)
-        {
-            if (string.IsNullOrWhiteSpace(content))
-                return content;
-
-            var trimmed = content.Trim();
-            if (!CanEndStatement(trimmed))
-                return content;
-
-            if (LooksLikeControlOrDeclarationHeader(trimmed))
-                return content;
-
-            if (nextMeaningfulLine is not null)
-            {
-                if (nextMeaningfulLine.StartsWith("{"))
-                    return content;
-
-                if (
-                    nextMeaningfulLine.StartsWith(".")
-                    || nextMeaningfulLine.StartsWith("?")
-                    || nextMeaningfulLine.StartsWith(":")
-                    || nextMeaningfulLine.StartsWith("&&")
-                    || nextMeaningfulLine.StartsWith("||")
-                    || nextMeaningfulLine.StartsWith("+")
-                    || nextMeaningfulLine.StartsWith("-")
-                    || nextMeaningfulLine.StartsWith("*")
-                    || nextMeaningfulLine.StartsWith("/")
-                    || nextMeaningfulLine.StartsWith("%")
-                )
-                    return content;
-            }
-
-            return content + ";";
-        }
-
-        private static bool CanEndStatement(string trimmed)
-        {
-            if (
-                trimmed.EndsWith(";")
-                || trimmed.EndsWith("{")
-                || trimmed.EndsWith("}")
-                || trimmed.EndsWith(":")
-                || trimmed.EndsWith(",")
-                || trimmed.EndsWith("=>")
-            )
-                return false;
-
-            if (
-                trimmed.StartsWith("#")
-                || trimmed.StartsWith("//")
-                || trimmed.StartsWith("/*")
-                || trimmed.StartsWith("*")
-                || trimmed.StartsWith("[")
-            )
-                return false;
-
-            if (trimmed.Contains("//") || trimmed.Contains("/*"))
-                return false;
-
-            var last = trimmed[trimmed.Length - 1];
-            return char.IsLetterOrDigit(last) || last == ')' || last == ']' || last == '"' || last == '\'';
-        }
-
-        private static bool LooksLikeControlOrDeclarationHeader(string trimmed)
-        {
-            foreach (var keyword in NoSemicolonLeadingKeywords)
-            {
-                if (trimmed == keyword || trimmed.StartsWith(keyword + " ") || trimmed.StartsWith(keyword + "("))
-                    return true;
-            }
-
-            return false;
         }
 
         /// <summary>
@@ -694,45 +614,6 @@ namespace ReactiveUITK.Language.Formatter
                         _sb.Append(IndentStr() + $"</{rm.Element.TagName}>\n");
                         _indent--;
                         _sb.Append(IndentStr() + ')');
-
-                        if (_opts.InsertMissingSemicolonsOnFormat)
-                        {
-                            var following = cb.Code.Substring(rm.EndOffsetInCodeBlock);
-                            int nl = following.IndexOf('\n');
-                            string sameLineSuffix = nl >= 0 ? following.Substring(0, nl) : following;
-
-                            // If there is inline suffix on the same source line (e.g. ";", ":", ")")
-                            // we let the normal segment/tail handling print it verbatim.
-                            if (string.IsNullOrWhiteSpace(sameLineSuffix))
-                            {
-                                string? nextMeaningful = null;
-                                if (nl >= 0 && nl + 1 < following.Length)
-                                {
-                                    var rest = following.Substring(nl + 1);
-                                    var restLines = rest.Split('\n');
-                                    int lastMeaningful = restLines.Length - 1;
-                                    while (
-                                        lastMeaningful >= 0
-                                        && string.IsNullOrWhiteSpace(restLines[lastMeaningful])
-                                    )
-                                        lastMeaningful--;
-
-                                    if (lastMeaningful >= 0)
-                                        nextMeaningful = FindNextMeaningfulLine(
-                                            restLines,
-                                            0,
-                                            lastMeaningful
-                                        );
-                                }
-
-                                var fixedParen = TryInsertMissingSemicolon(
-                                    ")",
-                                    nextMeaningful
-                                );
-                                if (fixedParen.EndsWith(";"))
-                                    _sb.Append(';');
-                            }
-                        }
                     }
 
                     pos = rm.EndOffsetInCodeBlock;
@@ -747,8 +628,6 @@ namespace ReactiveUITK.Language.Formatter
                     {
                         // Just a one-line suffix like ";"
                         string oneLineTail = tail.TrimEnd();
-                        if (_opts.InsertMissingSemicolonsOnFormat)
-                            oneLineTail = TryInsertMissingSemicolon(oneLineTail, nextMeaningfulLine: null);
 
                         _sb.Append(oneLineTail);
                         _sb.Append('\n');
@@ -757,20 +636,6 @@ namespace ReactiveUITK.Language.Formatter
                     {
                         string firstTailLine = tail.Substring(0, nlPos).TrimEnd();
                         string rest = tail.Substring(nlPos + 1);
-
-                        if (_opts.InsertMissingSemicolonsOnFormat)
-                        {
-                            var restLines = rest.Split('\n');
-                            int lastMeaningful = restLines.Length - 1;
-                            while (lastMeaningful >= 0 && string.IsNullOrWhiteSpace(restLines[lastMeaningful]))
-                                lastMeaningful--;
-
-                            var nextMeaningful = lastMeaningful >= 0
-                                ? FindNextMeaningfulLine(restLines, 0, lastMeaningful)
-                                : null;
-
-                            firstTailLine = TryInsertMissingSemicolon(firstTailLine, nextMeaningful);
-                        }
 
                         _sb.Append(firstTailLine); // inline suffix, e.g. ";" or ");"
                         _sb.Append('\n');
@@ -882,13 +747,71 @@ namespace ReactiveUITK.Language.Formatter
         //  OUTPUT HELPERS
         // ═══════════════════════════════════════════════════════════════════════
 
-        /// <summary>Append an indented line terminating with a single LF.</summary>
+        /// <summary>
+        /// Append an indented line (or block of lines) terminating with a single LF.
+        /// When <paramref name="text"/> contains embedded newlines (e.g. a multi-line
+        /// attribute expression value), each continuation line is re-anchored to the
+        /// current indent level plus its relative indentation from the first line.
+        /// </summary>
         private void Ln(string text)
         {
-            if (_indent > 0)
-                _sb.Append(IndentStr());
-            _sb.Append(text);
-            _sb.Append('\n');
+            if (!text.Contains('\n'))
+            {
+                if (_indent > 0)
+                    _sb.Append(IndentStr());
+                _sb.Append(text);
+                _sb.Append('\n');
+                return;
+            }
+
+            // Multi-line: re-anchor every continuation line to current indent + relative.
+            string tabExp = new string(' ', _opts.IndentSize);
+            // Normalise CR/LF and strip any trailing blank lines before splitting.
+            var lines = text.TrimEnd('\r', '\n')
+                            .Replace("\r\n", "\n")
+                            .Replace("\r", "\n")
+                            .Split('\n');
+
+            // Compute the minimum leading-space count of all non-blank continuation lines.
+            int baseSpaces = int.MaxValue;
+            for (int i = 1; i < lines.Length; i++)
+            {
+                if (string.IsNullOrWhiteSpace(lines[i])) continue;
+                var exp = lines[i].Replace("\t", tabExp);
+                int lead = exp.Length - exp.TrimStart().Length;
+                if (lead < baseSpaces) baseSpaces = lead;
+            }
+            if (baseSpaces == int.MaxValue) baseSpaces = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                if (i == 0)
+                {
+                    // First line — emit with the current indent prefix as-is.
+                    if (_indent > 0)
+                        _sb.Append(IndentStr());
+                    _sb.Append(line.TrimEnd());
+                }
+                else if (string.IsNullOrWhiteSpace(line))
+                {
+                    // Blank line — emit as truly empty (just the newline below).
+                }
+                else
+                {
+                    // Continuation line — strip the common base indentation and
+                    // re-prefix with current indent + remaining relative indent.
+                    var expLine = line.Replace("\t", tabExp);
+                    int lead   = expLine.Length - expLine.TrimStart().Length;
+                    int rel    = System.Math.Max(0, lead - baseSpaces);
+                    if (_indent > 0)
+                        _sb.Append(IndentStr());
+                    if (rel > 0)
+                        _sb.Append(new string(' ', rel));
+                    _sb.Append(expLine.TrimStart().TrimEnd());
+                }
+                _sb.Append('\n');
+            }
         }
 
         private string IndentStr()

@@ -1,61 +1,68 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
+
 component RenderDepthGuardDemoFunc {
-    var (depth, setDepth) = useState(0);
-    var (triggered, setTriggered) = useState(false);
+  var (depth, setDepth) = useState(0);
+  var (triggered, setTriggered) = useState(false);
 
-    var containerStyle = new Style {
-        (StyleKeys.Padding, 14f),
-        (StyleKeys.FlexDirection, "column"),
-        (StyleKeys.FlexGrow, 1f),
-    };
+  var containerStyle = new Style {
+      (StyleKeys.Padding, 14f),
+      (StyleKeys.FlexDirection, "column"),
+      (StyleKeys.FlexGrow, 1f),
+  };
 
-    var infoStyle = new Style {
-        (StyleKeys.Padding, 8f),
-        (StyleKeys.MarginTop, 8f),
-        (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.1f, 0.7f)),
-        (StyleKeys.BorderRadius, 4f),
-    };
+  var infoStyle = new Style {
+      (StyleKeys.Padding, 8f),
+      (StyleKeys.MarginTop, 8f),
+      (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.1f, 0.7f)),
+      (StyleKeys.BorderRadius, 4f),
+  };
 
-    var warnStyle = new Style {
-        (StyleKeys.Padding, 8f),
-        (StyleKeys.MarginTop, 6f),
-        (StyleKeys.BackgroundColor, new Color(0.5f, 0.15f, 0.1f, 0.8f)),
-        (StyleKeys.BorderRadius, 4f),
-    };
+  var warnStyle = new Style {
+      (StyleKeys.Padding, 8f),
+      (StyleKeys.MarginTop, 6f),
+      (StyleKeys.BackgroundColor, new Color(0.5f, 0.15f, 0.1f, 0.8f)),
+      (StyleKeys.BorderRadius, 4f),
+  };
 
-    return (
-        <VisualElement style={containerStyle}>
-            <Text text="Render Depth Guard — Step 1 Test" />
-            <VisualElement style={infoStyle}>
-                <Text text="MaxRenderDepth = 25.  A tree deeper than that will be capped and an error will be printed to the console.  The window must NOT freeze or crash." />
-            </VisualElement>
-            <VisualElement style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 10f) }}>
-                <Button
-                    text="Render Safe Tree (depth 10)"
-                    onClick={_ => { setDepth(10); setTriggered(false); }}
-                    style={new Style { (StyleKeys.MarginRight, 8f) }}
-                />
-                <Button
-                    text="Trigger Deep Tree (depth 30 > 25) ⚠"
-                    onClick={_ => { setDepth(30); setTriggered(true); }}
-                />
-            </VisualElement>
-            @if (triggered) {
-                <VisualElement style={warnStyle}>
-                    <Text text="⚠ Deep tree triggered — check Console for '[Fiber] Maximum render depth exceeded' error." />
-                </VisualElement>
-            }
-            @if (depth > 0) {
-                <VisualElement style={new Style { (StyleKeys.MarginTop, 8f) }}>
-                    <Text text={$"Tree root (requested depth: {depth}):"}/>
-                    <DeepNode remaining={depth} maxDisplay={depth} />
-                </VisualElement>
-            } @else {
-                <VisualElement style={infoStyle}>
-                    <Text text="No tree rendered yet — click a button above." />
-                </VisualElement>
-            }
+  return (
+    <VisualElement style={containerStyle}>
+      <Text text="Render Depth Guard — Step 1 Test" />
+      <VisualElement style={infoStyle}>
+        <Text
+          text="MaxRenderDepth = 25.  A tree deeper than that will be capped and an error will be printed to the console.  The window must NOT freeze or crash."
+        />
+      </VisualElement>
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginTop, 10f) }}
+      >
+        <Button
+          text="Render Safe Tree (depth 10)"
+          onClick={_ => { setDepth(10); setTriggered(false); }}
+          style={new Style { (StyleKeys.MarginRight, 8f) }}
+        />
+        <Button
+          text="Trigger Deep Tree (depth 30 > 25) ⚠"
+          onClick={_ => { setDepth(30); setTriggered(true); }}
+        />
+      </VisualElement>
+      @if (triggered) {
+        <VisualElement style={warnStyle}>
+          <Text
+            text="⚠ Deep tree triggered — check Console for '[Fiber] Maximum render depth exceeded' error."
+          />
         </VisualElement>
-    );
+      }
+      @if (depth > 0) {
+        <VisualElement style={new Style { (StyleKeys.MarginTop, 8f) }}>
+          <Text text={$"Tree root (requested depth: {depth}):"} />
+          <DeepNode remaining={depth} maxDisplay={depth} />
+        </VisualElement>
+      } @else {
+        <VisualElement style={infoStyle}>
+          <Text text="No tree rendered yet — click a button above." />
+        </VisualElement>
+      }
+    </VisualElement>
+  );
 }

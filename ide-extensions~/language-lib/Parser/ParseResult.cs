@@ -59,6 +59,13 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         bool IsFunctionStyle = false,
         /// <summary>
+        /// True when an <c>@namespace X.Y</c> directive was explicitly written in
+        /// the source file.  False when the namespace was inferred from a companion
+        /// <c>.cs</c> file (or is the hard-coded fallback namespace).
+        /// The formatter uses this to decide whether to re-emit the directive.
+        /// </summary>
+        bool HasExplicitNamespace = false,
+        /// <summary>
         /// Setup C# statements extracted from function-style body (all top-level
         /// statements except the <c>return (...)</c> statement). Injected as a
         /// synthetic <c>@code</c> block before markup emission.

@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.124",
+  "version": "1.0.137",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {
@@ -80,7 +80,15 @@
         "editor.autoIndent": "full",
         "editor.tabSize": 4,
         "editor.insertSpaces": true,
-        "editor.bracketPairColorization.enabled": false
+        "editor.bracketPairColorization.enabled": false,
+        "editor.semanticTokenColorCustomizations": {
+          "rules": {
+            "*.uitkxUnreachable": {
+              "foreground": "#6b6b6b",
+              "italic": true
+            }
+          }
+        }
       }
     },
     "semanticTokenTypes": [
@@ -108,6 +116,12 @@
         "id": "uitkxDirectiveName",
         "superType": "namespace",
         "description": "UITKX directive value tokens (namespace, component name, etc.)"
+      }
+    ],
+    "semanticTokenModifiers": [
+      {
+        "id": "uitkxUnreachable",
+        "description": "Applied to code that is unreachable after @break, @continue, or return in the same scope"
       }
     ],
     "commands": [
