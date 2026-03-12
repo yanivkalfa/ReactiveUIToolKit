@@ -111,13 +111,33 @@ internal sealed class UitkxCompletionSource : IAsyncCompletionSource
 
             Log($"Calling textDocument/completion: {uri} {lineNo}:{charNo}");
 
+            // Determine trigger kind and character.
+            // LSP: 1=Invoked, 2=TriggerCharacter, 3=TriggerForIncompleteCompletions
+            int triggerKind = 1;   // default: explicit invocation
+            string? triggerCharacter = null;
+
+            if (trigger.Reason == CompletionTriggerReason.Insertion)
+            {
+                var ch = trigger.Character;
+                if (ch == '.' || ch == '<' || ch == '@' || ch == '{' || ch == '(' || ch == ',')
+                {
+                    triggerKind      = 2; // TriggerCharacter
+                    triggerCharacter = ch.ToString();
+                }
+            }
+
+            // Build context: include triggerCharacter only when triggerKind=2.
+            object completionContext = triggerCharacter != null
+                ? new { triggerKind, triggerCharacter }
+                : (object)new { triggerKind };
+
             var result = await rpc.InvokeWithParameterObjectAsync<JToken>(
                     "textDocument/completion",
                     new
                     {
                         textDocument = new { uri },
                         position = new { line = lineNo, character = charNo },
-                        context = new { triggerKind = 1 }, // Invoked
+                        context  = completionContext,
                     },
                     token
                 )

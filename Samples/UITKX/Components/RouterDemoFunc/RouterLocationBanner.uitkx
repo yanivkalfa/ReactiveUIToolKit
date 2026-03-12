@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using System.Collections.Generic
 
@@ -7,17 +7,31 @@ component RouterLocationBanner {
   var query = RouterHooks.UseQuery();
   var navState = RouterHooks.UseNavigationState();
 
-  string DescribeQuery(IReadOnlyDictionary<string, string> q) {
-      if (q == null || q.Count == 0) return "(none)";
-      var parts = new List<string>();
-      foreach (var kv in q) parts.Add($"{kv.Key}={kv.Value}");
-      return string.Join(", ", parts);
+  string DescribeQuery(IReadOnlyDictionary<string, string> q)
+  {
+    if (q == null || q.Count == 0)
+    {
+      return "(none)";
+    }
+    var parts = new List<string>();
+    foreach (var kv in q)
+    {
+      parts.Add($"{kv.Key}={kv.Value}");
+    }
+    return string.Join(", ", parts);
   }
 
-  string DescribeState(object s) {
-      if (s == null) return "(none)";
-      if (s is string str) return string.IsNullOrEmpty(str) ? "(empty string)" : str;
-      return s.ToString();
+  string DescribeState(object s)
+  {
+    if (s == null)
+    {
+      return "(none)";
+    }
+    if (s is string str)
+    {
+      return string.IsNullOrEmpty(str) ? "(empty string)" : str;
+    }
+    return s.ToString();
   }
 
   return (

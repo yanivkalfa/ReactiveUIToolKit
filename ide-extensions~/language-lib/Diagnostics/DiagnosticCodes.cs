@@ -58,6 +58,13 @@ namespace ReactiveUITK.Language.Diagnostics
         /// </summary>
         public const string UnknownAttribute = "UITKX0109";
 
+        /// <summary>
+        /// A markup node appears after an unconditional <c>@break</c> or
+        /// <c>@continue</c> statement in the same sibling list and is unreachable.
+        /// Severity: Hint (with Unnecessary tag in LSP layer).
+        /// </summary>
+        public const string UnreachableAfterBreakOrContinue = "UITKX0110";
+
         // ── T1 — Parser codes (emitted by UitkxParser / DirectiveParser) ─────
         // Listed here for cross-reference only; not produced by DiagnosticsAnalyzer.
 

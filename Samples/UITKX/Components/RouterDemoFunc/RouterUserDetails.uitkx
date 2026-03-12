@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using System.Collections.Generic
 
@@ -11,14 +11,23 @@ component RouterUserDetails {
   string tab = query != null && query.TryGetValue("tab", out var tabVal) ? tabVal : "(default)";
 
   string DescribeState(object s) {
-      if (s == null) return "(none)";
-      if (s is string str) return string.IsNullOrEmpty(str) ? "(empty string)" : str;
-      if (s is IReadOnlyDictionary<string, object> rod) {
-          var p = new List<string>();
-          foreach (var kv in rod) p.Add($"{kv.Key}={kv.Value}");
-          return string.Join(", ", p);
+    if (s == null)
+    {
+      return "(none)";
+    }
+    if (s is string str)
+    {
+      return string.IsNullOrEmpty(str) ? "(empty string)" : str;
+    }
+    if (s is IReadOnlyDictionary<string, object> rod)
+    {
+      var p = new List<string>();
+      foreach (var kv in rod) {
+        p.Add($"{kv.Key}={kv.Value}");
       }
-      return s.ToString();
+      return string.Join(", ", p);
+    }
+    return s.ToString();
   }
 
   return (

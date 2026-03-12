@@ -19,6 +19,7 @@ var server = await LanguageServer.From(options =>
         .WithLoggerFactory(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance)
         .WithHandler<TextSyncHandler>()
         .WithHandler<CompletionHandler>()
+        .WithHandler<SignatureHelpHandler>()
         .WithHandler<HoverHandler>()
         .WithHandler<FormattingHandler>()
         .WithHandler<SemanticTokensHandler>()

@@ -11,68 +11,81 @@ component KeyedDiffLisDemoFunc {
   var (operationCount, setOperationCount) = useState(0);
 
   void Reset() {
-      setItems(new List<string>(seedItems));
-      setOperationCount(0);
+    setItems(new List<string>(seedItems));
+    setOperationCount(0);
   }
 
   void Reverse() {
-      var next = new List<string>(items);
-      next.Reverse();
-      setItems(next);
-      setOperationCount(operationCount + 1);
+    var next = new List<string>(items);
+    next.Reverse();
+    setItems(next);
+    setOperationCount(operationCount + 1);
   }
 
   void RotateTailToHead() {
-      if (items.Count == 0) return;
-      var next = new List<string>(items.Count);
-      next.Add(items[items.Count - 1]);
-      for (int i = 0; i < items.Count - 1; i++) next.Add(items[i]);
-      setItems(next);
-      setOperationCount(operationCount + 1);
+    if (items.Count == 0)
+    {
+      return;
+    }
+    var next = new List<string>(items.Count);
+    next.Add(items[items.Count - 1]);
+    for (int i = 0; i < items.Count - 1; i++)
+    {
+      next.Add(items[i]);
+    }
+    setItems(next);
+    setOperationCount(operationCount + 1);
   }
 
   void Shuffle() {
-      if (items.Count < 2) return;
-      var next = new List<string>(items);
-      for (int i = next.Count - 1; i > 0; i--) {
-          int j = rng.Next(i + 1);
-          (next[i], next[j]) = (next[j], next[i]);
-      }
-      setItems(next);
-      setOperationCount(operationCount + 1);
+    if (items.Count < 2)
+    {
+      return;
+    }
+    var next = new List<string>(items);
+    for (int i = next.Count - 1; i > 0; i--)
+    {
+      int j = rng.Next(i + 1);
+      (next[i], next[j]) = (next[j], next[i]);
+    }
+    setItems(next);
+    setOperationCount(operationCount + 1);
   }
 
   void InsertNew() {
-      var next = new List<string>(items);
-      string newKey = $"New-{DateTime.Now.Ticks % 1000}";
-      int index = next.Count == 0 ? 0 : rng.Next(0, next.Count);
-      next.Insert(index, newKey);
-      setItems(next);
-      setOperationCount(operationCount + 1);
+    var next = new List<string>(items);
+    string newKey = $"New-{DateTime.Now.Ticks % 1000}";
+    int index = next.Count == 0 ? 0 : rng.Next(0, next.Count);
+    next.Insert(index, newKey);
+    setItems(next);
+    setOperationCount(operationCount + 1);
   }
 
   void RemoveMiddle() {
-      if (items.Count == 0) return;
-      var next = new List<string>(items);
-      next.RemoveAt(items.Count / 2);
-      setItems(next);
-      setOperationCount(operationCount + 1);
+    if (items.Count == 0)
+    {
+      return;
+    }
+    var next = new List<string>(items);
+    next.RemoveAt(items.Count / 2);
+    setItems(next);
+    setOperationCount(operationCount + 1);
   }
 
   var headerStyle = new Style { (StyleKeys.FontSize, 16f), ("unityFontStyleAndWeight", FontStyle.Bold), (StyleKeys.MarginBottom, 6f) };
   var hintStyle = new Style { (StyleKeys.MarginBottom, 6f), (StyleKeys.WhiteSpace, "normal") };
   var btnStyle = new Style { (StyleKeys.MinWidth, 135f), (StyleKeys.MarginRight, 6f), (StyleKeys.MarginBottom, 6f) };
   var rowItemStyle = new Style {
-      (StyleKeys.FlexDirection, "row"),
-      (StyleKeys.AlignItems, "center"),
-      (StyleKeys.PaddingLeft, 10f),
-      (StyleKeys.PaddingRight, 10f),
-      (StyleKeys.PaddingTop, 6f),
-      (StyleKeys.PaddingBottom, 6f),
-      (StyleKeys.MarginBottom, 4f),
-      (StyleKeys.BackgroundColor, new Color(0.17f, 0.17f, 0.2f, 0.85f)),
-      (StyleKeys.BorderRadius, 4f),
-      (StyleKeys.JustifyContent, "space-between"),
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.AlignItems, "center"),
+    (StyleKeys.PaddingLeft, 10f),
+    (StyleKeys.PaddingRight, 10f),
+    (StyleKeys.PaddingTop, 6f),
+    (StyleKeys.PaddingBottom, 6f),
+    (StyleKeys.MarginBottom, 4f),
+    (StyleKeys.BackgroundColor, new Color(0.17f, 0.17f, 0.2f, 0.85f)),
+    (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.JustifyContent, "space-between"),
   };
 
   return (

@@ -1434,5 +1434,21 @@
       "acceptsChildren": true,
       "attributes": []
     }
+  },
+  "styleKeyValues": {
+    "flexDirection":    ["row", "column", "row-reverse", "column-reverse"],
+    "flexWrap":         ["nowrap", "wrap", "wrap-reverse"],
+    "justifyContent":   ["flex-start", "flex-end", "center", "space-between", "space-around"],
+    "alignItems":       ["auto", "flex-start", "flex-end", "center", "stretch"],
+    "alignSelf":        ["auto", "flex-start", "flex-end", "center", "stretch"],
+    "alignContent":     ["flex-start", "flex-end", "center", "stretch", "space-between", "space-around"],
+    "position":         ["relative", "absolute"],
+    "display":          ["flex", "none"],
+    "visibility":       ["visible", "hidden"],
+    "overflow":         ["visible", "hidden", "scroll"],
+    "whiteSpace":       ["normal", "nowrap"],
+    "textAlign":        ["upper-left", "upper-center", "upper-right", "middle-left", "middle-center", "middle-right", "lower-left", "lower-center", "lower-right"],
+    "textOverflow":     ["clip", "ellipsis"],
+    "unityTextOverflowPosition": ["start", "middle", "end"]
   }
 }

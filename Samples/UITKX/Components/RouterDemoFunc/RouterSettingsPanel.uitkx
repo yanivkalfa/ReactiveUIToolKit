@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using System
 
@@ -6,10 +6,10 @@ component RouterSettingsPanel {
   var locationPath = RouterHooks.UseLocation();
 
   var settingsContent = locationPath.StartsWith("/settings/profile", StringComparison.OrdinalIgnoreCase)
-      ? "Profile settings go here."
-      : locationPath.StartsWith("/settings/preferences", StringComparison.OrdinalIgnoreCase)
-          ? "Preferences settings go here."
-          : "Select a settings section above.";
+    ? "Profile settings go here."
+    : locationPath.StartsWith("/settings/preferences", StringComparison.OrdinalIgnoreCase)
+      ? "Preferences settings go here."
+      : "Select a settings section above.";
 
   return (
     <VisualElement style={new Style { (StyleKeys.MarginTop, 6f) }}>

@@ -123,6 +123,10 @@
               "target": "Package",
               "version": "[4.9.2, )"
             },
+            "Microsoft.CodeAnalysis.CSharp.Features": {
+              "target": "Package",
+              "version": "[4.9.2, )"
+            },
             "Microsoft.CodeAnalysis.CSharp.Workspaces": {
               "target": "Package",
               "version": "[4.9.2, )"

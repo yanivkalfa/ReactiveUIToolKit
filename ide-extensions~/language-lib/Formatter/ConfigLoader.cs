@@ -22,10 +22,14 @@ namespace ReactiveUITK.Language.Formatter
         /// Absolute path to the directory containing the <c>.uitkx</c> file being
         /// formatted.  Pass <c>null</c> or empty to get defaults immediately.
         /// </param>
-        public static FormatterOptions LoadFormatterOptions(string? fileDirectory)
+        public static FormatterOptions LoadFormatterOptions(
+            string? fileDirectory,
+            FormatterOptions? baseOptions = null)
         {
+            var fallback = baseOptions ?? FormatterOptions.Default;
+
             if (string.IsNullOrEmpty(fileDirectory))
-                return FormatterOptions.Default;
+                return fallback;
 
             var dir = fileDirectory;
 
@@ -37,12 +41,12 @@ namespace ReactiveUITK.Language.Formatter
                     try
                     {
                         var json = File.ReadAllText(candidate);
-                        return FormatterOptions.FromJson(json);
+                        return FormatterOptions.FromJson(json, fallback);
                     }
                     catch
                     {
-                        // Malformed config → fall through to default
-                        return FormatterOptions.Default;
+                        // Malformed config → fall through to fallback
+                        return fallback;
                     }
                 }
 
@@ -56,7 +60,7 @@ namespace ReactiveUITK.Language.Formatter
                 dir = parent;
             }
 
-            return FormatterOptions.Default;
+            return fallback;
         }
     }
 }

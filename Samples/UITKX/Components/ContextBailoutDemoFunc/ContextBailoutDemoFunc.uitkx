@@ -11,9 +11,9 @@ component ContextBailoutDemoFunc {
   provideContext("bailout-test-theme", themeColor);
 
   var containerStyle = new Style {
-      (StyleKeys.Padding, 14f),
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.Padding, 14f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
   };
 
   return (

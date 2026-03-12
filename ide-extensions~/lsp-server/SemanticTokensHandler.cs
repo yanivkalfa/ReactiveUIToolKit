@@ -98,6 +98,22 @@ public sealed class SemanticTokensHandler : SemanticTokensHandlerBase
             usedPositions.Add((t.Line, t.Column));
 
         // ── Roslyn C# semantic tokens (async, best-effort) ────────────────────
+        // Ensure the virtual doc is rebuilt from the current source text before
+        // classifying — prevents stale source-map positions producing partial-word
+        // coloring after a completion edit (the 300 ms debounce lags behind the
+        // semantic-tokens request that follows immediately after every edit).
+        if (!string.IsNullOrEmpty(localPath))
+        {
+            try
+            {
+                await _roslynHost
+                    .EnsureReadyAsync(localPath, text, parseResult, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { /* best-effort */ }
+        }
+
         SemanticTokenData[] roslynTokens = Array.Empty<SemanticTokenData>();
         try
         {

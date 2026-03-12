@@ -2,6 +2,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import {
+  DocumentFormattingRequest,
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
@@ -9,6 +10,37 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient | undefined;
+
+/**
+ * Walk up from each workspace folder looking for uitkx.config.json,
+ * return the explicit formatter.indentSize if found.
+ */
+function findConfigIndentSize(): number | undefined {
+  const folders = vscode.workspace.workspaceFolders;
+  if (!folders?.length) return undefined;
+
+  for (const folder of folders) {
+    let dir = folder.uri.fsPath;
+    while (dir) {
+      const configPath = path.join(dir, 'uitkx.config.json');
+      if (fs.existsSync(configPath)) {
+        try {
+          const content = fs.readFileSync(configPath, 'utf-8');
+          const json = JSON.parse(content);
+          const indentSize = json?.formatter?.indentSize;
+          if (typeof indentSize === 'number' && indentSize > 0) {
+            return indentSize;
+          }
+        } catch { /* ignore parse errors */ }
+        return undefined; // config found but no indentSize
+      }
+      const parent = path.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+  return undefined;
+}
 
 function isIdentifierChar(ch: string): boolean {
   return /[A-Za-z0-9_]/.test(ch);
@@ -460,7 +492,75 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
   context.subscriptions.push(jsxCommentHandler);
+
+  // OmniSharp's dynamic registration for documentFormattingProvider never fires —
+  // the server always advertises DocumentFormattingProvider=null in its initialize
+  // response and does not send client/registerCapability for formatting.
+  // Register the provider explicitly and route calls through the LSP client.
+  const formattingProvider = vscode.languages.registerDocumentFormattingEditProvider(
+    [{ language: 'uitkx', scheme: 'file' }],
+    {
+      async provideDocumentFormattingEdits(
+        document: vscode.TextDocument,
+        options: vscode.FormattingOptions,
+        token: vscode.CancellationToken
+      ): Promise<vscode.TextEdit[] | undefined> {
+        output.appendLine(`[Formatting] provideDocumentFormattingEdits called for ${document.uri.fsPath}`);
+        if (!client) {
+          output.appendLine('[Formatting] client is null/undefined — skipping');
+          return undefined;
+        }
+        output.appendLine(`[Formatting] client state: ${client.state}`);
+        try {
+          const params = {
+            textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+            options: client.code2ProtocolConverter.asFormattingOptions(options, {}),
+          };
+          output.appendLine(`[Formatting] sending DocumentFormattingRequest`);
+          const lspEdits = await client.sendRequest(
+            DocumentFormattingRequest.type,
+            params,
+            token
+          );
+          output.appendLine(`[Formatting] got response: ${JSON.stringify(lspEdits)?.slice(0, 200)}`);
+          if (!lspEdits) return undefined;
+          return client.protocol2CodeConverter.asTextEdits(lspEdits);
+        } catch (err) {
+          output.appendLine(`[Formatting] ERROR: ${err}`);
+          return undefined;
+        }
+      },
+    }
+  );
+  context.subscriptions.push(formattingProvider);
+  output.appendLine('[UITKX] DocumentFormattingEditProvider registered for uitkx');
+
+  // ── Sync editor.tabSize with uitkx.config.json indentSize ──────────
+  function syncTabSize(): void {
+    const indentSize = findConfigIndentSize();
+    if (indentSize == null) return;
+
+    const editorCfg = vscode.workspace.getConfiguration('editor', { languageId: 'uitkx' });
+    const current = editorCfg.get<number>('tabSize');
+    if (current === indentSize) return;
+
+    editorCfg.update('tabSize', indentSize, vscode.ConfigurationTarget.Workspace, true)
+      .then(
+        () => output.appendLine(`[UITKX] Synced editor.tabSize → ${indentSize} from uitkx.config.json`),
+        (err: unknown) => output.appendLine(`[UITKX] Failed to sync tabSize: ${err}`)
+      );
+  }
+
+  syncTabSize();
+
+  const configWatcher = vscode.workspace.createFileSystemWatcher('**/uitkx.config.json');
+  configWatcher.onDidChange(syncTabSize);
+  configWatcher.onDidCreate(syncTabSize);
+  context.subscriptions.push(configWatcher);
+  // ────────────────────────────────────────────────────────────────────
+
   context.subscriptions.push(client);
+  output.appendLine('[UITKX] activate() completed');
 }
 
 export function deactivate(): Thenable<void> | undefined {

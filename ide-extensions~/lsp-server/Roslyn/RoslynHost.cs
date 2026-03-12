@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Host.Mef;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.Roslyn;
@@ -57,7 +58,9 @@ namespace UitkxLanguageServer.Roslyn
                 // virtual document scaffold.  User-configurable in the future.
                 new Dictionary<string, ReportDiagnostic>
                 {
-                    ["CS0246"] = ReportDiagnostic.Suppress, // type/namespace not found — common from scaffold
+                    // CS0246 removed: targeted #pragma warning disable CS0246 in the
+                    // virtual document now covers scaffold-specific occurrences, so
+                    // real user type-not-found errors can surface to the editor.
                     ["CS8019"] = ReportDiagnostic.Suppress, // unnecessary using directive
                     ["CS1591"] = ReportDiagnostic.Suppress, // missing XML comment
                     ["CS0649"] = ReportDiagnostic.Suppress, // field never assigned
@@ -66,6 +69,16 @@ namespace UitkxLanguageServer.Roslyn
                     ["CS0169"] = ReportDiagnostic.Suppress, // field never used
                     ["CS8632"] = ReportDiagnostic.Suppress, // nullable annotation outside #nullable context (auto-generated)
                     ["CS8974"] = ReportDiagnostic.Suppress, // converting method group to non-delegate type 'object'
+                    // CS1977 fires when a lambda is passed as an argument to a dynamically-
+                    // dispatched method call (e.g. `dm.AppendAction("X", _ => ...)` where
+                    // `dm` is typed as `dynamic` in the block-body local function scaffold).
+                    // This is a false-positive caused by the virtual document; real user code
+                    // does compile correctly at runtime.  CS1977 cannot be suppressed via
+                    // #pragma warning disable, so we suppress it at the compilation level.
+                    ["CS1977"] = ReportDiagnostic.Suppress, // cannot use lambda as arg to dynamic dispatch (virtual-doc false positive)
+                    // CS0219: unused local variable — promoted to Error so the user sees it
+                    // as a red squiggle immediately, matching standard C# IDE behaviour.
+                    ["CS0219"] = ReportDiagnostic.Error,   // unused variable → error
                 });
 
         // ── Inner types ───────────────────────────────────────────────────────
@@ -80,6 +93,9 @@ namespace UitkxLanguageServer.Roslyn
             public ProjectId?       ProjectId;
             public DocumentId?      DocumentId;
             public VirtualDocument? VirtualDoc;
+            /// <summary>Hash of the source text used for the last virtual-doc build.
+            /// <see cref="EnsureReadyAsync"/> uses this to skip redundant rebuilds.</summary>
+            public string           LastBuiltSource = "";
 
             /// <summary>Debounce timer for rebuild requests.</summary>
             public Timer? DebounceTimer;
@@ -287,20 +303,23 @@ namespace UitkxLanguageServer.Roslyn
 
             var state = _files.GetOrAdd(uitkxFilePath, _ => new FileState());
 
-            // Fast path: document already exists — no work needed.
-            if (state.Workspace != null && state.DocumentId != null)
+            // Fast path: workspace exists and source hasn't changed since last build.
+            if (state.Workspace != null && state.DocumentId != null && state.LastBuiltSource == source)
                 return;
 
             await state.Gate.WaitAsync(ct).ConfigureAwait(false);
             try
             {
-                // Double-checked after acquiring the gate.
-                if (state.Workspace != null && state.DocumentId != null)
+                // Double-checked after acquiring the gate — must recheck LastBuiltSource too,
+                // otherwise a concurrent EnsureReadyAsync that raced here first would have
+                // already rebuilt with the new source, and we can skip.
+                if (state.Workspace != null && state.DocumentId != null && state.LastBuiltSource == source)
                     return;
 
                 var virtualDoc = _docGenerator.Generate(parseResult, source, uitkxFilePath);
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
                 state.VirtualDoc = virtualDoc;
+                state.LastBuiltSource = source;
 
                 ServerLog.Log($"[RoslynHost] EnsureReadyAsync: immediate build for {System.IO.Path.GetFileName(uitkxFilePath)}");
             }
@@ -343,6 +362,7 @@ namespace UitkxLanguageServer.Roslyn
 
                 // 3. Store the new virtual document on state
                 state.VirtualDoc = virtualDoc;
+                state.LastBuiltSource = source;
 
                 if (ct.IsCancellationRequested)
                     return;
@@ -378,7 +398,9 @@ namespace UitkxLanguageServer.Roslyn
             if (state.Workspace == null)
             {
                 // ── First open: create workspace + project + document ────────
-                var ws = new AdhocWorkspace();
+                // MefHostServices.DefaultHost loads C# MEF composition so that
+                // CompletionService.GetService(document) returns non-null.
+                var ws = new AdhocWorkspace(MefHostServices.DefaultHost);
 
                 var projectInfo = ProjectInfo.Create(
                     id:           ProjectId.CreateNewId(debugName: uitkxFilePath),

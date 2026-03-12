@@ -50,8 +50,8 @@ public class FormatterTests
 
         Assert.StartsWith("component CounterPanel {\n", formatted);
         Assert.Contains("var (count, setCount) = useState(0)", formatted);
-        Assert.Contains("\n    return (\n", formatted);
-        Assert.Contains("\n    );\n", formatted);
+        Assert.Contains("\n  return (\n", formatted);
+        Assert.Contains("\n  );\n", formatted);
         Assert.EndsWith("}\n", formatted);
         Assert.DoesNotContain("@component", formatted);
         Assert.DoesNotContain("@namespace", formatted);

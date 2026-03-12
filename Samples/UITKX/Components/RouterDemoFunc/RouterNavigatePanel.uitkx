@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using UnityEngine.UIElements
 
@@ -9,13 +9,21 @@ component RouterNavigatePanel {
   var navigate = RouterHooks.UseNavigate();
   var replace = RouterHooks.UseNavigate(replace: true);
 
-  void DoNavigate(bool isReplace) {
-      string rawPath = pathRef?.Current?.value;
-      string effectivePath = string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
-      string rawState = stateRef?.Current?.value;
-      object statePayload = string.IsNullOrEmpty(rawState) ? null : rawState;
-      if (isReplace) replace(effectivePath, statePayload);
-      else navigate(effectivePath, statePayload);
+  void DoNavigate(bool isReplace)
+  {
+    string rawPath = pathRef?.Current?.value;
+    string effectivePath = string.IsNullOrEmpty(rawPath) ? "/" : rawPath;
+    string rawState = stateRef?.Current?.value;
+    object statePayload = string.IsNullOrEmpty(rawState) ? null : rawState;
+
+    if (isReplace)
+    {
+      replace(effectivePath, statePayload);
+    }
+    else
+    {
+      navigate(effectivePath, statePayload);
+    }
   }
 
   return (

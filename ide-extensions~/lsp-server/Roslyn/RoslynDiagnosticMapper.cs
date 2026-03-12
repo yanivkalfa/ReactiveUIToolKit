@@ -43,12 +43,10 @@ namespace UitkxLanguageServer.Roslyn
             new HashSet<string>(StringComparer.Ordinal)
             {
                 // CS0246 — type/namespace not found.
-                // The LSP Roslyn compilation cannot reference Unity-specific assemblies
-                // (ReactiveUITK.Samples, ReadonlyUITK.Core, etc.) so any type from those
-                // assemblies fires a false-positive CS0246 in every .uitkx file.
-                // Unity's own compiler is the authoritative source for type-not-found errors;
-                // suppressing here prevents noisy red squiggles for valid user code.
-                "CS0246",
+                // Previously suppressed globally; now emitted only around specific scaffold
+                // lines via #pragma warning disable CS0246 so that real user type-not-found
+                // errors (e.g. misspelled type names) surface as diagnostics.
+                // "CS0246",
                 "CS8019", // Unnecessary using directive
                 "CS1591", // Missing XML comment
                 "CS0649", // Field '…' is never assigned to
@@ -56,7 +54,10 @@ namespace UitkxLanguageServer.Roslyn
                 "CS8618", // Non-nullable field '…' must contain a non-null value
                 "CS0169", // The field '…' is never used
                 "CS8625", // Cannot convert null literal to non-nullable reference type (scaffold default!)
-                "CS0219", // The variable '…' is assigned but its value is never used — cascade from broken parse
+                // CS0219 — variable assigned but never used.
+                // Previously suppressed to avoid cascade noise from broken parses; removed
+                // so that genuine unused-variable warnings surface to the editor.
+                // "CS0219",
                 "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
             };
 

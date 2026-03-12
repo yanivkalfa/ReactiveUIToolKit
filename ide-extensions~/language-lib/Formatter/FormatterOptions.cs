@@ -75,16 +75,17 @@ namespace ReactiveUITK.Language.Formatter
         /// Unknown keys are silently ignored.  Returns <see cref="Default"/> on any
         /// parse failure.
         /// </summary>
-        public static FormatterOptions FromJson(string json)
+        public static FormatterOptions FromJson(string json, FormatterOptions? baseOpts = null)
         {
+            var fallback = baseOpts ?? Default;
             try
             {
                 // Find the "formatter" { ... } section.
                 var fmtBody = ExtractSection(json, "formatter");
                 if (fmtBody is null)
-                    return Default;
+                    return fallback;
 
-                var opts = Default;
+                var opts = fallback;
 
                 // Integers
                 opts = opts with { PrintWidth              = ReadInt(fmtBody, "printWidth",              opts.PrintWidth) };
@@ -104,7 +105,7 @@ namespace ReactiveUITK.Language.Formatter
             }
             catch
             {
-                return Default;
+                return fallback;
             }
         }
 

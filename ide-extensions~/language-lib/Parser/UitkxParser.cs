@@ -439,6 +439,17 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.IsAt("/>") || _scanner.Current == '>' || _scanner.IsEof)
                     break;
 
+                // JSX block comment inside an attribute list: {/* … */}
+                // Skip the entire comment so its contents are never interpreted as attributes.
+                if (_scanner.IsAt("{/*"))
+                {
+                    _scanner.TryConsume("{/*");
+                    while (!_scanner.IsEof && !_scanner.IsAt("*/}"))
+                        _scanner.Advance();
+                    _scanner.TryConsume("*/}");
+                    continue;
+                }
+
                 // A '@' or '<' at this level means a control-flow directive or child
                 // element — the opening '>' was never written.  Stop here so the caller
                 // continues parsing normally rather than consuming the rest of the file

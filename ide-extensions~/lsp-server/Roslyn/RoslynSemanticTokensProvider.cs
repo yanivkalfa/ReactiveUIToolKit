@@ -31,53 +31,55 @@ namespace UitkxLanguageServer.Roslyn
 
         // Uses OrdinalIgnoreCase for robustness across Roslyn versions that may
         // capitalise or hyphenate the strings slightly differently.
-        private static readonly Dictionary<string, string> s_typeMap =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                // Keywords
-                ["keyword"]                         = SemanticTokenTypes.Keyword,
-                ["keyword - control"]               = SemanticTokenTypes.Keyword,
-                ["preprocessor keyword"]            = SemanticTokenTypes.Keyword,
-                // Types
-                ["class name"]                      = SemanticTokenTypes.Type,
-                ["struct name"]                     = SemanticTokenTypes.Type,
-                ["record class name"]               = SemanticTokenTypes.Type,
-                ["record struct name"]              = SemanticTokenTypes.Type,
-                ["interface name"]                  = SemanticTokenTypes.Type,
-                ["enum name"]                       = SemanticTokenTypes.Type,
-                ["delegate name"]                   = SemanticTokenTypes.Type,
-                ["type parameter name"]             = SemanticTokenTypes.Type,
-                ["namespace name"]                  = SemanticTokenTypes.Type,
-                // Methods / functions
-                ["method name"]                     = SemanticTokenTypes.Function,
-                ["extension method name"]           = SemanticTokenTypes.Function,
-                // Variables / properties / members
-                ["property name"]                   = SemanticTokenTypes.Variable,
-                ["field name"]                      = SemanticTokenTypes.Variable,
-                ["enum member name"]                = SemanticTokenTypes.Variable,
-                ["event name"]                      = SemanticTokenTypes.Variable,
-                ["constant name"]                   = SemanticTokenTypes.Variable,
-                ["parameter name"]                  = SemanticTokenTypes.Variable,
-                ["local name"]                      = SemanticTokenTypes.Variable,
-                ["label name"]                      = SemanticTokenTypes.Variable,
-                // Literals
-                ["string"]                          = SemanticTokenTypes.String,
-                ["verbatim string"]                 = SemanticTokenTypes.String,
-                ["string - verbatim"]               = SemanticTokenTypes.String,
-                ["interpolated string text"]         = SemanticTokenTypes.String,
-                ["number"]                          = SemanticTokenTypes.Number,
-                // Comments (including XML doc)
-                ["comment"]                         = SemanticTokenTypes.Comment,
-                ["xml doc comment - text"]           = SemanticTokenTypes.Comment,
-                ["xml doc comment - delimiter"]      = SemanticTokenTypes.Comment,
-                ["xml doc comment - attribute name"] = SemanticTokenTypes.Comment,
-                ["xml doc comment - attribute quotes"] = SemanticTokenTypes.Comment,
-                ["xml doc comment - attribute value"] = SemanticTokenTypes.Comment,
-                ["xml doc comment - name"]           = SemanticTokenTypes.Comment,
-                ["xml doc comment - processing instruction"] = SemanticTokenTypes.Comment,
-                ["xml doc comment - entity reference"] = SemanticTokenTypes.Comment,
-                ["xml doc comment - comment"]        = SemanticTokenTypes.Comment,
-            };
+        private static readonly Dictionary<string, string> s_typeMap = new Dictionary<
+            string,
+            string
+        >(StringComparer.OrdinalIgnoreCase)
+        {
+            // Keywords
+            ["keyword"] = SemanticTokenTypes.Keyword,
+            ["keyword - control"] = SemanticTokenTypes.Keyword,
+            ["preprocessor keyword"] = SemanticTokenTypes.Keyword,
+            // Types
+            ["class name"] = SemanticTokenTypes.Type,
+            ["struct name"] = SemanticTokenTypes.Type,
+            ["record class name"] = SemanticTokenTypes.Type,
+            ["record struct name"] = SemanticTokenTypes.Type,
+            ["interface name"] = SemanticTokenTypes.Type,
+            ["enum name"] = SemanticTokenTypes.Type,
+            ["delegate name"] = SemanticTokenTypes.Type,
+            ["type parameter name"] = SemanticTokenTypes.Type,
+            ["namespace name"] = SemanticTokenTypes.Type,
+            // Methods / functions
+            ["method name"] = SemanticTokenTypes.Function,
+            ["extension method name"] = SemanticTokenTypes.Function,
+            // Variables / properties / members
+            ["property name"] = SemanticTokenTypes.Variable,
+            ["field name"] = SemanticTokenTypes.Variable,
+            ["enum member name"] = SemanticTokenTypes.Variable,
+            ["event name"] = SemanticTokenTypes.Variable,
+            ["constant name"] = SemanticTokenTypes.Variable,
+            ["parameter name"] = SemanticTokenTypes.Variable,
+            ["local name"] = SemanticTokenTypes.Variable,
+            ["label name"] = SemanticTokenTypes.Variable,
+            // Literals
+            ["string"] = SemanticTokenTypes.String,
+            ["verbatim string"] = SemanticTokenTypes.String,
+            ["string - verbatim"] = SemanticTokenTypes.String,
+            ["interpolated string text"] = SemanticTokenTypes.String,
+            ["number"] = SemanticTokenTypes.Number,
+            // Comments (including XML doc)
+            ["comment"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - text"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - delimiter"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - attribute name"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - attribute quotes"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - attribute value"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - name"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - processing instruction"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - entity reference"] = SemanticTokenTypes.Comment,
+            ["xml doc comment - comment"] = SemanticTokenTypes.Comment,
+        };
 
         private static readonly string[] s_noMods = Array.Empty<string>();
 
@@ -107,11 +109,12 @@ namespace UitkxLanguageServer.Roslyn
         /// sorted by line then column.
         /// </returns>
         public async Task<SemanticTokenData[]> GetTokensAsync(
-            Document                        document,
-            SourceMap                       map,
-            string                          uitkxSource,
-            HashSet<(int Line, int Col)>?   existingPositions,
-            CancellationToken               ct = default)
+            Document document,
+            SourceMap map,
+            string uitkxSource,
+            HashSet<(int Line, int Col)>? existingPositions,
+            CancellationToken ct = default
+        )
         {
             if (map == null || map.Entries.IsDefaultOrEmpty)
                 return Array.Empty<SemanticTokenData>();
@@ -119,8 +122,8 @@ namespace UitkxLanguageServer.Roslyn
             // Classify across the union of all source-mapped regions.
             var entries = map.Entries;
             int totalStart = entries[0].VirtualStart;
-            int totalEnd   = entries[entries.Length - 1].VirtualEnd;
-            var querySpan  = TextSpan.FromBounds(totalStart, totalEnd);
+            int totalEnd = entries[entries.Length - 1].VirtualEnd;
+            var querySpan = TextSpan.FromBounds(totalStart, totalEnd);
 
             IEnumerable<ClassifiedSpan> classified;
             try
@@ -129,10 +132,15 @@ namespace UitkxLanguageServer.Roslyn
                     .GetClassifiedSpansAsync(document, querySpan, ct)
                     .ConfigureAwait(false);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
-                ServerLog.Log($"[RoslynSemanticTokens] Classifier.GetClassifiedSpansAsync error: {ex.Message}");
+                ServerLog.Log(
+                    $"[RoslynSemanticTokens] Classifier.GetClassifiedSpansAsync error: {ex.Message}"
+                );
                 return Array.Empty<SemanticTokenData>();
             }
 
@@ -154,13 +162,13 @@ namespace UitkxLanguageServer.Roslyn
                 if (!mapped.HasValue)
                     continue;
 
-                int uitkxStart  = mapped.Value.UitkxOffset;
-                var entry       = mapped.Value.Entry;
+                int uitkxStart = mapped.Value.UitkxOffset;
+                var entry = mapped.Value.Entry;
 
                 // The token length is the Roslyn span length, clamped to the entry bound
                 // (defensive — should always fit within the entry).
                 int tokenLength = cs.TextSpan.Length;
-                int maxLen      = entry.UitkxEnd - uitkxStart;
+                int maxLen = entry.UitkxEnd - uitkxStart;
                 if (tokenLength > maxLen)
                     tokenLength = maxLen;
                 if (tokenLength <= 0)
@@ -173,22 +181,26 @@ namespace UitkxLanguageServer.Roslyn
                 if (existingPositions != null && existingPositions.Contains((line0, col0)))
                     continue;
 
-                results.Add(new SemanticTokenData
-                {
-                    Line      = line0,
-                    Column    = col0,
-                    Length    = tokenLength,
-                    TokenType = tokenType,
-                    Modifiers = s_noMods,
-                });
+                results.Add(
+                    new SemanticTokenData
+                    {
+                        Line = line0,
+                        Column = col0,
+                        Length = tokenLength,
+                        TokenType = tokenType,
+                        Modifiers = s_noMods,
+                    }
+                );
             }
 
             // Stable sort: line ascending, then column ascending.
-            results.Sort(static (a, b) =>
-            {
-                int cmp = a.Line.CompareTo(b.Line);
-                return cmp != 0 ? cmp : a.Column.CompareTo(b.Column);
-            });
+            results.Sort(
+                static (a, b) =>
+                {
+                    int cmp = a.Line.CompareTo(b.Line);
+                    return cmp != 0 ? cmp : a.Column.CompareTo(b.Column);
+                }
+            );
 
             return results.ToArray();
         }
@@ -216,7 +228,8 @@ namespace UitkxLanguageServer.Roslyn
         private static (int Line, int Col) OffsetToLineCol(int offset, int[] lineStarts)
         {
             // Binary search for the last line start ≤ offset.
-            int lo = 0, hi = lineStarts.Length - 1;
+            int lo = 0,
+                hi = lineStarts.Length - 1;
             while (lo < hi)
             {
                 int mid = lo + (hi - lo + 1) / 2;

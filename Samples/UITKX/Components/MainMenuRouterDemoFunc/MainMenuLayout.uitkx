@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using UnityEngine
 
@@ -6,19 +6,19 @@ component MainMenuLayout {
   var location = RouterHooks.UseLocationInfo();
 
   var layoutRowStyle = new Style {
-      (StyleKeys.FlexGrow, 1f),
-      (StyleKeys.FlexDirection, "row"),
-      (StyleKeys.MarginTop, 8f),
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginTop, 8f),
   };
 
   var outletStyle = new Style {
-      (StyleKeys.FlexGrow, 1f),
-      (StyleKeys.Padding, 12f),
-      (StyleKeys.MarginLeft, 12f),
-      (StyleKeys.BorderWidth, 1f),
-      (StyleKeys.BorderColor, new Color(0.3f, 0.3f, 0.3f, 1f)),
-      (StyleKeys.BorderRadius, 6f),
-      (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.MarginLeft, 12f),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderColor, new Color(0.3f, 0.3f, 0.3f, 1f)),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.FlexDirection, "column"),
   };
 
   return (

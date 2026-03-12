@@ -14,25 +14,25 @@ component PortalEventScopeDemoFunc {
   var (log, setLog) = useState("Click the portal button to verify event scoping.");
 
   void AppendLog(string message) {
-      setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
+    setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
   }
 
   // Build the portal node in code -- V.Portal is a C# API, not a UITKX tag.
   // If the host did not supply a portal target the slot is null and nothing is rendered there.
   var portalNode = portalTarget != null
-      ? V.Portal(
-          portalTarget,
-          null,
-          mounted
-              ? V.Button(new ButtonProps
-                  {
-                      Text = "Portal Button (click me)",
-                      OnClick = _ => AppendLog("Portal button clicked"),
-                      Style = new Style { (StyleKeys.MarginTop, 6f) },
-                  })
-              : V.Label(new LabelProps { Text = "Portal unmounted." })
-        )
-      : null;
+    ? V.Portal(
+      portalTarget,
+      null,
+      mounted
+        ? V.Button(new ButtonProps
+          {
+            Text = "Portal Button (click me)",
+            OnClick = _ => AppendLog("Portal button clicked"),
+            Style = new Style { (StyleKeys.MarginTop, 6f) },
+          })
+        : V.Label(new LabelProps { Text = "Portal unmounted." })
+      )
+    : null;
 
   return (
     <VisualElement

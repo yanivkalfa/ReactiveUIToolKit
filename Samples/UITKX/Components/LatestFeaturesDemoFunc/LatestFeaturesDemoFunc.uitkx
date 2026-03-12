@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
 @using System.Threading
@@ -22,88 +22,135 @@ component LatestFeaturesDemoFunc {
   // Capture a single Fiber metrics snapshot so we can show
   // some numbers without causing a render loop.
   useEffect(() => {
-      bool captured = false;
-      void OnMetrics(FiberReconciler.FiberReconcilerMetrics m) {
-          if (captured) return;
-          captured = true;
-          setMetricsLastMs(m.LastRenderMs);
-          setMetricsWorkUnits(m.WorkUnits);
-          setMetricsCommits(m.Commits);
-          setMetricsSlices(m.Slices);
-          setMetricsYields(m.Yields);
-          setMetricsEffects(m.EffectsCommitted);
+    bool captured = false;
+    void OnMetrics(FiberReconciler.FiberReconcilerMetrics m) {
+      if (captured)
+      {
+        return;
       }
-      FiberReconciler.MetricsEmitted += OnMetrics;
-      return () => { FiberReconciler.MetricsEmitted -= OnMetrics; };
+      captured = true;
+      setMetricsLastMs(m.LastRenderMs);
+      setMetricsWorkUnits(m.WorkUnits);
+      setMetricsCommits(m.Commits);
+      setMetricsSlices(m.Slices);
+      setMetricsYields(m.Yields);
+      setMetricsEffects(m.EffectsCommitted);
+    }
+    FiberReconciler.MetricsEmitted += OnMetrics;
+    return () => { FiberReconciler.MetricsEmitted -= OnMetrics; };
   }, new object[] { });
 
   // Wire async task completion back into state
   useEffect(() => {
-      var task = pendingTask;
-      if (task == null) return null;
-      bool cancelled = false;
-      var syncContext = SynchronizationContext.Current;
-      task.ContinueWith(t => {
-          if (cancelled) return;
-          void Apply() {
-              if (t.IsFaulted) { setStatus("Load failed (check console)."); }
-              else if (t.IsCanceled) { setStatus("Load cancelled."); }
-              else {
-                  setItems(new List<string>(defaultItems));
-                  setLoadCount(count => count + 1);
-                  setStatus($"Data loaded ({DateTime.Now:HH:mm:ss}).");
-              }
-              setPendingTask(default);
-          }
-          if (syncContext != null) { try { syncContext.Post(_ => Apply(), null); } catch { Apply(); } }
-          else { Apply(); }
-      }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-      return () => { cancelled = true; };
+    var task = pendingTask;
+    if (task == null)
+    {
+      return null;
+    }
+    bool cancelled = false;
+    var syncContext = SynchronizationContext.Current;
+    task.ContinueWith(t => {
+      if (cancelled)
+      {
+        return;
+      }
+      void Apply() {
+        if (t.IsFaulted)
+        {
+          setStatus("Load failed (check console).");
+        }
+        else if (t.IsCanceled)
+        {
+          setStatus("Load cancelled.");
+        }
+        else
+        {
+          setItems(new List<string>(defaultItems));
+          setLoadCount(count => count + 1);
+          setStatus($"Data loaded ({DateTime.Now:HH:mm:ss}).");
+        }
+        setPendingTask(default);
+      }
+      if (syncContext != null)
+      {
+        try
+        {
+          syncContext.Post(_ => Apply(), null);
+        }
+        catch
+        {
+          Apply();
+        }
+      }
+      else
+      {
+        Apply();
+      }
+    },
+      CancellationToken.None,
+      TaskContinuationOptions.ExecuteSynchronously,
+      TaskScheduler.Default
+    );
+    return () => {
+      cancelled = true;
+    };
   }, new object[] { pendingTask });
 
   void SimulateAsyncLoad() {
-      if (pendingTask != null && !pendingTask.IsCompleted) return;
-      setStatus("Loading sample data...");
-      setItems(new List<string>());
-      setPendingTask(Task.Run(async () => { await Task.Delay(1500); }));
+    if (pendingTask != null && !pendingTask.IsCompleted)
+    {
+      return;
+    }
+    setStatus("Loading sample data...");
+    setItems(new List<string>());
+    setPendingTask(Task.Run(async () => { await Task.Delay(1500); }));
   }
 
   void ResetOrder() {
-      setItems(new List<string>(defaultItems));
+    setItems(new List<string>(defaultItems));
   }
 
   void ReverseOrder() {
-      if (items.Count == 0) return;
-      var reversed = new List<string>(items);
-      reversed.Reverse();
-      setItems(reversed);
+    if (items.Count == 0)
+    {
+      return;
+    }
+    var reversed = new List<string>(items);
+    reversed.Reverse();
+    setItems(reversed);
   }
 
   void RotateOrder() {
-      if (items.Count == 0) return;
-      var rotated = new List<string>(items.Count);
-      for (int i = 1; i < items.Count; i++) rotated.Add(items[i]);
-      rotated.Add(items[0]);
-      setItems(rotated);
+    if (items.Count == 0)
+    {
+      return;
+    }
+    var rotated = new List<string>(items.Count);
+    for (int i = 1; i < items.Count; i++)
+    {
+      rotated.Add(items[i]);
+    }
+    rotated.Add(items[0]);
+    setItems(rotated);
   }
 
   bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
 
   var orderText = items.Count == 0
-      ? "No items loaded yet. Click the button above to fetch sample data."
-      : string.Join(", ", items);
+    ? "No items loaded yet. Click the button above to fetch sample data."
+    : string.Join(", ", items);
 
   var metricsLine = metricsLastMs < 0
-      ? "Waiting for Fiber metrics..."
-      : $"Last render {metricsLastMs} ms | work units {metricsWorkUnits}, commits {metricsCommits}, slices {metricsSlices}, yields {metricsYields}, effects {metricsEffects}.";
+    ? "Waiting for Fiber metrics..."
+    : $"Last render {metricsLastMs} ms | work units {metricsWorkUnits}, commits {metricsCommits}, slices {metricsSlices}, yields {metricsYields}, effects {metricsEffects}.";
 
   var btnStyle = new Style { (StyleKeys.MinWidth, 140f) };
 
   var fallbackContent = (
-      <VisualElement key="suspense-fallback">
-          <Label text="Loading sample content..." />
-          <Label text="This fallback disappears once the Task finishes." />
-      </VisualElement>
+    <VisualElement key="suspense-fallback">
+      <Label text="Loading sample content..." />
+      <Label text="This fallback disappears once the Task finishes." />
+    </VisualElement>
   );
 
   return (

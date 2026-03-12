@@ -26,6 +26,7 @@ namespace ReactiveUITK.Language.SemanticTokens
         // ── Standard LSP types (reused) ───────────────────────────────────────
 
         public const string Variable = "variable";
+        public const string Property = "property";
         public const string Keyword = "keyword";
 
         /// <summary>Standard LSP function type — used for hook setter variables.</summary>
@@ -64,6 +65,7 @@ namespace ReactiveUITK.Language.SemanticTokens
             Type,
             String,
             Number,
+            Property,
         };
     }
 

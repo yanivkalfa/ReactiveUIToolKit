@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component RenderDepthGuardDemoFunc {
@@ -6,23 +6,23 @@ component RenderDepthGuardDemoFunc {
   var (triggered, setTriggered) = useState(false);
 
   var containerStyle = new Style {
-      (StyleKeys.Padding, 14f),
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.Padding, 14f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
   };
 
   var infoStyle = new Style {
-      (StyleKeys.Padding, 8f),
-      (StyleKeys.MarginTop, 8f),
-      (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.1f, 0.7f)),
-      (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.MarginTop, 8f),
+    (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.1f, 0.7f)),
+    (StyleKeys.BorderRadius, 4f),
   };
 
   var warnStyle = new Style {
-      (StyleKeys.Padding, 8f),
-      (StyleKeys.MarginTop, 6f),
-      (StyleKeys.BackgroundColor, new Color(0.5f, 0.15f, 0.1f, 0.8f)),
-      (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.MarginTop, 6f),
+    (StyleKeys.BackgroundColor, new Color(0.5f, 0.15f, 0.1f, 0.8f)),
+    (StyleKeys.BorderRadius, 4f),
   };
 
   return (

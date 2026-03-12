@@ -227,9 +227,31 @@ namespace ReactiveUITK.Language.Diagnostics
             // UITKX0104 — Duplicate literal key among siblings at this level.
             CheckDuplicateKeys(nodes, diags);
 
+            bool unreachable = false;
             foreach (var node in nodes)
             {
-                WalkNode(node, insideForeach, projectElements, knownAttributes, diags);
+                if (unreachable)
+                {
+                    // UITKX0110 — Unreachable markup after @break or @continue.
+                    // Use a large end-column (capped by VS Code to the real line length)
+                    // so DiagnosticTag.Unnecessary fades the entire unreachable line.
+                    // node.SourceColumn is always 0 (not populated by the parser), so
+                    // we start at 0 and span to 9999 to cover the full line content.
+                    diags.Add(MakeDiag(
+                        DiagnosticCodes.UnreachableAfterBreakOrContinue,
+                        ParseSeverity.Hint,
+                        "This node is unreachable because a preceding '@break' or '@continue' exits the loop body.",
+                        node.SourceLine,
+                        node.SourceColumn,
+                        9999
+                    ));
+                }
+                else
+                {
+                    WalkNode(node, insideForeach, projectElements, knownAttributes, diags);
+                    if (node is BreakNode || node is ContinueNode)
+                        unreachable = true;
+                }
             }
         }
 

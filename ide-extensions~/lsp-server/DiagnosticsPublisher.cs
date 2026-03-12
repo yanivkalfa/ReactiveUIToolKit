@@ -223,6 +223,8 @@ public sealed class DiagnosticsPublisher
             Source   = "uitkx",
             Message  = d.Message,
             Tags     = d.Code == DiagnosticCodes.UnreachableAfterReturn
+                    || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
+                    || d.Code == "CS0162"   // Roslyn: unreachable code (after return in function-style setup)
                 ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
                 : null,
         };

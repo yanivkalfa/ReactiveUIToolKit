@@ -8,41 +8,41 @@ component EventBatchingDemoFunc {
   var (status, setStatus) = useState("Click a button to enqueue updates.");
 
   useLayoutEffect(() => {
-      setRenderCount(count => count + 1);
-      return null;
+    setRenderCount(count => count + 1);
+    return null;
   }, new object[] { batchedValue });
 
   void TripleUpdate() {
-      setBatchedValue(v => v + 5);
-      setBatchedValue(v => v - 2);
-      setBatchedValue(v => v + 1);
-      setStatus($"Queued 3 functional updates ({DateTime.Now:HH:mm:ss})");
+    setBatchedValue(v => v + 5);
+    setBatchedValue(v => v - 2);
+    setBatchedValue(v => v + 1);
+    setStatus($"Queued 3 functional updates ({DateTime.Now:HH:mm:ss})");
   }
 
   void ValueThenUpdater() {
-      setBatchedValue(10);
-      setBatchedValue(v => v - 3);
-      setStatus($"Set direct value then updater ({DateTime.Now:HH:mm:ss})");
+    setBatchedValue(10);
+    setBatchedValue(v => v - 3);
+    setStatus($"Set direct value then updater ({DateTime.Now:HH:mm:ss})");
   }
 
   void RapidClicks() {
-      for (int i = 0; i < 5; i++) {
-          setBatchedValue(v => v + 1);
-      }
-      setStatus($"Issued 5 increments ({DateTime.Now:HH:mm:ss})");
+    for (int i = 0; i < 5; i++) {
+      setBatchedValue(v => v + 1);
+    }
+    setStatus($"Issued 5 increments ({DateTime.Now:HH:mm:ss})");
   }
 
   var statBoxStyle = new Style {
-      (StyleKeys.Padding, 8f),
-      (StyleKeys.MarginBottom, 6f),
-      (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),
-      (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.MarginBottom, 6f),
+    (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),
+    (StyleKeys.BorderRadius, 4f),
   };
 
   var btnStyle = new Style {
-      (StyleKeys.MinWidth, 180f),
-      (StyleKeys.MarginRight, 6f),
-      (StyleKeys.MarginBottom, 6f),
+    (StyleKeys.MinWidth, 180f),
+    (StyleKeys.MarginRight, 6f),
+    (StyleKeys.MarginBottom, 6f),
   };
 
   return (

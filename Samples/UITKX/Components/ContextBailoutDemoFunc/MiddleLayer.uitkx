@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component MiddleLayer {
@@ -7,10 +7,10 @@ component MiddleLayer {
   var renderCount = renderCountRef.Current;
 
   var style = new Style {
-      (StyleKeys.Padding, 10f),
-      (StyleKeys.MarginTop, 8f),
-      (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.2f, 1f)),
-      (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.MarginTop, 8f),
+    (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.2f, 1f)),
+    (StyleKeys.BorderRadius, 4f),
   };
 
   return (

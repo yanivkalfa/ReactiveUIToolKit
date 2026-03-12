@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Text;
+using System.Text.RegularExpressions;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
@@ -233,8 +234,11 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold("// DO NOT EDIT — regenerated on every document change.\n");
             b.Scaffold("#line hidden\n");
             b.Scaffold("#nullable enable annotations\n");
+            // CS0246 removed from global list — suppressed only on specific scaffold lines
+            // that are known to reference external types (event types, props type, injects).
+            // This allows Roslyn to surface real CS0246 errors in user-authored C# regions.
             b.Scaffold(
-                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0246, CS0411, CS1660, CS1026, CS1513, CS8632, CS8974\n\n"
+                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0411, CS1660, CS1026, CS1513, CS8632, CS8974\n\n"
             );
 
             // ── Using directives ─────────────────────────────────────────────
@@ -264,6 +268,17 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold($"    partial class {className}\n    {{\n");
             b.Scaffold("#line hidden\n");
 
+            // ── Scaffold Ref<T> stand-in ─────────────────────────────────────
+            // Provides member completions for useRef<T>() return values (e.g.
+            // allowNextRef.Current) without requiring the ReactiveUITK assembly
+            // to be loaded. Current and Value mirror the real Ref<T> API.
+            b.Scaffold(
+                "        private sealed class __UitkxRef__<T>\n" +
+                "        {\n" +
+                "            public T Current { get; set; } = default!;\n" +
+                "            public T Value { get => Current; set => Current = value; }\n" +
+                "        }\n");
+
             if (d.IsFunctionStyle)
                 EmitFunctionStyleBody(b, parseResult, source, escapedPath);
             else
@@ -287,11 +302,15 @@ namespace ReactiveUITK.Language.Roslyn
 
             // Props field
             string propsType = !string.IsNullOrEmpty(d.PropsTypeName) ? d.PropsTypeName! : "object";
+            // Props and inject field types come from user-authored code and may not be
+            // resolvable if the Unity assembly hasn't compiled yet. Suppress CS0246 here.
+            b.Scaffold("#pragma warning disable CS0246\n");
             b.Scaffold($"        private {propsType} props = default!;\n");
 
             // @inject fields
             foreach (var (injectType, injectName) in d.Injects)
                 b.Scaffold($"        private {injectType} {injectName} = default!;\n");
+            b.Scaffold("#pragma warning restore CS0246\n");
 
             b.Scaffold("\n");
 
@@ -338,11 +357,18 @@ namespace ReactiveUITK.Language.Roslyn
             // rewritten before being fed to Roslyn, so we scaffold private methods
             // with the correct return types so Roslyn can type-check the setup code
             // without CS0103 / CS8130 / CS1026 errors.
+            // CS0246: hook stubs reference Unity/ReactiveUITK types that may not
+            // be resolvable before the first Unity compile (e.g. VisualElement).
+            // Custom delegate: T __StateUpdater__<T>(T prev) matches BOTH usage patterns:
+            //   setX(newValue)        → setX called with T, return T discarded ✓
+            //   setX(prev => { ... }) → lambda T→T matches delegate T(T) exactly ✓
+            // __UitkxRef__<T>: scaffold so .Current completions always work,
+            //   even before the ReactiveUITK assembly is loaded by Roslyn.
             b.Scaffold(
                 "\n" +
                 "        // ── Roslyn-only hook stubs (never called at runtime) ──────────────\n" +
-                "#pragma warning disable CS8603, CS8625, CS1998\n" +
-                // Custom delegate: T __StateUpdater__<T>(T prev) matches BOTH usage patterns:\n                //   setX(newValue)          → setX called with T, return T discarded ✓\n                //   setX(prev => { ... })   → lambda T→T matches delegate T(T) exactly ✓\n                "        private delegate T __StateUpdater__<T>(T prev);\n" +
+                "#pragma warning disable CS8603, CS8625, CS1998, CS0246\n" +
+                "        private delegate T __StateUpdater__<T>(T prev);\n" +
                 "        private (T value, __StateUpdater__<T> set)\n" +
                 "            useState<T>(T initial = default) => (initial, null!);\n" +
                 "        private T useMemo<T>(global::System.Func<T> factory, params object[] deps)\n" +
@@ -350,7 +376,7 @@ namespace ReactiveUITK.Language.Roslyn
                 "        private void useEffect(\n" +
                 "            global::System.Func<global::System.Action> effectFactory,\n" +
                 "            params object[] deps) { }\n" +
-                "        private global::ReactiveUITK.Ref<T> useRef<T>(T initial = default) => new();\n" +
+                "        private __UitkxRef__<T> useRef<T>(T initial = default) => new();\n" +
                 "        private global::UnityEngine.UIElements.VisualElement useRef() => null!;\n" +
                 "        private global::System.Func<T> useCallback<T>(\n" +
                 "            global::System.Func<T> callback, params object[] deps) => callback!;\n" +
@@ -362,7 +388,7 @@ namespace ReactiveUITK.Language.Roslyn
                 "        private void useLayoutEffect(\n" +
                 "            global::System.Func<global::System.Action> effectFactory,\n" +
                 "            params object[] deps) { }\n" +
-                "#pragma warning restore CS8603, CS8625, CS1998\n\n");
+                "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n");
 
             // Collect markup nodes — skip the setup CodeBlockNode whose JSX paren
             // blocks are already replaced with (object)null! placeholders by
@@ -473,7 +499,11 @@ namespace ReactiveUITK.Language.Roslyn
                     expr.Text.Substring(arrowIdx + 2).TrimStart().StartsWith("{");
                 if (isBlockBody)
                 {
-                    b.Scaffold($"{indent}// (block-body lambda skipped — CS1977 not suppressable)\n");
+                    // Emit the block body with dynamic-typed parameters so the contents
+                    // get completions and type-checking, while avoiding CS1977 (cannot
+                    // use a lambda as argument to a dynamically-dispatched call — a
+                    // compiler error that cannot be pragma-suppressed).
+                    EmitBlockBodyLambda(b, expr, escapedPath, indent, arrowIdx);
                 }
                 else
                 {
@@ -836,6 +866,221 @@ namespace ReactiveUITK.Language.Roslyn
         private static string EscapeForComment(string text) =>
             text.Replace('\r', ' ').Replace('\n', ' ');
 
+        // ── Block-body lambda emitter ─────────────────────────────────────────
+
+        /// <summary>
+        /// Maps sanitised attribute names (as they appear in a <c>CollectedExpression.Label</c>)
+        /// to the fully-qualified C# type of their single callback parameter.
+        ///
+        /// <para>When a block-body attribute lambda has exactly ONE named parameter and
+        /// the attribute name is in this table, the parameter is declared with the specific
+        /// event type instead of <c>dynamic</c>, so that member completions (e.g.
+        /// <c>.newValue</c>, <c>.button</c>) are available in the editor.</para>
+        ///
+        /// <para><c>ChangeEvent&lt;dynamic&gt;</c> is used for change-event callbacks
+        /// because the concrete value type depends on the host element and is not
+        /// available at virtual-doc generation time.  The <c>dynamic</c> type arg still
+        /// exposes <c>.newValue</c> and <c>.previousValue</c> to Roslyn's completion
+        /// engine.</para>
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<string, string>
+            s_eventCallbackParamTypes =
+                new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+        {
+            // ── Value-change events ────────────────────────────────────────────
+            ["onChange"]               = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
+            ["onValueChanged"]         = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
+            // ── Click / Pointer ───────────────────────────────────────────────
+            ["onClick"]                = "global::UnityEngine.UIElements.ClickEvent",
+            ["onPointerDown"]          = "global::UnityEngine.UIElements.PointerDownEvent",
+            ["onPointerUp"]            = "global::UnityEngine.UIElements.PointerUpEvent",
+            ["onPointerMove"]          = "global::UnityEngine.UIElements.PointerMoveEvent",
+            ["onPointerEnter"]         = "global::UnityEngine.UIElements.PointerEnterEvent",
+            ["onPointerLeave"]         = "global::UnityEngine.UIElements.PointerLeaveEvent",
+            ["onPointerCancel"]        = "global::UnityEngine.UIElements.PointerCancelEvent",
+            // ── Mouse ─────────────────────────────────────────────────────────
+            ["onMouseDown"]            = "global::UnityEngine.UIElements.MouseDownEvent",
+            ["onMouseUp"]              = "global::UnityEngine.UIElements.MouseUpEvent",
+            ["onMouseMove"]            = "global::UnityEngine.UIElements.MouseMoveEvent",
+            ["onMouseEnter"]           = "global::UnityEngine.UIElements.MouseEnterEvent",
+            ["onMouseLeave"]           = "global::UnityEngine.UIElements.MouseLeaveEvent",
+            ["onMouseOut"]             = "global::UnityEngine.UIElements.MouseOutEvent",
+            ["onMouseOver"]            = "global::UnityEngine.UIElements.MouseOverEvent",
+            ["onMouseCaptureOut"]      = "global::UnityEngine.UIElements.MouseCaptureOutEvent",
+            ["onContextClick"]         = "global::UnityEngine.UIElements.ContextClickEvent",
+            // ── Keyboard ──────────────────────────────────────────────────────
+            ["onKeyDown"]              = "global::UnityEngine.UIElements.KeyDownEvent",
+            ["onKeyUp"]                = "global::UnityEngine.UIElements.KeyUpEvent",
+            // ── Focus ─────────────────────────────────────────────────────────
+            ["onFocus"]                = "global::UnityEngine.UIElements.FocusEvent",
+            ["onFocusIn"]              = "global::UnityEngine.UIElements.FocusInEvent",
+            ["onFocusOut"]             = "global::UnityEngine.UIElements.FocusOutEvent",
+            ["onBlur"]                 = "global::UnityEngine.UIElements.BlurEvent",
+            // ── Geometry / Style ──────────────────────────────────────────────
+            ["onGeometryChanged"]      = "global::UnityEngine.UIElements.GeometryChangedEvent",
+            ["onCustomStyleResolved"]  = "global::UnityEngine.UIElements.CustomStyleResolvedEvent",
+            // ── Panel lifecycle ───────────────────────────────────────────────
+            ["onAttachToPanel"]        = "global::UnityEngine.UIElements.AttachToPanelEvent",
+            ["onDetachFromPanel"]      = "global::UnityEngine.UIElements.DetachFromPanelEvent",
+            // ── Navigation ────────────────────────────────────────────────────
+            ["onNavigationMove"]       = "global::UnityEngine.UIElements.NavigationMoveEvent",
+            ["onNavigationSubmit"]     = "global::UnityEngine.UIElements.NavigationSubmitEvent",
+            ["onNavigationCancel"]     = "global::UnityEngine.UIElements.NavigationCancelEvent",
+            // ── Drag-and-drop ─────────────────────────────────────────────────
+            ["onDragEnter"]            = "global::UnityEngine.UIElements.DragEnterEvent",
+            ["onDragLeave"]            = "global::UnityEngine.UIElements.DragLeaveEvent",
+            ["onDragUpdated"]          = "global::UnityEngine.UIElements.DragUpdatedEvent",
+            ["onDragPerform"]          = "global::UnityEngine.UIElements.DragPerformEvent",
+            ["onDragExited"]           = "global::UnityEngine.UIElements.DragExitedEvent",
+            // ── Input / Commands ──────────────────────────────────────────────
+            ["onInput"]                = "global::UnityEngine.UIElements.InputEvent",
+            ["onExecuteCommand"]       = "global::UnityEngine.UIElements.ExecuteCommandEvent",
+            ["onValidateCommand"]      = "global::UnityEngine.UIElements.ValidateCommandEvent",
+            ["onTooltip"]              = "global::UnityEngine.UIElements.TooltipEvent",
+        };
+
+        /// <summary>
+        /// Emits a block-body lambda attribute-expression as a local C# function so that
+        /// <c>return</c> statements inside the body are valid (they return from the local
+        /// function, not from the enclosing <c>__uitkx_render()</c>).
+        ///
+        /// <para>For known UIElements callback attributes (e.g. <c>onChange</c>,
+        /// <c>onClick</c>) the single parameter is declared with the specific event type
+        /// so that member completions like <c>.newValue</c> are available.  Unknown or
+        /// multi-parameter lambdas fall back to <c>dynamic</c>.</para>
+        /// </summary>
+        private static void EmitBlockBodyLambda(
+            VirtualDocBuilder   b,
+            CollectedExpression expr,
+            string              escapedPath,
+            string              indent,
+            int                 arrowIdx)
+        {
+            // ── 1. Extract parameter names ────────────────────────────────────
+            // Everything before '=>', stripped of whitespace and outer parens.
+            string paramPart = expr.Text.Substring(0, arrowIdx).Trim();
+            if (paramPart.StartsWith("(") && paramPart.EndsWith(")"))
+                paramPart = paramPart.Substring(1, paramPart.Length - 2).Trim();
+
+            // Collect the valid (non-discard) parameter names.
+            var paramNames = new System.Collections.Generic.List<string>();
+            foreach (string rawParam in paramPart.Split(','))
+            {
+                string p = rawParam.Trim();
+                if (IsValidCSharpIdentifier(p))
+                    paramNames.Add(p);
+            }
+
+            // ── 2. Locate the opening brace of the block body  ────────────────
+            int afterArrow = arrowIdx + 2;
+            while (afterArrow < expr.Text.Length &&
+                   (expr.Text[afterArrow] == ' '  || expr.Text[afterArrow] == '\t' ||
+                    expr.Text[afterArrow] == '\r' || expr.Text[afterArrow] == '\n'))
+                afterArrow++;
+
+            if (afterArrow >= expr.Text.Length || expr.Text[afterArrow] != '{')
+            {
+                b.Scaffold($"{indent}// (block-body lambda: could not locate opening brace)\n");
+                return;
+            }
+
+            // ── 3. Find the balanced closing brace ────────────────────────────
+            int bodyStart = afterArrow + 1; // first character after '{'
+            int depth = 1;
+            int k     = bodyStart;
+            while (k < expr.Text.Length && depth > 0)
+            {
+                char c = expr.Text[k];
+                if      (c == '{') depth++;
+                else if (c == '}') depth--;
+                if (depth > 0) k++;
+                else break;
+            }
+            // expr.Text[bodyStart..k) is the body content; k points at the closing '}'
+            string bodyText        = k > bodyStart ? expr.Text.Substring(bodyStart, k - bodyStart) : "";
+            int    bodyUitkxOffset = expr.UitkxOffset + bodyStart;
+
+            // ── 4. Determine callback parameter type ─────────────────────────
+            // For single-parameter lambdas on known UIElements event attributes,
+            // use the actual event type so member completions (evt.newValue etc.)
+            // are available.  Multi-param or unknown-attr lambdas use dynamic.
+            string paramCSharpType = "dynamic";
+            if (paramNames.Count == 1)
+            {
+                string attrName = GetAttrNameFromLabel(expr.Label);
+                if (!string.IsNullOrEmpty(attrName) &&
+                    s_eventCallbackParamTypes.TryGetValue(attrName, out string? evtType))
+                    paramCSharpType = evtType!;
+            }
+
+            // ── 5. Emit as a local function so 'return' inside the body is valid ──
+            // A bare scoped block `{ return …; }` is illegal C# because `return`
+            // targets the enclosing __uitkx_render() method whose type may not match.
+            // A local function can return anything (`dynamic`) from its own scope.
+            string funcName = $"__uitkx_h{b.CurrentPos}";
+            b.Scaffold($"{indent}{{\n");
+            b.Scaffold($"{indent}    dynamic {funcName}() {{\n");
+
+            // CS0246: event parameter types (ClickEvent, ChangeEvent<dynamic>, etc.)
+            // reference Unity UIElements which may not be in the Roslyn references yet.
+            if (paramNames.Count > 0)
+                b.Scaffold("#pragma warning disable CS0246\n");
+            foreach (string pName in paramNames)
+                b.Scaffold($"{indent}        {paramCSharpType} {pName} = default!;\n");
+            if (paramNames.Count > 0)
+                b.Scaffold("#pragma warning restore CS0246\n");
+
+            // ── 6. Map the body text verbatim ─────────────────────────────────
+            // Bare `return;` (no value) in a dynamic-returning local function is a
+            // hard compiler error (CS0126).  Since #pragma warning disable cannot
+            // suppress actual errors, we emit the body in segments — replacing each
+            // standalone `return;` with `return default!;` as scaffolded text so the
+            // rest of the body retains full source-map fidelity for completions/hover.
+            if (!string.IsNullOrWhiteSpace(bodyText))
+            {
+                EmitBodyWithReturnFix(
+                    b, bodyText, bodyUitkxOffset, expr.Kind, expr.UitkxLine, escapedPath);
+            }
+
+            // Sentinel `return default!` suppresses CS0161 (not all paths return).
+            // CS0162 suppression handles the unreachable-code case when the body
+            // always returns explicitly.
+            b.Scaffold($"#pragma warning disable CS0162\n");
+            b.Scaffold($"{indent}        return default!;\n");
+            b.Scaffold($"#pragma warning restore CS0162\n");
+            b.Scaffold($"{indent}    }}\n");
+            b.Scaffold($"{indent}    _ = {funcName}();\n");
+            b.Scaffold($"{indent}}}\n");
+        }
+
+        /// <summary>
+        /// Extracts the attribute name from a <c>CollectedExpression.Label</c>.
+        /// Labels follow the format <c>attr_{counter}_{sanitizedAttrName}</c>.
+        /// </summary>
+        private static string GetAttrNameFromLabel(string label)
+        {
+            // Skip the "attr" prefix and the numeric counter, take the rest.
+            int first = label.IndexOf('_');
+            if (first < 0) return string.Empty;
+            int second = label.IndexOf('_', first + 1);
+            if (second < 0 || second + 1 >= label.Length) return string.Empty;
+            return label.Substring(second + 1);
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="s"/> is a valid single C# identifier
+        /// (starts with a letter or underscore, rest alphanumeric/underscore) and is NOT
+        /// the conventional discard placeholder <c>_</c>.
+        /// </summary>
+        private static bool IsValidCSharpIdentifier(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s == "_") return false;
+            if (!char.IsLetter(s[0]) && s[0] != '_') return false;
+            foreach (char c in s)
+                if (!char.IsLetterOrDigit(c) && c != '_') return false;
+            return true;
+        }
+
         // ── JSX-stripping setup-code emitter ──────────────────────────────────
 
         /// <summary>
@@ -938,6 +1183,76 @@ namespace ReactiveUITK.Language.Roslyn
             }
 
             b.Scaffold("\n");
+        }
+
+        /// <summary>
+        /// Regex that matches a standalone <c>return;</c> statement — a bare return
+        /// with no value, at a word boundary, with optional surrounding whitespace.
+        /// Group 1 captures the text before <c>return;</c>, group 2 is the whitespace
+        /// between <c>return</c> and <c>;</c>.
+        /// </summary>
+        private static readonly Regex s_bareReturnRegex =
+            new Regex(@"\breturn(\s*);", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Emits block-body lambda content to the virtual document, replacing each
+        /// standalone <c>return;</c> with a scaffolded <c>return default!;</c> so
+        /// that guard-clause patterns like <c>if (x == null) return;</c> are valid
+        /// inside a <c>dynamic</c>-returning local function without triggering the
+        /// hard compiler error CS0126 (which cannot be suppressed via
+        /// <c>#pragma warning disable</c>).
+        ///
+        /// All other content is emitted via <see cref="VirtualDocBuilder.Mapped"/>
+        /// so completions and hover work correctly throughout the body.
+        /// </summary>
+        private static void EmitBodyWithReturnFix(
+            VirtualDocBuilder b,
+            string bodyText,
+            int bodyUitkxOffset,
+            SourceRegionKind kind,
+            int uitkxLine,
+            string escapedPath)
+        {
+            // Fast path: no bare return; in body → emit entire block as one mapped segment.
+            if (!s_bareReturnRegex.IsMatch(bodyText))
+            {
+                b.Scaffold($"#line {uitkxLine} \"{escapedPath}\"\n");
+                b.Mapped(bodyText, bodyUitkxOffset, kind, uitkxLine);
+                b.Scaffold("\n#line hidden\n");
+                return;
+            }
+
+            int segStart   = 0;
+            int currentLine = uitkxLine;
+
+            foreach (Match m in s_bareReturnRegex.Matches(bodyText))
+            {
+                // Emit text before this `return;` match as a mapped segment.
+                if (m.Index > segStart)
+                {
+                    string seg = bodyText.Substring(segStart, m.Index - segStart);
+                    b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                    b.Mapped(seg, bodyUitkxOffset + segStart, kind, currentLine);
+                    b.Scaffold("\n#line hidden\n");
+                    currentLine += CountNewlines(seg);
+                }
+
+                // Scaffold the replacement (same newline count as original to keep
+                // Roslyn's #line tracking in sync — `return;` is always one line).
+                b.Scaffold("return default!;");
+                currentLine += CountNewlines(bodyText, m.Index, m.Index + m.Length);
+
+                segStart = m.Index + m.Length;
+            }
+
+            // Emit any trailing text after the last match.
+            if (segStart < bodyText.Length)
+            {
+                string seg = bodyText.Substring(segStart);
+                b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                b.Mapped(seg, bodyUitkxOffset + segStart, kind, currentLine);
+                b.Scaffold("\n#line hidden\n");
+            }
         }
 
         /// <summary>Counts '\n' characters in <paramref name="s"/>.</summary>

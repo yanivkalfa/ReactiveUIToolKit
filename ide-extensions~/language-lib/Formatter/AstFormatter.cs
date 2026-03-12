@@ -26,6 +26,9 @@ namespace ReactiveUITK.Language.Formatter
         private readonly ICSharpFormatterDelegate? _csharpFormatter;
         private readonly StringBuilder _sb = new StringBuilder();
         private int _indent;
+        // Set at the start of each Format() call; used by EmitSetupCodeWithJsx.
+        private string _source   = "";
+        private string _filePath = "";
 
         public AstFormatter(FormatterOptions opts, ICSharpFormatterDelegate? csharpFormatter = null)
         {
@@ -53,6 +56,8 @@ namespace ReactiveUITK.Language.Formatter
 
             // Normalise to LF-only so all AppendLine helpers stay consistent.
             source = source.Replace("\r\n", "\n").Replace("\r", "\n");
+            _source   = source;
+            _filePath = filePath;
 
             var diags = new List<ParseDiagnostic>();
             var directives = DirectiveParser.Parse(source, filePath, diags);
@@ -162,20 +167,30 @@ namespace ReactiveUITK.Language.Formatter
             var setupCode = directives.FunctionSetupCode?.Trim();
             if (!string.IsNullOrWhiteSpace(setupCode))
             {
-                var normalizedSetupCode = setupCode!;
                 string tabExp = new string(' ', _opts.IndentSize);
-                EmitCSharpLines(
-                    normalizedSetupCode,
-                    tabExp,
-                    // firstLineStripped: true because FunctionSetupCode has already been
-                    // Trim()'d by the parser — line[0] has its leading whitespace removed.
-                    // Without this flag, baseSpaces is computed as 0 (from line[0]), which
-                    // means every subsequent line's relative indentation is preserved
-                    // as-is and grows by IndentSize on each successive format pass.
-                    firstLineStripped: true,
-                    suppressLastNewline: false
-                );
-                _sb.Append('\n');
+                string codeToFormat = setupCode!;
+
+                // Determine whether there are embedded JSX paren-blocks in the setup.
+                bool hasJsxInSetup = !directives.SetupCodeMarkupRanges.IsDefaultOrEmpty;
+
+                if (hasJsxInSetup)
+                {
+                    // Setup code contains embedded JSX (e.g. var x = (<Box/>)).  Format
+                    // each C# segment and each JSX block separately so neither corrupts
+                    // the indentation of the other.
+                    EmitSetupCodeWithJsx(codeToFormat, directives, tabExp);
+                }
+                else
+                {
+                    // Normalise block-level indentation while preserving depth-0
+                    // continuation indentation (ternary, method chains, etc.).
+                    // Roslyn is intentionally NOT used here: it reformats lambdas,
+                    // object initialisers and method-call arguments in ways that
+                    // break the relative indentation we need, and its brace-style
+                    // changes (K&R → Allman) conflict with the project conventions.
+                    EmitSetupCodeNormalized(codeToFormat, tabExp);
+                    _sb.Append('\n');
+                }
             }
 
             Ln("return (");
@@ -437,51 +452,585 @@ namespace ReactiveUITK.Language.Formatter
                 return;
             var lines = code.Split('\n');
 
-            // baseSpaces: minimum leading spaces across all non-blank lines that
-            // are not the ExpressionExtractor-stripped line[0].
-            int baseSpaces = int.MaxValue;
-            for (int li = firstLineStripped ? 1 : 0; li < lines.Length; li++)
-            {
-                if (string.IsNullOrWhiteSpace(lines[li]))
-                    continue;
-                var exp = lines[li].Replace("\t", tabExp);
-                int lead = exp.Length - exp.TrimStart().Length;
-                if (lead < baseSpaces)
-                    baseSpaces = lead;
-            }
-            if (baseSpaces == int.MaxValue)
-                baseSpaces = 0;
-
             // Find last non-blank line index (for suppressLastNewline).
             int lastMeaningful = lines.Length - 1;
             while (lastMeaningful >= 0 && string.IsNullOrWhiteSpace(lines[lastMeaningful]))
                 lastMeaningful--;
+            if (lastMeaningful < 0)
+                return;
 
-            for (int li = 0; li < lines.Length; li++)
+            int indentSpaces = _indent * _opts.IndentSize; // spaces contributed by IndentStr()
+
+            // ── baseSpaces for depth-0 lines ──────────────────────────────────
+            // Excludes comments and continuation-style lines (ternary arms,
+            // method chains) so that CSharpier-corrupted files where comments
+            // sit at 2sp but statements at 4sp are correctly normalised.
+            int baseSpaces = int.MaxValue;
             {
-                if (li > lastMeaningful)
-                    break; // skip trailing blank lines
+                int d = 0;
+                int startLine = firstLineStripped ? 1 : 0;
+                for (int i = startLine; i <= lastMeaningful; i++)
+                {
+                    string stripped = lines[i].Trim();
+                    if (!string.IsNullOrWhiteSpace(stripped))
+                    {
+                        int lc = 0;
+                        while (lc < stripped.Length && stripped[lc] == '}') lc++;
+                        d = System.Math.Max(0, d - lc);
+                    }
 
-                var stripped = lines[li].TrimEnd();
-                if (string.IsNullOrWhiteSpace(stripped))
+                    if (d == 0 && !string.IsNullOrWhiteSpace(lines[i]))
+                    {
+                        string lStripped = stripped;
+                        bool isContinuation = lStripped.Length > 0 &&
+                            (lStripped[0] == '?' || lStripped[0] == ':' || lStripped[0] == '.');
+                        bool isComment = lStripped.StartsWith("//") || lStripped.StartsWith("/*");
+                        if (!isContinuation && !isComment)
+                        {
+                            var exp = lines[i].Replace("\t", tabExp);
+                            int lead = exp.Length - exp.TrimStart().Length;
+                            if (lead < baseSpaces) baseSpaces = lead;
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lines[i]))
+                    {
+                        string stripped2 = lines[i].Trim().TrimEnd();
+                        if (stripped2.Length > 0 && stripped2[stripped2.Length - 1] == '{')
+                            d++;
+                    }
+                }
+            }
+            if (baseSpaces == int.MaxValue) baseSpaces = 0;
+
+            // ── Emit with stack-based block normalisation ─────────────────────
+            // The stack holds the TOTAL column (including IndentStr) at which
+            // the content of each open block should appear.  This normalises
+            // indentation inside { } blocks (Style initialisers, lambda bodies,
+            // etc.) while depth-0 lines use the IsStatementStarter / anchor
+            // approach to handle multi-line expressions and continuations.
+            //
+            // caseExtra: inside a { } block, lines following a `case X:` /
+            // `default:` label or a `},` brace-comma continuation get an
+            // additional indentSize offset.  This is saved/restored on the
+            // caseExtraStack whenever a nested block is entered/exited so
+            // that the outer context is preserved.
+            var blockStack = new System.Collections.Generic.Stack<int>();
+            var caseExtraStack = new System.Collections.Generic.Stack<int>();
+            var blockAnchorStack = new System.Collections.Generic.Stack<int>();
+            var isLambdaStack = new System.Collections.Generic.Stack<bool>();
+            int caseExtra = 0;
+            int lastBlockAnchor = -1;
+            int lastStatementInputIndent = -1;
+            bool prevWasStatementStarter = false;
+
+            for (int li = 0; li <= lastMeaningful; li++)
+            {
+                string raw = lines[li].TrimEnd();
+                if (string.IsNullOrWhiteSpace(raw))
                 {
                     _sb.Append('\n');
                     continue;
                 }
 
-                var expL = stripped.Replace("\t", tabExp);
+                string stripped = raw.Trim();
+
+                // Convert intra-line tabs to spaces, then collapse runs of 2+
+                // whitespace characters to a single space (outside strings/comments).
+                if (stripped.IndexOf('\t') >= 0)
+                    stripped = stripped.Replace('\t', ' ');
+
+                stripped = CollapseIntraLineSpaces(stripped);
+
+                // Pop for each leading '}'.
+                int leadClose = 0;
+                while (leadClose < stripped.Length && stripped[leadClose] == '}')
+                    leadClose++;
+                bool lastPoppedWasLambda = false;
+                for (int p = 0; p < leadClose; p++)
+                {
+                    if (blockStack.Count > 0)
+                    {
+                        blockStack.Pop();
+                        lastPoppedWasLambda = isLambdaStack.Count > 0 && isLambdaStack.Pop();
+                        caseExtra = caseExtraStack.Count > 0 ? caseExtraStack.Pop() : 0;
+                        lastBlockAnchor = blockAnchorStack.Count > 0 ? blockAnchorStack.Pop() : -1;
+                    }
+                }
+
+                var expL = raw.Replace("\t", tabExp);
                 int leadL = expL.Length - expL.TrimStart().Length;
-                int rel =
-                    (firstLineStripped && li == 0) ? 0 : System.Math.Max(0, leadL - baseSpaces);
+                int emittedTotal;
 
-                string relPrefix = rel > 0 ? new string(' ', rel) : string.Empty;
-                string content = stripped.TrimStart();
+                if (blockStack.Count == 0)
+                {
+                    // Depth-0: statement-opening lines at indentSpaces (rel=0).
+                    // Continuation/closure tokens anchor to the most-recent
+                    // statement's INPUT indent so relative offsets survive
+                    // mixed-corruption files.
+                    int rel;
+                    if (firstLineStripped && li == 0)
+                    {
+                        rel = 0;
+                    }
+                    else if (IsStatementStarter(stripped))
+                    {
+                        rel = 0;
+                        if (li > 0)
+                            lastStatementInputIndent = leadL;
+                    }
+                    else if (stripped == "{" && prevWasStatementStarter)
+                    {
+                        // Allman-style block opener after a statement: always at rel=0 (same
+                        // indent as the statement that precedes it).  Does NOT apply when
+                        // the preceding line is a continuation (e.g. () => new List<int>).
+                        rel = 0;
+                    }
+                    else
+                    {
+                        int anchor = lastStatementInputIndent >= 0 ? lastStatementInputIndent : baseSpaces;
+                        rel = System.Math.Max(0, leadL - anchor);
+                    }
+                    string relPrefix = rel > 0 ? new string(' ', rel) : string.Empty;
 
-                if (li == lastMeaningful && suppressLastNewline)
-                    _sb.Append(IndentStr() + relPrefix + content);
+                    if (li == lastMeaningful && suppressLastNewline)
+                        _sb.Append(IndentStr() + relPrefix + stripped);
+                    else
+                        Ln(relPrefix + stripped);
+                    emittedTotal = indentSpaces + rel;
+
+                    prevWasStatementStarter = IsStatementStarter(stripped) || (firstLineStripped && li == 0);
+                }
                 else
-                    Ln(relPrefix + content);
+                {
+                    // Inside a { } block: normalise to the block's expected
+                    // indentation so inner content is always consistent.
+                    // caseExtra adds one indentSize for lines inside a case
+                    // body or after a `},` brace-comma continuation.
+                    // Continuation lines (starting with ?, :, .) preserve
+                    // their relative offset from the last non-continuation line.
+                    int blockTarget = blockStack.Peek();
+
+                    // Determine the extra indent for THIS line.
+                    int extra = caseExtra;
+                    bool isCaseLabel =
+                        stripped.StartsWith("case ", System.StringComparison.Ordinal) ||
+                        stripped.StartsWith("default:", System.StringComparison.Ordinal);
+                    if (isCaseLabel) extra = 0;          // label itself at blockTarget
+                    if (stripped[0] == ')') extra = 0;   // closing paren of outer call
+
+                    // Check for continuation lines (ternary arms, method chains).
+                    bool isBlockContinuation = stripped[0] == '?' || stripped[0] == ':' || stripped[0] == '.';
+                    // Exclude case/default labels that start with the keyword, not ':'
+                    if (isCaseLabel) isBlockContinuation = false;
+
+                    int target;
+                    if (isBlockContinuation && lastBlockAnchor >= 0)
+                    {
+                        int rel = System.Math.Max(0, leadL - lastBlockAnchor);
+                        target = blockTarget + extra + rel;
+                    }
+                    else
+                    {
+                        target = blockTarget + extra;
+                        lastBlockAnchor = leadL;
+                    }
+
+                    int prefixSpaces = System.Math.Max(0, target - indentSpaces);
+                    string blockPrefix = prefixSpaces > 0 ? new string(' ', prefixSpaces) : string.Empty;
+
+                    if (li == lastMeaningful && suppressLastNewline)
+                        _sb.Append(IndentStr() + blockPrefix + stripped);
+                    else
+                        Ln(blockPrefix + stripped);
+                    emittedTotal = target;
+
+                    // Update caseExtra for the NEXT line.
+                    if (isCaseLabel)
+                    {
+                        caseExtra = _opts.IndentSize;
+                    }
+                    else if (leadClose > 0)
+                    {
+                        // After a line starting with '}': check for brace-comma
+                        // continuation `},` which means call arguments follow,
+                        // but only if the closed block was a lambda (opened
+                        // with `=> {`).  Object-initialiser `},` should NOT
+                        // trigger deeper indent for the next property.
+                        int ci = leadClose;
+                        while (ci < stripped.Length && stripped[ci] == ' ') ci++;
+                        if (ci < stripped.Length && stripped[ci] == ',' && lastPoppedWasLambda)
+                            caseExtra = _opts.IndentSize;
+                        else
+                            caseExtra = 0;
+                    }
+                    else if (stripped[0] == ')')
+                    {
+                        caseExtra = 0;
+                    }
+                    // else: keep caseExtra as-is (continuation lines stay at
+                    // the same extra level).
+                }
+
+                // Push for a trailing '{' — next lines should be one indentSize deeper.
+                string tail = stripped.TrimEnd();
+                if (tail.Length > 0 && tail[tail.Length - 1] == '{')
+                {
+                    blockStack.Push(emittedTotal + _opts.IndentSize);
+                    caseExtraStack.Push(caseExtra);
+                    blockAnchorStack.Push(lastBlockAnchor);
+                    isLambdaStack.Push(tail.Contains("=>"));
+                    caseExtra = 0;
+                    lastBlockAnchor = -1;
+                }
             }
+        }
+
+        /// <summary>
+        /// Emits function-style setup code (no embedded JSX) with two rules:
+        /// <list type="bullet">
+        ///   <item>Lines INSIDE a <c>{ }</c> block use the indentation of the
+        ///         line that opened the block plus one <paramref name="tabExp"/>
+        ///         unit, normalising any inconsistent per-line indentation (e.g.
+        ///         a <c>new Style { }</c> whose entries have mixed leading-space
+        ///         counts).</item>
+        ///   <item>Lines at depth 0 (not inside any <c>{ }</c> block) preserve
+        ///         their relative indentation anchored to <c>baseSpaces</c>, so
+        ///         ternary continuations, method chains, and similar multi-line
+        ///         expressions are not disturbed.</item>
+        /// </list>
+        /// Uses a stack to track the expected indentation for each block level,
+        /// seeded from the actual emitted position of the line that opened the
+        /// block.  This makes the normalisation relative (not absolute), so a
+        /// <c>{</c> opened inside a deeply-indented call-argument list produces
+        /// correctly-relative children.
+        /// </summary>
+        private void EmitSetupCodeNormalized(string code, string tabExp)
+        {
+            if (string.IsNullOrEmpty(code))
+                return;
+
+            var lines = code.Split('\n');
+
+            // Find last non-blank line index.
+            int lastMeaningful = lines.Length - 1;
+            while (lastMeaningful >= 0 && string.IsNullOrWhiteSpace(lines[lastMeaningful]))
+                lastMeaningful--;
+            if (lastMeaningful < 0)
+                return;
+
+            int indentSpaces = _indent * _opts.IndentSize; // spaces contributed by IndentStr()
+
+            // ── baseSpaces for depth-0 lines (excluding line[0]) ──────────────
+            // Used to anchor continuation-line relative indentation.
+            int baseSpaces = int.MaxValue;
+            {
+                // We need a quick depth scan to find which lines are depth-0 for
+                // the baseSpaces calculation.
+                int d = 0;
+                for (int i = 1; i <= lastMeaningful; i++)
+                {
+                    string stripped = lines[i].Trim();
+                    if (!string.IsNullOrWhiteSpace(stripped))
+                    {
+                        int lc = 0;
+                        while (lc < stripped.Length && stripped[lc] == '}') lc++;
+                        d = System.Math.Max(0, d - lc);
+                    }
+
+                    // Measure depth-0 line for baseSpaces before potential push.
+                    // Skip continuation-style lines (ternary arms, method chains)
+                    // so they don't collapse the base indent calculation.
+                    if (d == 0 && !string.IsNullOrWhiteSpace(lines[i]))
+                    {
+                        string lStripped = stripped;
+                        bool isContinuation = lStripped.Length > 0 &&
+                            (lStripped[0] == '?' || lStripped[0] == ':' || lStripped[0] == '.');
+                        // Comments are not statements — they must not pull baseSpaces
+                        // down and prevent over-indented statement lines from being
+                        // corrected (e.g. when CSharpier has added 4-space indent to
+                        // setup-code lines that sit next to 2-space comment headers).
+                        bool isComment = lStripped.StartsWith("//") || lStripped.StartsWith("/*");
+                        if (!isContinuation && !isComment)
+                        {
+                            var exp = lines[i].Replace("\t", tabExp);
+                            int lead = exp.Length - exp.TrimStart().Length;
+                            if (lead < baseSpaces) baseSpaces = lead;
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(lines[i]))
+                    {
+                        string stripped2 = lines[i].Trim().TrimEnd();
+                        if (stripped2.Length > 0 && stripped2[stripped2.Length - 1] == '{')
+                            d++;
+                    }
+                }
+            }
+            // If only continuation lines appeared at depth-0, fall back to
+            // indentSpaces so ternary arms / method chains preserve their
+            // relative indent rather than collapsing to the same level.
+            if (baseSpaces == int.MaxValue) baseSpaces = indentSpaces;
+
+            // ── Emit with stack-based block normalisation ─────────────────────
+            // The stack holds the TOTAL column (including IndentStr) at which
+            // the content of each open block should appear.
+            var blockStack = new System.Collections.Generic.Stack<int>();
+            int lastStatementInputIndent = -1; // input lead of most-recent depth-0 statement opener
+            bool prevWasStatementStarter = false;
+
+            for (int li = 0; li <= lastMeaningful; li++)
+            {
+                string raw = lines[li].TrimEnd();
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    _sb.Append('\n');
+                    continue;
+                }
+
+                string stripped = raw.Trim();
+
+                // Convert intra-line tabs to spaces, then collapse runs of 2+
+                // whitespace characters to a single space (outside strings/comments).
+                if (stripped.IndexOf('\t') >= 0)
+                    stripped = stripped.Replace('\t', ' ');
+
+                stripped = CollapseIntraLineSpaces(stripped);
+
+                // Pop for each leading '}'.
+                int leadClose = 0;
+                while (leadClose < stripped.Length && stripped[leadClose] == '}')
+                    leadClose++;
+                for (int p = 0; p < leadClose; p++)
+                    if (blockStack.Count > 0) blockStack.Pop();
+
+                // Compute the indentation for this line and emit it.
+                int emittedTotal; // total column position of the emitted line content
+                if (blockStack.Count == 0)
+                {
+                    // Depth-0: statement-opening lines are always at indentSpaces (rel=0).
+                    // Continuation/closure tokens anchor to the most-recent statement's
+                    // INPUT indent so relative offsets survive mixed-corruption files
+                    // (e.g. some lines at 2sp, others at 4sp or 12sp due to CSharpier).
+                    var expL  = raw.Replace("\t", tabExp);
+                    int leadL = expL.Length - expL.TrimStart().Length;
+                    int rel;
+                    if (li == 0 || IsStatementStarter(stripped))
+                    {
+                        rel = 0;
+                        // li==0 is Trim()'d by the caller so its leadL is 0 regardless of
+                        // the original source indent — not a reliable anchor for subsequent
+                        // non-starter lines.  Only record the input indent for li > 0.
+                        if (li > 0)
+                            lastStatementInputIndent = leadL;
+                    }
+                    else if (stripped == "{" && prevWasStatementStarter)
+                    {
+                        // Allman-style block opener after a statement: always at rel=0.
+                        rel = 0;
+                    }
+                    else
+                    {
+                        int anchor = lastStatementInputIndent >= 0 ? lastStatementInputIndent : baseSpaces;
+                        rel = System.Math.Max(0, leadL - anchor);
+                    }
+                    string relPrefix = rel > 0 ? new string(' ', rel) : string.Empty;
+                    Ln(relPrefix + stripped);
+                    emittedTotal = indentSpaces + rel;
+
+                    prevWasStatementStarter = IsStatementStarter(stripped) || li == 0;
+                }
+                else
+                {
+                    // Inside a block: normalise to the block's expected indentation.
+                    int blockTarget = blockStack.Peek();
+                    int prefixSpaces = System.Math.Max(0, blockTarget - indentSpaces);
+                    string blockPrefix = prefixSpaces > 0 ? new string(' ', prefixSpaces) : string.Empty;
+                    Ln(blockPrefix + stripped);
+                    emittedTotal = blockTarget;
+                }
+
+                // Push for a trailing '{' — next lines should be one tabExp deeper.
+                string tail = stripped.TrimEnd();
+                if (tail.Length > 0 && tail[tail.Length - 1] == '{')
+                    blockStack.Push(emittedTotal + _opts.IndentSize);
+            }
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when a stripped depth-0 line begins a new C# statement
+        /// rather than being a continuation fragment (continuation arg, named arg, bare
+        /// block opener, ternary arm, method chain, etc.).
+        /// A line is a statement starter when it:
+        ///   • begins with a well-known C# keyword (var, void, if, foreach, return, …) or
+        ///   • ends with <c>;</c> (expression-statement terminator) or
+        ///   • ends with <c>{</c> AND has content before the brace (not just a bare <c>{</c>)
+        /// Used in <see cref="EmitSetupCodeNormalized"/> to anchor depth-0 statement lines
+        /// at <c>indentSpaces</c> regardless of their input indentation.
+        /// </summary>
+        private static bool IsStatementStarter(string s)
+        {
+            if (s.Length == 0) return false;
+
+            // Ternary arms ('?', ':') and method-chain continuations ('.') are
+            // never statement openers regardless of their ending character.
+            char first = s[0];
+            if (first == '?' || first == ':' || first == '.') return false;
+
+            // ── keyword prefix → always a statement opener ───────────────────
+            foreach (var kw in s_statementKeywords)
+                if (s.StartsWith(kw, System.StringComparison.Ordinal)) return true;
+
+            // ── trailing character heuristics ─────────────────────────────────
+            string t = s.TrimEnd();
+            if (t.Length == 0) return false;
+            char last = t[t.Length - 1];
+
+            // Lines ending with ';' are complete expression statements.
+            if (last == ';') return true;
+
+            // Lines ending with '{' that have content before the brace open a block
+            // as part of a new statement (method, if-body, lambda inline, etc.).
+            // A bare '{' alone (Allman-style continuation) is deliberately excluded.
+            if (last == '{' && t.Length > 1) return true;
+
+            // Lines containing a standalone ' = ' are assignments/declarations
+            // (e.g. "MyType name = value =>").  The ' = ' pattern naturally
+            // excludes compound operators (+=, -=, ==, !=, >=, <=, ??=, etc.)
+            // because they don't produce space-equals-space.
+            if (t.IndexOf(" = ", System.StringComparison.Ordinal) >= 0) return true;
+
+            return false;
+        }
+
+        private static readonly string[] s_statementKeywords =
+        {
+            "var ", "void ",
+            "if (", "if(", "else ", "else{", "else if",
+            "foreach ", "foreach(", "for ", "for(",
+            "while ", "while(", "do ", "do{",
+            "switch ", "switch(",
+            "return ", "throw ",
+            "break;", "break ", "continue;", "continue ",
+            "bool ", "int ", "uint ", "long ", "ulong ",
+            "float ", "double ", "decimal ", "char ",
+            "string ", "string?", "object ", "object?",
+            "byte ", "sbyte ", "short ", "ushort ",
+            "using ", "using(",
+            "try ", "try{", "catch ", "catch(", "finally ", "finally{",
+            "static ", "readonly ", "const ",
+            "public ", "private ", "protected ", "internal ",
+            "abstract ", "override ", "virtual ", "sealed ", "partial ",
+            "async ", "await ",
+        };
+
+        /// <summary>
+        /// Normalises intra-line whitespace outside of string literals and
+        /// <c>// …</c> line comments:
+        /// <list type="bullet">
+        ///   <item>Runs of 2+ consecutive spaces → single space.</item>
+        ///   <item>Spaces immediately after <c>(</c> are removed.</item>
+        ///   <item>Spaces immediately before <c>)</c> are removed.</item>
+        /// </list>
+        /// Tab characters should be replaced with spaces before calling
+        /// this method.
+        /// </summary>
+        private static string CollapseIntraLineSpaces(string line)
+        {
+            if (line.IndexOf("  ", System.StringComparison.Ordinal) < 0
+                && line.IndexOf("( ", System.StringComparison.Ordinal) < 0
+                && line.IndexOf(" )", System.StringComparison.Ordinal) < 0)
+                return line;
+
+            var sb = new System.Text.StringBuilder(line.Length);
+            bool inStr = false;
+            bool verbatim = false;
+            bool pendingSp = false;
+            bool afterOpen = false; // just emitted '(' outside strings
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (inStr)
+                {
+                    sb.Append(c);
+                    if (verbatim)
+                    {
+                        if (c == '"')
+                        {
+                            if (i + 1 < line.Length && line[i + 1] == '"')
+                                sb.Append(line[++i]);   // doubled-quote escape
+                            else
+                                inStr = false;
+                        }
+                    }
+                    else
+                    {
+                        if (c == '\\' && i + 1 < line.Length)
+                            sb.Append(line[++i]);       // backslash escape
+                        else if (c == '"')
+                            inStr = false;
+                    }
+                    pendingSp = false;
+                    afterOpen = false;
+                    continue;
+                }
+
+                // Line comment — flush pending space, then rest is literal.
+                if (c == '/' && i + 1 < line.Length && line[i + 1] == '/')
+                {
+                    if (pendingSp) { sb.Append(' '); pendingSp = false; }
+                    sb.Append(line, i, line.Length - i);
+                    break;
+                }
+
+                // String opener.
+                if (c == '"')
+                {
+                    if (pendingSp) { sb.Append(' '); pendingSp = false; }
+                    sb.Append(c);
+                    inStr = true;
+                    verbatim = (i > 0 && line[i - 1] == '@') ||
+                               (i > 1 && line[i - 1] == '$' && line[i - 2] == '@') ||
+                               (i > 1 && line[i - 1] == '@' && line[i - 2] == '$');
+                    afterOpen = false;
+                    continue;
+                }
+
+                if (c == ' ')
+                {
+                    // Skip spaces right after '('.
+                    if (!afterOpen)
+                        pendingSp = true;
+                    continue;
+                }
+
+                // Non-space character.
+                if (c == ')')
+                {
+                    // Absorb pending spaces before ')'.
+                    pendingSp = false;
+                }
+                else if (pendingSp)
+                {
+                    sb.Append(' ');
+                    pendingSp = false;
+                }
+
+                sb.Append(c);
+                afterOpen = (c == '(');
+            }
+
+            return sb.ToString();
+        }
+
+        private static string BuildRepeat(string s, int count)
+        {
+            if (count <= 0 || string.IsNullOrEmpty(s)) return string.Empty;
+            var sb = new System.Text.StringBuilder(s.Length * count);
+            for (int i = 0; i < count; i++) sb.Append(s);
+            return sb.ToString();
         }
 
         /// <summary>
@@ -514,7 +1063,7 @@ namespace ReactiveUITK.Language.Formatter
                 {
                     try
                     {
-                        string? formatted = _csharpFormatter.Format(codeToFormat);
+                        string? formatted = _csharpFormatter.Format(codeToFormat, _opts.IndentSize);
                         if (!string.IsNullOrEmpty(formatted))
                             codeToFormat = formatted;
                     }
@@ -821,6 +1370,182 @@ namespace ReactiveUITK.Language.Formatter
             return _opts.UseTabIndent
                 ? new string('\t', _indent)
                 : new string(' ', _indent * _opts.IndentSize);
+        }
+
+        // ── JSX-in-setup formatting ───────────────────────────────────────────
+
+        /// <summary>
+        /// Emits function-style setup code that contains embedded JSX paren-blocks
+        /// (e.g. <c>var x = (&lt;Box/&gt;);</c>).
+        ///
+        /// C# segments between JSX blocks are re-indented via
+        /// <see cref="EmitCSharpLines"/>.  Each JSX block is parsed and formatted
+        /// through <see cref="FormatNodeList"/> so it gets the same canonical
+        /// element / attribute layout as markup inside <c>return (…)</c>.
+        /// </summary>
+        private void EmitSetupCodeWithJsx(
+            string setupCode,
+            DirectiveSet directives,
+            string tabExp)
+        {
+            var blocks = ScanJsxParenBlocks(setupCode);
+            if (blocks.Count == 0)
+            {
+                // Unexpected — fall back to simple re-indent.
+                EmitCSharpLines(setupCode, tabExp, firstLineStripped: true, suppressLastNewline: false);
+                _sb.Append('\n');
+                return;
+            }
+
+            int pos      = 0;
+            int blockIdx = 0;
+            bool firstSeg = true;
+
+            foreach (var (jS, jE) in blocks)
+            {
+                // ── C# segment before the opening '(' ────────────────────────
+                if (jS > pos)
+                {
+                    string seg = setupCode.Substring(pos, jS - pos);
+                    if (!string.IsNullOrWhiteSpace(seg))
+                    {
+                        EmitCSharpLines(seg, tabExp,
+                            firstLineStripped: firstSeg,
+                            suppressLastNewline: true);
+                    }
+                }
+
+                // ── Opening '(' — preserve space separation ───────────────────
+                // If the segment ended with '(' (e.g. container.Add() case) emit
+                // '(\n' directly; otherwise add a separating space first.
+                string priorTrimmed = jS > 0 ? setupCode.Substring(0, jS).TrimEnd() : "";
+                bool priorEndsParen = priorTrimmed.Length > 0
+                    && priorTrimmed[priorTrimmed.Length - 1] == '(';
+                _sb.Append(priorEndsParen ? "(\n" : " (\n");
+
+                // ── JSX block content ─────────────────────────────────────────
+                bool jsxEmitted = false;
+                if (blockIdx < directives.SetupCodeMarkupRanges.Length
+                    && !string.IsNullOrEmpty(_source))
+                {
+                    var (rangeStart, rangeEnd, rangeLine) = directives.SetupCodeMarkupRanges[blockIdx];
+                    try
+                    {
+                        var jsxDiags      = new List<ParseDiagnostic>();
+                        var jsxDirectives = directives with
+                        {
+                            MarkupStartIndex = rangeStart,
+                            MarkupEndIndex   = rangeEnd,
+                            MarkupStartLine  = rangeLine,
+                        };
+                        var jsxNodes = UitkxParser.Parse(_source, _filePath, jsxDirectives, jsxDiags);
+                        bool hasErrors = false;
+                        foreach (var d in jsxDiags)
+                            if (d.Severity == ParseSeverity.Error) { hasErrors = true; break; }
+
+                        if (!hasErrors && jsxNodes.Length > 0)
+                        {
+                            _indent++;
+                            FormatNodeList(jsxNodes, topLevel: false);
+                            _indent--;
+                            jsxEmitted = true;
+                        }
+                    }
+                    catch { /* best-effort — fall through to raw emit */ }
+                }
+
+                if (!jsxEmitted)
+                {
+                    // Fallback: re-indent the raw JSX text.
+                    string jsxContent = setupCode.Substring(jS + 1, jE - jS - 2);
+                    _indent++;
+                    EmitCSharpLines(jsxContent, tabExp,
+                        firstLineStripped: false, suppressLastNewline: false);
+                    _indent--;
+                }
+
+                // ── Closing ')' with trailing punctuation ─────────────────────
+                // Peek past whitespace at what comes immediately after ')'.
+                int afterPos = jE;
+                while (afterPos < setupCode.Length
+                       && (setupCode[afterPos] == ' ' || setupCode[afterPos] == '\t'))
+                    afterPos++;
+
+                if (afterPos < setupCode.Length && setupCode[afterPos] == ';')
+                {
+                    Ln(");");
+                    pos = afterPos + 1;
+                    // Consume one trailing newline so the next segment's
+                    // firstLineStripped logic works correctly.
+                    if (pos < setupCode.Length && setupCode[pos] == '\r') pos++;
+                    if (pos < setupCode.Length && setupCode[pos] == '\n') pos++;
+                }
+                else if (afterPos < setupCode.Length && setupCode[afterPos] == ',')
+                {
+                    Ln("),");
+                    pos = afterPos + 1;
+                    if (pos < setupCode.Length && setupCode[pos] == '\r') pos++;
+                    if (pos < setupCode.Length && setupCode[pos] == '\n') pos++;
+                }
+                else
+                {
+                    Ln(")");
+                    pos = jE;
+                }
+
+                blockIdx++;
+                firstSeg = false;
+            }
+
+            // ── Remaining C# after the last JSX block ─────────────────────────
+            if (pos < setupCode.Length)
+            {
+                string remaining = setupCode.Substring(pos);
+                if (!string.IsNullOrWhiteSpace(remaining))
+                    EmitCSharpLines(remaining, tabExp,
+                        firstLineStripped: false, suppressLastNewline: false);
+            }
+            _sb.Append('\n');
+        }
+
+        /// <summary>
+        /// Scans <paramref name="code"/> for JSX paren-blocks: a <c>'('</c> whose
+        /// first non-whitespace content is <c>'&lt;'</c>.  Returns a list of
+        /// <c>(ParenStart, ParenEnd)</c> pairs where <c>code[ParenStart]='('</c>
+        /// and <c>code[ParenEnd-1]=')'</c>.
+        /// </summary>
+        private static List<(int ParenStart, int ParenEnd)> ScanJsxParenBlocks(string code)
+        {
+            var result = new List<(int, int)>();
+            int i = 0;
+            while (i < code.Length)
+            {
+                if (code[i] != '(') { i++; continue; }
+
+                int peek = i + 1;
+                while (peek < code.Length
+                       && (code[peek] == ' '  || code[peek] == '\t'
+                        || code[peek] == '\r' || code[peek] == '\n'))
+                    peek++;
+
+                if (peek >= code.Length || code[peek] != '<') { i++; continue; }
+
+                int depth = 1, j = i + 1;
+                while (j < code.Length && depth > 0)
+                {
+                    if      (code[j] == '(') depth++;
+                    else if (code[j] == ')') depth--;
+                    j++;
+                }
+
+                if (depth == 0)
+                {
+                    result.Add((i, j)); // i = '(' position, j = right after ')'
+                    i = j;
+                }
+                else { i++; }
+            }
+            return result;
         }
     }
 }
