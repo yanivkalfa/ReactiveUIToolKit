@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.201] - 2026-03-13
+- Fix false unreachable dimming on multi-line return expressions (return () => { ... })
+
 ## [1.0.200] - 2026-03-13
 - Dim entire scope after return in nested methods/lambdas; suppress duplicate CS0162 squiggle
 

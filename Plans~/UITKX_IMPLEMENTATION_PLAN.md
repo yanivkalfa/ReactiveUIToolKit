@@ -22,7 +22,7 @@
 | P7 | `PropsHelper.Bind<T>` + `[UitkxElement]` | `[DONE]` |
 | P8 | Integration, Samples, Migration Docs | `[DONE]` |
 | P8.6 | Developer Experience Improvements (IDE Polish) | `[DONE]` |
-| P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[ ]` NOT STARTED |
+| P9 | Structural Diagnostics Tier 3 (Embedded Roslyn) | `[DONE]` |
 | P10 | Rider Plugin | `[ ]` NOT STARTED |
 | P11 | ForwardRef UITKX Syntax — `ref={...}` on user-defined components | `[DONE]` |
 | P12 | Portal with External VisualElement Target | `[DONE]` |

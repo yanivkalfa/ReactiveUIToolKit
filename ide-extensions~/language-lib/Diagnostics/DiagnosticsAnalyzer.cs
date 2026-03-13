@@ -694,8 +694,13 @@ namespace ReactiveUITK.Language.Diagnostics
                     }
 
                     // Detect return at any depth > 0 (only when not already
-                    // inside an unreachable zone).
-                    if (nestedUnreachDepth < 0 && depth > 0 && s_topLevelReturnRegex.IsMatch(line))
+                    // inside an unreachable zone).  Only single-line returns
+                    // (ending with ';') start an unreachable zone.  Multi-line
+                    // return expressions like `return () => { ... };` must NOT
+                    // dim their body — it's the return value, not dead code.
+                    if (nestedUnreachDepth < 0 && depth > 0
+                        && s_topLevelReturnRegex.IsMatch(line)
+                        && trimmed.EndsWith(";", System.StringComparison.Ordinal))
                     {
                         nestedUnreachDepth = depth;
                     }
