@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## [1.0.200] - 2026-03-13
+- Dim entire scope after return in nested methods/lambdas; suppress duplicate CS0162 squiggle
+
+## [1.0.199] - 2026-03-13
+- Extend unreachable code dimming to cover entire scope after return in nested methods and lambdas
+
 ## [1.0.198] - 2026-03-13
 - Downgrade UITKX2103 from Error to Warning so SG generates real code instead of #error for multi-return components
 

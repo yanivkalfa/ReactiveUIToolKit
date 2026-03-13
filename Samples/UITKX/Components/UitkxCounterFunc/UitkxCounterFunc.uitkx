@@ -144,7 +144,6 @@ component UitkxCounterFunc {
   // ── void method: event handler with is-pattern matching ───────────────────
   void HandleEvent(ReactiveEvent evt)
   {
-    return;
     if (evt == null)
     {
       AppendLog("null event");
@@ -213,7 +212,6 @@ component UitkxCounterFunc {
   {
     setTreeRows(prev =>
     {
-      return prev;
       if (prev == null || prev.Count == 0)
       {
         return prev;

@@ -209,10 +209,9 @@ public sealed class DiagnosticsPublisher
             {
                 filteredT3 = t3.Where(rd =>
                 {
-                    // Keep CS0162 — it already maps to DiagnosticTag.Unnecessary.
-                    if (rd.Code == "CS0162") return true;
                     // Drop any Roslyn diagnostic whose start line is inside
-                    // an unreachable range.
+                    // an unreachable range (including CS0162, to avoid
+                    // double-marking with our own UITKX0107).
                     foreach (var ur in unreachableRanges)
                     {
                         int urStart = ur.SourceLine;
@@ -278,7 +277,6 @@ public sealed class DiagnosticsPublisher
             Message  = d.Message,
             Tags     = d.Code == DiagnosticCodes.UnreachableAfterReturn
                     || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
-                    || d.Code == "CS0162"   // Roslyn: unreachable code (after return in function-style setup)
                 ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
                 : null,
         };

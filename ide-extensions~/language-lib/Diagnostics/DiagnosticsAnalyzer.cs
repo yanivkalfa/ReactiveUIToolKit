@@ -397,8 +397,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     break;
 
                 case CodeBlockNode cb:
-                    if (!skipReturnCheck)
-                        CheckUnreachableAfterReturn(cb, diags);
+                    CheckUnreachableAfterReturn(cb, diags, skipTopLevel: skipReturnCheck);
                     foreach (var rm in cb.ReturnMarkups)
                     {
                         CheckElement(rm.Element, insideForeach, projectElements, knownAttributes, diags);
@@ -598,7 +597,8 @@ namespace ReactiveUITK.Language.Diagnostics
 
         private static void CheckUnreachableAfterReturn(
             CodeBlockNode cb,
-            List<ParseDiagnostic> diags
+            List<ParseDiagnostic> diags,
+            bool skipTopLevel = false
         )
         {
             if (string.IsNullOrWhiteSpace(cb.Code))
@@ -608,44 +608,115 @@ namespace ReactiveUITK.Language.Diagnostics
             bool seenTopLevelReturn = false;
             int depth = 0;
 
+            // Nested unreachable tracking: when a return is found at depth > 0,
+            // all subsequent lines at that depth (until the matching '}') are
+            // unreachable.
+            int nestedUnreachDepth = -1;
+            int nestedRangeStart   = -1;
+            int nestedRangeEnd     = -1;
+
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = lines[i];
                 string trimmed = line.Trim();
+                int srcLine = cb.SourceLine + 1 + i;
+
+                int opens  = CountChar(line, '{');
+                int closes = CountChar(line, '}');
+                int nextDepth = depth + opens - closes;
+                if (nextDepth < 0) nextDepth = 0;
 
                 if (trimmed.Length == 0)
                 {
-                    depth += CountChar(line, '{') - CountChar(line, '}');
-                    if (depth < 0)
-                        depth = 0;
+                    depth = nextDepth;
                     continue;
                 }
 
-                if (
-                    seenTopLevelReturn && !trimmed.StartsWith("//", System.StringComparison.Ordinal)
-                )
+                bool isComment = trimmed.StartsWith("//", System.StringComparison.Ordinal);
+
+                // ── Top-level return (depth 0) ─────────────────────────────
+                if (!skipTopLevel)
                 {
-                    int leading = line.Length - line.TrimStart().Length;
-                    diags.Add(
-                        MakeDiag(
-                            DiagnosticCodes.UnreachableAfterReturn,
-                            ParseSeverity.Hint,
-                            "Unreachable code after 'return'.",
-                            cb.SourceLine + 1 + i,
-                            leading,
-                            line.Length
-                        )
-                    );
+                    if (seenTopLevelReturn && !isComment)
+                    {
+                        int leading = line.Length - line.TrimStart().Length;
+                        diags.Add(
+                            MakeDiag(
+                                DiagnosticCodes.UnreachableAfterReturn,
+                                ParseSeverity.Hint,
+                                "Unreachable code after 'return'.",
+                                srcLine,
+                                leading,
+                                line.Length
+                            )
+                        );
+                    }
+
+                    if (!seenTopLevelReturn && depth == 0 && s_topLevelReturnRegex.IsMatch(line))
+                    {
+                        seenTopLevelReturn = true;
+                        depth = nextDepth;
+                        continue;
+                    }
                 }
 
-                if (!seenTopLevelReturn && depth == 0 && s_topLevelReturnRegex.IsMatch(line))
+                // ── Nested return (depth > 0) ──────────────────────────────
+                if (!seenTopLevelReturn)
                 {
-                    seenTopLevelReturn = true;
+                    // Check if the closing brace on this line exits the
+                    // unreachable scope.
+                    if (nestedUnreachDepth >= 0 && nextDepth < nestedUnreachDepth)
+                    {
+                        // Emit the accumulated range.
+                        if (nestedRangeStart > 0 && nestedRangeEnd >= nestedRangeStart)
+                        {
+                            diags.Add(new ParseDiagnostic
+                            {
+                                Code       = DiagnosticCodes.UnreachableAfterReturn,
+                                Severity   = ParseSeverity.Hint,
+                                Message    = "Unreachable code after 'return'.",
+                                SourceLine = nestedRangeStart,
+                                SourceColumn = 0,
+                                EndLine    = nestedRangeEnd,
+                                EndColumn  = 9999,
+                            });
+                        }
+                        nestedUnreachDepth = -1;
+                        nestedRangeStart   = -1;
+                        nestedRangeEnd     = -1;
+                    }
+
+                    // Mark line as unreachable if inside a nested unreachable zone.
+                    if (nestedUnreachDepth >= 0 && depth >= nestedUnreachDepth && !isComment)
+                    {
+                        if (nestedRangeStart < 0) nestedRangeStart = srcLine;
+                        nestedRangeEnd = srcLine;
+                    }
+
+                    // Detect return at any depth > 0 (only when not already
+                    // inside an unreachable zone).
+                    if (nestedUnreachDepth < 0 && depth > 0 && s_topLevelReturnRegex.IsMatch(line))
+                    {
+                        nestedUnreachDepth = depth;
+                    }
                 }
 
-                depth += CountChar(line, '{') - CountChar(line, '}');
-                if (depth < 0)
-                    depth = 0;
+                depth = nextDepth;
+            }
+
+            // Flush any remaining nested range at end of code block.
+            if (nestedUnreachDepth >= 0 && nestedRangeStart > 0 && nestedRangeEnd >= nestedRangeStart)
+            {
+                diags.Add(new ParseDiagnostic
+                {
+                    Code       = DiagnosticCodes.UnreachableAfterReturn,
+                    Severity   = ParseSeverity.Hint,
+                    Message    = "Unreachable code after 'return'.",
+                    SourceLine = nestedRangeStart,
+                    SourceColumn = 0,
+                    EndLine    = nestedRangeEnd,
+                    EndColumn  = 9999,
+                });
             }
         }
 
