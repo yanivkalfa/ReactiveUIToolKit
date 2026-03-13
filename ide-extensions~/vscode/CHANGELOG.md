@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.202] - 2026-03-14
+- Auto re-diagnose all open documents when workspace index changes (e.g. saving a component now clears stale UITKX0109 errors in other open files)
+
 ## [1.0.201] - 2026-03-13
 - Fix false unreachable dimming on multi-line return expressions (return () => { ... })
 

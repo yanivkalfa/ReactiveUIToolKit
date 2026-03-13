@@ -504,6 +504,7 @@ component UitkxCounterFunc {
       />
       @(inlineNode)
       @(portalNode)
+      <CounterFooter message="UitkxCounterFunc — Go-to-definition test" />
     </ScrollView>
   );
 }

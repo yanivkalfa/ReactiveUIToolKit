@@ -88,6 +88,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     public event Action? ScanCompleted;
 
+    /// <summary>
+    /// Fired after <see cref="Refresh"/> updates the index for a single file.
+    /// Subscribers can re-validate open documents whose diagnostics may now be stale.
+    /// </summary>
+    public event Action? IndexChanged;
+
     public Task OnStarted(ILanguageServer server, CancellationToken cancellationToken)
     {
         string? root = null;
@@ -175,12 +181,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 return;
             }
             IndexFile(filePath);
+            IndexChanged?.Invoke();
         }
         else if (filePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
                 return; // deletion — component will disappear on next full scan
             IndexUitkxFile(filePath);
+            IndexChanged?.Invoke();
         }
     }
 

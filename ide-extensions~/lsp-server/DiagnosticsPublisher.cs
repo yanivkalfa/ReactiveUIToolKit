@@ -63,7 +63,10 @@ public sealed class DiagnosticsPublisher
         // When the background workspace scan finishes, re-validate every open .uitkx
         // document so that components indexed after initial open are no longer flagged
         // as unknown elements.
-        _index.ScanCompleted += () =>
+        // Re-validate all open .uitkx documents when the index changes.
+        // Shared handler used by both ScanCompleted (initial scan) and
+        // IndexChanged (single-file refresh from didChangeWatchedFiles).
+        void RevalidateOpenDocuments()
         {
             foreach (var (uriString, text) in _documentStore.GetAll())
             {
@@ -76,10 +79,13 @@ public sealed class DiagnosticsPublisher
                 }
                 catch (Exception ex)
                 {
-                    ServerLog.Log($"[Diagnostics] ScanCompleted re-publish error: {ex.Message}");
+                    ServerLog.Log($"[Diagnostics] index re-publish error: {ex.Message}");
                 }
             }
-        };
+        }
+
+        _index.ScanCompleted += RevalidateOpenDocuments;
+        _index.IndexChanged  += RevalidateOpenDocuments;
     }
 
     // â”€â”€ Tier 1 + 2: immediate synchronous push â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
