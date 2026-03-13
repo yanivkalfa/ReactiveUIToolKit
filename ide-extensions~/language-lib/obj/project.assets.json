@@ -405,11 +405,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj",
+      "projectUniqueName": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj",
       "projectName": "ReactiveUITK.Language",
-      "projectPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj",
+      "projectPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\UitkxLanguage.csproj",
       "packagesPath": "C:\\Users\\neta\\.nuget\\packages\\",
-      "outputPath": "c:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\obj\\",
+      "outputPath": "C:\\Yanivs\\GameDev\\UnityComponents\\Assets\\ReactiveUIToolKit\\ide-extensions~\\language-lib\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\neta\\AppData\\Roaming\\NuGet\\NuGet.Config",

@@ -1,5 +1,53 @@
 ﻿# Changelog
 
+## [1.0.198] - 2026-03-13
+- Downgrade UITKX2103 from Error to Warning so SG generates real code instead of #error for multi-return components
+
+## [1.0.197] - 2026-03-13
+- Fix formatter to use last top-level return in multi-return function-style components
+
+## [1.0.196] - 2026-03-13
+- Revert multi-return changes to restore correct dimming behavior
+
+## [1.0.196] - 2026-03-13
+- Revert multi-return changes to restore correct dimming behavior
+
+## [1.0.195] - 2026-03-13
+- Fix multi-return regression: strip earlier markup returns from setup code, downgrade UITKX2103 to warning, dim earlier returns
+
+## [1.0.194] - 2026-03-13
+- Fix formatter extracting wrong return statement in multi-return function-style components (use last return)
+
+## [1.0.193] - 2026-03-13
+- Fix formatter extracting wrong return statement in multi-return function-style components (use last return)
+
+## [1.0.192] - 2026-03-13
+- Fix formatting for files with return: split setup code at the return gap so the formatter preserves return position and is idempotent; skip UITKX2103 error to allow formatting files with multiple returns
+
+## [1.0.191] - 2026-03-13
+- Fix source-map gap for correct Roslyn semantic token mapping
+
+## [1.0.190] - 2026-03-13
+- Fixed formatting regression. Fixed return line coloring: C# tokens (return keyword) now emitted for mixed markup-code lines. Suppressed parser errors (UITKX2103 etc.) in unreachable regions.
+
+## [1.0.189] - 2026-03-13
+- Fixed return line dimming: return statement no longer flagged as unreachable. Suppressed Roslyn false-positive warnings in unreachable regions. Fixed multi-colored words caused by C# generic types being misinterpreted as UITKX tags.
+
+## [1.0.188] - 2026-03-13
+- Fixed function-style component coloring
+
+## [1.0.188] - 2026-03-13
+- Fixed function-style component coloring: semantic tokens now properly cover the entire component body. Fixed line-number alignment for code after return statement. Added multi-line unreachable diagnostic for code after return in function-style components.
+
+## [1.0.187] - 2026-03-13
+- Fixed unreachable code dimming: uses DiagnosticTag.Unnecessary for uniform opacity fade across all tokens. Removed uitkxUnreachable semantic token modifier. Multi-line diagnostic ranges now cover entire unreachable blocks.
+
+## [1.0.186] - 2026-03-13
+- Fix: unreachable code dimming now covers all code after return/@break/@continue in the same scope
+
+## [1.0.185] - 2026-03-13
+- Fix: unreachable code dimming now covers all code after return/@break/@continue in the same scope — previously only @break/@continue triggered dimming for sibling nodes; @code blocks with top-level return now properly dim all subsequent siblings
+
 ## [1.0.184] - 2026-03-13
 - Fix: suppress CS1977 false-positive errors on nested lambdas in block-body lambda attributes (e.g. dm.AppendAction(x, _ => ...)) where param is dynamic
 

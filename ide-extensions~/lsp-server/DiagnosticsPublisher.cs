@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -135,7 +135,31 @@ public sealed class DiagnosticsPublisher
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var t1t2 = parseResult.Diagnostics.Concat(t2Diags).ToList();
+                // Suppress T1 parser diagnostics that fall inside unreachable regions
+        // (e.g. UITKX2103 'Multiple top-level returns' when the second return
+        // is unreachable after the first).
+        var unreachableT2 = t2Diags
+            .Where(d => d.Code == DiagnosticCodes.UnreachableAfterReturn
+                     || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue)
+            .ToList();
+
+        IEnumerable<ParseDiagnostic> filteredT1 = parseResult.Diagnostics;
+        if (unreachableT2.Count > 0)
+        {
+            filteredT1 = parseResult.Diagnostics.Where(pd =>
+            {
+                foreach (var ur in unreachableT2)
+                {
+                    int urStart = ur.SourceLine;
+                    int urEnd   = ur.EndLine > 0 ? ur.EndLine : ur.SourceLine;
+                    if (pd.SourceLine >= urStart && pd.SourceLine <= urEnd)
+                        return false;
+                }
+                return true;
+            });
+        }
+
+        var t1t2 = filteredT1.Concat(t2Diags).ToList();
         if (!string.IsNullOrEmpty(localPath))
             _lastT1T2[localPath] = t1t2;
 
@@ -163,15 +187,45 @@ public sealed class DiagnosticsPublisher
     {
         try
         {
-            // Map Roslyn diagnostics â†’ ParseDiagnostic
+            // Map Roslyn diagnostics → ParseDiagnostic
             var t3 = _roslynMapper.Map(roslynDiags, uitkxFilePath, uitkxSource);
 
             // Retrieve the last T1+T2 snapshot for this file (may be missing
-            // if Publish hasn't run yet â€” that's fine, an empty list is safe).
+            // if Publish hasn't run yet — that's fine, an empty list is safe).
             _lastT1T2.TryGetValue(uitkxFilePath, out var t1t2);
 
+            // Suppress Roslyn warnings/errors that fall within unreachable
+            // regions (UITKX0107/UITKX0110).  Those diagnostics (CS8321
+            // "local function never used", CS0219 "variable never used", etc.)
+            // are false‐positives caused by dead code after return — the
+            // unreachable hint and fade are sufficient.
+            var unreachableRanges = (t1t2 ?? Array.Empty<ParseDiagnostic>())
+                .Where(d => d.Code == DiagnosticCodes.UnreachableAfterReturn
+                         || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue)
+                .ToList();
+
+            IEnumerable<ParseDiagnostic> filteredT3 = t3;
+            if (unreachableRanges.Count > 0)
+            {
+                filteredT3 = t3.Where(rd =>
+                {
+                    // Keep CS0162 — it already maps to DiagnosticTag.Unnecessary.
+                    if (rd.Code == "CS0162") return true;
+                    // Drop any Roslyn diagnostic whose start line is inside
+                    // an unreachable range.
+                    foreach (var ur in unreachableRanges)
+                    {
+                        int urStart = ur.SourceLine;
+                        int urEnd   = ur.EndLine > 0 ? ur.EndLine : ur.SourceLine;
+                        if (rd.SourceLine >= urStart && rd.SourceLine <= urEnd)
+                            return false;
+                    }
+                    return true;
+                });
+            }
+
             var combined = ((IEnumerable<ParseDiagnostic>)(t1t2 ?? Array.Empty<ParseDiagnostic>()))
-                .Concat(t3)
+                .Concat(filteredT3)
                 .ToList();
 
             DocumentUri uri = DocumentUri.File(uitkxFilePath);

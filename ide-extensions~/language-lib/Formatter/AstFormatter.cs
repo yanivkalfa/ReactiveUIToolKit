@@ -63,10 +63,22 @@ namespace ReactiveUITK.Language.Formatter
             var directives = DirectiveParser.Parse(source, filePath, diags);
             var nodes = UitkxParser.Parse(source, filePath, directives, diags);
 
-            // Return source unchanged when there are parse errors.
+            // Return source unchanged when there are parse errors — except
+            // UITKX2103 (multiple top-level returns) which is structural but
+            // the file still parses successfully with the first return extracted.
             foreach (var d in diags)
-                if (d.Severity == ParseSeverity.Error)
+                if (d.Severity == ParseSeverity.Error && d.Code != "UITKX2103")
                     return source;
+
+            // When there are multiple top-level returns (UITKX2103), re-parse
+            // using the LAST return so the formatter formats the real render
+            // markup instead of an early-exit return.
+            if (directives.IsFunctionStyle && diags.Any(d => d.Code == "UITKX2103"))
+            {
+                var fmtDiags = new List<ParseDiagnostic>();
+                directives = DirectiveParser.Parse(source, filePath, fmtDiags, useLastReturn: true);
+                nodes = UitkxParser.Parse(source, filePath, directives, fmtDiags);
+            }
 
             if (directives.IsFunctionStyle)
             {
@@ -164,30 +176,48 @@ namespace ReactiveUITK.Language.Formatter
             Ln($"component {componentName}{paramList} {{");
             _indent++;
 
-            var setupCode = directives.FunctionSetupCode?.Trim();
-            if (!string.IsNullOrWhiteSpace(setupCode))
+            var fullSetupCode = directives.FunctionSetupCode?.Trim();
+            string? beforeReturnCode = fullSetupCode;
+            string? afterReturnCode = null;
+
+            // When setup code is a concatenation of code-before-return +
+            // code-after-return (gap left by the removed return statement),
+            // split it so the return stays in its original position and
+            // formatting is idempotent.
+            if (fullSetupCode != null
+                && directives.FunctionSetupGapOffset >= 0
+                && directives.FunctionSetupGapOffset < fullSetupCode.Length)
+            {
+                beforeReturnCode = fullSetupCode.Substring(0, directives.FunctionSetupGapOffset).TrimEnd();
+                afterReturnCode = fullSetupCode.Substring(directives.FunctionSetupGapOffset).TrimStart();
+                if (string.IsNullOrWhiteSpace(beforeReturnCode)) beforeReturnCode = null;
+                if (string.IsNullOrWhiteSpace(afterReturnCode)) afterReturnCode = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(beforeReturnCode))
             {
                 string tabExp = new string(' ', _opts.IndentSize);
-                string codeToFormat = setupCode!;
+                string codeToFormat = beforeReturnCode!;
 
-                // Determine whether there are embedded JSX paren-blocks in the setup.
-                bool hasJsxInSetup = !directives.SetupCodeMarkupRanges.IsDefaultOrEmpty;
+                // Check for JSX paren blocks in the before-return portion only.
+                bool hasJsxInSetup = false;
+                if (!directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+                {
+                    int gapSrcOffset = directives.FunctionSetupStartOffset >= 0
+                        ? directives.FunctionSetupStartOffset + directives.FunctionSetupGapOffset
+                        : int.MaxValue;
+                    foreach (var (s, _, _) in directives.SetupCodeMarkupRanges)
+                    {
+                        if (s < gapSrcOffset) { hasJsxInSetup = true; break; }
+                    }
+                }
 
                 if (hasJsxInSetup)
                 {
-                    // Setup code contains embedded JSX (e.g. var x = (<Box/>)).  Format
-                    // each C# segment and each JSX block separately so neither corrupts
-                    // the indentation of the other.
                     EmitSetupCodeWithJsx(codeToFormat, directives, tabExp);
                 }
                 else
                 {
-                    // Normalise block-level indentation while preserving depth-0
-                    // continuation indentation (ternary, method chains, etc.).
-                    // Roslyn is intentionally NOT used here: it reformats lambdas,
-                    // object initialisers and method-call arguments in ways that
-                    // break the relative indentation we need, and its brace-style
-                    // changes (K&R → Allman) conflict with the project conventions.
                     EmitSetupCodeNormalized(codeToFormat, tabExp);
                     _sb.Append('\n');
                 }
@@ -198,6 +228,17 @@ namespace ReactiveUITK.Language.Formatter
             FormatNodeList(nodes, topLevel: false);
             _indent--;
             Ln(");");
+
+            // Emit unreachable code after return (if any) with basic
+            // indentation normalization — this preserves the structure
+            // of the file without rearranging returns.
+            if (!string.IsNullOrWhiteSpace(afterReturnCode))
+            {
+                string tabExp = new string(' ', _opts.IndentSize);
+                _sb.Append('\n');
+                EmitSetupCodeNormalized(afterReturnCode!, tabExp);
+                _sb.Append('\n');
+            }
 
             _indent--;
             Ln("}");

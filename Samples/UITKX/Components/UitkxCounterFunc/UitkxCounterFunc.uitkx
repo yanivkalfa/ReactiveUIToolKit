@@ -144,6 +144,7 @@ component UitkxCounterFunc {
   // ── void method: event handler with is-pattern matching ───────────────────
   void HandleEvent(ReactiveEvent evt)
   {
+    return;
     if (evt == null)
     {
       AppendLog("null event");
@@ -167,8 +168,8 @@ component UitkxCounterFunc {
     setTreeRows(prev =>
     {
       var next = prev != null
-        ? new List<TreeViewRowState>(prev)
-        : new List<TreeViewRowState>();
+      ? new List<TreeViewRowState>(prev)
+      : new List<TreeViewRowState>();
 
       next.Add(new TreeViewRowState
       {
@@ -212,6 +213,7 @@ component UitkxCounterFunc {
   {
     setTreeRows(prev =>
     {
+      return prev;
       if (prev == null || prev.Count == 0)
       {
         return prev;
@@ -221,6 +223,12 @@ component UitkxCounterFunc {
       return next;
     });
   }
+
+  return (
+    <Box>
+      <Label text="sas" />
+    </Box>
+  );
 
   // ── MultiColumnTreeView actions ────────────────────────────────────────────
   void MctvSetChild()
@@ -255,6 +263,7 @@ component UitkxCounterFunc {
   {
     setMctvRows(prev =>
     {
+      return prev;
       if (prev == null || prev.Count == 0)
       {
         return prev;
@@ -385,6 +394,7 @@ component UitkxCounterFunc {
         <Label text="Count is zero" />
       } @else {
         @for (int i = 0; i < count; i++) {
+          @continue;
           @if (i % 2 == 0) {
             <Label text={$"Even row {i}"} />
           } @else {

@@ -431,7 +431,9 @@ namespace ReactiveUITK.Language.Roslyn
                     d.FunctionSetupCode!,
                     uitkxSetupStartOffset: setupStartOffset,
                     uitkxSetupStartLine:   d.FunctionSetupStartLine,
-                    escapedPath:           escapedPath);
+                    escapedPath:           escapedPath,
+                    gapOffset:             d.FunctionSetupGapOffset,
+                    gapLength:             d.FunctionSetupGapLength);
             }
 
             // Expression checks — emitted in-scope so that loop variables declared
@@ -1107,7 +1109,9 @@ namespace ReactiveUITK.Language.Roslyn
             string setupCode,
             int uitkxSetupStartOffset,
             int uitkxSetupStartLine,
-            string escapedPath)
+            string escapedPath,
+            int gapOffset = -1,
+            int gapLength = 0)
         {
             int segStart   = 0;
             int currentLine = uitkxSetupStartLine;
@@ -1142,12 +1146,8 @@ namespace ReactiveUITK.Language.Roslyn
                 {
                     string seg     = setupCode.Substring(segStart, i - segStart);
                     int    segLine = currentLine;
-                    b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
-                    b.Mapped(seg,
-                             uitkxSetupStartOffset + segStart,
-                             SourceRegionKind.FunctionSetup,
-                             segLine);
-                    b.Scaffold("\n#line hidden\n");
+                    EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                        gapOffset, gapLength, segLine, escapedPath);
                     // Advance currentLine by the newlines inside the segment.
                     currentLine += CountNewlines(seg);
                 }
@@ -1182,15 +1182,65 @@ namespace ReactiveUITK.Language.Roslyn
             {
                 string seg     = setupCode.Substring(segStart);
                 int    segLine = currentLine;
-                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
-                b.Mapped(seg,
-                         uitkxSetupStartOffset + segStart,
-                         SourceRegionKind.FunctionSetup,
-                         segLine);
-                b.Scaffold("\n#line hidden\n");
+                EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                    gapOffset, gapLength, segLine, escapedPath);
             }
 
             b.Scaffold("\n");
+        }
+
+        /// <summary>
+        /// Emits a mapped C# segment, splitting it at the gap boundary when the
+        /// setup code was formed by concatenating disjoint source ranges (before
+        /// and after a removed <c>return (…);</c> statement).
+        /// </summary>
+        private static void EmitMappedWithGap(
+            VirtualDocBuilder b,
+            string seg,
+            int segStart,
+            int baseOffset,
+            int gapOffset,
+            int gapLength,
+            int segLine,
+            string escapedPath)
+        {
+            bool hasGap = gapOffset >= 0 && gapLength > 0;
+            int segEnd = segStart + seg.Length;
+
+            if (!hasGap || segEnd <= gapOffset)
+            {
+                // No gap or entirely before the gap — emit directly.
+                int uitkxOff = baseOffset + segStart;
+                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
+                b.Mapped(seg, uitkxOff, SourceRegionKind.FunctionSetup, segLine);
+                b.Scaffold("\n#line hidden\n");
+            }
+            else if (segStart >= gapOffset)
+            {
+                // Entirely after the gap — shift offset by gapLength.
+                int uitkxOff = baseOffset + segStart + gapLength;
+                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
+                b.Mapped(seg, uitkxOff, SourceRegionKind.FunctionSetup, segLine);
+                b.Scaffold("\n#line hidden\n");
+            }
+            else
+            {
+                // Straddles the gap — split into two mapped regions.
+                int splitAt = gapOffset - segStart;
+                string seg1 = seg.Substring(0, splitAt);
+                string seg2 = seg.Substring(splitAt);
+                int seg2Line = segLine + CountNewlines(seg1);
+
+                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
+                b.Mapped(seg1, baseOffset + segStart,
+                         SourceRegionKind.FunctionSetup, segLine);
+                b.Scaffold("\n#line hidden\n");
+
+                b.Scaffold($"#line {seg2Line} \"{escapedPath}\"\n");
+                b.Mapped(seg2, baseOffset + gapOffset + gapLength,
+                         SourceRegionKind.FunctionSetup, seg2Line);
+                b.Scaffold("\n#line hidden\n");
+            }
         }
 
         /// <summary>

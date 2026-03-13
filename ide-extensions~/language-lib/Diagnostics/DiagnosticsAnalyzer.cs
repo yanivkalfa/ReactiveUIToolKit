@@ -116,7 +116,28 @@ namespace ReactiveUITK.Language.Diagnostics
             CheckSingleRenderRoot(parseResult.RootNodes, diags);
 
             // ── T2: AST walks ─────────────────────────────────────────────────
-            WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags);
+            WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags,
+                skipReturnCheck: d.IsFunctionStyle);
+
+            // ── T2: Function-style unreachable-after-return ───────────────────
+            if (d.IsFunctionStyle && d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
+            {
+                int unreachStart = d.FunctionReturnEndLine + 1;
+                int unreachEnd = d.FunctionBodyEndLine;
+                if (unreachEnd >= unreachStart)
+                {
+                    diags.Add(new ParseDiagnostic
+                    {
+                        Code = DiagnosticCodes.UnreachableAfterReturn,
+                        Severity = ParseSeverity.Hint,
+                        Message = "Unreachable code after 'return'.",
+                        SourceLine = unreachStart,
+                        SourceColumn = 0,
+                        EndLine = unreachEnd,
+                        EndColumn = 9999,
+                    });
+                }
+            }
 
             return diags;
         }
@@ -221,38 +242,120 @@ namespace ReactiveUITK.Language.Diagnostics
             bool insideForeach,
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
-            List<ParseDiagnostic> diags
+            List<ParseDiagnostic> diags,
+            bool skipReturnCheck = false
         )
         {
             // UITKX0104 — Duplicate literal key among siblings at this level.
             CheckDuplicateKeys(nodes, diags);
 
-            bool unreachable = false;
-            foreach (var node in nodes)
+            for (int idx = 0; idx < nodes.Length; idx++)
             {
-                if (unreachable)
+                var node = nodes[idx];
+                WalkNode(node, insideForeach, projectElements, knownAttributes, diags,
+                    skipReturnCheck: skipReturnCheck && node is CodeBlockNode);
+
+                bool isScopeEnder = node is BreakNode || node is ContinueNode;
+                bool isReturnEnder = !isScopeEnder && !skipReturnCheck
+                    && node is CodeBlockNode cbn && HasTopLevelReturn(cbn);
+
+                if (!isScopeEnder && !isReturnEnder)
+                    continue;
+
+                // Everything after this node in the sibling list is unreachable.
+                // Emit a single multi-line diagnostic that spans the entire region.
+                if (idx + 1 >= nodes.Length)
+                    break; // nothing follows — no diagnostic needed
+
+                int firstLine = nodes[idx + 1].SourceLine;
+
+                // Compute the last line of the unreachable region by finding the
+                // deepest descendant line among all remaining siblings.
+                int lastLine = firstLine;
+                for (int j = idx + 1; j < nodes.Length; j++)
+                    lastLine = System.Math.Max(lastLine, GetLastDescendantLine(nodes[j]));
+
+                bool fromReturn = isReturnEnder;
+                diags.Add(new ParseDiagnostic
                 {
-                    // UITKX0110 — Unreachable markup after @break or @continue.
-                    // Use a large end-column (capped by VS Code to the real line length)
-                    // so DiagnosticTag.Unnecessary fades the entire unreachable line.
-                    // node.SourceColumn is always 0 (not populated by the parser), so
-                    // we start at 0 and span to 9999 to cover the full line content.
-                    diags.Add(MakeDiag(
-                        DiagnosticCodes.UnreachableAfterBreakOrContinue,
-                        ParseSeverity.Hint,
-                        "This node is unreachable because a preceding '@break' or '@continue' exits the loop body.",
-                        node.SourceLine,
-                        node.SourceColumn,
-                        9999
-                    ));
-                }
-                else
-                {
-                    WalkNode(node, insideForeach, projectElements, knownAttributes, diags);
-                    if (node is BreakNode || node is ContinueNode)
-                        unreachable = true;
-                }
+                    Code = fromReturn
+                        ? DiagnosticCodes.UnreachableAfterReturn
+                        : DiagnosticCodes.UnreachableAfterBreakOrContinue,
+                    Severity = ParseSeverity.Hint,
+                    Message = fromReturn
+                        ? "Unreachable code after 'return'."
+                        : "This node is unreachable because a preceding '@break' or '@continue' exits the loop body.",
+                    SourceLine = firstLine,
+                    SourceColumn = 0,
+                    EndLine = lastLine,
+                    EndColumn = 9999,
+                });
+
+                break; // no need to continue — everything after is covered
             }
+        }
+
+        /// <summary>
+        /// Returns the maximum 1-based source line occupied by any descendant
+        /// of <paramref name="node"/>.  Used to compute the end of a multi-line
+        /// unreachable region for <see cref="DiagnosticTag"/>
+        /// <c>Unnecessary</c> fading.
+        /// </summary>
+        private static int GetLastDescendantLine(AstNode node)
+        {
+            int max = node.SourceLine;
+
+            switch (node)
+            {
+                case ElementNode el:
+                    if (el.CloseTagLine > 0)
+                        max = System.Math.Max(max, el.CloseTagLine);
+                    foreach (var child in el.Children)
+                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    break;
+
+                case IfNode ifn:
+                    foreach (var branch in ifn.Branches)
+                    {
+                        max = System.Math.Max(max, branch.SourceLine);
+                        foreach (var child in branch.Body)
+                            max = System.Math.Max(max, GetLastDescendantLine(child));
+                    }
+                    break;
+
+                case ForeachNode fe:
+                    foreach (var child in fe.Body)
+                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    break;
+
+                case ForNode fo:
+                    foreach (var child in fo.Body)
+                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    break;
+
+                case WhileNode wh:
+                    foreach (var child in wh.Body)
+                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    break;
+
+                case SwitchNode sw:
+                    foreach (var c in sw.Cases)
+                    {
+                        max = System.Math.Max(max, c.SourceLine);
+                        foreach (var child in c.Body)
+                            max = System.Math.Max(max, GetLastDescendantLine(child));
+                    }
+                    break;
+
+                case CodeBlockNode cb:
+                    foreach (var rm in cb.ReturnMarkups)
+                        max = System.Math.Max(max, GetLastDescendantLine(rm.Element));
+                    break;
+            }
+
+            // Add 1 to account for the closing brace/tag line that follows
+            // the deepest child but isn't tracked in the AST.
+            return max + 1;
         }
 
         private static void WalkNode(
@@ -260,7 +363,8 @@ namespace ReactiveUITK.Language.Diagnostics
             bool insideForeach,
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
-            List<ParseDiagnostic> diags
+            List<ParseDiagnostic> diags,
+            bool skipReturnCheck = false
         )
         {
             switch (node)
@@ -293,7 +397,8 @@ namespace ReactiveUITK.Language.Diagnostics
                     break;
 
                 case CodeBlockNode cb:
-                    CheckUnreachableAfterReturn(cb, diags);
+                    if (!skipReturnCheck)
+                        CheckUnreachableAfterReturn(cb, diags);
                     foreach (var rm in cb.ReturnMarkups)
                     {
                         CheckElement(rm.Element, insideForeach, projectElements, knownAttributes, diags);
@@ -455,6 +560,41 @@ namespace ReactiveUITK.Language.Diagnostics
             @"^\s*return\b",
             RegexOptions.Compiled
         );
+
+        /// <summary>
+        /// Returns true when the code block contains an unconditional top-level
+        /// <c>return</c> statement (depth 0), meaning all subsequent sibling
+        /// AST nodes are unreachable.
+        /// </summary>
+        internal static bool HasTopLevelReturn(CodeBlockNode cb)
+        {
+            if (string.IsNullOrWhiteSpace(cb.Code))
+                return false;
+
+            var lines = cb.Code.Replace("\r\n", "\n").Split('\n');
+            int depth = 0;
+
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                string trimmed = line.Trim();
+
+                if (trimmed.Length == 0)
+                {
+                    depth += CountChar(line, '{') - CountChar(line, '}');
+                    if (depth < 0) depth = 0;
+                    continue;
+                }
+
+                if (depth == 0 && s_topLevelReturnRegex.IsMatch(line))
+                    return true;
+
+                depth += CountChar(line, '{') - CountChar(line, '}');
+                if (depth < 0) depth = 0;
+            }
+
+            return false;
+        }
 
         private static void CheckUnreachableAfterReturn(
             CodeBlockNode cb,

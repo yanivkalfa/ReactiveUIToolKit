@@ -57,13 +57,14 @@ namespace ReactiveUITK.Language.Parser
         public static DirectiveSet Parse(
             string source,
             string filePath,
-            List<ParseDiagnostic> diagnosticBag
+            List<ParseDiagnostic> diagnosticBag,
+            bool useLastReturn = false
         )
         {
             if (source.Length > 0 && source[0] == '\uFEFF')
                 source = source.Substring(1);
 
-            if (TryParseFunctionStyle(source, filePath, diagnosticBag, out var functionStyleSet))
+            if (TryParseFunctionStyle(source, filePath, diagnosticBag, out var functionStyleSet, useLastReturn))
                 return functionStyleSet;
 
             if (LooksLikeFunctionStyleComponent(source, 0))
@@ -314,7 +315,8 @@ namespace ReactiveUITK.Language.Parser
             string source,
             string filePath,
             List<ParseDiagnostic> diagnosticBag,
-            out DirectiveSet directiveSet
+            out DirectiveSet directiveSet,
+            bool useLastReturn = false
         )
         {
             directiveSet = default!;
@@ -468,7 +470,8 @@ namespace ReactiveUITK.Language.Parser
                     out int returnStart,
                     out int returnOpenParen,
                     out int returnCloseParen,
-                    out int returnStmtEndExclusive
+                    out int returnStmtEndExclusive,
+                    useLastReturn
                 )
             )
             {
@@ -520,7 +523,7 @@ namespace ReactiveUITK.Language.Parser
                 diagnosticBag.Add(new ParseDiagnostic
                 {
                     Code = "UITKX2103",
-                    Severity = ParseSeverity.Error,
+                    Severity = ParseSeverity.Warning,
                     SourceLine = LineAtPos(source, secondReturn),
                     Message = "Multiple top-level returns are not allowed in function-style components.",
                 });
@@ -551,6 +554,8 @@ namespace ReactiveUITK.Language.Parser
                 );
 
             int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
+            int setupGapOffset = returnStart - fseTrimStart2;
+            int setupGapLength = returnStmtEndExclusive - returnStart;
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
                 ComponentName: componentName,
@@ -569,10 +574,14 @@ namespace ReactiveUITK.Language.Parser
                 ComponentDeclarationLine: componentLine,
                 ComponentNameColumn: componentNameCol,
                 HasExplicitNamespace: inlineNamespace != null,
+                FunctionReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
+                FunctionBodyEndLine: LineAtPos(source, bodyEndExclusive),
                 SetupCodeMarkupRanges: FindJsxBlockRanges(
                     source,
                     bodyStart,       returnStart,
-                    returnStmtEndExclusive, bodyEndExclusive)
+                    returnStmtEndExclusive, bodyEndExclusive),
+                FunctionSetupGapOffset: setupGapOffset,
+                FunctionSetupGapLength: setupGapLength
             );
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
@@ -1110,7 +1119,8 @@ namespace ReactiveUITK.Language.Parser
             out int returnStart,
             out int openParen,
             out int closeParen,
-            out int stmtEndExclusive
+            out int stmtEndExclusive,
+            bool useLastReturn = false
         )
         {
             returnStart = -1;
@@ -1174,32 +1184,44 @@ namespace ReactiveUITK.Language.Parser
                 {
                     if (TryReadKeywordAt(source, i, "return"))
                     {
-                        returnStart = i;
+                        int candidateStart = i;
                         int j = i + "return".Length;
                         SkipWhitespace(source, ref j);
 
-                        if (j >= endExclusive || source[j] != '(')
-                            return false;
+                        if (j < endExclusive && source[j] == '(')
+                        {
+                            int candidateOpenParen = j;
+                            if (TryReadBalancedParen(source, candidateOpenParen, endExclusive, out int closeParenExclusive))
+                            {
+                                int candidateCloseParen = closeParenExclusive - 1;
+                                j = closeParenExclusive;
+                                SkipWhitespace(source, ref j);
+                                if (j < endExclusive && source[j] == ';')
+                                {
+                                    returnStart = candidateStart;
+                                    openParen = candidateOpenParen;
+                                    closeParen = candidateCloseParen;
+                                    stmtEndExclusive = j + 1;
 
-                        openParen = j;
-                        if (!TryReadBalancedParen(source, openParen, endExclusive, out int closeParenExclusive))
-                            return false;
+                                    if (!useLastReturn)
+                                        return true;
 
-                        closeParen = closeParenExclusive - 1;
-                        j = closeParenExclusive;
-                        SkipWhitespace(source, ref j);
-                        if (j >= endExclusive || source[j] != ';')
-                            return false;
+                                    // Continue scanning to find the last match
+                                    i = stmtEndExclusive;
+                                    continue;
+                                }
+                            }
+                        }
 
-                        stmtEndExclusive = j + 1;
-                        return true;
+                        if (!useLastReturn)
+                            return false;
                     }
                 }
 
                 i++;
             }
 
-            return false;
+            return returnStart >= 0;
         }
 
         private static int FindTopLevelReturnAfter(string source, int start, int endExclusive)

@@ -106,6 +106,17 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         int ComponentNameColumn = -1,
         /// <summary>
+        /// 1-based line of the <c>;</c> ending the <c>return (...);</c> statement
+        /// in function-style components. <c>-1</c> when not tracked or not
+        /// function-style.
+        /// </summary>
+        int FunctionReturnEndLine = -1,
+        /// <summary>
+        /// 1-based line of the closing <c>}</c> of the function-style component
+        /// body. <c>-1</c> when not tracked.
+        /// </summary>
+        int FunctionBodyEndLine = -1,
+        /// <summary>
         /// Absolute (start, end, line) ranges in the original .uitkx source for each
         /// JSX paren block embedded inside function-style setup code, e.g.
         /// <c>var x = (&lt;Box&gt;...&lt;/Box&gt;)</c>.
@@ -116,7 +127,22 @@ namespace ReactiveUITK.Language.Parser
         /// </para>
         /// Default: empty / not used.
         /// </summary>
-        ImmutableArray<(int Start, int End, int Line)> SetupCodeMarkupRanges = default
+        ImmutableArray<(int Start, int End, int Line)> SetupCodeMarkupRanges = default,
+        /// <summary>
+        /// Position inside the trimmed <see cref="FunctionSetupCode"/> where the
+        /// gap left by the removed <c>return (…);</c> statement begins.
+        /// Characters at or beyond this offset correspond to source positions
+        /// shifted by <see cref="FunctionSetupGapLength"/>.
+        /// <c>-1</c> when there is no gap (no return was removed).
+        /// </summary>
+        int FunctionSetupGapOffset = -1,
+        /// <summary>
+        /// Number of source characters occupied by the removed <c>return (…);</c>
+        /// statement.  Added to the base offset for source-map entries whose
+        /// position in <see cref="FunctionSetupCode"/> is at or past
+        /// <see cref="FunctionSetupGapOffset"/>.
+        /// </summary>
+        int FunctionSetupGapLength = 0
     );
 
     // ── Full parse result ─────────────────────────────────────────────────────

@@ -64,12 +64,17 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
         }
         catch (Exception ex)
         {
-            ServerLog.Log($"[Formatting] Format error for '{localPath}': {ex.Message}");
+            ServerLog.Log($"[Formatting] Format error for '{localPath}': {ex.Message}\n{ex.StackTrace}");
             return Task.FromResult<TextEditContainer?>(null);
         }
 
         if (formatted == text)
+        {
+            ServerLog.Log($"[Formatting] no-op for '{localPath}' (output == input)");
             return Task.FromResult<TextEditContainer?>(null);
+        }
+
+        ServerLog.Log($"[Formatting] applying edit for '{localPath}' (input={text.Length} chars, output={formatted.Length} chars)");
 
         // Replace the entire document with the formatted version.
         // Use the original text to compute the end position so the range is exact.
