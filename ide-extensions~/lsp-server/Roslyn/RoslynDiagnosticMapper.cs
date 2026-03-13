@@ -59,6 +59,13 @@ namespace UitkxLanguageServer.Roslyn
                 // so that genuine unused-variable warnings surface to the editor.
                 // "CS0219",
                 "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
+                "CS1660", // Cannot convert lambda to type 'T' — scaffold models useState setter as delegate T(T);
+                          // the real API uses StateUpdate<T> struct + implicit Func<T,T> conversion + source-gen,
+                          // which can't be replicated in the virtual doc (lambdas only convert to delegate types).
+                "CS1977", // Cannot use lambda as argument to dynamically dispatched operation — block-body
+                          // lambda params are typed as `dynamic` in the scaffold; nested lambdas passed to
+                          // methods on those params (e.g. dm.AppendAction("X", _ => ...)) trigger this error.
+                          // Unity's source generator knows the real types and never hits this.
             };
 
         // ── Public API ────────────────────────────────────────────────────────

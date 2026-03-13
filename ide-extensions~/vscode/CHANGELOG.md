@@ -1,5 +1,17 @@
 ﻿# Changelog
 
+## [1.0.184] - 2026-03-13
+- Fix: suppress CS1977 false-positive errors on nested lambdas in block-body lambda attributes (e.g. dm.AppendAction(x, _ => ...)) where param is dynamic
+
+## [1.0.183] - 2026-03-13
+- Fix: suppress CS1660 false-positive errors on useState lambda updaters (e.g. setCount(v => v+1)) - reverted struct approach, added CS1660 to diagnostic mapper suppression list
+
+## [1.0.182] - 2026-03-13
+- Fix useState lambda errors (CS1660): replace __StateUpdater__ delegate with __StateUpdate__<T> struct mirroring real StateUpdate<T> implicit operators so both setX(value) and setX(prev => ...) compile correctly
+
+## [1.0.181] - 2026-03-13
+- Fix useState lambda errors: replace __StateUpdater__ delegate with __StateUpdate__ struct mirroring real StateUpdate<T> implicit operators so both setX(value) and setX(prev => ...) compile without CS1660
+
 ## [1.0.181] - 2026-03-13
 - Add multi-line tag opening to increaseIndentPattern so cursor indents after <Tag (works at advanced autoIndent level)
 

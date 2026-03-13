@@ -359,9 +359,17 @@ namespace ReactiveUITK.Language.Roslyn
             // without CS0103 / CS8130 / CS1026 errors.
             // CS0246: hook stubs reference Unity/ReactiveUITK types that may not
             // be resolvable before the first Unity compile (e.g. VisualElement).
-            // Custom delegate: T __StateUpdater__<T>(T prev) matches BOTH usage patterns:
-            //   setX(newValue)        → setX called with T, return T discarded ✓
-            //   setX(prev => { ... }) → lambda T→T matches delegate T(T) exactly ✓
+            //
+            // State setter delegate: T __StateUpdater__<T>(T prev).
+            // The real API (StateSetter<T> + StateUpdate<T>) supports both
+            //   setX(newValue)        — direct value
+            //   setX(prev => prev+1)  — updater function
+            // via implicit operators on StateUpdate<T>.  C# lambdas cannot convert
+            // to struct types (only to delegate/expression-tree types), so we model
+            // the setter as a simple T→T delegate.  Direct-value calls compile
+            // naturally; lambda-updater calls produce CS1660 which is suppressed
+            // in RoslynDiagnosticMapper (a scaffold-only false positive).
+            //
             // __UitkxRef__<T>: scaffold so .Current completions always work,
             //   even before the ReactiveUITK assembly is loaded by Roslyn.
             b.Scaffold(
