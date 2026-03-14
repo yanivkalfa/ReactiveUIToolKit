@@ -1,5 +1,52 @@
 ﻿# Changelog
 
+## [1.0.220] - 2026-03-15
+- Setup JSX: enable T2 unknown-element/attribute checks, C# expression validation, tag completions, and source-map entries for markup embedded in setup code; replace V.Portal with JSX syntax in samples
+
+## [1.0.219] - 2026-03-15
+- Virtual document: change useState setter stub from `delegate T __StateUpdater__<T>(T prev)` to `delegate void __StateSetter__<T>(Func<T,T> updater)` so that Roslyn properly type-checks lambda bodies inside state updaters (e.g. `setTreeRows(prev => { ... })`) — the lambda parameter `prev` is now correctly inferred as `T`, enabling full semantic analysis; fixes missing diagnostics for all `setX(prev => ...)` patterns
+- Diagnostic mapper: replace CS1660 suppression with targeted CS1503 suppression for state-setter direct-value calls (e.g. `setCount(5)`) by inspecting the error message for `Func<`; real CS1503 type-mismatch errors still surface
+
+## [1.0.218] - 2026-03-15
+- Virtual document: fix `seg2Line` calculation in `EmitMappedWithGap` straddle case — post-gap code now accounts for newlines in the removed return statement, preventing `#line` directive offset errors for code after the return block
+
+## [1.0.217] - 2026-03-14
+- Virtual document: skip `/* */` and `//` comments in setup-code JSX scanner; fixes regression where `{/* return (...) */}` JSX comment blocks caused `#line` directives to end up inside C# block comments, making them invisible to the compiler — this caused wrong squiggly-line positions and missing diagnostics entirely for code after the comment block
+
+## [1.0.216] - 2026-03-14
+- Formatter: expand single-line container JSX in paren blocks (e.g. `(<Box><Label/></Box>)`) into multi-line formatted output; previously only multi-line blocks got JSX formatting
+- Virtual document: add Branch 2b for bare `= <Tag` assignment markup so Roslyn no longer shows CS1525/CS0119 errors before format-on-save wraps the parens
+
+## [1.0.215] - 2026-03-14
+- Formatter: normalize bare assignment JSX (`var x = <Tag/>` → `var x = (<Tag/>)`) to match arrow-lambda normalization; both `= <Tag` and `=> <Tag` now auto-wrap in parentheses for consistent formatting
+
+## [1.0.214] - 2026-03-14
+- Formatter: auto-split `{content` lines where `{` opens a multi-line block with content on the same line (e.g. `{new TabDef { ... }` becomes `{` + `new TabDef { ... }` on separate lines); fixes indentation when list initializer opening brace is on the same line as the first item
+
+## [1.0.213] - 2026-03-14
+- Formatter: fix mid-line `{` brace tracking in EmitCSharpLines; object initializers with JSX property values (e.g. `new TabDef { Content = () => (<jsx/>) }`) now correctly maintain brace depth for subsequent sibling properties; fixes `Style` property and closing `};` losing indentation after JSX in nested initializers
+
+## [1.0.212] - 2026-03-14
+- Formatter: fix JSX paren-blocks in deeply nested C# (method bodies, if blocks, switch cases, lambda bodies) losing indentation context; use placeholder-based approach so EmitCSharpLines processes entire C# in one pass preserving brace tracking; JSX formatted at correct nesting depth
+
+## [1.0.211] - 2026-03-14
+- Formatter: normalize bare arrow JSX (`=> <Tag />`) to paren-wrapped form (`=> (<Tag />) `); single-line elements stay inline preserving C# indentation context; multi-line container elements formatted with proper JSX layout; fix idempotency for closing `)` with trailing content
+
+## [1.0.210] - 2026-03-14
+- Fix server DLL not refreshed during VSIX packaging; all virtual document changes now active
+
+## [1.0.209] - 2026-03-14
+- Fix stale language-lib DLL in LSP server publish output; all 1.0.208 changes now active
+
+## [1.0.208] - 2026-03-14
+- Fix `() => <Tag />` lambda markup not transpiled (Pattern C); fix CS0266 on `() => variable` by using VirtualNode placeholder; re-add UITKX0306 diagnostic for `@(expr)` in setup code; add `@(` stripping in virtual document
+
+## [1.0.207] - 2026-03-14
+- Add UITKX0306 diagnostic for @(expr) in setup code; fix transient CS0266/CS1662 errors on @() in lambdas
+
+## [1.0.206] - 2026-03-14
+- Fix hover props, lambda markup support, formatter inline self-closing elements
+
 ## [1.0.202] - 2026-03-14
 - Auto re-diagnose all open documents when workspace index changes (e.g. saving a component now clears stale UITKX0109 errors in other open files)
 

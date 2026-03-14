@@ -233,6 +233,20 @@ namespace ReactiveUITK.Language.Diagnostics
                 _                => node.GetType().Name,
             };
 
+        /// <summary>
+        /// Runs T2 element/attribute checks on an arbitrary set of AST nodes
+        /// (e.g. markup embedded inside setup-code JSX blocks).
+        /// </summary>
+        public IReadOnlyList<ParseDiagnostic> AnalyzeNodes(
+            ImmutableArray<AstNode> nodes,
+            HashSet<string>? projectElements,
+            IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes)
+        {
+            var diags = new List<ParseDiagnostic>();
+            WalkNodeList(nodes, insideForeach: false, projectElements, knownAttributes, diags);
+            return diags;
+        }
+
         // ═══════════════════════════════════════════════════════════════════════
         //  AST WALKER
         // ═══════════════════════════════════════════════════════════════════════

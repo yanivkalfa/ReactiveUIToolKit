@@ -17,21 +17,22 @@ component PortalEventScopeDemoFunc {
     setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
   }
 
-  // Build the portal node in code -- V.Portal is a C# API, not a UITKX tag.
+  // Build the portal node in setup-code JSX.
   // If the host did not supply a portal target the slot is null and nothing is rendered there.
   var portalNode = portalTarget != null
-    ? V.Portal(
-      portalTarget,
-      null,
-      mounted
-        ? V.Button(new ButtonProps
-          {
-            Text = "Portal Button (click me)",
-            OnClick = _ => AppendLog("Portal button clicked"),
-            Style = new Style { (StyleKeys.MarginTop, 6f) },
-          })
-        : V.Label(new LabelProps { Text = "Portal unmounted." })
-      )
+    ? (
+      <Portal target={portalTarget}>
+        @if (mounted) {
+          <Button
+            text="Portal Button (click me)"
+            onClick={_ => AppendLog("Portal button clicked")}
+            style={new Style { (StyleKeys.MarginTop, 6f) }}
+          />
+        } @else {
+          <Label text="Portal unmounted." />
+        }
+      </Portal>
+    )
     : null;
 
   return (

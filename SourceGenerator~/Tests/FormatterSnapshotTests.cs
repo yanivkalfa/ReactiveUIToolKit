@@ -956,6 +956,688 @@ public sealed class FormatterSnapshotTests
     // ════════════════════════════════════════════════════════════════════════════
     //  B.13  Directives-only / class-style component
     // ════════════════════════════════════════════════════════════════════════════
+    //  B.12b  Arrow-lambda markup in setup code (Pattern C: => <Tag)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void FunctionStyle_ArrowLambdaSelfClosingJsx_FormattedInline()
+    {
+        var source = N("""
+            component WithArrowJsx {
+              var tabViewProps = new TabViewProps
+              {
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                  new TabViewProps.TabDef { Title = "Log", Content = () => <Label text="This is a TabView demo." /> },
+                  new TabViewProps.TabDef { Title = "Mode", Content = () => V.Label(new LabelProps { Text = "Mode" }) },
+                },
+              };
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("Content = () => (<Label text=\"This is a TabView demo.\" />)", result);
+        Assert.Contains("Content = () => V.Label(new LabelProps { Text = \"Mode\" })", result);
+        Assert.Equal(result, Format(result)); // idempotency
+    }
+
+    [Fact]
+    public void FunctionStyle_ArrowLambdaContainerJsx_ParenWrappedMultiline()
+    {
+        var source = N("""
+            component WithArrowContainer {
+              var tabDef = new TabDef { Title = "Log", Content = () => <Box>
+                <Label text="hello" />
+                <Label text="world" />
+              </Box> };
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("Content = () => (", result);
+        Assert.Contains("\n    <Box>", result);
+        Assert.Contains("\n      <Label text=\"hello\" />", result);
+        Assert.Contains("\n      <Label text=\"world\" />", result);
+        Assert.Contains("\n    </Box>", result);
+        Assert.Contains("\n  )", result);
+        Assert.Equal(result, Format(result)); // idempotency
+    }
+
+    [Fact]
+    public void FunctionStyle_ArrowLambdaParenWrapped_ExistingFormPreserved()
+    {
+        // User already writes the canonical form with parens — stays inline
+        var source = N("""
+            component WithArrowParen {
+              var tabDef = new TabDef { Title = "Log", Content = () => (<Label text="hello" />) };
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("Content = () => (<Label text=\"hello\" />)", result);
+        Assert.Equal(result, Format(result)); // idempotency
+    }
+
+    [Fact]
+    public void FunctionStyle_ArrowLambdaVarRef_NoTransform()
+    {
+        // () => variable should remain unchanged — no JSX to format
+        var source = N("""
+            component WithVarRef {
+              var element = (<Label text="hello" />);
+              var tabDef = new TabDef { Title = "Log", Content = () => element };
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("Content = () => element }", result);
+        Assert.Equal(result, Format(result)); // idempotency
+    }
+
+    // ── B.12b+ Bare assignment JSX normalization (= <Tag → = (<Tag>)) ────────
+
+    [Fact]
+    public void FunctionStyle_BareAssignSelfClosingJsx_NormalizedToParens()
+    {
+        // var x = <Label /> → var x = (<Label />);
+        var source = N("""
+            component Comp {
+              var bla = <Label text="hello" />;
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        Assert.Contains("var bla = (<Label text=\"hello\" />)", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_BareAssignContainerJsx_NormalizedToParens()
+    {
+        // var bla = <Box>...</Box> → var bla = (\n  <Box>...\n);
+        var source = N("""
+            component Comp {
+              var bla = <Box>
+                <Label text="hello" />
+              </Box>;
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        Assert.Contains("var bla = (", result);
+        Assert.Contains("<Box>", result);
+        Assert.Contains("<Label text=\"hello\" />", result);
+        Assert.Contains("</Box>", result);
+        // Format twice to reach stable form, then check idempotency
+        var stable = Format(result);
+        Assert.Equal(stable, Format(stable));
+    }
+
+    [Fact]
+    public void FunctionStyle_BareAssignSingleLineContainer_NormalizedToParens()
+    {
+        // var bla = <Box><Label /></Box> → normalized with parens AND expanded multi-line
+        var source = N("""
+            component Comp {
+              var bla = <Box><Label text="hello" /></Box>;
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        Assert.Contains("var bla = (", result);
+        // Container element must be expanded to multi-line
+        Assert.Contains("<Box>", result);
+        Assert.Contains("<Label text=\"hello\" />", result);
+        Assert.Contains("</Box>", result);
+        Assert.Contains(");", result);
+        // Format twice to reach stable form, then check idempotency
+        var stable = Format(result);
+        Assert.Equal(stable, Format(stable));
+    }
+
+    [Fact]
+    public void FunctionStyle_BareAssignAlreadyParenWrapped_Unchanged()
+    {
+        // Already paren-wrapped — stays as-is
+        var source = N("""
+            component Comp {
+              var bla = (<Label text="hello" />);
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        Assert.Contains("var bla = (<Label text=\"hello\" />)", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_ComparisonOperators_NotTreatedAsJsx()
+    {
+        // Comparison operators (<=, >=, ==) must NOT trigger JSX normalization
+        var source = N("""
+            component Comp {
+              var x = 5;
+              if (x <= 10) { }
+              if (x >= 3) { }
+              if (x == 1) { }
+              if (x != 2) { }
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        // These should remain unchanged — no JSX normalization
+        Assert.Contains("x <= 10", result);
+        Assert.Contains("x >= 3", result);
+        Assert.Contains("x == 1", result);
+        Assert.Contains("x != 2", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  B.12c  JSX paren-blocks in deeply nested C# setup code
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void FunctionStyle_JsxInSwitchCase_IndentPreserved()
+    {
+        var source = N("""
+            component Comp {
+              void ApplyMode(string newMode)
+              {
+                switch (newMode)
+                {
+                  case "squared":
+                    AppendLog("Switched to squared");
+                    var oneTest = (
+                      <Box>
+                        <Label text="This is a TabView demo." />
+                      </Box>
+                    );
+                    break;
+                  case "doubled":
+                    AppendLog("Switched to doubled");
+                    break;
+                  default:
+                    AppendLog($"Switched to {newMode}");
+                    break;
+                }
+                setMode(newMode);
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // JSX is indented inside the case block.
+        Assert.Contains("        var oneTest = (\n", result);
+        Assert.Contains("          <Box>\n", result);
+        Assert.Contains("            <Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("          </Box>\n", result);
+        Assert.Contains("        );\n", result);
+        // C# after the JSX block stays at correct indent.
+        Assert.Contains("        break;\n", result);
+        Assert.Contains("      case \"doubled\":\n", result);
+        Assert.Contains("        AppendLog(\"Switched to doubled\");\n", result);
+        Assert.Contains("      default:\n", result);
+        Assert.Contains("    setMode(newMode);\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxInIfBlock_IndentPreserved()
+    {
+        var source = N("""
+            component Comp {
+              void HandleEvent(ReactiveEvent evt)
+              {
+                if (evt == null)
+                {
+                  AppendLog("null event");
+                  var oneTest = (
+                    <Label text="This is a TabView demo." />
+                  );
+                  return;
+                }
+                if (evt is ReactivePointerEvent pointer)
+                {
+                  AppendLog($"pointer pos={pointer.Position.x:0.0}");
+                }
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // JSX is inside if (evt == null) block — 6sp indent.
+        Assert.Contains("      var oneTest = (\n", result);
+        Assert.Contains("        <Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("      );\n", result);
+        // Code after the JSX block.
+        Assert.Contains("      return;\n", result);
+        Assert.Contains("    }\n", result);
+        Assert.Contains("    if (evt is ReactivePointerEvent pointer)\n", result);
+        Assert.Contains("      AppendLog($\"pointer pos={pointer.Position.x:0.0}\");\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxInMethodBody_IndentPreserved()
+    {
+        var source = N("""
+            component Comp {
+              void TreeAddParent()
+              {
+                var oneTest = (
+                  <Label text="This is a TabView demo." />
+                );
+                var pid = treeNextPid;
+                setTreeNextPid(treeNextPid + 2);
+                setTreeRows(prev =>
+                {
+                  var next = prev != null
+                  ? new List<TreeViewRowState>(prev)
+                  : new List<TreeViewRowState>();
+
+                  next.Add(new TreeViewRowState
+                  {
+                    Pid = pid,
+                    HasChild = false,
+                  });
+                  return next;
+                });
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // JSX in method body at 4sp.
+        Assert.Contains("    var oneTest = (\n", result);
+        Assert.Contains("      <Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("    );\n", result);
+        // Code after JSX at correct indent.
+        Assert.Contains("    var pid = treeNextPid;\n", result);
+        Assert.Contains("    setTreeNextPid(treeNextPid + 2);\n", result);
+        Assert.Contains("    setTreeRows(prev =>\n", result);
+        // Lambda body.
+        Assert.Contains("      var next = prev != null\n", result);
+        Assert.Contains("      next.Add(new TreeViewRowState\n", result);
+        Assert.Contains("      return next;\n", result);
+        Assert.Contains("    });\n", result);
+        Assert.Contains("  }\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxInsideLambdaBody_IndentPreserved()
+    {
+        var source = N("""
+            component Comp {
+              void MctvDeleteLast()
+              {
+                setMctvRows(prev =>
+                {
+                  var oneTest = (
+                    <Label text="This is a TabView demo." />
+                  );
+                  return prev;
+                  if (prev == null || prev.Count == 0)
+                  {
+                    return prev;
+                  }
+                  var next = new List<MultiColumnTreeViewRowState>(prev);
+                  next.RemoveAt(next.Count - 1);
+                  return next;
+                });
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // JSX inside lambda body at 6sp.
+        Assert.Contains("      var oneTest = (\n", result);
+        Assert.Contains("        <Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("      );\n", result);
+        // Code after JSX stays at correct lambda indent.
+        Assert.Contains("      return prev;\n", result);
+        Assert.Contains("      if (prev == null || prev.Count == 0)\n", result);
+        Assert.Contains("        return prev;\n", result);
+        Assert.Contains("      var next = new List<MultiColumnTreeViewRowState>(prev);\n", result);
+        Assert.Contains("      next.RemoveAt(next.Count - 1);\n", result);
+        Assert.Contains("      return next;\n", result);
+        Assert.Contains("    });\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxInsideLambdaBodyAfterIf_IndentPreserved()
+    {
+        var source = N("""
+            component Comp {
+              void MctvSetChild()
+              {
+                setMctvRows(prev =>
+                {
+                  if (prev == null || prev.Count == 0)
+                  {
+                    return prev;
+                  }
+                  var oneTest = (
+                    <Label text="This is a TabView demo." />
+                  );
+                  var source = prev[prev.Count - 1];
+                  if (source == null || !source.HasChild)
+                  {
+                    return prev;
+                  }
+                  var next = new List<MultiColumnTreeViewRowState>(prev);
+                  next[next.Count - 1] = new MultiColumnTreeViewRowState
+                  {
+                    Pid = source.Pid,
+                    HasChild = true,
+                  };
+                  return next;
+                });
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // Code before JSX is at correct indent.
+        Assert.Contains("      if (prev == null || prev.Count == 0)\n", result);
+        Assert.Contains("        return prev;\n", result);
+        // JSX in lambda at 6sp.
+        Assert.Contains("      var oneTest = (\n", result);
+        Assert.Contains("        <Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("      );\n", result);
+        // Code after JSX continues at correct indent.
+        Assert.Contains("      var source = prev[prev.Count - 1];\n", result);
+        Assert.Contains("      if (source == null || !source.HasChild)\n", result);
+        Assert.Contains("      var next = new List<MultiColumnTreeViewRowState>(prev);\n", result);
+        Assert.Contains("      return next;\n", result);
+        Assert.Contains("    });\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_TabViewPropsMultilineArrowJsx_IndentPreserved()
+    {
+        var source = N("""
+            component Comp {
+              var secondElement = (
+                <Label text="This is a TabView demo." />
+              );
+
+              var tabViewProps = new TabViewProps
+              {
+                SelectedIndex = tabIndex,
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                  new TabViewProps.TabDef { Title = "Log", Content = () => (
+                    <Box>
+                      <Label text="This is a TabView demo." />
+                    </Box>
+                  )
+                },
+                new TabViewProps.TabDef { Title = "Counter", Content = () => secondElement },
+                new TabViewProps.TabDef { Title = "Mode", Content = () => V.Label(new LabelProps { Text = $"Mode" }) },
+                },
+                Style = new Style { (StyleKeys.Height, 160f) },
+              };
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // Top-level var with JSX.
+        Assert.Contains("  var secondElement = (\n", result);
+        Assert.Contains("    <Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("  );\n", result);
+        // Arrow-lambda JSX inside deeply nested initializer.
+        Assert.Contains("Content = () => (\n", result);
+        Assert.Contains("<Box>\n", result);
+        Assert.Contains("<Label text=\"This is a TabView demo.\" />\n", result);
+        Assert.Contains("</Box>\n", result);
+        // The other TabDef entries are preserved.
+        Assert.Contains("Content = () => secondElement", result);
+        Assert.Contains("Content = () => V.Label(new LabelProps { Text = $\"Mode\" })", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    // ── B.12d – mid-line brace tracking after JSX placeholder ──────────────
+    [Fact]
+    public void FunctionStyle_TabViewProps_StyleIndentAfterJsx()
+    {
+        // Style property after JSX block in nested initializer must keep correct indent
+        var source = N("""
+            component Comp {
+              var tabViewProps = new TabViewProps
+              {
+                SelectedIndex = tabIndex,
+                Tabs = new List<TabViewProps.TabDef>
+                {
+                  new TabViewProps.TabDef { Title = "Log", Content = () => (
+                    <Box>
+                      <Label text="hello" />
+                    </Box>
+                  )
+                },
+                new TabViewProps.TabDef { Title = "Counter", Content = () => secondElement },
+                },
+                Style = new Style { (StyleKeys.Height, 160f) },
+              };
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        // Style must be at 4sp (same depth as SelectedIndex, Tabs)
+        Assert.Contains("    Style = new Style", result);
+        // Closing }; at 2sp (component body indent)
+        Assert.Contains("  };", result);
+        // Second TabDef at 6sp (inside list)
+        Assert.Contains("      new TabViewProps.TabDef { Title = \"Counter\"", result);
+        // Idempotent
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_TabViewProps_BraceOnSameLineAsContent()
+    {
+        // { on same line as first list item: formatter should split {content
+        // into { + content on separate lines and indent correctly
+        var source = N("""
+            component Comp {
+              var tabViewProps = new TabViewProps
+              {
+                SelectedIndex = tabIndex,
+                Tabs = new List<TabViewProps.TabDef>
+                {new TabViewProps.TabDef { Title = "Log", Content = () => (
+                    <Box>
+                      <Label text="hello" />
+                    </Box>
+                  )},
+                new TabViewProps.TabDef { Title = "Counter", Content = () => secondElement },
+                },
+                Style = new Style { (StyleKeys.Height, 160f) },
+              };
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+        // The formatter should split {new into { + new on separate lines
+        Assert.Contains("    {\n      new TabViewProps.TabDef", result);
+        // Style must be at 4sp (same depth as SelectedIndex, Tabs)
+        Assert.Contains("    Style = new Style", result);
+        // Closing }; at 2sp
+        Assert.Contains("  };", result);
+        // Second TabDef at 6sp (inside list)
+        Assert.Contains("      new TabViewProps.TabDef { Title = \"Counter\"", result);
+        // Idempotent
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_MultipleJsxBlocks_AllIndentCorrectly()
+    {
+        // Two JSX blocks at different nesting depths in the same component.
+        var source = N("""
+            component Comp {
+              var header = (
+                <Label text="header" />
+              );
+
+              void DoWork()
+              {
+                if (true)
+                {
+                  var inner = (
+                    <Box>
+                      <Label text="inner" />
+                    </Box>
+                  );
+                }
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        // Top-level JSX.
+        Assert.Contains("  var header = (\n", result);
+        Assert.Contains("    <Label text=\"header\" />\n", result);
+        Assert.Contains("  );\n", result);
+        // Nested JSX inside if.
+        Assert.Contains("      var inner = (\n", result);
+        Assert.Contains("        <Box>\n", result);
+        Assert.Contains("          <Label text=\"inner\" />\n", result);
+        Assert.Contains("        </Box>\n", result);
+        Assert.Contains("      );\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxAtStartOfMethod_IndentPreserved()
+    {
+        // JSX is the very first statement in a method.
+        var source = N("""
+            component Comp {
+              void Init()
+              {
+                var node = (
+                  <Label text="init" />
+                );
+                DoSomething(node);
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("    var node = (\n", result);
+        Assert.Contains("      <Label text=\"init\" />\n", result);
+        Assert.Contains("    );\n", result);
+        Assert.Contains("    DoSomething(node);\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxAtEndOfMethod_IndentPreserved()
+    {
+        // JSX is the very last statement in a method.
+        var source = N("""
+            component Comp {
+              void Finalize()
+              {
+                DoSomething();
+                var node = (
+                  <Label text="done" />
+                );
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("    DoSomething();\n", result);
+        Assert.Contains("    var node = (\n", result);
+        Assert.Contains("      <Label text=\"done\" />\n", result);
+        Assert.Contains("    );\n", result);
+        Assert.Contains("  }\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void FunctionStyle_JsxInNestedLambdaInsideIf_IndentPreserved()
+    {
+        // JSX deeply nested: method → if → lambda body.
+        var source = N("""
+            component Comp {
+              void Process()
+              {
+                if (condition)
+                {
+                  setItems(prev =>
+                  {
+                    var node = (
+                      <Label text="deep" />
+                    );
+                    return prev;
+                  });
+                }
+              }
+
+              return (<Box />);
+            }
+            """);
+
+        var result = Format(source);
+
+        Assert.Contains("        var node = (\n", result);
+        Assert.Contains("          <Label text=\"deep\" />\n", result);
+        Assert.Contains("        );\n", result);
+        Assert.Contains("        return prev;\n", result);
+        Assert.Contains("      });\n", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
 
     [Fact]
     public void ClassStyle_NamespaceUsingsOrderPreserved()
@@ -7154,5 +7836,191 @@ public sealed class FormatterSnapshotTests
             }
             catch { return null; }
         }
+    }
+
+    private static ReactiveUITK.Language.Roslyn.VirtualDocument GenerateVDoc(string source, string filePath)
+    {
+        var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(source, filePath, diags);
+        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(source, filePath, directives, diags);
+        var parseResult = new ReactiveUITK.Language.Parser.ParseResult(directives, nodes,
+            System.Collections.Immutable.ImmutableArray.CreateRange(diags));
+        var vdg = new ReactiveUITK.Language.Roslyn.VirtualDocumentGenerator();
+        return vdg.Generate(parseResult, source, filePath);
+    }
+
+    private static string ExtractBetween(string text, string start, string end)
+    {
+        int s = text.IndexOf(start, StringComparison.Ordinal);
+        if (s < 0) return "";
+        int e = text.IndexOf(end, s + start.Length, StringComparison.Ordinal);
+        if (e < 0) return text.Substring(s + start.Length);
+        return text.Substring(s + start.Length, e - s - start.Length);
+    }
+
+    // ── B.13: VDG setup-code comment/line-mapping regression tests ────────
+
+    /// <summary>
+    /// Regression: {/* ... */} JSX comment blocks in setup code must NOT trigger
+    /// JSX replacement branches, otherwise #line directives end up inside C#
+    /// block comments and become invisible to the compiler — causing subsequent
+    /// code (MctvSetChild, MctvDeleteLast, etc.) to lose line mapping entirely.
+    /// </summary>
+    [Fact]
+    public void B13a_VDG_CommentedOutReturn_DoesNotBreakLineMappingForSubsequentCode()
+    {
+        var source = N(@"@namespace Test
+component Comp {
+  var (count, setCount) = useState(0);
+
+  void MethodBefore() { setCount(1); }
+
+  {/* return (
+    <Box>
+      <Label text=""sas"" />
+    </Box>
+  );
+    */}
+
+  void MethodAfter() { setCount(2); }
+
+  var node = (
+    <Box>
+      <Label text=""hello"" />
+    </Box>
+  );
+
+  return (
+    <Box>
+      <Label text=""world"" />
+    </Box>
+  );
+}");
+        var vdoc = GenerateVDoc(source, "test.uitkx");
+        var text = vdoc.Text;
+
+        // {/* ... */} block should be preserved as-is (no VirtualNode replacement inside).
+        Assert.DoesNotContain("(global::ReactiveUITK.Core.VirtualNode)null!", 
+            ExtractBetween(text, "{/*", "*/}"));
+
+        // MethodAfter must appear in the output.
+        Assert.Contains("MethodAfter", text);
+
+        // MethodAfter must NOT be under #line hidden — there must be a
+        // #line N directive that maps it correctly.
+        // The setup section from #line 3 to the JSX block should be one continuous mapped segment.
+        int methodAfterIdx = text.IndexOf("MethodAfter");
+        string beforeMethodAfter = text.Substring(0, methodAfterIdx);
+
+        // Last #line directive before MethodAfter should NOT be "#line hidden".
+        int lastLine = beforeMethodAfter.LastIndexOf("#line ");
+        Assert.True(lastLine >= 0, "Should have a #line directive before MethodAfter");
+        string lastLineDirective = beforeMethodAfter.Substring(lastLine).Split('\n')[0].Trim();
+        Assert.DoesNotContain("hidden", lastLineDirective);
+    }
+
+    [Fact]
+    public void B13b_VDG_LineCommentWithJsxPatternDoesNotTriggerBranch()
+    {
+        var source = N(@"@namespace Test
+component Comp {
+  var (count, setCount) = useState(0);
+
+  // var x = ( <Label text=""nope"" /> )
+  void SomeMethod() { setCount(1); }
+
+  return (
+    <Box />
+  );
+}");
+        var vdoc = GenerateVDoc(source, "test.uitkx");
+        var text = vdoc.Text;
+
+        // The line comment should be preserved in the output, not replaced.
+        Assert.Contains("// var x = ( <Label", text);
+        Assert.Contains("SomeMethod", text);
+    }
+
+    [Fact]
+    public void B13c_VDG_RealFile_SourceMapOffsets_AreCorrect()
+    {
+        var filePath = Path.Combine(WorkspaceRoot(), "Samples", "UITKX", "Components",
+            "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
+        if (!File.Exists(filePath)) return;
+
+        var source = N(File.ReadAllText(filePath));
+        var vdoc = GenerateVDoc(source, filePath);
+        var text = vdoc.Text;
+        var map = vdoc.Map;
+
+        // All FunctionSetup entries must have matching text
+        foreach (var e in map.Entries)
+        {
+            if (e.Kind != ReactiveUITK.Language.Roslyn.SourceRegionKind.FunctionSetup) continue;
+            string vText = text.Substring(e.VirtualStart, e.VirtualEnd - e.VirtualStart);
+            string sText = source.Substring(e.UitkxStart, e.UitkxEnd - e.UitkxStart);
+            Assert.Equal(sText, vText);
+        }
+
+        // Key identifiers must map to their correct source lines
+        var checks = new[] {
+            ("MctvSetChild", 233), ("MctvDeleteLast", 261),
+            ("TreeViewRowState", 21),
+            ("var secondElement", 282)
+        };
+        foreach (var (id, expectedLine) in checks)
+        {
+            int vIdx = text.IndexOf(id);
+            Assert.True(vIdx >= 0, $"{id} not found in VDG");
+            var entry = map.ToUitkxOffset(vIdx);
+            Assert.True(entry.HasValue, $"{id} has no source map entry");
+            int uitkxOff = entry.Value.UitkxOffset;
+            int line = 1;
+            for (int c = 0; c < uitkxOff && c < source.Length; c++)
+                if (source[c] == '\n') line++;
+            Assert.Equal(expectedLine, line);
+        }
+    }
+
+    /// <summary>
+    /// Setup-code JSX expressions (e.g. onClick={_ => ...} inside
+    /// <c>var node = (&lt;Button onClick={handler} /&gt;)</c>) must appear
+    /// in the virtual document with source-map entries so Roslyn can
+    /// type-check them and provide completions.
+    /// </summary>
+    [Fact]
+    public void B14_VDG_SetupJsxExpressions_AreEmittedWithSourceMapping()
+    {
+        var source = N(@"component Foo {
+  var (count, setCount) = useState(0);
+
+  var node = (
+    <Button text={$""Count: {count}""} onClick={_ => setCount(count + 1)} />
+  );
+
+  return (
+    <Box />
+  );
+}");
+        var vdoc = GenerateVDoc(source, "test.uitkx");
+        var text = vdoc.Text;
+        var map = vdoc.Map;
+
+        // The inline expression `$"Count: {count}"` must be present in the VDoc
+        Assert.Contains("$\"Count: {count}\"", text);
+
+        // The onClick lambda `_ => setCount(count + 1)` must be present
+        Assert.Contains("setCount(count + 1)", text);
+
+        // Both should have source-map entries pointing back to the .uitkx
+        int textIdx = text.IndexOf("$\"Count: {count}\"");
+        Assert.True(textIdx >= 0, "text expression not found in VDoc");
+        var textEntry = map.ToUitkxOffset(textIdx);
+        Assert.True(textEntry.HasValue, "text expression has no source map entry");
+
+        int onClickIdx = text.IndexOf("setCount(count + 1)");
+        Assert.True(onClickIdx >= 0, "onClick expression not found in VDoc");
+        var onClickEntry = map.ToUitkxOffset(onClickIdx);
+        Assert.True(onClickEntry.HasValue, "onClick expression has no source map entry");
     }
 }

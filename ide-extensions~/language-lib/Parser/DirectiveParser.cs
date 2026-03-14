@@ -490,6 +490,7 @@ namespace ReactiveUITK.Language.Parser
                 });
 
                 int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
+                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
@@ -552,6 +553,10 @@ namespace ReactiveUITK.Language.Parser
                     returnStmtEndExclusive,
                     Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
                 );
+
+            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence.
+            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag);
+            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag);
 
             int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
             int setupGapOffset = returnStart - fseTrimStart2;
@@ -1574,6 +1579,102 @@ namespace ReactiveUITK.Language.Parser
             return start;
         }
 
+        // ── @(expr) scanner ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
+        /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings
+        /// and comments, emitting <see cref="DiagnosticCodes.AtExprInSetupCode"/>
+        /// for each occurrence.
+        /// </summary>
+        private static void ScanAtExprInSetupCode(
+            string source,
+            int rangeStart,
+            int rangeEnd,
+            List<ParseDiagnostic> diagnosticBag)
+        {
+            int i = rangeStart;
+            while (i < rangeEnd)
+            {
+                char ch = source[i];
+
+                // Skip verbatim strings @"..."
+                if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '"')
+                {
+                    i += 2;
+                    while (i < rangeEnd)
+                    {
+                        if (source[i] == '"')
+                        {
+                            if (i + 1 < rangeEnd && source[i + 1] == '"')
+                                i += 2; // escaped ""
+                            else { i++; break; }
+                        }
+                        else i++;
+                    }
+                    continue;
+                }
+
+                // Skip regular strings "..."
+                if (ch == '"')
+                {
+                    i++;
+                    while (i < rangeEnd && source[i] != '"')
+                    {
+                        if (source[i] == '\\') i++;
+                        i++;
+                    }
+                    if (i < rangeEnd) i++;
+                    continue;
+                }
+
+                // Skip character literals '.'
+                if (ch == '\'')
+                {
+                    i++;
+                    if (i < rangeEnd && source[i] == '\\') i++;
+                    if (i < rangeEnd) i++; // the char
+                    if (i < rangeEnd && source[i] == '\'') i++;
+                    continue;
+                }
+
+                // Skip single-line comments //
+                if (ch == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
+                {
+                    i += 2;
+                    while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // Skip block comments /* ... */
+                if (ch == '/' && i + 1 < rangeEnd && source[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < rangeEnd && !(source[i] == '*' && source[i + 1] == '/'))
+                        i++;
+                    if (i + 1 < rangeEnd) i += 2;
+                    continue;
+                }
+
+                // Detect @(
+                if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
+                {
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
+                        Severity = ParseSeverity.Error,
+                        SourceLine = LineAtPos(source, i),
+                        SourceColumn = ColAtPos(source, i),
+                        EndColumn = ColAtPos(source, i) + 2,
+                        Message = "'@(...)' syntax is not supported in setup code. " +
+                                  "Use a local variable instead: var x = (...); then reference x.",
+                    });
+                }
+
+                i++;
+            }
+        }
+
         private static int LineAtPos(string source, int pos)
         {
             int line = 1;
@@ -1620,6 +1721,30 @@ namespace ReactiveUITK.Language.Parser
             int i = rangeStart;
             while (i < rangeEnd)
             {
+                // ── Bare arrow: => <Tag ──────────────────────────────────
+                if (source[i] == '=' && i + 1 < rangeEnd && source[i + 1] == '>')
+                {
+                    int peek = i + 2;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Paren-wrapped: ( <Tag ────────────────────────────────
                 if (source[i] != '(')
                 {
                     i++;
@@ -1627,13 +1752,13 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 // Peek past whitespace / newlines to see if the next token is '<'
-                int peek = i + 1;
-                while (peek < rangeEnd &&
-                       (source[peek] == ' '  || source[peek] == '\t' ||
-                        source[peek] == '\r' || source[peek] == '\n'))
-                    peek++;
+                int peek2 = i + 1;
+                while (peek2 < rangeEnd &&
+                       (source[peek2] == ' '  || source[peek2] == '\t' ||
+                        source[peek2] == '\r' || source[peek2] == '\n'))
+                    peek2++;
 
-                if (peek >= rangeEnd || source[peek] != '<')
+                if (peek2 >= rangeEnd || source[peek2] != '<')
                 {
                     i++;
                     continue;
@@ -1679,6 +1804,86 @@ namespace ReactiveUITK.Language.Parser
             if (r2.IsDefaultOrEmpty) return r1;
             if (r1.IsDefaultOrEmpty) return r2;
             return r1.AddRange(r2);
+        }
+
+        /// <summary>
+        /// Finds the end position (exclusive) of a JSX element starting at
+        /// <paramref name="start"/> (which must point to <c>&lt;</c>).
+        /// </summary>
+        private static int FindJsxElementEnd(string text, int start, int limit)
+        {
+            if (start >= limit || text[start] != '<')
+                return start;
+
+            int depth = 0;
+            int idx = start;
+
+            while (idx < limit)
+            {
+                char ch = text[idx];
+
+                if (ch == '"')
+                {
+                    idx++;
+                    while (idx < limit && text[idx] != '"')
+                        idx++;
+                    if (idx < limit) idx++;
+                    continue;
+                }
+
+                if (ch == '{')
+                {
+                    idx++;
+                    int braceDepth = 1;
+                    while (idx < limit && braceDepth > 0)
+                    {
+                        if      (text[idx] == '{') braceDepth++;
+                        else if (text[idx] == '}') braceDepth--;
+                        else if (text[idx] == '"')
+                        {
+                            idx++;
+                            while (idx < limit && text[idx] != '"')
+                            {
+                                if (text[idx] == '\\') idx++;
+                                idx++;
+                            }
+                        }
+                        if (braceDepth > 0) idx++;
+                    }
+                    if (idx < limit) idx++;
+                    continue;
+                }
+
+                if (ch == '/' && idx + 1 < limit && text[idx + 1] == '>')
+                {
+                    depth--;
+                    idx += 2;
+                    if (depth <= 0) return idx;
+                    continue;
+                }
+
+                if (ch == '<' && idx + 1 < limit && text[idx + 1] == '/')
+                {
+                    depth--;
+                    idx += 2;
+                    while (idx < limit && text[idx] != '>')
+                        idx++;
+                    if (idx < limit) idx++;
+                    if (depth <= 0) return idx;
+                    continue;
+                }
+
+                if (ch == '<' && idx + 1 < limit && char.IsLetter(text[idx + 1]))
+                {
+                    depth++;
+                    idx++;
+                    continue;
+                }
+
+                idx++;
+            }
+
+            return idx;
         }
 
         private static void ConsumeNewline(string source, ref int i, ref int line)

@@ -59,9 +59,9 @@ namespace UitkxLanguageServer.Roslyn
                 // so that genuine unused-variable warnings surface to the editor.
                 // "CS0219",
                 "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
-                "CS1660", // Cannot convert lambda to type 'T' — scaffold models useState setter as delegate T(T);
-                          // the real API uses StateUpdate<T> struct + implicit Func<T,T> conversion + source-gen,
-                          // which can't be replicated in the virtual doc (lambdas only convert to delegate types).
+                // CS1660 no longer needed — useState setter is now modeled as __StateSetter__<T>(Func<T,T>)
+                // so lambda bodies get full type inference. Direct-value calls produce CS1503 instead,
+                // which is filtered below by message inspection (not global suppression).
                 "CS1977", // Cannot use lambda as argument to dynamically dispatched operation — block-body
                           // lambda params are typed as `dynamic` in the scaffold; nested lambdas passed to
                           // methods on those params (e.g. dm.AppendAction("X", _ => ...)) trigger this error.
@@ -100,6 +100,16 @@ namespace UitkxLanguageServer.Roslyn
                 // Drop suppressed IDs
                 if (s_suppressedIds.Contains(diag.Id))
                     continue;
+
+                // CS1503: suppress when caused by state-setter direct-value calls
+                // (e.g. setCount(5) — passes int to __StateSetter__<int>(Func<int,int>)).
+                // Real CS1503 errors (wrong argument types) don't mention 'Func<'.
+                if (diag.Id == "CS1503")
+                {
+                    var msg = diag.GetMessage();
+                    if (msg.Contains("Func<"))
+                        continue;
+                }
 
                 // ── Resolve position ─────────────────────────────────────────
 

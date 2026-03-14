@@ -1040,6 +1040,54 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
+                // ── Pattern C: => <Tag  (lambda arrow with inline markup) ──────
+                if (
+                    markupAt < 0
+                    && _source[i] == '='
+                    && i + 1 < _source.Length
+                    && _source[i + 1] == '>'
+                )
+                {
+                    int j = i + 2; // skip =>
+                    while (
+                        j < codeBodyEnd
+                        && (
+                            _source[j] == ' '
+                            || _source[j] == '\t'
+                            || _source[j] == '\r'
+                            || _source[j] == '\n'
+                        )
+                    )
+                        j++;
+
+                    // Tolerate optional '(' before '<'
+                    if (j < codeBodyEnd && _source[j] == '(')
+                    {
+                        parenStart = j;
+                        j++;
+                        while (
+                            j < codeBodyEnd
+                            && (
+                                _source[j] == ' '
+                                || _source[j] == '\t'
+                                || _source[j] == '\r'
+                                || _source[j] == '\n'
+                            )
+                        )
+                            j++;
+                    }
+
+                    if (
+                        j < codeBodyEnd
+                        && _source[j] == '<'
+                        && j + 1 < codeBodyEnd
+                        && char.IsLetter(_source[j + 1])
+                    )
+                        markupAt = j;
+                    else
+                        parenStart = -1;
+                }
+
                 // ── Parse element if either pattern matched ─────────────────────
                 if (markupAt >= 0)
                 {

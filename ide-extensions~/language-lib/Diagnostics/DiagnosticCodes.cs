@@ -79,5 +79,11 @@ namespace ReactiveUITK.Language.Diagnostics
 
         /// <summary>Unknown <c>@directive</c> keyword. Emitted by UitkxParser.</summary>
         public const string UnknownDirective = "UITKX0305";
+
+        /// <summary>
+        /// <c>@(expr)</c> used in function-style setup code. This syntax is not
+        /// supported outside the return markup. Emitted by DirectiveParser.
+        /// </summary>
+        public const string AtExprInSetupCode = "UITKX0306";
     }
 }

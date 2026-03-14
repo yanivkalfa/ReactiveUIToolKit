@@ -10,6 +10,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using ReactiveUITK.Language;
 using ReactiveUITK.Language.Diagnostics;
 using ReactiveUITK.Language.Lowering;
+using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.Roslyn;
 using UitkxLanguageServer.Roslyn;
@@ -111,8 +112,10 @@ public sealed class DiagnosticsPublisher
         // e.g. `var x = (<Box> @if (broken) { ... } </Box>)`.
         // These blocks are replaced by (object)null! in the Roslyn virtual doc,
         // so Roslyn never sees them — we must check them here at T1/T2 level.
+        var setupJsxNodes = ImmutableArray<AstNode>.Empty;
         if (!directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
         {
+            var setupBuilder = ImmutableArray.CreateBuilder<AstNode>();
             foreach (var (jsxStart, jsxEnd, jsxLine) in directives.SetupCodeMarkupRanges)
             {
                 var jsxDirectives = directives with
@@ -121,8 +124,10 @@ public sealed class DiagnosticsPublisher
                     MarkupEndIndex   = jsxEnd,
                     MarkupStartLine  = jsxLine,
                 };
-                UitkxParser.Parse(text, localPath, jsxDirectives, parseDiags);
+                var jsxNodes = UitkxParser.Parse(text, localPath, jsxDirectives, parseDiags);
+                setupBuilder.AddRange(jsxNodes);
             }
+            setupJsxNodes = setupBuilder.ToImmutable();
         }
 
         var nodes       = CanonicalLowering.LowerToRenderRoots(directives, parsedNodes, localPath);
@@ -139,6 +144,16 @@ public sealed class DiagnosticsPublisher
         var projectElements = BuildProjectElements(directives.ComponentName);
         var knownAttributes = BuildKnownAttributes(projectElements);
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
+
+        // Also run T2 element/attribute checks on setup JSX nodes (these nodes
+        // are NOT part of the main parse result because CanonicalLowering only
+        // processes the return-statement markup).
+        if (!setupJsxNodes.IsEmpty)
+        {
+            var setupT2 = _analyzer.AnalyzeNodes(setupJsxNodes, projectElements, knownAttributes);
+            if (setupT2.Count > 0)
+                t2Diags = t2Diags.Concat(setupT2).ToList();
+        }
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 // Suppress T1 parser diagnostics that fall inside unreachable regions

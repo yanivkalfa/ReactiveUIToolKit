@@ -360,15 +360,20 @@ namespace ReactiveUITK.Language.Roslyn
             // CS0246: hook stubs reference Unity/ReactiveUITK types that may not
             // be resolvable before the first Unity compile (e.g. VisualElement).
             //
-            // State setter delegate: T __StateUpdater__<T>(T prev).
+            // State setter delegate: void __StateSetter__<T>(Func<T,T> updater).
             // The real API (StateSetter<T> + StateUpdate<T>) supports both
             //   setX(newValue)        — direct value
             //   setX(prev => prev+1)  — updater function
-            // via implicit operators on StateUpdate<T>.  C# lambdas cannot convert
-            // to struct types (only to delegate/expression-tree types), so we model
-            // the setter as a simple T→T delegate.  Direct-value calls compile
-            // naturally; lambda-updater calls produce CS1660 which is suppressed
-            // in RoslynDiagnosticMapper (a scaffold-only false positive).
+            // via implicit operators on StateUpdate<T>.
+            //
+            // We model the setter as a delegate accepting Func<T,T> so that
+            // Roslyn properly type-checks lambda bodies — the lambda parameter
+            // `prev` is correctly inferred as `T`, enabling full semantic analysis
+            // inside updater lambdas.
+            //
+            // Direct-value calls like setCount(5) produce CS1503 (can't convert
+            // int to Func<int,int>); this is suppressed in RoslynDiagnosticMapper
+            // by checking for the state-setter pattern in the error message.
             //
             // __UitkxRef__<T>: scaffold so .Current completions always work,
             //   even before the ReactiveUITK assembly is loaded by Roslyn.
@@ -376,8 +381,8 @@ namespace ReactiveUITK.Language.Roslyn
                 "\n" +
                 "        // ── Roslyn-only hook stubs (never called at runtime) ──────────────\n" +
                 "#pragma warning disable CS8603, CS8625, CS1998, CS0246\n" +
-                "        private delegate T __StateUpdater__<T>(T prev);\n" +
-                "        private (T value, __StateUpdater__<T> set)\n" +
+                "        private delegate void __StateSetter__<T>(global::System.Func<T, T> updater);\n" +
+                "        private (T value, __StateSetter__<T> set)\n" +
                 "            useState<T>(T initial = default) => (initial, null!);\n" +
                 "        private T useMemo<T>(global::System.Func<T> factory, params object[] deps)\n" +
                 "            => factory != null ? factory() : default!;\n" +
@@ -400,9 +405,8 @@ namespace ReactiveUITK.Language.Roslyn
 
             // Collect markup nodes — skip the setup CodeBlockNode whose JSX paren
             // blocks are already replaced with (object)null! placeholders by
-            // EmitFunctionStyleSetupSegmented.  Emitting attribute expressions from those
-            // replaced JSX nodes (e.g. onClick={_ => ...}) produces spurious CS0411 errors
-            // because the lambda has no delegate-type context in the generated code.
+            // EmitFunctionStyleSetupSegmented.  Expression checks for those JSX
+            // blocks are emitted separately below via SetupCodeMarkupRanges.
             var markupOnlyNodes = ImmutableArray.CreateBuilder<AstNode>(parseResult.RootNodes.Length);
             foreach (var n in parseResult.RootNodes)
                 if (n is not CodeBlockNode)
@@ -426,6 +430,18 @@ namespace ReactiveUITK.Language.Roslyn
                     ? d.FunctionSetupStartOffset
                     : OffsetOfLine(source, d.FunctionSetupStartLine);
 
+                // Count newlines in the gap (removed return statement) so that
+                // the straddle case in EmitMappedWithGap can compute the correct
+                // #line directive for post-gap code.
+                int gapNewlines = 0;
+                if (d.FunctionSetupGapOffset >= 0 && d.FunctionSetupGapLength > 0)
+                {
+                    int gapSourceStart = setupStartOffset + d.FunctionSetupGapOffset;
+                    int gapSourceEnd = gapSourceStart + d.FunctionSetupGapLength;
+                    gapNewlines = CountNewlines(source, gapSourceStart,
+                        Math.Min(gapSourceEnd, source.Length));
+                }
+
                 EmitFunctionStyleSetupSegmented(
                     b,
                     d.FunctionSetupCode!,
@@ -433,7 +449,8 @@ namespace ReactiveUITK.Language.Roslyn
                     uitkxSetupStartLine:   d.FunctionSetupStartLine,
                     escapedPath:           escapedPath,
                     gapOffset:             d.FunctionSetupGapOffset,
-                    gapLength:             d.FunctionSetupGapLength);
+                    gapLength:             d.FunctionSetupGapLength,
+                    gapNewlines:           gapNewlines);
             }
 
             // Expression checks — emitted in-scope so that loop variables declared
@@ -445,6 +462,32 @@ namespace ReactiveUITK.Language.Roslyn
             EmitNodeExpressionsScoped(
                 markupOnlyNodes.ToImmutable(), b, escapedPath,
                 indent: "            ", ref __exprCtr, ref __attrCtr);
+
+            // Expression checks for setup-code JSX blocks (e.g.
+            // `var node = (<Button onClick={_ => setCount(count + 1)} />)`).
+            // These blocks were replaced with (VirtualNode)null! above, so
+            // Roslyn never sees the expressions inside them. Parse each block
+            // and emit expression statements so C# errors and completions work.
+            if (!d.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+            {
+                b.Scaffold(
+                    "            // ── Setup JSX expression checks ─────────────────────────\n"
+                );
+                var setupParseDiags = new List<ParseDiagnostic>();
+                foreach (var (jsxStart, jsxEnd, jsxLine) in d.SetupCodeMarkupRanges)
+                {
+                    var jsxDirectives = d with
+                    {
+                        MarkupStartIndex = jsxStart,
+                        MarkupEndIndex   = jsxEnd,
+                        MarkupStartLine  = jsxLine,
+                    };
+                    var jsxNodes = UitkxParser.Parse(source, escapedPath, jsxDirectives, setupParseDiags);
+                    EmitNodeExpressionsScoped(
+                        jsxNodes, b, escapedPath,
+                        indent: "            ", ref __exprCtr, ref __attrCtr);
+                }
+            }
 
             // Ensure all code paths return — components whose setup code only has
             // conditional `return (object)null!` branches need a fallback.
@@ -1111,7 +1154,8 @@ namespace ReactiveUITK.Language.Roslyn
             int uitkxSetupStartLine,
             string escapedPath,
             int gapOffset = -1,
-            int gapLength = 0)
+            int gapLength = 0,
+            int gapNewlines = 0)
         {
             int segStart   = 0;
             int currentLine = uitkxSetupStartLine;
@@ -1119,7 +1163,123 @@ namespace ReactiveUITK.Language.Roslyn
 
             while (i < setupCode.Length)
             {
-                // Only look for `(` that immediately precedes JSX
+                // ── Skip comments so branches never fire inside them ───────────
+                // Block comment /* ... */
+                if (setupCode[i] == '/' && i + 1 < setupCode.Length && setupCode[i + 1] == '*')
+                {
+                    int end = setupCode.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = end >= 0 ? end + 2 : setupCode.Length;
+                    continue;
+                }
+                // Line comment // ...
+                if (setupCode[i] == '/' && i + 1 < setupCode.Length && setupCode[i + 1] == '/')
+                {
+                    int end = setupCode.IndexOf('\n', i + 2);
+                    i = end >= 0 ? end + 1 : setupCode.Length;
+                    continue;
+                }
+
+                // ── Branch 2: => <Tag  (lambda arrow with bare inline markup) ──
+                // Handles `() => <Label text="..." />` without wrapping parens.
+                if (setupCode[i] == '=' && i + 1 < setupCode.Length && setupCode[i + 1] == '>')
+                {
+                    int arrowEnd = i + 2;
+                    int peek2 = arrowEnd;
+                    while (peek2 < setupCode.Length &&
+                           (setupCode[peek2] == ' '  || setupCode[peek2] == '\t' ||
+                            setupCode[peek2] == '\r' || setupCode[peek2] == '\n'))
+                        peek2++;
+
+                    if (peek2 < setupCode.Length && setupCode[peek2] == '<' &&
+                        peek2 + 1 < setupCode.Length && char.IsLetter(setupCode[peek2 + 1]))
+                    {
+                        // Emit the C# segment up to the JSX start (includes `=> `).
+                        int jsxStart = peek2;
+                        if (jsxStart > segStart)
+                        {
+                            string seg = setupCode.Substring(segStart, jsxStart - segStart);
+                            int segLine = currentLine;
+                            EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                                gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                            currentLine += CountNewlines(seg);
+                        }
+
+                        int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
+
+                        int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                        b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                        for (int k = 0; k < jsxNewlines; k++)
+                            b.Scaffold("\n");
+
+                        currentLine += jsxNewlines;
+                        segStart     = jsxEnd;
+                        i            = jsxEnd;
+                        continue;
+                    }
+                }
+
+                // ── Branch 2b: = <Tag  (bare assignment with inline markup) ────
+                // Handles `var x = <Label text="..." />` without wrapping parens.
+                // Must distinguish bare `=` from `=>`, `==`, `!=`, `<=`, `>=`.
+                if (setupCode[i] == '=' && i + 1 < setupCode.Length && setupCode[i + 1] != '>'
+                    && setupCode[i + 1] != '=')
+                {
+                    // Exclude !=, <=, >=
+                    bool preceded = i > 0 && (setupCode[i - 1] == '!' || setupCode[i - 1] == '<' || setupCode[i - 1] == '>');
+                    if (!preceded)
+                    {
+                        int peek2b = i + 1;
+                        while (peek2b < setupCode.Length &&
+                               (setupCode[peek2b] == ' '  || setupCode[peek2b] == '\t' ||
+                                setupCode[peek2b] == '\r' || setupCode[peek2b] == '\n'))
+                            peek2b++;
+
+                        if (peek2b < setupCode.Length && setupCode[peek2b] == '<' &&
+                            peek2b + 1 < setupCode.Length && char.IsLetter(setupCode[peek2b + 1]))
+                        {
+                            int jsxStart = peek2b;
+                            if (jsxStart > segStart)
+                            {
+                                string seg = setupCode.Substring(segStart, jsxStart - segStart);
+                                int segLine = currentLine;
+                                EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                                    gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                                currentLine += CountNewlines(seg);
+                            }
+
+                            int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
+
+                            int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                            b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                            for (int k = 0; k < jsxNewlines; k++)
+                                b.Scaffold("\n");
+
+                            currentLine += jsxNewlines;
+                            segStart     = jsxEnd;
+                            i            = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Branch 3: @( — strip @ so Roslyn sees plain (expr) ─────────
+                if (setupCode[i] == '@' && i + 1 < setupCode.Length && setupCode[i + 1] == '(')
+                {
+                    if (i > segStart)
+                    {
+                        string seg = setupCode.Substring(segStart, i - segStart);
+                        int segLine = currentLine;
+                        EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                            gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                        currentLine += CountNewlines(seg);
+                    }
+                    // Skip the `@` — the `(` will be re-processed next iteration.
+                    segStart = i + 1;
+                    i        = i + 1;
+                    continue;
+                }
+
+                // ── Branch 1: `(` that immediately precedes JSX ────────────────
                 if (setupCode[i] != '(')
                 {
                     i++;
@@ -1147,7 +1307,7 @@ namespace ReactiveUITK.Language.Roslyn
                     string seg     = setupCode.Substring(segStart, i - segStart);
                     int    segLine = currentLine;
                     EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
-                        gapOffset, gapLength, segLine, escapedPath);
+                        gapOffset, gapLength, gapNewlines, segLine, escapedPath);
                     // Advance currentLine by the newlines inside the segment.
                     currentLine += CountNewlines(seg);
                 }
@@ -1165,14 +1325,12 @@ namespace ReactiveUITK.Language.Roslyn
 
                 // 3. Scaffold a valid C# placeholder with the same newline count
                 //    so Roslyn's #line tracking stays in sync.
-                //    Use (object)null! so `var x = (object)null!` compiles (CS0815
-                //    fires when the type cannot be inferred from a bare null literal).
-                int jsxNewlines = CountNewlines(setupCode, i, j);
-                b.Scaffold("(object)null!");
-                for (int k = 0; k < jsxNewlines; k++)
+                int jsxNewlines2 = CountNewlines(setupCode, i, j);
+                b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                for (int k = 0; k < jsxNewlines2; k++)
                     b.Scaffold("\n");
 
-                currentLine += jsxNewlines;
+                currentLine += jsxNewlines2;
                 segStart     = j;
                 i            = j;
             }
@@ -1183,7 +1341,7 @@ namespace ReactiveUITK.Language.Roslyn
                 string seg     = setupCode.Substring(segStart);
                 int    segLine = currentLine;
                 EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
-                    gapOffset, gapLength, segLine, escapedPath);
+                    gapOffset, gapLength, gapNewlines, segLine, escapedPath);
             }
 
             b.Scaffold("\n");
@@ -1201,6 +1359,7 @@ namespace ReactiveUITK.Language.Roslyn
             int baseOffset,
             int gapOffset,
             int gapLength,
+            int gapNewlines,
             int segLine,
             string escapedPath)
         {
@@ -1229,7 +1388,7 @@ namespace ReactiveUITK.Language.Roslyn
                 int splitAt = gapOffset - segStart;
                 string seg1 = seg.Substring(0, splitAt);
                 string seg2 = seg.Substring(splitAt);
-                int seg2Line = segLine + CountNewlines(seg1);
+                int seg2Line = segLine + CountNewlines(seg1) + gapNewlines;
 
                 b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
                 b.Mapped(seg1, baseOffset + segStart,
@@ -1330,6 +1489,94 @@ namespace ReactiveUITK.Language.Roslyn
             for (int i = start; i < end && i < s.Length; i++)
                 if (s[i] == '\n') count++;
             return count;
+        }
+
+        /// <summary>
+        /// Finds the end position (exclusive) of a JSX element starting at
+        /// <paramref name="start"/> (which must point to <c>&lt;</c>).
+        /// Handles self-closing (<c>/&gt;</c>) and container elements with
+        /// nested children.  Skips over string literals and <c>{expr}</c> blocks.
+        /// Returns <paramref name="start"/> if the element cannot be parsed.
+        /// </summary>
+        private static int FindJsxElementEnd(string text, int start, int limit)
+        {
+            if (start >= limit || text[start] != '<')
+                return start;
+
+            int depth = 0;
+            int i = start;
+
+            while (i < limit)
+            {
+                char ch = text[i];
+
+                // Skip string literals inside attributes
+                if (ch == '"')
+                {
+                    i++;
+                    while (i < limit && text[i] != '"')
+                        i++;
+                    if (i < limit) i++; // skip closing "
+                    continue;
+                }
+
+                // Skip C# expression blocks {expr}
+                if (ch == '{')
+                {
+                    i++;
+                    int braceDepth = 1;
+                    while (i < limit && braceDepth > 0)
+                    {
+                        if      (text[i] == '{') braceDepth++;
+                        else if (text[i] == '}') braceDepth--;
+                        else if (text[i] == '"')
+                        {
+                            i++;
+                            while (i < limit && text[i] != '"')
+                            {
+                                if (text[i] == '\\') i++;
+                                i++;
+                            }
+                        }
+                        if (braceDepth > 0) i++;
+                    }
+                    if (i < limit) i++; // skip closing }
+                    continue;
+                }
+
+                // Self-closing end: />
+                if (ch == '/' && i + 1 < limit && text[i + 1] == '>')
+                {
+                    depth--;
+                    i += 2;
+                    if (depth <= 0) return i;
+                    continue;
+                }
+
+                // Closing tag: </Tag>
+                if (ch == '<' && i + 1 < limit && text[i + 1] == '/')
+                {
+                    depth--;
+                    i += 2;
+                    while (i < limit && text[i] != '>')
+                        i++;
+                    if (i < limit) i++; // skip >
+                    if (depth <= 0) return i;
+                    continue;
+                }
+
+                // Opening tag: <Tag
+                if (ch == '<' && i + 1 < limit && char.IsLetter(text[i + 1]))
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+
+                i++;
+            }
+
+            return i; // reached end of text
         }
     }
 }

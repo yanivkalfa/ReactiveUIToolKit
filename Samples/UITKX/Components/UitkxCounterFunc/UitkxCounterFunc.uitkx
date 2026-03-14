@@ -222,13 +222,14 @@ component UitkxCounterFunc {
     });
   }
 
-  return (
+  {/* return (
     <Box>
       <Label text="sas" />
     </Box>
-  );
+  ); */}
 
-  // ── MultiColumnTreeView actions ────────────────────────────────────────────
+
+   // ── MultiColumnTreeView actions ────────────────────────────────────────────
   void MctvSetChild()
   {
     setMctvRows(prev =>
@@ -259,6 +260,12 @@ component UitkxCounterFunc {
 
   void MctvDeleteLast()
   {
+
+    var bla = (
+      <Box>
+        <Label text="This is a TabView demo." />
+      </Box>
+    );
     setMctvRows(prev =>
     {
       return prev;
@@ -272,14 +279,26 @@ component UitkxCounterFunc {
     });
   }
 
+  var secondElement = (
+    <VisualElement>
+      <Button text="-5" onClick={_ => setCount(count - 5)} />
+      <Button text="+5" onClick={_ => setCount(count + 5)} />
+    </VisualElement>
+  );
+
   // ── TabViewProps with TabDef closures ──────────────────────────────────────
   var tabViewProps = new TabViewProps
   {
     SelectedIndex = tabIndex,
     Tabs = new List<TabViewProps.TabDef>
     {
-      new TabViewProps.TabDef { Title = "Log", Content = () => V.Label(new LabelProps { Text = "This is a TabView demo." }) },
-      new TabViewProps.TabDef { Title = "Counter", Content = () => V.Label(new LabelProps { Text = $"Count: {count}" }) },
+      new TabViewProps.TabDef { Title = "Log", Content = () => (
+        <VisualElement>
+          <Button text="-5" onClick={_ => setCount(count - 5)} />
+          <Button text="+5" onClick={_ => setCount(count + 5)} />
+        </VisualElement>
+      )},
+      new TabViewProps.TabDef { Title = "Counter", Content = () => secondElement },
       new TabViewProps.TabDef { Title = "Mode", Content = () => V.Label(new LabelProps { Text = $"Mode: {mode}" }) },
     },
     Style = new Style { (StyleKeys.Height, 160f) },
@@ -328,18 +347,19 @@ component UitkxCounterFunc {
 
     // ── var: portalNode ternary (deeply nested) ────────────────────────────────
   var portalNode = portalTarget != null
-    ? V.Portal(
-      portalTarget,
-      null,
-      mounted
-        ? V.Button(new ButtonProps
-        {
-          Text = "Portal Button (click me)",
-          OnClick = _ => AppendLog("Portal button clicked"),
-          Style = new Style { (StyleKeys.MarginTop, 6f) },
-        })
-        : V.Label(new LabelProps { Text = "Portal unmounted." })
-      )
+    ? (
+      <Portal target={portalTarget}>
+        @if (mounted) {
+          <Button
+            text="Portal Button (click me)"
+            onClick={_ => AppendLog("Portal button clicked")}
+            style={new Style { (StyleKeys.MarginTop, 6f) }}
+          />
+        } @else {
+          <Label text="Portal unmounted." />
+        }
+      </Portal>
+    )
     : null;
 
   // ── var: typed MenuBuilderHandler lambda ───────────────────────────────────

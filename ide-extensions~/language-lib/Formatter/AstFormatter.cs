@@ -197,7 +197,7 @@ namespace ReactiveUITK.Language.Formatter
             if (!string.IsNullOrWhiteSpace(beforeReturnCode))
             {
                 string tabExp = new string(' ', _opts.IndentSize);
-                string codeToFormat = beforeReturnCode!;
+                string codeToFormat = NormalizeBareArrows(beforeReturnCode!);
 
                 // Check for JSX paren blocks in the before-return portion only.
                 bool hasJsxInSetup = false;
@@ -493,6 +493,51 @@ namespace ReactiveUITK.Language.Formatter
                 return;
             var lines = code.Split('\n');
 
+            // ── Pre-process: split `{content` lines ───────────────────────────
+            // When a line starts with `{` followed by content (not just `{`
+            // alone) and the line has net-positive open braces, the `{` opens
+            // a multi-line block while content sits on the same line.  Split
+            // into two lines so the formatter can indent the content inside
+            // the block correctly.  Skip `{/*` (JSX/C# comment expressions).
+            {
+                var split = new System.Collections.Generic.List<string>(lines.Length);
+                for (int si = 0; si < lines.Length; si++)
+                {
+                    string raw = lines[si];
+                    string t = raw.TrimStart();
+                    if (t.Length > 1 && t[0] == '{')
+                    {
+                        int after = 1;
+                        while (after < t.Length && (t[after] == ' ' || t[after] == '\t'))
+                            after++;
+
+                        bool hasContent = after < t.Length && t[after] != '}';
+                        bool isBlockComment = after + 1 < t.Length
+                            && t[after] == '/' && t[after + 1] == '*';
+
+                        if (hasContent && !isBlockComment)
+                        {
+                            int opens = 0, closes = 0;
+                            for (int c = 0; c < t.Length; c++)
+                            {
+                                if (t[c] == '{') opens++;
+                                else if (t[c] == '}') closes++;
+                            }
+                            if (opens > closes)
+                            {
+                                int leadWs = raw.Length - raw.TrimStart().Length;
+                                string wsPrefix = leadWs > 0 ? raw.Substring(0, leadWs) : "";
+                                split.Add(wsPrefix + "{");
+                                split.Add(wsPrefix + t.Substring(1).TrimStart());
+                                continue;
+                            }
+                        }
+                    }
+                    split.Add(raw);
+                }
+                lines = split.ToArray();
+            }
+
             // Find last non-blank line index (for suppressLastNewline).
             int lastMeaningful = lines.Length - 1;
             while (lastMeaningful >= 0 && string.IsNullOrWhiteSpace(lines[lastMeaningful]))
@@ -713,16 +758,51 @@ namespace ReactiveUITK.Language.Formatter
                     // the same extra level).
                 }
 
-                // Push for a trailing '{' — next lines should be one indentSize deeper.
-                string tail = stripped.TrimEnd();
-                if (tail.Length > 0 && tail[tail.Length - 1] == '{')
+                // Push for net unmatched '{' in the line (after leading '}' chars).
+                // Previously only a trailing '{' triggered a push, but mid-line
+                // '{' whose matching '}' lands on a later line (e.g. after a
+                // JSX placeholder) also needs to be tracked.
+                // Similarly, pop for net unmatched '}' (e.g. `*/}` closing a
+                // `{/*` comment block) so depth returns to the correct level.
+                int midOpens = 0, midCloses = 0;
+                for (int ci = leadClose; ci < stripped.Length; ci++)
                 {
-                    blockStack.Push(emittedTotal + _opts.IndentSize);
-                    caseExtraStack.Push(caseExtra);
-                    blockAnchorStack.Push(lastBlockAnchor);
-                    isLambdaStack.Push(tail.Contains("=>"));
+                    if (stripped[ci] == '{') midOpens++;
+                    else if (stripped[ci] == '}') midCloses++;
+                }
+                int netOpens = midOpens - midCloses;
+                if (netOpens > 0)
+                {
+                    string tail = stripped.TrimEnd();
+                    bool trailingBrace = tail.Length > 0 && tail[tail.Length - 1] == '{';
+                    bool lineHasArrow = stripped.Contains("=>");
+                    for (int p = 0; p < netOpens; p++)
+                    {
+                        blockStack.Push(emittedTotal + (p + 1) * _opts.IndentSize);
+                        caseExtraStack.Push(caseExtra);
+                        blockAnchorStack.Push(lastBlockAnchor);
+                        // Only the last push can be a lambda — and only when the
+                        // line actually ends with '{' (the traditional pattern).
+                        bool lambda = (p == netOpens - 1) && trailingBrace && lineHasArrow;
+                        isLambdaStack.Push(lambda);
+                    }
                     caseExtra = 0;
                     lastBlockAnchor = -1;
+                }
+                else if (netOpens < 0)
+                {
+                    // Mid-line net closes (e.g. `*/}` ending a `{/*` block).
+                    // Pop after the line is emitted — affects subsequent lines.
+                    for (int p = 0; p < -netOpens; p++)
+                    {
+                        if (blockStack.Count > 0)
+                        {
+                            blockStack.Pop();
+                            if (isLambdaStack.Count > 0) isLambdaStack.Pop();
+                            caseExtra = caseExtraStack.Count > 0 ? caseExtraStack.Pop() : 0;
+                            lastBlockAnchor = blockAnchorStack.Count > 0 ? blockAnchorStack.Pop() : -1;
+                        }
+                    }
                 }
             }
         }
@@ -1429,47 +1509,167 @@ namespace ReactiveUITK.Language.Formatter
             DirectiveSet directives,
             string tabExp)
         {
+            // Normalize bare arrow JSX:  => <Tag .../> → => (<Tag .../>)
+            setupCode = NormalizeBareArrows(setupCode);
+
             var blocks = ScanJsxParenBlocks(setupCode);
             if (blocks.Count == 0)
             {
-                // Unexpected — fall back to simple re-indent.
                 EmitCSharpLines(setupCode, tabExp, firstLineStripped: true, suppressLastNewline: false);
                 _sb.Append('\n');
                 return;
             }
 
-            int pos      = 0;
+            // ── Build a csharpWithPlaceholders string ─────────────────────────
+            // Replace each multi-line JSX paren-block with a single-line
+            // placeholder that preserves the brace context.  EmitCSharpLines
+            // formats the entire C# as one pass (correct brace tracking), then
+            // we splice the formatted JSX back in place of the placeholders.
+            //
+            // Single-line paren blocks are left as-is (they don't break brace
+            // context and EmitCSharpLines handles them fine).
+            const string PLACEHOLDER_PREFIX = "___UITKX_JSX_PLACEHOLDER_";
+            var multiLineBlocks = new List<(int Index, int Start, int End)>();
+
+            var csBuilder = new System.Text.StringBuilder(setupCode.Length);
+            int pos = 0;
             int blockIdx = 0;
-            bool firstSeg = true;
 
             foreach (var (jS, jE) in blocks)
             {
-                // ── C# segment before the opening '(' ────────────────────────
-                if (jS > pos)
+                // Check if this block spans multiple lines, or is a single-line
+                // container element (has `</` closing tag) that should be expanded.
+                bool isMultiLine = false;
+                bool hasContainerClose = false;
+                for (int k = jS; k < jE; k++)
                 {
-                    string seg = setupCode.Substring(pos, jS - pos);
-                    if (!string.IsNullOrWhiteSpace(seg))
-                    {
-                        EmitCSharpLines(seg, tabExp,
-                            firstLineStripped: firstSeg,
-                            suppressLastNewline: true);
-                    }
+                    if (setupCode[k] == '\n') { isMultiLine = true; break; }
+                    if (setupCode[k] == '<' && k + 1 < jE && setupCode[k + 1] == '/')
+                        hasContainerClose = true;
                 }
 
-                // ── Opening '(' — preserve space separation ───────────────────
-                // If the segment ended with '(' (e.g. container.Add() case) emit
-                // '(\n' directly; otherwise add a separating space first.
-                string priorTrimmed = jS > 0 ? setupCode.Substring(0, jS).TrimEnd() : "";
-                bool priorEndsParen = priorTrimmed.Length > 0
-                    && priorTrimmed[priorTrimmed.Length - 1] == '(';
-                _sb.Append(priorEndsParen ? "(\n" : " (\n");
+                if (!isMultiLine && !hasContainerClose)
+                {
+                    blockIdx++;
+                    continue; // simple single-line self-closing blocks stay in the C# text
+                }
 
-                // ── JSX block content ─────────────────────────────────────────
+                // Append C# before this block.
+                csBuilder.Append(setupCode, pos, jS - pos);
+
+                // Emit a placeholder line: keep the opening `(` and replace
+                // the content+closing with a marker that EmitCSharpLines will
+                // output as a normal statement.
+                csBuilder.Append($"{PLACEHOLDER_PREFIX}{multiLineBlocks.Count}___");
+
+                multiLineBlocks.Add((blockIdx, jS, jE));
+
+                // Skip past the `)` and its trailing `;` or `,`.
+                int afterPos = jE;
+                while (afterPos < setupCode.Length &&
+                       (setupCode[afterPos] == ' ' || setupCode[afterPos] == '\t'))
+                    afterPos++;
+
+                if (afterPos < setupCode.Length &&
+                    (setupCode[afterPos] == ';' || setupCode[afterPos] == ','))
+                {
+                    csBuilder.Append(setupCode[afterPos]); // keep the ; or ,
+                    pos = afterPos + 1;
+                }
+                else
+                {
+                    pos = jE;
+                }
+
+                blockIdx++;
+            }
+
+            // Append remaining C# after the last block.
+            if (pos < setupCode.Length)
+                csBuilder.Append(setupCode, pos, setupCode.Length - pos);
+
+            // ── Format the entire C# (with placeholders) in one pass ──────────
+            int savedSbLen = _sb.Length;
+            EmitCSharpLines(csBuilder.ToString(), tabExp, firstLineStripped: true, suppressLastNewline: false);
+            _sb.Append('\n');
+
+            // If no multi-line blocks, we're done.
+            if (multiLineBlocks.Count == 0)
+                return;
+
+            // ── Extract the formatted C# and splice JSX in ───────────────────
+            string formattedCs = _sb.ToString(savedSbLen, _sb.Length - savedSbLen);
+            _sb.Length = savedSbLen; // rewind
+
+            var lines = formattedCs.Split('\n');
+            int baseIndent = _indent; // component-level indent (typically 1)
+
+            for (int li = 0; li < lines.Length; li++)
+            {
+                string line = lines[li];
+
+                // Check if this line contains a placeholder.
+                int phIdx = line.IndexOf(PLACEHOLDER_PREFIX, System.StringComparison.Ordinal);
+                if (phIdx < 0)
+                {
+                    _sb.Append(line);
+                    if (li < lines.Length - 1)
+                        _sb.Append('\n');
+                    continue;
+                }
+
+                // Extract placeholder index.
+                int markerStart = phIdx + PLACEHOLDER_PREFIX.Length;
+                int markerEnd = line.IndexOf("___", markerStart, System.StringComparison.Ordinal);
+                if (markerEnd < 0)
+                {
+                    _sb.Append(line);
+                    if (li < lines.Length - 1)
+                        _sb.Append('\n');
+                    continue;
+                }
+
+                int placeholderIdx;
+                if (!int.TryParse(line.Substring(markerStart, markerEnd - markerStart), out placeholderIdx)
+                    || placeholderIdx < 0 || placeholderIdx >= multiLineBlocks.Count)
+                {
+                    _sb.Append(line);
+                    if (li < lines.Length - 1)
+                        _sb.Append('\n');
+                    continue;
+                }
+
+                var (origBlockIdx, origStart, origEnd) = multiLineBlocks[placeholderIdx];
+
+                // Everything before the placeholder is the C# prefix (e.g. "    var oneTest = ").
+                string prefix = line.Substring(0, phIdx);
+                // Trailing punctuation (e.g. ";") after the placeholder marker.
+                string suffix = line.Substring(markerEnd + 3).TrimEnd();
+
+                // Measure the indent of this line (in spaces).
+                int lineIndentSpaces = 0;
+                foreach (char ch in prefix)
+                {
+                    if (ch == ' ') lineIndentSpaces++;
+                    else if (ch == '\t') lineIndentSpaces += _opts.IndentSize;
+                    else break;
+                }
+
+                // Set _indent to match the C# nesting.
+                int jsxIndent = lineIndentSpaces / _opts.IndentSize;
+
+                // Emit the line prefix (e.g. "    var oneTest = ") and opening `(`.
+                _sb.Append(prefix);
+                _sb.Append("(\n");
+
+                // ── Format JSX content ────────────────────────────────────────
+                _indent = jsxIndent + 1;
                 bool jsxEmitted = false;
-                if (blockIdx < directives.SetupCodeMarkupRanges.Length
+
+                if (origBlockIdx < directives.SetupCodeMarkupRanges.Length
                     && !string.IsNullOrEmpty(_source))
                 {
-                    var (rangeStart, rangeEnd, rangeLine) = directives.SetupCodeMarkupRanges[blockIdx];
+                    var (rangeStart, rangeEnd, rangeLine) = directives.SetupCodeMarkupRanges[origBlockIdx];
                     try
                     {
                         var jsxDiags      = new List<ParseDiagnostic>();
@@ -1486,76 +1686,51 @@ namespace ReactiveUITK.Language.Formatter
 
                         if (!hasErrors && jsxNodes.Length > 0)
                         {
-                            _indent++;
                             FormatNodeList(jsxNodes, topLevel: false);
-                            _indent--;
                             jsxEmitted = true;
                         }
                     }
-                    catch { /* best-effort — fall through to raw emit */ }
+                    catch { /* best-effort */ }
                 }
 
                 if (!jsxEmitted)
                 {
-                    // Fallback: re-indent the raw JSX text.
-                    string jsxContent = setupCode.Substring(jS + 1, jE - jS - 2);
-                    _indent++;
+                    // Fallback: raw re-indent.
+                    int contentStart = origStart + 1;
+                    int contentEnd   = origEnd - 1;
+                    int contentLen   = contentEnd - contentStart;
+                    if (contentLen < 0) contentLen = 0;
+                    string jsxContent = setupCode.Substring(contentStart, contentLen);
                     EmitCSharpLines(jsxContent, tabExp,
                         firstLineStripped: false, suppressLastNewline: false);
-                    _indent--;
                 }
 
-                // ── Closing ')' with trailing punctuation ─────────────────────
-                // Peek past whitespace at what comes immediately after ')'.
-                int afterPos = jE;
-                while (afterPos < setupCode.Length
-                       && (setupCode[afterPos] == ' ' || setupCode[afterPos] == '\t'))
-                    afterPos++;
+                // ── Closing ')' ───────────────────────────────────────────────
+                _indent = jsxIndent;
+                Ln(")" + suffix);
+                _indent = baseIndent;
 
-                if (afterPos < setupCode.Length && setupCode[afterPos] == ';')
-                {
-                    Ln(");");
-                    pos = afterPos + 1;
-                    // Consume one trailing newline so the next segment's
-                    // firstLineStripped logic works correctly.
-                    if (pos < setupCode.Length && setupCode[pos] == '\r') pos++;
-                    if (pos < setupCode.Length && setupCode[pos] == '\n') pos++;
-                }
-                else if (afterPos < setupCode.Length && setupCode[afterPos] == ',')
-                {
-                    Ln("),");
-                    pos = afterPos + 1;
-                    if (pos < setupCode.Length && setupCode[pos] == '\r') pos++;
-                    if (pos < setupCode.Length && setupCode[pos] == '\n') pos++;
-                }
-                else
-                {
-                    Ln(")");
-                    pos = jE;
-                }
-
-                blockIdx++;
-                firstSeg = false;
+                // Don't append \n here — the `Ln` already did.
+                // But the for loop expects to append \n, so skip it for this line.
+                // Actually, Ln already appended \n. We just need to not double it.
+                // The loop would append \n if li < lines.Length - 1, but Ln already did.
+                // So we skip the \n append for this line.
+                continue;
             }
 
-            // ── Remaining C# after the last JSX block ─────────────────────────
-            if (pos < setupCode.Length)
-            {
-                string remaining = setupCode.Substring(pos);
-                if (!string.IsNullOrWhiteSpace(remaining))
-                    EmitCSharpLines(remaining, tabExp,
-                        firstLineStripped: false, suppressLastNewline: false);
-            }
-            _sb.Append('\n');
+            _indent = baseIndent;
         }
 
         /// <summary>
         /// Scans <paramref name="code"/> for JSX paren-blocks: a <c>'('</c> whose
         /// first non-whitespace content is <c>'&lt;'</c>.  Returns a list of
-        /// <c>(ParenStart, ParenEnd)</c> pairs where <c>code[ParenStart]='('</c>
-        /// and <c>code[ParenEnd-1]=')'</c>.
+        /// <c>(BlockStart, BlockEnd)</c> tuples where
+        /// <c>code[BlockStart]='('</c> and <c>code[BlockEnd-1]=')'</c>.
+        /// Bare forms (<c>=&gt; &lt;Tag</c> and <c>= &lt;Tag</c>) should be
+        /// pre-normalised via <see cref="NormalizeBareArrows"/> before calling
+        /// this method.
         /// </summary>
-        private static List<(int ParenStart, int ParenEnd)> ScanJsxParenBlocks(string code)
+        private static List<(int Start, int End)> ScanJsxParenBlocks(string code)
         {
             var result = new List<(int, int)>();
             int i = 0;
@@ -1569,7 +1744,12 @@ namespace ReactiveUITK.Language.Formatter
                         || code[peek] == '\r' || code[peek] == '\n'))
                     peek++;
 
-                if (peek >= code.Length || code[peek] != '<') { i++; continue; }
+                if (peek >= code.Length || code[peek] != '<'
+                    || peek + 1 >= code.Length || !char.IsLetter(code[peek + 1]))
+                {
+                    i++;
+                    continue;
+                }
 
                 int depth = 1, j = i + 1;
                 while (j < code.Length && depth > 0)
@@ -1587,6 +1767,157 @@ namespace ReactiveUITK.Language.Formatter
                 else { i++; }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Pre-processes <paramref name="code"/> to normalise bare JSX after
+        /// <c>=&gt;</c> (arrow) or <c>=</c> (assignment) into paren-wrapped form.
+        /// <list type="bullet">
+        ///   <item><c>=&gt; &lt;Tag .../&gt;</c>  →  <c>=&gt; (&lt;Tag .../&gt;)</c></item>
+        ///   <item><c>= &lt;Tag .../&gt;</c>  →  <c>= (&lt;Tag .../&gt;)</c></item>
+        /// </list>
+        /// Already paren-wrapped expressions are left unchanged.  The result
+        /// can then be scanned by <see cref="ScanJsxParenBlocks"/>.
+        /// </summary>
+        private static string NormalizeBareArrows(string code)
+        {
+            var insertions = new List<(int Position, char Char)>();
+            int i = 0;
+            while (i < code.Length)
+            {
+                if (code[i] == '=')
+                {
+                    int peek;
+                    bool isArrow = i + 1 < code.Length && code[i + 1] == '>';
+
+                    if (isArrow)
+                    {
+                        // => <Tag
+                        peek = i + 2;
+                    }
+                    else
+                    {
+                        // Bare = : skip ==, !=, <=, >=
+                        if (i + 1 < code.Length && code[i + 1] == '=') { i++; continue; }
+                        if (i > 0 && (code[i - 1] == '!' || code[i - 1] == '<' || code[i - 1] == '>')) { i++; continue; }
+                        peek = i + 1;
+                    }
+
+                    while (peek < code.Length &&
+                           (code[peek] == ' '  || code[peek] == '\t' ||
+                            code[peek] == '\r' || code[peek] == '\n'))
+                        peek++;
+
+                    if (peek < code.Length && code[peek] == '<'
+                        && peek + 1 < code.Length && char.IsLetter(code[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(code, peek, code.Length);
+                        if (jsxEnd > peek)
+                        {
+                            insertions.Add((peek, '('));
+                            insertions.Add((jsxEnd, ')'));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+                i++;
+            }
+
+            if (insertions.Count == 0) return code;
+
+            var sb = new System.Text.StringBuilder(code.Length + insertions.Count);
+            int pos = 0;
+            foreach (var (insPos, ch) in insertions)
+            {
+                sb.Append(code, pos, insPos - pos);
+                sb.Append(ch);
+                pos = insPos;
+            }
+            sb.Append(code, pos, code.Length - pos);
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Finds the end position (exclusive) of a JSX element starting at
+        /// <paramref name="start"/> (which must point to <c>&lt;</c>).
+        /// Handles self-closing (<c>/&gt;</c>) and container elements with
+        /// nested children.  Skips over string literals and <c>{expr}</c> blocks.
+        /// </summary>
+        private static int FindJsxElementEnd(string text, int start, int limit)
+        {
+            if (start >= limit || text[start] != '<')
+                return start;
+
+            int depth = 0;
+            int i = start;
+
+            while (i < limit)
+            {
+                char ch = text[i];
+
+                if (ch == '"')
+                {
+                    i++;
+                    while (i < limit && text[i] != '"')
+                        i++;
+                    if (i < limit) i++;
+                    continue;
+                }
+
+                if (ch == '{')
+                {
+                    i++;
+                    int braceDepth = 1;
+                    while (i < limit && braceDepth > 0)
+                    {
+                        if      (text[i] == '{') braceDepth++;
+                        else if (text[i] == '}') braceDepth--;
+                        else if (text[i] == '"')
+                        {
+                            i++;
+                            while (i < limit && text[i] != '"')
+                            {
+                                if (text[i] == '\\') i++;
+                                i++;
+                            }
+                        }
+                        if (braceDepth > 0) i++;
+                    }
+                    if (i < limit) i++;
+                    continue;
+                }
+
+                if (ch == '/' && i + 1 < limit && text[i + 1] == '>')
+                {
+                    depth--;
+                    i += 2;
+                    if (depth <= 0) return i;
+                    continue;
+                }
+
+                if (ch == '<' && i + 1 < limit && text[i + 1] == '/')
+                {
+                    depth--;
+                    i += 2;
+                    while (i < limit && text[i] != '>')
+                        i++;
+                    if (i < limit) i++;
+                    if (depth <= 0) return i;
+                    continue;
+                }
+
+                if (ch == '<' && i + 1 < limit && char.IsLetter(text[i + 1]))
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+
+                i++;
+            }
+
+            return i;
         }
     }
 }

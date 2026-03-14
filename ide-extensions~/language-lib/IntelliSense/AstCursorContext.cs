@@ -189,10 +189,13 @@ namespace ReactiveUITK.Language.IntelliSense
             // Lines at or after FunctionSetupStartLine are C# setup code unless
             // the AST places the cursor inside a markup element's open-tag.
             // This covers `allowNextRef.Current`, `StyleKeys.Color`, etc.
+            // Skip this short-circuit when the cursor is inside a setup-code
+            // JSX block — let ClassifyTagPosition handle tag/attribute detection.
             if (parseResult.Directives.IsFunctionStyle
                 && parseResult.Directives.FunctionSetupStartLine > 0
                 && line1 >= parseResult.Directives.FunctionSetupStartLine
-                && astTagName == null)
+                && astTagName == null
+                && !IsInsideSetupCodeMarkup(parseResult, text, line1, col0))
             {
                 return new CursorContext
                 {
@@ -207,6 +210,37 @@ namespace ReactiveUITK.Language.IntelliSense
         }
 
         // ── Line text helpers ─────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns <c>true</c> when the cursor (1-based line, 0-based col) falls
+        /// inside one of the setup-code JSX block ranges.
+        /// </summary>
+        private static bool IsInsideSetupCodeMarkup(
+            ParseResult parseResult, string text, int line1, int col0)
+        {
+            if (parseResult.Directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+                return false;
+            int offset = OffsetFromLineCol(text, line1, col0);
+            foreach (var (start, end, _) in parseResult.Directives.SetupCodeMarkupRanges)
+            {
+                if (offset >= start && offset < end)
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>Converts 1-based line + 0-based column to absolute character offset.</summary>
+        private static int OffsetFromLineCol(string text, int line1, int col0)
+        {
+            int pos = 0;
+            for (int l = 1; l < line1 && pos < text.Length; l++)
+            {
+                int nl = text.IndexOf('\n', pos);
+                if (nl < 0) { pos = text.Length; break; }
+                pos = nl + 1;
+            }
+            return pos + col0;
+        }
 
         /// <summary>Returns the raw text of the 1-based <paramref name="line1"/> (CR/LF stripped).</summary>
         private static string GetLine(string text, int line1)
