@@ -145,15 +145,11 @@ public sealed class DiagnosticsPublisher
         var knownAttributes = BuildKnownAttributes(projectElements);
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
 
-        // Also run T2 element/attribute checks on setup JSX nodes (these nodes
-        // are NOT part of the main parse result because CanonicalLowering only
-        // processes the return-statement markup).
-        if (!setupJsxNodes.IsEmpty)
-        {
-            var setupT2 = _analyzer.AnalyzeNodes(setupJsxNodes, projectElements, knownAttributes);
-            if (setupT2.Count > 0)
-                t2Diags = t2Diags.Concat(setupT2).ToList();
-        }
+        // NOTE: T2 element/attribute checks for setup JSX are already covered
+        // by the main Analyze path — CanonicalLowering hoists setup code into a
+        // CodeBlockNode whose ReturnMarkups contain the JSX elements, and
+        // WalkNode walks into those ReturnMarkups.  Running AnalyzeNodes on the
+        // separately-parsed setupJsxNodes would produce duplicate diagnostics.
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 // Suppress T1 parser diagnostics that fall inside unreachable regions

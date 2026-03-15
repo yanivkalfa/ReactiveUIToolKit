@@ -27,10 +27,10 @@ public static class CanonicalLowering
             return parsedRoots;
 
         string setupCode = directives.FunctionSetupCode ?? string.Empty;
-        int setupLine = directives.ComponentDeclarationLine > 0
-            ? directives.ComponentDeclarationLine
-            : directives.FunctionSetupStartLine > 0
-                ? directives.FunctionSetupStartLine
+        int setupLine = directives.FunctionSetupStartLine > 0
+            ? directives.FunctionSetupStartLine
+            : directives.ComponentDeclarationLine > 0
+                ? directives.ComponentDeclarationLine
                 : directives.MarkupStartLine;
 
         var lowered = ImmutableArray.CreateBuilder<AstNode>(parsedRoots.Length + 1);
