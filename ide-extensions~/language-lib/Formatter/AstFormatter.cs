@@ -66,18 +66,31 @@ namespace ReactiveUITK.Language.Formatter
             // Return source unchanged when there are parse errors — except
             // UITKX2103 (multiple top-level returns) which is structural but
             // the file still parses successfully with the first return extracted.
-            foreach (var d in diags)
-                if (d.Severity == ParseSeverity.Error && d.Code != "UITKX2103")
-                    return source;
+            // When UITKX2103 is present, the first parse may produce spurious
+            // errors (e.g. UITKX0306 for @(...) in markup that was misidentified
+            // as setup code).  Skip the bail here and re-parse with the correct
+            // (last) return first; check re-parse diagnostics instead.
+            bool hasMultiReturn = diags.Any(d => d.Code == "UITKX2103");
+
+            if (!hasMultiReturn)
+            {
+                foreach (var d in diags)
+                    if (d.Severity == ParseSeverity.Error)
+                        return source;
+            }
 
             // When there are multiple top-level returns (UITKX2103), re-parse
             // using the LAST return so the formatter formats the real render
             // markup instead of an early-exit return.
-            if (directives.IsFunctionStyle && diags.Any(d => d.Code == "UITKX2103"))
+            if (directives.IsFunctionStyle && hasMultiReturn)
             {
                 var fmtDiags = new List<ParseDiagnostic>();
                 directives = DirectiveParser.Parse(source, filePath, fmtDiags, useLastReturn: true);
                 nodes = UitkxParser.Parse(source, filePath, directives, fmtDiags);
+
+                foreach (var d in fmtDiags)
+                    if (d.Severity == ParseSeverity.Error)
+                        return source;
             }
 
             if (directives.IsFunctionStyle)
@@ -1736,6 +1749,13 @@ namespace ReactiveUITK.Language.Formatter
             int i = 0;
             while (i < code.Length)
             {
+                // Skip // line comments
+                if (code[i] == '/' && i + 1 < code.Length && code[i + 1] == '/')
+                {
+                    while (i < code.Length && code[i] != '\n') i++;
+                    continue;
+                }
+
                 if (code[i] != '(') { i++; continue; }
 
                 int peek = i + 1;
@@ -1785,6 +1805,13 @@ namespace ReactiveUITK.Language.Formatter
             int i = 0;
             while (i < code.Length)
             {
+                // Skip // line comments
+                if (code[i] == '/' && i + 1 < code.Length && code[i + 1] == '/')
+                {
+                    while (i < code.Length && code[i] != '\n') i++;
+                    continue;
+                }
+
                 if (code[i] == '=')
                 {
                     int peek;

@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.233] - 2026-03-15
+- Fix: formatter no-op when multiple top-level returns with @(...) in markup (UITKX2103 + UITKX0306 interaction)
+
 ## [1.0.230] - 2026-03-15
 - Fix semicolon check skipping comments after JSX paren blocks
 

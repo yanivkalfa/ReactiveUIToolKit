@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("UitkxLanguageServer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0413a6eb73ef27d93e24bdb663c7a3301aa7c175")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+841e00a9e52084bcd4d9eee77e1fdae8e50054d8")]
 [assembly: System.Reflection.AssemblyProductAttribute("UitkxLanguageServer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("UitkxLanguageServer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

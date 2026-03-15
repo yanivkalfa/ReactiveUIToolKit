@@ -141,7 +141,7 @@ public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage
     // Captures the live JsonRpc pipe so UitkxCompletionSource / UitkxHoverSource
     // can call textDocument/completion and textDocument/hover directly.
 
-    object? ILanguageClientCustomMessage2.MiddleLayer => null;
+    object? ILanguageClientCustomMessage2.MiddleLayer { get; } = new UitkxMiddleLayer();
     object? ILanguageClientCustomMessage2.CustomMessageTarget => null;
 
     Task ILanguageClientCustomMessage2.AttachForCustomMessageAsync(JsonRpc rpc)

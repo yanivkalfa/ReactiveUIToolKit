@@ -8023,4 +8023,74 @@ component Comp {
         var onClickEntry = map.ToUitkxOffset(onClickIdx);
         Assert.True(onClickEntry.HasValue, "onClick expression has no source map entry");
     }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  B.14  Multiple top-level returns with @(...) in markup
+    //  Regression: UITKX0306 from misidentified setup code must not prevent
+    //  formatting when UITKX2103 triggers re-parse with useLastReturn.
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void MultiReturn_EarlyReturnInSetup_FormatsCorrectly()
+    {
+        var source = N("""
+            component Counter {
+              var (count, setCount) = useState(0);
+              return (<Box></Box>);
+              var x = 1;
+              return (
+                <Button text="hello" />
+              );
+            }
+            """);
+        var result = Format(source);
+        Assert.NotEqual(source, result);
+        Assert.Contains("return (", result);
+    }
+
+    [Fact]
+    public void MultiReturn_CommentedReturnWithLooseJsx_FormatsCorrectly()
+    {
+        var source = N("""
+            component Counter {
+              var (count, setCount) = useState(0);
+              //return (
+                <Box />
+              );
+              var x = 1;
+              return (
+                <Button text="hello" />
+              );
+            }
+            """);
+        var result = Format(source);
+        Assert.Contains("return (", result);
+        Assert.Contains("<Button", result);
+    }
+
+    [Fact]
+    public void MultiReturn_ActualFile_Idempotent()
+    {
+        var file = Path.Combine(WorkspaceRoot(),
+            "Samples", "UITKX", "Components", "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
+        if (!File.Exists(file)) return;
+        var source = N(File.ReadAllText(file));
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void MultiReturn_ActualFile_EarlyReturnReplacedSingleLine_Formats()
+    {
+        var file = Path.Combine(WorkspaceRoot(),
+            "Samples", "UITKX", "Components", "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
+        if (!File.Exists(file)) return;
+        var source = N(File.ReadAllText(file));
+        var modified = source
+            .Replace("  //return (\n    <Box />\n  );", "  return (<Box></Box>);");
+        Assert.NotEqual(source, modified);
+        var result = Format(modified);
+        Assert.NotEqual(modified, result);
+        Assert.Contains("<Button", result);
+    }
 }

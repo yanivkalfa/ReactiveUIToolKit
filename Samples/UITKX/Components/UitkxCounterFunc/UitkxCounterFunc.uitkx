@@ -260,7 +260,6 @@ component UitkxCounterFunc {
 
   void MctvDeleteLast()
   {
-
     var bla = (
       <Box>
         <Label text="This is a TabView demo." />
@@ -303,6 +302,11 @@ component UitkxCounterFunc {
     },
     Style = new Style { (StyleKeys.Height, 160f) },
   };
+
+  {/* return (
+    <Box />
+  ); */}
+
 
   // ── var: simple Style initializer ─────────────────────────────────────────
   var containerStyle = new Style {

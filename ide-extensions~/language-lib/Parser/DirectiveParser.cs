@@ -1815,6 +1815,13 @@ namespace ReactiveUITK.Language.Parser
             int i = rangeStart;
             while (i < rangeEnd)
             {
+                // Skip // line comments
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
+                {
+                    while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
                 // ── Bare arrow: => <Tag ──────────────────────────────────
                 if (source[i] == '=' && i + 1 < rangeEnd && source[i + 1] == '>')
                 {

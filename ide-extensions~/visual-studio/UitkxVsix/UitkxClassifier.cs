@@ -398,6 +398,16 @@ internal sealed class UitkxClassifier : IClassifier
                 continue;
             }
 
+            if (TryClassifyBlockComment(snapshot, text, ref index, spans))
+            {
+                continue;
+            }
+
+            if (TryClassifyJsxBlockComment(snapshot, text, ref index, spans))
+            {
+                continue;
+            }
+
             if (TryClassifyDirective(snapshot, text, ref index, spans))
             {
                 continue;
@@ -497,6 +507,63 @@ internal sealed class UitkxClassifier : IClassifier
             index++;
         }
 
+        AddSpan(snapshot, spans, start, index - start, _comment);
+        return true;
+    }
+
+    /// <summary>Classifies C# block comments: /* ... */</summary>
+    private bool TryClassifyBlockComment(
+        ITextSnapshot snapshot,
+        string text,
+        ref int index,
+        List<ClassificationSpan> spans
+    )
+    {
+        if (index + 1 >= text.Length || text[index] != '/' || text[index + 1] != '*')
+            return false;
+
+        var start = index;
+        index += 2;
+        while (index + 1 < text.Length)
+        {
+            if (text[index] == '*' && text[index + 1] == '/')
+            {
+                index += 2;
+                break;
+            }
+            index++;
+        }
+
+        AddSpan(snapshot, spans, start, index - start, _comment);
+        return true;
+    }
+
+    /// <summary>Classifies JSX block comments: {/* ... */}</summary>
+    private bool TryClassifyJsxBlockComment(
+        ITextSnapshot snapshot,
+        string text,
+        ref int index,
+        List<ClassificationSpan> spans
+    )
+    {
+        if (index + 3 >= text.Length || text[index] != '{' || text[index + 1] != '/' || text[index + 2] != '*')
+            return false;
+
+        var start = index;
+        index += 3; // skip {/*
+        while (index + 2 < text.Length)
+        {
+            if (text[index] == '*' && text[index + 1] == '/' && text[index + 2] == '}')
+            {
+                index += 3; // skip */}
+                AddSpan(snapshot, spans, start, index - start, _comment);
+                return true;
+            }
+            index++;
+        }
+
+        // Unterminated — classify what we have
+        index = text.Length;
         AddSpan(snapshot, spans, start, index - start, _comment);
         return true;
     }
@@ -634,6 +701,8 @@ internal sealed class UitkxClassifier : IClassifier
 
             if (
                 TryClassifyLineComment(snapshot, text, ref index, spans)
+                || TryClassifyBlockComment(snapshot, text, ref index, spans)
+                || TryClassifyJsxBlockComment(snapshot, text, ref index, spans)
                 || TryClassifyInterpolatedString(snapshot, text, ref index, spans)
                 || TryClassifyNormalString(snapshot, text, ref index, spans)
                 || TryClassifyBraceExpression(snapshot, text, ref index, spans)
@@ -709,7 +778,9 @@ internal sealed class UitkxClassifier : IClassifier
         while (index < text.Length && depth > 0)
         {
             if (
-                TryClassifyInterpolatedString(snapshot, text, ref index, spans)
+                TryClassifyLineComment(snapshot, text, ref index, spans)
+                || TryClassifyBlockComment(snapshot, text, ref index, spans)
+                || TryClassifyInterpolatedString(snapshot, text, ref index, spans)
                 || TryClassifyNormalString(snapshot, text, ref index, spans)
             )
             {
