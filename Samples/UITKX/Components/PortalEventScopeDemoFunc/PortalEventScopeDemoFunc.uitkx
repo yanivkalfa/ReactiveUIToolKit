@@ -17,24 +17,6 @@ component PortalEventScopeDemoFunc {
     setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
   }
 
-  // Build the portal node in setup-code JSX.
-  // If the host did not supply a portal target the slot is null and nothing is rendered there.
-  var portalNode = portalTarget != null
-    ? (
-      <Portal target={portalTarget}>
-        @if (mounted) {
-          <Button
-            text="Portal Button (click me)"
-            onClick={_ => AppendLog("Portal button clicked")}
-            style={new Style { (StyleKeys.MarginTop, 6f) }}
-          />
-        } @else {
-          <Label text="Portal unmounted." />
-        }
-      </Portal>
-    )
-    : null;
-
   return (
     <VisualElement
       style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) }}
@@ -52,7 +34,19 @@ component PortalEventScopeDemoFunc {
         text={log}
         style={new Style { (StyleKeys.WhiteSpace, "normal"), (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 0.9f)), (StyleKeys.Padding, 6f), (StyleKeys.BorderRadius, 4f), (StyleKeys.MarginTop, 8f) }}
       />
-      @(portalNode)
+      @if (portalTarget != null) {
+        <Portal target={portalTarget}>
+          @if (mounted) {
+            <Button
+              text="Portal Button (click me)"
+              onClick={_ => AppendLog("Portal button clicked")}
+              style={new Style { (StyleKeys.MarginTop, 6f) }}
+            />
+          } @else {
+            <Label text="Portal unmounted." />
+          }
+        </Portal>
+      }
     </VisualElement>
   );
 }

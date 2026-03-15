@@ -1428,6 +1428,14 @@
         { "name": "fallback",    "type": "VirtualNode",  "description": "VirtualNode rendered while the content is not yet ready." }
       ]
     },
+    "Portal": {
+      "propsType": "Portal",
+      "description": "Renders children into a different VisualElement target, outside the normal component tree.",
+      "acceptsChildren": true,
+      "attributes": [
+        { "name": "target", "type": "VisualElement", "description": "The VisualElement into which children are rendered." }
+      ]
+    },
     "Fragment": {
       "propsType": "Fragment",
       "description": "Invisible wrapper that allows returning multiple root elements.",

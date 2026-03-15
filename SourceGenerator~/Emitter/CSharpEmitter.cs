@@ -475,6 +475,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     EmitSuspense(el.Attributes, keyExpr, el.Children);
                     break;
 
+                case TagResolutionKind.BuiltinPortal:
+                    EmitPortal(el.Attributes, keyExpr, el.Children);
+                    break;
+
                 case TagResolutionKind.FuncComponent:
                     EmitFuncComponent(res, el.Attributes, keyExpr, el.Children, searchNamespaces);
                     break;
@@ -814,6 +818,25 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             _sb.Append(fallbackArg);
             _sb.Append($", key: {keyExpr}");
+
+            if (!children.IsEmpty)
+            {
+                _sb.Append(", ");
+                EmitChildArgs(children);
+            }
+
+            _sb.Append(")");
+        }
+
+        private void EmitPortal(
+            ImmutableArray<AttributeNode> attrs,
+            string keyExpr,
+            ImmutableArray<AstNode> children
+        )
+        {
+            string targetArg = GetAttrValue(attrs, "target") ?? "null";
+
+            _sb.Append($"V.Portal({targetArg}, key: {keyExpr}");
 
             if (!children.IsEmpty)
             {

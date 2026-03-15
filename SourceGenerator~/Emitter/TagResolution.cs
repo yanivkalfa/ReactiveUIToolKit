@@ -38,6 +38,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         BuiltinSuspense,
 
         /// <summary>
+        /// The V.Portal(...) primitive.  Maps the <c>target</c> attribute to the
+        /// <c>portalTargetElement</c> parameter of <c>V.Portal</c>.
+        /// </summary>
+        BuiltinPortal,
+
+        /// <summary>
         /// The tag could not be resolved. A UITKX0001 / UITKX0008 diagnostic is emitted.
         /// The emitter still produces a best-effort call.
         /// </summary>

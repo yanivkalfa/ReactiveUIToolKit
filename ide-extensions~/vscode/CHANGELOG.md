@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.221] - 2026-03-15
+- Add Portal JSX tag support in source generator, IDE schema, and completions; migrate samples from V.Portal API to JSX markup
+
 ## [1.0.220] - 2026-03-15
 - Setup JSX: enable T2 unknown-element/attribute checks, C# expression validation, tag completions, and source-map entries for markup embedded in setup code; replace V.Portal with JSX syntax in samples
 
