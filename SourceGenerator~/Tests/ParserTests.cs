@@ -636,4 +636,65 @@ public class ParserTests
         var el = Assert.Single(nodes.OfType<ElementNode>());
         Assert.True(el.SourceLine >= 1, "SourceLine should be 1-based");
     }
+
+    // ── Missing semicolon after paren-wrapped JSX in setup code ───────────────
+
+    [Fact]
+    public void SetupJsx_MissingSemicolon_EmitsCS1002()
+    {
+        const string src =
+            """
+            component Counter(int count = 0) {
+              var inlineNode = (
+                <VisualElement>
+                  <Button text="-5" onClick={_ => setCount(count - 5)} />
+                  <Button text="+5" onClick={_ => setCount(count + 5)} />
+                </VisualElement>
+              )
+
+              return (<Box />);
+            }
+            """;
+
+        var diags = new List<ParseDiagnostic>();
+        var set = DirectiveParser.Parse(src, "test.uitkx", diags);
+
+        // Debug output
+        System.Console.WriteLine($"IsFunctionStyle: {set.IsFunctionStyle}");
+        System.Console.WriteLine($"SetupCodeMarkupRanges: {(set.SetupCodeMarkupRanges.IsDefault ? 0 : set.SetupCodeMarkupRanges.Length)}");
+        if (!set.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+        {
+            foreach (var (s, e, l) in set.SetupCodeMarkupRanges)
+                System.Console.WriteLine($"  Range: Start={s} End={e} Line={l}  src[Start-1]='{src[s-1]}' src[End]='{src[e]}'");
+        }
+        foreach (var d in diags)
+            System.Console.WriteLine($"  [{d.Code}] L{d.SourceLine}:C{d.SourceColumn} {d.Message}");
+
+        var cs1002 = diags.Where(d => d.Code == "CS1002").ToList();
+        Assert.True(cs1002.Count > 0, "Expected CS1002 for missing ';' after paren-wrapped JSX block");
+    }
+
+    [Fact]
+    public void SetupJsx_WithSemicolon_NoCS1002()
+    {
+        const string src =
+            """
+            component Counter(int count = 0) {
+              var inlineNode = (
+                <VisualElement>
+                  <Button text="-5" onClick={_ => setCount(count - 5)} />
+                  <Button text="+5" onClick={_ => setCount(count + 5)} />
+                </VisualElement>
+              );
+
+              return (<Box />);
+            }
+            """;
+
+        var diags = new List<ParseDiagnostic>();
+        DirectiveParser.Parse(src, "test.uitkx", diags);
+
+        var cs1002 = diags.Where(d => d.Code == "CS1002").ToList();
+        Assert.Empty(cs1002);
+    }
 }

@@ -1722,12 +1722,8 @@ namespace ReactiveUITK.Language.Parser
                 // Only check paren-wrapped blocks — the char before Start is '('.
                 if (start <= 0 || source[start - 1] != '(') continue;
 
-                // 'end' is position of ')'. Scan past whitespace.
-                int pos = end + 1;
-                while (pos < source.Length &&
-                       (source[pos] == ' '  || source[pos] == '\t' ||
-                        source[pos] == '\r' || source[pos] == '\n'))
-                    pos++;
+                // 'end' is position of ')'. Scan past whitespace and comments.
+                int pos = SkipWhitespaceAndComments(source, end + 1);
 
                 if (pos >= source.Length)
                 {
@@ -1747,6 +1743,45 @@ namespace ReactiveUITK.Language.Parser
 
                 AddSemicolonDiagnostic(source, end, diagnosticBag);
             }
+        }
+
+        /// <summary>
+        /// Advances past whitespace, <c>// line comments</c>, and <c>/* block comments */</c>.
+        /// </summary>
+        private static int SkipWhitespaceAndComments(string source, int pos)
+        {
+            while (pos < source.Length)
+            {
+                char c = source[pos];
+                if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+                {
+                    pos++;
+                    continue;
+                }
+                if (c == '/' && pos + 1 < source.Length)
+                {
+                    if (source[pos + 1] == '/')
+                    {
+                        // Line comment — skip to end of line
+                        pos += 2;
+                        while (pos < source.Length && source[pos] != '\n')
+                            pos++;
+                        continue;
+                    }
+                    if (source[pos + 1] == '*')
+                    {
+                        // Block comment — skip to */
+                        pos += 2;
+                        while (pos + 1 < source.Length &&
+                               !(source[pos] == '*' && source[pos + 1] == '/'))
+                            pos++;
+                        pos += 2; // skip */
+                        continue;
+                    }
+                }
+                break;
+            }
+            return pos;
         }
 
         private static void AddSemicolonDiagnostic(

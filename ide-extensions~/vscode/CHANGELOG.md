@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.230] - 2026-03-15
+- Fix semicolon check skipping comments after JSX paren blocks
+
 ## [1.0.229] - 2026-03-15
 - Fix diagnostics disappearing on save/reformat (carry forward T3 cache); T1 semicolon check for JSX paren blocks
 
