@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.222] - 2026-03-15
+- Move Portal JSX back to setup code using ternary paren-wrapped pattern
+
 ## [1.0.221] - 2026-03-15
 - Add Portal JSX tag support in source generator, IDE schema, and completions; migrate samples from V.Portal API to JSX markup
 
