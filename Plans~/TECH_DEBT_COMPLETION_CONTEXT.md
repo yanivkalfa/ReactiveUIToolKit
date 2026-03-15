@@ -159,3 +159,45 @@ of the tooltip content is generic base-class boilerplate.
 - Design a prop relevance heuristic or category system.
 - Update `HoverHandler` and `CompletionHandler` to display grouped/filtered props.
 - Consider a config option or schema annotation to mark props as "common" vs "advanced".
+
+---
+
+# Tech Debt - Markup Parse Errors Emit Cascading "Component Not Found" Error
+
+## Summary
+When a parse error occurs inside a JSX paren block in setup code (e.g. missing `;`), Unity shows
+**two errors** instead of one: the actual parse error plus a cascading `CS0103: The name
+'ComponentName' does not exist in the current context` from a downstream `.cs` file that
+references the component.
+
+## Reproduction
+
+Missing `;` after a JSX paren block produces two errors:
+```csharp
+var inlineNode = (
+    <VisualElement>
+      <Button text="-5" onClick={_ => setCount(count - 5)} />
+      <Button text="+5" onClick={_ => setCount(count + 5)} />
+    </VisualElement>
+  )   // <-- missing semicolon
+```
+1. `#error: '; expected'` — from the generated `.g.cs` error stub
+2. `CS0103: The name 'UitkxCounterFunc' does not exist` — from a consumer `.cs` file
+
+This does NOT happen with pure C# errors (e.g. missing `;` after a lambda block `};`), because
+those still produce a valid `.g.cs` with a compilable class — only the body has the error.
+
+## Root Cause
+When the source generator encounters parse errors, it emits an error-stub `.g.cs` with `#error`
+directives instead of a real class. This means the component's partial class is never defined,
+so any downstream `.cs` file referencing it gets `CS0103`.
+
+## Possible Fix
+Emit a minimal compilable skeleton (namespace + partial class + empty `Render`) alongside the
+`#error` directives, so the component type still exists for downstream references. The `#error`
+still surfaces the parse error, but `CS0103` is avoided.
+
+## Follow-up (when prioritized)
+- Modify `UitkxPipeline` error path to emit a skeleton class wrapping the `#error` directives.
+- Ensure the skeleton has the correct namespace, class name, and `Render` signature so
+  downstream references compile (even though the body is empty/throws).
