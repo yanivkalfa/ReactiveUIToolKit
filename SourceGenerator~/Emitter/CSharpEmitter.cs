@@ -295,8 +295,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 var trimmed = line.TrimEnd('\r');
                 if (!string.IsNullOrEmpty(trimmed))
                     L($"{I3}{trimmed.TrimStart()}");
+                else
+                    L(""); // preserve blank lines for #line accuracy
             }
-            L("");
         }
 
         // ── Hook alias substitution ───────────────────────────────────────────

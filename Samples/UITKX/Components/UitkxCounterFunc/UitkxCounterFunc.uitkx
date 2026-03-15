@@ -360,7 +360,7 @@ component UitkxCounterFunc {
       <Button text="-5" onClick={_ => setCount(count - 5)} />
       <Button text="+5" onClick={_ => setCount(count + 5)} />
     </VisualElement>
-  );
+  )
 
   // ── var: portalNode (setup-code JSX) ──────────────────────────────────────
   var portalNode = portalTarget != null
