@@ -1,5 +1,14 @@
 ﻿# Changelog
 
+## [1.0.229] - 2026-03-15
+- Fix diagnostics disappearing on save/reformat (carry forward T3 cache); T1 semicolon check for JSX paren blocks
+
+## [1.0.228] - 2026-03-15
+- T1 missing-semicolon detection for paren-wrapped JSX blocks in setup code; hover shows inherited base props
+
+## [1.0.227] - 2026-03-15
+- T1 missing-semicolon detection for paren-wrapped JSX blocks in setup code; hover shows inherited base props
+
 ## [1.0.222] - 2026-03-15
 - Move Portal JSX back to setup code using ternary paren-wrapped pattern
 

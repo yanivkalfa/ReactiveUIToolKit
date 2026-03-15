@@ -120,12 +120,12 @@ This inconsistency should be resolved if a single-path event model is ever prior
 Unity's Burst compiler logs `Mono.Cecil.AssemblyResolutionException: Failed to resolve assembly: 'Assembly-CSharp-Editor'` on every domain reload / asset import. The error appears in the Unity console even outside Play mode.
 
 ## Root Cause
-Burst performs an AOT assembly scan at editor-time to discover `[BurstCompile]` entry points. It walks a static list of assembly directories, but `Assembly-CSharp-Editor.dll` is dynamically compiled into `Library/ScriptAssemblies` — a directory not in Burst's hardcoded search path — so resolution fails with an exception.
+Burst performs an AOT assembly scan at editor-time to discover `[BurstCompile]` entry points. It walks a static list of assembly directories, but `Assembly-CSharp-Editor.dll` is dynamically compiled into `Library/ScriptAssemblies` ï¿½ a directory not in Burst's hardcoded search path ï¿½ so resolution fails with an exception.
 
 ReactiveUITK has no `[BurstCompile]` methods, so there is no functional impact. However the log noise is distracting and counts as a red error in the console.
 
 ## Why This Is Tech Debt
-- The error is a false positive — no Burst functionality is broken.
+- The error is a false positive ï¿½ no Burst functionality is broken.
 - Red console errors create noise that masks real issues and erodes confidence in build health.
 - The fix requires either a Project Settings change or an assembly attribute audit.
 
@@ -133,3 +133,29 @@ ReactiveUITK has no `[BurstCompile]` methods, so there is no functional impact. 
 - Audit all `.asmdef` files in `ReactiveUITK` and any game project for any `[BurstCompile]` assembly-level attributes that should be removed.
 - In **Edit > Project Settings > Burst AOT Settings** (Unity 6), add `Assembly-CSharp-Editor` to the assembly exclusion list or restrict the scan to an explicit allowlist.
 - Add a note to the package README / setup guide so new project integrators can apply the setting post-installation.
+
+---
+
+# Tech Debt - Hover Shows 30+ Inherited Props (Noise)
+
+## Summary
+After adding base-class prop inheritance to `WorkspaceIndex`, hovering over a built-in element
+like `<Button>` now shows `Text` from `ButtonProps` plus all 30+ inherited properties from
+`BaseProps` (Name, ClassName, Style, OnClick, OnPointerDown, OnPointerUp, etc.). This is
+technically correct but produces an overwhelming tooltip that buries the element-specific props.
+
+## Current Behavior
+`WorkspaceIndex.ResolveProps` merges all ancestor props into a flat list. `HoverHandler` renders
+every prop as a bullet. For elements with only 1â€“2 own props (like `Button.Text`), the majority
+of the tooltip content is generic base-class boilerplate.
+
+## Desired Behavior
+- Show element-specific props first, visually separated from inherited common props.
+- Consider collapsing or hiding infrequently-used base props behind a "Show all" note.
+- Possibly group by category: identity/style, events, lifecycle, etc.
+- Same improvement should apply to completion item detail/documentation.
+
+## Follow-up (when prioritized)
+- Design a prop relevance heuristic or category system.
+- Update `HoverHandler` and `CompletionHandler` to display grouped/filtered props.
+- Consider a config option or schema annotation to mark props as "common" vs "advanced".

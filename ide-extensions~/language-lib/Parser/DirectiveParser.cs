@@ -491,6 +491,8 @@ namespace ReactiveUITK.Language.Parser
 
                 int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
                 ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag);
+                var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
+                CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
@@ -509,7 +511,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol,
                     HasExplicitNamespace: inlineNamespace != null,
-                    SetupCodeMarkupRanges: FindJsxBlockRanges(source, bodyStart, bodyEndExclusive)
+                    SetupCodeMarkupRanges: setupMarkupRanges1
                 );
                 return true;
             }
@@ -561,6 +563,11 @@ namespace ReactiveUITK.Language.Parser
             int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
             int setupGapOffset = returnStart - fseTrimStart2;
             int setupGapLength = returnStmtEndExclusive - returnStart;
+            var setupMarkupRanges2 = FindJsxBlockRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+            CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
                 ComponentName: componentName,
@@ -581,10 +588,7 @@ namespace ReactiveUITK.Language.Parser
                 HasExplicitNamespace: inlineNamespace != null,
                 FunctionReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
                 FunctionBodyEndLine: LineAtPos(source, bodyEndExclusive),
-                SetupCodeMarkupRanges: FindJsxBlockRanges(
-                    source,
-                    bodyStart,       returnStart,
-                    returnStmtEndExclusive, bodyEndExclusive),
+                SetupCodeMarkupRanges: setupMarkupRanges2,
                 FunctionSetupGapOffset: setupGapOffset,
                 FunctionSetupGapLength: setupGapLength
             );
@@ -1702,6 +1706,61 @@ namespace ReactiveUITK.Language.Parser
         private static bool IsNewline(char c) => c == '\r' || c == '\n';
 
         // ── JSX block range finder ────────────────────────────────────────────
+
+        /// <summary>
+        /// For each paren-wrapped JSX block, checks whether a semicolon follows the
+        /// closing <c>)</c>.  If not, emits a <c>CS1002</c> diagnostic.
+        /// </summary>
+        private static void CheckMissingSemicolonAfterJsxParenBlocks(
+            string source,
+            ImmutableArray<(int Start, int End, int Line)> ranges,
+            List<ParseDiagnostic> diagnosticBag)
+        {
+            if (ranges.IsDefaultOrEmpty) return;
+            foreach (var (start, end, _) in ranges)
+            {
+                // Only check paren-wrapped blocks — the char before Start is '('.
+                if (start <= 0 || source[start - 1] != '(') continue;
+
+                // 'end' is position of ')'. Scan past whitespace.
+                int pos = end + 1;
+                while (pos < source.Length &&
+                       (source[pos] == ' '  || source[pos] == '\t' ||
+                        source[pos] == '\r' || source[pos] == '\n'))
+                    pos++;
+
+                if (pos >= source.Length)
+                {
+                    AddSemicolonDiagnostic(source, end, diagnosticBag);
+                    continue;
+                }
+
+                char next = source[pos];
+                // Valid continuations after ')' — operators, ternary, comma, braces, etc.
+                if (next == ';' || next == ':' || next == ',' || next == ')' ||
+                    next == '.' || next == '?' || next == '!' || next == '[' ||
+                    next == '}' || next == '{' ||
+                    next == '+' || next == '-' || next == '*' || next == '/' ||
+                    next == '%' || next == '&' || next == '|' || next == '^' ||
+                    next == '<' || next == '>' || next == '=' || next == '~')
+                    continue;
+
+                AddSemicolonDiagnostic(source, end, diagnosticBag);
+            }
+        }
+
+        private static void AddSemicolonDiagnostic(
+            string source, int parenPos, List<ParseDiagnostic> diagnosticBag)
+        {
+            diagnosticBag.Add(new ParseDiagnostic
+            {
+                Code     = "CS1002",
+                Severity = ParseSeverity.Error,
+                SourceLine   = LineAtPos(source, parenPos),
+                SourceColumn = ColAtPos(source, parenPos) + 1,
+                Message  = "; expected",
+            });
+        }
 
         /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and

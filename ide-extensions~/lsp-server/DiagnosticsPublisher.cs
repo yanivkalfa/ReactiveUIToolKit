@@ -54,6 +54,12 @@ public sealed class DiagnosticsPublisher
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT1T2 =
         new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
 
+    // Per-URI snapshot of the last T3 (Roslyn) diagnostics.
+    // Carried forward in T1+T2 pushes so the error list never flashes empty
+    // during the 300ms debounce gap between edits and Roslyn rebuild.
+    private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT3 =
+        new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
+
     public DiagnosticsPublisher(ILanguageServerFacade server, UitkxSchema schema, WorkspaceIndex index, DocumentStore documentStore)
     {
         _server        = server;
@@ -180,7 +186,17 @@ public sealed class DiagnosticsPublisher
         if (!string.IsNullOrEmpty(localPath))
             _lastT1T2[localPath] = t1t2;
 
-        PushToClient(uri, t1t2);
+        // Carry forward the last T3 diagnostics so the error list doesn't
+        // flash empty during the 300ms debounce gap before Roslyn rebuilds.
+        IEnumerable<ParseDiagnostic> combined = t1t2;
+        if (!string.IsNullOrEmpty(localPath) &&
+            _lastT3.TryGetValue(localPath, out var cachedT3) &&
+            cachedT3.Count > 0)
+        {
+            combined = t1t2.Concat(cachedT3);
+        }
+
+        PushToClient(uri, combined);
 
         // â”€â”€ Kick off T3 Roslyn rebuild in the background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (roslynHost != null && !string.IsNullOrEmpty(localPath))
@@ -240,8 +256,13 @@ public sealed class DiagnosticsPublisher
                 });
             }
 
+            var filteredT3List = filteredT3.ToList();
+
+            // Cache the T3 snapshot so it can be carried forward in T1+T2 pushes.
+            _lastT3[uitkxFilePath] = filteredT3List;
+
             var combined = ((IEnumerable<ParseDiagnostic>)(t1t2 ?? Array.Empty<ParseDiagnostic>()))
-                .Concat(filteredT3)
+                .Concat(filteredT3List)
                 .ToList();
 
             DocumentUri uri = DocumentUri.File(uitkxFilePath);
