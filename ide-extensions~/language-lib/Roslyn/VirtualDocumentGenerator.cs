@@ -1207,6 +1207,7 @@ namespace ReactiveUITK.Language.Roslyn
                         int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
 
                         int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                        b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
                         b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
                         for (int k = 0; k < jsxNewlines; k++)
                             b.Scaffold("\n");
@@ -1250,6 +1251,7 @@ namespace ReactiveUITK.Language.Roslyn
                             int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
 
                             int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                            b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
                             b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
                             for (int k = 0; k < jsxNewlines; k++)
                                 b.Scaffold("\n");
@@ -1325,7 +1327,13 @@ namespace ReactiveUITK.Language.Roslyn
 
                 // 3. Scaffold a valid C# placeholder with the same newline count
                 //    so Roslyn's #line tracking stays in sync.
+                //    Emit under a #line directive so that syntax errors at the
+                //    boundary (e.g. missing ';' after the paren block) map back
+                //    to the .uitkx file instead of being silently dropped in
+                //    #line hidden territory.
                 int jsxNewlines2 = CountNewlines(setupCode, i, j);
+                int placeholderLine = currentLine;
+                b.Scaffold($"#line {placeholderLine} \"{escapedPath}\"\n");
                 b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
                 for (int k = 0; k < jsxNewlines2; k++)
                     b.Scaffold("\n");
@@ -1342,16 +1350,6 @@ namespace ReactiveUITK.Language.Roslyn
                 int    segLine = currentLine;
                 EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
                     gapOffset, gapLength, gapNewlines, segLine, escapedPath);
-            }
-            else
-            {
-                // No trailing C# after the last JSX block.  Re-establish a
-                // #line so that Roslyn maps syntax errors (e.g. missing ';')
-                // at the end of the statement back to the .uitkx file instead
-                // of silently falling into '#line hidden' territory.
-                b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                b.Scaffold(" ");  // minimal content so #line takes effect
-                b.Scaffold("\n#line hidden\n");
             }
 
             b.Scaffold("\n");
