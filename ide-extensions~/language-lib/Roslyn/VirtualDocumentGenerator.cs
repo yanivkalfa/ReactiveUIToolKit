@@ -1343,6 +1343,16 @@ namespace ReactiveUITK.Language.Roslyn
                 EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
                     gapOffset, gapLength, gapNewlines, segLine, escapedPath);
             }
+            else
+            {
+                // No trailing C# after the last JSX block.  Re-establish a
+                // #line so that Roslyn maps syntax errors (e.g. missing ';')
+                // at the end of the statement back to the .uitkx file instead
+                // of silently falling into '#line hidden' territory.
+                b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                b.Scaffold(" ");  // minimal content so #line takes effect
+                b.Scaffold("\n#line hidden\n");
+            }
 
             b.Scaffold("\n");
         }

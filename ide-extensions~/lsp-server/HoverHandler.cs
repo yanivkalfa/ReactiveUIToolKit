@@ -120,14 +120,13 @@ public sealed class HoverHandler : IHoverHandler
                     : string.Join(
                         "\n",
                         props
-                            .Take(8)
                             .Select(p =>
                                 string.IsNullOrEmpty(p.XmlDoc)
                                     ? $"- `{p.Name}`: `{p.Type}`"
                                     : $"- `{p.Name}`: `{p.Type}` — {p.XmlDoc}"
                             )
                     );
-            var moreProps = props.Count > 8 ? $"\n- _+{props.Count - 8} more..._" : "";
+            var moreProps = "";
             var md = $"## `<{word}>` \u2014 {word}Props\n\n" + $"**Props**\n{propList}{moreProps}";
             return Task.FromResult<Hover?>(
                 new Hover
@@ -143,15 +142,22 @@ public sealed class HoverHandler : IHoverHandler
         var element = _schema.TryGetElement(word);
         if (element is not null)
         {
-            var attrs = element.Attributes.Take(8).ToArray();
+            var elementAttrs = element.Attributes;
+            var universalAttrs = _schema.Root.UniversalAttributes;
             var attrList =
-                attrs.Length == 0
+                elementAttrs.Count == 0
                     ? "_None_"
-                    : string.Join("\n", attrs.Select(a => $"- `{a.Name}`: `{a.Type}`"));
-            var moreAttrs =
-                element.Attributes.Count > attrs.Length
-                    ? $"\n- _+{element.Attributes.Count - attrs.Length} more..._"
-                    : "";
+                    : string.Join("\n", elementAttrs.Select(a =>
+                        string.IsNullOrEmpty(a.Description)
+                            ? $"- `{a.Name}`: `{a.Type}`"
+                            : $"- `{a.Name}`: `{a.Type}` — {a.Description}"));
+            if (universalAttrs.Count > 0)
+                attrList += "\n\n**Common attributes**\n"
+                    + string.Join("\n", universalAttrs.Select(a =>
+                        string.IsNullOrEmpty(a.Description)
+                            ? $"- `{a.Name}`: `{a.Type}`"
+                            : $"- `{a.Name}`: `{a.Type}` — {a.Description}"));
+            var moreAttrs = "";
             var md =
                 $"## `<{word}>` — {element.PropsType}\n\n"
                 + $"{element.Description}\n\n"

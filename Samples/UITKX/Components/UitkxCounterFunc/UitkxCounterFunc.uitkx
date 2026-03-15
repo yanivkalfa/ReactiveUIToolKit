@@ -284,7 +284,7 @@ component UitkxCounterFunc {
       <Button text="-5" onClick={_ => setCount(count - 5)} />
       <Button text="+5" onClick={_ => setCount(count + 5)} />
     </VisualElement>
-  );
+  )
 
   // ── TabViewProps with TabDef closures ──────────────────────────────────────
   var tabViewProps = new TabViewProps
@@ -344,23 +344,6 @@ component UitkxCounterFunc {
     (StyleKeys.FontSize, 13f),
     (StyleKeys.Color, syncColor),
   };
-
-  // ── var: portalNode (setup-code JSX) ─────────────────────────────────────
-  var portalNode = portalTarget != null
-    ? (
-      <Portal target={portalTarget}>
-        @if (mounted) {
-          <Button
-            text="Portal Button (click me)"
-            onClick={_ => AppendLog("Portal button clicked")}
-            style={new Style { (StyleKeys.MarginTop, 6f) }}
-          />
-        } @else {
-          <Label text="Portal unmounted." />
-        }
-      </Portal>
-    )
-    : null;
 
   // ── var: typed MenuBuilderHandler lambda ───────────────────────────────────
   MenuBuilderHandler buildMenu = dm =>
@@ -522,8 +505,20 @@ component UitkxCounterFunc {
         onClick={_ => setMounted(!mounted)}
         style={new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f), (StyleKeys.MarginTop, 4f) }}
       />
+      @if (portalTarget != null) {
+        <Portal target={portalTarget}>
+          @if (mounted) {
+            <Button
+              text="Portal Button (click me)"
+              onClick={_ => AppendLog("Portal button clicked")}
+              style={new Style { (StyleKeys.MarginTop, 6f) }}
+            />
+          } @else {
+            <Label text="Portal unmounted." />
+          }
+        </Portal>
+      }
       @(inlineNode)
-      @(portalNode)
       <CounterFooter message="UitkxCounterFunc — Go-to-definition test" />
     </ScrollView>
   );
