@@ -377,7 +377,7 @@ component UitkxCounterFunc {
         }
       </Portal>
     )
-    : null
+    : null;
 
   // ── bool helper ───────────────────────────────────────────────────────────
   bool IsLoading() => trigger > 1000;

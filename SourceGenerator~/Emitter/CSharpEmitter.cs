@@ -238,7 +238,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private void EmitCodeBlockContent(CodeBlockNode cb)
         {
-            L($"#line {cb.SourceLine} \"{_linePath}\"");
+            // For classic @code blocks, SourceLine is the line of `@code` itself —
+            // code content starts on the next line, so add +1.
+            // For function-style (via CanonicalLowering), SourceLine already points
+            // to the first line of actual code, so no adjustment is needed.
+            int codeLine = _directives.IsFunctionStyle ? cb.SourceLine : cb.SourceLine + 1;
+            L($"#line {codeLine} \"{_linePath}\"");
             string codeText = cb.Code;
 
             if (!cb.ReturnMarkups.IsEmpty)
