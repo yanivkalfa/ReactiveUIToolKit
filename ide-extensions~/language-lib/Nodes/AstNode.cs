@@ -128,6 +128,13 @@ namespace ReactiveUITK.Language.Nodes
     /// </summary>
     public sealed record BooleanShorthandValue : AttributeValue;
 
+    /// <summary>
+    /// <c>attr={&lt;Tag /&gt;}</c> — an inline JSX element used as an attribute
+    /// value. The contained <see cref="ElementNode"/> is emitted as a
+    /// <c>VirtualNode</c> expression in the generated C#.
+    /// </summary>
+    public sealed record JsxExpressionValue(ElementNode? Element) : AttributeValue;
+
     // ── Attribute ─────────────────────────────────────────────────────────────
 
     /// <summary>A single attribute on an element, e.g. <c>text="Hi"</c>.</summary>

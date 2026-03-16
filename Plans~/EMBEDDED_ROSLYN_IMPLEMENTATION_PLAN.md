@@ -128,7 +128,7 @@ language-lib/
 
 ## 5. Phase 0 — Baseline: Complete Column Tracking (Pre-req)
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `language-lib/Parser/MarkupTokenizer.cs`, `language-lib/Nodes/AstNode.cs`  
 **Blocking:** All subsequent phases depend on accurate column data for SourceMap generation.
 
@@ -159,7 +159,7 @@ falls back to line-based offset computation when `SourceOffset == 0`.
 
 ## 6. Phase 1 — Virtual Document Generator + Source Map
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `language-lib/Roslyn/` (all new)  
 **No external dependencies.**
 
@@ -383,7 +383,7 @@ namespace {namespace}
 
 ## 7. Phase 2 — Roslyn Host
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `lsp-server/Roslyn/RoslynHost.cs`, `ReferenceAssemblyLocator.cs`  
 **Dependency:** Phase 0 (column tracking) + Phase 1 (VirtualDocument) + NuGet additions
 
@@ -574,7 +574,7 @@ _roslynHost.Remove(uri);
 
 ## 8. Phase 3 — Tier-3 Diagnostics
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `lsp-server/Roslyn/RoslynDiagnosticMapper.cs`, `lsp-server/DiagnosticsPublisher.cs`  
 **Dependency:** Phase 2  
 **Completes:** P9 in `UITKX_IMPLEMENTATION_PLAN.md`
@@ -647,7 +647,7 @@ fast T1+T2 push on every keystroke, and a slower T1+T2+T3 push once Roslyn finis
 
 ## 9. Phase 4 — Semantic Tokens: C# Region Coverage
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `language-lib/SemanticTokens/SemanticTokensProvider.cs`, `lsp-server/SemanticTokensHandler.cs`  
 **Dependency:** Phase 2  
 **Completes:** Item 2 (IDE-agnostic accurate coloring)
@@ -706,7 +706,7 @@ The TmLanguage diff is small (≈40 lines removed or changed).
 
 ## 10. Phase 5 — IntelliSense: C# Completions + Hover
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `lsp-server/CompletionHandler.cs`, `lsp-server/HoverHandler.cs`  
 **Dependency:** Phase 2  
 **Completes:** Item 4 (IntelliSense for C# regions)
@@ -775,7 +775,7 @@ position.  The symbol's XML documentation is extracted and formatted as Markdown
 
 ## 11. Phase 6 — C# Formatting
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `language-lib/Formatter/AstFormatter.cs`  
 **Dependency:** Phase 2  
 **Completes:** Item 3 (C# formatting inside .uitkx)
@@ -805,7 +805,7 @@ When `roslynCodeFormatter` is non-null and the file has a `CodeBlockNode`, the f
 
 ## 12. Phase 7 — Reference Assembly Hot-Reload
 
-**Status:** 🔲 NOT STARTED  
+**Status:** ✅ COMPLETE  
 **Files:** `lsp-server/WatchedFilesHandler.cs`, `lsp-server/Roslyn/ReferenceAssemblyLocator.cs`  
 **Dependency:** Phase 2
 
@@ -883,14 +883,14 @@ connects an LSP client.  This phase validates that the output is correct in each
 
 | Phase | Description | Files | Dependency | Status |
 |-------|-------------|-------|------------|--------|
-| 0 | Column tracking | `MarkupTokenizer`, `AstNode` | — | 🔲 |
-| 1 | Virtual doc + SourceMap | `language-lib/Roslyn/` (all new) | Phase 0 | 🔲 |
-| 2 | Roslyn host | `lsp-server/Roslyn/` (all new), `Program.cs`, `TextSyncHandler.cs` | Phase 1 + NuGet | 🔲 |
-| 3 | Tier-3 diagnostics | `RoslynDiagnosticMapper.cs`, `DiagnosticsPublisher.cs` | Phase 2 | 🔲 |
-| 4 | C# semantic tokens | `SemanticTokensProvider.cs`, TmLanguage cleanup | Phase 2 | 🔲 |
-| 5 | C# completions + hover | `CompletionHandler.cs`, `HoverHandler.cs`, `AstCursorContext.cs` | Phase 2 | 🔲 |
-| 6 | C# formatting | `AstFormatter.cs` | Phase 2 | 🔲 |
-| 7 | Reference hot-reload | `WatchedFilesHandler.cs`, `ReferenceAssemblyLocator.cs` | Phase 2 | 🔲 |
+| 0 | Column tracking | `MarkupTokenizer`, `AstNode` | — | ✅ |
+| 1 | Virtual doc + SourceMap | `language-lib/Roslyn/` (all new) | Phase 0 | ✅ |
+| 2 | Roslyn host | `lsp-server/Roslyn/` (all new), `Program.cs`, `TextSyncHandler.cs` | Phase 1 + NuGet | ✅ |
+| 3 | Tier-3 diagnostics | `RoslynDiagnosticMapper.cs`, `DiagnosticsPublisher.cs` | Phase 2 | ✅ |
+| 4 | C# semantic tokens | `SemanticTokensProvider.cs`, TmLanguage cleanup | Phase 2 | ✅ |
+| 5 | C# completions + hover | `CompletionHandler.cs`, `HoverHandler.cs`, `AstCursorContext.cs` | Phase 2 | ✅ |
+| 6 | C# formatting | `AstFormatter.cs` | Phase 2 | ✅ |
+| 7 | Reference hot-reload | `WatchedFilesHandler.cs`, `ReferenceAssemblyLocator.cs` | Phase 2 | ✅ |
 | 8 | Integration tests | `language-roslyn-tests/` (new project) | Phases 1–6 | 🔲 |
 | 9 | Rider + VS2022 validation | — testing — | Phase 8 | 🔲 |
 

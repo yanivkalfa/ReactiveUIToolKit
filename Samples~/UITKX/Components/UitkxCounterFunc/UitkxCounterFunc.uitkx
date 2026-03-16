@@ -528,6 +528,15 @@ component UitkxCounterFunc {
       />
       @(portalNode)
       @(inlineNode)
+      {/* ── visualElementSafe: safe-area-aware wrapper ── */}
+      <visualElementSafe style={badgeStyle}>
+        <Label text="Inside a visualElementSafe (safe-area padding applied)" />
+      </visualElementSafe>
+      {/* ── Route element with inline JSX (no V.Func / V.Text needed) ── */}
+      <Router>
+        <Route path="/" exact element={<Label text="JSX route — home" />} />
+        <Route path="/jsxDemo" element={<Label text="JSX route — demo" />} />
+      </Router>
       <CounterFooter message="UitkxCounterFunc — Go-to-definition test" />
     </ScrollView>
   );

@@ -113,20 +113,23 @@ public sealed class HoverHandler : IHoverHandler
         var elementInfo = _index.TryGetElementInfo(word);
         if (elementInfo is not null)
         {
-            var props = elementInfo.Props;
+            var ownProps = elementInfo.OwnProps;
             var propList =
-                props.Count == 0
+                ownProps.Count == 0
                     ? "_None_"
                     : string.Join(
                         "\n",
-                        props
+                        ownProps
                             .Select(p =>
                                 string.IsNullOrEmpty(p.XmlDoc)
                                     ? $"- `{p.Name}`: `{p.Type}`"
                                     : $"- `{p.Name}`: `{p.Type}` — {p.XmlDoc}"
                             )
                     );
-            var moreProps = "";
+            var inheritedCount = elementInfo.Props.Count - ownProps.Count;
+            var moreProps = inheritedCount > 0 && elementInfo.BaseElement is not null
+                ? $"\n\n*+ {inheritedCount} inherited from {elementInfo.BaseElement}Props*"
+                : "";
             var md = $"## `<{word}>` \u2014 {word}Props\n\n" + $"**Props**\n{propList}{moreProps}";
             return Task.FromResult<Hover?>(
                 new Hover

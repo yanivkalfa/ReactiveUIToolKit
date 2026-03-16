@@ -7966,7 +7966,7 @@ component Comp {
         var checks = new[] {
             ("MctvSetChild", 233), ("MctvDeleteLast", 261),
             ("TreeViewRowState", 21),
-            ("var secondElement", 282)
+            ("var secondElement", 281)
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -8087,7 +8087,7 @@ component Comp {
         if (!File.Exists(file)) return;
         var source = N(File.ReadAllText(file));
         var modified = source
-            .Replace("  //return (\n    <Box />\n  );", "  return (<Box></Box>);");
+            .Replace("  {/* return (\n    <Box />\n  ); */}", "  return (<Box></Box>);");
         Assert.NotEqual(source, modified);
         var result = Format(modified);
         Assert.NotEqual(modified, result);

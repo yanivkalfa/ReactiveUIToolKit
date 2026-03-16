@@ -484,14 +484,36 @@ namespace ReactiveUITK.Language.Parser
                     }
                     else if (!_scanner.IsEof && _scanner.Current == '{')
                     {
-                        var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
-                        attrs.Add(
-                            new AttributeNode(name, new CSharpExpressionValue(expr, exprOffset), attrLine)
-                            {
-                                SourceColumn  = attrCol,
-                                NameEndColumn = attrCol + name.Length,
-                            }
-                        );
+                        // Check if brace content is an inline JSX element: attr={<Tag />}
+                        if (IsJsxInBraces())
+                        {
+                            _scanner.Advance(); // consume '{'
+                            _scanner.SkipWhitespaceAndNewlines();
+                            var element = ParseElement(loopDepth: 0);
+                            _scanner.SkipWhitespaceAndNewlines();
+                            if (!_scanner.TryConsume('}'))
+                                _diagnostics.Add(ErrUnexpectedToken(
+                                    _scanner.IsEof ? "EOF" : _scanner.Current.ToString(),
+                                    _scanner.Line, "'}' after inline JSX attribute value"));
+                            attrs.Add(
+                                new AttributeNode(name, new JsxExpressionValue(element), attrLine)
+                                {
+                                    SourceColumn  = attrCol,
+                                    NameEndColumn = attrCol + name.Length,
+                                }
+                            );
+                        }
+                        else
+                        {
+                            var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
+                            attrs.Add(
+                                new AttributeNode(name, new CSharpExpressionValue(expr, exprOffset), attrLine)
+                                {
+                                    SourceColumn  = attrCol,
+                                    NameEndColumn = attrCol + name.Length,
+                                }
+                            );
+                        }
                     }
                     else
                     {
@@ -1396,6 +1418,26 @@ namespace ReactiveUITK.Language.Parser
             while (i < _source.Length && (_source[i] == ' ' || _source[i] == '\t'))
                 i++;
             return i < _source.Length && _source[i] == c;
+        }
+
+        /// <summary>
+        /// While positioned at <c>{</c>, peeks ahead to check whether the brace
+        /// content starts with a JSX element (e.g. <c>element={&lt;Dashboard /&gt;}</c>).
+        /// Returns <c>true</c> when the first non-whitespace character after <c>{</c>
+        /// is <c>&lt;</c> followed by a letter (tag name) or <c>&gt;</c> (fragment).
+        /// </summary>
+        private bool IsJsxInBraces()
+        {
+            int i = _scanner.Pos + 1; // past '{'
+            while (i < _source.Length && char.IsWhiteSpace(_source[i]))
+                i++;
+            if (i >= _source.Length || _source[i] != '<')
+                return false;
+            i++;
+            if (i >= _source.Length)
+                return false;
+            char afterLt = _source[i];
+            return char.IsLetter(afterLt) || afterLt == '>';
         }
 
         /// <summary>

@@ -696,6 +696,10 @@ namespace ReactiveUITK.Language.Roslyn
                                 Kind        = SourceRegionKind.AttributeExpression,
                             });
                         }
+                        else if (attr.Value is JsxExpressionValue jsx && jsx.Element != null)
+                        {
+                            CollectFromNode(jsx.Element, output, ref exprCounter, ref attrCounter);
+                        }
                     }
                     // Recurse into children
                     CollectFromNodeList(el.Children, output, ref exprCounter, ref attrCounter);
@@ -793,6 +797,10 @@ namespace ReactiveUITK.Language.Roslyn
                                 Kind        = SourceRegionKind.AttributeExpression,
                             };
                             EmitExpressionStatement(b, expr, escapedPath, indent);
+                        }
+                        else if (attr.Value is JsxExpressionValue jsx && jsx.Element != null)
+                        {
+                            EmitNodeExpressionScoped(jsx.Element, b, escapedPath, indent, ref exprCtr, ref attrCtr);
                         }
                     }
                     EmitNodeExpressionsScoped(el.Children, b, escapedPath, indent, ref exprCtr, ref attrCtr);

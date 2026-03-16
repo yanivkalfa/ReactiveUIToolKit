@@ -668,6 +668,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     AcceptsChildren: true
                 );
 
+            // VisualElementSafe: V.VisualElementSafe(object, string key, params VirtualNode[]).
+            // First param is object — the scanner skips it, so register manually.
+            // Emitted via the dictionary code path (the runtime accepts a Dictionary<string,object>
+            // as the object argument and extracts style + safe-area insets).
+            if (!map.ContainsKey("visualelementsafe"))
+                map["visualelementsafe"] = new TagResolution(
+                    TagResolutionKind.BuiltinDictionary,
+                    "VisualElementSafe",
+                    null,
+                    AcceptsChildren: true
+                );
+
             return map;
         }
 
@@ -730,6 +742,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     AcceptsChildren: true
                 ),
                 ["errorboundary"] = Typed("ErrorBoundary", "ErrorBoundaryProps", children: true),
+                ["visualelementsafe"] = Dict("VisualElementSafe"),
             };
         }
     }

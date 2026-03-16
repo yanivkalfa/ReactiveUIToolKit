@@ -40,7 +40,10 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         public string         FilePath    { get; init; } = "";
         /// <summary>1-based line of the class declaration.</summary>
         public int            FileLine    { get; init; }
+        /// <summary>All props including inherited (resolved).</summary>
         public List<PropInfo> Props       { get; init; } = new();
+        /// <summary>Only the props declared directly on this element's Props class.</summary>
+        public List<PropInfo> OwnProps    { get; init; } = new();
         /// <summary>Base element name if the Props class extends another *Props class.</summary>
         public string?        BaseElement { get; init; }
     }
@@ -172,12 +175,21 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             if (!_elementInfo.TryGetValue(elementName, out var info))
                 return null;
             var resolved = ResolveProps(info);
-            if (resolved == info.Props) return info;
+            if (resolved == info.Props)
+                return new ElementInfo
+                {
+                    FilePath    = info.FilePath,
+                    FileLine    = info.FileLine,
+                    Props       = resolved,
+                    OwnProps    = info.Props,
+                    BaseElement = info.BaseElement,
+                };
             return new ElementInfo
             {
                 FilePath    = info.FilePath,
                 FileLine    = info.FileLine,
                 Props       = resolved,
+                OwnProps    = info.Props,
                 BaseElement = info.BaseElement,
             };
         }

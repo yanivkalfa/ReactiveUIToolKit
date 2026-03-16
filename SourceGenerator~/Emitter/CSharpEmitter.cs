@@ -1304,7 +1304,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return d[a.Length, b.Length];
         }
 
-        private static string ExtractKey(ImmutableArray<AttributeNode> attrs)
+        private string ExtractKey(ImmutableArray<AttributeNode> attrs)
         {
             foreach (var a in attrs)
                 if (IsKey(a.Name))
@@ -1312,7 +1312,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return "null";
         }
 
-        private static string? GetAttrValue(ImmutableArray<AttributeNode> attrs, string name)
+        private string? GetAttrValue(ImmutableArray<AttributeNode> attrs, string name)
         {
             foreach (var a in attrs)
                 if (string.Equals(a.Name, name, StringComparison.OrdinalIgnoreCase))
@@ -1320,15 +1320,31 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return null;
         }
 
-        private static string AttrVal(AttributeValue v) =>
+        private string AttrVal(AttributeValue v) =>
             v switch
             {
                 StringLiteralValue slv => $"\"{EscStr(slv.Value)}\"",
                 // Apply setter-lambda sugar: setFoo(v => v+1) → setFoo.Set(v => v+1)
                 CSharpExpressionValue cev => s_setterLambdaRe.Replace(cev.Expression, "$1.Set("),
+                JsxExpressionValue jsx => EmitJsxToString(jsx.Element),
                 BooleanShorthandValue => "true",
                 _ => "null",
             };
+
+        /// <summary>
+        /// Emits a JSX <see cref="ElementNode"/> to a string by temporarily capturing
+        /// <see cref="EmitElementNode"/> output from the shared <see cref="_sb"/>.
+        /// </summary>
+        private string EmitJsxToString(ElementNode? element)
+        {
+            if (element == null)
+                return $"({QVNode})null";
+            int startLen = _sb.Length;
+            EmitElementNode(element);
+            string result = _sb.ToString(startLen, _sb.Length - startLen);
+            _sb.Length = startLen;
+            return result;
+        }
 
         private static bool IsKey(string name) =>
             string.Equals(name, "key", StringComparison.OrdinalIgnoreCase);
