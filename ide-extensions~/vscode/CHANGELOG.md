@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.237] - 2026-03-16
+- Add visualElementSafe built-in element and inline JSX attribute values
+
 ## [1.0.236] - 2026-03-16
 - Hover: show only own props for workspace elements; inherited props collapsed to count line (e.g. "+ 34 inherited from BaseProps")
 

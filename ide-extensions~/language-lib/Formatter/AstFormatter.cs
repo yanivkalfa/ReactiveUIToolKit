@@ -473,6 +473,9 @@ namespace ReactiveUITK.Language.Formatter
                     case CSharpExpressionValue e:
                         list.Add($"{a.Name}={{{e.Expression}}}");
                         break;
+                    case JsxExpressionValue jsx when jsx.Element != null:
+                        list.Add($"{a.Name}={{{SerializeJsxInline(jsx.Element)}}}");
+                        break;
                     case BooleanShorthandValue:
                     default:
                         list.Add(a.Name);
@@ -480,6 +483,40 @@ namespace ReactiveUITK.Language.Formatter
                 }
             }
             return list;
+        }
+
+        /// <summary>
+        /// Serializes a JSX <see cref="ElementNode"/> into a single-line string
+        /// representation suitable for embedding inside a <c>{...}</c> attribute value.
+        /// </summary>
+        private static string SerializeJsxInline(ElementNode el)
+        {
+            var sb = new StringBuilder();
+            SerializeJsxInlineCore(el, sb);
+            return sb.ToString();
+        }
+
+        private static void SerializeJsxInlineCore(ElementNode el, StringBuilder sb)
+        {
+            var attrStrings = BuildAttrStrings(el.Attributes);
+            string attrPart = attrStrings.Count > 0 ? " " + string.Join(" ", attrStrings) : "";
+
+            if (el.Children.IsEmpty)
+            {
+                sb.Append($"<{el.TagName}{attrPart} />");
+            }
+            else
+            {
+                sb.Append($"<{el.TagName}{attrPart}>");
+                foreach (var child in el.Children)
+                {
+                    if (child is ElementNode childEl)
+                        SerializeJsxInlineCore(childEl, sb);
+                    else if (child is TextNode tn && !string.IsNullOrWhiteSpace(tn.Content))
+                        sb.Append(tn.Content.Trim());
+                }
+                sb.Append($"</{el.TagName}>");
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════════════
