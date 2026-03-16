@@ -315,6 +315,7 @@ public sealed class DiagnosticsPublisher
             Message  = d.Message,
             Tags     = d.Code == DiagnosticCodes.UnreachableAfterReturn
                     || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
+                    || d.Code == "CS0162" // Roslyn: Unreachable code detected
                 ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
                 : null,
         };

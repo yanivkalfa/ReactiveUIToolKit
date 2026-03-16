@@ -65,9 +65,11 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
         if (methodName == "initialize" && result != null)
             Log($"InitializeResult (capabilities): {result}");
         else
-            Log(
-                $"RESPONSE← {methodName}: {result?.ToString(Newtonsoft.Json.Formatting.None)?.Substring(0, Math.Min(300, result?.ToString()?.Length ?? 0))}"
-            );
+        {
+            var json = result?.ToString(Newtonsoft.Json.Formatting.None);
+            if (json != null && json.Length > 300) json = json.Substring(0, 300);
+            Log($"RESPONSE← {methodName}: {json}");
+        }
 
         return result;
     }

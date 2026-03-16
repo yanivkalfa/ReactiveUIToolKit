@@ -76,9 +76,13 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
             var charNo = caretPos.Position - lineStart;
             var uri = new Uri(doc.FilePath).AbsoluteUri;
 
+            // Link user cancellation with a 10s timeout to prevent infinite hang on cold start.
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+
             Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.Run(
                 async () => await GoToDefinitionCoreAsync(
-                    rpc, uri, snapshot.GetText(), lineNo, charNo, token));
+                    rpc, uri, snapshot.GetText(), lineNo, charNo, cts.Token));
         }
         catch (OperationCanceledException)
         {
@@ -181,8 +185,15 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
 [Order(Before = "default")]
 internal sealed class UitkxNavigableSymbolSourceProvider : INavigableSymbolSourceProvider
 {
+    private static readonly string LogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-gotodef.log"
+    );
+
     public INavigableSymbolSource? TryCreateNavigableSymbolSource(ITextView textView, ITextBuffer buffer)
     {
+        try { File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] TryCreateNavigableSymbolSource called\n"); }
+        catch { }
         return buffer.Properties.GetOrCreateSingletonProperty(
             () => new UitkxNavigableSymbolSource(buffer)
         );
@@ -309,9 +320,10 @@ internal sealed class UitkxNavigableSymbol : INavigableSymbol
 
         try
         {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.Run(
                 async () => await UitkxGoToDefinitionHandler.GoToDefinitionCoreAsync(
-                    rpc, _uri, _buffer.CurrentSnapshot.GetText(), _line, _character, CancellationToken.None));
+                    rpc, _uri, _buffer.CurrentSnapshot.GetText(), _line, _character, cts.Token));
         }
         catch { }
     }

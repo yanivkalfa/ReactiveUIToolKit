@@ -49,6 +49,7 @@ internal sealed class UitkxUnreachableCodeTaggerProvider : ITaggerProvider
             ?? ClassificationRegistry.GetClassificationType("text");
 
         return buffer.Properties.GetOrCreateSingletonProperty(
+            typeof(UitkxUnreachableCodeTagger),
             () => new UitkxUnreachableCodeTagger(buffer, excludedCode)
         ) as ITagger<T>;
     }
@@ -266,6 +267,16 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
         _buffer = buffer;
         _excludedCode = excludedCode;
         UitkxDiagnosticStore.DiagnosticsChanged += OnDiagnosticsChanged;
+    }
+
+    /// <summary>Returns the current unreachable (Unnecessary-tagged) diagnostics for this buffer.</summary>
+    internal IReadOnlyList<LspDiagnostic> UnreachableDiagnostics => _diagnostics;
+
+    /// <summary>Gets the unreachable code tagger instance for a buffer, if one exists.</summary>
+    internal static UitkxUnreachableCodeTagger? GetForBuffer(ITextBuffer buffer)
+    {
+        buffer.Properties.TryGetProperty(typeof(UitkxUnreachableCodeTagger), out UitkxUnreachableCodeTagger tagger);
+        return tagger;
     }
 
     private void OnDiagnosticsChanged(string uri, List<LspDiagnostic> diagnostics)

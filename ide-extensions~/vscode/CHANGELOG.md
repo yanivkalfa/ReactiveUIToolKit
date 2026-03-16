@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## [1.0.234] - 2026-03-16
+- Unreachable code graying: Roslyn CS0162 now dimmed; faster diagnostic refresh; full-line gray-out for keywords in dead code
+
+## [1.0.234] - 2026-03-16
+- Unreachable code graying: Roslyn CS0162 now dimmed; faster diagnostic refresh; full-line gray-out for keywords in dead code
+
 ## [1.0.233] - 2026-03-15
 - Fix: formatter no-op when multiple top-level returns with @(...) in markup (UITKX2103 + UITKX0306 interaction)
 
