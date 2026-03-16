@@ -38,9 +38,7 @@ namespace ReactiveUITK.SourceGenerator
             string filePath,
             Compilation compilation,
             CancellationToken ct,
-            ImmutableHashSet<string>? peerComponentTypeNames = null,
-            ImmutableHashSet<string>? peerPropsComponentTypeNames = null,
-            ImmutableDictionary<string, ImmutableArray<FunctionParam>>? peerFunctionParams = null
+            ImmutableArray<PeerComponentInfo>? peerComponents = null
         )
         {
             ct.ThrowIfCancellationRequested();
@@ -109,23 +107,7 @@ namespace ReactiveUITK.SourceGenerator
             //                      under an Editor/ folder. We use the same heuristic:
             //                      files under Editor/ → Assembly-CSharp-Editor,
             //                      all others → Assembly-CSharp.
-            string? ownerAsmName = FindOwningAsmdefAssemblyName(filePath);
-            bool ownedByThisCompilation;
-            if (ownerAsmName != null)
-            {
-                ownedByThisCompilation = string.Equals(
-                    ownerAsmName, compilation.AssemblyName, StringComparison.Ordinal);
-            }
-            else
-            {
-                string asmName = compilation.AssemblyName ?? string.Empty;
-                bool isEditorAsm = asmName.Contains("Editor");
-                bool isEditorFile = IsInsideEditorFolder(filePath);
-                ownedByThisCompilation = asmName.StartsWith("Assembly-CSharp", StringComparison.Ordinal)
-                    && isEditorAsm == isEditorFile;
-            }
-
-            if (!ownedByThisCompilation)
+            if (!IsOwnedByCompilation(filePath, compilation.AssemblyName))
             {
                 return new UitkxPipelineResult(
                     HintName: hintName,
@@ -193,9 +175,7 @@ namespace ReactiveUITK.SourceGenerator
             // ── Stage 3: PropsResolver ────────────────────────────────────────
             var resolver = new PropsResolver(
                 compilation,
-                peerComponentTypeNames,
-                peerPropsComponentTypeNames,
-                peerFunctionParams
+                peerComponents
             );
 
             ct.ThrowIfCancellationRequested();
@@ -241,6 +221,25 @@ namespace ReactiveUITK.SourceGenerator
         /// is found (meaning the file belongs to the default <c>Assembly-CSharp</c>
         /// assembly). The walk stops at the <c>Assets</c> directory boundary.
         /// </summary>
+        internal static bool IsOwnedByCompilation(string filePath, string? compilationAssemblyName)
+        {
+            string? ownerAsmName = FindOwningAsmdefAssemblyName(filePath);
+            if (ownerAsmName != null)
+            {
+                return string.Equals(
+                    ownerAsmName,
+                    compilationAssemblyName,
+                    StringComparison.Ordinal
+                );
+            }
+
+            string asmName = compilationAssemblyName ?? string.Empty;
+            bool isEditorAsm = asmName.Contains("Editor", StringComparison.Ordinal);
+            bool isEditorFile = IsInsideEditorFolder(filePath);
+            return asmName.StartsWith("Assembly-CSharp", StringComparison.Ordinal)
+                && isEditorAsm == isEditorFile;
+        }
+
         private static string? FindOwningAsmdefAssemblyName(string uitkxFilePath)
         {
             try

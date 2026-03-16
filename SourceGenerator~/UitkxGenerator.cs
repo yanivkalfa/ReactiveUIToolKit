@@ -138,37 +138,22 @@ namespace ReactiveUITK.SourceGenerator
                     // that exist in this batch but are not yet compiled into the Roslyn
                     // snapshot (Roslyn source generators cannot see types generated in the
                     // same pass via GetTypeByMetadataName).
-                    var peerNamesBuilder      = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
-                    var peerPropsNamesBuilder = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
-                    var peerFuncParamsBuilder = ImmutableDictionary.CreateBuilder<string, ImmutableArray<FunctionParam>>(StringComparer.Ordinal);
+                    var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
                         if (IsInsideIgnoredFolder(txt.Path))
                             continue;
+                        if (!UitkxPipeline.IsOwnedByCompilation(txt.Path, compilation.AssemblyName))
+                            continue;
                         string? src = txt.GetText(ct)?.ToString();
                         if (src == null)
                             continue;
-                        var throwawayDiags = new List<ParseDiagnostic>();
-                        var ds = DirectiveParser.Parse(src, txt.Path, throwawayDiags);
-                        string? name = ds.ComponentName ?? ExtractComponentName(src);
-                        if (name != null)
-                        {
-                            peerNamesBuilder.Add(name);
-                            if (ds.IsFunctionStyle && !ds.FunctionParams.IsDefaultOrEmpty)
-                            {
-                                peerPropsNamesBuilder.Add(name);
-                                peerFuncParamsBuilder[name] = ds.FunctionParams;
-                            }
-                            else if (!ds.IsFunctionStyle && HasFunctionStyleParams(src))
-                            {
-                                peerPropsNamesBuilder.Add(name);
-                            }
-                        }
+                        if (TryBuildPeerComponentInfo(src, txt.Path, out var peerInfo))
+                            peerComponentsBuilder.Add(peerInfo);
                     }
-                    ImmutableHashSet<string> peerComponentNames      = peerNamesBuilder.ToImmutable();
-                    ImmutableHashSet<string> peerPropsComponentNames = peerPropsNamesBuilder.ToImmutable();
-                    ImmutableDictionary<string, ImmutableArray<FunctionParam>> peerFunctionParams = peerFuncParamsBuilder.ToImmutable();
+                    ImmutableArray<PeerComponentInfo> peerComponents =
+                        peerComponentsBuilder.ToImmutable();
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
@@ -181,7 +166,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = txt.GetText(ct)?.ToString();
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponentNames, peerPropsComponentNames, peerFunctionParams));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -196,33 +181,18 @@ namespace ReactiveUITK.SourceGenerator
                                 assetsDir, "*.uitkx", SearchOption.AllDirectories);
 
                             // Pre-scan for peer component names (same as the AdditionalTexts path)
-                            var diskPeerBuilder      = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
-                            var diskPeerPropsBuilder = ImmutableHashSet.CreateBuilder<string>(StringComparer.Ordinal);
-                            var diskFuncParamsBuilder = ImmutableDictionary.CreateBuilder<string, ImmutableArray<FunctionParam>>(StringComparer.Ordinal);
+                            var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
                             foreach (string fp in diskFiles)
                             {
                                 if (IsInsideIgnoredFolder(fp)) continue;
+                                if (!UitkxPipeline.IsOwnedByCompilation(fp, compilation.AssemblyName))
+                                    continue;
                                 string raw = File.ReadAllText(fp);
-                                var throwawayDiags = new List<ParseDiagnostic>();
-                                var ds = DirectiveParser.Parse(raw, fp, throwawayDiags);
-                                string? n = ds.ComponentName ?? ExtractComponentName(raw);
-                                if (n != null)
-                                {
-                                    diskPeerBuilder.Add(n);
-                                    if (ds.IsFunctionStyle && !ds.FunctionParams.IsDefaultOrEmpty)
-                                    {
-                                        diskPeerPropsBuilder.Add(n);
-                                        diskFuncParamsBuilder[n] = ds.FunctionParams;
-                                    }
-                                    else if (!ds.IsFunctionStyle && HasFunctionStyleParams(raw))
-                                    {
-                                        diskPeerPropsBuilder.Add(n);
-                                    }
-                                }
+                                if (TryBuildPeerComponentInfo(raw, fp, out var peerInfo))
+                                    diskPeerBuilder.Add(peerInfo);
                             }
-                            ImmutableHashSet<string> diskPeerNames      = diskPeerBuilder.ToImmutable();
-                            ImmutableHashSet<string> diskPeerPropsNames = diskPeerPropsBuilder.ToImmutable();
-                            ImmutableDictionary<string, ImmutableArray<FunctionParam>> diskFuncParams = diskFuncParamsBuilder.ToImmutable();
+                            ImmutableArray<PeerComponentInfo> diskPeerComponents =
+                                diskPeerBuilder.ToImmutable();
 
                             foreach (string filePath in diskFiles)
                             {
@@ -230,7 +200,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerNames, diskPeerPropsNames, diskFuncParams));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents));
                             }
                         }
                     }
@@ -304,5 +274,36 @@ namespace ReactiveUITK.SourceGenerator
         /// </summary>
         private static bool HasFunctionStyleParams(string source)
             => s_funcParamsRe.IsMatch(source);
+
+        private static bool TryBuildPeerComponentInfo(
+            string source,
+            string filePath,
+            out PeerComponentInfo peerInfo
+        )
+        {
+            var throwawayDiags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
+            string? name = ds.ComponentName ?? ExtractComponentName(source);
+            string? ns = ds.Namespace;
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(ns))
+            {
+                peerInfo = default!;
+                return false;
+            }
+
+            bool emitsGeneratedProps = ds.IsFunctionStyle
+                ? !ds.FunctionParams.IsDefaultOrEmpty
+                : HasFunctionStyleParams(source);
+
+            peerInfo = new PeerComponentInfo(
+                name,
+                ns,
+                emitsGeneratedProps,
+                ds.FunctionParams.IsDefault
+                    ? ImmutableArray<FunctionParam>.Empty
+                    : ds.FunctionParams
+            );
+            return true;
+        }
     }
 }

@@ -67,12 +67,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     /// </param>
     /// <param name="FuncTypeName">
     ///   For <see cref="TagResolutionKind.FuncComponent"/>, the type whose <c>Render</c>
-    ///   static method is called (e.g. "PlayerHUD").
+    ///   static method is called. May be fully qualified for cross-namespace peer
+    ///   component emission (e.g. <c>global::App.UI.PlayerHUD</c>).
     /// </param>
     /// <param name="FuncPropsTypeName">
-    ///   For <see cref="TagResolutionKind.FuncComponent"/>, the simple name of the companion
-    ///   props class if one was found in the compilation (e.g. "PlayerHUDProps"),
-    /// or <c>null</c> when no typed-props class exists (falls back to the no-props <c>V.Func(TypeName.Render)</c> call).
+    ///   For <see cref="TagResolutionKind.FuncComponent"/>, the companion props class if one
+    ///   was found or inferred. May be fully qualified (e.g.
+    ///   <c>global::App.UI.PlayerHUD.PlayerHUDProps</c>), or <c>null</c> when no typed-props
+    ///   class exists (falls back to the no-props <c>V.Func(TypeName.Render)</c> call).
     /// </param>
     public sealed record TagResolution(
         TagResolutionKind Kind,

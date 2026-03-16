@@ -26,30 +26,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private readonly Compilation _compilation;
 
         /// <summary>
-        /// Simple names of component types that will be generated from other .uitkx files
-        /// in the same source-generator run.  Used to suppress UITKX0008 for peer
-        /// components that cannot be found in the compilation (because they are generated
-        /// in the same pass and therefore not yet compiled into the snapshot).
+        /// Peer UITKX components from the same generator pass, scoped to the current
+        /// compilation/assembly and carrying namespace-qualified identity.
         /// </summary>
-        private readonly ImmutableHashSet<string> _peerComponentTypeNames;
-
         /// <summary>
-        /// Subset of <see cref="_peerComponentTypeNames"/> for peers that declare
-        /// function-style params (and therefore have a generated <c>XxxProps</c> nested
-        /// class).  Only these peers get the typed <c>V.Func&lt;T&gt;</c> code path.
+        /// Peer components keyed by their metadata type name (e.g. "App.UI.Child").
         /// </summary>
-        private readonly ImmutableHashSet<string> _peerPropsComponentTypeNames;
-
-        /// <summary>
-        /// The parsed <see cref="FunctionParam"/> list for each peer-UITKX component that
-        /// uses the function-style declaration syntax.  Keyed by component simple name.
-        /// Used by <see cref="TryGetRefParamPropName"/> to locate the <c>Hooks.MutableRef&lt;T&gt;</c>
-        /// parameter so that a bare <c>ref={x}</c> attribute can be routed to the correct prop.
-        /// </summary>
-        private readonly ImmutableDictionary<
-            string,
-            ImmutableArray<FunctionParam>
-        > _peerFunctionParams;
+        private readonly ImmutableDictionary<string, PeerComponentInfo> _peerComponentsByMetadataName;
 
         /// <summary>Lowercase tag → TagResolution for every V.* built-in.</summary>
         private readonly Dictionary<string, TagResolution> _builtinMap;
@@ -78,18 +61,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         public PropsResolver(
             Compilation compilation,
-            ImmutableHashSet<string>? peerComponentTypeNames = null,
-            ImmutableHashSet<string>? peerPropsComponentTypeNames = null,
-            ImmutableDictionary<string, ImmutableArray<FunctionParam>>? peerFunctionParams = null
+            ImmutableArray<PeerComponentInfo>? peerComponents = null
         )
         {
             _compilation = compilation;
-            _peerComponentTypeNames = peerComponentTypeNames ?? ImmutableHashSet<string>.Empty;
-            _peerPropsComponentTypeNames =
-                peerPropsComponentTypeNames ?? ImmutableHashSet<string>.Empty;
-            _peerFunctionParams =
-                peerFunctionParams
-                ?? ImmutableDictionary<string, ImmutableArray<FunctionParam>>.Empty;
+            var resolvedPeerComponents = peerComponents ?? ImmutableArray<PeerComponentInfo>.Empty;
+            _peerComponentsByMetadataName = resolvedPeerComponents.ToImmutableDictionary(
+                p => p.MetadataTypeName,
+                p => p,
+                StringComparer.Ordinal
+            );
             _builtinMap = BuildBuiltinMapFromCompilation(compilation);
         }
 
@@ -119,13 +100,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         ///
         /// Two resolution paths are tried in order:
         /// <list type="number">
-        ///   <item>Peer-UITKX path — scans <see cref="_peerFunctionParams"/> for directly parsed
-        ///     <see cref="FunctionParam"/> entries whose type string indicates <c>MutableRef&lt;T&gt;</c>.</item>
+        ///   <item>Peer-UITKX path — resolves the visible peer component for the
+        ///     current namespace/import set and scans its parsed
+        ///     <see cref="FunctionParam"/> entries for <c>MutableRef&lt;T&gt;</c>.</item>
         ///   <item>Roslyn path — inspects the compiled Props type (<paramref name="propsTypeName"/>)
         ///     for public settable properties whose Roslyn type is <c>Hooks.MutableRef&lt;T&gt;</c>.</item>
         /// </list>
         /// </summary>
-        /// <param name="componentTypeName">Simple C# type name of the component (e.g. "RefChild").</param>
+        /// <param name="componentTypeName">Simple or qualified C# type name of the component (e.g. "RefChild" or "global::App.UI.RefChild").</param>
         /// <param name="propsTypeName">Qualified or simple props type name, or <c>null</c> when the
         ///   component has no props class.</param>
         /// <param name="refPropName">PascalCase property name to emit (e.g. "InputRef").</param>
@@ -140,9 +122,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             refPropName = null;
 
             // ── Path A: peer-UITKX component (same code-gen pass) ─────────────
-            if (_peerFunctionParams.TryGetValue(componentTypeName, out var fpList))
+            if (TryFindVisiblePeerComponent(componentTypeName, searchNamespaces, out var peer))
             {
-                var mutableRefParams = fpList.Where(fp => IsMutableRefTypeName(fp.Type)).ToList();
+                var mutableRefParams = peer.FunctionParams
+                    .Where(fp => IsMutableRefTypeName(fp.Type))
+                    .ToList();
 
                 if (mutableRefParams.Count == 0)
                     return RefParamLookupResult.None;
@@ -215,22 +199,31 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         )
         {
             INamedTypeSymbol? typeSymbol = null;
+            string normalizedPropsTypeName = NormalizeMetadataTypeName(propsTypeName);
 
             // Try the propsTypeName as-is (may be fully qualified via TryGetFuncComponentPropsTypeName).
-            typeSymbol = _compilation.GetTypeByMetadataName(propsTypeName);
+            typeSymbol = _compilation.GetTypeByMetadataName(normalizedPropsTypeName);
+
+            // Nested type variant for source-style names (e.g. Ns.Type.Props → Ns.Type+Props)
+            if (typeSymbol == null)
+                typeSymbol = _compilation.GetTypeByMetadataName(
+                    ToSingleNestedMetadataTypeName(normalizedPropsTypeName)
+                );
 
             // Try each @using namespace as a qualifier.
             if (typeSymbol == null)
             {
                 foreach (var ns in searchNamespaces)
                 {
-                    typeSymbol = _compilation.GetTypeByMetadataName($"{ns}.{propsTypeName}");
+                    typeSymbol = _compilation.GetTypeByMetadataName(
+                        $"{ns}.{normalizedPropsTypeName}"
+                    );
                     if (typeSymbol != null)
                         break;
 
-                    // Nested type variant (e.g. RouterFunc+Props)
+                    // Nested type variant (e.g. RouterFunc+Props / ChildComp+ChildCompProps)
                     typeSymbol = _compilation.GetTypeByMetadataName(
-                        $"{ns}.{propsTypeName.Replace('.', '+')}"
+                        ToSingleNestedMetadataTypeName($"{ns}.{normalizedPropsTypeName}")
                     );
                     if (typeSymbol != null)
                         break;
@@ -258,6 +251,27 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 current = current.BaseType;
             }
             return result;
+        }
+
+        private static string NormalizeMetadataTypeName(string typeName)
+        {
+            if (string.IsNullOrWhiteSpace(typeName))
+                return string.Empty;
+
+            return typeName.StartsWith("global::", StringComparison.Ordinal)
+                ? typeName.Substring("global::".Length)
+                : typeName;
+        }
+
+        private static string ToSingleNestedMetadataTypeName(string sourceStyleTypeName)
+        {
+            int lastDot = sourceStyleTypeName.LastIndexOf('.');
+            if (lastDot < 0)
+                return sourceStyleTypeName;
+
+            return sourceStyleTypeName.Substring(0, lastDot)
+                + "+"
+                + sourceStyleTypeName.Substring(lastDot + 1);
         }
 
         /// <summary>
@@ -366,7 +380,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 ? aliased
                 : tagName;
 
-            bool typeFound = TryFindFuncComponentType(lookupTypeName, usingNamespaces);
+            string resolvedTypeName = ResolveFuncComponentTypeName(
+                lookupTypeName,
+                usingNamespaces,
+                out bool typeFound
+            );
             if (!typeFound)
             {
                 unknownDiagnostic = UitkxDiagnostics.UnknownComponent;
@@ -375,6 +393,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             string? funcPropsTypeName = TryGetFuncComponentPropsTypeName(
                 lookupTypeName,
+                resolvedTypeName,
                 usingNamespaces
             );
 
@@ -383,7 +402,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 "Func",
                 null,
                 AcceptsChildren: true,
-                FuncTypeName: lookupTypeName,
+                FuncTypeName: resolvedTypeName,
                 FuncPropsTypeName: funcPropsTypeName
             );
         }
@@ -440,40 +459,43 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         public string? TryGetFuncComponentPropsTypeName(
             string componentTypeName,
+            string resolvedComponentTypeName,
             ImmutableArray<string> usingNamespaces
         )
         {
             string candidate = $"{componentTypeName}Props";
 
+            // Same-pass UITKX peers must win over any stale compiled metadata with
+            // the same simple name so that cross-namespace composition targets the
+            // current source-generated component shape.
+            if (TryFindVisiblePeerComponent(componentTypeName, usingNamespaces, out var peer)
+                && peer.EmitsGeneratedProps)
+            {
+                return peer.SourceQualifiedPropsTypeName;
+            }
+
             // Try unqualified (global namespace)
-            if (_compilation.GetTypeByMetadataName(candidate) != null)
-                return candidate;
+            if (TryGetTypeSymbol(candidate, out var topLevelProps))
+                return ToSourceQualifiedTypeName(topLevelProps);
 
             // Try each @using namespace
             foreach (var ns in usingNamespaces)
             {
-                var sym = _compilation.GetTypeByMetadataName($"{ns}.{candidate}");
-                if (sym != null)
-                    return sym.Name;
+                if (TryGetTypeSymbol($"{ns}.{candidate}", out var namespacedTopLevelProps))
+                    return ToSourceQualifiedTypeName(namespacedTopLevelProps);
             }
 
-            // Fall back to convention for peer-generated components that have props.
-            // Same-pass generated types are absent from the Roslyn snapshot, so
-            // GetTypeByMetadataName returns null even though {Name}Props WILL exist
-            // after code generation.  The Props class is emitted as a nested type
-            // inside the component's partial class (e.g. UnstableChild.UnstableChildProps),
-            // so qualify the name with the declaring type to avoid CS0246.
-            // Only do this for peers that actually declare function-style params;
-            // peers with no params never emit a Props class and must take the no-props path.
-            //
-            // IMPORTANT: this check runs before the nested-Props scan below.
-            // Both a C# legacy class (e.g. ShowcaseTopBar.cs with nested Props) and
-            // its UITKX peer counterpart (ShowcaseTopBar.uitkx with ShowcaseTopBarProps)
-            // may be present in the same compilation.  Peer components must always win
-            // so the UITKX-generated typed V.Func<X.XProps> call is used, not the C#
-            // legacy V.Func<X.Props> call which would target the wrong namespace.
-            if (_peerPropsComponentTypeNames.Contains(componentTypeName))
-                return $"{componentTypeName}.{candidate}";
+            // Support already-compiled function-style components from referenced
+            // assemblies: their generated props are nested as TypeName+TypeNameProps.
+            foreach (var componentMetadataName in EnumerateCandidateComponentMetadataNames(
+                componentTypeName,
+                resolvedComponentTypeName,
+                usingNamespaces
+            ))
+            {
+                if (TryGetTypeSymbol($"{componentMetadataName}+{candidate}", out var generatedNestedProps))
+                    return ToSourceQualifiedTypeName(generatedNestedProps);
+            }
 
             // Also check for a nested Props class (convention: TypeName.Props).
             // In Roslyn metadata names, nested classes use '+': TypeName+Props.
@@ -481,14 +503,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             //   V.Func<TypeName.Props>(TypeName.Render, new TypeName.Props { ... })
             // This supports legacy C# static classes that follow the ValuesBarFunc
             // pattern (nested Props class rather than a sibling {TypeName}Props class).
-            if (_compilation.GetTypeByMetadataName($"{componentTypeName}+Props") != null)
-                return $"{componentTypeName}.Props";
-
-            foreach (var ns in usingNamespaces)
+            foreach (var componentMetadataName in EnumerateCandidateComponentMetadataNames(
+                componentTypeName,
+                resolvedComponentTypeName,
+                usingNamespaces
+            ))
             {
-                var sym = _compilation.GetTypeByMetadataName($"{ns}.{componentTypeName}+Props");
-                if (sym != null)
-                    return $"{componentTypeName}.Props";
+                if (TryGetTypeSymbol($"{componentMetadataName}+Props", out var legacyNestedProps))
+                    return ToSourceQualifiedTypeName(legacyNestedProps);
             }
 
             return null;
@@ -496,36 +518,95 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         // ── Private helpers ───────────────────────────────────────────────────
 
-        private bool TryFindFuncComponentType(
+        private string ResolveFuncComponentTypeName(
             string typeName,
-            ImmutableArray<string> usingNamespaces
+            ImmutableArray<string> usingNamespaces,
+            out bool typeFound
         )
         {
+            if (TryFindVisiblePeerComponent(typeName, usingNamespaces, out var peer))
+            {
+                typeFound = true;
+                return peer.SourceQualifiedTypeName;
+            }
+
             // Try unqualified first (rare but works in the global namespace)
-            if (TryGetFuncType(typeName))
-                return true;
+            if (TryGetFuncTypeSymbol(typeName, out var globalSymbol))
+            {
+                typeFound = true;
+                return ToSourceQualifiedTypeName(globalSymbol);
+            }
 
             // Try each @using namespace
             foreach (var ns in usingNamespaces)
             {
-                if (TryGetFuncType($"{ns}.{typeName}"))
+                if (TryGetFuncTypeSymbol($"{ns}.{typeName}", out var namespacedSymbol))
+                {
+                    typeFound = true;
+                    return ToSourceQualifiedTypeName(namespacedSymbol);
+                }
+            }
+
+            typeFound = false;
+            return typeName;
+        }
+
+        private bool TryFindVisiblePeerComponent(
+            string typeName,
+            ImmutableArray<string> searchNamespaces,
+            out PeerComponentInfo peer
+        )
+        {
+            string normalizedTypeName = NormalizeMetadataTypeName(typeName);
+
+            if (normalizedTypeName.Contains(".", StringComparison.Ordinal)
+                && _peerComponentsByMetadataName.TryGetValue(normalizedTypeName, out peer!))
+                return true;
+
+            foreach (var ns in searchNamespaces)
+            {
+                if (_peerComponentsByMetadataName.TryGetValue($"{ns}.{normalizedTypeName}", out peer!))
                     return true;
             }
 
-            // Fall back to peer-generated component names.
-            // Types generated from other .uitkx files in the same pass are not yet
-            // compiled into the Roslyn snapshot, so GetTypeByMetadataName returns null
-            // for them.  If the simple type name matches a peer component we suppress
-            // UITKX0008 — the C# compiler will catch any real mismatch.
-            if (_peerComponentTypeNames.Contains(typeName))
+            // Global namespace fallback for unqualified peer references.
+            if (_peerComponentsByMetadataName.TryGetValue(normalizedTypeName, out peer!))
                 return true;
 
+            peer = default!;
             return false;
         }
 
-        private bool TryGetFuncType(string fullyQualified)
+        private IEnumerable<string> EnumerateCandidateComponentMetadataNames(
+            string componentTypeName,
+            string resolvedComponentTypeName,
+            ImmutableArray<string> usingNamespaces
+        )
         {
-            var type = _compilation.GetTypeByMetadataName(fullyQualified);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            static bool Add(HashSet<string> set, string candidate) =>
+                !string.IsNullOrWhiteSpace(candidate) && set.Add(candidate);
+
+            string normalizedComponentTypeName = NormalizeMetadataTypeName(componentTypeName);
+            if (Add(seen, normalizedComponentTypeName))
+                yield return normalizedComponentTypeName;
+
+            string normalizedResolvedTypeName = NormalizeMetadataTypeName(resolvedComponentTypeName);
+            if (Add(seen, normalizedResolvedTypeName))
+                yield return normalizedResolvedTypeName;
+
+            foreach (var ns in usingNamespaces)
+            {
+                string candidate = $"{ns}.{normalizedComponentTypeName}";
+                if (Add(seen, candidate))
+                    yield return candidate;
+            }
+        }
+
+        private bool TryGetFuncTypeSymbol(string metadataName, out INamedTypeSymbol? type)
+        {
+            type = _compilation.GetTypeByMetadataName(NormalizeMetadataTypeName(metadataName));
             if (type == null)
                 return false;
 
@@ -538,6 +619,15 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     && m.ReturnType.Name == VirtualNodeName
                 );
         }
+
+        private bool TryGetTypeSymbol(string metadataName, out INamedTypeSymbol? type)
+        {
+            type = _compilation.GetTypeByMetadataName(NormalizeMetadataTypeName(metadataName));
+            return type != null;
+        }
+
+        private static string ToSourceQualifiedTypeName(INamedTypeSymbol type) =>
+            type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
 
         // ── Build built-in map from Roslyn V type ─────────────────────────────
 

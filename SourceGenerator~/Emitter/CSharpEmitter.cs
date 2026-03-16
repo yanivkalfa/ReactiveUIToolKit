@@ -441,11 +441,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitElementNode(ElementNode el)
         {
-            // Include the declaring namespace so that sibling components (defined
-            // in the same @namespace) are found without requiring an explicit @using.
-            var searchNamespaces = string.IsNullOrEmpty(_directives.Namespace)
-                ? _directives.Usings
-                : _directives.Usings.Add(_directives.Namespace!);
+            // Search the current namespace first, then explicit @using namespaces.
+            // This matches C# lookup rules better and avoids cross-namespace peer
+            // components falling back to stale metadata matches.
+            var searchNamespaces = BuildSearchNamespaces();
             var res = _resolver.Resolve(el.TagName, searchNamespaces, out var diagDesc);
 
             if (diagDesc != null)
@@ -493,6 +492,23 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     _sb.Append($"({QVNode})null /* unknown: {el.TagName} */");
                     break;
             }
+        }
+
+        private ImmutableArray<string> BuildSearchNamespaces()
+        {
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            var builder = ImmutableArray.CreateBuilder<string>();
+
+            if (!string.IsNullOrEmpty(_directives.Namespace) && seen.Add(_directives.Namespace!))
+                builder.Add(_directives.Namespace!);
+
+            foreach (var ns in _directives.Usings)
+            {
+                if (seen.Add(ns))
+                    builder.Add(ns);
+            }
+
+            return builder.ToImmutable();
         }
 
         private void EmitBuiltinTyped(

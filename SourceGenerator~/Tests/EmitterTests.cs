@@ -571,8 +571,8 @@ public class EmitterTests
         // Props are generated as nested types (ChildComp.ChildCompProps), so the
         // qualified form must be used to avoid CS0246 at the call site.
         Assert.True(
-            result.SourceContains("V.Func<ChildComp.ChildCompProps>"),
-            $"Expected typed V.Func<ChildComp.ChildCompProps> call. Got:\n{result.GeneratedSource}"
+            result.SourceContains("V.Func<global::ReactiveUITK.FunctionStyle.ChildComp.ChildCompProps>"),
+            $"Expected typed V.Func<global::ReactiveUITK.FunctionStyle.ChildComp.ChildCompProps> call. Got:\n{result.GeneratedSource}"
         );
         // The 'active' attribute must be passed through as 'Active = flag'
         Assert.True(
@@ -625,8 +625,8 @@ public class EmitterTests
 
         // Must use the typed V.Func<ValuesBarFunc.Props> overload, not the no-props fallback
         Assert.True(
-            result.SourceContains("V.Func<ValuesBarFunc.Props>"),
-            $"Expected typed V.Func<ValuesBarFunc.Props> call. Got:\n{result.GeneratedSource}"
+            result.SourceContains("V.Func<global::MyApp.ValuesBarFunc.Props>"),
+            $"Expected typed V.Func<global::MyApp.ValuesBarFunc.Props> call. Got:\n{result.GeneratedSource}"
         );
 
         // The 'items' attribute must be forwarded as 'Items = items'
@@ -818,6 +818,107 @@ public class EmitterTests
         );
 
         // No routing diagnostics.
+        Assert.False(result.HasDiagnostic("UITKX0020"), "Unexpected UITKX0020.");
+        Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
+    }
+
+    [Fact]
+    public void CrossNamespacePeerComponent_WithProps_EmitsFullyQualifiedPeerReferences()
+    {
+        const string childSrc =
+            """
+            @namespace MyApp.Components.Buttons
+
+            component JSOAppButton(bool disabled = false) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc =
+            """
+            @namespace MyApp.Components.Sidebar
+            using MyApp.Components.Buttons;
+
+            component Sidebar {
+                var isDisabled = true;
+                return (
+                    <JSOAppButton disabled={isDisabled} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("JSOAppButton.uitkx", childSrc),
+                ("Sidebar.uitkx", parentSrc),
+            },
+            primaryFileName: "Sidebar.uitkx"
+        );
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
+        Assert.True(
+            result.SourceContains(
+                "V.Func<global::MyApp.Components.Buttons.JSOAppButton.JSOAppButtonProps>"
+            ),
+            $"Expected fully qualified peer props type. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("global::MyApp.Components.Buttons.JSOAppButton.Render"),
+            $"Expected fully qualified peer render target. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Disabled = isDisabled"),
+            $"Expected forwarded prop initializer. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void CrossNamespacePeerComponent_RefRouting_UsesQualifiedPeerIdentity()
+    {
+        const string childSrc =
+            """
+            @namespace MyApp.Components.Buttons
+
+            component JSOAppButton(
+                Hooks.MutableRef<object>? inputRef = null
+            ) {
+                return (<Label text="child" />);
+            }
+            """;
+
+        const string parentSrc =
+            """
+            @namespace MyApp.Components.Sidebar
+            using MyApp.Components.Buttons;
+
+            component Sidebar {
+                return (
+                    <JSOAppButton ref={myRef} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.RunMultiple(
+            new[]
+            {
+                ("JSOAppButton.uitkx", childSrc),
+                ("Sidebar.uitkx", parentSrc),
+            },
+            primaryFileName: "Sidebar.uitkx"
+        );
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
+        Assert.True(
+            result.SourceContains("InputRef = myRef"),
+            $"Expected routed ref prop. Got:\n{result.GeneratedSource}"
+        );
         Assert.False(result.HasDiagnostic("UITKX0020"), "Unexpected UITKX0020.");
         Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
     }
