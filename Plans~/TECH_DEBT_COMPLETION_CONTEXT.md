@@ -145,20 +145,25 @@ like `<Button>` now shows `Text` from `ButtonProps` plus all 30+ inherited prope
 technically correct but produces an overwhelming tooltip that buries the element-specific props.
 
 ## Current Behavior
-`WorkspaceIndex.ResolveProps` merges all ancestor props into a flat list. `HoverHandler` renders
-every prop as a bullet. For elements with only 1–2 own props (like `Button.Text`), the majority
-of the tooltip content is generic base-class boilerplate.
+`WorkspaceIndex.ResolveProps` merges all ancestor props into a flat list. `HoverHandler` now
+renders only the element's **own props** and shows a count of inherited props (e.g.
+`+ 34 inherited from BaseProps`). Completions still use the full resolved list.
 
-## Desired Behavior
-- Show element-specific props first, visually separated from inherited common props.
-- Consider collapsing or hiding infrequently-used base props behind a "Show all" note.
-- Possibly group by category: identity/style, events, lifecycle, etc.
-- Same improvement should apply to completion item detail/documentation.
+## Desired Behavior (future)
+- Show a curated subset of common inherited props (Name, ClassName, Style, OnClick, Visible)
+  below the own props, with remaining inherited collapsed.
+- Use a `[Prop(PropCategory.X)]` attribute system on BaseProps to let property authors control
+  categorization (Common, Event, Layout, Lifecycle, Advanced).
+- Group inherited props by category with one-line summaries per group.
+- Same improvement should apply to completion item detail/documentation sort ordering.
 
 ## Follow-up (when prioritized)
-- Design a prop relevance heuristic or category system.
-- Update `HoverHandler` and `CompletionHandler` to display grouped/filtered props.
-- Consider a config option or schema annotation to mark props as "common" vs "advanced".
+- Implement `PropAttribute` + `PropCategory` enum in `Shared/Props/`.
+- Annotate `BaseProps` properties with categories.
+- Teach `WorkspaceIndex.IndexFile` scanner to parse `[Prop(...)]` attributes.
+- Add `Category` field to `PropInfo`.
+- Update `HoverHandler` to render grouped display.
+- Update `CompletionHandler` to use category for sort-group ordering.
 
 ---
 

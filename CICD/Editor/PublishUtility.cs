@@ -635,6 +635,13 @@ namespace ReactiveUITK.CICD
                 {
                     continue;
                 }
+                // Skip .vs/ IDE cache directories (locked by VS at runtime).
+                if (relForward.Equals(".vs", StringComparison.OrdinalIgnoreCase)
+                    || relForward.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase)
+                    || relForward.Contains("/.vs/", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
                 Directory.CreateDirectory(Path.Combine(destDir, rel));
             }
             foreach (string file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
@@ -647,6 +654,12 @@ namespace ReactiveUITK.CICD
                     continue;
                 }
                 if (relForward.Contains("/.git/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                // Skip .vs/ IDE cache files (locked by VS at runtime).
+                if (relForward.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase)
+                    || relForward.Contains("/.vs/", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }

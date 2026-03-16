@@ -634,7 +634,7 @@ This restarts the LSP server. Check if the issue persists after reload.
 These fixes are pure JSON/TypeScript — push to marketplace immediately after:
 - [x] **C4**: Remove `<>` from autoClosingPairs/brackets
 - [x] **C1**: Add `entity.name.tag.uitkx` to tag name captures
-- [x] **C5**: Tighten `attribute-boolean-shorthand` match
+- [ ] **C5**: Tighten `attribute-boolean-shorthand` match *(regex still lacks lookahead guard)*
 - [x] **C2**: Change `uitkxExpression` superType to `operator`
 - [x] **C3**: Remove dead `embeddedLanguages`
 - [x] **F2**: Remove `onEnterRules`

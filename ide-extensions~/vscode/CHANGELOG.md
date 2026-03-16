@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## [1.0.236] - 2026-03-16
+- Hover: show only own props for workspace elements; inherited props collapsed to count line (e.g. "+ 34 inherited from BaseProps")
+
+## [1.0.235] - 2026-03-16
+- Hover: show only own props (build fix — server DLL was stale in v1.0.235)
+
 ## [1.0.234] - 2026-03-16
 - Unreachable code graying: Roslyn CS0162 now dimmed; faster diagnostic refresh; full-line gray-out for keywords in dead code
 
