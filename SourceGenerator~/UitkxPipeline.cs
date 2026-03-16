@@ -94,7 +94,7 @@ namespace ReactiveUITK.SourceGenerator
             // Guard 2: only emit into the compilation that *owns* this .uitkx file.
             // Multiple assemblies may reference Shared (e.g. ReactiveUITK.Editor and
             // ReactiveUITK.Samples both pass Guard 1). Emitting the same partial class
-            // into both causes CS0436 "conflicts with imported type".
+            // into both causes CS0101 / CS0436 duplicate-type errors.
             //
             // Ownership is determined by walking up the directory tree from the .uitkx
             // file looking for the nearest *.asmdef file. Unity always uses the nearest
@@ -104,14 +104,26 @@ namespace ReactiveUITK.SourceGenerator
             //   - Found .asmdef  → read its "name" field; owned when that equals
             //                      compilation.AssemblyName.
             //   - No .asmdef    → file lives in the default Assembly-CSharp (or
-            //     found before       Assembly-CSharp-Editor) assembly; owned when
-            //     reaching Assets/   compilation.AssemblyName starts with
-            //                      "Assembly-CSharp".
+            //     found before       Assembly-CSharp-Editor) assembly. Unity decides
+            //     reaching Assets/   between the two based on whether the file is
+            //                      under an Editor/ folder. We use the same heuristic:
+            //                      files under Editor/ → Assembly-CSharp-Editor,
+            //                      all others → Assembly-CSharp.
             string? ownerAsmName = FindOwningAsmdefAssemblyName(filePath);
-            bool ownedByThisCompilation = ownerAsmName != null
-                ? string.Equals(ownerAsmName, compilation.AssemblyName, StringComparison.Ordinal)
-                : (compilation.AssemblyName ?? string.Empty).StartsWith(
-                      "Assembly-CSharp", StringComparison.Ordinal);
+            bool ownedByThisCompilation;
+            if (ownerAsmName != null)
+            {
+                ownedByThisCompilation = string.Equals(
+                    ownerAsmName, compilation.AssemblyName, StringComparison.Ordinal);
+            }
+            else
+            {
+                string asmName = compilation.AssemblyName ?? string.Empty;
+                bool isEditorAsm = asmName.Contains("Editor");
+                bool isEditorFile = IsInsideEditorFolder(filePath);
+                ownedByThisCompilation = asmName.StartsWith("Assembly-CSharp", StringComparison.Ordinal)
+                    && isEditorAsm == isEditorFile;
+            }
 
             if (!ownedByThisCompilation)
             {
@@ -258,6 +270,22 @@ namespace ReactiveUITK.SourceGenerator
                 // Never crash the generator on filesystem errors.
             }
             return null;
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when the given path contains an <c>Editor</c>
+        /// directory segment. Unity uses this convention to assign files without
+        /// an .asmdef to <c>Assembly-CSharp-Editor</c>.
+        /// </summary>
+        private static bool IsInsideEditorFolder(string filePath)
+        {
+            foreach (string part in (filePath ?? string.Empty).Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }))
+            {
+                if (string.Equals(part, "Editor", StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            return false;
         }
 
         private static Diagnostic ParseDiagToRoslyn(ParseDiagnostic pd)
