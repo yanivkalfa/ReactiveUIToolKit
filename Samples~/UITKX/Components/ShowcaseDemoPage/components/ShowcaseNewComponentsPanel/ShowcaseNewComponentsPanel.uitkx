@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Core
@@ -8,8 +8,8 @@
 
 component ShowcaseNewComponentsPanel(bool foldoutOpen = true, ChangeEventHandler<bool>? onFoldoutChange = null, float sliderValue = 0.5f, ChangeEventHandler<float>? onSliderChange = null, int sliderIntValue = 5, ChangeEventHandler<int>? onSliderIntChange = null, List<string>? ddChoices = null, string ddValue = "", ChangeEventHandler<string>? onDdChange = null) {
   var groupContentStyle = new Style {
-      (PaddingLeft, 8f), (PaddingRight, 8f),
-      (PaddingTop, 6f), (PaddingBottom, 6f),
+    (PaddingLeft, 8f), (PaddingRight, 8f),
+    (PaddingTop, 6f), (PaddingBottom, 6f),
   };
 
   var messageType = sliderIntValue % 3 == 0 ? "error" : (sliderIntValue % 2 == 0 ? "warning" : "info");

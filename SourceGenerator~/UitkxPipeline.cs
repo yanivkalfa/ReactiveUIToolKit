@@ -141,19 +141,33 @@ namespace ReactiveUITK.SourceGenerator
                 sb.AppendLine(
                     $"// UITKX parse errors in {fileName} — fix the .uitkx file to regenerate."
                 );
-                foreach (var d in diagnostics)
-                    if (d.Severity == DiagnosticSeverity.Error)
+                // Use #line before each #error so Unity's C# compiler reports
+                // the error as originating from the .uitkx file, enabling
+                // click-to-navigate in the Unity Console.
+                string linePath = filePath.Replace('\\', '/').Replace("\"", "\\\"");
+                foreach (var pd in parseDiags)
+                    if (pd.Severity == ParseSeverity.Error)
+                    {
+                        int line = pd.SourceLine > 0 ? pd.SourceLine : 1;
+                        sb.AppendLine($"#line {line} \"{linePath}\"");
                         sb.AppendLine(
-                            $"#error {d.GetMessage().Replace('\n', ' ').Replace('\r', ' ')}"
+                            $"#error {pd.Message.Replace('\n', ' ').Replace('\r', ' ')}"
                         );
+                    }
                 if (!directives.IsFunctionStyle && directives.ComponentName == null)
+                {
+                    sb.AppendLine($"#line 1 \"{linePath}\"");
                     sb.AppendLine(
                         $"#error UITKX: '{fileName}' is missing a required '@component' directive."
                     );
+                }
                 if (!directives.IsFunctionStyle && directives.Namespace == null)
+                {
+                    sb.AppendLine($"#line 1 \"{linePath}\"");
                     sb.AppendLine(
                         $"#error UITKX: '{fileName}' is missing a required '@namespace' directive."
                     );
+                }
 
                 return new UitkxPipelineResult(
                     HintName: hintName,

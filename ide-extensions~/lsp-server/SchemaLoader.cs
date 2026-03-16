@@ -63,6 +63,10 @@ public sealed class UitkxSchema
 
         [JsonPropertyName("elements")]
         public Dictionary<string, ElementInfo> Elements { get; set; } = new();
+
+        [JsonPropertyName("styleKeyValues")]
+        public Dictionary<string, List<string>> StyleKeyValues { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
     }
 
     // ── Public surface ───────────────────────────────────────────────────────

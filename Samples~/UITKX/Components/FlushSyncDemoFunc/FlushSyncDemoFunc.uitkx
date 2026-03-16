@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component FlushSyncDemoFunc {
@@ -6,9 +6,9 @@ component FlushSyncDemoFunc {
   var (syncCount, setSyncCount) = useState(0);
 
   var containerStyle = new Style {
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.Padding, 12f),
-      (StyleKeys.BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 1f)),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 1f)),
   };
 
   return (

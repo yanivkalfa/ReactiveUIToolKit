@@ -18,14 +18,24 @@ SourceGenerator~/Tests/bin/
 Analyzers/*.deps.json
 Analyzers/*.pdb
 
+# Visual Studio IDE cache (locked by VS at runtime)
+.vs/
+ide-extensions~/visual-studio/UitkxVsix/.vs/
+
 # VS extension build artifacts
 ide-extensions~/visual-studio/UitkxVsix/bin/
 ide-extensions~/visual-studio/UitkxVsix/obj/
 ide-extensions~/visual-studio/UitkxVsix/server/
 ide-extensions~/visual-studio/UitkxVsix/.vsix/
+ide-extensions~/visual-studio/UitkxVsix/*.vsix
 
-# LSP server build artifacts (bin/obj — the committed DLLs live directly in lsp-server/bin/Release/net8.0/)
+# LSP server build artifacts
+ide-extensions~/lsp-server/bin/
 ide-extensions~/lsp-server/obj/
+
+# Language lib build artifacts
+ide-extensions~/language-lib/bin/
+ide-extensions~/language-lib/obj/
 
 # Publisher credentials — never commit the real token
 publisher-secrets.json

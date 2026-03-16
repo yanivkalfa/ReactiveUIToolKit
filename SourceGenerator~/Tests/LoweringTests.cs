@@ -153,6 +153,37 @@ public class LoweringTests
         Assert.Equal(directiveShape, functionShape);
     }
 
+    [Fact]
+    public void CanonicalLowering_FunctionStyle_TernaryJsxInSetup_ProducesReturnMarkupNodes()
+    {
+        const string src =
+            """
+            component PortalDemo {
+                var target = useRef<VisualElement>();
+                var portalNode = target != null
+                    ? ( <Portal target={target}><Label text="inside" /></Portal> )
+                    : null;
+
+                return (
+                    <Box>
+                        @(portalNode)
+                    </Box>
+                );
+            }
+            """;
+
+        var diags = new System.Collections.Generic.List<ParseDiagnostic>();
+        var directives = DirectiveParser.Parse(src, "PortalDemo.uitkx", diags);
+        var parsed = UitkxParser.Parse(src, "PortalDemo.uitkx", directives, diags);
+
+        var lowered = CanonicalLowering.LowerToRenderRoots(directives, parsed, "PortalDemo.uitkx");
+
+        var code = Assert.IsType<CodeBlockNode>(lowered[0]);
+        Assert.Contains("var portalNode", code.Code);
+        Assert.NotEmpty(code.ReturnMarkups);
+        Assert.Contains(code.ReturnMarkups, rm => rm.Element.TagName == "Portal");
+    }
+
     private static string BuildSemanticShape(System.Collections.Immutable.ImmutableArray<AstNode> roots)
     {
         var parts = new System.Collections.Generic.List<string>();

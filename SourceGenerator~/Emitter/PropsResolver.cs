@@ -619,7 +619,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
                 else
                 {
-                    // Func, ForwardRef, Portal, Router, etc. — skip
+                    // Func, ForwardRef, Router, etc. — skip
+                    // (Portal and Suspense are registered manually below)
                     continue;
                 }
 
@@ -653,6 +654,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 map["suspense"] = new TagResolution(
                     TagResolutionKind.BuiltinSuspense,
                     "Suspense",
+                    null,
+                    AcceptsChildren: true
+                );
+
+            // Portal: V.Portal(VisualElement, string key, params VirtualNode[]).
+            // First param is VisualElement — the scanner skips it, so register manually.
+            if (!map.ContainsKey("portal"))
+                map["portal"] = new TagResolution(
+                    TagResolutionKind.BuiltinPortal,
+                    "Portal",
                     null,
                     AcceptsChildren: true
                 );
@@ -709,6 +720,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 ["suspense"] = new TagResolution(
                     TagResolutionKind.BuiltinSuspense,
                     "Suspense",
+                    null,
+                    AcceptsChildren: true
+                ),
+                ["portal"] = new TagResolution(
+                    TagResolutionKind.BuiltinPortal,
+                    "Portal",
                     null,
                     AcceptsChildren: true
                 ),

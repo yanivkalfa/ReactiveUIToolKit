@@ -57,13 +57,14 @@ namespace ReactiveUITK.Language.Parser
         public static DirectiveSet Parse(
             string source,
             string filePath,
-            List<ParseDiagnostic> diagnosticBag
+            List<ParseDiagnostic> diagnosticBag,
+            bool useLastReturn = false
         )
         {
             if (source.Length > 0 && source[0] == '\uFEFF')
                 source = source.Substring(1);
 
-            if (TryParseFunctionStyle(source, filePath, diagnosticBag, out var functionStyleSet))
+            if (TryParseFunctionStyle(source, filePath, diagnosticBag, out var functionStyleSet, useLastReturn))
                 return functionStyleSet;
 
             if (LooksLikeFunctionStyleComponent(source, 0))
@@ -314,7 +315,8 @@ namespace ReactiveUITK.Language.Parser
             string source,
             string filePath,
             List<ParseDiagnostic> diagnosticBag,
-            out DirectiveSet directiveSet
+            out DirectiveSet directiveSet,
+            bool useLastReturn = false
         )
         {
             directiveSet = default!;
@@ -468,7 +470,8 @@ namespace ReactiveUITK.Language.Parser
                     out int returnStart,
                     out int returnOpenParen,
                     out int returnCloseParen,
-                    out int returnStmtEndExclusive
+                    out int returnStmtEndExclusive,
+                    useLastReturn
                 )
             )
             {
@@ -487,6 +490,9 @@ namespace ReactiveUITK.Language.Parser
                 });
 
                 int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
+                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag);
+                var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
+                CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
                     ComponentName: componentName,
@@ -505,7 +511,7 @@ namespace ReactiveUITK.Language.Parser
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol,
                     HasExplicitNamespace: inlineNamespace != null,
-                    SetupCodeMarkupRanges: FindJsxBlockRanges(source, bodyStart, bodyEndExclusive)
+                    SetupCodeMarkupRanges: setupMarkupRanges1
                 );
                 return true;
             }
@@ -520,7 +526,7 @@ namespace ReactiveUITK.Language.Parser
                 diagnosticBag.Add(new ParseDiagnostic
                 {
                     Code = "UITKX2103",
-                    Severity = ParseSeverity.Error,
+                    Severity = ParseSeverity.Warning,
                     SourceLine = LineAtPos(source, secondReturn),
                     Message = "Multiple top-level returns are not allowed in function-style components.",
                 });
@@ -550,7 +556,18 @@ namespace ReactiveUITK.Language.Parser
                     Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
                 );
 
+            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence.
+            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag);
+            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag);
+
             int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
+            int setupGapOffset = returnStart - fseTrimStart2;
+            int setupGapLength = returnStmtEndExclusive - returnStart;
+            var setupMarkupRanges2 = FindJsxBlockRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+            CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
                 ComponentName: componentName,
@@ -569,10 +586,11 @@ namespace ReactiveUITK.Language.Parser
                 ComponentDeclarationLine: componentLine,
                 ComponentNameColumn: componentNameCol,
                 HasExplicitNamespace: inlineNamespace != null,
-                SetupCodeMarkupRanges: FindJsxBlockRanges(
-                    source,
-                    bodyStart,       returnStart,
-                    returnStmtEndExclusive, bodyEndExclusive)
+                FunctionReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
+                FunctionBodyEndLine: LineAtPos(source, bodyEndExclusive),
+                SetupCodeMarkupRanges: setupMarkupRanges2,
+                FunctionSetupGapOffset: setupGapOffset,
+                FunctionSetupGapLength: setupGapLength
             );
 
             if (TryFindNextNonWhitespace(source, bodyCloseExclusive, out int trailingPos))
@@ -1110,7 +1128,8 @@ namespace ReactiveUITK.Language.Parser
             out int returnStart,
             out int openParen,
             out int closeParen,
-            out int stmtEndExclusive
+            out int stmtEndExclusive,
+            bool useLastReturn = false
         )
         {
             returnStart = -1;
@@ -1174,32 +1193,44 @@ namespace ReactiveUITK.Language.Parser
                 {
                     if (TryReadKeywordAt(source, i, "return"))
                     {
-                        returnStart = i;
+                        int candidateStart = i;
                         int j = i + "return".Length;
                         SkipWhitespace(source, ref j);
 
-                        if (j >= endExclusive || source[j] != '(')
-                            return false;
+                        if (j < endExclusive && source[j] == '(')
+                        {
+                            int candidateOpenParen = j;
+                            if (TryReadBalancedParen(source, candidateOpenParen, endExclusive, out int closeParenExclusive))
+                            {
+                                int candidateCloseParen = closeParenExclusive - 1;
+                                j = closeParenExclusive;
+                                SkipWhitespace(source, ref j);
+                                if (j < endExclusive && source[j] == ';')
+                                {
+                                    returnStart = candidateStart;
+                                    openParen = candidateOpenParen;
+                                    closeParen = candidateCloseParen;
+                                    stmtEndExclusive = j + 1;
 
-                        openParen = j;
-                        if (!TryReadBalancedParen(source, openParen, endExclusive, out int closeParenExclusive))
-                            return false;
+                                    if (!useLastReturn)
+                                        return true;
 
-                        closeParen = closeParenExclusive - 1;
-                        j = closeParenExclusive;
-                        SkipWhitespace(source, ref j);
-                        if (j >= endExclusive || source[j] != ';')
-                            return false;
+                                    // Continue scanning to find the last match
+                                    i = stmtEndExclusive;
+                                    continue;
+                                }
+                            }
+                        }
 
-                        stmtEndExclusive = j + 1;
-                        return true;
+                        if (!useLastReturn)
+                            return false;
                     }
                 }
 
                 i++;
             }
 
-            return false;
+            return returnStart >= 0;
         }
 
         private static int FindTopLevelReturnAfter(string source, int start, int endExclusive)
@@ -1552,6 +1583,102 @@ namespace ReactiveUITK.Language.Parser
             return start;
         }
 
+        // ── @(expr) scanner ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
+        /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings
+        /// and comments, emitting <see cref="DiagnosticCodes.AtExprInSetupCode"/>
+        /// for each occurrence.
+        /// </summary>
+        private static void ScanAtExprInSetupCode(
+            string source,
+            int rangeStart,
+            int rangeEnd,
+            List<ParseDiagnostic> diagnosticBag)
+        {
+            int i = rangeStart;
+            while (i < rangeEnd)
+            {
+                char ch = source[i];
+
+                // Skip verbatim strings @"..."
+                if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '"')
+                {
+                    i += 2;
+                    while (i < rangeEnd)
+                    {
+                        if (source[i] == '"')
+                        {
+                            if (i + 1 < rangeEnd && source[i + 1] == '"')
+                                i += 2; // escaped ""
+                            else { i++; break; }
+                        }
+                        else i++;
+                    }
+                    continue;
+                }
+
+                // Skip regular strings "..."
+                if (ch == '"')
+                {
+                    i++;
+                    while (i < rangeEnd && source[i] != '"')
+                    {
+                        if (source[i] == '\\') i++;
+                        i++;
+                    }
+                    if (i < rangeEnd) i++;
+                    continue;
+                }
+
+                // Skip character literals '.'
+                if (ch == '\'')
+                {
+                    i++;
+                    if (i < rangeEnd && source[i] == '\\') i++;
+                    if (i < rangeEnd) i++; // the char
+                    if (i < rangeEnd && source[i] == '\'') i++;
+                    continue;
+                }
+
+                // Skip single-line comments //
+                if (ch == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
+                {
+                    i += 2;
+                    while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // Skip block comments /* ... */
+                if (ch == '/' && i + 1 < rangeEnd && source[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < rangeEnd && !(source[i] == '*' && source[i + 1] == '/'))
+                        i++;
+                    if (i + 1 < rangeEnd) i += 2;
+                    continue;
+                }
+
+                // Detect @(
+                if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
+                {
+                    diagnosticBag.Add(new ParseDiagnostic
+                    {
+                        Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
+                        Severity = ParseSeverity.Error,
+                        SourceLine = LineAtPos(source, i),
+                        SourceColumn = ColAtPos(source, i),
+                        EndColumn = ColAtPos(source, i) + 2,
+                        Message = "'@(...)' syntax is not supported in setup code. " +
+                                  "Use a local variable instead: var x = (...); then reference x.",
+                    });
+                }
+
+                i++;
+            }
+        }
+
         private static int LineAtPos(string source, int pos)
         {
             int line = 1;
@@ -1581,6 +1708,96 @@ namespace ReactiveUITK.Language.Parser
         // ── JSX block range finder ────────────────────────────────────────────
 
         /// <summary>
+        /// For each paren-wrapped JSX block, checks whether a semicolon follows the
+        /// closing <c>)</c>.  If not, emits a <c>CS1002</c> diagnostic.
+        /// </summary>
+        private static void CheckMissingSemicolonAfterJsxParenBlocks(
+            string source,
+            ImmutableArray<(int Start, int End, int Line)> ranges,
+            List<ParseDiagnostic> diagnosticBag)
+        {
+            if (ranges.IsDefaultOrEmpty) return;
+            foreach (var (start, end, _) in ranges)
+            {
+                // Only check paren-wrapped blocks — the char before Start is '('.
+                if (start <= 0 || source[start - 1] != '(') continue;
+
+                // 'end' is position of ')'. Scan past whitespace and comments.
+                int pos = SkipWhitespaceAndComments(source, end + 1);
+
+                if (pos >= source.Length)
+                {
+                    AddSemicolonDiagnostic(source, end, diagnosticBag);
+                    continue;
+                }
+
+                char next = source[pos];
+                // Valid continuations after ')' — operators, ternary, comma, braces, etc.
+                if (next == ';' || next == ':' || next == ',' || next == ')' ||
+                    next == '.' || next == '?' || next == '!' || next == '[' ||
+                    next == '}' || next == '{' ||
+                    next == '+' || next == '-' || next == '*' || next == '/' ||
+                    next == '%' || next == '&' || next == '|' || next == '^' ||
+                    next == '<' || next == '>' || next == '=' || next == '~')
+                    continue;
+
+                AddSemicolonDiagnostic(source, end, diagnosticBag);
+            }
+        }
+
+        /// <summary>
+        /// Advances past whitespace, <c>// line comments</c>, and <c>/* block comments */</c>.
+        /// </summary>
+        private static int SkipWhitespaceAndComments(string source, int pos)
+        {
+            while (pos < source.Length)
+            {
+                char c = source[pos];
+                if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+                {
+                    pos++;
+                    continue;
+                }
+                if (c == '/' && pos + 1 < source.Length)
+                {
+                    if (source[pos + 1] == '/')
+                    {
+                        // Line comment — skip to end of line
+                        pos += 2;
+                        while (pos < source.Length && source[pos] != '\n')
+                            pos++;
+                        continue;
+                    }
+                    if (source[pos + 1] == '*')
+                    {
+                        // Block comment — skip to */
+                        pos += 2;
+                        while (pos + 1 < source.Length &&
+                               !(source[pos] == '*' && source[pos + 1] == '/'))
+                            pos++;
+                        pos += 2; // skip */
+                        continue;
+                    }
+                }
+                break;
+            }
+            return pos;
+        }
+
+        private static void AddSemicolonDiagnostic(
+            string source, int parenPos, List<ParseDiagnostic> diagnosticBag)
+        {
+            diagnosticBag.Add(new ParseDiagnostic
+            {
+                Code     = "CS1002",
+                Severity = ParseSeverity.Error,
+                SourceLine   = LineAtPos(source, parenPos),
+                SourceColumn = ColAtPos(source, parenPos) + 1,
+                Message  = "; expected",
+            });
+        }
+
+        /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
         /// <paramref name="rangeEnd"/> for UITKX JSX paren blocks of the form
         /// <c>(&lt;Element&gt;...&lt;/Element&gt;)</c> and returns a list of
@@ -1598,6 +1815,37 @@ namespace ReactiveUITK.Language.Parser
             int i = rangeStart;
             while (i < rangeEnd)
             {
+                // Skip // line comments
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
+                {
+                    while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // ── Bare arrow: => <Tag ──────────────────────────────────
+                if (source[i] == '=' && i + 1 < rangeEnd && source[i + 1] == '>')
+                {
+                    int peek = i + 2;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Paren-wrapped: ( <Tag ────────────────────────────────
                 if (source[i] != '(')
                 {
                     i++;
@@ -1605,13 +1853,13 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 // Peek past whitespace / newlines to see if the next token is '<'
-                int peek = i + 1;
-                while (peek < rangeEnd &&
-                       (source[peek] == ' '  || source[peek] == '\t' ||
-                        source[peek] == '\r' || source[peek] == '\n'))
-                    peek++;
+                int peek2 = i + 1;
+                while (peek2 < rangeEnd &&
+                       (source[peek2] == ' '  || source[peek2] == '\t' ||
+                        source[peek2] == '\r' || source[peek2] == '\n'))
+                    peek2++;
 
-                if (peek >= rangeEnd || source[peek] != '<')
+                if (peek2 >= rangeEnd || source[peek2] != '<')
                 {
                     i++;
                     continue;
@@ -1657,6 +1905,86 @@ namespace ReactiveUITK.Language.Parser
             if (r2.IsDefaultOrEmpty) return r1;
             if (r1.IsDefaultOrEmpty) return r2;
             return r1.AddRange(r2);
+        }
+
+        /// <summary>
+        /// Finds the end position (exclusive) of a JSX element starting at
+        /// <paramref name="start"/> (which must point to <c>&lt;</c>).
+        /// </summary>
+        private static int FindJsxElementEnd(string text, int start, int limit)
+        {
+            if (start >= limit || text[start] != '<')
+                return start;
+
+            int depth = 0;
+            int idx = start;
+
+            while (idx < limit)
+            {
+                char ch = text[idx];
+
+                if (ch == '"')
+                {
+                    idx++;
+                    while (idx < limit && text[idx] != '"')
+                        idx++;
+                    if (idx < limit) idx++;
+                    continue;
+                }
+
+                if (ch == '{')
+                {
+                    idx++;
+                    int braceDepth = 1;
+                    while (idx < limit && braceDepth > 0)
+                    {
+                        if      (text[idx] == '{') braceDepth++;
+                        else if (text[idx] == '}') braceDepth--;
+                        else if (text[idx] == '"')
+                        {
+                            idx++;
+                            while (idx < limit && text[idx] != '"')
+                            {
+                                if (text[idx] == '\\') idx++;
+                                idx++;
+                            }
+                        }
+                        if (braceDepth > 0) idx++;
+                    }
+                    if (idx < limit) idx++;
+                    continue;
+                }
+
+                if (ch == '/' && idx + 1 < limit && text[idx + 1] == '>')
+                {
+                    depth--;
+                    idx += 2;
+                    if (depth <= 0) return idx;
+                    continue;
+                }
+
+                if (ch == '<' && idx + 1 < limit && text[idx + 1] == '/')
+                {
+                    depth--;
+                    idx += 2;
+                    while (idx < limit && text[idx] != '>')
+                        idx++;
+                    if (idx < limit) idx++;
+                    if (depth <= 0) return idx;
+                    continue;
+                }
+
+                if (ch == '<' && idx + 1 < limit && char.IsLetter(text[idx + 1]))
+                {
+                    depth++;
+                    idx++;
+                    continue;
+                }
+
+                idx++;
+            }
+
+            return idx;
         }
 
         private static void ConsumeNewline(string source, ref int i, ref int line)

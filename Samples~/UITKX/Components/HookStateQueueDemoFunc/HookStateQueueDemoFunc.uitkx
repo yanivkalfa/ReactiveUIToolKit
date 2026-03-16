@@ -9,52 +9,55 @@ component HookStateQueueDemoFunc {
   var (logEntries, setLogEntries) = useState(new List<string> { "Click a button to queue multiple state updates." });
 
   useLayoutEffect(() => {
-      setFlushCount(count => count + 1);
-      return null;
+    setFlushCount(count => count + 1);
+    return null;
   }, new object[] { value });
 
   void AppendLog(string message) {
-      var next = new List<string>(logEntries.Count + 1) {
-          $"{DateTime.Now:HH:mm:ss}: {message}",
-      };
-      next.AddRange(logEntries);
-      if (next.Count > 8) next.RemoveRange(8, next.Count - 8);
-      setLogEntries(next);
+    var next = new List<string>(logEntries.Count + 1) {
+      $"{DateTime.Now:HH:mm:ss}: {message}",
+    };
+    next.AddRange(logEntries);
+    if (next.Count > 8)
+    {
+      next.RemoveRange(8, next.Count - 8);
+    }
+    setLogEntries(next);
   }
 
   void TripleIncrement() {
-      setValue(v => v + 1);
-      setValue(v => v + 1);
-      setValue(v => v + 1);
-      AppendLog("Queued +1 functional update three times");
+    setValue(v => v + 1);
+    setValue(v => v + 1);
+    setValue(v => v + 1);
+    AppendLog("Queued +1 functional update three times");
   }
 
   void ResetThenBoost() {
-      setValue(0);
-      setValue(v => v + 5);
-      AppendLog("Reset to 0 and applied +5 in the same event");
+    setValue(0);
+    setValue(v => v + 5);
+    AppendLog("Reset to 0 and applied +5 in the same event");
   }
 
   void MultiplyAfterAdd() {
-      setValue(v => v + 1);
-      setValue(v => v * 2);
-      AppendLog("Applied +1 then ×2 to verify preview chaining");
+    setValue(v => v + 1);
+    setValue(v => v * 2);
+    AppendLog("Applied +1 then ×2 to verify preview chaining");
   }
 
   var badgeStyle = new Style {
-      (StyleKeys.BackgroundColor, new Color(0.2f, 0.4f, 0.2f, 0.8f)),
-      (StyleKeys.PaddingLeft, 8f),
-      (StyleKeys.PaddingRight, 8f),
-      (StyleKeys.PaddingTop, 2f),
-      (StyleKeys.PaddingBottom, 2f),
-      (StyleKeys.BorderRadius, 4f),
-      (StyleKeys.MarginRight, 6f),
+    (StyleKeys.BackgroundColor, new Color(0.2f, 0.4f, 0.2f, 0.8f)),
+    (StyleKeys.PaddingLeft, 8f),
+    (StyleKeys.PaddingRight, 8f),
+    (StyleKeys.PaddingTop, 2f),
+    (StyleKeys.PaddingBottom, 2f),
+    (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.MarginRight, 6f),
   };
 
   var btnStyle = new Style {
-      (StyleKeys.MinWidth, 160f),
-      (StyleKeys.MarginRight, 6f),
-      (StyleKeys.MarginBottom, 6f),
+    (StyleKeys.MinWidth, 160f),
+    (StyleKeys.MarginRight, 6f),
+    (StyleKeys.MarginBottom, 6f),
   };
 
   return (

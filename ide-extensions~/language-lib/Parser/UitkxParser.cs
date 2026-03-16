@@ -439,6 +439,17 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.IsAt("/>") || _scanner.Current == '>' || _scanner.IsEof)
                     break;
 
+                // JSX block comment inside an attribute list: {/* … */}
+                // Skip the entire comment so its contents are never interpreted as attributes.
+                if (_scanner.IsAt("{/*"))
+                {
+                    _scanner.TryConsume("{/*");
+                    while (!_scanner.IsEof && !_scanner.IsAt("*/}"))
+                        _scanner.Advance();
+                    _scanner.TryConsume("*/}");
+                    continue;
+                }
+
                 // A '@' or '<' at this level means a control-flow directive or child
                 // element — the opening '>' was never written.  Stop here so the caller
                 // continues parsing normally rather than consuming the rest of the file
@@ -879,11 +890,14 @@ namespace ReactiveUITK.Language.Parser
         }
 
         /// <summary>
-        /// Scans the code body for embedded markup expressions in two forms:
+        /// Scans the code body for embedded markup expressions in four forms:
         /// <list type="bullet">
         ///   <item><c>return &lt;Tag .../&gt;</c> — explicit return of a VirtualNode.</item>
         ///   <item><c>= &lt;Tag .../&gt;</c> — assignment of a VirtualNode to a variable
         ///     (e.g. <c>var x = &lt;Label text="hi"/&gt;;</c>).</item>
+        ///   <item><c>=&gt; &lt;Tag .../&gt;</c> — lambda arrow with inline markup.</item>
+        ///   <item><c>? &lt;Tag .../&gt;</c> / <c>: &lt;Tag .../&gt;</c> — ternary branches
+        ///     (e.g. <c>cond ? (&lt;Portal&gt;...&lt;/Portal&gt;) : null</c>).</item>
         /// </list>
         /// Each found element is parsed into a <see cref="ReturnMarkupNode"/> using a
         /// temporary sub-parser so the current parser state is not disturbed.
@@ -1026,6 +1040,111 @@ namespace ReactiveUITK.Language.Parser
                             markupAt = j;
                         else
                             parenStart = -1; // paren not followed by JSX — reset
+                    }
+                }
+
+                // ── Pattern C: => <Tag  (lambda arrow with inline markup) ──────
+                if (
+                    markupAt < 0
+                    && _source[i] == '='
+                    && i + 1 < _source.Length
+                    && _source[i + 1] == '>'
+                )
+                {
+                    int j = i + 2; // skip =>
+                    while (
+                        j < codeBodyEnd
+                        && (
+                            _source[j] == ' '
+                            || _source[j] == '\t'
+                            || _source[j] == '\r'
+                            || _source[j] == '\n'
+                        )
+                    )
+                        j++;
+
+                    // Tolerate optional '(' before '<'
+                    if (j < codeBodyEnd && _source[j] == '(')
+                    {
+                        parenStart = j;
+                        j++;
+                        while (
+                            j < codeBodyEnd
+                            && (
+                                _source[j] == ' '
+                                || _source[j] == '\t'
+                                || _source[j] == '\r'
+                                || _source[j] == '\n'
+                            )
+                        )
+                            j++;
+                    }
+
+                    if (
+                        j < codeBodyEnd
+                        && _source[j] == '<'
+                        && j + 1 < codeBodyEnd
+                        && char.IsLetter(_source[j + 1])
+                    )
+                        markupAt = j;
+                    else
+                        parenStart = -1;
+                }
+
+                // ── Pattern D: ? <Tag  or  : <Tag  (ternary branches) ──────────
+                // Handles:  cond ? ( <Tag .../> ) : ( <Tag .../> )
+                //           cond ? <Tag .../> : <Tag .../>
+                // Excluded: ?. (null-conditional), ?? (null-coalescing), :: (scope)
+                if (markupAt < 0 && (_source[i] == '?' || _source[i] == ':'))
+                {
+                    char ch = _source[i];
+                    bool valid = true;
+                    if (ch == '?' && i + 1 < _source.Length
+                        && (_source[i + 1] == '.' || _source[i + 1] == '?'))
+                        valid = false;
+                    if (ch == ':' && i + 1 < _source.Length && _source[i + 1] == ':')
+                        valid = false;
+
+                    if (valid)
+                    {
+                        int j = i + 1;
+                        while (
+                            j < codeBodyEnd
+                            && (
+                                _source[j] == ' '
+                                || _source[j] == '\t'
+                                || _source[j] == '\r'
+                                || _source[j] == '\n'
+                            )
+                        )
+                            j++;
+
+                        // Tolerate optional '(' before '<'
+                        if (j < codeBodyEnd && _source[j] == '(')
+                        {
+                            parenStart = j;
+                            j++;
+                            while (
+                                j < codeBodyEnd
+                                && (
+                                    _source[j] == ' '
+                                    || _source[j] == '\t'
+                                    || _source[j] == '\r'
+                                    || _source[j] == '\n'
+                                )
+                            )
+                                j++;
+                        }
+
+                        if (
+                            j < codeBodyEnd
+                            && _source[j] == '<'
+                            && j + 1 < codeBodyEnd
+                            && char.IsLetter(_source[j + 1])
+                        )
+                            markupAt = j;
+                        else
+                            parenStart = -1;
                     }
                 }
 

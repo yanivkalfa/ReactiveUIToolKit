@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using UnityEngine
 
@@ -6,14 +6,14 @@ component MainMenuSidebar {
   var navigate = RouterHooks.UseNavigate();
 
   var sidebarStyle = new Style {
-      (StyleKeys.Width, 220f),
-      (StyleKeys.Padding, 10f),
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.JustifyContent, "flex-start"),
-      (StyleKeys.AlignItems, "stretch"),
-      (StyleKeys.BorderWidth, 1f),
-      (StyleKeys.BorderColor, new Color(0.25f, 0.25f, 0.25f, 1f)),
-      (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.Width, 220f),
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.JustifyContent, "flex-start"),
+    (StyleKeys.AlignItems, "stretch"),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderColor, new Color(0.25f, 0.25f, 0.25f, 1f)),
+    (StyleKeys.BorderRadius, 6f),
   };
 
   var btnStyle = new Style { (StyleKeys.MarginTop, 6f) };

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -36,10 +37,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// <summary>All info gathered for one UITKX element (its <c>*Props</c> class).</summary>
     public sealed class ElementInfo
     {
-        public string         FilePath { get; init; } = "";
+        public string         FilePath    { get; init; } = "";
         /// <summary>1-based line of the class declaration.</summary>
-        public int            FileLine { get; init; }
-        public List<PropInfo> Props    { get; init; } = new();
+        public int            FileLine    { get; init; }
+        public List<PropInfo> Props       { get; init; } = new();
+        /// <summary>Base element name if the Props class extends another *Props class.</summary>
+        public string?        BaseElement { get; init; }
     }
 
     // ── State ────────────────────────────────────────────────────────────────
@@ -58,6 +61,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // Matches:  "class Props"  "record Props"  "struct Props"  (no prefix — component name = filename stem)
     private static readonly Regex s_nestedPropsPattern = new(
         @"\b(?:class|record|struct)\s+Props\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    // Detects a base *Props class in the inheritance list.
+    // E.g.  ": BaseProps"  ": BaseProps, ISerializable"
+    private static readonly Regex s_basePropsPattern = new(
+        @":\s*(?:[\w.]+\s*,\s*)*?([A-Z]\w{1,})Props\b",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     // Matches public property declarations with a Pascal-case name.
@@ -87,6 +96,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// Subscribe to re-validate open documents that were diagnosed before the scan finished.
     /// </summary>
     public event Action? ScanCompleted;
+
+    /// <summary>
+    /// Fired after <see cref="Refresh"/> updates the index for a single file.
+    /// Subscribers can re-validate open documents whose diagnostics may now be stale.
+    /// </summary>
+    public event Action? IndexChanged;
 
     public Task OnStarted(ILanguageServer server, CancellationToken cancellationToken)
     {
@@ -141,9 +156,9 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         _lock.EnterReadLock();
         try
         {
-            return _elementInfo.TryGetValue(elementName, out var info)
-                ? info.Props
-                : (IReadOnlyList<PropInfo>)Array.Empty<PropInfo>();
+            if (!_elementInfo.TryGetValue(elementName, out var info))
+                return Array.Empty<PropInfo>();
+            return ResolveProps(info);
         }
         finally { _lock.ExitReadLock(); }
     }
@@ -154,9 +169,40 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         _lock.EnterReadLock();
         try
         {
-            return _elementInfo.TryGetValue(elementName, out var info) ? info : null;
+            if (!_elementInfo.TryGetValue(elementName, out var info))
+                return null;
+            var resolved = ResolveProps(info);
+            if (resolved == info.Props) return info;
+            return new ElementInfo
+            {
+                FilePath    = info.FilePath,
+                FileLine    = info.FileLine,
+                Props       = resolved,
+                BaseElement = info.BaseElement,
+            };
         }
         finally { _lock.ExitReadLock(); }
+    }
+
+    /// <summary>
+    /// Returns all props for the element, including those inherited from base *Props classes.
+    /// Must be called under the read lock.
+    /// </summary>
+    private List<PropInfo> ResolveProps(ElementInfo info, int depth = 0)
+    {
+        if (depth > 5 || info.BaseElement is null ||
+            !_elementInfo.TryGetValue(info.BaseElement, out var baseInfo))
+            return info.Props;
+
+        var baseProps = ResolveProps(baseInfo, depth + 1);
+        var ownNames = new HashSet<string>(info.Props.Select(p => p.Name), StringComparer.Ordinal);
+        var merged = new List<PropInfo>(info.Props);
+        foreach (var bp in baseProps)
+        {
+            if (!ownNames.Contains(bp.Name))
+                merged.Add(bp);
+        }
+        return merged;
     }
 
     /// <summary>
@@ -175,12 +221,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 return;
             }
             IndexFile(filePath);
+            IndexChanged?.Invoke();
         }
         else if (filePath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
                 return; // deletion — component will disappear on next full scan
             IndexUitkxFile(filePath);
+            IndexChanged?.Invoke();
         }
     }
 
@@ -284,6 +332,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             var lines = File.ReadAllLines(filePath);
             string? currentElement = null;
+            string? currentBase   = null;
             int     currentLine   = 0;
             var     currentProps  = new List<PropInfo>();
             var     xmlBuf        = new List<string>();
@@ -298,12 +347,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 if (classMatch.Success)
                 {
                     if (currentElement is not null)
-                        CommitElement(filePath, currentElement, currentLine, currentProps);
+                        CommitElement(filePath, currentElement, currentLine, currentProps, currentBase);
 
                     currentElement = classMatch.Groups[1].Value;
                     currentLine    = i + 1;
                     currentProps   = new List<PropInfo>();
                     xmlBuf.Clear();
+
+                    // Detect base *Props class (e.g. ": BaseProps")
+                    currentBase = null;
+                    var baseMatch = s_basePropsPattern.Match(trimmed, classMatch.Index + classMatch.Length);
+                    if (baseMatch.Success)
+                        currentBase = baseMatch.Groups[1].Value;
                     continue;
                 }
 
@@ -312,11 +367,12 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 if (nestedPropsMatch.Success)
                 {
                     if (currentElement is not null)
-                        CommitElement(filePath, currentElement, currentLine, currentProps);
+                        CommitElement(filePath, currentElement, currentLine, currentProps, currentBase);
 
                     currentElement = Path.GetFileNameWithoutExtension(filePath);
                     currentLine    = i + 1;
                     currentProps   = new List<PropInfo>();
+                    currentBase    = null;
                     xmlBuf.Clear();
                     continue;
                 }
@@ -349,7 +405,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             }
 
             if (currentElement is not null)
-                CommitElement(filePath, currentElement, currentLine, currentProps);
+                CommitElement(filePath, currentElement, currentLine, currentProps, currentBase);
         }
         catch
         {
@@ -358,13 +414,15 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     private void CommitElement(
-        string filePath, string elementName, int fileLine, List<PropInfo> props)
+        string filePath, string elementName, int fileLine,
+        List<PropInfo> props, string? baseElement = null)
     {
         var info = new ElementInfo
         {
-            FilePath = filePath,
-            FileLine = fileLine,
-            Props    = new List<PropInfo>(props),
+            FilePath    = filePath,
+            FileLine    = fileLine,
+            Props       = new List<PropInfo>(props),
+            BaseElement = baseElement,
         };
         _lock.EnterWriteLock();
         try

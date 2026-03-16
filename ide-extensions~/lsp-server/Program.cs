@@ -12,13 +12,26 @@ ServerLog.Log(
     $"=== UitkxLanguageServer starting (PID={System.Diagnostics.Process.GetCurrentProcess().Id}) ==="
 );
 
+// Detect VS2022 client via --vs2022 flag (passed by UitkxLanguageClient, not by VSCode).
+CapabilityPatchStream.IsVisualStudio = args.Any(a =>
+    a.Equals("--vs2022", StringComparison.OrdinalIgnoreCase));
+ServerLog.Log($"IsVisualStudio={CapabilityPatchStream.IsVisualStudio} (args=[{string.Join(", ", args)}])");
+
+// Wrap stdout so we can patch the InitializeResult capabilities before VS2022 sees them.
+// OmniSharp v0.19.9 emits null for all providers (dynamic registration), which causes
+// VS2022's built-in navigation handlers to suppress Ctrl+Click / F12.
+var patchedOutput = new CapabilityPatchStream(Console.OpenStandardOutput());
+
+try
+{
 var server = await LanguageServer.From(options =>
     options
         .WithInput(Console.OpenStandardInput())
-        .WithOutput(Console.OpenStandardOutput())
+        .WithOutput(patchedOutput)
         .WithLoggerFactory(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance)
         .WithHandler<TextSyncHandler>()
         .WithHandler<CompletionHandler>()
+        .WithHandler<SignatureHelpHandler>()
         .WithHandler<HoverHandler>()
         .WithHandler<FormattingHandler>()
         .WithHandler<SemanticTokensHandler>()
@@ -50,3 +63,8 @@ var server = await LanguageServer.From(options =>
 
 ServerLog.Log("=== LanguageServer.From completed — waiting for exit ===");
 await server.WaitForExit;
+}
+catch (Exception ex)
+{
+    ServerLog.Log($"=== FATAL: LanguageServer.From threw: {ex} ===");
+}

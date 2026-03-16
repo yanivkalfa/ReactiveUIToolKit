@@ -28,6 +28,21 @@ namespace ReactiveUITK.Language.Formatter
         /// formatter could not process the input (the caller should fall back to
         /// its own formatting logic in that case).
         /// </returns>
-        string? Format(string code);
+        string? Format(string code, int indentSize = 4);
+
+        /// <summary>
+        /// Formats a statement-level C# code fragment (e.g. the setup code
+        /// from a function-style component) and returns the result.
+        /// </summary>
+        /// <param name="code">
+        /// Raw C# statements — local variable declarations, calls, control flow,
+        /// etc. Must be valid as-is inside a method body.
+        /// </param>
+        /// <param name="indentSize">Spaces per indent level (default: 4).</param>
+        /// <returns>
+        /// The formatted code, or <c>null</c> to signal that the formatter could
+        /// not process the input (the caller should fall back to its own logic).
+        /// </returns>
+        string? FormatStatements(string code, int indentSize = 4);
     }
 }

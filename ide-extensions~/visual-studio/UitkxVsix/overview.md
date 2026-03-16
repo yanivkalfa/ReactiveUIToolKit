@@ -1,4 +1,4 @@
-# UITKX
+﻿# UITKX
 
 Language support for `.uitkx` ReactiveUIToolKit component templates in Visual Studio.
 
@@ -11,3 +11,12 @@ Language support for `.uitkx` ReactiveUIToolKit component templates in Visual St
 ## Repository
 
 https://github.com/ReactiveUITK/ReactiveUIToolKit
+
+## Changelog
+
+### [1.0.53] - 2026-03-16
+- Ctrl+Click go-to-definition with underline; F12 support; unreachable code graying with CS0162; faster diagnostic refresh; 10s timeout for go-to-def RPC
+
+
+### [1.0.52] - 2026-03-16
+- Ctrl+Click go-to-definition with underline; F12 support; unreachable code graying with CS0162; faster diagnostic refresh; 10s timeout for go-to-def RPC

@@ -5,19 +5,19 @@ component DeepNode(int remaining = 0, int maxDisplay = 0) {
   int currentLevel = maxDisplay - remaining + 1;
 
   var nodeStyle = new Style {
-      (StyleKeys.PaddingLeft, 12f),
-      (StyleKeys.PaddingTop, 2f),
-      (StyleKeys.BorderLeftWidth, 1f),
-      (StyleKeys.BorderLeftColor, new Color(0.4f, 0.4f, 0.4f, 0.5f)),
-      (StyleKeys.MarginTop, 2f),
+    (StyleKeys.PaddingLeft, 12f),
+    (StyleKeys.PaddingTop, 2f),
+    (StyleKeys.BorderLeftWidth, 1f),
+    (StyleKeys.BorderLeftColor, new Color(0.4f, 0.4f, 0.4f, 0.5f)),
+    (StyleKeys.MarginTop, 2f),
   };
 
   if (remaining <= 0) {
-      return (
-          <VisualElement style={nodeStyle}>
-              <Text text={$"Level {currentLevel}: leaf node"} />
-          </VisualElement>
-      );
+    return (
+    <VisualElement style={nodeStyle}>
+      <Text text={$"Level {currentLevel}: leaf node"} />
+    </VisualElement>
+  );
   }
 
   return (

@@ -1,11 +1,14 @@
 using System.Collections.Immutable;
 using System.IO;
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using ReactiveUITK.Language.IntelliSense;
 using ReactiveUITK.Language.Parser;
+using UitkxLanguageServer.Roslyn;
 
 namespace UitkxLanguageServer;
 
@@ -14,12 +17,14 @@ public sealed class HoverHandler : IHoverHandler
     private readonly UitkxSchema _schema;
     private readonly DocumentStore _store;
     private readonly WorkspaceIndex _index;
+    private readonly RoslynHost _roslynHost;
 
-    public HoverHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index)
+    public HoverHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index, RoslynHost roslynHost)
     {
         _schema = schema;
         _store = store;
         _index = index;
+        _roslynHost = roslynHost;
     }
 
     public HoverRegistrationOptions GetRegistrationOptions(
@@ -92,6 +97,18 @@ public sealed class HoverHandler : IHoverHandler
         if (string.IsNullOrWhiteSpace(word))
             return Task.FromResult<Hover?>(null);
 
+        // 0. Roslyn type-info hover — runs first for C# expression positions
+        //    because Roslyn gives the most accurate type information.
+        if (!string.IsNullOrEmpty(localPath))
+        {
+            var vdoc = _roslynHost.GetVirtualDocument(localPath);
+            if (vdoc != null && vdoc.Map.ToVirtualOffset(offset).HasValue)
+            {
+                var roslynHover = TryGetRoslynHover(localPath, offset, vdoc, cancellationToken);
+                if (roslynHover != null)
+                    return Task.FromResult<Hover?>(roslynHover);
+            }
+        }
         // 1. Is it a known workspace element?
         var elementInfo = _index.TryGetElementInfo(word);
         if (elementInfo is not null)
@@ -103,14 +120,13 @@ public sealed class HoverHandler : IHoverHandler
                     : string.Join(
                         "\n",
                         props
-                            .Take(8)
                             .Select(p =>
                                 string.IsNullOrEmpty(p.XmlDoc)
                                     ? $"- `{p.Name}`: `{p.Type}`"
                                     : $"- `{p.Name}`: `{p.Type}` — {p.XmlDoc}"
                             )
                     );
-            var moreProps = props.Count > 8 ? $"\n- _+{props.Count - 8} more..._" : "";
+            var moreProps = "";
             var md = $"## `<{word}>` \u2014 {word}Props\n\n" + $"**Props**\n{propList}{moreProps}";
             return Task.FromResult<Hover?>(
                 new Hover
@@ -126,15 +142,22 @@ public sealed class HoverHandler : IHoverHandler
         var element = _schema.TryGetElement(word);
         if (element is not null)
         {
-            var attrs = element.Attributes.Take(8).ToArray();
+            var elementAttrs = element.Attributes;
+            var universalAttrs = _schema.Root.UniversalAttributes;
             var attrList =
-                attrs.Length == 0
+                elementAttrs.Count == 0
                     ? "_None_"
-                    : string.Join("\n", attrs.Select(a => $"- `{a.Name}`: `{a.Type}`"));
-            var moreAttrs =
-                element.Attributes.Count > attrs.Length
-                    ? $"\n- _+{element.Attributes.Count - attrs.Length} more..._"
-                    : "";
+                    : string.Join("\n", elementAttrs.Select(a =>
+                        string.IsNullOrEmpty(a.Description)
+                            ? $"- `{a.Name}`: `{a.Type}`"
+                            : $"- `{a.Name}`: `{a.Type}` — {a.Description}"));
+            if (universalAttrs.Count > 0)
+                attrList += "\n\n**Common attributes**\n"
+                    + string.Join("\n", universalAttrs.Select(a =>
+                        string.IsNullOrEmpty(a.Description)
+                            ? $"- `{a.Name}`: `{a.Type}`"
+                            : $"- `{a.Name}`: `{a.Type}` — {a.Description}"));
+            var moreAttrs = "";
             var md =
                 $"## `<{word}>` — {element.PropsType}\n\n"
                 + $"{element.Description}\n\n"
@@ -241,6 +264,107 @@ public sealed class HoverHandler : IHoverHandler
             );
 
         return Task.FromResult<Hover?>(null);
+    }
+
+    private Hover? TryGetRoslynHover(
+        string localPath,
+        int uitkxOffset,
+        ReactiveUITK.Language.Roslyn.VirtualDocument vdoc,
+        CancellationToken ct)
+    {
+        try
+        {
+            var virtualResult = vdoc.Map.ToVirtualOffset(uitkxOffset);
+            if (!virtualResult.HasValue)
+                return null;
+
+            int virtualOffset = virtualResult.Value.VirtualOffset;
+
+            var roslynDoc = _roslynHost.GetRoslynDocument(localPath);
+            if (roslynDoc == null)
+                return null;
+
+            // Use synchronous GetAwaiter().GetResult() — HoverHandler.Handle is synchronous.
+            // This is safe: we run on a thread-pool thread, not the LSP message pump,
+            // and the Roslyn documents are already computed by EnsureReadyAsync.
+#pragma warning disable VSTHRD002
+            var syntaxRoot    = roslynDoc.GetSyntaxRootAsync(ct).GetAwaiter().GetResult();
+            var semanticModel = roslynDoc.GetSemanticModelAsync(ct).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+            if (syntaxRoot == null || semanticModel == null)
+                return null;
+
+            // Find the syntax token at the cursor position.
+            int pos = virtualOffset > 0 ? virtualOffset - 1 : 0;
+            var token = syntaxRoot.FindToken(pos);
+            if (token.Parent == null)
+                return null;
+
+            // Try to get type information for the node under the cursor.
+            var typeInfo   = semanticModel.GetTypeInfo(token.Parent, ct);
+            var symbolInfo = semanticModel.GetSymbolInfo(token.Parent, ct);
+
+            var sym = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length > 0
+                ? symbolInfo.CandidateSymbols[0]
+                : null);
+
+            ITypeSymbol? type = typeInfo.Type ?? typeInfo.ConvertedType;
+
+            if (sym == null && type == null)
+                return null;
+
+            // Build the hover markdown from symbol / type information.
+            string md;
+            if (sym != null)
+            {
+                var display = sym.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                var kind    = sym.Kind.ToString().ToLowerInvariant();
+                md = $"**({kind})** `{display}`";
+
+                // Append type if it's different from the display string.
+                if (type != null)
+                {
+                    var typeDisplay = type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                    if (!display.Contains(typeDisplay))
+                        md = $"**({kind})** `{sym.Name}` : `{typeDisplay}`";
+                }
+
+                // Append XML doc summary if present.
+                var xml = sym.GetDocumentationCommentXml(cancellationToken: ct);
+                if (!string.IsNullOrWhiteSpace(xml))
+                {
+                    var summary = ExtractXmlSummary(xml);
+                    if (!string.IsNullOrWhiteSpace(summary))
+                        md += $"\n\n{summary}";
+                }
+            }
+            else
+            {
+                var typeDisplay = type!.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                md = $"`{typeDisplay}`";
+            }
+
+            ServerLog.Log($"[HoverHandler] Roslyn hover: {md.Substring(0, Math.Min(80, md.Length))}");
+
+            return new Hover
+            {
+                Contents = new MarkedStringsOrMarkupContent(
+                    new MarkupContent { Kind = MarkupKind.Markdown, Value = md }),
+            };
+        }
+        catch (Exception ex)
+        {
+            ServerLog.Log($"[HoverHandler] Roslyn hover error: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string ExtractXmlSummary(string xml)
+    {
+        var m = Regex.Match(xml, @"<summary>(.*?)</summary>", RegexOptions.Singleline);
+        if (!m.Success)
+            return string.Empty;
+        return Regex.Replace(m.Groups[1].Value.Trim(), @"\s+", " ");
     }
 
     private static bool TryGetHookSetterHover(

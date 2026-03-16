@@ -1,20 +1,20 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component ContextDemoFunc {
   var (usePrimaryTheme, setUsePrimaryTheme) = useState(true);
 
   var themeColor = usePrimaryTheme
-      ? new Color(0.23f, 0.65f, 0.95f, 1f)
-      : new Color(0.95f, 0.4f, 0.35f, 1f);
+    ? new Color(0.23f, 0.65f, 0.95f, 1f)
+    : new Color(0.95f, 0.4f, 0.35f, 1f);
 
   provideContext("context-demo-theme", themeColor);
 
   var containerStyle = new Style {
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.Padding, 12f),
-      (StyleKeys.BackgroundColor, new Color(0.12f, 0.12f, 0.12f, 1f)),
-      (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.BackgroundColor, new Color(0.12f, 0.12f, 0.12f, 1f)),
+    (StyleKeys.FlexGrow, 1f),
   };
 
   return (

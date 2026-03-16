@@ -238,7 +238,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private void EmitCodeBlockContent(CodeBlockNode cb)
         {
-            L($"#line {cb.SourceLine} \"{_linePath}\"");
+            // For classic @code blocks, SourceLine is the line of `@code` itself —
+            // code content starts on the next line, so add +1.
+            // For function-style (via CanonicalLowering), SourceLine already points
+            // to the first line of actual code, so no adjustment is needed.
+            int codeLine = _directives.IsFunctionStyle ? cb.SourceLine : cb.SourceLine + 1;
+            L($"#line {codeLine} \"{_linePath}\"");
             string codeText = cb.Code;
 
             if (!cb.ReturnMarkups.IsEmpty)
@@ -290,8 +295,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 var trimmed = line.TrimEnd('\r');
                 if (!string.IsNullOrEmpty(trimmed))
                     L($"{I3}{trimmed.TrimStart()}");
+                else
+                    L(""); // preserve blank lines for #line accuracy
             }
-            L("");
         }
 
         // ── Hook alias substitution ───────────────────────────────────────────
@@ -473,6 +479,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
                 case TagResolutionKind.BuiltinSuspense:
                     EmitSuspense(el.Attributes, keyExpr, el.Children);
+                    break;
+
+                case TagResolutionKind.BuiltinPortal:
+                    EmitPortal(el.Attributes, keyExpr, el.Children);
                     break;
 
                 case TagResolutionKind.FuncComponent:
@@ -814,6 +824,25 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             _sb.Append(fallbackArg);
             _sb.Append($", key: {keyExpr}");
+
+            if (!children.IsEmpty)
+            {
+                _sb.Append(", ");
+                EmitChildArgs(children);
+            }
+
+            _sb.Append(")");
+        }
+
+        private void EmitPortal(
+            ImmutableArray<AttributeNode> attrs,
+            string keyExpr,
+            ImmutableArray<AstNode> children
+        )
+        {
+            string targetArg = GetAttrValue(attrs, "target") ?? "null";
+
+            _sb.Append($"V.Portal({targetArg}, key: {keyExpr}");
 
             if (!children.IsEmpty)
             {

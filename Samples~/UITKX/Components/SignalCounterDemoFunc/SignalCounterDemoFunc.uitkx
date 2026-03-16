@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Signals
 @using System
 @using UnityEngine
@@ -8,12 +8,12 @@ component SignalCounterDemoFunc {
   var count = useSignal(counterSignal);
 
   var containerStyle = new Style {
-      (StyleKeys.Padding, 12f),
-      (StyleKeys.MarginTop, 8f),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.MarginTop, 8f),
   };
 
   var rowStyle = new Style {
-      (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.FlexDirection, "row"),
   };
 
   return (

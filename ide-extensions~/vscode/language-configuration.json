@@ -56,35 +56,53 @@
     ]
   ],
   "wordPattern": "[A-Za-z][A-Za-z0-9_-]*",
+
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*.*\\{\\s*$",
-    "decreaseIndentPattern": "^\\s*\\}"
+    "increaseIndentPattern": "(?:.*\\{\\s*$|^(?!.*/>\\s*$)(?!\\s*</).*[^/]>\\s*$|^\\s*<[A-Za-z](?!.*>\\s*$))",
+    "decreaseIndentPattern": "^\\s*(?:\\}|</[A-Za-z]|/>)"
   },
+
   "onEnterRules": [
     {
+      "comment": "Indent after opening C# brace: component X { / @if (...) { / etc.",
       "beforeText": "^.*\\{\\s*$",
-      "action": {
-        "indentAction": "indent"
-      }
+      "action": { "indentAction": "indent" }
     },
     {
-      "beforeText": "^\\s*\\}",
-      "action": {
-        "indentAction": "outdent"
-      }
+      "comment": "Indent after @case / @default colon (control-flow clause body)",
+      "beforeText": "^\\s*@(?:case\\b.*|default):\\s*$",
+      "action": { "indentAction": "indent" }
     },
     {
+      "comment": "Between open and close tag on consecutive lines — indentOutdent",
       "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
       "afterText": "^\\s*</[A-Za-z]",
-      "action": {
-        "indentAction": "indentOutdent"
-      }
+      "action": { "indentAction": "indentOutdent" }
     },
     {
-      "beforeText": "^(?!.*/>\\s*$).*[^/]>\\s*$",
-      "action": {
-        "indentAction": "indent"
-      }
+      "comment": "Multi-line tag opening (<Tag without closing >) — indent for attributes",
+      "beforeText": "^(?!.*>\\s*$)\\s*<[A-Za-z]",
+      "action": { "indentAction": "indent" }
+    },
+    {
+      "comment": "After self-closing tag (/>) — stay at same indent for siblings",
+      "beforeText": "^.*/>\\s*$",
+      "action": { "indentAction": "none" }
+    },
+    {
+      "comment": "After closing tag (</Tag>) — maintain indent",
+      "beforeText": "^\\s*</[A-Za-z][^>]*>\\s*$",
+      "action": { "indentAction": "none" }
+    },
+    {
+      "comment": "After closing brace — maintain indent",
+      "beforeText": "^\\s*\\}\\s*$",
+      "action": { "indentAction": "none" }
+    },
+    {
+      "comment": "After open tag with no matching close tag on next line — indent",
+      "beforeText": "^(?!.*/>\\s*$)(?!\\s*</).*[^/]>\\s*$",
+      "action": { "indentAction": "indent" }
     }
   ],
   "folding": {

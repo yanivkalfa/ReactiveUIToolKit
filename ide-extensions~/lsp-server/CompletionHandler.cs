@@ -18,6 +18,7 @@ public sealed class CompletionHandler : ICompletionHandler
     private readonly UitkxSchema _schema;
     private readonly DocumentStore _store;
     private readonly WorkspaceIndex _index;
+    private readonly RoslynHost _roslynHost;
     private readonly RoslynCompletionProvider _roslynCompletion;
 
     private static readonly HashSet<string> s_headerDirectives = new(
@@ -37,6 +38,7 @@ public sealed class CompletionHandler : ICompletionHandler
         _schema = schema;
         _store = store;
         _index = index;
+        _roslynHost = roslynHost;
         _roslynCompletion = new RoslynCompletionProvider(roslynHost);
     }
 
@@ -49,7 +51,7 @@ public sealed class CompletionHandler : ICompletionHandler
             DocumentSelector = new TextDocumentSelector(
                 new TextDocumentFilter { Pattern = "**/*.uitkx" }
             ),
-            TriggerCharacters = new Container<string>("<", "@", "{"),
+            TriggerCharacters = new Container<string>("<", "@", "{", "."),
             ResolveProvider = false,
         };
 
@@ -124,23 +126,55 @@ public sealed class CompletionHandler : ICompletionHandler
         bool inEmbeddedMarkupInCode =
             inCodeBlockLine && IsLikelyEmbeddedMarkupAtOffset(text, offset);
 
-        // ── Roslyn C# completions (async, @(expr) or @code block interior) ───
-        // Skip the '<' trigger (handled below as tag completions) and @/control-flow
-        // positions (those produce UITKX-specific items).
+        // ── Ensure virtual document is up-to-date before any source-map query.
+        // EnsureReadyAsync rebuilds the Roslyn workspace if the source has changed
+        // since the last build (e.g. user just typed '.'). Without this the source-
+        // map authority check below and the downstream Roslyn completion call both
+        // operate on a stale virtual document, producing wrong virtual offsets.
+        if (!string.IsNullOrEmpty(localPath))
+        {
+            try { await _roslynHost.EnsureReadyAsync(localPath, text, parseResult, cancellationToken).ConfigureAwait(false); }
+            catch (OperationCanceledException) { throw; }
+            catch { /* workspace not ready — proceed with whatever state exists */ }
+        }
+
+        // ── Source-map authority: is this cursor offset inside any mapped C# region?
+        // This is the ground truth. It avoids false-positive completions that line-
+        // number heuristics can produce (e.g. CSharpCodeBlock leaking into markup).
+        bool offsetIsInCSharpRegion = false;
+        if (!string.IsNullOrEmpty(localPath))
+        {
+            var vdoc = _roslynHost.GetVirtualDocument(localPath);
+            if (vdoc != null)
+                offsetIsInCSharpRegion = vdoc.Map.ToVirtualOffset(offset).HasValue;
+        }
+
+        // ── Roslyn C# completions ─────────────────────────────────────────────
+        // Route to Roslyn when:
+        //   - Cursor is in an inline @(expr) expression
+        //   - Cursor is in an attr={expr} attribute value (C# expression)
+        //   - Source map confirms the offset is inside a C# region (replaces the
+        //     old inCodeBlockLine / CSharpCodeBlock line-number heuristic which
+        //     leaked into return() and markup lines)
+        // Skip '<' trigger — that is always a tag-name completion.
         bool wantsRoslynCompletion =
-            ctx.Kind == CursorKind.CSharpExpression
-            || (
-                inCodeBlockLine
-                && !inEmbeddedMarkupInCode
-                && ctx.Kind != CursorKind.DirectiveName
-                && ctx.Kind != CursorKind.ControlFlowName
-                && triggerChar != "<"
+            triggerChar != "<"
+            && ctx.Kind != CursorKind.DirectiveName
+            && ctx.Kind != CursorKind.ControlFlowName
+            && ctx.Kind != CursorKind.TagName
+            && (
+                ctx.Kind == CursorKind.CSharpExpression
+                || ctx.Kind == CursorKind.AttributeValue
+                || offsetIsInCSharpRegion
             );
 
         if (wantsRoslynCompletion && !string.IsNullOrEmpty(localPath))
         {
+            // Parse the trigger char for the CompletionService context.
+            char? trigger = triggerChar?.Length == 1 ? triggerChar[0] : (char?)null;
+
             var roslynList = await _roslynCompletion
-                .GetCompletionsAsync(localPath, text, parseResult, offset, cancellationToken)
+                .GetCompletionsAsync(localPath, text, parseResult, offset, trigger, cancellationToken)
                 .ConfigureAwait(false);
 
             if (roslynList.Count > 0)
@@ -150,13 +184,29 @@ public sealed class CompletionHandler : ICompletionHandler
             }
 
             // Roslyn workspace not yet ready or returned nothing.
-            // For expression positions, return incomplete rather than falling through
-            // to UITKX items (which would be meaningless here).
+            // For confirmed C# positions, return incomplete rather than falling
+            // through to UITKX items (which would be meaningless in C# context).
             // isIncomplete: true tells VS Code to retry when the user types more,
             // so completions will appear once Roslyn finishes compiling.
-            if (ctx.Kind == CursorKind.CSharpExpression)
+            if (ctx.Kind == CursorKind.CSharpExpression
+                || ctx.Kind == CursorKind.AttributeValue
+                || offsetIsInCSharpRegion)
             {
-                Log("completion: CSharpExpression — Roslyn not ready, returning incomplete");
+                // Before giving up, check whether the cursor is inside a StyleKeys
+                // tuple value (e.g. `(StyleKeys.FlexDirection, "|")`) and return
+                // the known string values from the schema if so.
+                var styleItems = TryGetStyleKeyValueItems(text, offset);
+                if (styleItems != null)
+                {
+                    var styleList = styleItems.ToList();
+                    if (styleList.Count > 0)
+                    {
+                        Log($"completion: style key value items ({styleList.Count})");
+                        return new CompletionList(styleList);
+                    }
+                }
+
+                Log($"completion: {ctx.Kind} — Roslyn not ready, returning incomplete");
                 return new CompletionList(isIncomplete: true);
             }
         }
@@ -923,6 +973,50 @@ public sealed class CompletionHandler : ICompletionHandler
             InsertTextFormat = snippet ? InsertTextFormat.Snippet : InsertTextFormat.PlainText,
             Detail = detail,
         };
+
+    /// <summary>
+    /// Detects the pattern <c>(StyleKeys.SomeProp, "prefix</c> directly before
+    /// <paramref name="offset"/> (on the same line) and returns completion items
+    /// for the matching values from <see cref="_schema"/>.StyleKeyValues.
+    /// Returns <c>null</c> if the pattern is not matched.
+    /// </summary>
+    private IEnumerable<CompletionItem>? TryGetStyleKeyValueItems(string text, int offset)
+    {
+        // Find start of current line.
+        int lineStart = offset;
+        while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--;
+
+        string lineUpToCursor = text.Substring(lineStart, offset - lineStart);
+
+        // Match:  ( StyleKeys.SomeKey ,  "prefix
+        // Group 1 = PascalCase key name (e.g. "FlexDirection")
+        // Group 2 = already-typed prefix inside the string literal (may be empty)
+        var match = System.Text.RegularExpressions.Regex.Match(
+            lineUpToCursor,
+            @"StyleKeys\.([A-Za-z]+)\s*,\s*""([^""]*)$"
+        );
+        if (!match.Success)
+            return null;
+
+        string propName   = match.Groups[1].Value;                        // e.g. "FlexDirection"
+        string typedSoFar = match.Groups[2].Value;                        // e.g. "ro"
+
+        // Schema keys are camelCase ("flexDirection"); StyleKeys constants are PascalCase.
+        string camelKey = char.ToLowerInvariant(propName[0]) + propName.Substring(1);
+
+        if (!_schema.Root.StyleKeyValues.TryGetValue(camelKey, out var values))
+            return null;
+
+        return values
+            .Where(v => v.StartsWith(typedSoFar, StringComparison.OrdinalIgnoreCase))
+            .Select(v => new CompletionItem
+            {
+                Label      = v,
+                Kind       = CompletionItemKind.Value,
+                Detail     = $"StyleKeys.{propName}",
+                InsertText = v,
+            });
+    }
 
     private static int ToOffset(string text, Position position)
     {

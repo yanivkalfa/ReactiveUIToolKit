@@ -1428,11 +1428,35 @@
         { "name": "fallback",    "type": "VirtualNode",  "description": "VirtualNode rendered while the content is not yet ready." }
       ]
     },
+    "Portal": {
+      "propsType": "Portal",
+      "description": "Renders children into a different VisualElement target, outside the normal component tree.",
+      "acceptsChildren": true,
+      "attributes": [
+        { "name": "target", "type": "VisualElement", "description": "The VisualElement into which children are rendered." }
+      ]
+    },
     "Fragment": {
       "propsType": "Fragment",
       "description": "Invisible wrapper that allows returning multiple root elements.",
       "acceptsChildren": true,
       "attributes": []
     }
+  },
+  "styleKeyValues": {
+    "flexDirection":    ["row", "column", "row-reverse", "column-reverse"],
+    "flexWrap":         ["nowrap", "wrap", "wrap-reverse"],
+    "justifyContent":   ["flex-start", "flex-end", "center", "space-between", "space-around"],
+    "alignItems":       ["auto", "flex-start", "flex-end", "center", "stretch"],
+    "alignSelf":        ["auto", "flex-start", "flex-end", "center", "stretch"],
+    "alignContent":     ["flex-start", "flex-end", "center", "stretch", "space-between", "space-around"],
+    "position":         ["relative", "absolute"],
+    "display":          ["flex", "none"],
+    "visibility":       ["visible", "hidden"],
+    "overflow":         ["visible", "hidden", "scroll"],
+    "whiteSpace":       ["normal", "nowrap"],
+    "textAlign":        ["upper-left", "upper-center", "upper-right", "middle-left", "middle-center", "middle-right", "lower-left", "lower-center", "lower-right"],
+    "textOverflow":     ["clip", "ellipsis"],
+    "unityTextOverflowPosition": ["start", "middle", "end"]
   }
 }

@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
@@ -16,8 +16,8 @@ component EditorControlsDemoFunc {
         <ToolbarMenu
           text="Menu"
           populateMenu={dm => {
-              dm.AppendAction("Action A", _ => UnityEngine.Debug.Log("Menu A"));
-              dm.AppendAction("Action B", _ => UnityEngine.Debug.Log("Menu B"));
+            dm.AppendAction("Action A", _ => UnityEngine.Debug.Log("Menu A"));
+            dm.AppendAction("Action B", _ => UnityEngine.Debug.Log("Menu B"));
           }}
         />
         <ToolbarSpacer />

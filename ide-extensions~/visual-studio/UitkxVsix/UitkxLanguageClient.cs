@@ -141,7 +141,7 @@ public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage
     // Captures the live JsonRpc pipe so UitkxCompletionSource / UitkxHoverSource
     // can call textDocument/completion and textDocument/hover directly.
 
-    object? ILanguageClientCustomMessage2.MiddleLayer => null;
+    object? ILanguageClientCustomMessage2.MiddleLayer { get; } = new UitkxMiddleLayer();
     object? ILanguageClientCustomMessage2.CustomMessageTarget => null;
 
     Task ILanguageClientCustomMessage2.AttachForCustomMessageAsync(JsonRpc rpc)
@@ -185,12 +185,12 @@ public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage
         // Try running the exe directly (no dotnet CLI needed, just .NET runtime)
         var exe = Path.Combine(serverDir, "UitkxLanguageServer.exe");
         if (File.Exists(exe))
-            yield return (exe, string.Empty, "native-exe");
+            yield return (exe, "--vs2022", "native-exe");
 
         // Fall back to dotnet dll (requires dotnet CLI in PATH)
         var dll = Path.Combine(serverDir, "UitkxLanguageServer.dll");
         if (File.Exists(dll))
-            yield return ("dotnet", $"\"{dll}\"", "dotnet-dll");
+            yield return ("dotnet", $"\"{dll}\" --vs2022", "dotnet-dll");
 
         // Last resort: try server executable by relative path from extension root.
         if (File.Exists(Path.Combine("server", "UitkxLanguageServer.exe")))

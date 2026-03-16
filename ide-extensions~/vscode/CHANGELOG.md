@@ -1,5 +1,316 @@
 ﻿# Changelog
 
+## [1.0.234] - 2026-03-16
+- Unreachable code graying: Roslyn CS0162 now dimmed; faster diagnostic refresh; full-line gray-out for keywords in dead code
+
+## [1.0.234] - 2026-03-16
+- Unreachable code graying: Roslyn CS0162 now dimmed; faster diagnostic refresh; full-line gray-out for keywords in dead code
+
+## [1.0.233] - 2026-03-15
+- Fix: formatter no-op when multiple top-level returns with @(...) in markup (UITKX2103 + UITKX0306 interaction)
+
+## [1.0.230] - 2026-03-15
+- Fix semicolon check skipping comments after JSX paren blocks
+
+## [1.0.229] - 2026-03-15
+- Fix diagnostics disappearing on save/reformat (carry forward T3 cache); T1 semicolon check for JSX paren blocks
+
+## [1.0.228] - 2026-03-15
+- T1 missing-semicolon detection for paren-wrapped JSX blocks in setup code; hover shows inherited base props
+
+## [1.0.227] - 2026-03-15
+- T1 missing-semicolon detection for paren-wrapped JSX blocks in setup code; hover shows inherited base props
+
+## [1.0.222] - 2026-03-15
+- Move Portal JSX back to setup code using ternary paren-wrapped pattern
+
+## [1.0.221] - 2026-03-15
+- Add Portal JSX tag support in source generator, IDE schema, and completions; migrate samples from V.Portal API to JSX markup
+
+## [1.0.220] - 2026-03-15
+- Setup JSX: enable T2 unknown-element/attribute checks, C# expression validation, tag completions, and source-map entries for markup embedded in setup code; replace V.Portal with JSX syntax in samples
+
+## [1.0.219] - 2026-03-15
+- Virtual document: change useState setter stub from `delegate T __StateUpdater__<T>(T prev)` to `delegate void __StateSetter__<T>(Func<T,T> updater)` so that Roslyn properly type-checks lambda bodies inside state updaters (e.g. `setTreeRows(prev => { ... })`) — the lambda parameter `prev` is now correctly inferred as `T`, enabling full semantic analysis; fixes missing diagnostics for all `setX(prev => ...)` patterns
+- Diagnostic mapper: replace CS1660 suppression with targeted CS1503 suppression for state-setter direct-value calls (e.g. `setCount(5)`) by inspecting the error message for `Func<`; real CS1503 type-mismatch errors still surface
+
+## [1.0.218] - 2026-03-15
+- Virtual document: fix `seg2Line` calculation in `EmitMappedWithGap` straddle case — post-gap code now accounts for newlines in the removed return statement, preventing `#line` directive offset errors for code after the return block
+
+## [1.0.217] - 2026-03-14
+- Virtual document: skip `/* */` and `//` comments in setup-code JSX scanner; fixes regression where `{/* return (...) */}` JSX comment blocks caused `#line` directives to end up inside C# block comments, making them invisible to the compiler — this caused wrong squiggly-line positions and missing diagnostics entirely for code after the comment block
+
+## [1.0.216] - 2026-03-14
+- Formatter: expand single-line container JSX in paren blocks (e.g. `(<Box><Label/></Box>)`) into multi-line formatted output; previously only multi-line blocks got JSX formatting
+- Virtual document: add Branch 2b for bare `= <Tag` assignment markup so Roslyn no longer shows CS1525/CS0119 errors before format-on-save wraps the parens
+
+## [1.0.215] - 2026-03-14
+- Formatter: normalize bare assignment JSX (`var x = <Tag/>` → `var x = (<Tag/>)`) to match arrow-lambda normalization; both `= <Tag` and `=> <Tag` now auto-wrap in parentheses for consistent formatting
+
+## [1.0.214] - 2026-03-14
+- Formatter: auto-split `{content` lines where `{` opens a multi-line block with content on the same line (e.g. `{new TabDef { ... }` becomes `{` + `new TabDef { ... }` on separate lines); fixes indentation when list initializer opening brace is on the same line as the first item
+
+## [1.0.213] - 2026-03-14
+- Formatter: fix mid-line `{` brace tracking in EmitCSharpLines; object initializers with JSX property values (e.g. `new TabDef { Content = () => (<jsx/>) }`) now correctly maintain brace depth for subsequent sibling properties; fixes `Style` property and closing `};` losing indentation after JSX in nested initializers
+
+## [1.0.212] - 2026-03-14
+- Formatter: fix JSX paren-blocks in deeply nested C# (method bodies, if blocks, switch cases, lambda bodies) losing indentation context; use placeholder-based approach so EmitCSharpLines processes entire C# in one pass preserving brace tracking; JSX formatted at correct nesting depth
+
+## [1.0.211] - 2026-03-14
+- Formatter: normalize bare arrow JSX (`=> <Tag />`) to paren-wrapped form (`=> (<Tag />) `); single-line elements stay inline preserving C# indentation context; multi-line container elements formatted with proper JSX layout; fix idempotency for closing `)` with trailing content
+
+## [1.0.210] - 2026-03-14
+- Fix server DLL not refreshed during VSIX packaging; all virtual document changes now active
+
+## [1.0.209] - 2026-03-14
+- Fix stale language-lib DLL in LSP server publish output; all 1.0.208 changes now active
+
+## [1.0.208] - 2026-03-14
+- Fix `() => <Tag />` lambda markup not transpiled (Pattern C); fix CS0266 on `() => variable` by using VirtualNode placeholder; re-add UITKX0306 diagnostic for `@(expr)` in setup code; add `@(` stripping in virtual document
+
+## [1.0.207] - 2026-03-14
+- Add UITKX0306 diagnostic for @(expr) in setup code; fix transient CS0266/CS1662 errors on @() in lambdas
+
+## [1.0.206] - 2026-03-14
+- Fix hover props, lambda markup support, formatter inline self-closing elements
+
+## [1.0.202] - 2026-03-14
+- Auto re-diagnose all open documents when workspace index changes (e.g. saving a component now clears stale UITKX0109 errors in other open files)
+
+## [1.0.201] - 2026-03-13
+- Fix false unreachable dimming on multi-line return expressions (return () => { ... })
+
+## [1.0.200] - 2026-03-13
+- Dim entire scope after return in nested methods/lambdas; suppress duplicate CS0162 squiggle
+
+## [1.0.199] - 2026-03-13
+- Extend unreachable code dimming to cover entire scope after return in nested methods and lambdas
+
+## [1.0.198] - 2026-03-13
+- Downgrade UITKX2103 from Error to Warning so SG generates real code instead of #error for multi-return components
+
+## [1.0.197] - 2026-03-13
+- Fix formatter to use last top-level return in multi-return function-style components
+
+## [1.0.196] - 2026-03-13
+- Revert multi-return changes to restore correct dimming behavior
+
+## [1.0.196] - 2026-03-13
+- Revert multi-return changes to restore correct dimming behavior
+
+## [1.0.195] - 2026-03-13
+- Fix multi-return regression: strip earlier markup returns from setup code, downgrade UITKX2103 to warning, dim earlier returns
+
+## [1.0.194] - 2026-03-13
+- Fix formatter extracting wrong return statement in multi-return function-style components (use last return)
+
+## [1.0.193] - 2026-03-13
+- Fix formatter extracting wrong return statement in multi-return function-style components (use last return)
+
+## [1.0.192] - 2026-03-13
+- Fix formatting for files with return: split setup code at the return gap so the formatter preserves return position and is idempotent; skip UITKX2103 error to allow formatting files with multiple returns
+
+## [1.0.191] - 2026-03-13
+- Fix source-map gap for correct Roslyn semantic token mapping
+
+## [1.0.190] - 2026-03-13
+- Fixed formatting regression. Fixed return line coloring: C# tokens (return keyword) now emitted for mixed markup-code lines. Suppressed parser errors (UITKX2103 etc.) in unreachable regions.
+
+## [1.0.189] - 2026-03-13
+- Fixed return line dimming: return statement no longer flagged as unreachable. Suppressed Roslyn false-positive warnings in unreachable regions. Fixed multi-colored words caused by C# generic types being misinterpreted as UITKX tags.
+
+## [1.0.188] - 2026-03-13
+- Fixed function-style component coloring
+
+## [1.0.188] - 2026-03-13
+- Fixed function-style component coloring: semantic tokens now properly cover the entire component body. Fixed line-number alignment for code after return statement. Added multi-line unreachable diagnostic for code after return in function-style components.
+
+## [1.0.187] - 2026-03-13
+- Fixed unreachable code dimming: uses DiagnosticTag.Unnecessary for uniform opacity fade across all tokens. Removed uitkxUnreachable semantic token modifier. Multi-line diagnostic ranges now cover entire unreachable blocks.
+
+## [1.0.186] - 2026-03-13
+- Fix: unreachable code dimming now covers all code after return/@break/@continue in the same scope
+
+## [1.0.185] - 2026-03-13
+- Fix: unreachable code dimming now covers all code after return/@break/@continue in the same scope — previously only @break/@continue triggered dimming for sibling nodes; @code blocks with top-level return now properly dim all subsequent siblings
+
+## [1.0.184] - 2026-03-13
+- Fix: suppress CS1977 false-positive errors on nested lambdas in block-body lambda attributes (e.g. dm.AppendAction(x, _ => ...)) where param is dynamic
+
+## [1.0.183] - 2026-03-13
+- Fix: suppress CS1660 false-positive errors on useState lambda updaters (e.g. setCount(v => v+1)) - reverted struct approach, added CS1660 to diagnostic mapper suppression list
+
+## [1.0.182] - 2026-03-13
+- Fix useState lambda errors (CS1660): replace __StateUpdater__ delegate with __StateUpdate__<T> struct mirroring real StateUpdate<T> implicit operators so both setX(value) and setX(prev => ...) compile correctly
+
+## [1.0.181] - 2026-03-13
+- Fix useState lambda errors: replace __StateUpdater__ delegate with __StateUpdate__ struct mirroring real StateUpdate<T> implicit operators so both setX(value) and setX(prev => ...) compile without CS1660
+
+## [1.0.181] - 2026-03-13
+- Add multi-line tag opening to increaseIndentPattern so cursor indents after <Tag (works at advanced autoIndent level)
+
+## [1.0.180] - 2026-03-13
+- Sync editor.tabSize with uitkx.config.json indentSize so onEnterRules indent by the correct amount
+
+## [1.0.179] - 2026-03-13
+- Cursor fix: revert self-closing tag rule to none (outdent was wrong)
+
+## [1.0.178] - 2026-03-13
+- Cursor fix: self-closing tag onEnterRule uses outdent instead of none
+
+## [1.0.177] - 2026-03-12
+- Config precedence fix and logging
+
+## [1.0.176] - 2026-03-12
+- Fix: add /> to decreaseIndentPattern so self-closing tag line auto-outdents to tag level
+
+## [1.0.175] - 2026-03-12
+- Fix: add /> to decreaseIndentPattern so self-closing tag line auto-outdents to tag level
+
+## [1.0.174] - 2026-03-12
+- Fix: add /> to decreaseIndentPattern so self-closing tag line auto-outdents to tag level
+
+## [1.0.173] - 2026-03-12
+- Fix: uitkx.config.json now takes precedence over editor.tabSize; add cursor indent rule for multi-line tag openings
+
+## [1.0.172] - 2026-03-12
+- re-publish
+
+## [1.0.172] - 2026-03-12
+- Fix: enable onEnterRules by switching autoIndent to full; cursor now stays at sibling level after self-closing and closing tags
+
+## [1.0.171] - 2026-03-12
+- Fix: tabSize setting now respected from VS Code editor; fix cursor indentation after self-closing tags, closing tags, and closing braces
+
+## [1.0.170] - 2026-03-12
+- re-publish
+
+## [1.0.170] - 2026-03-12
+- tabSize setting now respected from editor; improved cursor indentation rules
+
+## [1.0.169] - 2026-03-12
+- Fix: strip spaces after ( and before ), custom-type declarations recognized as statements for Allman brace normalization
+
+## [1.0.168] - 2026-03-12
+- Fix: collapse multiple consecutive spaces to single space, pull misindented Allman braces, tab-to-space conversion in line content
+
+## [1.0.167] - 2026-03-12
+- Fix: inner block formatting (Style entries, lambda bodies, switch-case) now normalises indentation in JSX-containing setup code
+
+## [1.0.167] - 2026-03-12
+- Fix: inner block formatting (Style entries, lambda bodies, switch-case) now normalises indentation in JSX-containing setup code
+
+## [1.0.166] - 2026-03-12
+- Fix: inner block formatting (Style entries, lambda bodies, switch-case) now normalises indentation in JSX-containing setup code
+
+## [1.0.166] - 2026-03-12
+- Fix: disable Roslyn FormatStatements in JSX-setup path to prevent save-loop oscillation
+
+## [1.0.165] - 2026-03-12
+- Fix: EmitCSharpLines now normalises mixed-indent corruption in files with embedded JSX setup code
+
+## [1.0.164] - 2026-03-12
+- Fix formatter mixed-indent bug: IsStatementStarter ensures var/void/control-flow lines normalize to 2sp even when file has mixed indentation; strip 3+ extra spaces after opening '(' in Style tuples; add Section P regression tests (P01-P06)
+
+## [1.0.163] - 2026-03-12
+- Fix formatter bug: comment lines no longer suppress over-indent correction; add .csharpierignore
+
+## [1.0.162] - 2026-03-12
+- Add exhaustive formatter whitespace regression tests (Sections D-N, 420 tests total)
+
+## [1.0.162] - 2026-03-12
+- Add exhaustive formatter whitespace regression tests (Sections D-N, 420 tests total)
+
+## [1.0.161] - 2026-03-12
+- Fix: normalize block indentation in setup code (new Style/List initializers)
+
+## [1.0.160] - 2026-03-12
+- Fix: normalize block indentation in setup code (new Style/List initializers)
+
+## [1.0.159] - 2026-03-12
+- Add activate completion log to diagnose formatter registration
+
+## [1.0.158] - 2026-03-12
+- Add diagnostic logging to formatting provider
+
+## [1.0.157] - 2026-03-12
+- Fix formatting: re-add explicit DocumentFormattingEditProvider since OmniSharp dynamic registration never fires (DocumentFormattingProvider=null in all initialize responses)
+
+## [1.0.156] - 2026-03-12
+- Fix formatting: remove conflicting explicit formatting provider; rely on OmniSharp dynamic registration that was already working
+
+## [1.0.155] - 2026-03-12
+- Debug formatter: remove State.Running guard, add output-channel logging to trace format requests
+
+## [1.0.154] - 2026-03-12
+- Fix: register document formatting provider explicitly in extension.ts — OmniSharp dynamic registration was silently advertised as null to VS Code, so format-on-save never fired
+
+## [1.0.153] - 2026-03-12
+- Fix formatter: skip Roslyn for function-style component setup code to prevent 4-space indentation and structural reformatting in the live extension
+
+## [1.0.152] - 2026-03-12
+- Add comprehensive formatter snapshot tests; fix trailing whitespace and blank-line normalisation in all 54 sample files
+
+## [1.0.151] - 2026-03-11
+- Fix blank-line preservation in JSX-setup formatter: blank lines between setup statements and the  'var x = (<JSX>)' assignment were erased on save. Now counts leading newlines in the trailing partial-expression segment and re-emits them, so user-authored blank lines (e.g. between two useState calls and var component) survive Format Document.
+
+## [1.0.150] - 2026-03-11
+- Fix FMT-1: Roslyn now formats complete setup-code statements independently by splitting at the last statement terminator, eliminating indent inconsistency when preceding statements have stray whitespace. Fix FMT-2/3/4: remove increaseIndentPattern from language-configuration.json so onEnterRules are the sole indent authority on Enter (no more double-indent). Fix editor.tabSize: change default from 4 to 2 to match formatter indentSize, so Enter-key indent level matches formatted output.
+
+## [1.0.149] - 2026-03-11
+- Fix Enter-key indentation: remove double-indent on { lines (increaseIndentPattern no longer duplicates onEnterRules brace handling); add decreaseIndentPattern for closing tags; add @case/@default colon rule so Enter after a case clause indents to body level; keep open-tag indent and indentOutdoot rules intact
+
+## [1.0.148] - 2026-03-11
+- Fix C# formatting indentation: Roslyn now uses the configured indentSize (default 2) instead of hard-coded 4 spaces; lambda bodies and collection initializers now indent correctly. Fix JSX-in-setup: each C# segment between JSX blocks is now Roslyn-formatted. Fix N-1: property name and field name tokens mapped to variable type for consistent blue highlight of .Current/.Value
+
+## [1.0.147] - 2026-03-11
+- Fix JSX-in-setup formatting: each C# segment and JSX block now formatted independently so indentation is correct; fix code after return in function-style components not being dimmed (CS0162 now applies DiagnosticTag.Unnecessary)
+
+## [1.0.146] - 2026-03-11
+- N-1: property members now get proper semantic coloring; CO-3: unreachable code hint now visibly fades full line; N-5: auto-indent on Enter restored for JSX tags; CO-4: unused variable is now an error
+
+## [1.0.145] - 2026-03-11
+- Fix N-1 useRef<T> regression, N-3 bare return in event handlers, N-5 auto-indent, CO-1/CO-4 type/unused-var diagnostics, CO-3 unreachable hint range
+
+## [1.0.145] - 2026-03-11
+- Fix N-1 useRef<T> regression, N-3 bare return in event handlers, N-5 auto-indent, CO-1/CO-4 type/unused-var diagnostics, CO-3 unreachable hint range
+
+## [1.0.144] - 2026-03-11
+- N-3: fix bare return in block-body lambda; N-5: auto-indent after open tag; N-1: useRef<T> member completions; CO-1/CO-4: re-enable CS0246/CS0219 diagnostics; CO-3: dim unreachable nodes after @break/@continue; N-6: Roslyn-format entire component setup code on save; CO-2: StyleKeys string value completions; fix CS1977 dynamic-dispatch false positive
+
+## [1.0.143] - 2026-03-11
+- N-3 bare return in block-body lambda (CS0126 pragma), N-5 double-indent on Enter (autoIndent advanced), N-1 useRef completions (inline scaffold), CO-1 CS0246 targeted suppressions, N-6 Roslyn formatting for function-style setup code, CO-2 StyleKeys value completions, CO-3 dead-code dimming after @break/@continue (UITKX0110)
+
+## [1.0.143] - 2026-03-11
+- N-3 bare return in block-body lambda (CS0126 pragma), N-5 double-indent on Enter (autoIndent advanced), N-1 useRef completions (inline scaffold), CO-1 CS0246 targeted suppressions, N-6 Roslyn formatting for function-style setup code, CO-2 StyleKeys value completions, CO-3 dead-code dimming after @break/@continue (UITKX0110)
+
+## [1.0.143] - 2026-03-11
+- N-3 bare return in block-body lambda (CS0126 pragma), N-5 double-indent on Enter (autoIndent advanced), N-1 useRef completions (inline scaffold), CO-1 CS0246 targeted suppressions, N-6 Roslyn formatting for function-style setup code, CO-2 StyleKeys value completions, CO-3 dead-code dimming after @break/@continue (UITKX0110)
+
+## [1.0.143] - 2026-03-11
+- N-3 bare return in block-body lambda (CS0126 pragma), N-5 double-indent on Enter (autoIndent advanced), N-1 useRef completions (inline scaffold), CO-1 CS0246 targeted suppressions, N-6 Roslyn formatting for function-style setup code, CO-2 StyleKeys value completions, CO-3 dead-code dimming after @break/@continue (UITKX0110)
+
+## [1.0.143] - 2026-03-11
+- fix: revert N-6 formatter (Roslyn class-wrapper corrupted function-style setup code); fix: block-body lambda params now typed with actual UIElements event types (ChangeEvent<dynamic> for onChange, ClickEvent for onClick, etc.) so evt.newValue and other members are available; fix: onEnterRule added for unclosed open tags (pressing Enter after tag name before close-bracket now indents)
+
+## [1.0.142] - 2026-03-10
+- fix: block-body lambda handlers (onChange/onClick) now use local function wrapper — return statements and member completions (evt.newValue etc.) work correctly; fix: JSX comment {/* */} inside attribute list no longer parsed as attribute; fix: on-save formatter now Roslyn-formats function-style setup code; fix: Enter-after-tag indentation improved
+
+## [1.0.141] - 2026-03-10
+- fix: EnsureReadyAsync double-check bug — workspace now always rebuilt when source changes, fixing stale virtual doc for completions and coloring; fix: CompletionHandler now refreshes virtual doc before source-map gate check
+
+## [1.0.140] - 2026-03-10
+- fix: stale virtual doc coloring after completion; fix missing completions in block-body lambda handlers (onClick/onChange/etc.); fix missing completions after typing dot in setup code
+
+## [1.0.139] - 2026-03-10
+- skip-no-new-entry
+
+## [1.0.139] - 2026-03-10
+- Production-grade C# IntelliSense: replaced Recommender API with CompletionService for context-aware completions (member access, keywords, overloads); attribute expression completions (onClick, style, value); SignatureHelp parameter hints; Roslyn-based hover with type info; fixed keyword popup on non-C# positions
+
+## [1.0.138] - 2026-03-10
+- Fix member completions in function-style setup code: AstCursorContext now returns CSharpCodeBlock for code lines, CompletionHandler routes it to Roslyn. Add '.' as completion trigger character. Fix SourceMap.ToVirtualOffset boundary so cursor at end of expression (e.g. after typing '.') still maps into virtual doc.
+
 ## [1.0.137] - 2026-03-10
 - Fix missing colors inside component declaration parameter list
 

@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Router
@@ -14,16 +14,24 @@ component RouterNavigationGuardPanel {
   var navigate = RouterHooks.UseNavigate();
 
   RouterHooks.UseBlocker(
-      (from, to) => {
-          if (!enabled) return true;
-          if (allowNextRef.Current) { allowNextRef.Current = false; return true; }
-          setLastBlockedFrom(from);
-          setLastBlockedTo(to);
-          string fromPath = from?.Path ?? "(unknown)";
-          string toPath = to?.Path ?? "(unknown)";
-          setMessage($"Blocked navigation from '{fromPath}' to '{toPath}'. Disable the guard to allow navigation.");
-          return false;
-      },
+    (from, to) =>
+    {
+      if (!enabled)
+      {
+        return true;
+      }
+      if (allowNextRef.Current)
+      {
+        allowNextRef.Current = false;
+        return true;
+      }
+      setLastBlockedFrom(from);
+      setLastBlockedTo(to);
+      string fromPath = from?.Path ?? "(unknown)";
+      string toPath = to?.Path ?? "(unknown)";
+      setMessage($"Blocked navigation from '{fromPath}' to '{toPath}'. Disable the guard to allow navigation.");
+      return false;
+    },
       enabled: enabled
   );
 

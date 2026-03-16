@@ -512,6 +512,28 @@ public class EmitterTests
         Assert.True(result.SourceContains("fallback"), "Expected fallback expression in V.Suspense call");
     }
 
+    [Fact]
+    public void Portal_WithTargetAndChildren_GeneratesVPortalCall()
+    {
+        const string src =
+            """
+            component MyComp {
+                var target = useContext<UnityEngine.UIElements.VisualElement>("slot");
+                return (
+                    <Portal target={target}>
+                        <Label text="inside portal" />
+                    </Portal>
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("V.Portal("), $"Expected V.Portal( call. Got:\n{result.GeneratedSource}");
+        Assert.True(result.SourceContains("target"), "Expected target expression in V.Portal call");
+    }
+
     // ── Peer component props resolution ──────────────────────────────────────
 
     [Fact]

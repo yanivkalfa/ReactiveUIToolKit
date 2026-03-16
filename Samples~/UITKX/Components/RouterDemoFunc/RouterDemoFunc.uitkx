@@ -1,20 +1,20 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using UnityEngine
 
 component RouterDemoFunc {
   var paddedContainer = new Style {
-      (StyleKeys.FlexGrow, 1f),
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.Padding, 12f),
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 12f),
   };
 
   var cardStyle = new Style {
-      (StyleKeys.Padding, 10f),
-      (StyleKeys.BorderColor, new Color32(210, 210, 210, 255)),
-      (StyleKeys.BorderWidth, 1f),
-      (StyleKeys.BorderRadius, 6f),
-      (StyleKeys.MarginTop, 6f),
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.BorderColor, new Color32(210, 210, 210, 255)),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.MarginTop, 6f),
   };
 
   return (

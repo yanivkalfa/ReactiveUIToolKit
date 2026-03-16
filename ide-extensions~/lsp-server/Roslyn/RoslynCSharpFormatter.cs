@@ -33,7 +33,7 @@ namespace UitkxLanguageServer.Roslyn
         // ── ICSharpFormatterDelegate ──────────────────────────────────────────
 
         /// <inheritdoc/>
-        public string? Format(string code)
+        public string? Format(string code, int indentSize = 4)
         {
             if (string.IsNullOrEmpty(code))
                 return null;
@@ -50,8 +50,11 @@ namespace UitkxLanguageServer.Roslyn
                 var tree = CSharpSyntaxTree.ParseText(wrapped, s_parseOptions);
                 var root  = tree.GetRoot();
 
-                // Format the full tree using Roslyn's default options.
-                var formattedRoot = Formatter.Format(root, _workspace);
+                // Format using the caller's indent size (default Roslyn uses 4).
+                var fmtOptions = _workspace.Options
+                    .WithChangedOption(FormattingOptions.IndentationSize, LanguageNames.CSharp, indentSize)
+                    .WithChangedOption(FormattingOptions.UseTabs,          LanguageNames.CSharp, false);
+                var formattedRoot = Formatter.Format(root, _workspace, fmtOptions);
                 string formattedWrapped = formattedRoot.ToFullString();
 
                 // Strip the scaffold wrapper: everything between { on line 1 and
@@ -71,6 +74,105 @@ namespace UitkxLanguageServer.Roslyn
             catch (Exception ex)
             {
                 ServerLog.Log($"[RoslynCSharpFormatter] Format error: {ex.Message}");
+                return null;
+            }
+        }
+
+        // ── ICSharpFormatterDelegate.FormatStatements ─────────────────────────
+
+        /// <inheritdoc/>
+        public string? FormatStatements(string code, int indentSize = 4)
+        {
+            if (string.IsNullOrEmpty(code))
+                return null;
+
+            try
+            {
+                // Wrap in a class + method body so Roslyn can parse statement-level
+                // code (local variable declarations, calls, control flow, etc.).
+                const string prefix = "class __UitkxFmt__ {\nvoid __render__() {\n";
+                const string suffix = "\n}\n}";
+                string wrapped = prefix + code + suffix;
+
+                var tree = CSharpSyntaxTree.ParseText(wrapped, s_parseOptions);
+
+                // Bail out on syntax errors so we don't produce garbled output.
+                bool hasSyntaxError = false;
+                foreach (var diag in tree.GetDiagnostics())
+                {
+                    if (diag.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                    {
+                        hasSyntaxError = true;
+                        break;
+                    }
+                }
+                if (hasSyntaxError)
+                    return null;
+
+                var root      = tree.GetRoot();
+                // Format using the caller's indent size.
+                var fmtOptions = _workspace.Options
+                    .WithChangedOption(FormattingOptions.IndentationSize, LanguageNames.CSharp, indentSize)
+                    .WithChangedOption(FormattingOptions.UseTabs,          LanguageNames.CSharp, false);
+                var formattedRoot = Formatter.Format(root, _workspace, fmtOptions);
+                string formatted  = formattedRoot.ToFullString();
+
+                // Extract the method body: find "void __render__()" then its opening '{'.
+                const string methodSig = "void __render__()";
+                int methodIdx = formatted.IndexOf(methodSig, StringComparison.Ordinal);
+                if (methodIdx < 0) return null;
+
+                int braceOpen = formatted.IndexOf('{', methodIdx + methodSig.Length);
+                if (braceOpen < 0) return null;
+
+                // Find the matching closing brace.
+                int depth = 1, pos = braceOpen + 1;
+                while (pos < formatted.Length && depth > 0)
+                {
+                    if      (formatted[pos] == '{') depth++;
+                    else if (formatted[pos] == '}') { depth--; if (depth == 0) break; }
+                    pos++;
+                }
+
+                string body = formatted
+                    .Substring(braceOpen + 1, pos - braceOpen - 1)
+                    .Replace("\r\n", "\n")
+                    .TrimStart('\n');
+
+                // De-indent: strip the consistent leading whitespace baseline so the
+                // AstFormatter can re-add the correct indent level for the host scope.
+                var lines = body.Split('\n');
+                int baseIndent = int.MaxValue;
+                foreach (var line in lines)
+                {
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    int lead = 0;
+                    while (lead < line.Length && line[lead] == ' ') lead++;
+                    if (lead < baseIndent) baseIndent = lead;
+                }
+                if (baseIndent == int.MaxValue) baseIndent = 0;
+
+                var sb = new System.Text.StringBuilder();
+                for (int li = 0; li < lines.Length; li++)
+                {
+                    string line = lines[li];
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        sb.Append('\n');
+                        continue;
+                    }
+                    string stripped = baseIndent > 0 && line.Length > baseIndent
+                        ? line.Substring(baseIndent)
+                        : line.TrimStart(' ');
+                    sb.Append(stripped);
+                    if (li < lines.Length - 1) sb.Append('\n');
+                }
+
+                return sb.ToString().TrimEnd('\r', '\n', ' ', '\t');
+            }
+            catch (Exception ex)
+            {
+                ServerLog.Log($"[RoslynCSharpFormatter] FormatStatements error: {ex.Message}");
                 return null;
             }
         }

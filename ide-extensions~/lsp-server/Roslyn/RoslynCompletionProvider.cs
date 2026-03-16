@@ -2,64 +2,43 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.Recommendations;
+using Microsoft.CodeAnalysis.Completion;
+using Microsoft.CodeAnalysis.Tags;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using ReactiveUITK.Language.Parser;
 using CompletionItem     = OmniSharp.Extensions.LanguageServer.Protocol.Models.CompletionItem;
 using CompletionItemKind = OmniSharp.Extensions.LanguageServer.Protocol.Models.CompletionItemKind;
-using RoslynSymbolKind   = Microsoft.CodeAnalysis.SymbolKind;
 
 namespace UitkxLanguageServer.Roslyn
 {
     /// <summary>
-    /// Provides C# symbol-based completions for .uitkx files by delegating to
-    /// Roslyn's <see cref="Recommender.GetRecommendedSymbolsAtPositionAsync"/>.
+    /// Provides context-aware C# completions for .uitkx files by delegating to
+    /// Roslyn's <see cref="CompletionService.GetCompletionsAsync"/>.
     ///
-    /// <para>This uses the semantic model to enumerate all symbols accessible at
-    /// the cursor position in the virtual C# document â€” local variables, fields,
-    /// properties, methods, types, etc. â€” and converts them to LSP
-    /// <see cref="CompletionItem"/> objects.</para>
+    /// <para>Unlike the deprecated <c>Recommender</c> API (which was a scope dump),
+    /// <c>CompletionService</c> understands member access, object initializers,
+    /// method arguments, override suggestions, keywords in context, and all other
+    /// C# completion scenarios.</para>
     ///
-    /// <para>A static set of C# keywords is merged with the symbol completions
-    /// and deduplicated, ensuring the list is immediately useful even when the
-    /// Roslyn workspace is freshly built.</para>
+    /// <para><b>Prerequisite:</b> The workspace must be created with
+    /// <c>MefHostServices.DefaultHost</c> so that Roslyn MEF-exported completion
+    /// providers are loaded. See <see cref="RoslynHost"/>.</para>
     ///
     /// <para><b>Workspace readiness:</b> If the document has not been built yet
     /// (e.g. within the first 300 ms after file open), the provider calls
     /// <see cref="RoslynHost.EnsureReadyAsync"/> to trigger an immediate
-    /// one-shot build before querying symbols.</para>
+    /// one-shot build before querying.</para>
     /// </summary>
     public sealed class RoslynCompletionProvider
     {
         private readonly RoslynHost _host;
-
-        // Minimal C# keyword set that Roslyn's Recommender does not return.
-        private static readonly string[] s_csharpKeywords =
-        {
-            "var", "new", "null", "true", "false", "this", "base",
-            "return", "if", "else", "for", "foreach", "while", "do",
-            "switch", "case", "break", "continue", "default",
-            "try", "catch", "finally", "throw",
-            "using", "await", "async", "static", "readonly",
-            "public", "private", "protected", "internal",
-            "override", "virtual", "abstract", "sealed",
-            "in", "out", "ref", "params",
-            "string", "int", "bool", "float", "double", "long",
-            "byte", "char", "object", "void", "decimal", "uint",
-            "short", "ushort", "ulong", "sbyte",
-        };
-
-        // Static keyword completion items (computed once at startup).
-        private static readonly IReadOnlyList<CompletionItem> s_keywordItems =
-            BuildKeywordItems();
 
         public RoslynCompletionProvider(RoslynHost host)
         {
             _host = host;
         }
 
-        // â”€â”€ Public entry point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Public entry point ────────────────────────────────────────────────
 
         /// <summary>
         /// Returns LSP completion items for the given .uitkx cursor position.
@@ -68,12 +47,14 @@ namespace UitkxLanguageServer.Roslyn
         /// <param name="uitkxSource">Full current source text.</param>
         /// <param name="parseResult">Already-parsed document.</param>
         /// <param name="uitkxOffset">0-based cursor offset in the .uitkx source.</param>
+        /// <param name="triggerChar">Optional character that triggered completion (e.g. '.').</param>
         /// <param name="ct">Cancellation token.</param>
         public async Task<IReadOnlyList<CompletionItem>> GetCompletionsAsync(
             string            uitkxFilePath,
             string            uitkxSource,
             ParseResult       parseResult,
             int               uitkxOffset,
+            char?             triggerChar = null,
             CancellationToken ct = default)
         {
             if (string.IsNullOrEmpty(uitkxFilePath))
@@ -87,53 +68,47 @@ namespace UitkxLanguageServer.Roslyn
 
                 var virtualDoc = _host.GetVirtualDocument(uitkxFilePath);
                 if (virtualDoc == null)
-                    return s_keywordItems; // workspace not ready; fall back to keywords
+                    return Array.Empty<CompletionItem>(); // workspace not ready
 
-                // Map .uitkx offset â†’ virtual document offset.
+                // Map .uitkx offset -> virtual document offset.
                 var virtualResult = virtualDoc.Map.ToVirtualOffset(uitkxOffset);
                 if (!virtualResult.HasValue)
-                    return s_keywordItems; // cursor not in a C# region
+                    return Array.Empty<CompletionItem>(); // cursor not in a C# region
 
                 int virtualOffset = virtualResult.Value.VirtualOffset;
 
                 var roslynDoc = _host.GetRoslynDocument(uitkxFilePath);
                 if (roslynDoc == null)
-                    return s_keywordItems;
+                    return Array.Empty<CompletionItem>();
 
-                // Ask Roslyn for all symbols accessible at this position.
-                // Recommender uses the SemanticModel to determine scope-appropriate
-                // completions (locals, fields, type members, accessible types, â€¦).
-                var semanticModel = await roslynDoc.GetSemanticModelAsync(ct).ConfigureAwait(false);
-                if (semanticModel == null)
-                    return s_keywordItems;
-
-                var workspace = roslynDoc.Project.Solution.Workspace;
-#pragma warning disable CS0618 // The Document overload needs RecommendationOptions not yet in our reference set
-                var symbols = await Recommender
-                    .GetRecommendedSymbolsAtPositionAsync(
-                        semanticModel,
-                        virtualOffset,
-                        workspace,
-                        cancellationToken: ct)
-                    .ConfigureAwait(false);
-#pragma warning restore CS0618
-
-                // Build deduplicated list: symbols first (most relevant), then keywords.
-                var seen  = new HashSet<string>(StringComparer.Ordinal);
-                var items = new List<CompletionItem>(128);
-
-                foreach (var sym in symbols)
+                // Get CompletionService — requires MefHostServices.DefaultHost on the workspace.
+                var completionService = CompletionService.GetService(roslynDoc);
+                if (completionService == null)
                 {
-                    ct.ThrowIfCancellationRequested();
-                    if (!seen.Add(sym.Name))
-                        continue;
-                    items.Add(SymbolToLspItem(sym));
+                    ServerLog.Log("[RoslynCompletion] CompletionService is null — workspace missing MEF host?");
+                    return Array.Empty<CompletionItem>();
                 }
 
-                // Append C# keywords that aren't already provided as symbols.
-                foreach (var kwItem in s_keywordItems)
-                    if (seen.Add(kwItem.Label!))
-                        items.Add(kwItem);
+                // Build the trigger context from the character that caused the popup.
+                var trigger = triggerChar.HasValue
+                    ? CompletionTrigger.CreateInsertionTrigger(triggerChar.Value)
+                    : CompletionTrigger.Invoke;
+
+                // Ask Roslyn for context-aware completions at the virtual offset.
+                var completionList = await completionService
+                    .GetCompletionsAsync(roslynDoc, virtualOffset, trigger, cancellationToken: ct)
+                    .ConfigureAwait(false);
+
+                if (completionList == null || completionList.ItemsList.Count == 0)
+                    return Array.Empty<CompletionItem>();
+
+                // Map Roslyn CompletionItem -> LSP CompletionItem.
+                var items = new List<CompletionItem>(completionList.ItemsList.Count);
+                foreach (var rItem in completionList.ItemsList)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    items.Add(RoslynItemToLspItem(rItem));
+                }
 
                 ServerLog.Log(
                     $"[RoslynCompletion] {items.Count} items at virtual offset {virtualOffset}");
@@ -143,56 +118,67 @@ namespace UitkxLanguageServer.Roslyn
             catch (Exception ex)
             {
                 ServerLog.Log($"[RoslynCompletion] Error: {ex.Message}");
-                return s_keywordItems;
+                return Array.Empty<CompletionItem>();
             }
         }
 
-        // â”€â”€ Conversion helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Conversion helpers ────────────────────────────────────────────────
 
-        private static CompletionItem SymbolToLspItem(ISymbol sym)
+        private static CompletionItem RoslynItemToLspItem(
+            Microsoft.CodeAnalysis.Completion.CompletionItem rItem)
         {
+            // Prefer explicit InsertionText property (set for snippets / override stubs),
+            // otherwise fall back to the display text.
+            rItem.Properties.TryGetValue("InsertionText", out var insertionText);
+            var insertText = !string.IsNullOrEmpty(insertionText)
+                ? insertionText
+                : rItem.DisplayText;
+
+            // Prefer inline description (grey hint after label), else display suffix.
+            var detail = !string.IsNullOrEmpty(rItem.InlineDescription)
+                ? rItem.InlineDescription
+                : rItem.DisplayTextSuffix;
+
             return new CompletionItem
             {
-                Label      = sym.Name,
-                Kind       = SymbolKindToCompletionKind(sym.Kind),
-                Detail     = sym.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                InsertText = sym.Name,
-                SortText   = sym.Name,
-                FilterText = sym.Name,
+                Label      = rItem.DisplayText,
+                Kind       = TagsToCompletionKind(rItem.Tags),
+                Detail     = detail,
+                InsertText = insertText,
+                SortText   = rItem.SortText,
+                FilterText = rItem.FilterText,
             };
         }
 
-        private static CompletionItemKind SymbolKindToCompletionKind(RoslynSymbolKind kind) =>
-            kind switch
-            {
-                RoslynSymbolKind.Local          => CompletionItemKind.Variable,
-                RoslynSymbolKind.Parameter      => CompletionItemKind.Variable,
-                RoslynSymbolKind.Field          => CompletionItemKind.Field,
-                RoslynSymbolKind.Property       => CompletionItemKind.Property,
-                RoslynSymbolKind.Method         => CompletionItemKind.Method,
-                RoslynSymbolKind.NamedType      => CompletionItemKind.Class,
-                RoslynSymbolKind.Namespace      => CompletionItemKind.Module,
-                RoslynSymbolKind.Event          => CompletionItemKind.Event,
-                RoslynSymbolKind.TypeParameter  => CompletionItemKind.TypeParameter,
-                _                               => CompletionItemKind.Text,
-            };
-
-        private static IReadOnlyList<CompletionItem> BuildKeywordItems()
+        private static CompletionItemKind TagsToCompletionKind(
+            System.Collections.Immutable.ImmutableArray<string> tags)
         {
-            var items = new List<CompletionItem>(s_csharpKeywords.Length);
-            foreach (var kw in s_csharpKeywords)
+            // Roslyn uses string tags from WellKnownTags (Microsoft.CodeAnalysis.Tags).
+            foreach (var tag in tags)
             {
-                items.Add(new CompletionItem
+                switch (tag)
                 {
-                    Label      = kw,
-                    Kind       = CompletionItemKind.Keyword,
-                    InsertText = kw,
-                    SortText   = "~" + kw, // sort after symbol suggestions
-                    FilterText = kw,
-                });
+                    case WellKnownTags.Method:          return CompletionItemKind.Method;
+                    case WellKnownTags.ExtensionMethod: return CompletionItemKind.Method;
+                    case WellKnownTags.Property:        return CompletionItemKind.Property;
+                    case WellKnownTags.Field:           return CompletionItemKind.Field;
+                    case WellKnownTags.Event:           return CompletionItemKind.Event;
+                    case WellKnownTags.Class:           return CompletionItemKind.Class;
+                    case WellKnownTags.Structure:       return CompletionItemKind.Struct;
+                    case WellKnownTags.Interface:       return CompletionItemKind.Interface;
+                    case WellKnownTags.Enum:            return CompletionItemKind.Enum;
+                    case WellKnownTags.EnumMember:      return CompletionItemKind.EnumMember;
+                    case WellKnownTags.Delegate:        return CompletionItemKind.Class;
+                    case WellKnownTags.Namespace:       return CompletionItemKind.Module;
+                    case WellKnownTags.Local:           return CompletionItemKind.Variable;
+                    case WellKnownTags.Parameter:       return CompletionItemKind.Variable;
+                    case WellKnownTags.Keyword:         return CompletionItemKind.Keyword;
+                    case WellKnownTags.Snippet:         return CompletionItemKind.Snippet;
+                    case WellKnownTags.TypeParameter:   return CompletionItemKind.TypeParameter;
+                    case WellKnownTags.Constant:        return CompletionItemKind.Constant;
+                }
             }
-            return items;
+            return CompletionItemKind.Text;
         }
     }
 }
-

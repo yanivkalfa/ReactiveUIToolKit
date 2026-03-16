@@ -29,7 +29,9 @@ public static class CanonicalLowering
         string setupCode = directives.FunctionSetupCode ?? string.Empty;
         int setupLine = directives.FunctionSetupStartLine > 0
             ? directives.FunctionSetupStartLine
-            : directives.MarkupStartLine;
+            : directives.ComponentDeclarationLine > 0
+                ? directives.ComponentDeclarationLine
+                : directives.MarkupStartLine;
 
         var lowered = ImmutableArray.CreateBuilder<AstNode>(parsedRoots.Length + 1);
         lowered.Add(ParseFunctionSetupAsCodeBlock(setupCode, setupLine, filePath));

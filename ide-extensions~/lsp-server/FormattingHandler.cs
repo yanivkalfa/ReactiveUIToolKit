@@ -43,7 +43,18 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
         var localPath = GetLocalPath(request.TextDocument.Uri);
         var fileDir = localPath is not null ? Path.GetDirectoryName(localPath) : null;
 
-        var opts = ConfigLoader.LoadFormatterOptions(fileDir);
+        // Editor settings serve as the base; config file overrides only
+        // the properties it explicitly sets.
+        var editorOpts = FormatterOptions.Default with
+        {
+            IndentSize = (int)request.Options.TabSize,
+            UseTabIndent = !request.Options.InsertSpaces,
+        };
+
+        var opts = ConfigLoader.LoadFormatterOptions(fileDir, editorOpts);
+
+        ServerLog.Log($"[Formatting] file='{localPath}' editorTabSize={request.Options.TabSize} resolved IndentSize={opts.IndentSize} UseTab={opts.UseTabIndent}");
+
         var formatter = new AstFormatter(opts, _csharpFormatter);
 
         string formatted;
@@ -53,12 +64,17 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
         }
         catch (Exception ex)
         {
-            ServerLog.Log($"[Formatting] Format error for '{localPath}': {ex.Message}");
+            ServerLog.Log($"[Formatting] Format error for '{localPath}': {ex.Message}\n{ex.StackTrace}");
             return Task.FromResult<TextEditContainer?>(null);
         }
 
         if (formatted == text)
+        {
+            ServerLog.Log($"[Formatting] no-op for '{localPath}' (output == input)");
             return Task.FromResult<TextEditContainer?>(null);
+        }
+
+        ServerLog.Log($"[Formatting] applying edit for '{localPath}' (input={text.Length} chars, output={formatted.Length} chars)");
 
         // Replace the entire document with the formatted version.
         // Use the original text to compute the end position so the range is exact.

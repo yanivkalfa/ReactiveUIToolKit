@@ -1,4 +1,4 @@
-@namespace ReactiveUITK.Samples.UITKXComponents
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component ToggleButtonGroupDemoFunc {
@@ -7,14 +7,14 @@ component ToggleButtonGroupDemoFunc {
   var options = new string[] { "Alpha", "Beta", "Gamma" };
 
   var containerStyle = new Style {
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.Padding, 16f),
-      (StyleKeys.BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 0.85f)),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 16f),
+    (StyleKeys.BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 0.85f)),
   };
 
   var statusStyle = new Style {
-      (StyleKeys.FontSize, 13f),
-      (StyleKeys.TextColor, new Color(0.85f, 0.95f, 1f, 1f)),
+    (StyleKeys.FontSize, 13f),
+    (StyleKeys.TextColor, new Color(0.85f, 0.95f, 1f, 1f)),
   };
 
   return (

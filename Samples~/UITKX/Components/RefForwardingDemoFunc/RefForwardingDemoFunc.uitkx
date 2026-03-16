@@ -9,16 +9,16 @@ component RefForwardingDemoFunc {
   var (snapshot, setSnapshot) = useState("Click \"Read refs\" to inspect ref assignments.");
 
   void UpdateSnapshot() {
-      var textField = inputRef?.Current;
-      var label = labelRef?.Current;
-      bool isFocused = textField?.focusController?.focusedElement == textField;
-      string textSummary = textField == null
-          ? "input ref is null"
-          : $"input ref: value=\"{textField.value}\" focused={isFocused}";
-      string labelSummary = label == null
-          ? "label ref is null"
-          : $"label ref: text=\"{label.text}\"";
-      setSnapshot($"{textSummary}; {labelSummary}");
+    var textField = inputRef?.Current;
+    var label = labelRef?.Current;
+    bool isFocused = textField?.focusController?.focusedElement == textField;
+    string textSummary = textField == null
+    ? "input ref is null"
+    : $"input ref: value=\"{textField.value}\" focused={isFocused}";
+    string labelSummary = label == null
+    ? "label ref is null"
+    : $"label ref: text=\"{label.text}\"";
+    setSnapshot($"{textSummary}; {labelSummary}");
   }
 
   return (

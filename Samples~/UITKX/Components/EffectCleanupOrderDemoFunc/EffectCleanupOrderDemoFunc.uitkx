@@ -12,21 +12,21 @@ component EffectCleanupOrderDemoFunc {
   displayLog.Reverse();
 
   var containerStyle = new Style {
-      (StyleKeys.Padding, 14f),
-      (StyleKeys.FlexDirection, "column"),
-      (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.Padding, 14f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
   };
 
   var logBoxStyle = new Style {
-      (StyleKeys.MarginTop, 10f),
-      (StyleKeys.Padding, 8f),
-      (StyleKeys.BackgroundColor, new Color(0.08f, 0.08f, 0.1f, 0.9f)),
-      (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.MarginTop, 10f),
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.BackgroundColor, new Color(0.08f, 0.08f, 0.1f, 0.9f)),
+    (StyleKeys.BorderRadius, 4f),
   };
 
   var sectionStyle = new Style {
-      (StyleKeys.FlexDirection, "row"),
-      (StyleKeys.MarginTop, 10f),
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginTop, 10f),
   };
 
   return (

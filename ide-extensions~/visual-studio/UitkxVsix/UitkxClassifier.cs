@@ -274,6 +274,8 @@ internal sealed class UitkxClassifier : IClassifier
 
     private ITextSnapshot? _cachedSnapshot;
     private List<ClassificationSpan> _cachedSpans = new();
+    private IClassificationType? _excludedCode;
+    private ITextBuffer? _ownerBuffer;
 
 #pragma warning disable CS0067
     public event EventHandler<ClassificationChangedEventArgs>? ClassificationChanged;
@@ -281,6 +283,8 @@ internal sealed class UitkxClassifier : IClassifier
 
     public UitkxClassifier(IClassificationTypeRegistryService classificationTypeRegistryService)
     {
+        _excludedCode = classificationTypeRegistryService.GetClassificationType("excluded code")
+            ?? classificationTypeRegistryService.GetClassificationType("text")!;
         _keyword =
             classificationTypeRegistryService.GetClassificationType("keyword")
             ?? classificationTypeRegistryService.GetClassificationType("text")!;
@@ -356,19 +360,68 @@ internal sealed class UitkxClassifier : IClassifier
             classificationTypeRegistryService.GetClassificationType(
                 UitkxClassificationNames.DirectivePunctuation
             ) ?? _operator;
+
+        // Log which classification types resolved
+        try
+        {
+            var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "uitkx-vsix-diag.log");
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"[{DateTime.UtcNow:O}] UitkxClassifier ctor — classification type resolution:");
+            sb.AppendLine($"  _keyword      = {_keyword.Classification}");
+            sb.AppendLine($"  _string       = {_string.Classification}");
+            sb.AppendLine($"  _number       = {_number.Classification}");
+            sb.AppendLine($"  _identifier   = {_identifier.Classification}");
+            sb.AppendLine($"  _operator     = {_operator.Classification}");
+            sb.AppendLine($"  _method       = {_method.Classification}");
+            sb.AppendLine($"  _type         = {_type.Classification}");
+            sb.AppendLine($"  _comment      = {_comment.Classification}");
+            sb.AppendLine($"  _tagName      = {_tagName.Classification}");
+            sb.AppendLine($"  _attributeName= {_attributeName.Classification}");
+            sb.AppendLine($"  _directiveName= {_directiveName.Classification}");
+            sb.AppendLine($"  _ctrlDirName  = {_controlDirectiveName.Classification}");
+            sb.AppendLine($"  _tagDelimiter = {_tagDelimiter.Classification}");
+            sb.AppendLine($"  _dirPunct     = {_directivePunctuation.Classification}");
+            System.IO.File.AppendAllText(logPath, sb.ToString());
+        }
+        catch { }
     }
+
+    private static bool _classifyLogged;
 
     public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
     {
         EnsureSnapshotClassified(span.Snapshot);
+
+        // Get unreachable ranges from the diagnostic tagger.
+        var unreachableRanges = GetUnreachableRanges(span.Snapshot);
 
         var results = new List<ClassificationSpan>();
         foreach (var classificationSpan in _cachedSpans)
         {
             if (classificationSpan.Span.IntersectsWith(span))
             {
-                results.Add(classificationSpan);
+                // If this span falls within an unreachable range, replace with excluded code.
+                if (unreachableRanges != null && IsInUnreachableRange(classificationSpan.Span, unreachableRanges))
+                    results.Add(new ClassificationSpan(classificationSpan.Span, _excludedCode!));
+                else
+                    results.Add(classificationSpan);
             }
+        }
+
+        if (!_classifyLogged && results.Count > 0)
+        {
+            _classifyLogged = true;
+            try
+            {
+                var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "uitkx-vsix-diag.log");
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine($"[{DateTime.UtcNow:O}] GetClassificationSpans first call — {results.Count} spans for [{span.Start.Position}..{span.End.Position}]");
+                foreach (var s in results.Take(10))
+                    sb.AppendLine($"  [{s.Span.Start.Position}..{s.Span.End.Position}] {s.ClassificationType.Classification}");
+                if (results.Count > 10) sb.AppendLine($"  ... and {results.Count - 10} more");
+                System.IO.File.AppendAllText(logPath, sb.ToString());
+            }
+            catch { }
         }
 
         return results;
@@ -376,6 +429,13 @@ internal sealed class UitkxClassifier : IClassifier
 
     private void EnsureSnapshotClassified(ITextSnapshot snapshot)
     {
+        if (_ownerBuffer == null)
+        {
+            _ownerBuffer = snapshot.TextBuffer;
+            // Listen for diagnostic changes to invalidate cached classifications.
+            UitkxDiagnosticStore.DiagnosticsChanged += OnDiagnosticsChanged;
+        }
+
         if (ReferenceEquals(snapshot, _cachedSnapshot))
         {
             return;
@@ -383,6 +443,71 @@ internal sealed class UitkxClassifier : IClassifier
 
         _cachedSnapshot = snapshot;
         _cachedSpans = ClassifyAll(snapshot);
+    }
+
+    private void OnDiagnosticsChanged(string uri, List<LspDiagnostic> diagnostics)
+    {
+        // Filter by file URI so we only react to diagnostics for our buffer.
+        if (_ownerBuffer != null
+            && _ownerBuffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc))
+        {
+            var myUri = new Uri(doc.FilePath).AbsoluteUri;
+            if (!string.Equals(myUri, uri, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        // Store diagnostics directly (bypass tagger's 200ms debounce).
+        _latestDiagnostics = diagnostics;
+
+        // When diagnostics change, invalidate cache so GetClassificationSpans re-evaluates.
+        _cachedSnapshot = null;
+        try
+        {
+            if (_ownerBuffer != null)
+            {
+                var snapshot = _ownerBuffer.CurrentSnapshot;
+                ClassificationChanged?.Invoke(this,
+                    new ClassificationChangedEventArgs(new SnapshotSpan(snapshot, 0, snapshot.Length)));
+            }
+        }
+        catch { }
+    }
+
+    private List<LspDiagnostic>? _latestDiagnostics;
+
+    private List<(int start, int end)>? GetUnreachableRanges(ITextSnapshot snapshot)
+    {
+        // Use directly-stored diagnostics (no debounce lag).
+        var diags = _latestDiagnostics;
+        if (diags == null || diags.Count == 0) return null;
+
+        var ranges = new List<(int start, int end)>();
+        foreach (var d in diags)
+        {
+            if (d.Tags == null || !d.Tags.Contains(1)) continue;
+
+            // Extend to full line boundaries so the entire unreachable line
+            // is dimmed, not just the keyword span (e.g. Roslyn CS0162).
+            if (d.StartLine < 0 || d.StartLine >= snapshot.LineCount) continue;
+            if (d.EndLine < 0 || d.EndLine >= snapshot.LineCount) continue;
+
+            var startPos = snapshot.GetLineFromLineNumber(d.StartLine).Start.Position;
+            var endPos = snapshot.GetLineFromLineNumber(d.EndLine).End.Position;
+
+            if (startPos >= 0 && endPos > startPos && endPos <= snapshot.Length)
+                ranges.Add((startPos, endPos));
+        }
+        return ranges.Count > 0 ? ranges : null;
+    }
+
+    private static bool IsInUnreachableRange(SnapshotSpan span, List<(int start, int end)> ranges)
+    {
+        foreach (var (start, end) in ranges)
+        {
+            if (span.Start.Position >= start && span.End.Position <= end)
+                return true;
+        }
+        return false;
     }
 
     private List<ClassificationSpan> ClassifyAll(ITextSnapshot snapshot)
@@ -394,6 +519,16 @@ internal sealed class UitkxClassifier : IClassifier
         while (index < text.Length)
         {
             if (TryClassifyLineComment(snapshot, text, ref index, spans))
+            {
+                continue;
+            }
+
+            if (TryClassifyBlockComment(snapshot, text, ref index, spans))
+            {
+                continue;
+            }
+
+            if (TryClassifyJsxBlockComment(snapshot, text, ref index, spans))
             {
                 continue;
             }
@@ -497,6 +632,63 @@ internal sealed class UitkxClassifier : IClassifier
             index++;
         }
 
+        AddSpan(snapshot, spans, start, index - start, _comment);
+        return true;
+    }
+
+    /// <summary>Classifies C# block comments: /* ... */</summary>
+    private bool TryClassifyBlockComment(
+        ITextSnapshot snapshot,
+        string text,
+        ref int index,
+        List<ClassificationSpan> spans
+    )
+    {
+        if (index + 1 >= text.Length || text[index] != '/' || text[index + 1] != '*')
+            return false;
+
+        var start = index;
+        index += 2;
+        while (index + 1 < text.Length)
+        {
+            if (text[index] == '*' && text[index + 1] == '/')
+            {
+                index += 2;
+                break;
+            }
+            index++;
+        }
+
+        AddSpan(snapshot, spans, start, index - start, _comment);
+        return true;
+    }
+
+    /// <summary>Classifies JSX block comments: {/* ... */}</summary>
+    private bool TryClassifyJsxBlockComment(
+        ITextSnapshot snapshot,
+        string text,
+        ref int index,
+        List<ClassificationSpan> spans
+    )
+    {
+        if (index + 3 >= text.Length || text[index] != '{' || text[index + 1] != '/' || text[index + 2] != '*')
+            return false;
+
+        var start = index;
+        index += 3; // skip {/*
+        while (index + 2 < text.Length)
+        {
+            if (text[index] == '*' && text[index + 1] == '/' && text[index + 2] == '}')
+            {
+                index += 3; // skip */}
+                AddSpan(snapshot, spans, start, index - start, _comment);
+                return true;
+            }
+            index++;
+        }
+
+        // Unterminated — classify what we have
+        index = text.Length;
         AddSpan(snapshot, spans, start, index - start, _comment);
         return true;
     }
@@ -634,6 +826,8 @@ internal sealed class UitkxClassifier : IClassifier
 
             if (
                 TryClassifyLineComment(snapshot, text, ref index, spans)
+                || TryClassifyBlockComment(snapshot, text, ref index, spans)
+                || TryClassifyJsxBlockComment(snapshot, text, ref index, spans)
                 || TryClassifyInterpolatedString(snapshot, text, ref index, spans)
                 || TryClassifyNormalString(snapshot, text, ref index, spans)
                 || TryClassifyBraceExpression(snapshot, text, ref index, spans)
@@ -709,7 +903,9 @@ internal sealed class UitkxClassifier : IClassifier
         while (index < text.Length && depth > 0)
         {
             if (
-                TryClassifyInterpolatedString(snapshot, text, ref index, spans)
+                TryClassifyLineComment(snapshot, text, ref index, spans)
+                || TryClassifyBlockComment(snapshot, text, ref index, spans)
+                || TryClassifyInterpolatedString(snapshot, text, ref index, spans)
                 || TryClassifyNormalString(snapshot, text, ref index, spans)
             )
             {

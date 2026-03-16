@@ -24,8 +24,12 @@
     -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.9.2" />
-    <!-- Explicit reference for Recommender and type-lookup APIs. -->
+    <!-- CompletionService, Recommender, and workspace service infrastructure. -->
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.9.2" />
+    <!-- CompletionService + all C# completion providers (member access, keywords, etc.)
+         CompletionService.GetService(document) returns non-null only when
+         Microsoft.CodeAnalysis.CSharp.Features is in the MEF composition. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="4.9.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../language-lib/UitkxLanguage.csproj" />
