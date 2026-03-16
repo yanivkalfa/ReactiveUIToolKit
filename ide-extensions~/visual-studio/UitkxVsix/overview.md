@@ -14,6 +14,10 @@ https://github.com/ReactiveUITK/ReactiveUIToolKit
 
 ## Changelog
 
+### [1.0.56] - 2026-03-16
+- Add visualElementSafe built-in element and inline JSX attribute values
+
+
 ### [1.0.55] - 2026-03-16
 - Add visualElementSafe built-in element and inline JSX attribute values
 
