@@ -27,17 +27,7 @@ namespace ReactiveUITK.Core
 
         public VirtualNodeType NodeType { get; }
         public string ElementTypeName { get; }
-        public System.Func<
-            Dictionary<string, object>,
-            IReadOnlyList<VirtualNode>,
-            VirtualNode
-        > FunctionRender { get; }
         public bool Memoize { get; }
-        public System.Func<
-            IReadOnlyDictionary<string, object>,
-            IReadOnlyDictionary<string, object>,
-            bool
-        > MemoCompare { get; }
         public UnityEngine.UIElements.VisualElement PortalTarget { get; }
         public VirtualNode Fallback { get; }
         public System.Func<bool> SuspenseReady { get; }
@@ -47,46 +37,58 @@ namespace ReactiveUITK.Core
         public IReadOnlyDictionary<string, object> Properties { get; }
         public IReadOnlyList<VirtualNode> Children { get; }
         public VirtualNode ErrorFallback { get; }
-        public Action<Exception> ErrorHandler { get; }
+        public ErrorEventHandler ErrorHandler { get; }
         public string ErrorResetToken { get; }
+
+        // ── Typed-props path ─────────────────────────────────────────────────
+        /// <summary>
+        /// Typed render delegate. Set when <c>V.Func&lt;TProps&gt;</c> or <c>V.Func(IProps)</c> is used.
+        /// </summary>
+        public System.Func<
+            IProps,
+            IReadOnlyList<VirtualNode>,
+            VirtualNode
+        > TypedFunctionRender { get; }
+
+        /// <summary>
+        /// Typed props instance. Non-null when <c>V.Func&lt;TProps&gt;</c> was used.
+        /// </summary>
+        public IProps TypedProps { get; }
+
+        /// <summary>
+        /// Custom equality delegate for the typed-props path.
+        /// Called only when <see cref="TypedFunctionRender"/> is set.
+        /// </summary>
+        public System.Func<IProps, IProps, bool> TypedMemoCompare { get; }
 
         public VirtualNode(
             VirtualNodeType nodeType,
             string elementTypeName,
-            System.Func<
-                Dictionary<string, object>,
-                IReadOnlyList<VirtualNode>,
-                VirtualNode
-            > functionRender,
             string textContent,
             string key,
             IReadOnlyDictionary<string, object> properties,
             IReadOnlyList<VirtualNode> children,
             bool memoize = false,
-            System.Func<
-                IReadOnlyDictionary<string, object>,
-                IReadOnlyDictionary<string, object>,
-                bool
-            > memoCompare = null,
             UnityEngine.UIElements.VisualElement portalTarget = null,
             VirtualNode fallback = null,
             System.Func<bool> suspenseReady = null,
             System.Threading.Tasks.Task suspenseReadyTask = null,
             VirtualNode errorFallback = null,
-            Action<Exception> errorHandler = null,
+            ErrorEventHandler errorHandler = null,
             string errorResetToken = null,
-            IReadOnlyList<PropTypeDefinition> propTypes = null
+            IReadOnlyList<PropTypeDefinition> propTypes = null,
+            System.Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> typedFunctionRender = null,
+            IProps typedProps = null,
+            System.Func<IProps, IProps, bool> typedMemoCompare = null
         )
         {
             NodeType = nodeType;
             ElementTypeName = elementTypeName;
-            FunctionRender = functionRender;
             TextContent = textContent;
             Key = key;
             Properties = CloneProps(properties);
             Children = CloneChildren(children);
             Memoize = memoize;
-            MemoCompare = memoCompare;
             PortalTarget = portalTarget;
             Fallback = fallback;
             SuspenseReady = suspenseReady;
@@ -95,15 +97,16 @@ namespace ReactiveUITK.Core
             ErrorHandler = errorHandler;
             ErrorResetToken = errorResetToken;
             PropTypes = ClonePropTypes(propTypes);
+            TypedFunctionRender = typedFunctionRender;
+            TypedProps = typedProps;
+            TypedMemoCompare = typedMemoCompare;
         }
 
         private VirtualNode(VirtualNode template, IReadOnlyList<PropTypeDefinition> propTypes)
         {
             NodeType = template.NodeType;
             ElementTypeName = template.ElementTypeName;
-            FunctionRender = template.FunctionRender;
             Memoize = template.Memoize;
-            MemoCompare = template.MemoCompare;
             PortalTarget = template.PortalTarget;
             Fallback = template.Fallback;
             SuspenseReady = template.SuspenseReady;
@@ -116,6 +119,9 @@ namespace ReactiveUITK.Core
             ErrorHandler = template.ErrorHandler;
             ErrorResetToken = template.ErrorResetToken;
             PropTypes = ClonePropTypes(propTypes);
+            TypedFunctionRender = template.TypedFunctionRender;
+            TypedProps = template.TypedProps;
+            TypedMemoCompare = template.TypedMemoCompare;
         }
 
         public IReadOnlyList<PropTypeDefinition> PropTypes { get; }
@@ -181,21 +187,6 @@ namespace ReactiveUITK.Core
                 buffer[i] = propTypes[i];
             }
             return Array.AsReadOnly(buffer);
-        }
-
-        public static implicit operator VirtualNode(
-            System.Func<
-                Dictionary<string, object>,
-                IReadOnlyList<VirtualNode>,
-                VirtualNode
-            > renderFunction
-        )
-        {
-            if (renderFunction == null)
-            {
-                return null;
-            }
-            return ReactiveUITK.V.Func(renderFunction);
         }
     }
 }

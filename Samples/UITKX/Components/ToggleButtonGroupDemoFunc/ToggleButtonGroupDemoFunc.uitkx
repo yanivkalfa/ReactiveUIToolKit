@@ -1,0 +1,34 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component ToggleButtonGroupDemoFunc {
+  var (selected, setSelected) = useState(0);
+
+  var options = new string[] { "Alpha", "Beta", "Gamma" };
+
+  var containerStyle = new Style {
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 16f),
+    (StyleKeys.BackgroundColor, new Color(0.11f, 0.11f, 0.11f, 0.85f)),
+  };
+
+  var statusStyle = new Style {
+    (StyleKeys.FontSize, 13f),
+    (StyleKeys.TextColor, new Color(0.85f, 0.95f, 1f, 1f)),
+  };
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Label text="ToggleButtonGroup (Buttons inside)" />
+      <ToggleButtonGroup value={selected}>
+        <Button text="0" onClick={_ => setSelected(0)} />
+        <Button text="1" onClick={_ => setSelected(1)} />
+        <Button text="2" onClick={_ => setSelected(2)} />
+      </ToggleButtonGroup>
+      <Label
+        text={$"Selected option: {options[selected]}"}
+        style={statusStyle}
+      />
+    </VisualElement>
+  );
+}

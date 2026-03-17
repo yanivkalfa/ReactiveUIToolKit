@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class MultiColumnTreeViewProps
+    public sealed class MultiColumnTreeViewProps : BaseProps
     {
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
@@ -20,13 +20,10 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, int> ColumnDisplayIndex { get; set; }
         public List<SortedColumnDef> SortedColumns { get; set; }
         public object SortingMode { get; set; }
-        public Delegate ColumnSortingChanged { get; set; }
-        public Delegate ColumnLayoutChanged { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
-        public string ViewDataKey { get; set; }
+        public ColumnSortEventHandler ColumnSortingChanged { get; set; }
+        public ColumnLayoutEventHandler ColumnLayoutChanged { get; set; }
 
-        public sealed class ColumnDef
+        public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
             public string Name { get; set; }
             public string Title { get; set; }
@@ -36,7 +33,7 @@ namespace ReactiveUITK.Props.Typed
             public bool? Resizable { get; set; }
             public bool? Stretchable { get; set; }
             public bool? Sortable { get; set; }
-            public Func<int, object, ReactiveUITK.Core.VirtualNode> Cell { get; set; }
+            public RowRenderer Cell { get; set; }
 
             public Dictionary<string, object> ToDictionary()
             {
@@ -81,41 +78,9 @@ namespace ReactiveUITK.Props.Typed
             }
         }
 
-        public sealed class SortedColumnDef
+        public override Dictionary<string, object> ToDictionary()
         {
-            public string Name { get; set; }
-            public SortDirection? Direction { get; set; }
-            public int? Index { get; set; }
-
-            public Dictionary<string, object> ToDictionary()
-            {
-                var d = new Dictionary<string, object>();
-                if (!string.IsNullOrEmpty(Name))
-                {
-                    d["name"] = Name;
-                }
-                if (Direction.HasValue)
-                {
-                    d["direction"] = Direction.Value;
-                }
-                if (Index.HasValue)
-                {
-                    d["index"] = Index.Value;
-                }
-                return d;
-            }
-        }
-
-        public sealed class ColumnLayoutState
-        {
-            public Dictionary<string, float> ColumnWidths { get; set; }
-            public Dictionary<string, bool> ColumnVisibility { get; set; }
-            public Dictionary<string, int> ColumnDisplayIndex { get; set; }
-        }
-
-        public Dictionary<string, object> ToDictionary()
-        {
-            var d = new Dictionary<string, object>();
+            var d = base.ToDictionary();
             if (RootItems != null)
             {
                 d["rootItems"] = RootItems;
@@ -174,41 +139,13 @@ namespace ReactiveUITK.Props.Typed
             {
                 d["sortingMode"] = SortingMode;
             }
-            if (ColumnSortingChanged is Hooks.StateSetter<List<SortedColumnDef>> setter)
-            {
-                d["columnSortingChanged"] = setter.ToValueAction();
-            }
-            else if (ColumnSortingChanged is Action<List<SortedColumnDef>> action)
-            {
-                d["columnSortingChanged"] = action;
-            }
-            else if (ColumnSortingChanged != null)
+            if (ColumnSortingChanged != null)
             {
                 d["columnSortingChanged"] = ColumnSortingChanged;
             }
-            if (ColumnLayoutChanged is Hooks.StateSetter<ColumnLayoutState> layoutSetter)
-            {
-                d["columnLayoutChanged"] = layoutSetter.ToValueAction();
-            }
-            else if (ColumnLayoutChanged is Action<ColumnLayoutState> layoutAction)
-            {
-                d["columnLayoutChanged"] = layoutAction;
-            }
-            else if (ColumnLayoutChanged != null)
+            if (ColumnLayoutChanged != null)
             {
                 d["columnLayoutChanged"] = ColumnLayoutChanged;
-            }
-            if (Style != null)
-            {
-                d["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                d["ref"] = Ref;
-            }
-            if (!string.IsNullOrEmpty(ViewDataKey))
-            {
-                d["viewDataKey"] = ViewDataKey;
             }
             return d;
         }

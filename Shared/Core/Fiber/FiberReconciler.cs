@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ReactiveUITK.Core;
@@ -21,6 +21,7 @@ namespace ReactiveUITK.Core.Fiber
         private FiberHostConfig _hostConfig;
         private IScheduler _scheduler;
         private bool _isCommitting; // Track if we're in the commit phase
+        private List<FiberNode> _pendingPassiveEffects; // Collected during CommitWork, flushed two-pass after tree swap
 
         // Queue for deferred updates during commit
         // Stores target fiber and the vnode (if any)
@@ -154,7 +155,7 @@ namespace ReactiveUITK.Core.Fiber
             bool isDeleted = false;
 
             var fiberName =
-                fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber?.ElementType ?? fiber?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             // Mark the target fiber as having an update
             if (fiber != null)
             {
@@ -174,7 +175,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var parentName =
                         rootCurrent.Parent.ElementType
-                        ?? rootCurrent.Parent.Render?.Method.DeclaringType?.Name
+                        ?? rootCurrent.Parent.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                     rootCurrent.Parent.SubtreeHasUpdates = true;
                 }
@@ -182,7 +183,7 @@ namespace ReactiveUITK.Core.Fiber
                 {
                     var currName =
                         rootCurrent.ElementType
-                        ?? rootCurrent.Render?.Method.DeclaringType?.Name
+                        ?? rootCurrent.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                 }
 
@@ -201,22 +202,18 @@ namespace ReactiveUITK.Core.Fiber
             // If we walked up and found a root, check if it matches the active root.
             if (rootCurrent != null)
             {
-                var treeType = "Unknown";
                 if (rootCurrent == _root.Current)
                 {
-                    treeType = "Current";
                     // Found the active root. Good.
                 }
                 else if (rootCurrent == _root.WorkInProgress)
                 {
-                    treeType = "WorkInProgress";
                     // Found the WorkInProgress root.
                     // This means we are scheduling an update on a tree that is currently being built (cascading update).
                     // We should continue using this root as the WIP.
                 }
                 else if (_root.Current.Alternate != null && rootCurrent == _root.Current.Alternate)
                 {
-                    treeType = "Alternate (old)";
                     // Found the alternate root (which is not currently set as WIP).
                     // This is valid during a commit phase or if we are interacting with a tree that is being committed.
                     // We allow it to proceed, as it will create a WIP from this root.
@@ -248,7 +245,7 @@ namespace ReactiveUITK.Core.Fiber
                 // Queue the specific fiber update to replay it after commit
                 _deferredUpdates.Enqueue((fiber, vnode));
                 var fiberName2 =
-                    fiber?.ElementType ?? fiber?.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                    fiber?.ElementType ?? fiber?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 return;
             }
 
@@ -552,7 +549,7 @@ namespace ReactiveUITK.Core.Fiber
 
             // Propagate update flags to WIP - root is special case, doesn't use factory
             var componentName =
-                current.ElementType ?? current.Render?.Method.DeclaringType?.Name ?? "root";
+                current.ElementType ?? current.TypedRender?.Method.DeclaringType?.Name ?? "root";
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
@@ -611,7 +608,8 @@ namespace ReactiveUITK.Core.Fiber
                 // Process deletions first (from root down)
                 CommitDeletions(_root.WorkInProgress);
 
-                // Process effect list
+                // Process effect list — passive effect fibers are collected here, not run yet
+                _pendingPassiveEffects = new List<FiberNode>();
                 var effect = _root.FirstEffect;
                 while (effect != null)
                 {
@@ -626,6 +624,40 @@ namespace ReactiveUITK.Core.Fiber
                 // This must happen AFTER swap so ComponentState points to fibers with fully connected parent chains
                 // UseEffect callbacks will fire next and need correct fiber references for ScheduleUpdateOnFiber
                 UpdateComponentStateReferences(_root.Current);
+
+                // Flush passive effects in two passes: all cleanups first, then all setups.
+                // This preserves React's invariant that no component's setup runs before all
+                // components' cleanups have completed within the same commit.
+                //
+                // When a scheduler is present (async mode) we enqueue a single batched-effect
+                // action so effects fire AFTER the current frame's rendering is fully done —
+                // matching React 18's post-paint passive-effect timing.
+                // When no scheduler is available (sync / test mode) we run them immediately.
+                if (_pendingPassiveEffects != null && _pendingPassiveEffects.Count > 0)
+                {
+                    var toFlush = _pendingPassiveEffects;
+                    _pendingPassiveEffects = null;
+
+                    if (_scheduler != null)
+                    {
+                        _scheduler.EnqueueBatchedEffect(() =>
+                        {
+                            for (int i = 0; i < toFlush.Count; i++)
+                                FiberFunctionComponent.RunPassiveEffectCleanups(toFlush[i]);
+                            for (int i = 0; i < toFlush.Count; i++)
+                                FiberFunctionComponent.RunPassiveEffectSetups(toFlush[i]);
+                        });
+                    }
+                    else
+                    {
+                        // Sync / no-scheduler fallback: run in-place (same behaviour as before).
+                        for (int i = 0; i < toFlush.Count; i++)
+                            FiberFunctionComponent.RunPassiveEffectCleanups(toFlush[i]);
+                        for (int i = 0; i < toFlush.Count; i++)
+                            FiberFunctionComponent.RunPassiveEffectSetups(toFlush[i]);
+                    }
+                }
+                _pendingPassiveEffects = null;
 
                 // Only clear WIP if it hasn't been updated by a synchronous effect (e.g. navigate)
                 if (_root.WorkInProgress == finishedWork)
@@ -661,7 +693,7 @@ namespace ReactiveUITK.Core.Fiber
                     var (fiber, vnode) = _deferredUpdates.Dequeue();
                     var name =
                         fiber?.ElementType
-                        ?? fiber?.Render?.Method.DeclaringType?.Name
+                        ?? fiber?.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                     // Update flags/WIP but DON'T schedule work yet
                     ScheduleUpdateOnFiber(fiber, vnode, scheduleWork: false);
@@ -739,10 +771,10 @@ namespace ReactiveUITK.Core.Fiber
                 CommitLayoutEffects(fiber);
             }
 
-            // Passive effects
+            // Passive effects — collected here, flushed two-pass in CommitRoot after tree swap
             if ((fiber.EffectTag & EffectFlags.PassiveEffect) != 0)
             {
-                SchedulePassiveEffects(fiber);
+                _pendingPassiveEffects?.Add(fiber);
             }
 
             if ((fiber.EffectTag & (EffectFlags.LayoutEffect | EffectFlags.PassiveEffect)) != 0)
@@ -752,7 +784,10 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Commit placement - insert element into DOM
+        /// Commit placement - insert element into DOM at the correct position.
+        /// Uses InsertBefore(parent, child, nextHostSibling) when a stable DOM
+        /// sibling can be found, falling back to AppendChild when the element
+        /// belongs at the end of the parent.
         /// </summary>
         private void CommitPlacement(FiberNode fiber)
         {
@@ -777,14 +812,7 @@ namespace ReactiveUITK.Core.Fiber
             {
                 if (_hostConfig.GetParent(fiber.HostElement) == null)
                 {
-                    if (FiberConfig.EnableFiberLogging)
-                    {
-                        UnityEngine.Debug.Log(
-                            $"[Fiber] Appending {fiber.ElementType} to {parentFiber.ElementType}"
-                        );
-                    }
-
-                    // Apply initial properties before appending
+                    // Apply initial properties before inserting
                     if (fiber.PendingProps != null)
                     {
                         if (FiberConfig.EnableFiberLogging)
@@ -813,7 +841,27 @@ namespace ReactiveUITK.Core.Fiber
                         }
                     }
 
-                    _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
+                    // Find the nearest already-placed DOM element that logically
+                    // follows this fiber in tree order.  If one exists, insert
+                    // before it so the element lands at the right visual position.
+                    // Otherwise append to the end (correct when there is no later sibling).
+                    var before = GetHostSibling(fiber);
+                    if (before != null)
+                    {
+                        if (FiberConfig.EnableFiberLogging)
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] InsertBefore {fiber.ElementType} before {before.name}"
+                            );
+                        _hostConfig.InsertBefore(parentFiber.HostElement, fiber.HostElement, before);
+                    }
+                    else
+                    {
+                        if (FiberConfig.EnableFiberLogging)
+                            UnityEngine.Debug.Log(
+                                $"[Fiber] AppendChild {fiber.ElementType} to {parentFiber.ElementType}"
+                            );
+                        _hostConfig.AppendChild(parentFiber.HostElement, fiber.HostElement);
+                    }
                 }
             }
             else
@@ -824,6 +872,59 @@ namespace ReactiveUITK.Core.Fiber
                         $"[Fiber] Could not find host parent for {fiber.ElementType}"
                     );
                 }
+            }
+        }
+
+        /// <summary>
+        /// Finds the nearest VisualElement that should appear AFTER
+        /// <paramref name="fiber"/> in DOM order and is already present in the
+        /// parent element (i.e. not itself being newly placed).
+        ///
+        /// Mirrors React's <c>getHostSibling</c> algorithm:
+        /// walk the fiber-tree siblings (and descend into non-host containers
+        /// such as Fragments and FunctionComponents) until a stable host node
+        /// is found, or we run out of siblings within the same host-parent.
+        /// </summary>
+        private static VisualElement GetHostSibling(FiberNode fiber)
+        {
+            FiberNode node = fiber;
+
+            while (true) // outer: advance to the next fiber to examine
+            {
+                // Walk up until we find a node that has a sibling,
+                // stopping if we cross into a host-element's territory.
+                while (node.Sibling == null)
+                {
+                    if (node.Parent == null
+                        || node.Parent.Tag == FiberTag.HostComponent
+                        || node.Parent.Tag == FiberTag.HostPortal)
+                        return null; // no DOM sibling exists before the host parent boundary
+                    node = node.Parent;
+                }
+                node = node.Sibling;
+
+                // Descend into `node` looking for the first stable HostComponent.
+                // If at any point we hit a Placement node or a childless container,
+                // break out so the outer loop can try the next sibling.
+                while (node.Tag != FiberTag.HostComponent)
+                {
+                    if ((node.EffectTag & EffectFlags.Placement) != 0)
+                        break; // this container is also new — try its sibling next
+
+                    if (node.Tag == FiberTag.HostPortal || node.Child == null)
+                        break; // can't descend further — try next sibling
+
+                    node = node.Child; // descend into Fragment / FunctionComponent
+                }
+
+                // If we landed on a stable HostComponent, that is our anchor.
+                if (node.Tag == FiberTag.HostComponent
+                    && (node.EffectTag & EffectFlags.Placement) == 0
+                    && node.HostElement != null)
+                    return node.HostElement;
+
+                // Otherwise `node` is wherever we stopped.  The next outer loop
+                // iteration will advance to node.Sibling (or walk up if null).
             }
         }
 
@@ -905,7 +1006,7 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             var fiberName =
-                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             // Depth-first delete: clean up subtree before removing the current node.
             // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
@@ -1157,38 +1258,6 @@ namespace ReactiveUITK.Core.Fiber
             // behind FiberConfig.EnableFiberLogging if needed.
         }
 
-        private FiberNode CreateFiberFromVNode(VirtualNode vnode)
-        {
-            if (vnode == null)
-                return null;
-
-            var fiber = new FiberNode
-            {
-                Key = vnode.Key,
-                PendingProps = ExtractProps(vnode),
-                Children = vnode.Children,
-            };
-
-            switch (vnode.NodeType)
-            {
-                case VirtualNodeType.Element:
-                    fiber.Tag = FiberTag.HostComponent;
-                    fiber.ElementType = vnode.ElementTypeName;
-                    break;
-
-                case VirtualNodeType.FunctionComponent:
-                    fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = vnode.FunctionRender;
-                    break;
-
-                case VirtualNodeType.Fragment:
-                    fiber.Tag = FiberTag.Fragment;
-                    break;
-            }
-
-            return fiber;
-        }
-
         // ===== Helper methods =====
 
         private IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
@@ -1201,7 +1270,7 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    return new Dictionary<string, object>(); // Suspense uses TypedPendingProps (SuspenseProps)
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -1286,10 +1355,19 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber == null)
                 return;
 
-            var name = fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+            var name = fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
 
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
+
+            // Commit typed props so the next render cycle's IProps equality check sees
+            // the last-rendered props as the baseline (not stale pre-bailout props).
+            // Without this, TypedProps would only be updated by the bailout path,
+            // causing unnecessary re-renders whenever props change (even to same value).
+            if (fiber.TypedPendingProps != null)
+            {
+                fiber.TypedProps = fiber.TypedPendingProps;
+            }
 
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;

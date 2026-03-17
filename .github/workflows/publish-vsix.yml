@@ -1,0 +1,74 @@
+name: Publish Visual Studio Extension
+
+on:
+  push:
+    tags: ["ide-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Build LSP server ──────────────────────────────────────────────────
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Build & publish LSP server
+        run: |
+          dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj `
+            -c Release `
+            --runtime win-x64 `
+            --self-contained false `
+            -o ide-extensions~/visual-studio/UitkxVsix/server
+
+      # ── Build VSIX ────────────────────────────────────────────────────────
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: dotnet restore
+
+      - name: Build VSIX
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: |
+          msbuild UitkxVsix.csproj /p:Configuration=Release /p:DeployExtension=false
+
+      - name: Locate VSIX
+        id: find_vsix
+        shell: pwsh
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: |
+          $vsix = Get-ChildItem -Recurse -Filter "*.vsix" | Select-Object -First 1
+          echo "VSIX_PATH=$($vsix.FullName)" >> $env:GITHUB_OUTPUT
+
+      # ── Publish to VS Marketplace ────────────────────────────────────────
+      # Requires VSIX Publisher CLI — installed with VS Build Tools.
+      # Alternatively use the VS Marketplace API directly.
+      - name: Publish to VS Marketplace
+        env:
+          MARKETPLACE_TOKEN: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+        shell: pwsh
+        run: |
+          $publisher = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\VSIXInstaller.Publisher.exe"
+          # Fall back to the REST API if the CLI tool isn't present
+          $vsixPath = "${{ steps.find_vsix.outputs.VSIX_PATH }}"
+          $body     = [System.IO.File]::ReadAllBytes($vsixPath)
+          $tag      = "${{ github.ref_name }}"
+          Invoke-RestMethod `
+            -Uri "https://marketplace.visualstudio.com/_apis/gallery/publishers/ReactiveUITK/extensions/UitkxVsix/vspackage?api-version=7.2-preview.1" `
+            -Method PUT `
+            -Headers @{ Authorization = "Bearer $env:MARKETPLACE_TOKEN"; "Content-Type" = "application/octet-stream" } `
+            -Body $body
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: uitkx-vs-${{ github.ref_name }}
+          path: ${{ steps.find_vsix.outputs.VSIX_PATH }}

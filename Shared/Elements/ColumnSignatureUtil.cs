@@ -7,12 +7,10 @@ namespace ReactiveUITK.Elements
 {
     internal static class ColumnSignatureUtil
     {
-        public static (List<ColumnSignature> sig, List<Func<int, object, VirtualNode>> fns) Extract(
-            IEnumerable cols
-        )
+        public static (List<ColumnSignature> sig, List<RowRenderer> fns) Extract(IEnumerable cols)
         {
             var list = new List<ColumnSignature>();
-            var fns = new List<Func<int, object, VirtualNode>>();
+            var fns = new List<RowRenderer>();
             if (cols == null)
             {
                 return (list, fns);
@@ -25,8 +23,8 @@ namespace ReactiveUITK.Elements
                 }
                 colMap.TryGetValue("name", out var n);
                 colMap.TryGetValue("title", out var t);
-                Func<int, object, VirtualNode> fn = null;
-                if (colMap.TryGetValue("cell", out var c) && c is Func<int, object, VirtualNode> cf)
+                RowRenderer fn = null;
+                if (colMap.TryGetValue("cell", out var c) && c is RowRenderer cf)
                 {
                     fn = cf;
                 }

@@ -1,27 +1,25 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TreeViewProps
+    public sealed class TreeViewProps : BaseProps
     {
         public IList RootItems { get; set; }
         public float? FixedItemHeight { get; set; }
         public SelectionType? Selection { get; set; }
         public int? SelectedIndex { get; set; }
-        public System.Func<int, object, ReactiveUITK.Core.VirtualNode> Row { get; set; }
+        public RowRenderer Row { get; set; }
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
-        public Delegate ItemExpandedChanged { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
-        public string ViewDataKey { get; set; }
+        public TreeExpansionEventHandler ItemExpandedChanged { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var d = new Dictionary<string, object>();
+            var d = base.ToDictionary();
             if (RootItems != null)
             {
                 d["rootItems"] = RootItems;
@@ -53,18 +51,6 @@ namespace ReactiveUITK.Props.Typed
             if (ItemExpandedChanged != null)
             {
                 d["itemExpandedChanged"] = ItemExpandedChanged;
-            }
-            if (Style != null)
-            {
-                d["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                d["ref"] = Ref;
-            }
-            if (!string.IsNullOrEmpty(ViewDataKey))
-            {
-                d["viewDataKey"] = ViewDataKey;
             }
             return d;
         }

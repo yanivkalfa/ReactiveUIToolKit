@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>ReactiveUITK.Language</RootNamespace>
+    <AssemblyName>ReactiveUITK.Language</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      System.Collections.Immutable is the only NuGet dependency.
+      PrivateAssets="all" prevents it from flowing into the output folder —
+      both Unity (via Roslyn 4.3.1) and the LSP server (via .NET 8) already
+      ship an appropriate version of the assembly at runtime.
+    -->
+    <PackageReference Include="System.Collections.Immutable" Version="6.0.0" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

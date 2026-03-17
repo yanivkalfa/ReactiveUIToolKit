@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ReactiveUITK.Core.Diagnostics;
@@ -23,6 +23,10 @@ namespace ReactiveUITK.Core
 
         public static bool EnableHookAutoRealign { get; set; } = true;
 
+        /// <summary>Use <see cref="Ref{T}"/> (top-level class) instead.</summary>
+        [Obsolete(
+            "Hooks.MutableRef<T> is deprecated. Use Ref<T> instead (obtained via Hooks.UseRef<T>())."
+        )]
         public sealed class MutableRef<T>
         {
             public T Value;
@@ -1090,21 +1094,21 @@ namespace ReactiveUITK.Core
             return tuple.handle;
         }
 
-        public static MutableRef<T> UseRef<T>(T initial = default)
+        public static Ref<T> UseRef<T>(T initial = default)
         {
             NodeMetadata metadata = HookContext.Current?.Owner;
             var state = EnsureState(metadata);
             if (state == null)
             {
-                return new MutableRef<T> { Value = initial };
+                return new Ref<T> { Current = initial };
             }
             RecordHook(metadata, state, HookIdMutableRef);
             state.HookStates ??= new List<object>();
             if (state.HookIndex >= state.HookStates.Count)
             {
-                state.HookStates.Add(new MutableRef<T> { Value = initial });
+                state.HookStates.Add(new Ref<T> { Current = initial });
             }
-            var stored = (MutableRef<T>)state.HookStates[state.HookIndex];
+            var stored = (Ref<T>)state.HookStates[state.HookIndex];
             state.HookIndex++;
             SyncState(metadata, state);
             return stored;
@@ -1399,7 +1403,7 @@ namespace ReactiveUITK.Core
 
             // DEBUG LOG: CHECK COUNT
             var compName =
-                fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             for (int i = 0; i < deps.Count; i++)
             {
                 var dep = deps[i];
@@ -1480,7 +1484,7 @@ namespace ReactiveUITK.Core
             // DEBUG UNCONDITIONAL
             var compName =
                 state.Fiber?.ElementType
-                ?? state.Fiber?.Render?.Method.DeclaringType?.Name
+                ?? state.Fiber?.TypedRender?.Method.DeclaringType?.Name
                 ?? "Unknown";
             return resolved is T result ? result : default;
         }
@@ -1513,7 +1517,7 @@ namespace ReactiveUITK.Core
 
         public static T UseSignal<T>(string key, T initialValue = default)
         {
-            return UseSignal(ReactiveUITK.Signals.Signals.Get<T>(key, initialValue));
+            return UseSignal(ReactiveUITK.Signals.SignalFactory.Get<T>(key, initialValue));
         }
 
         public static TSlice UseSignal<T, TSlice>(
@@ -1524,7 +1528,7 @@ namespace ReactiveUITK.Core
         )
         {
             return UseSignal(
-                ReactiveUITK.Signals.Signals.Get<T>(key, initialValue),
+                ReactiveUITK.Signals.SignalFactory.Get<T>(key, initialValue),
                 selector,
                 comparer
             );
@@ -1549,7 +1553,93 @@ namespace ReactiveUITK.Core
             }
 
             fiber.ProvidedContext ??= new Dictionary<string, object>();
+
+            // Detect whether the context value actually changed vs the committed tree.
+            // If it did, walk the current (alternate) subtree and mark every consumer fiber
+            // with HasPendingStateUpdate=true and every intermediate ancestor with
+            // SubtreeHasUpdates=true.  FiberFactory.CloneForReuse copies both flags into the
+            // WIP tree, so bailed-out intermediaries are forced to traverse into their
+            // subtrees and consumers are forced to re-render — exactly React 18's
+            // propagateContextChange behaviour.
+            var alternateFiber = fiber.Alternate;
+            bool valueChanged = true;
+            if (
+                alternateFiber?.ProvidedContext != null
+                && alternateFiber.ProvidedContext.TryGetValue(key, out var oldValue)
+                && Equals(oldValue, value)
+            )
+            {
+                valueChanged = false;
+            }
+
             fiber.ProvidedContext[key] = value;
+
+            if (valueChanged && alternateFiber?.Child != null)
+            {
+                PropagateContextChange(key, alternateFiber.Child);
+            }
+        }
+
+        /// <summary>
+        /// Depth-first walk of the CURRENT (committed) subtree rooted at <paramref name="fiber"/>.
+        /// For every function component that has a UseContext dependency on <paramref name="key"/>
+        /// we set HasPendingStateUpdate=true.  For every ancestor that has at least one such
+        /// descendant we set SubtreeHasUpdates=true.  Both flags are propagated into the WIP
+        /// tree by FiberFactory.CloneForReuse, ensuring bailed-out parents still visit their
+        /// children and consumers are not incorrectly skipped.
+        /// Recursion stops when a nested provider for the same key is found because that
+        /// provider's subtree reads its own (inner) value, not ours.
+        /// </summary>
+        private static bool PropagateContextChange(string key, Fiber.FiberNode fiber)
+        {
+            bool anyMarked = false;
+            while (fiber != null)
+            {
+                // A nested provider for this key shadows the outer one — stop here.
+                if (fiber.ProvidedContext != null && fiber.ProvidedContext.ContainsKey(key))
+                {
+                    fiber = fiber.Sibling;
+                    continue;
+                }
+
+                bool selfMarked = false;
+                bool childrenMarked = false;
+
+                // Check if this fiber directly consumes the key.
+                if (fiber.ReadsContext && fiber.ComponentState?.ContextDependencies != null)
+                {
+                    foreach (var dep in fiber.ComponentState.ContextDependencies)
+                    {
+                        if (dep.Key == key)
+                        {
+                            fiber.HasPendingStateUpdate = true;
+                            selfMarked = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Recurse into children.
+                if (fiber.Child != null)
+                {
+                    childrenMarked = PropagateContextChange(key, fiber.Child);
+                }
+
+                // If descendants (but not self) were marked, record that this fiber's
+                // subtree has pending work so the bailout path traverses into it.
+                if (childrenMarked && !selfMarked)
+                {
+                    fiber.SubtreeHasUpdates = true;
+                }
+
+                if (selfMarked || childrenMarked)
+                {
+                    anyMarked = true;
+                }
+
+                fiber = fiber.Sibling;
+            }
+            return anyMarked;
         }
 
         /// <summary>

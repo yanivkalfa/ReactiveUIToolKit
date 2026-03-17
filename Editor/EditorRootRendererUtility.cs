@@ -1,7 +1,8 @@
+using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
-using ReactiveUITK.Elements;
 using ReactiveUITK.Core.Diagnostics;
+using ReactiveUITK.Elements;
 using ReactiveUITK.Signals;
 using UnityEditor;
 using UnityEngine.UIElements;
@@ -13,7 +14,26 @@ namespace ReactiveUITK.EditorSupport
         private static readonly Dictionary<VisualElement, VNodeHostRenderer> renderersByHost =
             new();
 
-        public static void Mount(VisualElement hostElement, VirtualNode root)
+        /// <summary>
+        /// Mounts a component tree on <paramref name="hostElement"/>.
+        /// </summary>
+        /// <param name="hostElement">The VisualElement that acts as the React root.</param>
+        /// <param name="root">The root VirtualNode to render.</param>
+        /// <param name="env">
+        /// Optional callback invoked with the freshly-created <see cref="HostContext"/> before
+        /// the renderer is started.  Use this to seed named portal target slots:
+        /// <code>
+        /// env: ctx => ctx.Environment[PortalContextKeys.ModalRoot] = myOverlayPanel
+        /// </code>
+        /// The callback is only called when a <b>new</b> renderer is created for this host
+        /// element; subsequent <c>Mount</c>/<c>Render</c> calls on the same host are no-ops
+        /// for context setup (the context is shared for the renderer's lifetime).
+        /// </param>
+        public static void Mount(
+            VisualElement hostElement,
+            VirtualNode root,
+            Action<HostContext> env = null
+        )
         {
             if (hostElement == null || root == null)
             {
@@ -36,15 +56,24 @@ namespace ReactiveUITK.EditorSupport
 
                 InternalLogOptions.EnableInternalLogs =
                     DiagnosticsConfig.CurrentTraceLevel == DiagnosticsConfig.TraceLevel.Verbose;
+
+                // Caller-supplied environment seeding (portal slots, feature flags, etc.)
+                env?.Invoke(hostContext);
+
                 renderer = new VNodeHostRenderer(hostContext, hostElement);
                 renderersByHost[hostElement] = renderer;
             }
             renderer.Render(root);
         }
 
-        public static void Render(VisualElement hostElement, VirtualNode root)
+        /// <inheritdoc cref="Mount"/>
+        public static void Render(
+            VisualElement hostElement,
+            VirtualNode root,
+            Action<HostContext> env = null
+        )
         {
-            Mount(hostElement, root);
+            Mount(hostElement, root, env);
         }
 
         public static void Unmount(VisualElement hostElement)

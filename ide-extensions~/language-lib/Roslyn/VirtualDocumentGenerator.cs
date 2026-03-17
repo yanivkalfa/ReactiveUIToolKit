@@ -1,0 +1,1598 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Text;
+using System.Text.RegularExpressions;
+using ReactiveUITK.Language.Nodes;
+using ReactiveUITK.Language.Parser;
+
+namespace ReactiveUITK.Language.Roslyn
+{
+    // ── Collected expression ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// A single C# expression (inline or attribute) gathered during the AST walk,
+    /// ready to be written into the virtual document as a type-checking wrapper.
+    /// </summary>
+    internal sealed class CollectedExpression
+    {
+        /// <summary>Trimmed C# expression text.</summary>
+        public string Text { get; init; } = "";
+
+        /// <summary>Absolute char offset in the .uitkx source where <see cref="Text"/> starts.</summary>
+        public int UitkxOffset { get; init; }
+
+        /// <summary>1-based line in the .uitkx source.</summary>
+        public int UitkxLine { get; init; }
+
+        /// <summary>Label appended to the generated method/variable name (e.g. "attr_0_text").</summary>
+        public string Label { get; init; } = "";
+
+        public SourceRegionKind Kind { get; init; }
+    }
+
+    // ── Virtual document ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The generated virtual C# document for a single .uitkx file, together with
+    /// the <see cref="SourceMap"/> that maps positions back to the .uitkx source.
+    /// </summary>
+    public sealed class VirtualDocument
+    {
+        /// <summary>
+        /// Full text of the virtual C# file, encoded with LF-only line endings.
+        /// Feed this to <c>AdhocWorkspace.AddDocument</c> to get a Roslyn document.
+        /// </summary>
+        public string Text { get; }
+
+        /// <summary>Bidirectional position map between virtual C# and .uitkx source.</summary>
+        public SourceMap Map { get; }
+
+        /// <summary>The .uitkx source path this document was generated from.</summary>
+        public string UitkxFilePath { get; }
+
+        internal VirtualDocument(string text, SourceMap map, string uitkxFilePath)
+        {
+            Text          = text;
+            Map           = map;
+            UitkxFilePath = uitkxFilePath;
+        }
+    }
+
+    // ── Builder (internal) ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Stateful builder used during document generation.  Tracks the current
+    /// byte offset in the output <see cref="StringBuilder"/> so mapped spans can be
+    /// recorded precisely.
+    /// </summary>
+    internal sealed class VirtualDocBuilder
+    {
+        private readonly StringBuilder _sb    = new StringBuilder(4096);
+        private readonly List<SourceMapEntry> _entries = new List<SourceMapEntry>();
+        private int _virtualPos;
+
+        // ── Scaffold text (no source-map entry) ──────────────────────────────
+
+        /// <summary>Appends generated-scaffold text that does not map to any .uitkx position.</summary>
+        public void Scaffold(string text)
+        {
+            _sb.Append(text);
+            _virtualPos += text.Length;
+        }
+
+        // ── Mapped region ────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Appends text that was copied verbatim from the .uitkx source, recording
+        /// the bidirectional span so the source map can translate positions.
+        /// </summary>
+        public void Mapped(string text, int uitkxStart, SourceRegionKind kind, int uitkxLine)
+        {
+            if (text.Length == 0)
+                return;
+
+            int vStart = _virtualPos;
+            _sb.Append(text);
+            _virtualPos += text.Length;
+
+            _entries.Add(new SourceMapEntry(
+                VirtualStart: vStart,
+                VirtualEnd:   _virtualPos,
+                UitkxStart:   uitkxStart,
+                UitkxEnd:     uitkxStart + text.Length,
+                Kind:         kind,
+                UitkxLine:    uitkxLine));
+        }
+
+        // ── Output ───────────────────────────────────────────────────────────
+
+        public VirtualDocument Build(string uitkxFilePath) =>
+            new VirtualDocument(
+                text:          _sb.ToString(),
+                map:           new SourceMap(_entries.ToImmutableArray()),
+                uitkxFilePath: uitkxFilePath);
+
+        public int CurrentPos => _virtualPos;
+    }
+
+    // ── Generator ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Generates an in-memory C# source file (the "virtual document") from a
+    /// parsed UITKX file.
+    ///
+    /// <para><b>Purpose:</b> The virtual document is fed to a Roslyn
+    /// <c>AdhocWorkspace</c> so the language server can answer type-related
+    /// questions about the C# regions embedded inside the .uitkx file:
+    /// diagnostics, completions, hover, and semantic token classification.</para>
+    ///
+    /// <para><b>Virtual document structure — classic directive-based style:</b></para>
+    /// <code>
+    /// // &lt;auto-generated&gt;
+    /// #line hidden
+    /// #pragma warning disable ...
+    /// using System; using ReactiveUITK.Core; ... // standard + @usings
+    ///
+    /// namespace {Namespace} {
+    ///     partial class {Component}Func {
+    /// #line hidden
+    ///         private {PropsType} props = default!;
+    ///         private {InjectType} {injectName} = default!;
+    ///
+    ///         // One wrapper method per @(expr) / attr={expr}:
+    /// #line {uitkxLine} "{uitkxFilePath}"
+    ///         private object __uitkx_{label}() { return ({expression}); }
+    /// #line hidden
+    ///
+    ///         // @code block verbatim (class-body context):
+    /// #line {codeStartLine} "{uitkxFilePath}"
+    ///         {code body}
+    /// #line default
+    ///     }
+    /// }
+    /// </code>
+    ///
+    /// <para><b>Virtual document structure — function-style:</b>
+    /// All expressions plus the setup code are placed inside a
+    /// <c>__uitkx_render()</c> method so local variables declared in setup code
+    /// are visible to expressions that reference them.</para>
+    ///
+    /// <para><b>Source map:</b> Every C# expression region records a
+    /// <see cref="SourceMapEntry"/> so the calling code can convert positions in
+    /// either direction between the virtual document and the .uitkx source.</para>
+    ///
+    /// <para><b>Language-lib constraint:</b> This class has NO dependency on Roslyn
+    /// NuGet packages.  It lives in <c>language-lib</c> which targets
+    /// <c>netstandard2.0</c> and must stay Roslyn-free so it can be referenced by
+    /// the Unity source-generator project.</para>
+    /// </summary>
+    public sealed class VirtualDocumentGenerator
+    {
+        // ── Standard using directives ─────────────────────────────────────────
+
+        /// <summary>
+        /// Usings always injected into every virtual document.
+        /// These cover the types most commonly found in .uitkx @code blocks and
+        /// expressions, preventing false CS0246 errors.
+        /// The list is intentionally conservative — only assemblies that the
+        /// Unity project always contains.
+        /// </summary>
+        private static readonly string[] s_standardUsings =
+        {
+            "System",
+            "System.Collections.Generic",
+            "System.Linq",
+            "UnityEngine",
+            // UnityEngine.UIElements intentionally omitted: it exports a FlexDirection enum
+            // that conflicts with the FlexDirection string constant from
+            // `using static ReactiveUITK.Props.Typed.StyleKeys` (CS0104).
+            "ReactiveUITK.Core",
+            "ReactiveUITK.Core.Animation",
+            "ReactiveUITK.Props.Typed",
+        };
+
+        /// <summary>
+        /// Extra lines appended after the normal using directives.
+        /// These are not simple namespace usings (static / alias forms).
+        /// </summary>
+        private static readonly string[] s_extraUsingLines =
+        {
+            "using static ReactiveUITK.Props.Typed.StyleKeys;",
+            "using UColor = UnityEngine.Color;",
+            // `using static StyleKeys` imports a `Color` string constant (TextColor prop key).
+            // UnityEngine.UIElementsModule.dll also defines UnityEngine.Color → CS0104.
+            // An explicit alias always wins over both, so declare it last.
+            "using Color = UnityEngine.Color;",
+        };
+
+        // ── Public API ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Generates the virtual C# document for <paramref name="parseResult"/> and
+        /// returns a <see cref="VirtualDocument"/> that includes both the text and
+        /// the bidirectional source map.
+        /// </summary>
+        /// <param name="parseResult">
+        /// The fully-parsed UITKX document (directives + AST + diagnostics).
+        /// </param>
+        /// <param name="source">
+        /// The raw .uitkx source text.  Must be the same string that was used to
+        /// produce <paramref name="parseResult"/> so source offsets are valid.
+        /// </param>
+        /// <param name="uitkxFilePath">
+        /// Absolute path to the .uitkx file, written into <c>#line</c> directives.
+        /// </param>
+        public VirtualDocument Generate(ParseResult parseResult, string source, string uitkxFilePath)
+        {
+            var b = new VirtualDocBuilder();
+            var d = parseResult.Directives;
+
+            // ── File header ──────────────────────────────────────────────────
+            b.Scaffold("// <auto-generated: UITKX Roslyn virtual document>\n");
+            b.Scaffold($"// Source: {EscapeForComment(uitkxFilePath)}\n");
+            b.Scaffold("// DO NOT EDIT — regenerated on every document change.\n");
+            b.Scaffold("#line hidden\n");
+            b.Scaffold("#nullable enable annotations\n");
+            // CS0246 removed from global list — suppressed only on specific scaffold lines
+            // that are known to reference external types (event types, props type, injects).
+            // This allows Roslyn to surface real CS0246 errors in user-authored C# regions.
+            b.Scaffold(
+                "#pragma warning disable CS0169, CS0414, CS8618, CS8019, CS1591, CS0649, CS0411, CS1660, CS1026, CS1513, CS8632, CS8974\n\n"
+            );
+
+            // ── Using directives ─────────────────────────────────────────────
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var u in s_standardUsings)
+            {
+                if (seen.Add(u))
+                    b.Scaffold($"using {u};\n");
+            }
+            foreach (var u in d.Usings)
+            {
+                string trimmed = u.Trim();
+                if (!string.IsNullOrEmpty(trimmed) && seen.Add(trimmed))
+                    b.Scaffold($"using {trimmed};\n");
+            }
+            // Static / alias usings that cannot go through the simple "using X;" path
+            foreach (var line in s_extraUsingLines)
+                b.Scaffold(line + "\n");
+            b.Scaffold("\n");
+
+            // ── Namespace + class header ─────────────────────────────────────
+            string ns        = !string.IsNullOrEmpty(d.Namespace) ? d.Namespace! : "ReactiveUITK.Generated";
+            string className = !string.IsNullOrEmpty(d.ComponentName) ? d.ComponentName! : "Component";
+            string escapedPath = EscapePathForLineDirective(uitkxFilePath);
+
+            b.Scaffold($"namespace {ns}\n{{\n");
+            b.Scaffold($"    partial class {className}\n    {{\n");
+            b.Scaffold("#line hidden\n");
+
+            // ── Scaffold Ref<T> stand-in ─────────────────────────────────────
+            // Provides member completions for useRef<T>() return values (e.g.
+            // allowNextRef.Current) without requiring the ReactiveUITK assembly
+            // to be loaded. Current and Value mirror the real Ref<T> API.
+            b.Scaffold(
+                "        private sealed class __UitkxRef__<T>\n" +
+                "        {\n" +
+                "            public T Current { get; set; } = default!;\n" +
+                "            public T Value { get => Current; set => Current = value; }\n" +
+                "        }\n");
+
+            if (d.IsFunctionStyle)
+                EmitFunctionStyleBody(b, parseResult, source, escapedPath);
+            else
+                EmitClassicBody(b, parseResult, source, escapedPath);
+
+            // ── Close class + namespace ──────────────────────────────────────
+            b.Scaffold("    }\n}\n");
+
+            return b.Build(uitkxFilePath);
+        }
+
+        // ── Classic directive-based component ─────────────────────────────────
+
+        private static void EmitClassicBody(
+            VirtualDocBuilder b,
+            ParseResult parseResult,
+            string source,
+            string escapedPath)
+        {
+            var d = parseResult.Directives;
+
+            // Props field
+            string propsType = !string.IsNullOrEmpty(d.PropsTypeName) ? d.PropsTypeName! : "object";
+            // Props and inject field types come from user-authored code and may not be
+            // resolvable if the Unity assembly hasn't compiled yet. Suppress CS0246 here.
+            b.Scaffold("#pragma warning disable CS0246\n");
+            b.Scaffold($"        private {propsType} props = default!;\n");
+
+            // @inject fields
+            foreach (var (injectType, injectName) in d.Injects)
+                b.Scaffold($"        private {injectType} {injectName} = default!;\n");
+            b.Scaffold("#pragma warning restore CS0246\n");
+
+            b.Scaffold("\n");
+
+            // Collect all C# expressions in markup, numbered for unique method names
+            var expressions = new List<CollectedExpression>();
+            CollectExpressions(parseResult.RootNodes, expressions);
+
+            // Expression wrapper methods (instance — so props / inject fields are in scope)
+            if (expressions.Count > 0)
+            {
+                b.Scaffold(
+                    "        // ── C# expression type-checking wrappers ───────────────────────\n"
+                );
+                b.Scaffold("        // These methods are NEVER called; they exist only for Roslyn.\n\n");
+
+                foreach (var expr in expressions)
+                    EmitExpressionWrapper(b, expr, escapedPath, indent: "        ");
+            }
+
+            // @code block (class-body context)
+            EmitCodeBlock(b, parseResult.RootNodes, source, escapedPath);
+        }
+
+        // ── Function-style component ──────────────────────────────────────────
+
+        private static void EmitFunctionStyleBody(
+            VirtualDocBuilder b,
+            ParseResult parseResult,
+            string source,
+            string escapedPath)
+        {
+            var d = parseResult.Directives;
+
+            // Typed parameters become private fields so the render method can access them.
+            if (!d.FunctionParams.IsDefaultOrEmpty)
+            {
+                foreach (var p in d.FunctionParams)
+                    b.Scaffold($"        private {p.Type} {p.Name};\n");
+                b.Scaffold("\n");
+            }
+
+            // ── Hook shorthand stubs ──────────────────────────────────────────
+            // The authoring shorthands useState / useMemo / useEffect etc. are NOT
+            // rewritten before being fed to Roslyn, so we scaffold private methods
+            // with the correct return types so Roslyn can type-check the setup code
+            // without CS0103 / CS8130 / CS1026 errors.
+            // CS0246: hook stubs reference Unity/ReactiveUITK types that may not
+            // be resolvable before the first Unity compile (e.g. VisualElement).
+            //
+            // State setter delegate: void __StateSetter__<T>(Func<T,T> updater).
+            // The real API (StateSetter<T> + StateUpdate<T>) supports both
+            //   setX(newValue)        — direct value
+            //   setX(prev => prev+1)  — updater function
+            // via implicit operators on StateUpdate<T>.
+            //
+            // We model the setter as a delegate accepting Func<T,T> so that
+            // Roslyn properly type-checks lambda bodies — the lambda parameter
+            // `prev` is correctly inferred as `T`, enabling full semantic analysis
+            // inside updater lambdas.
+            //
+            // Direct-value calls like setCount(5) produce CS1503 (can't convert
+            // int to Func<int,int>); this is suppressed in RoslynDiagnosticMapper
+            // by checking for the state-setter pattern in the error message.
+            //
+            // __UitkxRef__<T>: scaffold so .Current completions always work,
+            //   even before the ReactiveUITK assembly is loaded by Roslyn.
+            b.Scaffold(
+                "\n" +
+                "        // ── Roslyn-only hook stubs (never called at runtime) ──────────────\n" +
+                "#pragma warning disable CS8603, CS8625, CS1998, CS0246\n" +
+                "        private delegate void __StateSetter__<T>(global::System.Func<T, T> updater);\n" +
+                "        private (T value, __StateSetter__<T> set)\n" +
+                "            useState<T>(T initial = default) => (initial, null!);\n" +
+                "        private T useMemo<T>(global::System.Func<T> factory, params object[] deps)\n" +
+                "            => factory != null ? factory() : default!;\n" +
+                "        private void useEffect(\n" +
+                "            global::System.Func<global::System.Action> effectFactory,\n" +
+                "            params object[] deps) { }\n" +
+                "        private __UitkxRef__<T> useRef<T>(T initial = default) => new();\n" +
+                "        private global::UnityEngine.UIElements.VisualElement useRef() => null!;\n" +
+                "        private global::System.Func<T> useCallback<T>(\n" +
+                "            global::System.Func<T> callback, params object[] deps) => callback!;\n" +
+                "        private T useSignal<T>(object signal) => default!;\n" +
+                "        private T useSignal<T>(string key, T initialValue = default) => initialValue;\n" +
+                "        private T useContext<T>(string key) => default!;\n" +
+                "        private void provideContext<T>(string key, T value) { }\n" +
+                "        private void provideContext(string key, object value) { }\n" +
+                "        private void useLayoutEffect(\n" +
+                "            global::System.Func<global::System.Action> effectFactory,\n" +
+                "            params object[] deps) { }\n" +
+                "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n");
+
+            // Collect markup nodes — skip the setup CodeBlockNode whose JSX paren
+            // blocks are already replaced with (object)null! placeholders by
+            // EmitFunctionStyleSetupSegmented.  Expression checks for those JSX
+            // blocks are emitted separately below via SetupCodeMarkupRanges.
+            var markupOnlyNodes = ImmutableArray.CreateBuilder<AstNode>(parseResult.RootNodes.Length);
+            foreach (var n in parseResult.RootNodes)
+                if (n is not CodeBlockNode)
+                    markupOnlyNodes.Add(n);
+
+            // All code goes inside a single render method so local vars from setup
+            // code are visible to expressions.
+            // Return type is `object` (not void) so that JSX paren blocks replaced with
+            // `return (object)null!` in conditional branches (e.g. `if (...) return (...)`)
+            // are valid C# — a void method can't return a value.
+            b.Scaffold("        private object __uitkx_render()\n        {\n");
+
+            // Setup code — emitted in segments so that JSX paren blocks
+            // (e.g. `var x = (<Box>...</Box>)`) are replaced with a valid C#
+            // placeholder and never seen by Roslyn as markup.
+            if (!string.IsNullOrEmpty(d.FunctionSetupCode) && d.FunctionSetupStartLine > 0)
+            {
+                // Use the exact character offset of the trimmed content when available;
+                // fall back to line-start approximation for older/generated DirectiveSets.
+                int setupStartOffset = d.FunctionSetupStartOffset >= 0
+                    ? d.FunctionSetupStartOffset
+                    : OffsetOfLine(source, d.FunctionSetupStartLine);
+
+                // Count newlines in the gap (removed return statement) so that
+                // the straddle case in EmitMappedWithGap can compute the correct
+                // #line directive for post-gap code.
+                int gapNewlines = 0;
+                if (d.FunctionSetupGapOffset >= 0 && d.FunctionSetupGapLength > 0)
+                {
+                    int gapSourceStart = setupStartOffset + d.FunctionSetupGapOffset;
+                    int gapSourceEnd = gapSourceStart + d.FunctionSetupGapLength;
+                    gapNewlines = CountNewlines(source, gapSourceStart,
+                        Math.Min(gapSourceEnd, source.Length));
+                }
+
+                EmitFunctionStyleSetupSegmented(
+                    b,
+                    d.FunctionSetupCode!,
+                    uitkxSetupStartOffset: setupStartOffset,
+                    uitkxSetupStartLine:   d.FunctionSetupStartLine,
+                    escapedPath:           escapedPath,
+                    gapOffset:             d.FunctionSetupGapOffset,
+                    gapLength:             d.FunctionSetupGapLength,
+                    gapNewlines:           gapNewlines);
+            }
+
+            // Expression checks — emitted in-scope so that loop variables declared
+            // in @for / @foreach / @while headers are visible inside the body.
+            b.Scaffold(
+                "            // ── Expression type checks ─────────────────────────────────\n"
+            );
+            int __exprCtr = 0; int __attrCtr = 0;
+            EmitNodeExpressionsScoped(
+                markupOnlyNodes.ToImmutable(), b, escapedPath,
+                indent: "            ", ref __exprCtr, ref __attrCtr);
+
+            // Expression checks for setup-code JSX blocks (e.g.
+            // `var node = (<Button onClick={_ => setCount(count + 1)} />)`).
+            // These blocks were replaced with (VirtualNode)null! above, so
+            // Roslyn never sees the expressions inside them. Parse each block
+            // and emit expression statements so C# errors and completions work.
+            if (!d.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+            {
+                b.Scaffold(
+                    "            // ── Setup JSX expression checks ─────────────────────────\n"
+                );
+                var setupParseDiags = new List<ParseDiagnostic>();
+                foreach (var (jsxStart, jsxEnd, jsxLine) in d.SetupCodeMarkupRanges)
+                {
+                    var jsxDirectives = d with
+                    {
+                        MarkupStartIndex = jsxStart,
+                        MarkupEndIndex   = jsxEnd,
+                        MarkupStartLine  = jsxLine,
+                    };
+                    var jsxNodes = UitkxParser.Parse(source, escapedPath, jsxDirectives, setupParseDiags);
+                    EmitNodeExpressionsScoped(
+                        jsxNodes, b, escapedPath,
+                        indent: "            ", ref __exprCtr, ref __attrCtr);
+                }
+            }
+
+            // Ensure all code paths return — components whose setup code only has
+            // conditional `return (object)null!` branches need a fallback.
+            b.Scaffold("            return default!;\n");
+            b.Scaffold("        }\n"); // close render method
+        }
+
+        // ── Expression wrappers / statements ─────────────────────────────────
+
+        /// <summary>
+        /// Emits a private instance method wrapping a single expression.
+        /// Used in classic (class-body) context.
+        /// </summary>
+        private static void EmitExpressionWrapper(
+            VirtualDocBuilder b,
+            CollectedExpression expr,
+            string escapedPath,
+            string indent)
+        {
+            // #line directive maps Roslyn errors back to the uitkx line
+            b.Scaffold($"#line {expr.UitkxLine} \"{escapedPath}\"\n");
+
+            // Scaffold: method signature up to the opening paren
+            string methodName = $"__uitkx_{expr.Label}";
+            b.Scaffold($"{indent}private object {methodName}() {{ return (");
+
+            // Mapped region: the expression text itself (1-to-1 source map)
+            b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+
+            // Scaffold: close method
+            b.Scaffold("); }\n");
+            b.Scaffold("#line hidden\n\n");
+        }
+
+        /// <summary>
+        /// Emits a block-statement expression check.
+        /// Used inside a render method (function-style context).
+        /// </summary>
+        private static void EmitExpressionStatement(
+            VirtualDocBuilder b,
+            CollectedExpression expr,
+            string escapedPath,
+            string indent)
+        {
+            b.Scaffold($"#line {expr.UitkxLine} \"{escapedPath}\"\n");
+
+            // Lambdas (`expr =>` / `_ =>` / `(x, y) =>`) cannot be stored as
+            // `object` — Roslyn emits CS1660 and a secondary "delegate type could
+            // not be inferred" diagnostic.  Cast to Action / Action<dynamic> so:
+            //  • Zero-arg lambdas `() => ...` → Action (no type param, no arg mismatch)
+            //  • One-arg lambdas `e => ...`   → Action<dynamic> so e.newValue etc. compile
+            //  • The lambda body is still type-checked against the surrounding scope
+            if (expr.Text.Contains("=>"))
+            {
+                // Block-body lambdas: `dm => { dm.AppendAction(..., _ => ...) }`
+                // Casting to Action<dynamic> makes the param `dynamic`, then passing
+                // a nested lambda to a dynamic method call triggers CS1977 — an error
+                // that cannot be pragma-suppressed.  Skip emitting these entirely so
+                // no false squiggles appear; the body is not type-checked (acceptable).
+                int arrowIdx = expr.Text.IndexOf("=>");
+                bool isBlockBody = arrowIdx >= 0 &&
+                    expr.Text.Substring(arrowIdx + 2).TrimStart().StartsWith("{");
+                if (isBlockBody)
+                {
+                    // Emit the block body with dynamic-typed parameters so the contents
+                    // get completions and type-checking, while avoiding CS1977 (cannot
+                    // use a lambda as argument to a dynamically-dispatched call — a
+                    // compiler error that cannot be pragma-suppressed).
+                    EmitBlockBodyLambda(b, expr, escapedPath, indent, arrowIdx);
+                }
+                else
+                {
+                    // () => ... is zero-arg; everything else is treated as single-arg dynamic
+                    bool isZeroArg = expr.Text.TrimStart().StartsWith("()");
+                    string castType = isZeroArg
+                        ? "global::System.Action"
+                        : "global::System.Action<dynamic>";
+                    b.Scaffold($"{indent}{{ (({castType})(");
+                    b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+                    b.Scaffold(")); }\n");
+                }
+            }
+            else
+            {
+                // CS0428 (method group → object) is a warning (orange), not an error — leave it visible.
+                b.Scaffold($"{indent}{{ object __uitkx_{expr.Label} = (");
+                b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+                b.Scaffold("); }\n");
+            }
+
+            b.Scaffold("#line hidden\n");
+        }
+
+        /// <summary>
+        /// Finds the one <see cref="CodeBlockNode"/> at the root level and emits its
+        /// content verbatim inside a <c>#line</c> pair so Roslyn maps errors correctly.
+        /// </summary>
+        private static void EmitCodeBlock(
+            VirtualDocBuilder b,
+            ImmutableArray<AstNode> rootNodes,
+            string source,
+            string escapedPath)
+        {
+            foreach (var node in rootNodes)
+            {
+                if (node is not CodeBlockNode cb)
+                    continue;
+
+                if (string.IsNullOrEmpty(cb.Code))
+                    break;
+
+                b.Scaffold(
+                    "\n        // ── @code block (class-body context) ─────────────────────────\n"
+                );
+
+                // +1 because @code { lives on SourceLine, code content starts on the line after
+                int codeLine = cb.SourceLine + 1;
+                b.Scaffold($"#line {codeLine} \"{escapedPath}\"\n");
+
+                // The Code text is inserted verbatim; if CodeContentOffset is tracked
+                // use that for precise character mapping, otherwise fall back to a
+                // line-only approximation.
+                int uitkxStart = cb.CodeContentOffset > 0
+                    ? cb.CodeContentOffset
+                    : OffsetOfLine(source, codeLine);
+
+                b.Mapped(cb.Code, uitkxStart, SourceRegionKind.CodeBlock, codeLine);
+                b.Scaffold("\n");
+                b.Scaffold("#line default\n");
+                break; // only one @code block per file
+            }
+        }
+
+        // ── AST expression collector ──────────────────────────────────────────
+
+        /// <summary>
+        /// Walks the entire AST and collects every C# expression that needs a
+        /// type-checking wrapper in the virtual document:
+        /// <list type="bullet">
+        ///   <item><c>@(expr)</c> — <see cref="ExpressionNode"/></item>
+        ///   <item><c>attr={expr}</c> — <see cref="AttributeNode"/> with <see cref="CSharpExpressionValue"/></item>
+        /// </list>
+        /// Numbers each expression to produce unique method/variable names.
+        /// </summary>
+        private static void CollectExpressions(
+            ImmutableArray<AstNode> nodes,
+            List<CollectedExpression> output)
+        {
+            int exprCounter = 0;
+            int attrCounter = 0;
+            CollectFromNodeList(nodes, output, ref exprCounter, ref attrCounter);
+        }
+
+        private static void CollectFromNodeList(
+            ImmutableArray<AstNode>  nodes,
+            List<CollectedExpression> output,
+            ref int exprCounter,
+            ref int attrCounter)
+        {
+            foreach (var node in nodes)
+                CollectFromNode(node, output, ref exprCounter, ref attrCounter);
+        }
+
+        private static void CollectFromNode(
+            AstNode                  node,
+            List<CollectedExpression> output,
+            ref int exprCounter,
+            ref int attrCounter)
+        {
+            switch (node)
+            {
+                case ExpressionNode en:
+                    if (!string.IsNullOrEmpty(en.Expression) && en.ExpressionOffset > 0)
+                        output.Add(new CollectedExpression
+                        {
+                            Text        = en.Expression,
+                            UitkxOffset = en.ExpressionOffset,
+                            UitkxLine   = en.SourceLine,
+                            Label       = $"expr_{exprCounter++}",
+                            Kind        = SourceRegionKind.InlineExpression,
+                        });
+                    else if (!string.IsNullOrEmpty(en.Expression))
+                        output.Add(new CollectedExpression
+                        {
+                            Text        = en.Expression,
+                            UitkxOffset = 0,
+                            UitkxLine   = en.SourceLine,
+                            Label       = $"expr_{exprCounter++}",
+                            Kind        = SourceRegionKind.InlineExpression,
+                        });
+                    break;
+
+                case ElementNode el:
+                    // Attribute expressions on this element
+                    foreach (var attr in el.Attributes)
+                    {
+                        if (attr.Value is CSharpExpressionValue cev
+                            && !string.IsNullOrEmpty(cev.Expression))
+                        {
+                            output.Add(new CollectedExpression
+                            {
+                                Text        = cev.Expression,
+                                UitkxOffset = cev.ExpressionOffset,
+                                UitkxLine   = attr.SourceLine,
+                                Label       = $"attr_{attrCounter++}_{SanitizeLabel(attr.Name)}",
+                                Kind        = SourceRegionKind.AttributeExpression,
+                            });
+                        }
+                        else if (attr.Value is JsxExpressionValue jsx && jsx.Element != null)
+                        {
+                            CollectFromNode(jsx.Element, output, ref exprCounter, ref attrCounter);
+                        }
+                    }
+                    // Recurse into children
+                    CollectFromNodeList(el.Children, output, ref exprCounter, ref attrCounter);
+                    break;
+
+                case IfNode ifn:
+                    foreach (var branch in ifn.Branches)
+                        CollectFromNodeList(branch.Body, output, ref exprCounter, ref attrCounter);
+                    break;
+
+                case ForeachNode fe:
+                    CollectFromNodeList(fe.Body, output, ref exprCounter, ref attrCounter);
+                    break;
+
+                case ForNode fo:
+                    CollectFromNodeList(fo.Body, output, ref exprCounter, ref attrCounter);
+                    break;
+
+                case WhileNode wh:
+                    CollectFromNodeList(wh.Body, output, ref exprCounter, ref attrCounter);
+                    break;
+
+                case SwitchNode sw:
+                    foreach (var sc in sw.Cases)
+                        CollectFromNodeList(sc.Body, output, ref exprCounter, ref attrCounter);
+                    break;
+
+                case CodeBlockNode cb:
+                    // Return-markup elements inside @code can also have attribute expressions
+                    foreach (var rm in cb.ReturnMarkups)
+                        CollectFromNode(rm.Element, output, ref exprCounter, ref attrCounter);
+                    break;
+            }
+        }
+
+        // ── Scoped expression emitter ─────────────────────────────────────────
+
+        /// <summary>
+        /// Recursively walks <paramref name="nodes"/> and emits expression type-check
+        /// statements, wrapping <c>@for</c> / <c>@foreach</c> / <c>@while</c> bodies
+        /// in proper C# block scopes so that loop variables declared in headers are
+        /// visible for attribute expressions inside the body.
+        /// </summary>
+        private static void EmitNodeExpressionsScoped(
+            ImmutableArray<AstNode> nodes,
+            VirtualDocBuilder b,
+            string escapedPath,
+            string indent,
+            ref int exprCtr,
+            ref int attrCtr)
+        {
+            foreach (var node in nodes)
+                EmitNodeExpressionScoped(node, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+        }
+
+        private static void EmitNodeExpressionScoped(
+            AstNode node,
+            VirtualDocBuilder b,
+            string escapedPath,
+            string indent,
+            ref int exprCtr,
+            ref int attrCtr)
+        {
+            switch (node)
+            {
+                case ExpressionNode en:
+                {
+                    if (!string.IsNullOrEmpty(en.Expression))
+                    {
+                        var expr = new CollectedExpression
+                        {
+                            Text        = en.Expression,
+                            UitkxOffset = en.ExpressionOffset,
+                            UitkxLine   = en.SourceLine,
+                            Label       = $"expr_{exprCtr++}",
+                            Kind        = SourceRegionKind.InlineExpression,
+                        };
+                        EmitExpressionStatement(b, expr, escapedPath, indent);
+                    }
+                    break;
+                }
+
+                case ElementNode el:
+                    foreach (var attr in el.Attributes)
+                    {
+                        if (attr.Value is CSharpExpressionValue cev
+                            && !string.IsNullOrEmpty(cev.Expression))
+                        {
+                            var expr = new CollectedExpression
+                            {
+                                Text        = cev.Expression,
+                                UitkxOffset = cev.ExpressionOffset,
+                                UitkxLine   = attr.SourceLine,
+                                Label       = $"attr_{attrCtr++}_{SanitizeLabel(attr.Name)}",
+                                Kind        = SourceRegionKind.AttributeExpression,
+                            };
+                            EmitExpressionStatement(b, expr, escapedPath, indent);
+                        }
+                        else if (attr.Value is JsxExpressionValue jsx && jsx.Element != null)
+                        {
+                            EmitNodeExpressionScoped(jsx.Element, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                        }
+                    }
+                    EmitNodeExpressionsScoped(el.Children, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                    break;
+
+                case IfNode ifn:
+                {
+                    bool isFirstBranch = true;
+                    foreach (var branch in ifn.Branches)
+                    {
+                        // Emit #line so Roslyn maps condition errors back to the .uitkx file
+                        b.Scaffold($"#line {branch.SourceLine} \"{escapedPath}\"\n");
+                        if (branch.Condition != null)
+                        {
+                            b.Scaffold(isFirstBranch ? $"{indent}if (" : $"{indent}else if (");
+                            // Tier 3: b.Mapped gives column-accurate squiggles inside the condition
+                            b.Mapped(branch.Condition, branch.ConditionOffset, SourceRegionKind.InlineExpression, branch.SourceLine);
+                            b.Scaffold($") {{\n");
+                        }
+                        else
+                        {
+                            b.Scaffold($"{indent}else {{\n");
+                        }
+                        b.Scaffold("#line hidden\n");
+                        EmitNodeExpressionsScoped(branch.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
+                        b.Scaffold($"{indent}}}\n");
+                        isFirstBranch = false;
+                    }
+                    break;
+                }
+
+                case ForeachNode fe:
+                    // Tier 1: #line maps errors in the foreach header to the .uitkx line
+                    b.Scaffold($"#line {fe.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}foreach (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the iterator expression
+                    b.Mapped(fe.ForeachExpression, fe.ForeachExpressionOffset, SourceRegionKind.InlineExpression, fe.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
+                    EmitNodeExpressionsScoped(fe.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
+                    b.Scaffold($"{indent}}}\n");
+                    break;
+
+                case ForNode fo:
+                    // Tier 1: #line maps errors in the for header to the .uitkx line
+                    b.Scaffold($"#line {fo.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}for (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the for expression
+                    b.Mapped(fo.ForExpression, fo.ForExpressionOffset, SourceRegionKind.InlineExpression, fo.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
+                    EmitNodeExpressionsScoped(fo.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
+                    b.Scaffold($"{indent}}}\n");
+                    break;
+
+                case WhileNode wh:
+                    // Tier 1: #line maps errors in the while header to the .uitkx line
+                    b.Scaffold($"#line {wh.SourceLine} \"{escapedPath}\"\n");
+                    b.Scaffold($"{indent}while (");
+                    // Tier 3: b.Mapped gives column-accurate squiggles for the condition
+                    b.Mapped(wh.Condition, wh.ConditionOffset, SourceRegionKind.InlineExpression, wh.SourceLine);
+                    b.Scaffold($") {{\n");
+                    b.Scaffold("#line hidden\n");
+                    EmitNodeExpressionsScoped(wh.Body, b, escapedPath, indent + "    ", ref exprCtr, ref attrCtr);
+                    b.Scaffold($"{indent}}}\n");
+                    break;
+
+                case SwitchNode sw:
+                    foreach (var sc in sw.Cases)
+                        EmitNodeExpressionsScoped(sc.Body, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                    break;
+
+                case CodeBlockNode cb:
+                    foreach (var rm in cb.ReturnMarkups)
+                        EmitNodeExpressionScoped(rm.Element, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                    break;
+            }
+        }
+
+        // ── Utility helpers ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Returns the 0-based character offset of the start of <paramref name="line1"/>
+        /// (1-based) within <paramref name="source"/>.  Returns 0 when out of range.
+        /// </summary>
+        private static int OffsetOfLine(string source, int line1)
+        {
+            if (line1 <= 1)
+                return 0;
+
+            int current = 1;
+            for (int i = 0; i < source.Length; i++)
+            {
+                if (source[i] == '\n')
+                {
+                    current++;
+                    if (current == line1)
+                        return i + 1;
+                }
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// Strips characters from an attribute name that are not valid in a C#
+        /// method name suffix (e.g. hyphens in <c>data-id</c>).
+        /// </summary>
+        private static string SanitizeLabel(string name)
+        {
+            var sb = new StringBuilder(name.Length);
+            foreach (var c in name)
+                sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Escapes backslashes in a file path for use inside a C# string literal
+        /// (used in <c>#line N "path"</c> directives).
+        /// </summary>
+        private static string EscapePathForLineDirective(string path) =>
+            path.Replace("\\", "\\\\");
+
+        /// <summary>Strips newlines from a string for safe inclusion in a // comment.</summary>
+        private static string EscapeForComment(string text) =>
+            text.Replace('\r', ' ').Replace('\n', ' ');
+
+        // ── Block-body lambda emitter ─────────────────────────────────────────
+
+        /// <summary>
+        /// Maps sanitised attribute names (as they appear in a <c>CollectedExpression.Label</c>)
+        /// to the fully-qualified C# type of their single callback parameter.
+        ///
+        /// <para>When a block-body attribute lambda has exactly ONE named parameter and
+        /// the attribute name is in this table, the parameter is declared with the specific
+        /// event type instead of <c>dynamic</c>, so that member completions (e.g.
+        /// <c>.newValue</c>, <c>.button</c>) are available in the editor.</para>
+        ///
+        /// <para><c>ChangeEvent&lt;dynamic&gt;</c> is used for change-event callbacks
+        /// because the concrete value type depends on the host element and is not
+        /// available at virtual-doc generation time.  The <c>dynamic</c> type arg still
+        /// exposes <c>.newValue</c> and <c>.previousValue</c> to Roslyn's completion
+        /// engine.</para>
+        /// </summary>
+        private static readonly System.Collections.Generic.Dictionary<string, string>
+            s_eventCallbackParamTypes =
+                new System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+        {
+            // ── Value-change events ────────────────────────────────────────────
+            ["onChange"]               = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
+            ["onValueChanged"]         = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
+            // ── Click / Pointer ───────────────────────────────────────────────
+            ["onClick"]                = "global::UnityEngine.UIElements.ClickEvent",
+            ["onPointerDown"]          = "global::UnityEngine.UIElements.PointerDownEvent",
+            ["onPointerUp"]            = "global::UnityEngine.UIElements.PointerUpEvent",
+            ["onPointerMove"]          = "global::UnityEngine.UIElements.PointerMoveEvent",
+            ["onPointerEnter"]         = "global::UnityEngine.UIElements.PointerEnterEvent",
+            ["onPointerLeave"]         = "global::UnityEngine.UIElements.PointerLeaveEvent",
+            ["onPointerCancel"]        = "global::UnityEngine.UIElements.PointerCancelEvent",
+            // ── Mouse ─────────────────────────────────────────────────────────
+            ["onMouseDown"]            = "global::UnityEngine.UIElements.MouseDownEvent",
+            ["onMouseUp"]              = "global::UnityEngine.UIElements.MouseUpEvent",
+            ["onMouseMove"]            = "global::UnityEngine.UIElements.MouseMoveEvent",
+            ["onMouseEnter"]           = "global::UnityEngine.UIElements.MouseEnterEvent",
+            ["onMouseLeave"]           = "global::UnityEngine.UIElements.MouseLeaveEvent",
+            ["onMouseOut"]             = "global::UnityEngine.UIElements.MouseOutEvent",
+            ["onMouseOver"]            = "global::UnityEngine.UIElements.MouseOverEvent",
+            ["onMouseCaptureOut"]      = "global::UnityEngine.UIElements.MouseCaptureOutEvent",
+            ["onContextClick"]         = "global::UnityEngine.UIElements.ContextClickEvent",
+            // ── Keyboard ──────────────────────────────────────────────────────
+            ["onKeyDown"]              = "global::UnityEngine.UIElements.KeyDownEvent",
+            ["onKeyUp"]                = "global::UnityEngine.UIElements.KeyUpEvent",
+            // ── Focus ─────────────────────────────────────────────────────────
+            ["onFocus"]                = "global::UnityEngine.UIElements.FocusEvent",
+            ["onFocusIn"]              = "global::UnityEngine.UIElements.FocusInEvent",
+            ["onFocusOut"]             = "global::UnityEngine.UIElements.FocusOutEvent",
+            ["onBlur"]                 = "global::UnityEngine.UIElements.BlurEvent",
+            // ── Geometry / Style ──────────────────────────────────────────────
+            ["onGeometryChanged"]      = "global::UnityEngine.UIElements.GeometryChangedEvent",
+            ["onCustomStyleResolved"]  = "global::UnityEngine.UIElements.CustomStyleResolvedEvent",
+            // ── Panel lifecycle ───────────────────────────────────────────────
+            ["onAttachToPanel"]        = "global::UnityEngine.UIElements.AttachToPanelEvent",
+            ["onDetachFromPanel"]      = "global::UnityEngine.UIElements.DetachFromPanelEvent",
+            // ── Navigation ────────────────────────────────────────────────────
+            ["onNavigationMove"]       = "global::UnityEngine.UIElements.NavigationMoveEvent",
+            ["onNavigationSubmit"]     = "global::UnityEngine.UIElements.NavigationSubmitEvent",
+            ["onNavigationCancel"]     = "global::UnityEngine.UIElements.NavigationCancelEvent",
+            // ── Drag-and-drop ─────────────────────────────────────────────────
+            ["onDragEnter"]            = "global::UnityEngine.UIElements.DragEnterEvent",
+            ["onDragLeave"]            = "global::UnityEngine.UIElements.DragLeaveEvent",
+            ["onDragUpdated"]          = "global::UnityEngine.UIElements.DragUpdatedEvent",
+            ["onDragPerform"]          = "global::UnityEngine.UIElements.DragPerformEvent",
+            ["onDragExited"]           = "global::UnityEngine.UIElements.DragExitedEvent",
+            // ── Input / Commands ──────────────────────────────────────────────
+            ["onInput"]                = "global::UnityEngine.UIElements.InputEvent",
+            ["onExecuteCommand"]       = "global::UnityEngine.UIElements.ExecuteCommandEvent",
+            ["onValidateCommand"]      = "global::UnityEngine.UIElements.ValidateCommandEvent",
+            ["onTooltip"]              = "global::UnityEngine.UIElements.TooltipEvent",
+        };
+
+        /// <summary>
+        /// Emits a block-body lambda attribute-expression as a local C# function so that
+        /// <c>return</c> statements inside the body are valid (they return from the local
+        /// function, not from the enclosing <c>__uitkx_render()</c>).
+        ///
+        /// <para>For known UIElements callback attributes (e.g. <c>onChange</c>,
+        /// <c>onClick</c>) the single parameter is declared with the specific event type
+        /// so that member completions like <c>.newValue</c> are available.  Unknown or
+        /// multi-parameter lambdas fall back to <c>dynamic</c>.</para>
+        /// </summary>
+        private static void EmitBlockBodyLambda(
+            VirtualDocBuilder   b,
+            CollectedExpression expr,
+            string              escapedPath,
+            string              indent,
+            int                 arrowIdx)
+        {
+            // ── 1. Extract parameter names ────────────────────────────────────
+            // Everything before '=>', stripped of whitespace and outer parens.
+            string paramPart = expr.Text.Substring(0, arrowIdx).Trim();
+            if (paramPart.StartsWith("(") && paramPart.EndsWith(")"))
+                paramPart = paramPart.Substring(1, paramPart.Length - 2).Trim();
+
+            // Collect the valid (non-discard) parameter names.
+            var paramNames = new System.Collections.Generic.List<string>();
+            foreach (string rawParam in paramPart.Split(','))
+            {
+                string p = rawParam.Trim();
+                if (IsValidCSharpIdentifier(p))
+                    paramNames.Add(p);
+            }
+
+            // ── 2. Locate the opening brace of the block body  ────────────────
+            int afterArrow = arrowIdx + 2;
+            while (afterArrow < expr.Text.Length &&
+                   (expr.Text[afterArrow] == ' '  || expr.Text[afterArrow] == '\t' ||
+                    expr.Text[afterArrow] == '\r' || expr.Text[afterArrow] == '\n'))
+                afterArrow++;
+
+            if (afterArrow >= expr.Text.Length || expr.Text[afterArrow] != '{')
+            {
+                b.Scaffold($"{indent}// (block-body lambda: could not locate opening brace)\n");
+                return;
+            }
+
+            // ── 3. Find the balanced closing brace ────────────────────────────
+            int bodyStart = afterArrow + 1; // first character after '{'
+            int depth = 1;
+            int k     = bodyStart;
+            while (k < expr.Text.Length && depth > 0)
+            {
+                char c = expr.Text[k];
+                if      (c == '{') depth++;
+                else if (c == '}') depth--;
+                if (depth > 0) k++;
+                else break;
+            }
+            // expr.Text[bodyStart..k) is the body content; k points at the closing '}'
+            string bodyText        = k > bodyStart ? expr.Text.Substring(bodyStart, k - bodyStart) : "";
+            int    bodyUitkxOffset = expr.UitkxOffset + bodyStart;
+
+            // ── 4. Determine callback parameter type ─────────────────────────
+            // For single-parameter lambdas on known UIElements event attributes,
+            // use the actual event type so member completions (evt.newValue etc.)
+            // are available.  Multi-param or unknown-attr lambdas use dynamic.
+            string paramCSharpType = "dynamic";
+            if (paramNames.Count == 1)
+            {
+                string attrName = GetAttrNameFromLabel(expr.Label);
+                if (!string.IsNullOrEmpty(attrName) &&
+                    s_eventCallbackParamTypes.TryGetValue(attrName, out string? evtType))
+                    paramCSharpType = evtType!;
+            }
+
+            // ── 5. Emit as a local function so 'return' inside the body is valid ──
+            // A bare scoped block `{ return …; }` is illegal C# because `return`
+            // targets the enclosing __uitkx_render() method whose type may not match.
+            // A local function can return anything (`dynamic`) from its own scope.
+            string funcName = $"__uitkx_h{b.CurrentPos}";
+            b.Scaffold($"{indent}{{\n");
+            b.Scaffold($"{indent}    dynamic {funcName}() {{\n");
+
+            // CS0246: event parameter types (ClickEvent, ChangeEvent<dynamic>, etc.)
+            // reference Unity UIElements which may not be in the Roslyn references yet.
+            if (paramNames.Count > 0)
+                b.Scaffold("#pragma warning disable CS0246\n");
+            foreach (string pName in paramNames)
+                b.Scaffold($"{indent}        {paramCSharpType} {pName} = default!;\n");
+            if (paramNames.Count > 0)
+                b.Scaffold("#pragma warning restore CS0246\n");
+
+            // ── 6. Map the body text verbatim ─────────────────────────────────
+            // Bare `return;` (no value) in a dynamic-returning local function is a
+            // hard compiler error (CS0126).  Since #pragma warning disable cannot
+            // suppress actual errors, we emit the body in segments — replacing each
+            // standalone `return;` with `return default!;` as scaffolded text so the
+            // rest of the body retains full source-map fidelity for completions/hover.
+            if (!string.IsNullOrWhiteSpace(bodyText))
+            {
+                EmitBodyWithReturnFix(
+                    b, bodyText, bodyUitkxOffset, expr.Kind, expr.UitkxLine, escapedPath);
+            }
+
+            // Sentinel `return default!` suppresses CS0161 (not all paths return).
+            // CS0162 suppression handles the unreachable-code case when the body
+            // always returns explicitly.
+            b.Scaffold($"#pragma warning disable CS0162\n");
+            b.Scaffold($"{indent}        return default!;\n");
+            b.Scaffold($"#pragma warning restore CS0162\n");
+            b.Scaffold($"{indent}    }}\n");
+            b.Scaffold($"{indent}    _ = {funcName}();\n");
+            b.Scaffold($"{indent}}}\n");
+        }
+
+        /// <summary>
+        /// Extracts the attribute name from a <c>CollectedExpression.Label</c>.
+        /// Labels follow the format <c>attr_{counter}_{sanitizedAttrName}</c>.
+        /// </summary>
+        private static string GetAttrNameFromLabel(string label)
+        {
+            // Skip the "attr" prefix and the numeric counter, take the rest.
+            int first = label.IndexOf('_');
+            if (first < 0) return string.Empty;
+            int second = label.IndexOf('_', first + 1);
+            if (second < 0 || second + 1 >= label.Length) return string.Empty;
+            return label.Substring(second + 1);
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="s"/> is a valid single C# identifier
+        /// (starts with a letter or underscore, rest alphanumeric/underscore) and is NOT
+        /// the conventional discard placeholder <c>_</c>.
+        /// </summary>
+        private static bool IsValidCSharpIdentifier(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s == "_") return false;
+            if (!char.IsLetter(s[0]) && s[0] != '_') return false;
+            foreach (char c in s)
+                if (!char.IsLetterOrDigit(c) && c != '_') return false;
+            return true;
+        }
+
+        // ── JSX-stripping setup-code emitter ──────────────────────────────────
+
+        /// <summary>
+        /// Emits the function-style setup code in segments, replacing any
+        /// parenthesised JSX blocks — i.e. <c>(<Tag ...>...</Tag>)</c> or
+        /// <c>(<Tag .../> )</c> — with the scaffold placeholder <c>(null!)</c>.
+        ///
+        /// <para>JSX paren blocks produce invalid C# when placed verbatim inside
+        /// the generated <c>__uitkx_render()</c> method, causing cascading Roslyn
+        /// errors.  By replacing them with <c>(null!)</c> and padding with the
+        /// same number of newlines, both Roslyn's <c>#line</c> tracking and the
+        /// internal source map stay accurate for all surrounding C# code.</para>
+        /// </summary>
+        private static void EmitFunctionStyleSetupSegmented(
+            VirtualDocBuilder b,
+            string setupCode,
+            int uitkxSetupStartOffset,
+            int uitkxSetupStartLine,
+            string escapedPath,
+            int gapOffset = -1,
+            int gapLength = 0,
+            int gapNewlines = 0)
+        {
+            int segStart   = 0;
+            int currentLine = uitkxSetupStartLine;
+            int i           = 0;
+
+            while (i < setupCode.Length)
+            {
+                // ── Skip comments so branches never fire inside them ───────────
+                // Block comment /* ... */
+                if (setupCode[i] == '/' && i + 1 < setupCode.Length && setupCode[i + 1] == '*')
+                {
+                    int end = setupCode.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = end >= 0 ? end + 2 : setupCode.Length;
+                    continue;
+                }
+                // Line comment // ...
+                if (setupCode[i] == '/' && i + 1 < setupCode.Length && setupCode[i + 1] == '/')
+                {
+                    int end = setupCode.IndexOf('\n', i + 2);
+                    i = end >= 0 ? end + 1 : setupCode.Length;
+                    continue;
+                }
+
+                // ── Branch 2: => <Tag  (lambda arrow with bare inline markup) ──
+                // Handles `() => <Label text="..." />` without wrapping parens.
+                if (setupCode[i] == '=' && i + 1 < setupCode.Length && setupCode[i + 1] == '>')
+                {
+                    int arrowEnd = i + 2;
+                    int peek2 = arrowEnd;
+                    while (peek2 < setupCode.Length &&
+                           (setupCode[peek2] == ' '  || setupCode[peek2] == '\t' ||
+                            setupCode[peek2] == '\r' || setupCode[peek2] == '\n'))
+                        peek2++;
+
+                    if (peek2 < setupCode.Length && setupCode[peek2] == '<' &&
+                        peek2 + 1 < setupCode.Length && char.IsLetter(setupCode[peek2 + 1]))
+                    {
+                        // Emit the C# segment up to the JSX start (includes `=> `).
+                        int jsxStart = peek2;
+                        if (jsxStart > segStart)
+                        {
+                            string seg = setupCode.Substring(segStart, jsxStart - segStart);
+                            int segLine = currentLine;
+                            EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                                gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                            currentLine += CountNewlines(seg);
+                        }
+
+                        int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
+
+                        int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                        b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                        b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                        for (int k = 0; k < jsxNewlines; k++)
+                            b.Scaffold("\n");
+
+                        currentLine += jsxNewlines;
+                        segStart     = jsxEnd;
+                        i            = jsxEnd;
+                        continue;
+                    }
+                }
+
+                // ── Branch 2b: = <Tag  (bare assignment with inline markup) ────
+                // Handles `var x = <Label text="..." />` without wrapping parens.
+                // Must distinguish bare `=` from `=>`, `==`, `!=`, `<=`, `>=`.
+                if (setupCode[i] == '=' && i + 1 < setupCode.Length && setupCode[i + 1] != '>'
+                    && setupCode[i + 1] != '=')
+                {
+                    // Exclude !=, <=, >=
+                    bool preceded = i > 0 && (setupCode[i - 1] == '!' || setupCode[i - 1] == '<' || setupCode[i - 1] == '>');
+                    if (!preceded)
+                    {
+                        int peek2b = i + 1;
+                        while (peek2b < setupCode.Length &&
+                               (setupCode[peek2b] == ' '  || setupCode[peek2b] == '\t' ||
+                                setupCode[peek2b] == '\r' || setupCode[peek2b] == '\n'))
+                            peek2b++;
+
+                        if (peek2b < setupCode.Length && setupCode[peek2b] == '<' &&
+                            peek2b + 1 < setupCode.Length && char.IsLetter(setupCode[peek2b + 1]))
+                        {
+                            int jsxStart = peek2b;
+                            if (jsxStart > segStart)
+                            {
+                                string seg = setupCode.Substring(segStart, jsxStart - segStart);
+                                int segLine = currentLine;
+                                EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                                    gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                                currentLine += CountNewlines(seg);
+                            }
+
+                            int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
+
+                            int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                            b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                            b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                            for (int k = 0; k < jsxNewlines; k++)
+                                b.Scaffold("\n");
+
+                            currentLine += jsxNewlines;
+                            segStart     = jsxEnd;
+                            i            = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Branch 3: @( — strip @ so Roslyn sees plain (expr) ─────────
+                if (setupCode[i] == '@' && i + 1 < setupCode.Length && setupCode[i + 1] == '(')
+                {
+                    if (i > segStart)
+                    {
+                        string seg = setupCode.Substring(segStart, i - segStart);
+                        int segLine = currentLine;
+                        EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                            gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                        currentLine += CountNewlines(seg);
+                    }
+                    // Skip the `@` — the `(` will be re-processed next iteration.
+                    segStart = i + 1;
+                    i        = i + 1;
+                    continue;
+                }
+
+                // ── Branch 1: `(` that immediately precedes JSX ────────────────
+                if (setupCode[i] != '(')
+                {
+                    i++;
+                    continue;
+                }
+
+                // Peek past whitespace to see if the first non-ws char is '<'
+                int peek = i + 1;
+                while (peek < setupCode.Length &&
+                       (setupCode[peek] == ' '  || setupCode[peek] == '\t' ||
+                        setupCode[peek] == '\r' || setupCode[peek] == '\n'))
+                    peek++;
+
+                if (peek >= setupCode.Length || setupCode[peek] != '<')
+                {
+                    i++;
+                    continue;
+                }
+
+                // ── Found a JSX paren block starting at i ──────────────────
+
+                // 1. Emit the C# segment that precedes this block.
+                if (i > segStart)
+                {
+                    string seg     = setupCode.Substring(segStart, i - segStart);
+                    int    segLine = currentLine;
+                    EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                        gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+                    // Advance currentLine by the newlines inside the segment.
+                    currentLine += CountNewlines(seg);
+                }
+
+                // 2. Find the matching close paren (depth-balanced, ignores {}).
+                int depth = 1;
+                int j     = i + 1;
+                while (j < setupCode.Length && depth > 0)
+                {
+                    if      (setupCode[j] == '(') depth++;
+                    else if (setupCode[j] == ')') depth--;
+                    j++;
+                }
+                // setupCode[i..j) is the complete `(<JSX>...)` block.
+
+                // 3. Scaffold a valid C# placeholder with the same newline count
+                //    so Roslyn's #line tracking stays in sync.
+                //    Emit under a #line directive so that syntax errors at the
+                //    boundary (e.g. missing ';' after the paren block) map back
+                //    to the .uitkx file instead of being silently dropped in
+                //    #line hidden territory.
+                int jsxNewlines2 = CountNewlines(setupCode, i, j);
+                int placeholderLine = currentLine;
+                b.Scaffold($"#line {placeholderLine} \"{escapedPath}\"\n");
+                b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                for (int k = 0; k < jsxNewlines2; k++)
+                    b.Scaffold("\n");
+
+                currentLine += jsxNewlines2;
+                segStart     = j;
+                i            = j;
+            }
+
+            // 4. Emit any trailing C# segment after the last JSX block.
+            if (segStart < setupCode.Length)
+            {
+                string seg     = setupCode.Substring(segStart);
+                int    segLine = currentLine;
+                EmitMappedWithGap(b, seg, segStart, uitkxSetupStartOffset,
+                    gapOffset, gapLength, gapNewlines, segLine, escapedPath);
+            }
+
+            b.Scaffold("\n");
+        }
+
+        /// <summary>
+        /// Emits a mapped C# segment, splitting it at the gap boundary when the
+        /// setup code was formed by concatenating disjoint source ranges (before
+        /// and after a removed <c>return (…);</c> statement).
+        /// </summary>
+        private static void EmitMappedWithGap(
+            VirtualDocBuilder b,
+            string seg,
+            int segStart,
+            int baseOffset,
+            int gapOffset,
+            int gapLength,
+            int gapNewlines,
+            int segLine,
+            string escapedPath)
+        {
+            bool hasGap = gapOffset >= 0 && gapLength > 0;
+            int segEnd = segStart + seg.Length;
+
+            if (!hasGap || segEnd <= gapOffset)
+            {
+                // No gap or entirely before the gap — emit directly.
+                int uitkxOff = baseOffset + segStart;
+                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
+                b.Mapped(seg, uitkxOff, SourceRegionKind.FunctionSetup, segLine);
+                b.Scaffold("\n#line hidden\n");
+            }
+            else if (segStart >= gapOffset)
+            {
+                // Entirely after the gap — shift offset by gapLength.
+                int uitkxOff = baseOffset + segStart + gapLength;
+                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
+                b.Mapped(seg, uitkxOff, SourceRegionKind.FunctionSetup, segLine);
+                b.Scaffold("\n#line hidden\n");
+            }
+            else
+            {
+                // Straddles the gap — split into two mapped regions.
+                int splitAt = gapOffset - segStart;
+                string seg1 = seg.Substring(0, splitAt);
+                string seg2 = seg.Substring(splitAt);
+                int seg2Line = segLine + CountNewlines(seg1) + gapNewlines;
+
+                b.Scaffold($"#line {segLine} \"{escapedPath}\"\n");
+                b.Mapped(seg1, baseOffset + segStart,
+                         SourceRegionKind.FunctionSetup, segLine);
+                b.Scaffold("\n#line hidden\n");
+
+                b.Scaffold($"#line {seg2Line} \"{escapedPath}\"\n");
+                b.Mapped(seg2, baseOffset + gapOffset + gapLength,
+                         SourceRegionKind.FunctionSetup, seg2Line);
+                b.Scaffold("\n#line hidden\n");
+            }
+        }
+
+        /// <summary>
+        /// Regex that matches a standalone <c>return;</c> statement — a bare return
+        /// with no value, at a word boundary, with optional surrounding whitespace.
+        /// Group 1 captures the text before <c>return;</c>, group 2 is the whitespace
+        /// between <c>return</c> and <c>;</c>.
+        /// </summary>
+        private static readonly Regex s_bareReturnRegex =
+            new Regex(@"\breturn(\s*);", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Emits block-body lambda content to the virtual document, replacing each
+        /// standalone <c>return;</c> with a scaffolded <c>return default!;</c> so
+        /// that guard-clause patterns like <c>if (x == null) return;</c> are valid
+        /// inside a <c>dynamic</c>-returning local function without triggering the
+        /// hard compiler error CS0126 (which cannot be suppressed via
+        /// <c>#pragma warning disable</c>).
+        ///
+        /// All other content is emitted via <see cref="VirtualDocBuilder.Mapped"/>
+        /// so completions and hover work correctly throughout the body.
+        /// </summary>
+        private static void EmitBodyWithReturnFix(
+            VirtualDocBuilder b,
+            string bodyText,
+            int bodyUitkxOffset,
+            SourceRegionKind kind,
+            int uitkxLine,
+            string escapedPath)
+        {
+            // Fast path: no bare return; in body → emit entire block as one mapped segment.
+            if (!s_bareReturnRegex.IsMatch(bodyText))
+            {
+                b.Scaffold($"#line {uitkxLine} \"{escapedPath}\"\n");
+                b.Mapped(bodyText, bodyUitkxOffset, kind, uitkxLine);
+                b.Scaffold("\n#line hidden\n");
+                return;
+            }
+
+            int segStart   = 0;
+            int currentLine = uitkxLine;
+
+            foreach (Match m in s_bareReturnRegex.Matches(bodyText))
+            {
+                // Emit text before this `return;` match as a mapped segment.
+                if (m.Index > segStart)
+                {
+                    string seg = bodyText.Substring(segStart, m.Index - segStart);
+                    b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                    b.Mapped(seg, bodyUitkxOffset + segStart, kind, currentLine);
+                    b.Scaffold("\n#line hidden\n");
+                    currentLine += CountNewlines(seg);
+                }
+
+                // Scaffold the replacement (same newline count as original to keep
+                // Roslyn's #line tracking in sync — `return;` is always one line).
+                b.Scaffold("return default!;");
+                currentLine += CountNewlines(bodyText, m.Index, m.Index + m.Length);
+
+                segStart = m.Index + m.Length;
+            }
+
+            // Emit any trailing text after the last match.
+            if (segStart < bodyText.Length)
+            {
+                string seg = bodyText.Substring(segStart);
+                b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                b.Mapped(seg, bodyUitkxOffset + segStart, kind, currentLine);
+                b.Scaffold("\n#line hidden\n");
+            }
+        }
+
+        /// <summary>Counts '\n' characters in <paramref name="s"/>.</summary>
+        private static int CountNewlines(string s)
+        {
+            int count = 0;
+            foreach (char c in s)
+                if (c == '\n') count++;
+            return count;
+        }
+
+        /// <summary>Counts '\n' characters in <paramref name="s"/> between
+        /// <paramref name="start"/> (inclusive) and <paramref name="end"/> (exclusive).</summary>
+        private static int CountNewlines(string s, int start, int end)
+        {
+            int count = 0;
+            for (int i = start; i < end && i < s.Length; i++)
+                if (s[i] == '\n') count++;
+            return count;
+        }
+
+        /// <summary>
+        /// Finds the end position (exclusive) of a JSX element starting at
+        /// <paramref name="start"/> (which must point to <c>&lt;</c>).
+        /// Handles self-closing (<c>/&gt;</c>) and container elements with
+        /// nested children.  Skips over string literals and <c>{expr}</c> blocks.
+        /// Returns <paramref name="start"/> if the element cannot be parsed.
+        /// </summary>
+        private static int FindJsxElementEnd(string text, int start, int limit)
+        {
+            if (start >= limit || text[start] != '<')
+                return start;
+
+            int depth = 0;
+            int i = start;
+
+            while (i < limit)
+            {
+                char ch = text[i];
+
+                // Skip string literals inside attributes
+                if (ch == '"')
+                {
+                    i++;
+                    while (i < limit && text[i] != '"')
+                        i++;
+                    if (i < limit) i++; // skip closing "
+                    continue;
+                }
+
+                // Skip C# expression blocks {expr}
+                if (ch == '{')
+                {
+                    i++;
+                    int braceDepth = 1;
+                    while (i < limit && braceDepth > 0)
+                    {
+                        if      (text[i] == '{') braceDepth++;
+                        else if (text[i] == '}') braceDepth--;
+                        else if (text[i] == '"')
+                        {
+                            i++;
+                            while (i < limit && text[i] != '"')
+                            {
+                                if (text[i] == '\\') i++;
+                                i++;
+                            }
+                        }
+                        if (braceDepth > 0) i++;
+                    }
+                    if (i < limit) i++; // skip closing }
+                    continue;
+                }
+
+                // Self-closing end: />
+                if (ch == '/' && i + 1 < limit && text[i + 1] == '>')
+                {
+                    depth--;
+                    i += 2;
+                    if (depth <= 0) return i;
+                    continue;
+                }
+
+                // Closing tag: </Tag>
+                if (ch == '<' && i + 1 < limit && text[i + 1] == '/')
+                {
+                    depth--;
+                    i += 2;
+                    while (i < limit && text[i] != '>')
+                        i++;
+                    if (i < limit) i++; // skip >
+                    if (depth <= 0) return i;
+                    continue;
+                }
+
+                // Opening tag: <Tag
+                if (ch == '<' && i + 1 < limit && char.IsLetter(text[i + 1]))
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+
+                i++;
+            }
+
+            return i; // reached end of text
+        }
+    }
+}

@@ -1,0 +1,217 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK.Props.Typed
+@using ReactiveUITK.Samples.Shared
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component ShowcaseListTabsSection(Action<int>? onListCountChanged = null, Action<int>? onMclvCountChanged = null, Action<int>? onListTabIndexChanged = null) {
+  // ── State ──────────────────────────────────────────────────────────────
+  var (listTabIndex, setListTabIndex) = useState(0);
+  var (showTabs, setShowTabs) = useState(true);
+
+  var (listRows, setListRows) = useState(new List<ListViewRowState>());
+  var (mclvRows, setMclvRows) = useState(new List<MultiColumnListViewRowState>());
+  var (mclvSortDefs, setMclvSortDefs) = useState<List<SortedColumnDef>?>(null);
+  var (mclvLayout, setMclvLayout) = useState<ColumnLayoutState?>(null);
+
+  // Propagate tab index to parent
+  useEffect(() => {
+    onListTabIndexChanged?.Invoke(listTabIndex);
+    return null;
+  }, new object[] { listTabIndex });
+
+  // ── ListView actions ────────────────────────────────────────────────────
+  void ListAddItem() {
+    setListRows(prev => {
+      var next = new List<ListViewRowState> {
+        new ListViewRowState { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
+      };
+      if (prev != null)
+      {
+        for (int i = 0; i < prev.Count; i++)
+        {
+          next.Add(prev[i]);
+        }
+      }
+      return next;
+    });
+  }
+
+  void ListSetTopItem() {
+    setListRows(prev => {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[0];
+      if (source == null)
+      {
+        return prev;
+      }
+      var id = !string.IsNullOrEmpty(source.Id)
+      ? source.Id
+      : Guid.NewGuid().ToString("N");
+      var next = new List<ListViewRowState>(prev);
+      next[0] = new ListViewRowState {
+        Id = id,
+        Text = $"{id} {DateTime.Now:HH:mm:ss}",
+        ShouldOverrideElement = true,
+      };
+      return next;
+    });
+  }
+
+  void ListDeleteLast() {
+    setListRows(prev => {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var next = new List<ListViewRowState>(prev);
+      next.RemoveAt(next.Count - 1);
+      return next;
+    });
+  }
+
+  // ── MultiColumnListView actions ─────────────────────────────────────────
+  void MclvAddItem() {
+    setMclvRows(prev => {
+      var next = new List<MultiColumnListViewRowState> {
+        new MultiColumnListViewRowState {
+          Id = Guid.NewGuid().ToString("N"),
+          Text = "NEW " + DateTime.Now.ToLongTimeString(),
+        },
+      };
+      if (prev != null)
+      {
+        for (int i = 0; i < prev.Count; i++)
+        {
+          next.Add(prev[i]);
+        }
+      }
+      return next;
+    });
+  }
+
+  void MclvSetTopItem() {
+    setMclvRows(prev => {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[0];
+      if (source == null)
+      {
+        return prev;
+      }
+      var id = !string.IsNullOrEmpty(source.Id)
+      ? source.Id
+      : Guid.NewGuid().ToString("N");
+      var next = new List<MultiColumnListViewRowState>(prev);
+      next[0] = new MultiColumnListViewRowState {
+        Id = id,
+        Text = $"{id} {DateTime.Now:HH:mm:ss}",
+        ShouldOverrideElement = true,
+      };
+      return next;
+    });
+  }
+
+  void MclvDeleteLast() {
+    setMclvRows(prev => {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var next = new List<MultiColumnListViewRowState>(prev);
+      next.RemoveAt(next.Count - 1);
+      return next;
+    });
+  }
+
+  void MclvLayoutChanged(ColumnLayoutState layout) {
+    var clone = SharedDemoPageUtils.CloneLayout(layout);
+    if (SharedDemoPageUtils.LayoutEqual(clone, mclvLayout))
+    {
+      return;
+    }
+    setMclvLayout(_ => clone);
+  }
+
+  void MclvSortChanged(List<SortedColumnDef> defs) {
+    setMclvSortDefs(defs != null ? new List<SortedColumnDef>(defs) : null);
+  }
+
+  // ── TabView ─────────────────────────────────────────────────────────────
+  var tabViewProps = new TabViewProps {
+    SelectedTabIndex = listTabIndex,
+    SelectedIndexChanged = idx => setListTabIndex(idx),
+    Tabs = new List<TabViewProps.TabDef> {
+      new() {
+        Title = "Intro", Content = () => V.Func(IntroCounterFunc.Render)
+      },
+      new() {
+        Title = "List",
+        Content = () =>
+        V.Func<ListViewStatefulDemoFunc.Props>(ListViewStatefulDemoFunc.Render,
+        new ListViewStatefulDemoFunc.Props {
+          Items = listRows,
+          AddItem = ListAddItem,
+          SetTopItem = ListSetTopItem,
+          DeleteLast = ListDeleteLast,
+          OnCountChanged = count => onListCountChanged?.Invoke(count),
+        })
+      },
+      new() {
+        Title = "Columns",
+        Content = () =>
+        V.Func<MultiColumnListViewStatefulDemoFunc.Props>(MultiColumnListViewStatefulDemoFunc.Render,
+        new MultiColumnListViewStatefulDemoFunc.Props {
+          Items = mclvRows,
+          SortDefs = mclvSortDefs,
+          ColumnWidths = mclvLayout?.ColumnWidths,
+          ColumnVisibility = mclvLayout?.ColumnVisibility,
+          ColumnDisplayIndex = mclvLayout?.ColumnDisplayIndex,
+          AddItem = MclvAddItem,
+          SetTopItem = MclvSetTopItem,
+          DeleteLast = MclvDeleteLast,
+          OnSortChanged = MclvSortChanged,
+          OnLayoutChanged = MclvLayoutChanged,
+          OnCountChanged = count => onMclvCountChanged?.Invoke(count),
+        })
+      },
+    },
+    Style = new Style { (Height, 240f) },
+  };
+
+  var sectionHeaderStyle = new Style { (FontSize, 16f), (StyleKeys.Color, new Color(0.1f, 0.1f, 0.1f, 1f)) };
+  var tabsWrapStyle = new Style {
+    (MaxHeight, 500f), (FlexGrow, 0f),
+    (StyleKeys.Display, showTabs ? "flex" : "none"),
+    (StyleKeys.FlexDirection, "column"), (StyleKeys.Overflow, "visible"),
+  };
+
+  return (
+    <VisualElement>
+      <Button
+        text={showTabs ? "Hide List Tabs" : "Show List Tabs"}
+        onClick={_ => setShowTabs(!showTabs)}
+      />
+      <Label text="TabView + ListViews" style={sectionHeaderStyle} />
+      <VisualElement style={tabsWrapStyle}>
+        <TabView
+          selectedTabIndex={tabViewProps.SelectedTabIndex}
+          selectedIndexChanged={tabViewProps.SelectedIndexChanged}
+          tabs={tabViewProps.Tabs}
+          style={tabViewProps.Style}
+        />
+      </VisualElement>
+      @if (!showTabs) {
+        <Text text="List tabs hidden" />
+      }
+    </VisualElement>
+  );
+}

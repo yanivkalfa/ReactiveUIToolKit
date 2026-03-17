@@ -936,6 +936,48 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "visible")
+            {
+                if (propertyValue is bool vis)
+                {
+                    element.visible = vis;
+                }
+                return;
+            }
+            if (propertyName == "enabled")
+            {
+                if (propertyValue is bool en)
+                {
+                    element.SetEnabled(en);
+                }
+                return;
+            }
+            if (propertyName == "tooltip")
+            {
+                element.tooltip = propertyValue as string;
+                return;
+            }
+            if (propertyName == "viewDataKey")
+            {
+                element.viewDataKey = propertyValue as string;
+                return;
+            }
+            if (propertyName == "delegatesFocus")
+            {
+                if (propertyValue is bool df)
+                {
+                    element.delegatesFocus = df;
+                }
+                return;
+            }
+            if (propertyName == "languageDirection")
+            {
+                if (propertyValue is LanguageDirection ld)
+                {
+                    element.languageDirection = ld;
+                }
+                return;
+            }
             if (propertyName == "ref")
             {
                 var meta = element.userData as NodeMetadata;
@@ -1102,6 +1144,31 @@ namespace ReactiveUITK.Props
             if (propertyName == "pickingMode")
             {
                 element.pickingMode = PickingMode.Position;
+                return;
+            }
+            if (propertyName == "visible")
+            {
+                element.visible = true;
+                return;
+            }
+            if (propertyName == "enabled")
+            {
+                element.SetEnabled(true);
+                return;
+            }
+            if (propertyName == "tooltip")
+            {
+                element.tooltip = string.Empty;
+                return;
+            }
+            if (propertyName == "viewDataKey")
+            {
+                element.viewDataKey = null;
+                return;
+            }
+            if (propertyName == "delegatesFocus")
+            {
+                element.delegatesFocus = false;
                 return;
             }
             if (propertyName == "style" && oldValue is IDictionary<string, object> oldMap)
@@ -1676,6 +1743,28 @@ namespace ReactiveUITK.Props
                 meta.EventHandlerSignatures[eventPropName] = newSig;
                 return;
             }
+            if (eventPropName == "onFocusIn")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<FocusInEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onFocusOut")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<FocusOutEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
             if (eventPropName == "onKeyDown")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
@@ -1819,12 +1908,80 @@ namespace ReactiveUITK.Props
                 meta.EventHandlerSignatures[eventPropName] = newSig;
                 return;
             }
+            if (eventPropName == "onDragUpdated")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DragUpdatedEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onDragPerform")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DragPerformEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onDragExited")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DragExitedEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
 #endif
             if (eventPropName == "onScroll")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onGeometryChanged")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<GeometryChangedEvent> w = e =>
+                        InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onAttachToPanel")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<AttachToPanelEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onDetachFromPanel")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DetachFromPanelEvent> w = e =>
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1929,6 +2086,20 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
+            if (eventPropName == "onFocusIn" && handler is EventCallback<FocusInEvent> fi)
+            {
+                element.UnregisterCallback(fi);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onFocusOut" && handler is EventCallback<FocusOutEvent> fo)
+            {
+                element.UnregisterCallback(fo);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
             if (eventPropName == "onKeyDown" && handler is EventCallback<KeyDownEvent> kd)
             {
                 element.UnregisterCallback(kd);
@@ -1998,10 +2169,61 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
+            if (eventPropName == "onDragUpdated" && handler is EventCallback<DragUpdatedEvent> du)
+            {
+                element.UnregisterCallback(du);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onDragPerform" && handler is EventCallback<DragPerformEvent> dp)
+            {
+                element.UnregisterCallback(dp);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onDragExited" && handler is EventCallback<DragExitedEvent> dx)
+            {
+                element.UnregisterCallback(dx);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
 #endif
             if (eventPropName == "onScroll" && handler is EventCallback<WheelEvent> se)
             {
                 element.UnregisterCallback(se);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (
+                eventPropName == "onGeometryChanged"
+                && handler is EventCallback<GeometryChangedEvent> gc
+            )
+            {
+                element.UnregisterCallback(gc);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (
+                eventPropName == "onAttachToPanel"
+                && handler is EventCallback<AttachToPanelEvent> atp
+            )
+            {
+                element.UnregisterCallback(atp);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (
+                eventPropName == "onDetachFromPanel"
+                && handler is EventCallback<DetachFromPanelEvent> dfp
+            )
+            {
+                element.UnregisterCallback(dfp);
                 meta.EventHandlers.Remove(eventPropName);
                 totalEventsRemoved++;
                 return;
@@ -2106,7 +2328,7 @@ namespace ReactiveUITK.Props
                 }
             }
             catch { }
-            SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
+            ReactiveEvent syntheticEvent = ReactiveEvent.Create(evt);
             if (syntheticEvent != null)
             {
                 syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;

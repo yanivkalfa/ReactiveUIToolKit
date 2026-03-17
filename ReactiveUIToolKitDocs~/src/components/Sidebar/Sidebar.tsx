@@ -4,12 +4,15 @@ import { Box, List, ListItemButton, ListItemText, Collapse, Divider, Typography 
 import ExpandLess from '@mui/icons-material/ExpandLess'
 import ExpandMore from '@mui/icons-material/ExpandMore'
 import { useState } from 'react'
-import { pages as sections } from '../../pages'
+import { getSectionsForTrack, getTrackFromPath } from '../../docs'
 import Styles from './Sidebar.style'
 
 export const Sidebar: FC = () => {
+  const location = useLocation()
+  const track = getTrackFromPath(location.pathname)
+  const sections = getSectionsForTrack(track)
   const displaySections = sections.flatMap((sec) =>
-    sec.id === 'components'
+    sec.title === 'Components' && sec.pages.some((p) => p.group)
       ? [
           {
             ...sec,
@@ -27,7 +30,6 @@ export const Sidebar: FC = () => {
       : [sec],
   )
 
-  const location = useLocation()
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {}
     displaySections.forEach((sec, idx) => (init[sec.id] = idx === 0))
@@ -36,6 +38,11 @@ export const Sidebar: FC = () => {
 
   return (
     <Box sx={Styles.root}>
+      <Box sx={{ px: 2, py: 1.5 }}>
+        <Typography variant="overline" color="text.secondary">
+          {track === 'uitkx' ? 'UITKX Docs' : 'C# Docs'}
+        </Typography>
+      </Box>
       <List disablePadding>
         {displaySections.map((sec) => {
           const expanded = !!open[sec.id]

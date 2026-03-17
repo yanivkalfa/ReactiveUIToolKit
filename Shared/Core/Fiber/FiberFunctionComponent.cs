@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Diagnostics;
@@ -11,6 +11,12 @@ namespace ReactiveUITK.Core.Fiber
     /// </summary>
     public static class FiberFunctionComponent
     {
+        // Guards against infinite render loops (e.g. setState called unconditionally during render).
+        // ThreadStatic ensures each thread keeps its own independent depth counter.
+        [ThreadStatic]
+        private static int s_renderDepth;
+        private const int MaxRenderDepth = 25;
+
         /// <summary>
         /// Render a function component and return the child fiber
         /// </summary>
@@ -20,7 +26,7 @@ namespace ReactiveUITK.Core.Fiber
             FiberReconciler reconciler
         )
         {
-            if (wipFiber.Render == null)
+            if (wipFiber.TypedRender == null)
             {
                 return null;
             }
@@ -40,7 +46,9 @@ namespace ReactiveUITK.Core.Fiber
             componentState.LayoutEffectIndex = 0;
 
             var componentName =
-                wipFiber.ElementType ?? wipFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                wipFiber.ElementType
+                ?? wipFiber.TypedRender?.Method.DeclaringType?.Name
+                ?? "Unknown";
 
             // Wire up state updates to Fiber reconciler
             // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
@@ -48,8 +56,13 @@ namespace ReactiveUITK.Core.Fiber
             componentState.OnStateUpdated = () =>
                 reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
 
-            // Log render attempt
-            var propsEqual = ArePropsEqual(wipFiber.PendingProps, wipFiber.Props);
+            // Props equality check (typed path — all function components use IProps now).
+            // IMPORTANT: TypedProps == null means this fiber has never been rendered (first mount).
+            // A null baseline must never be considered equal to any pending props — doing so would
+            // cause the bailout to fire on the very first render, producing empty windows.
+            var tp = wipFiber.TypedPendingProps ?? EmptyProps.Instance;
+            var cp = wipFiber.TypedProps; // null == "never rendered"; never equal to any pending props
+            bool propsEqual = cp != null && (ReferenceEquals(tp, cp) || tp.Equals(cp));
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
 
             // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
@@ -63,6 +76,8 @@ namespace ReactiveUITK.Core.Fiber
                 }
                 // Commit props so the next render cycle sees matching props for ArePropsEqual
                 wipFiber.Props = wipFiber.PendingProps;
+                // Also commit typed props so the next cycle's equality check works correctly
+                wipFiber.TypedProps = wipFiber.TypedPendingProps;
 
                 // CRITICAL FIX: We must carry over the existing child pointer to the WIP tree
                 // even if we don't visit it. Otherwise, this branch is severed in the new tree.
@@ -89,14 +104,6 @@ namespace ReactiveUITK.Core.Fiber
             }
             else
             {
-                var reason = "";
-                if (wipFiber.HasPendingStateUpdate)
-                    reason = "HasPendingStateUpdate=true";
-                else if (!contextUnchanged)
-                    reason = "ContextChanged=true";
-                else if (!propsEqual)
-                    reason = "PropsNotEqual";
-
                 // Clear HasPendingStateUpdate now that we've read it
                 // (SubtreeHasUpdates stays for reconciliation, cleared after commit)
                 if (wipFiber.HasPendingStateUpdate)
@@ -117,22 +124,31 @@ namespace ReactiveUITK.Core.Fiber
 
             VirtualNode childVNode = null;
 
+            s_renderDepth++;
             try
             {
-                // Call the render function
-                var propsDict =
-                    wipFiber.PendingProps as Dictionary<string, object>
-                    ?? new Dictionary<string, object>(
-                        wipFiber.PendingProps ?? new Dictionary<string, object>()
+                // Guard against infinite render loops caused by unconditional setState during render
+                if (s_renderDepth > MaxRenderDepth)
+                {
+                    UnityEngine.Debug.LogError(
+                        $"[Fiber] Maximum render depth ({MaxRenderDepth}) exceeded in '{componentName}'. "
+                            + "A component may be calling setState unconditionally during render."
                     );
+                    return null;
+                }
 
-                childVNode = wipFiber.Render(propsDict, wipFiber.Children);
+                // Call the render function (typed IProps path — all function components).
+                childVNode = wipFiber.TypedRender(
+                    wipFiber.TypedPendingProps ?? EmptyProps.Instance,
+                    wipFiber.Children
+                );
 
                 // Store rendered vnode
                 wipFiber.LastRenderedVNode = childVNode;
             }
             finally
             {
+                s_renderDepth--;
                 componentState.IsRendering = false;
                 HookContext.Current = null;
             }
@@ -245,21 +261,15 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender)
-                        return true;
-
-                    // Handle method group conversion (creates new delegate instance)
-                    if (fiber.Render != null && vnode.FunctionRender != null)
-                    {
-                        return fiber.Render.Method == vnode.FunctionRender.Method
-                            && fiber.Render.Target == vnode.FunctionRender.Target;
-                    }
-                    return false;
+                    // All function components now use TypedRender.
+                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null) return false;
+                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)) return true;
+                    return fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
+                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target;
 
                 case VirtualNodeType.Suspense:
                     return fiber.Tag == FiberTag.FunctionComponent
-                        && fiber.Render == FiberIntrinsicComponents.SuspenseRender;
+                        && fiber.TypedRender == FiberIntrinsicComponents.SuspenseRender;
 
                 case VirtualNodeType.Portal:
                     return fiber.Tag == FiberTag.HostPortal;
@@ -310,7 +320,7 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    return new Dictionary<string, object>(); // Suspense uses TypedPendingProps; dict props not needed
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -436,6 +446,81 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
+        /// Pass 1 of 2 for passive-effect flushing: run only the cleanup of each dirty effect.
+        /// Must be called for ALL committed fibers before RunPassiveEffectSetups is called for any.
+        /// </summary>
+        public static void RunPassiveEffectCleanups(FiberNode fiber)
+        {
+            var componentState = fiber.ComponentState;
+            if (componentState?.FunctionEffects == null)
+                return;
+
+            for (int i = 0; i < componentState.FunctionEffects.Count; i++)
+            {
+                var effect = componentState.FunctionEffects[i];
+                bool shouldRun =
+                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
+                if (!shouldRun || effect.cleanup == null)
+                    continue;
+
+                try
+                {
+                    effect.cleanup.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"Effect cleanup error: {ex}");
+                }
+
+                // Clear the cleanup reference so it cannot fire twice, but preserve lastDeps
+                // so RunPassiveEffectSetups can re-evaluate shouldRun identically.
+                componentState.FunctionEffects[i] = (
+                    effect.factory,
+                    effect.deps,
+                    effect.lastDeps,
+                    null
+                );
+            }
+        }
+
+        /// <summary>
+        /// Pass 2 of 2 for passive-effect flushing: run the setup of each dirty effect and store the new cleanup.
+        /// Must be called after RunPassiveEffectCleanups has been called for ALL committed fibers.
+        /// </summary>
+        public static void RunPassiveEffectSetups(FiberNode fiber)
+        {
+            var componentState = fiber.ComponentState;
+            if (componentState?.FunctionEffects == null)
+                return;
+
+            for (int i = 0; i < componentState.FunctionEffects.Count; i++)
+            {
+                var effect = componentState.FunctionEffects[i];
+                bool shouldRun =
+                    effect.lastDeps == null || DepsChanged(effect.lastDeps, effect.deps);
+                if (!shouldRun)
+                    continue;
+
+                Action newCleanup = null;
+                try
+                {
+                    newCleanup = effect.factory?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    UnityEngine.Debug.LogError($"Effect error: {ex}");
+                }
+
+                componentState.FunctionEffects[i] = (
+                    effect.factory,
+                    effect.deps,
+                    (object[])effect.deps?.Clone(),
+                    newCleanup
+                );
+            }
+        }
+
+        /// <summary>
         /// Check if dependencies changed
         /// </summary>
         private static bool DepsChanged(object[] oldDeps, object[] newDeps)
@@ -462,32 +547,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             // TODO: Use proper scheduler
             effect?.Invoke();
-        }
-
-        /// <summary>
-        /// Check if props are equal (shallow comparison)
-        /// </summary>
-        private static bool ArePropsEqual(
-            IReadOnlyDictionary<string, object> props1,
-            IReadOnlyDictionary<string, object> props2
-        )
-        {
-            if (props1 == props2)
-                return true;
-            if (props1 == null || props2 == null)
-                return false;
-            if (props1.Count != props2.Count)
-                return false;
-
-            foreach (var kvp in props1)
-            {
-                if (!props2.TryGetValue(kvp.Key, out var value2))
-                    return false;
-                if (!object.Equals(kvp.Value, value2))
-                    return false;
-            }
-
-            return true;
         }
     }
 }

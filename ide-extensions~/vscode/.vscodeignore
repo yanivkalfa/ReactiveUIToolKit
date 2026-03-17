@@ -1,0 +1,22 @@
+# Source & build artefacts not needed at runtime
+.vscode/**
+.vscode-test/**
+src/**
+node_modules/**
+out/test/**
+test/**
+.gitignore
+.eslintrc.json
+tsconfig.json
+esbuild.js
+**/*.map
+**/*.ts
+
+# Scratch / alternate publish folders
+lsp-server-win/**
+
+# Re-include compiled output and bundled server
+!out/**
+!server/**
+!syntaxes/**
+!language-configuration.json

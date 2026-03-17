@@ -1,0 +1,26 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+
+component EffectPanel(string label = "Panel", int generation = 0, List<string>? log = null) {
+  useEffect(() => {
+    log?.Add($"  setup   [{label}]  gen={generation}  ({DateTime.Now:HH:mm:ss.fff})");
+    return () => {
+      log?.Add($"  cleanup [{label}]  gen={generation}  ({DateTime.Now:HH:mm:ss.fff})");
+    };
+  }, new object[] { generation });
+
+  var panelStyle = new Style {
+    (StyleKeys.Padding, 6f),
+    (StyleKeys.MarginTop, 6f),
+    (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.18f, 0.8f)),
+    (StyleKeys.BorderRadius, 4f),
+  };
+
+  return (
+    <VisualElement style={panelStyle}>
+      <Text text={$"{label}  \u2014  generation {generation}"} />
+    </VisualElement>
+  );
+}

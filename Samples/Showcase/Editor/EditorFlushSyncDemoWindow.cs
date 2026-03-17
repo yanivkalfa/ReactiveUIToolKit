@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorFlushSyncDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Tests-(35-37-40)/FlushSync Demo")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(35-37-40)/FlushSync Demo")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorFlushSyncDemoWindow>("FlushSync Demo");

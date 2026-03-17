@@ -10,16 +10,11 @@ namespace ReactiveUITK.Router
 {
     public static class RouterFunc
     {
-        public static VirtualNode Render(
-            Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
-            props ??= new Dictionary<string, object>();
-            props.TryGetValue("history", out var historyObj);
-            props.TryGetValue("initialPath", out var initialPathObj);
-            var providedHistory = historyObj as IRouterHistory;
-            string initialPath = initialPathObj as string ?? "/";
+            var p = rawProps as RouterFuncProps;
+            var providedHistory = p?.History;
+            string initialPath = p?.InitialPath ?? "/";
 
             var resolvedHistory = Hooks.UseMemo(
                 () => providedHistory ?? new MemoryHistory(initialPath),
@@ -93,10 +88,7 @@ namespace ReactiveUITK.Router
 
     public static class RouteFunc
     {
-        public static VirtualNode Render(
-            Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var router = RouterHooks.UseRouter();
             if (router == null)
@@ -104,14 +96,11 @@ namespace ReactiveUITK.Router
                 return null;
             }
 
-            props ??= new Dictionary<string, object>();
-            props.TryGetValue("path", out var pathObj);
-            props.TryGetValue("exact", out var exactObj);
-            props.TryGetValue("element", out var elementObj);
-            props.TryGetValue("render", out var renderObj);
-
-            string path = pathObj as string;
-            bool exact = exactObj is bool flag && flag;
+            var p = rawProps as RouteFuncProps;
+            string path = p?.Path;
+            bool exact = p?.Exact ?? false;
+            var elementObj = p?.Element;
+            var renderFunc = p?.RenderFunc;
             var parentEntry = RouteContextEntryHelper.ResolveCurrentEntry();
             string parentNavigationBase = parentEntry?.NavigationBase ?? "/";
             var parentMatch = parentEntry?.Match ?? RouteMatch.CreateRoot(router.Location.Path);
@@ -150,10 +139,9 @@ namespace ReactiveUITK.Router
             );
             Hooks.ProvideContext(RouterContextKeys.RouteContextEntry, routeEntry);
 
-            if (renderObj is Func<RouteMatch, VirtualNode> renderFunc)
+            if (renderFunc != null)
             {
-                var someNode = renderFunc(match);
-                return someNode;
+                return renderFunc(match);
             }
 
             if (elementObj is VirtualNode vnode)
@@ -167,10 +155,7 @@ namespace ReactiveUITK.Router
 
     public static class LinkFunc
     {
-        public static VirtualNode Render(
-            Dictionary<string, object> props,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var router = RouterHooks.UseRouter();
             if (router == null)
@@ -182,17 +167,12 @@ namespace ReactiveUITK.Router
                 ?? RouteMatch.CreateRoot(router.Location?.Path ?? "/");
             var routeEntry = RouteContextEntryHelper.ResolveCurrentEntry();
 
-            props ??= new Dictionary<string, object>();
-            props.TryGetValue("to", out var toObj);
-            props.TryGetValue("label", out var labelObj);
-            props.TryGetValue("replace", out var replaceObj);
-            props.TryGetValue("style", out var styleObj);
-            props.TryGetValue("state", out var stateObj);
-
-            string to = toObj as string ?? "/";
-            string label = labelObj as string ?? to;
-            bool replace = replaceObj is bool replaceFlag && replaceFlag;
-            Style style = styleObj as Style;
+            var p = rawProps as LinkFuncProps;
+            string to = p?.To ?? "/";
+            string label = p?.Label ?? to;
+            bool replace = p?.Replace ?? false;
+            Style style = p?.Style;
+            object stateObj = p?.State;
             string navigationBase = routeEntry?.NavigationBase ?? routeMatch?.Pattern;
 
             Action navigate = () =>
@@ -225,11 +205,34 @@ namespace ReactiveUITK.Router
                 {
                     Text = label,
                     Style = style,
-                    OnClick = navigate,
+                    OnClick = _ => navigate(),
                 }
             );
             return button;
         }
+    }
+
+    public sealed class RouterFuncProps : IProps
+    {
+        public IRouterHistory History { get; set; }
+        public string InitialPath { get; set; }
+    }
+
+    public sealed class RouteFuncProps : IProps
+    {
+        public string Path { get; set; }
+        public bool Exact { get; set; }
+        public VirtualNode Element { get; set; }
+        public Func<RouteMatch, VirtualNode> RenderFunc { get; set; }
+    }
+
+    public sealed class LinkFuncProps : IProps
+    {
+        public string To { get; set; }
+        public string Label { get; set; }
+        public bool Replace { get; set; }
+        public Style Style { get; set; }
+        public object State { get; set; }
     }
 
     internal static class RouterRenderUtils

@@ -22,7 +22,7 @@ namespace ReactiveUITK.Core.Fiber
             // Unconditional log for debugging duplication
             var name =
                 returnFiber.ElementType
-                ?? returnFiber.Render?.Method.DeclaringType?.Name
+                ?? returnFiber.TypedRender?.Method.DeclaringType?.Name
                 ?? "Unknown";
             // Optimization for likely case: the list of children is empty
             if (newChildren == null || newChildren.Count == 0)
@@ -222,7 +222,7 @@ namespace ReactiveUITK.Core.Fiber
             // Use centralized factory for consistent flag propagation
             var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
             var name =
-                oldFiber.ElementType ?? oldFiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
+                oldFiber.ElementType ?? oldFiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             return reused;
         }
 
@@ -250,21 +250,15 @@ namespace ReactiveUITK.Core.Fiber
                     if (fiber.Tag != FiberTag.FunctionComponent)
                         return false;
 
-                    // Check delegate equality
-                    if (fiber.Render == vnode.FunctionRender)
-                        return true;
-
-                    // Handle method group conversion (creates new delegate instance)
-                    if (fiber.Render != null && vnode.FunctionRender != null)
-                    {
-                        return fiber.Render.Method == vnode.FunctionRender.Method
-                            && fiber.Render.Target == vnode.FunctionRender.Target;
-                    }
-                    return false;
+                    // All function components use TypedRender.
+                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null) return false;
+                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)) return true;
+                    return fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
+                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target;
 
                 case VirtualNodeType.Suspense:
                     return fiber.Tag == FiberTag.FunctionComponent
-                        && fiber.Render == FiberIntrinsicComponents.SuspenseRender;
+                        && fiber.TypedRender == FiberIntrinsicComponents.SuspenseRender;
 
                 case VirtualNodeType.Portal:
                     return fiber.Tag == FiberTag.HostPortal;
@@ -312,13 +306,14 @@ namespace ReactiveUITK.Core.Fiber
 
                 case VirtualNodeType.FunctionComponent:
                     fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = vnode.FunctionRender;
+                    fiber.TypedRender = vnode.TypedFunctionRender;
+                    fiber.TypedPendingProps = vnode.TypedProps;
                     break;
 
                 case VirtualNodeType.Suspense:
                     fiber.Tag = FiberTag.FunctionComponent;
-                    fiber.Render = FiberIntrinsicComponents.SuspenseRender;
-                    fiber.PendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    fiber.TypedRender = FiberIntrinsicComponents.SuspenseRender;
+                    fiber.TypedPendingProps = FiberIntrinsicComponents.CreateSuspenseProps(vnode);
                     break;
 
                 case VirtualNodeType.Portal:
@@ -354,7 +349,9 @@ namespace ReactiveUITK.Core.Fiber
                 Tag = fiber.Tag,
                 ElementType = fiber.ElementType,
                 Key = fiber.Key,
-                Render = fiber.Render,
+                TypedRender = fiber.TypedRender,
+                TypedProps = fiber.TypedProps,
+                TypedPendingProps = fiber.TypedPendingProps,
                 HostElement = fiber.HostElement,
                 ComponentState = fiber.ComponentState,
                 Alternate = fiber,
@@ -383,8 +380,7 @@ namespace ReactiveUITK.Core.Fiber
             if (fiber.Alternate != null)
             {
                 var name =
-                    fiber.ElementType ?? fiber.Render?.Method.DeclaringType?.Name ?? "Unknown";
-                fiber.HasPendingStateUpdate = fiber.Alternate.HasPendingStateUpdate;
+                    fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 fiber.SubtreeHasUpdates = fiber.Alternate.SubtreeHasUpdates;
                 fiber.ReadsContext = fiber.Alternate.ReadsContext;
             }
@@ -478,7 +474,7 @@ namespace ReactiveUITK.Core.Fiber
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return FiberIntrinsicComponents.CreateSuspenseProps(vnode);
+                    return new Dictionary<string, object>();
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -515,7 +511,9 @@ namespace ReactiveUITK.Core.Fiber
                 Tag = current.Tag,
                 ElementType = current.ElementType,
                 Key = current.Key,
-                Render = current.Render,
+                TypedRender = current.TypedRender,
+                TypedProps = current.TypedProps,
+                TypedPendingProps = current.TypedPendingProps,
                 HostElement = current.HostElement,
                 Props = current.Props,
                 PendingProps = newProps,

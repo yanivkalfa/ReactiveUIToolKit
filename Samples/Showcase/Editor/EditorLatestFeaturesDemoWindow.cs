@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorLatestFeaturesDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Latest Features Showcase")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Latest Features Showcase")]
         public static void ShowWindow()
         {
             EditorLatestFeaturesDemoWindow window = GetWindow<EditorLatestFeaturesDemoWindow>(

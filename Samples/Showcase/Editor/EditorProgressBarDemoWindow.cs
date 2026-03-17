@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorProgressBarDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Progress Bar")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Progress Bar")]
         public static void ShowWindow()
         {
             EditorProgressBarDemoWindow window = GetWindow<EditorProgressBarDemoWindow>(

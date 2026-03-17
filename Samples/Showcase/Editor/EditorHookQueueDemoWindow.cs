@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorHookQueueDemoWindow : EditorWindow
     {
-        [MenuItem("ReactiveUITK/Demos/Tests-(13-17-18-26)/Hook Queue Merge")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(13-17-18-26)/Hook Queue Merge")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorHookQueueDemoWindow>("Hook Queue Merge Demo");
@@ -17,7 +17,7 @@ namespace ReactiveUITK.Samples.Editor
             window.Show();
         }
 
-        [MenuItem("ReactiveUITK/Demos/Tests-(35-37-40)/Linked Update Queue")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(35-37-40)/Linked Update Queue")]
         public static void ShowWindowModern()
         {
             ShowWindow();
