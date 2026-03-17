@@ -66,6 +66,8 @@ namespace UitkxLanguageServer.Roslyn
                           // lambda params are typed as `dynamic` in the scaffold; nested lambdas passed to
                           // methods on those params (e.g. dm.AppendAction("X", _ => ...)) trigger this error.
                           // Unity's source generator knows the real types and never hits this.
+                "CS0436", // Type conflicts with imported type — companion .cs files in the same directory
+                          // shadow types in Assembly-CSharp.dll. Intentional; safety net for #line-mapped spans.
             };
 
         // ── Public API ────────────────────────────────────────────────────────
