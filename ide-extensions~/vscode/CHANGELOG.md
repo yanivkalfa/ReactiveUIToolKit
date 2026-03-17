@@ -1,7 +1,7 @@
 ﻿# Changelog
 
-## [1.0.238] - 2026-03-17
-- skip
+## [1.0.239] - 2026-03-17
+- Add VisualElementSafe to uitkx-schema.json (fixes UITKX0105 unknown element)
 
 ## [1.0.238] - 2026-03-17
 - Companion file injection: load .cs files from .uitkx directory into Roslyn workspace for partial-class resolution (fixes CS0103 for Styles/utils/types)

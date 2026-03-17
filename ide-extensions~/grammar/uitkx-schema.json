@@ -1349,6 +1349,33 @@
         }
       ]
     },
+    "VisualElementSafe": {
+      "propsType": "Dictionary",
+      "description": "VisualElement that automatically applies safe-area insets (notch, status bar, etc.).",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
     "Text": {
       "propsType": "BuiltinText",
       "description": "Shorthand for a plain text label.",
