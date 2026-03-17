@@ -1,6 +1,6 @@
 # UITKX — Companion Files in Roslyn Workspace
 
-**Status:** `[IN PROGRESS]`
+**Status:** `[DONE]`
 
 > **Problem:** The embedded Roslyn workspace in the UITKX language server creates
 > a single-document `AdhocWorkspace` per open `.uitkx` file. Companion `.cs` files
