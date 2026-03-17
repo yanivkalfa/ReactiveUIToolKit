@@ -58,7 +58,7 @@ namespace ReactiveUITK.Language.Parser
             string source,
             string filePath,
             List<ParseDiagnostic> diagnosticBag,
-            bool useLastReturn = false
+            bool useLastReturn = true
         )
         {
             if (source.Length > 0 && source[0] == '\uFEFF')
@@ -316,7 +316,7 @@ namespace ReactiveUITK.Language.Parser
             string filePath,
             List<ParseDiagnostic> diagnosticBag,
             out DirectiveSet directiveSet,
-            bool useLastReturn = false
+            bool useLastReturn = true
         )
         {
             directiveSet = default!;
@@ -514,22 +514,6 @@ namespace ReactiveUITK.Language.Parser
                     SetupCodeMarkupRanges: setupMarkupRanges1
                 );
                 return true;
-            }
-
-            int secondReturn = FindTopLevelReturnAfter(
-                source,
-                returnStmtEndExclusive,
-                bodyEndExclusive
-            );
-            if (secondReturn >= 0)
-            {
-                diagnosticBag.Add(new ParseDiagnostic
-                {
-                    Code = "UITKX2103",
-                    Severity = ParseSeverity.Warning,
-                    SourceLine = LineAtPos(source, secondReturn),
-                    Message = "Multiple top-level returns are not allowed in function-style components.",
-                });
             }
 
             int markupStart = returnOpenParen + 1;
@@ -1129,7 +1113,7 @@ namespace ReactiveUITK.Language.Parser
             out int openParen,
             out int closeParen,
             out int stmtEndExclusive,
-            bool useLastReturn = false
+            bool useLastReturn = true
         )
         {
             returnStart = -1;

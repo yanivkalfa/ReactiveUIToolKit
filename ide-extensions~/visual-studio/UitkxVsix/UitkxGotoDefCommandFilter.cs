@@ -30,17 +30,21 @@ namespace UitkxVsix;
 [Order(Before = "default")]
 internal sealed class UitkxGotoDefKeyProcessorProvider : IKeyProcessorProvider
 {
-    private static readonly string LogPath = Path.Combine(
-        Path.GetTempPath(),
-        "uitkx-gotodef.log"
-    );
+    private static readonly string LogPath = Path.Combine(Path.GetTempPath(), "uitkx-gotodef.log");
 
     public KeyProcessor GetAssociatedProcessor(IWpfTextView wpfTextView)
     {
-        try { File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] KeyProcessor created for text view\n"); }
+        try
+        {
+            File.AppendAllText(
+                LogPath,
+                $"[{DateTime.UtcNow:O}] KeyProcessor created for text view\n"
+            );
+        }
         catch { }
-        return wpfTextView.Properties.GetOrCreateSingletonProperty(
-            () => new GotoDefKeyProcessor(wpfTextView));
+        return wpfTextView.Properties.GetOrCreateSingletonProperty(() =>
+            new GotoDefKeyProcessor(wpfTextView)
+        );
     }
 }
 
@@ -48,14 +52,14 @@ internal sealed class GotoDefKeyProcessor : KeyProcessor
 {
     private readonly IWpfTextView _textView;
 
-    private static readonly string LogPath = Path.Combine(
-        Path.GetTempPath(),
-        "uitkx-gotodef.log"
-    );
+    private static readonly string LogPath = Path.Combine(Path.GetTempPath(), "uitkx-gotodef.log");
 
     private static void Log(string msg)
     {
-        try { File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n"); }
+        try
+        {
+            File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n");
+        }
         catch { }
     }
 
@@ -98,8 +102,9 @@ internal sealed class GotoDefKeyProcessor : KeyProcessor
 
     private void UpdateCtrlUnderline(KeyEventArgs args)
     {
-        bool ctrlDown = (args.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0 &&
-                        (args.KeyboardDevice.Modifiers & ModifierKeys.Shift) == 0;
+        bool ctrlDown =
+            (args.KeyboardDevice.Modifiers & ModifierKeys.Control) != 0
+            && (args.KeyboardDevice.Modifiers & ModifierKeys.Shift) == 0;
         if (!ctrlDown)
         {
             // Ctrl released — clear the underline
@@ -152,7 +157,13 @@ internal sealed class GotoDefKeyProcessor : KeyProcessor
             try
             {
                 await UitkxGoToDefinitionHandler.GoToDefinitionCoreAsync(
-                    rpc, uri, text, lineNo, charNo, cts.Token);
+                    rpc,
+                    uri,
+                    text,
+                    lineNo,
+                    charNo,
+                    cts.Token
+                );
             }
             catch (OperationCanceledException)
             {
@@ -185,9 +196,12 @@ internal sealed class UitkxGoToDefMouseHandlerProvider : IMouseProcessorProvider
     {
         return wpfTextView.Properties.GetOrCreateSingletonProperty(
             typeof(GoToDefMouseHandler),
-            () => new GoToDefMouseHandler(
-                wpfTextView,
-                NavigatorService.GetTextStructureNavigator(wpfTextView.TextBuffer)));
+            () =>
+                new GoToDefMouseHandler(
+                    wpfTextView,
+                    NavigatorService.GetTextStructureNavigator(wpfTextView.TextBuffer)
+                )
+        );
     }
 }
 
@@ -197,14 +211,14 @@ internal sealed class GoToDefMouseHandler : MouseProcessorBase
     private readonly ITextStructureNavigator _navigator;
     private Point? _mouseDownAnchorPoint;
 
-    private static readonly string LogPath = Path.Combine(
-        Path.GetTempPath(),
-        "uitkx-gotodef.log"
-    );
+    private static readonly string LogPath = Path.Combine(Path.GetTempPath(), "uitkx-gotodef.log");
 
     private static void Log(string msg)
     {
-        try { File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n"); }
+        try
+        {
+            File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n");
+        }
         catch { }
     }
 
@@ -219,8 +233,10 @@ internal sealed class GoToDefMouseHandler : MouseProcessorBase
 
     public override void PostprocessMouseLeftButtonDown(MouseButtonEventArgs e)
     {
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0 &&
-            (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        if (
+            (Keyboard.Modifiers & ModifierKeys.Control) != 0
+            && (Keyboard.Modifiers & ModifierKeys.Shift) == 0
+        )
         {
             _mouseDownAnchorPoint = RelativeToView(e.GetPosition(_view.VisualElement));
         }
@@ -228,10 +244,12 @@ internal sealed class GoToDefMouseHandler : MouseProcessorBase
 
     public override void PreprocessMouseMove(MouseEventArgs e)
     {
-        if (!_mouseDownAnchorPoint.HasValue &&
-            (Keyboard.Modifiers & ModifierKeys.Control) != 0 &&
-            (Keyboard.Modifiers & ModifierKeys.Shift) == 0 &&
-            e.LeftButton == MouseButtonState.Released)
+        if (
+            !_mouseDownAnchorPoint.HasValue
+            && (Keyboard.Modifiers & ModifierKeys.Control) != 0
+            && (Keyboard.Modifiers & ModifierKeys.Shift) == 0
+            && e.LeftButton == MouseButtonState.Released
+        )
         {
             TryHighlightWord(RelativeToView(e.GetPosition(_view.VisualElement)));
         }
@@ -249,9 +267,11 @@ internal sealed class GoToDefMouseHandler : MouseProcessorBase
 
     public override void PreprocessMouseUp(MouseButtonEventArgs e)
     {
-        if (_mouseDownAnchorPoint.HasValue &&
-            (Keyboard.Modifiers & ModifierKeys.Control) != 0 &&
-            (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+        if (
+            _mouseDownAnchorPoint.HasValue
+            && (Keyboard.Modifiers & ModifierKeys.Control) != 0
+            && (Keyboard.Modifiers & ModifierKeys.Shift) == 0
+        )
         {
             var currentPos = RelativeToView(e.GetPosition(_view.VisualElement));
             if (!InDragOperation(_mouseDownAnchorPoint.Value, currentPos))

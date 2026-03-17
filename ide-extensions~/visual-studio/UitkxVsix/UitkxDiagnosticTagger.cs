@@ -19,14 +19,15 @@ namespace UitkxVsix;
 [TagType(typeof(IErrorTag))]
 internal sealed class UitkxDiagnosticTaggerProvider : ITaggerProvider
 {
-    public ITagger<T>? CreateTagger<T>(ITextBuffer buffer) where T : ITag
+    public ITagger<T>? CreateTagger<T>(ITextBuffer buffer)
+        where T : ITag
     {
         if (typeof(T) != typeof(IErrorTag))
             return null;
 
-        return buffer.Properties.GetOrCreateSingletonProperty(
-            () => new UitkxDiagnosticTagger(buffer)
-        ) as ITagger<T>;
+        return buffer.Properties.GetOrCreateSingletonProperty(() =>
+                new UitkxDiagnosticTagger(buffer)
+            ) as ITagger<T>;
     }
 }
 
@@ -40,18 +41,20 @@ internal sealed class UitkxUnreachableCodeTaggerProvider : ITaggerProvider
     [Import]
     internal IClassificationTypeRegistryService ClassificationRegistry { get; set; } = null!;
 
-    public ITagger<T>? CreateTagger<T>(ITextBuffer buffer) where T : ITag
+    public ITagger<T>? CreateTagger<T>(ITextBuffer buffer)
+        where T : ITag
     {
         if (typeof(T) != typeof(IClassificationTag))
             return null;
 
-        var excludedCode = ClassificationRegistry.GetClassificationType("excluded code")
+        var excludedCode =
+            ClassificationRegistry.GetClassificationType("excluded code")
             ?? ClassificationRegistry.GetClassificationType("text");
 
         return buffer.Properties.GetOrCreateSingletonProperty(
-            typeof(UitkxUnreachableCodeTagger),
-            () => new UitkxUnreachableCodeTagger(buffer, excludedCode)
-        ) as ITagger<T>;
+                typeof(UitkxUnreachableCodeTagger),
+                () => new UitkxUnreachableCodeTagger(buffer, excludedCode)
+            ) as ITagger<T>;
     }
 }
 
@@ -104,7 +107,12 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
             return;
 
         if (_changeDebounceTimer == null)
-            _changeDebounceTimer = new System.Threading.Timer(OnChangeDebounceElapsed, null, 300, System.Threading.Timeout.Infinite);
+            _changeDebounceTimer = new System.Threading.Timer(
+                OnChangeDebounceElapsed,
+                null,
+                300,
+                System.Threading.Timeout.Infinite
+            );
         else
             _changeDebounceTimer.Change(300, System.Threading.Timeout.Infinite);
     }
@@ -160,7 +168,12 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
         _pendingDiagnostics = diagnostics;
 
         if (_debounceTimer == null)
-            _debounceTimer = new System.Threading.Timer(OnDebounceElapsed, null, 200, System.Threading.Timeout.Infinite);
+            _debounceTimer = new System.Threading.Timer(
+                OnDebounceElapsed,
+                null,
+                200,
+                System.Threading.Timeout.Infinite
+            );
         else
             _debounceTimer.Change(200, System.Threading.Timeout.Infinite);
     }
@@ -212,8 +225,8 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
 
             var errorType = diag.Severity switch
             {
-                1 => PredefinedErrorTypeNames.SyntaxError,   // Error
-                2 => PredefinedErrorTypeNames.Warning,       // Warning
+                1 => PredefinedErrorTypeNames.SyntaxError, // Error
+                2 => PredefinedErrorTypeNames.Warning, // Warning
                 3 => PredefinedErrorTypeNames.HintedSuggestion, // Information
                 4 => PredefinedErrorTypeNames.HintedSuggestion, // Hint
                 _ => PredefinedErrorTypeNames.SyntaxError,
@@ -275,34 +288,56 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
     /// <summary>Gets the unreachable code tagger instance for a buffer, if one exists.</summary>
     internal static UitkxUnreachableCodeTagger? GetForBuffer(ITextBuffer buffer)
     {
-        buffer.Properties.TryGetProperty(typeof(UitkxUnreachableCodeTagger), out UitkxUnreachableCodeTagger tagger);
+        buffer.Properties.TryGetProperty(
+            typeof(UitkxUnreachableCodeTagger),
+            out UitkxUnreachableCodeTagger tagger
+        );
         return tagger;
     }
 
     private void OnDiagnosticsChanged(string uri, List<LspDiagnostic> diagnostics)
     {
-        if (_disposed) return;
-        if (!_buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc)) return;
-        if (!string.Equals(new Uri(doc.FilePath).AbsoluteUri, uri, StringComparison.OrdinalIgnoreCase)) return;
+        if (_disposed)
+            return;
+        if (!_buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc))
+            return;
+        if (
+            !string.Equals(
+                new Uri(doc.FilePath).AbsoluteUri,
+                uri,
+                StringComparison.OrdinalIgnoreCase
+            )
+        )
+            return;
 
         _pendingDiagnostics = diagnostics;
         if (_debounceTimer == null)
-            _debounceTimer = new System.Threading.Timer(OnDebounceElapsed, null, 200, System.Threading.Timeout.Infinite);
+            _debounceTimer = new System.Threading.Timer(
+                OnDebounceElapsed,
+                null,
+                200,
+                System.Threading.Timeout.Infinite
+            );
         else
             _debounceTimer.Change(200, System.Threading.Timeout.Infinite);
     }
 
     private void OnDebounceElapsed(object? state)
     {
-        if (_disposed) return;
+        if (_disposed)
+            return;
         var pending = _pendingDiagnostics;
-        if (pending == null) return;
+        if (pending == null)
+            return;
         _diagnostics = pending;
         _pendingDiagnostics = null;
         try
         {
             var snapshot = _buffer.CurrentSnapshot;
-            TagsChanged?.Invoke(this, new SnapshotSpanEventArgs(new SnapshotSpan(snapshot, 0, snapshot.Length)));
+            TagsChanged?.Invoke(
+                this,
+                new SnapshotSpanEventArgs(new SnapshotSpan(snapshot, 0, snapshot.Length))
+            );
         }
         catch { }
     }
@@ -331,13 +366,17 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
             if (!spans.IntersectsWith(span))
                 continue;
 
-            yield return new TagSpan<IClassificationTag>(span, new ClassificationTag(_excludedCode));
+            yield return new TagSpan<IClassificationTag>(
+                span,
+                new ClassificationTag(_excludedCode)
+            );
         }
     }
 
     private static int GetPosition(ITextSnapshot snapshot, int line, int character)
     {
-        if (line < 0 || line >= snapshot.LineCount) return -1;
+        if (line < 0 || line >= snapshot.LineCount)
+            return -1;
         var snapshotLine = snapshot.GetLineFromLineNumber(line);
         var pos = snapshotLine.Start.Position + character;
         return pos <= snapshotLine.EndIncludingLineBreak.Position ? pos : snapshotLine.End.Position;
@@ -361,7 +400,7 @@ internal sealed class LspDiagnostic
     public int EndChar;
     public int Severity; // 1=Error, 2=Warning, 3=Information, 4=Hint
     public string Message = "";
-    public int[]? Tags;   // DiagnosticTag values (1=Unnecessary, 2=Deprecated)
+    public int[]? Tags; // DiagnosticTag values (1=Unnecessary, 2=Deprecated)
 }
 
 // ── Static store for incoming publishDiagnostics ────────────────────────────
@@ -436,7 +475,9 @@ internal static class UitkxDiagnosticStore
 
             Log($"Parsed {diagnostics.Count} diagnostics for {uri}");
             foreach (var d in diagnostics)
-                Log($"  sev={d.Severity} [{d.StartLine}:{d.StartChar}-{d.EndLine}:{d.EndChar}] tags={string.Join(",", d.Tags ?? Array.Empty<int>())} {d.Message}");
+                Log(
+                    $"  sev={d.Severity} [{d.StartLine}:{d.StartChar}-{d.EndLine}:{d.EndChar}] tags={string.Join(",", d.Tags ?? Array.Empty<int>())} {d.Message}"
+                );
             DiagnosticsChanged?.Invoke(uri!, diagnostics);
         }
         catch (Exception ex)

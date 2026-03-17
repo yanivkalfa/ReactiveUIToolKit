@@ -49,11 +49,11 @@ namespace UitkxLanguageServer.Roslyn
 
         private static readonly CSharpCompilationOptions s_compilationOptions =
             new CSharpCompilationOptions(
-                outputKind:              OutputKind.DynamicallyLinkedLibrary,
-                allowUnsafe:             false,
-                nullableContextOptions:  NullableContextOptions.Enable,
-                reportSuppressedDiagnostics: false)
-            .WithSpecificDiagnosticOptions(
+                outputKind: OutputKind.DynamicallyLinkedLibrary,
+                allowUnsafe: false,
+                nullableContextOptions: NullableContextOptions.Enable,
+                reportSuppressedDiagnostics: false
+            ).WithSpecificDiagnosticOptions(
                 // Suppress nuisance diagnostics that are false-positives in the
                 // virtual document scaffold.  User-configurable in the future.
                 new Dictionary<string, ReportDiagnostic>
@@ -82,8 +82,9 @@ namespace UitkxLanguageServer.Roslyn
                     ["CS0436"] = ReportDiagnostic.Suppress, // source type shadows imported type (companion injection)
                     // CS0219: unused local variable — promoted to Error so the user sees it
                     // as a red squiggle immediately, matching standard C# IDE behaviour.
-                    ["CS0219"] = ReportDiagnostic.Error,   // unused variable → error
-                });
+                    ["CS0219"] = ReportDiagnostic.Error, // unused variable → error
+                }
+            );
 
         // ── Inner types ───────────────────────────────────────────────────────
 
@@ -93,15 +94,17 @@ namespace UitkxLanguageServer.Roslyn
             /// <summary>Serialises workspace updates for this file.</summary>
             public readonly SemaphoreSlim Gate = new SemaphoreSlim(1, 1);
 
-            public AdhocWorkspace?  Workspace;
-            public ProjectId?       ProjectId;
-            public DocumentId?      DocumentId;
+            public AdhocWorkspace? Workspace;
+            public ProjectId? ProjectId;
+            public DocumentId? DocumentId;
+
             /// <summary>Document IDs for companion .cs files loaded from the same directory.</summary>
             public List<DocumentId> CompanionDocIds = new List<DocumentId>();
             public VirtualDocument? VirtualDoc;
+
             /// <summary>Hash of the source text used for the last virtual-doc build.
             /// <see cref="EnsureReadyAsync"/> uses this to skip redundant rebuilds.</summary>
-            public string           LastBuiltSource = "";
+            public string LastBuiltSource = "";
 
             /// <summary>Debounce timer for rebuild requests.</summary>
             public Timer? DebounceTimer;
@@ -118,12 +121,14 @@ namespace UitkxLanguageServer.Roslyn
 
         // ── State ─────────────────────────────────────────────────────────────
 
-        private readonly ConcurrentDictionary<string, FileState> _files =
-            new ConcurrentDictionary<string, FileState>(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, FileState> _files = new ConcurrentDictionary<
+            string,
+            FileState
+        >(StringComparer.OrdinalIgnoreCase);
 
         private readonly ReferenceAssemblyLocator _refLocator;
         private readonly VirtualDocumentGenerator _docGenerator = new VirtualDocumentGenerator();
-        private readonly ILanguageServerFacade    _server;
+        private readonly ILanguageServerFacade _server;
 
         private string? _workspaceRoot;
 
@@ -134,7 +139,7 @@ namespace UitkxLanguageServer.Roslyn
 
         public RoslynHost(ILanguageServerFacade server)
         {
-            _server     = server;
+            _server = server;
             _refLocator = new ReferenceAssemblyLocator();
         }
 
@@ -163,10 +168,11 @@ namespace UitkxLanguageServer.Roslyn
         /// <see cref="DiagnosticsPublisher"/>.
         /// </summary>
         public void EnqueueRebuild(
-            string      uitkxFilePath,
-            string      source,
+            string uitkxFilePath,
+            string source,
             ParseResult parseResult,
-            DiagnosticsPublisher publisher)
+            DiagnosticsPublisher publisher
+        )
         {
             if (string.IsNullOrEmpty(uitkxFilePath))
                 return;
@@ -181,9 +187,10 @@ namespace UitkxLanguageServer.Roslyn
                     // Fire-and-forget async rebuild
                     _ = RebuildAsync(uitkxFilePath, source, parseResult, publisher, state);
                 },
-                state:    null,
-                dueTime:  DebounceMs,
-                period:   Timeout.Infinite);
+                state: null,
+                dueTime: DebounceMs,
+                period: Timeout.Infinite
+            );
         }
 
         /// <summary>Removes a file from the host (called on <c>textDocument/didClose</c>).</summary>
@@ -202,18 +209,22 @@ namespace UitkxLanguageServer.Roslyn
         ///
         /// Diagnostics are already filtered to remove scaffold-induced false-positives.
         /// </summary>
-        public IReadOnlyList<(Diagnostic Diagnostic, SourceMapEntry? MapEntry)>
-            GetLatestDiagnostics(string uitkxFilePath)
+        public IReadOnlyList<(
+            Diagnostic Diagnostic,
+            SourceMapEntry? MapEntry
+        )> GetLatestDiagnostics(string uitkxFilePath)
         {
-            if (!_files.TryGetValue(uitkxFilePath, out var state)
+            if (
+                !_files.TryGetValue(uitkxFilePath, out var state)
                 || state.Workspace == null
                 || state.DocumentId == null
-                || state.VirtualDoc == null)
+                || state.VirtualDoc == null
+            )
                 return Array.Empty<(Diagnostic, SourceMapEntry?)>();
 
             try
             {
-                var doc    = state.Workspace.CurrentSolution.GetDocument(state.DocumentId);
+                var doc = state.Workspace.CurrentSolution.GetDocument(state.DocumentId);
                 if (doc == null)
                     return Array.Empty<(Diagnostic, SourceMapEntry?)>();
 
@@ -221,7 +232,7 @@ namespace UitkxLanguageServer.Roslyn
                 if (semantic == null)
                     return Array.Empty<(Diagnostic, SourceMapEntry?)>();
 
-                var map    = state.VirtualDoc.Map;
+                var map = state.VirtualDoc.Map;
                 var result = new List<(Diagnostic, SourceMapEntry?)>();
 
                 foreach (var diag in semantic.GetDiagnostics())
@@ -279,9 +290,11 @@ namespace UitkxLanguageServer.Roslyn
         /// </summary>
         public Document? GetRoslynDocument(string uitkxFilePath)
         {
-            if (!_files.TryGetValue(uitkxFilePath, out var state)
-                || state.Workspace    == null
-                || state.DocumentId   == null)
+            if (
+                !_files.TryGetValue(uitkxFilePath, out var state)
+                || state.Workspace == null
+                || state.DocumentId == null
+            )
                 return null;
 
             return state.Workspace.CurrentSolution.GetDocument(state.DocumentId);
@@ -299,10 +312,11 @@ namespace UitkxLanguageServer.Roslyn
         /// <para>This method does <em>not</em> push diagnostics to the client.</para>
         /// </summary>
         public async Task EnsureReadyAsync(
-            string            uitkxFilePath,
-            string            source,
-            ParseResult       parseResult,
-            CancellationToken ct = default)
+            string uitkxFilePath,
+            string source,
+            ParseResult parseResult,
+            CancellationToken ct = default
+        )
         {
             if (string.IsNullOrEmpty(uitkxFilePath))
                 return;
@@ -310,7 +324,11 @@ namespace UitkxLanguageServer.Roslyn
             var state = _files.GetOrAdd(uitkxFilePath, _ => new FileState());
 
             // Fast path: workspace exists and source hasn't changed since last build.
-            if (state.Workspace != null && state.DocumentId != null && state.LastBuiltSource == source)
+            if (
+                state.Workspace != null
+                && state.DocumentId != null
+                && state.LastBuiltSource == source
+            )
                 return;
 
             await state.Gate.WaitAsync(ct).ConfigureAwait(false);
@@ -319,7 +337,11 @@ namespace UitkxLanguageServer.Roslyn
                 // Double-checked after acquiring the gate — must recheck LastBuiltSource too,
                 // otherwise a concurrent EnsureReadyAsync that raced here first would have
                 // already rebuilt with the new source, and we can skip.
-                if (state.Workspace != null && state.DocumentId != null && state.LastBuiltSource == source)
+                if (
+                    state.Workspace != null
+                    && state.DocumentId != null
+                    && state.LastBuiltSource == source
+                )
                     return;
 
                 var virtualDoc = _docGenerator.Generate(parseResult, source, uitkxFilePath);
@@ -327,9 +349,14 @@ namespace UitkxLanguageServer.Roslyn
                 state.VirtualDoc = virtualDoc;
                 state.LastBuiltSource = source;
 
-                ServerLog.Log($"[RoslynHost] EnsureReadyAsync: immediate build for {System.IO.Path.GetFileName(uitkxFilePath)}");
+                ServerLog.Log(
+                    $"[RoslynHost] EnsureReadyAsync: immediate build for {System.IO.Path.GetFileName(uitkxFilePath)}"
+                );
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 ServerLog.Log($"[RoslynHost] EnsureReadyAsync error: {ex.Message}");
@@ -343,11 +370,12 @@ namespace UitkxLanguageServer.Roslyn
         // ── Rebuild logic ─────────────────────────────────────────────────────
 
         private async Task RebuildAsync(
-            string               uitkxFilePath,
-            string               source,
-            ParseResult          parseResult,
+            string uitkxFilePath,
+            string source,
+            ParseResult parseResult,
             DiagnosticsPublisher publisher,
-            FileState            state)
+            FileState state
+        )
         {
             // Acquire the per-file gate to serialise rebuilds
             await state.Gate.WaitAsync().ConfigureAwait(false);
@@ -374,10 +402,7 @@ namespace UitkxLanguageServer.Roslyn
                     return;
 
                 // 4. Push T3 diagnostics through the publisher
-                publisher.PushTier3(
-                    uitkxFilePath,
-                    GetLatestDiagnostics(uitkxFilePath),
-                    source);
+                publisher.PushTier3(uitkxFilePath, GetLatestDiagnostics(uitkxFilePath), source);
             }
             catch (OperationCanceledException)
             {
@@ -394,10 +419,11 @@ namespace UitkxLanguageServer.Roslyn
         }
 
         private void UpdateWorkspace(
-            FileState       state,
-            string          uitkxFilePath,
+            FileState state,
+            string uitkxFilePath,
             VirtualDocument virtualDoc,
-            CancellationToken ct)
+            CancellationToken ct
+        )
         {
             var refs = _refLocator.GetReferences(_workspaceRoot);
 
@@ -409,31 +435,35 @@ namespace UitkxLanguageServer.Roslyn
                 var ws = new AdhocWorkspace(MefHostServices.DefaultHost);
 
                 var projectInfo = ProjectInfo.Create(
-                    id:           ProjectId.CreateNewId(debugName: uitkxFilePath),
-                    version:      VersionStamp.Create(),
-                    name:         System.IO.Path.GetFileNameWithoutExtension(uitkxFilePath),
+                    id: ProjectId.CreateNewId(debugName: uitkxFilePath),
+                    version: VersionStamp.Create(),
+                    name: System.IO.Path.GetFileNameWithoutExtension(uitkxFilePath),
                     assemblyName: "UitkxVirtual",
-                    language:     LanguageNames.CSharp,
+                    language: LanguageNames.CSharp,
                     parseOptions: s_parseOptions,
                     compilationOptions: s_compilationOptions,
-                    metadataReferences: refs);
+                    metadataReferences: refs
+                );
 
                 var project = ws.AddProject(projectInfo);
 
                 var docInfo = DocumentInfo.Create(
-                    id:       DocumentId.CreateNewId(project.Id, debugName: uitkxFilePath),
-                    name:     System.IO.Path.GetFileName(uitkxFilePath) + ".g.cs",
+                    id: DocumentId.CreateNewId(project.Id, debugName: uitkxFilePath),
+                    name: System.IO.Path.GetFileName(uitkxFilePath) + ".g.cs",
                     sourceCodeKind: SourceCodeKind.Regular,
-                    loader:   TextLoader.From(
-                                  TextAndVersion.Create(
-                                      Microsoft.CodeAnalysis.Text.SourceText.From(virtualDoc.Text),
-                                      VersionStamp.Create(),
-                                      uitkxFilePath)));
+                    loader: TextLoader.From(
+                        TextAndVersion.Create(
+                            Microsoft.CodeAnalysis.Text.SourceText.From(virtualDoc.Text),
+                            VersionStamp.Create(),
+                            uitkxFilePath
+                        )
+                    )
+                );
 
                 var doc = ws.AddDocument(docInfo);
 
-                state.Workspace  = ws;
-                state.ProjectId  = project.Id;
+                state.Workspace = ws;
+                state.ProjectId = project.Id;
                 state.DocumentId = doc.Id;
 
                 // ── Load companion .cs files from the same directory ─────────
@@ -445,19 +475,18 @@ namespace UitkxLanguageServer.Roslyn
                 ct.ThrowIfCancellationRequested();
 
                 var currentSolution = state.Workspace.CurrentSolution;
-                var doc             = currentSolution.GetDocument(state.DocumentId!);
+                var doc = currentSolution.GetDocument(state.DocumentId!);
 
                 if (doc == null)
                     return; // workspace was disposed — bail
 
                 var newSolution = currentSolution.WithDocumentText(
                     state.DocumentId!,
-                    Microsoft.CodeAnalysis.Text.SourceText.From(virtualDoc.Text));
+                    Microsoft.CodeAnalysis.Text.SourceText.From(virtualDoc.Text)
+                );
 
                 // Also update metadata references in case Unity recompiled
-                newSolution = newSolution.WithProjectMetadataReferences(
-                    state.ProjectId!,
-                    refs);
+                newSolution = newSolution.WithProjectMetadataReferences(state.ProjectId!, refs);
 
                 // ── Refresh companion .cs files ──────────────────────────────
                 // Remove old companions and re-add with fresh content so that
@@ -472,20 +501,28 @@ namespace UitkxLanguageServer.Roslyn
                     try
                     {
                         var companionText = System.IO.File.ReadAllText(companionPath);
-                        var newDocId = DocumentId.CreateNewId(state.ProjectId!, debugName: companionPath);
+                        var newDocId = DocumentId.CreateNewId(
+                            state.ProjectId!,
+                            debugName: companionPath
+                        );
                         var companionDocInfo = DocumentInfo.Create(
-                            id:     newDocId,
-                            name:   System.IO.Path.GetFileName(companionPath),
+                            id: newDocId,
+                            name: System.IO.Path.GetFileName(companionPath),
                             sourceCodeKind: SourceCodeKind.Regular,
                             loader: TextLoader.From(
                                 TextAndVersion.Create(
                                     Microsoft.CodeAnalysis.Text.SourceText.From(companionText),
                                     VersionStamp.Create(),
-                                    companionPath)));
+                                    companionPath
+                                )
+                            )
+                        );
                         newSolution = newSolution.AddDocument(companionDocInfo);
                         state.CompanionDocIds.Add(newDocId);
                     }
-                    catch { /* file may have been deleted between discovery and read */ }
+                    catch
+                    { /* file may have been deleted between discovery and read */
+                    }
                 }
 
                 state.Workspace.TryApplyChanges(newSolution);
@@ -518,9 +555,10 @@ namespace UitkxLanguageServer.Roslyn
         /// </summary>
         private static void AddCompanionDocuments(
             AdhocWorkspace ws,
-            ProjectId      projectId,
-            FileState      state,
-            string         uitkxFilePath)
+            ProjectId projectId,
+            FileState state,
+            string uitkxFilePath
+        )
         {
             state.CompanionDocIds.Clear();
             var companions = FindCompanionFiles(uitkxFilePath);
@@ -530,36 +568,41 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     var companionText = System.IO.File.ReadAllText(companionPath);
                     var companionDocInfo = DocumentInfo.Create(
-                        id:     DocumentId.CreateNewId(projectId, debugName: companionPath),
-                        name:   System.IO.Path.GetFileName(companionPath),
+                        id: DocumentId.CreateNewId(projectId, debugName: companionPath),
+                        name: System.IO.Path.GetFileName(companionPath),
                         sourceCodeKind: SourceCodeKind.Regular,
                         loader: TextLoader.From(
                             TextAndVersion.Create(
                                 Microsoft.CodeAnalysis.Text.SourceText.From(companionText),
                                 VersionStamp.Create(),
-                                companionPath)));
+                                companionPath
+                            )
+                        )
+                    );
                     var companionDoc = ws.AddDocument(companionDocInfo);
                     state.CompanionDocIds.Add(companionDoc.Id);
                 }
                 catch (Exception ex)
                 {
-                    ServerLog.Log($"[RoslynHost] Could not load companion {companionPath}: {ex.Message}");
+                    ServerLog.Log(
+                        $"[RoslynHost] Could not load companion {companionPath}: {ex.Message}"
+                    );
                 }
             }
 
             if (state.CompanionDocIds.Count > 0)
-                ServerLog.Log($"[RoslynHost] Loaded {state.CompanionDocIds.Count} companion file(s) for {System.IO.Path.GetFileName(uitkxFilePath)}");
+                ServerLog.Log(
+                    $"[RoslynHost] Loaded {state.CompanionDocIds.Count} companion file(s) for {System.IO.Path.GetFileName(uitkxFilePath)}"
+                );
         }
 
         // ── Source-map-aware diagnostic translation ───────────────────────────
 
-        private static SourceMapEntry? TryMapDiagnostic(
-            Diagnostic  diag,
-            SourceMap   map)
+        private static SourceMapEntry? TryMapDiagnostic(Diagnostic diag, SourceMap map)
         {
             // Roslyn's diagnostic span is in the virtual document.
             // Try the source map first (character-precise).
-            var span   = diag.Location.SourceSpan;
+            var span = diag.Location.SourceSpan;
             var mapped = map.ToUitkxOffset(span.Start);
 
             if (mapped.HasValue)
@@ -581,8 +624,11 @@ namespace UitkxLanguageServer.Roslyn
             if (string.IsNullOrEmpty(workspaceRoot))
                 return;
 
-            string scriptAssembliesDir =
-                System.IO.Path.Combine(workspaceRoot, "Library", "ScriptAssemblies");
+            string scriptAssembliesDir = System.IO.Path.Combine(
+                workspaceRoot,
+                "Library",
+                "ScriptAssemblies"
+            );
 
             if (!System.IO.Directory.Exists(scriptAssembliesDir))
                 return;
@@ -591,9 +637,9 @@ namespace UitkxLanguageServer.Roslyn
             {
                 _dllWatcher = new FileSystemWatcher(scriptAssembliesDir, "*.dll")
                 {
-                    NotifyFilter          = NotifyFilters.LastWrite | NotifyFilters.FileName,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName,
                     IncludeSubdirectories = false,
-                    EnableRaisingEvents   = true,
+                    EnableRaisingEvents = true,
                 };
 
                 // Debounced handler — a Unity recompile touches many DLLs in quick
@@ -607,16 +653,19 @@ namespace UitkxLanguageServer.Roslyn
                         {
                             _refLocator.Invalidate();
                             ServerLog.Log(
-                                "[RoslynHost] Unity recompile detected — reference cache cleared.");
+                                "[RoslynHost] Unity recompile detected — reference cache cleared."
+                            );
                         },
-                        null, dueTime: 1500, period: Timeout.Infinite);
+                        null,
+                        dueTime: 1500,
+                        period: Timeout.Infinite
+                    );
                 }
 
                 _dllWatcher.Changed += OnDllChanged;
                 _dllWatcher.Created += OnDllChanged;
 
-                ServerLog.Log(
-                    $"[RoslynHost] DLL watcher active: {scriptAssembliesDir}");
+                ServerLog.Log($"[RoslynHost] DLL watcher active: {scriptAssembliesDir}");
             }
             catch (Exception ex)
             {
@@ -628,7 +677,8 @@ namespace UitkxLanguageServer.Roslyn
 
         public void Dispose()
         {
-            if (_disposed) return;
+            if (_disposed)
+                return;
             _disposed = true;
 
             _dllWatcher?.Dispose();

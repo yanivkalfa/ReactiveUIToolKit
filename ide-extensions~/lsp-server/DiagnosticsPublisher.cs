@@ -42,11 +42,11 @@ namespace UitkxLanguageServer;
 /// </summary>
 public sealed class DiagnosticsPublisher
 {
-    private readonly ILanguageServerFacade  _server;
-    private readonly UitkxSchema           _schema;
-    private readonly WorkspaceIndex        _index;
-    private readonly DocumentStore         _documentStore;
-    private readonly DiagnosticsAnalyzer   _analyzer     = new DiagnosticsAnalyzer();
+    private readonly ILanguageServerFacade _server;
+    private readonly UitkxSchema _schema;
+    private readonly WorkspaceIndex _index;
+    private readonly DocumentStore _documentStore;
+    private readonly DiagnosticsAnalyzer _analyzer = new DiagnosticsAnalyzer();
     private readonly RoslynDiagnosticMapper _roslynMapper = new RoslynDiagnosticMapper();
 
     // Per-URI snapshot of the last T1+T2 diagnostics pushed.
@@ -60,11 +60,16 @@ public sealed class DiagnosticsPublisher
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT3 =
         new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
 
-    public DiagnosticsPublisher(ILanguageServerFacade server, UitkxSchema schema, WorkspaceIndex index, DocumentStore documentStore)
+    public DiagnosticsPublisher(
+        ILanguageServerFacade server,
+        UitkxSchema schema,
+        WorkspaceIndex index,
+        DocumentStore documentStore
+    )
     {
-        _server        = server;
-        _schema        = schema;
-        _index         = index;
+        _server = server;
+        _schema = schema;
+        _index = index;
         _documentStore = documentStore;
 
         // When the background workspace scan finishes, re-validate every open .uitkx
@@ -92,7 +97,7 @@ public sealed class DiagnosticsPublisher
         }
 
         _index.ScanCompleted += RevalidateOpenDocuments;
-        _index.IndexChanged  += RevalidateOpenDocuments;
+        _index.IndexChanged += RevalidateOpenDocuments;
     }
 
     // â”€â”€ Tier 1 + 2: immediate synchronous push â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -110,8 +115,8 @@ public sealed class DiagnosticsPublisher
         string localPath = GetLocalPath(uri) ?? string.Empty;
 
         // â”€â”€ Parse â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        var parseDiags  = new List<ParseDiagnostic>();
-        var directives  = DirectiveParser.Parse(text, localPath, parseDiags);
+        var parseDiags = new List<ParseDiagnostic>();
+        var directives = DirectiveParser.Parse(text, localPath, parseDiags);
         var parsedNodes = UitkxParser.Parse(text, localPath, directives, parseDiags);
 
         // Also validate UITKX markup embedded inside setup-code JSX blocks,
@@ -127,8 +132,8 @@ public sealed class DiagnosticsPublisher
                 var jsxDirectives = directives with
                 {
                     MarkupStartIndex = jsxStart,
-                    MarkupEndIndex   = jsxEnd,
-                    MarkupStartLine  = jsxLine,
+                    MarkupEndIndex = jsxEnd,
+                    MarkupStartLine = jsxLine,
                 };
                 var jsxNodes = UitkxParser.Parse(text, localPath, jsxDirectives, parseDiags);
                 setupBuilder.AddRange(jsxNodes);
@@ -136,12 +141,13 @@ public sealed class DiagnosticsPublisher
             setupJsxNodes = setupBuilder.ToImmutable();
         }
 
-        var nodes       = CanonicalLowering.LowerToRenderRoots(directives, parsedNodes, localPath);
+        var nodes = CanonicalLowering.LowerToRenderRoots(directives, parsedNodes, localPath);
 
         var parseResult = new ParseResult(
             directives,
             nodes,
-            ImmutableArray.CreateRange(parseDiags));
+            ImmutableArray.CreateRange(parseDiags)
+        );
 
         // â”€â”€ T2 structural analysis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Seed projectElements with the component declared in this file so that
@@ -158,12 +164,14 @@ public sealed class DiagnosticsPublisher
         // separately-parsed setupJsxNodes would produce duplicate diagnostics.
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                // Suppress T1 parser diagnostics that fall inside unreachable regions
+        // Suppress T1 parser diagnostics that fall inside unreachable regions
         // (e.g. UITKX2103 'Multiple top-level returns' when the second return
         // is unreachable after the first).
         var unreachableT2 = t2Diags
-            .Where(d => d.Code == DiagnosticCodes.UnreachableAfterReturn
-                     || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue)
+            .Where(d =>
+                d.Code == DiagnosticCodes.UnreachableAfterReturn
+                || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
+            )
             .ToList();
 
         IEnumerable<ParseDiagnostic> filteredT1 = parseResult.Diagnostics;
@@ -174,7 +182,7 @@ public sealed class DiagnosticsPublisher
                 foreach (var ur in unreachableT2)
                 {
                     int urStart = ur.SourceLine;
-                    int urEnd   = ur.EndLine > 0 ? ur.EndLine : ur.SourceLine;
+                    int urEnd = ur.EndLine > 0 ? ur.EndLine : ur.SourceLine;
                     if (pd.SourceLine >= urStart && pd.SourceLine <= urEnd)
                         return false;
                 }
@@ -189,9 +197,11 @@ public sealed class DiagnosticsPublisher
         // Carry forward the last T3 diagnostics so the error list doesn't
         // flash empty during the 300ms debounce gap before Roslyn rebuilds.
         IEnumerable<ParseDiagnostic> combined = t1t2;
-        if (!string.IsNullOrEmpty(localPath) &&
-            _lastT3.TryGetValue(localPath, out var cachedT3) &&
-            cachedT3.Count > 0)
+        if (
+            !string.IsNullOrEmpty(localPath)
+            && _lastT3.TryGetValue(localPath, out var cachedT3)
+            && cachedT3.Count > 0
+        )
         {
             combined = t1t2.Concat(cachedT3);
         }
@@ -214,9 +224,12 @@ public sealed class DiagnosticsPublisher
     /// </summary>
     public void PushTier3(
         string uitkxFilePath,
-        IReadOnlyList<(Microsoft.CodeAnalysis.Diagnostic Diagnostic, SourceMapEntry? MapEntry)>
-            roslynDiags,
-        string? uitkxSource = null)
+        IReadOnlyList<(
+            Microsoft.CodeAnalysis.Diagnostic Diagnostic,
+            SourceMapEntry? MapEntry
+        )> roslynDiags,
+        string? uitkxSource = null
+    )
     {
         try
         {
@@ -233,8 +246,10 @@ public sealed class DiagnosticsPublisher
             // are false‐positives caused by dead code after return — the
             // unreachable hint and fade are sufficient.
             var unreachableRanges = (t1t2 ?? Array.Empty<ParseDiagnostic>())
-                .Where(d => d.Code == DiagnosticCodes.UnreachableAfterReturn
-                         || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue)
+                .Where(d =>
+                    d.Code == DiagnosticCodes.UnreachableAfterReturn
+                    || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
+                )
                 .ToList();
 
             IEnumerable<ParseDiagnostic> filteredT3 = t3;
@@ -248,7 +263,7 @@ public sealed class DiagnosticsPublisher
                     foreach (var ur in unreachableRanges)
                     {
                         int urStart = ur.SourceLine;
-                        int urEnd   = ur.EndLine > 0 ? ur.EndLine : ur.SourceLine;
+                        int urEnd = ur.EndLine > 0 ? ur.EndLine : ur.SourceLine;
                         if (rd.SourceLine >= urStart && rd.SourceLine <= urEnd)
                             return false;
                     }
@@ -270,7 +285,8 @@ public sealed class DiagnosticsPublisher
 
             ServerLog.Log(
                 $"[Diagnostics] T3 push '{System.IO.Path.GetFileName(uitkxFilePath)}': "
-                + $"{t3.Count} Roslyn diagnostic(s), {combined.Count} total.");
+                    + $"{t3.Count} Roslyn diagnostic(s), {combined.Count} total."
+            );
         }
         catch (Exception ex)
         {
@@ -286,9 +302,10 @@ public sealed class DiagnosticsPublisher
         _server.TextDocument.PublishDiagnostics(
             new PublishDiagnosticsParams
             {
-                Uri         = uri,
+                Uri = uri,
                 Diagnostics = new Container<Diagnostic>(lspDiags),
-            });
+            }
+        );
     }
 
     private static Diagnostic ToLsp(ParseDiagnostic d)
@@ -300,35 +317,35 @@ public sealed class DiagnosticsPublisher
         // EndLine/EndColumn are 0 when not tracked â†’ fall back to same position.
         int endLine = d.EndLine > 0 ? Math.Max(0, d.EndLine - 1) : startLine;
         // Ensure end is always strictly past start so VS Code renders a visible squiggle.
-        int endChar =
-            d.EndColumn > 0 ? Math.Max(d.EndColumn, startChar + 1)
-            : startChar + 1;
+        int endChar = d.EndColumn > 0 ? Math.Max(d.EndColumn, startChar + 1) : startChar + 1;
 
         return new Diagnostic
         {
             Range = new LspRange(
                 new Position(startLine, startChar),
-                new Position(endLine,   endChar)),
+                new Position(endLine, endChar)
+            ),
             Severity = ToLspSeverity(d.Severity),
-            Code     = (DiagnosticCode)d.Code,
-            Source   = "uitkx",
-            Message  = d.Message,
-            Tags     = d.Code == DiagnosticCodes.UnreachableAfterReturn
-                    || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
-                    || d.Code == "CS0162" // Roslyn: Unreachable code detected
-                ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
-                : null,
+            Code = (DiagnosticCode)d.Code,
+            Source = "uitkx",
+            Message = d.Message,
+            Tags =
+                d.Code == DiagnosticCodes.UnreachableAfterReturn
+                || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
+                || d.Code == "CS0162" // Roslyn: Unreachable code detected
+                    ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
+                    : null,
         };
     }
 
     private static LspDiagnosticSeverity ToLspSeverity(ParseSeverity s) =>
         s switch
         {
-            ParseSeverity.Error       => LspDiagnosticSeverity.Error,
-            ParseSeverity.Warning     => LspDiagnosticSeverity.Warning,
+            ParseSeverity.Error => LspDiagnosticSeverity.Error,
+            ParseSeverity.Warning => LspDiagnosticSeverity.Warning,
             ParseSeverity.Information => LspDiagnosticSeverity.Information,
-            ParseSeverity.Hint        => LspDiagnosticSeverity.Hint,
-            _                         => LspDiagnosticSeverity.Information,
+            ParseSeverity.Hint => LspDiagnosticSeverity.Hint,
+            _ => LspDiagnosticSeverity.Information,
         };
 
     private static string? GetLocalPath(DocumentUri uri)
@@ -374,10 +391,12 @@ public sealed class DiagnosticsPublisher
     /// the schema's universal attributes.
     /// </summary>
     private IReadOnlyDictionary<string, IReadOnlyCollection<string>> BuildKnownAttributes(
-        HashSet<string> projectElements)
+        HashSet<string> projectElements
+    )
     {
         var result = new Dictionary<string, IReadOnlyCollection<string>>(
-            StringComparer.OrdinalIgnoreCase);
+            StringComparer.OrdinalIgnoreCase
+        );
 
         // Schema elements — use the schema's per-element + universal attributes.
         foreach (var tagName in _schema.Root.Elements.Keys)
@@ -396,9 +415,7 @@ public sealed class DiagnosticsPublisher
                 continue; // schema wins if there's a conflict
 
             var props = _index.GetProps(tagName);
-            var attrs = props
-                .Select(p => p.Name)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var attrs = props.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var ua in _schema.Root.UniversalAttributes)
                 attrs.Add(ua.Name);
             result[tagName] = attrs;

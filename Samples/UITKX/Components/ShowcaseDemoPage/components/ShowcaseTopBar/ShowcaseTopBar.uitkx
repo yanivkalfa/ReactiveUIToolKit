@@ -4,6 +4,7 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
+@using System.Diagnostics
 
 component ShowcaseTopBar(string inputText = "", ChangeEventHandler<string>? onInputChange = null, Action? onSetText = null, DateTime currentTime = default) {
   var topBarStyle = new Style {
@@ -53,7 +54,7 @@ component ShowcaseTopBar(string inputText = "", ChangeEventHandler<string>? onIn
       </VisualElement>
       <TextField
         style={textInputStyle}
-        placeholder="Type here..."
+        placeholder="Type haaaaaere..."
         hidePlaceholderOnFocus={false}
         value={inputText}
         labelText={string.IsNullOrEmpty(inputText) ? string.Empty : "Value: " + inputText}
@@ -61,7 +62,10 @@ component ShowcaseTopBar(string inputText = "", ChangeEventHandler<string>? onIn
       />
       <Button
         text="Set Text"
-        onClick={_ => onSetText?.Invoke()}
+        onClick={_ => {
+          UnityEngine.Debug.Log("This is a debug log");
+          onSetText?.Invoke();
+        }}
         style={new Style { (MarginLeft, 6f), (Height, 28f) }}
       />
       <VisualElement style={rightBoxStyle}>

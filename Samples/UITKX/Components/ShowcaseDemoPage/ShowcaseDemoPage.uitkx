@@ -97,6 +97,7 @@ component ShowcaseDemoPage {
 
   return (
     <VisualElement ref={rootRef} style={outerStyle}>
+      <Label text="aasd" />
       <VisualElement style={safeStyle}>
         <VisualElement style={barSlotStyle}>
           <ValuesBarFunc items={valuesItems} />

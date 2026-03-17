@@ -15,6 +15,11 @@ namespace ReactiveUITK.Core.Fiber
         private FiberReconciler _reconciler;
         private VisualElement _container;
 
+#if UNITY_EDITOR
+        /// <summary>HMR: exposes the root for fiber tree walking.</summary>
+        internal FiberRoot Root => _root;
+#endif
+
         public FiberRenderer(VisualElement container, HostContext context = null)
         {
             _container = container;

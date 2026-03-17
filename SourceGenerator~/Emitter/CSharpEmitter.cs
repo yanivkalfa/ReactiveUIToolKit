@@ -169,9 +169,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
 
             // Function-style param variable bindings: var x = props.X;
-            if (_directives.IsFunctionStyle
+            if (
+                _directives.IsFunctionStyle
                 && !_directives.FunctionParams.IsDefault
-                && !_directives.FunctionParams.IsEmpty)
+                && !_directives.FunctionParams.IsEmpty
+            )
             {
                 foreach (var fp in _directives.FunctionParams)
                 {
@@ -217,9 +219,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // ── Auto-generated props class for function-style components ──────
             // Emitted as a NESTED type INSIDE the partial class, before its
             // closing brace (e.g. ComponentName.ComponentNameProps).
-            if (_directives.IsFunctionStyle
+            if (
+                _directives.IsFunctionStyle
                 && !_directives.FunctionParams.IsDefault
-                && !_directives.FunctionParams.IsEmpty)
+                && !_directives.FunctionParams.IsEmpty
+            )
             {
                 EmitFunctionPropsClass();
             }
@@ -641,7 +645,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             AttributeNode? refAttr = null;
             foreach (var a in attrs)
             {
-                if (IsRefAttr(a.Name)) { refAttr = a; break; }
+                if (IsRefAttr(a.Name))
+                {
+                    refAttr = a;
+                    break;
+                }
             }
 
             if (res.FuncPropsTypeName != null)
@@ -665,12 +673,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (refAttr != null)
                 {
                     var lookupResult = _resolver.TryGetRefParamPropName(
-                        typeName, propsTypeName, searchNamespaces, out string? refPropName
+                        typeName,
+                        propsTypeName,
+                        searchNamespaces,
+                        out string? refPropName
                     );
                     switch (lookupResult)
                     {
                         case PropsResolver.RefParamLookupResult.Found:
-                            if (!first) _sb.Append(",");
+                            if (!first)
+                                _sb.Append(",");
                             _sb.Append($" {refPropName} = {AttrVal(refAttr.Value)}");
                             break;
 
@@ -761,7 +773,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             var fps = _directives.FunctionParams;
 
             L("");
-            L($"    /// <summary>Auto-generated typed props for <see cref=\"{_directives.ComponentName}\"/>.</summary>");
+            L(
+                $"    /// <summary>Auto-generated typed props for <see cref=\"{_directives.ComponentName}\"/>.</summary>"
+            );
             L($"    public sealed class {className} : global::ReactiveUITK.Core.IProps");
             L("    {");
 
@@ -769,7 +783,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             foreach (var fp in fps)
             {
                 string propName = ToPropName(fp.Name);
-                string def = string.IsNullOrWhiteSpace(fp.DefaultValue) ? "default" : fp.DefaultValue!;
+                string def = string.IsNullOrWhiteSpace(fp.DefaultValue)
+                    ? "default"
+                    : fp.DefaultValue!;
                 L($"        public {fp.Type} {propName} {{ get; set; }} = {def};");
             }
 
@@ -785,7 +801,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 string propName = ToPropName(fp.Name);
                 string conjunction = firstEq ? "            return " : "                && ";
                 firstEq = false;
-                L($"{conjunction}global::System.Collections.Generic.EqualityComparer<{fp.Type}>.Default.Equals({propName}, other.{propName})");
+                L(
+                    $"{conjunction}global::System.Collections.Generic.EqualityComparer<{fp.Type}>.Default.Equals({propName}, other.{propName})"
+                );
             }
             if (firstEq) // no params — always equal
                 L("            return true;");
@@ -804,7 +822,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             foreach (var fp in fps)
             {
                 string propName = ToPropName(fp.Name);
-                L($"                hash = hash * 31 + global::System.Collections.Generic.EqualityComparer<{fp.Type}>.Default.GetHashCode({propName}!);");
+                L(
+                    $"                hash = hash * 31 + global::System.Collections.Generic.EqualityComparer<{fp.Type}>.Default.GetHashCode({propName}!);"
+                );
             }
             L("                return hash;");
             L("            }");
@@ -823,12 +843,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             ImmutableArray<AstNode> children
         )
         {
-            string? isReady      = GetAttrValue(attrs, "isReady") ?? GetAttrValue(attrs, "is-ready");
-            string? pendingTask  = GetAttrValue(attrs, "pendingTask") ?? GetAttrValue(attrs, "pending-task");
+            string? isReady = GetAttrValue(attrs, "isReady") ?? GetAttrValue(attrs, "is-ready");
+            string? pendingTask =
+                GetAttrValue(attrs, "pendingTask") ?? GetAttrValue(attrs, "pending-task");
             string? fallbackAttr = GetAttrValue(attrs, "fallback");
 
-            string isReadyArg    = isReady      ?? "() => false";
-            string fallbackArg   = fallbackAttr ?? $"({QVNode})null";
+            string isReadyArg = isReady ?? "() => false";
+            string fallbackArg = fallbackAttr ?? $"({QVNode})null";
 
             _sb.Append("V.Suspense(");
             _sb.Append(isReadyArg);

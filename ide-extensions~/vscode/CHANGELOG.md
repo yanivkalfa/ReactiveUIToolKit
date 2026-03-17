@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.240] - 2026-03-17
+- Fix Go-To-Definition navigating into dist~ folders; support multiple return statements in function-style components (use last return as canonical markup)
+
 ## [1.0.239] - 2026-03-17
 - Add VisualElementSafe to uitkx-schema.json (fixes UITKX0105 unknown element)
 

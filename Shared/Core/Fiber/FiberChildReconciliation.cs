@@ -222,7 +222,9 @@ namespace ReactiveUITK.Core.Fiber
             // Use centralized factory for consistent flag propagation
             var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
             var name =
-                oldFiber.ElementType ?? oldFiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
+                oldFiber.ElementType
+                ?? oldFiber.TypedRender?.Method.DeclaringType?.Name
+                ?? "Unknown";
             return reused;
         }
 
@@ -251,10 +253,37 @@ namespace ReactiveUITK.Core.Fiber
                         return false;
 
                     // All function components use TypedRender.
-                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null) return false;
-                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)) return true;
-                    return fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
-                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target;
+                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null)
+                        return false;
+                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender))
+                        return true;
+                    if (
+                        fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
+                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target
+                    )
+                        return true;
+
+#if UNITY_EDITOR
+                    // HMR fallback: when hot-reloading, the fiber's delegate points to a
+                    // new assembly while the parent's VNode still references the old one.
+                    // Match by declaring type name + method name to preserve state.
+                    if (HmrState.IsActive)
+                    {
+                        var fiberType = fiber.TypedRender.Method.DeclaringType;
+                        var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
+                        if (
+                            fiberType != null
+                            && vnodeType != null
+                            && fiberType.Name == vnodeType.Name
+                            && fiber.TypedRender.Method.Name
+                                == vnode.TypedFunctionRender.Method.Name
+                        )
+                        {
+                            return true;
+                        }
+                    }
+#endif
+                    return false;
 
                 case VirtualNodeType.Suspense:
                     return fiber.Tag == FiberTag.FunctionComponent

@@ -19,7 +19,12 @@ public sealed class HoverHandler : IHoverHandler
     private readonly WorkspaceIndex _index;
     private readonly RoslynHost _roslynHost;
 
-    public HoverHandler(UitkxSchema schema, DocumentStore store, WorkspaceIndex index, RoslynHost roslynHost)
+    public HoverHandler(
+        UitkxSchema schema,
+        DocumentStore store,
+        WorkspaceIndex index,
+        RoslynHost roslynHost
+    )
     {
         _schema = schema;
         _store = store;
@@ -119,17 +124,17 @@ public sealed class HoverHandler : IHoverHandler
                     ? "_None_"
                     : string.Join(
                         "\n",
-                        ownProps
-                            .Select(p =>
-                                string.IsNullOrEmpty(p.XmlDoc)
-                                    ? $"- `{p.Name}`: `{p.Type}`"
-                                    : $"- `{p.Name}`: `{p.Type}` — {p.XmlDoc}"
-                            )
+                        ownProps.Select(p =>
+                            string.IsNullOrEmpty(p.XmlDoc)
+                                ? $"- `{p.Name}`: `{p.Type}`"
+                                : $"- `{p.Name}`: `{p.Type}` — {p.XmlDoc}"
+                        )
                     );
             var inheritedCount = elementInfo.Props.Count - ownProps.Count;
-            var moreProps = inheritedCount > 0 && elementInfo.BaseElement is not null
-                ? $"\n\n*+ {inheritedCount} inherited from {elementInfo.BaseElement}Props*"
-                : "";
+            var moreProps =
+                inheritedCount > 0 && elementInfo.BaseElement is not null
+                    ? $"\n\n*+ {inheritedCount} inherited from {elementInfo.BaseElement}Props*"
+                    : "";
             var md = $"## `<{word}>` \u2014 {word}Props\n\n" + $"**Props**\n{propList}{moreProps}";
             return Task.FromResult<Hover?>(
                 new Hover
@@ -150,16 +155,25 @@ public sealed class HoverHandler : IHoverHandler
             var attrList =
                 elementAttrs.Count == 0
                     ? "_None_"
-                    : string.Join("\n", elementAttrs.Select(a =>
-                        string.IsNullOrEmpty(a.Description)
-                            ? $"- `{a.Name}`: `{a.Type}`"
-                            : $"- `{a.Name}`: `{a.Type}` — {a.Description}"));
+                    : string.Join(
+                        "\n",
+                        elementAttrs.Select(a =>
+                            string.IsNullOrEmpty(a.Description)
+                                ? $"- `{a.Name}`: `{a.Type}`"
+                                : $"- `{a.Name}`: `{a.Type}` — {a.Description}"
+                        )
+                    );
             if (universalAttrs.Count > 0)
-                attrList += "\n\n**Common attributes**\n"
-                    + string.Join("\n", universalAttrs.Select(a =>
-                        string.IsNullOrEmpty(a.Description)
-                            ? $"- `{a.Name}`: `{a.Type}`"
-                            : $"- `{a.Name}`: `{a.Type}` — {a.Description}"));
+                attrList +=
+                    "\n\n**Common attributes**\n"
+                    + string.Join(
+                        "\n",
+                        universalAttrs.Select(a =>
+                            string.IsNullOrEmpty(a.Description)
+                                ? $"- `{a.Name}`: `{a.Type}`"
+                                : $"- `{a.Name}`: `{a.Type}` — {a.Description}"
+                        )
+                    );
             var moreAttrs = "";
             var md =
                 $"## `<{word}>` — {element.PropsType}\n\n"
@@ -273,7 +287,8 @@ public sealed class HoverHandler : IHoverHandler
         string localPath,
         int uitkxOffset,
         ReactiveUITK.Language.Roslyn.VirtualDocument vdoc,
-        CancellationToken ct)
+        CancellationToken ct
+    )
     {
         try
         {
@@ -291,7 +306,7 @@ public sealed class HoverHandler : IHoverHandler
             // This is safe: we run on a thread-pool thread, not the LSP message pump,
             // and the Roslyn documents are already computed by EnsureReadyAsync.
 #pragma warning disable VSTHRD002
-            var syntaxRoot    = roslynDoc.GetSyntaxRootAsync(ct).GetAwaiter().GetResult();
+            var syntaxRoot = roslynDoc.GetSyntaxRootAsync(ct).GetAwaiter().GetResult();
             var semanticModel = roslynDoc.GetSemanticModelAsync(ct).GetAwaiter().GetResult();
 #pragma warning restore VSTHRD002
             if (syntaxRoot == null || semanticModel == null)
@@ -304,12 +319,12 @@ public sealed class HoverHandler : IHoverHandler
                 return null;
 
             // Try to get type information for the node under the cursor.
-            var typeInfo   = semanticModel.GetTypeInfo(token.Parent, ct);
+            var typeInfo = semanticModel.GetTypeInfo(token.Parent, ct);
             var symbolInfo = semanticModel.GetSymbolInfo(token.Parent, ct);
 
-            var sym = symbolInfo.Symbol ?? (symbolInfo.CandidateSymbols.Length > 0
-                ? symbolInfo.CandidateSymbols[0]
-                : null);
+            var sym =
+                symbolInfo.Symbol
+                ?? (symbolInfo.CandidateSymbols.Length > 0 ? symbolInfo.CandidateSymbols[0] : null);
 
             ITypeSymbol? type = typeInfo.Type ?? typeInfo.ConvertedType;
 
@@ -321,13 +336,15 @@ public sealed class HoverHandler : IHoverHandler
             if (sym != null)
             {
                 var display = sym.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
-                var kind    = sym.Kind.ToString().ToLowerInvariant();
+                var kind = sym.Kind.ToString().ToLowerInvariant();
                 md = $"**({kind})** `{display}`";
 
                 // Append type if it's different from the display string.
                 if (type != null)
                 {
-                    var typeDisplay = type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                    var typeDisplay = type.ToDisplayString(
+                        SymbolDisplayFormat.MinimallyQualifiedFormat
+                    );
                     if (!display.Contains(typeDisplay))
                         md = $"**({kind})** `{sym.Name}` : `{typeDisplay}`";
                 }
@@ -343,16 +360,21 @@ public sealed class HoverHandler : IHoverHandler
             }
             else
             {
-                var typeDisplay = type!.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                var typeDisplay = type!.ToDisplayString(
+                    SymbolDisplayFormat.MinimallyQualifiedFormat
+                );
                 md = $"`{typeDisplay}`";
             }
 
-            ServerLog.Log($"[HoverHandler] Roslyn hover: {md.Substring(0, Math.Min(80, md.Length))}");
+            ServerLog.Log(
+                $"[HoverHandler] Roslyn hover: {md.Substring(0, Math.Min(80, md.Length))}"
+            );
 
             return new Hover
             {
                 Contents = new MarkedStringsOrMarkupContent(
-                    new MarkupContent { Kind = MarkupKind.Markdown, Value = md }),
+                    new MarkupContent { Kind = MarkupKind.Markdown, Value = md }
+                ),
             };
         }
         catch (Exception ex)
