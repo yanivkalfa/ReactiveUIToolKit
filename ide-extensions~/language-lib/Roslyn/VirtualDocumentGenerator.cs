@@ -261,7 +261,7 @@ namespace ReactiveUITK.Language.Roslyn
 
             // ── Namespace + class header ─────────────────────────────────────
             string ns        = !string.IsNullOrEmpty(d.Namespace) ? d.Namespace! : "ReactiveUITK.Generated";
-            string className = (!string.IsNullOrEmpty(d.ComponentName) ? d.ComponentName! : "Component") + "Func";
+            string className = !string.IsNullOrEmpty(d.ComponentName) ? d.ComponentName! : "Component";
             string escapedPath = EscapePathForLineDirective(uitkxFilePath);
 
             b.Scaffold($"namespace {ns}\n{{\n");

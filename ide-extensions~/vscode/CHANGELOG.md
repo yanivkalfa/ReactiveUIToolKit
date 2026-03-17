@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## [1.0.238] - 2026-03-17
+- skip
+
+## [1.0.238] - 2026-03-17
+- Companion file injection: load .cs files from .uitkx directory into Roslyn workspace for partial-class resolution (fixes CS0103 for Styles/utils/types)
+
 ## [1.0.237] - 2026-03-16
 - Add visualElementSafe built-in element and inline JSX attribute values
 

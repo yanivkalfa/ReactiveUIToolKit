@@ -76,6 +76,10 @@ namespace UitkxLanguageServer.Roslyn
                     // does compile correctly at runtime.  CS1977 cannot be suppressed via
                     // #pragma warning disable, so we suppress it at the compilation level.
                     ["CS1977"] = ReportDiagnostic.Suppress, // cannot use lambda as arg to dynamic dispatch (virtual-doc false positive)
+                    // CS0436: source type conflicts with imported type — companion .cs files
+                    // loaded alongside the virtual document shadow the same types in
+                    // Assembly-CSharp.dll. This is intentional and harmless.
+                    ["CS0436"] = ReportDiagnostic.Suppress, // source type shadows imported type (companion injection)
                     // CS0219: unused local variable — promoted to Error so the user sees it
                     // as a red squiggle immediately, matching standard C# IDE behaviour.
                     ["CS0219"] = ReportDiagnostic.Error,   // unused variable → error
@@ -92,6 +96,8 @@ namespace UitkxLanguageServer.Roslyn
             public AdhocWorkspace?  Workspace;
             public ProjectId?       ProjectId;
             public DocumentId?      DocumentId;
+            /// <summary>Document IDs for companion .cs files loaded from the same directory.</summary>
+            public List<DocumentId> CompanionDocIds = new List<DocumentId>();
             public VirtualDocument? VirtualDoc;
             /// <summary>Hash of the source text used for the last virtual-doc build.
             /// <see cref="EnsureReadyAsync"/> uses this to skip redundant rebuilds.</summary>
@@ -429,6 +435,9 @@ namespace UitkxLanguageServer.Roslyn
                 state.Workspace  = ws;
                 state.ProjectId  = project.Id;
                 state.DocumentId = doc.Id;
+
+                // ── Load companion .cs files from the same directory ─────────
+                AddCompanionDocuments(ws, project.Id, state, uitkxFilePath);
             }
             else
             {
@@ -450,8 +459,96 @@ namespace UitkxLanguageServer.Roslyn
                     state.ProjectId!,
                     refs);
 
+                // ── Refresh companion .cs files ──────────────────────────────
+                // Remove old companions and re-add with fresh content so that
+                // edits to .style.cs / .util.cs / etc. are picked up.
+                foreach (var oldId in state.CompanionDocIds)
+                    newSolution = newSolution.RemoveDocument(oldId);
+                state.CompanionDocIds.Clear();
+
+                var companions = FindCompanionFiles(uitkxFilePath);
+                foreach (var companionPath in companions)
+                {
+                    try
+                    {
+                        var companionText = System.IO.File.ReadAllText(companionPath);
+                        var newDocId = DocumentId.CreateNewId(state.ProjectId!, debugName: companionPath);
+                        var companionDocInfo = DocumentInfo.Create(
+                            id:     newDocId,
+                            name:   System.IO.Path.GetFileName(companionPath),
+                            sourceCodeKind: SourceCodeKind.Regular,
+                            loader: TextLoader.From(
+                                TextAndVersion.Create(
+                                    Microsoft.CodeAnalysis.Text.SourceText.From(companionText),
+                                    VersionStamp.Create(),
+                                    companionPath)));
+                        newSolution = newSolution.AddDocument(companionDocInfo);
+                        state.CompanionDocIds.Add(newDocId);
+                    }
+                    catch { /* file may have been deleted between discovery and read */ }
+                }
+
                 state.Workspace.TryApplyChanges(newSolution);
             }
+        }
+
+        // ── Companion file discovery ──────────────────────────────────────────
+
+        /// <summary>
+        /// Returns all .cs files in the same directory as the .uitkx file.
+        /// These are loaded as additional source documents so that partial-class
+        /// members (Styles, utils, types) defined in companion files are visible
+        /// to Roslyn's semantic analysis.
+        /// </summary>
+        private static IReadOnlyList<string> FindCompanionFiles(string uitkxFilePath)
+        {
+            var dir = System.IO.Path.GetDirectoryName(uitkxFilePath);
+            if (dir == null || !System.IO.Directory.Exists(dir))
+                return Array.Empty<string>();
+
+            var result = new List<string>();
+            foreach (var file in System.IO.Directory.EnumerateFiles(dir, "*.cs"))
+                result.Add(file);
+            return result;
+        }
+
+        /// <summary>
+        /// Adds companion .cs files from the .uitkx directory to the workspace.
+        /// Called during first-open workspace creation.
+        /// </summary>
+        private static void AddCompanionDocuments(
+            AdhocWorkspace ws,
+            ProjectId      projectId,
+            FileState      state,
+            string         uitkxFilePath)
+        {
+            state.CompanionDocIds.Clear();
+            var companions = FindCompanionFiles(uitkxFilePath);
+            foreach (var companionPath in companions)
+            {
+                try
+                {
+                    var companionText = System.IO.File.ReadAllText(companionPath);
+                    var companionDocInfo = DocumentInfo.Create(
+                        id:     DocumentId.CreateNewId(projectId, debugName: companionPath),
+                        name:   System.IO.Path.GetFileName(companionPath),
+                        sourceCodeKind: SourceCodeKind.Regular,
+                        loader: TextLoader.From(
+                            TextAndVersion.Create(
+                                Microsoft.CodeAnalysis.Text.SourceText.From(companionText),
+                                VersionStamp.Create(),
+                                companionPath)));
+                    var companionDoc = ws.AddDocument(companionDocInfo);
+                    state.CompanionDocIds.Add(companionDoc.Id);
+                }
+                catch (Exception ex)
+                {
+                    ServerLog.Log($"[RoslynHost] Could not load companion {companionPath}: {ex.Message}");
+                }
+            }
+
+            if (state.CompanionDocIds.Count > 0)
+                ServerLog.Log($"[RoslynHost] Loaded {state.CompanionDocIds.Count} companion file(s) for {System.IO.Path.GetFileName(uitkxFilePath)}");
         }
 
         // ── Source-map-aware diagnostic translation ───────────────────────────
