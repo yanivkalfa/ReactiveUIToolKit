@@ -14,6 +14,10 @@ https://github.com/ReactiveUITK/ReactiveUIToolKit
 
 ## Changelog
 
+### [1.0.57] - 2026-03-17
+- Companion file injection + VisualElementSafe schema fix (fixes CS0103 on Styles and UITKX0105 on VisualElementSafe)
+
+
 ### [1.0.56] - 2026-03-16
 - Add visualElementSafe built-in element and inline JSX attribute values
 
