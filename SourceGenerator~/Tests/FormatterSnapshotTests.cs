@@ -8706,10 +8706,10 @@ component Comp {
         // Key identifiers must map to their correct source lines
         var checks = new[]
         {
-            ("MctvSetChild", 252),
-            ("MctvDeleteLast", 280),
-            ("TreeViewRowState", 40),
-            ("var secondElement", 300),
+            ("MctvSetChild", 264),
+            ("MctvDeleteLast", 292),
+            ("TreeViewRowState", 52),
+            ("var secondElement", 313),
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -8851,7 +8851,7 @@ component Comp {
             return;
         var source = N(File.ReadAllText(file));
         var modified = source.Replace(
-            "  {/* return (\n    <Box />\n  ); */}",
+            "  {/* return (\n    <VisualElement>\n      <Button text=\"-5\" onClick={_ => setCount(count - 5)} />\n      <Button text=\"+5\" onClick={_ => setCount(count + 5)} />\n    </VisualElement>\n  ); */}",
             "  return (<Box></Box>);"
         );
         Assert.NotEqual(source, modified);

@@ -92,16 +92,20 @@ component MultiColumnTreeViewStatefulDemoFunc(IReadOnlyList<MultiColumnTreeViewR
           var row = obj as SharedTreeRowItem;
           if (row == null)
           {
-            return <Label text="<invalid>" key={$"mctv-invalid-{index}"} />;
+            return (<Label text="<invalid>" key={$"mctv-invalid-{index}"} />);
           }
 
           var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
           var funcKey = $"mctv-row-{id}";
           var childNode = row.ShouldOverrideElement
-          ? <Label text={row.Text ?? "<null>"} key={funcKey} />
-          : <IntroCounterFunc key={funcKey} />;
+          ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+          : (<IntroCounterFunc key={funcKey} />);
 
-          return <VisualElement key={$"mctv-name-wrap-{id}"}>{childNode}</VisualElement>;
+          return (
+            <VisualElement key={$"mctv-name-wrap-{id}"}>
+              @(childNode)
+            </VisualElement>
+          );
         },
       },
       new()
@@ -115,7 +119,7 @@ component MultiColumnTreeViewStatefulDemoFunc(IReadOnlyList<MultiColumnTreeViewR
           var row = obj as SharedTreeRowItem;
           var id = row?.Id ?? index.ToString();
           var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
-          return <Label text={shortId} key={$"mctv-id-cell-{id}"} />;
+          return (<Label text={shortId} key={$"mctv-id-cell-{id}"} />);
         },
       },
   };

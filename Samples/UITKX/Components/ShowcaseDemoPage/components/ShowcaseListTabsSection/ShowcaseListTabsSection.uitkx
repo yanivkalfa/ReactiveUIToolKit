@@ -151,10 +151,16 @@ component ShowcaseListTabsSection(Action<int>? onListCountChanged = null, Action
     SelectedIndexChanged = idx => setListTabIndex(idx),
     Tabs = new List<TabViewProps.TabDef> {
       new() {
-        Title = "Intro", Content = () => <IntroCounterFunc />
+        Title = "Intro", Content = () => (<IntroCounterFunc />)
       },
       new() {
         Title = "List",
+        Content = () => (
+          <IntroCounterFunc />
+        )
+      },
+      new() {
+        Title = "Columns",
         Content = () => (
           <ListViewStatefulDemoFunc
             items={listRows}
@@ -162,24 +168,6 @@ component ShowcaseListTabsSection(Action<int>? onListCountChanged = null, Action
             setTopItem={ListSetTopItem}
             deleteLast={ListDeleteLast}
             onCountChanged={count => onListCountChanged?.Invoke(count)}
-          />
-        )
-      },
-      new() {
-        Title = "Columns",
-        Content = () => (
-          <MultiColumnListViewStatefulDemoFunc
-            items={mclvRows}
-            sortDefs={mclvSortDefs}
-            columnWidths={mclvLayout?.ColumnWidths}
-            columnVisibility={mclvLayout?.ColumnVisibility}
-            columnDisplayIndex={mclvLayout?.ColumnDisplayIndex}
-            addItem={MclvAddItem}
-            setTopItem={MclvSetTopItem}
-            deleteLast={MclvDeleteLast}
-            onSortChanged={MclvSortChanged}
-            onLayoutChanged={MclvLayoutChanged}
-            onCountChanged={count => onMclvCountChanged?.Invoke(count)}
           />
         )
       },

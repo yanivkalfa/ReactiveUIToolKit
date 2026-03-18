@@ -17,16 +17,20 @@ component ListViewStatefulDemoFunc(IReadOnlyList<ListViewRowState>? items = null
       var row = obj as ListViewRowState;
       if (row == null)
       {
-        return <Label text="<invalid>" key={$"lv-invalid-{index}"} />;
+        return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
       }
 
       var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
       var funcKey = $"lv-row-{id}";
       var childNode = row.ShouldOverrideElement
-      ? <Label text={row.Text ?? "<null>"} key={funcKey} />
-      : <IntroCounterFunc key={funcKey} />;
+      ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+      : (<IntroCounterFunc key={funcKey} />);
 
-      return <VisualElement key={$"lv-wrap-{id}"}>@(childNode)</VisualElement>;
+      return (
+        <VisualElement key={$"lv-wrap-{id}"}>
+          @(childNode)
+        </VisualElement>
+      );
   };
 
   var rowRenderer = useMemo<RowRenderer>(() => BuildRowRenderer(), new object[] { safeItems });

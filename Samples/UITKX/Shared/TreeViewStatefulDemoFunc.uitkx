@@ -57,17 +57,21 @@ component TreeViewStatefulDemoFunc(IReadOnlyList<TreeViewRowState>? rows = null,
       var row = obj as SharedTreeRowItem;
       if (row == null)
       {
-        return <Label text="<invalid row payload>" key={$"tv-invalid-{index}"} />;
+        return (<Label text="<invalid row payload>" key={$"tv-invalid-{index}"} />);
       }
 
       var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
       var prefix = row.IsChild ? "child" : "parent";
       var funcKey = $"tv-{prefix}-{id}";
       var childNode = row.ShouldOverrideElement
-      ? <Label text={row.Text ?? "<null>"} key={funcKey} />
-      : <IntroCounterFunc key={funcKey} />;
+      ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+      : (<IntroCounterFunc key={funcKey} />);
 
-      return <VisualElement key={$"tv-wrap-{prefix}-{id}"}>{childNode}</VisualElement>;
+      return (
+        <VisualElement key={$"tv-wrap-{prefix}-{id}"}>
+          @(childNode)
+        </VisualElement>
+      );
   };
 
   var rowRenderer = useMemo<RowRenderer>(() => BuildRowRenderer(), new object[] { safeRows });
