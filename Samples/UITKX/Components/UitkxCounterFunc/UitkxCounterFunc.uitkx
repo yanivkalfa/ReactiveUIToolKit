@@ -260,11 +260,11 @@ component UitkxCounterFunc {
 
   void MctvDeleteLast()
   {
-    var bla = (
+    {/* var bla = (
       <Box>
         <Label text="This is a TabView demo." />
       </Box>
-    );
+    ); */}
     setMctvRows(prev =>
     {
       return prev;

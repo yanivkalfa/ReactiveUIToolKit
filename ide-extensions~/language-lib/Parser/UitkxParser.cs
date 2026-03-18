@@ -148,7 +148,7 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.TrySkipHtmlComment())
                     continue;
 
-                // ── JSX comment {/* ... */} ──────────────────────────────────
+                // ── JSX comment {/* ... */} or child expression {expr} ────────
                 if (c == '{')
                 {
                     int commentLine1 = _scanner.Line;
@@ -157,6 +157,24 @@ namespace ReactiveUITK.Language.Parser
                         nodes.Add(new JsxCommentNode(jsxContent, commentLine1, _filePath));
                         continue;
                     }
+
+                    // ── Child expression {expr} ─────────────────────────────
+                    int exprLine = _scanner.Line;
+                    int exprCol = ColAtPos(_scanner.Pos);
+                    var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
+                    if (!string.IsNullOrEmpty(expr))
+                    {
+                        nodes.Add(
+                            new ExpressionNode(expr, exprLine, _filePath)
+                            {
+                                ExpressionOffset = exprOffset,
+                                ExpressionLength = expr.Length,
+                                SourceColumn = exprCol,
+                                EndColumn = exprCol + 1,
+                            }
+                        );
+                    }
+                    continue;
                 }
 
                 // ── Opening element <Tag ────────────────────────────────────

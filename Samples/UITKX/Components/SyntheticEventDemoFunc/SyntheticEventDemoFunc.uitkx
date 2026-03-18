@@ -9,7 +9,10 @@ component SyntheticEventDemoFunc {
   {
     if (evt == null)
     {
-      setLog($"{label}: <null event>"); return;
+      setLog($"{label}: <null event>");
+      {
+        return;
+      }
     }
     string summary = $"{label}: type={evt.Type}";
     if (evt is ReactiveWheelEvent wheel)

@@ -1347,9 +1347,12 @@ namespace ReactiveUITK.Language.Roslyn
             int i = 0;
 
             // JSX ranges whose expression checks cannot be emitted inline
-            // (ternary, arrow, assignment, paren-wrapped).  They are emitted
-            // right after the next C# segment that contains a ';', which
-            // keeps them in the correct lexical scope.
+            // at the replacement site (ternary, arrow, assignment, paren-
+            // wrapped).  They are flushed at the first statement boundary
+            // (';' at paren-depth 0) in the NEXT C# segment, using
+            // EmitSegmentAndFlushPending which splits the segment so checks
+            // land in the correct lexical scope without breaking expression
+            // contexts.
             var pendingExprChecks = new List<(int jsxStart, int jsxEnd)>();
 
             while (i < setupCode.Length)
@@ -1403,25 +1406,7 @@ namespace ReactiveUITK.Language.Roslyn
                         if (i > segStart)
                         {
                             string seg = setupCode.Substring(segStart, i - segStart);
-                            int segLine = currentLine;
-                            EmitMappedWithGap(
-                                b,
-                                seg,
-                                segStart,
-                                uitkxSetupStartOffset,
-                                gapOffset,
-                                gapLength,
-                                gapNewlines,
-                                segLine,
-                                escapedPath
-                            );
-                            currentLine += CountNewlines(seg);
-                            if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                            {
-                                foreach (var (pStart, pEnd) in pendingExprChecks)
-                                    EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                                pendingExprChecks.Clear();
-                            }
+                            EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
                         }
 
                         int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
@@ -1496,25 +1481,7 @@ namespace ReactiveUITK.Language.Roslyn
                             if (emitUpTo > segStart)
                             {
                                 string seg = setupCode.Substring(segStart, emitUpTo - segStart);
-                                int segLine = currentLine;
-                                EmitMappedWithGap(
-                                    b,
-                                    seg,
-                                    segStart,
-                                    uitkxSetupStartOffset,
-                                    gapOffset,
-                                    gapLength,
-                                    gapNewlines,
-                                    segLine,
-                                    escapedPath
-                                );
-                                currentLine += CountNewlines(seg);
-                                if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                                {
-                                    foreach (var (pStart, pEnd) in pendingExprChecks)
-                                        EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                                    pendingExprChecks.Clear();
-                                }
+                                EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
                             }
 
                             int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
@@ -1563,25 +1530,7 @@ namespace ReactiveUITK.Language.Roslyn
                         if (jsxStart > segStart)
                         {
                             string seg = setupCode.Substring(segStart, jsxStart - segStart);
-                            int segLine = currentLine;
-                            EmitMappedWithGap(
-                                b,
-                                seg,
-                                segStart,
-                                uitkxSetupStartOffset,
-                                gapOffset,
-                                gapLength,
-                                gapNewlines,
-                                segLine,
-                                escapedPath
-                            );
-                            currentLine += CountNewlines(seg);
-                            if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                            {
-                                foreach (var (pStart, pEnd) in pendingExprChecks)
-                                    EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                                pendingExprChecks.Clear();
-                            }
+                            EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
                         }
 
                         int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
@@ -1643,25 +1592,7 @@ namespace ReactiveUITK.Language.Roslyn
                             if (jsxStart > segStart)
                             {
                                 string seg = setupCode.Substring(segStart, jsxStart - segStart);
-                                int segLine = currentLine;
-                                EmitMappedWithGap(
-                                    b,
-                                    seg,
-                                    segStart,
-                                    uitkxSetupStartOffset,
-                                    gapOffset,
-                                    gapLength,
-                                    gapNewlines,
-                                    segLine,
-                                    escapedPath
-                                );
-                                currentLine += CountNewlines(seg);
-                                if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                                {
-                                    foreach (var (pStart, pEnd) in pendingExprChecks)
-                                        EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                                    pendingExprChecks.Clear();
-                                }
+                                EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
                             }
 
                             int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
@@ -1687,25 +1618,7 @@ namespace ReactiveUITK.Language.Roslyn
                     if (i > segStart)
                     {
                         string seg = setupCode.Substring(segStart, i - segStart);
-                        int segLine = currentLine;
-                        EmitMappedWithGap(
-                            b,
-                            seg,
-                            segStart,
-                            uitkxSetupStartOffset,
-                            gapOffset,
-                            gapLength,
-                            gapNewlines,
-                            segLine,
-                            escapedPath
-                        );
-                        currentLine += CountNewlines(seg);
-                        if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                        {
-                            foreach (var (pStart, pEnd) in pendingExprChecks)
-                                EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                            pendingExprChecks.Clear();
-                        }
+                        EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
                     }
                     // Skip the `@` — the `(` will be re-processed next iteration.
                     segStart = i + 1;
@@ -1745,26 +1658,7 @@ namespace ReactiveUITK.Language.Roslyn
                 if (i > segStart)
                 {
                     string seg = setupCode.Substring(segStart, i - segStart);
-                    int segLine = currentLine;
-                    EmitMappedWithGap(
-                        b,
-                        seg,
-                        segStart,
-                        uitkxSetupStartOffset,
-                        gapOffset,
-                        gapLength,
-                        gapNewlines,
-                        segLine,
-                        escapedPath
-                    );
-                    // Advance currentLine by the newlines inside the segment.
-                    currentLine += CountNewlines(seg);
-                    if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                    {
-                        foreach (var (pStart, pEnd) in pendingExprChecks)
-                            EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                        pendingExprChecks.Clear();
-                    }
+                    EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
                 }
 
                 // 2. Find the matching close paren (depth-balanced, ignores {}).
@@ -1803,28 +1697,11 @@ namespace ReactiveUITK.Language.Roslyn
             if (segStart < setupCode.Length)
             {
                 string seg = setupCode.Substring(segStart);
-                int segLine = currentLine;
-                EmitMappedWithGap(
-                    b,
-                    seg,
-                    segStart,
-                    uitkxSetupStartOffset,
-                    gapOffset,
-                    gapLength,
-                    gapNewlines,
-                    segLine,
-                    escapedPath
-                );
-                if (pendingExprChecks.Count > 0 && seg.Contains(';'))
-                {
-                    foreach (var (pStart, pEnd) in pendingExprChecks)
-                        EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
-                    pendingExprChecks.Clear();
-                }
+                EmitSegmentAndFlushPending(b, seg, segStart, uitkxSetupStartOffset, gapOffset, gapLength, gapNewlines, ref currentLine, escapedPath, pendingExprChecks, source, directives, ref exprCtr, ref attrCtr);
             }
 
             // Safety net: flush any remaining pending checks at the end
-            // of the setup code (even without a ';' in the trailing segment).
+            // of setup code (e.g. when no trailing ';' was found).
             if (pendingExprChecks.Count > 0)
             {
                 foreach (var (pStart, pEnd) in pendingExprChecks)
@@ -1833,6 +1710,80 @@ namespace ReactiveUITK.Language.Roslyn
             }
 
             b.Scaffold("\n");
+        }
+
+        /// <summary>
+        /// Emits a C# segment, flushing any pending expression checks at the
+        /// first top-level semicolon (paren-depth 0) if present.  Splitting
+        /// the segment at a true statement boundary ensures that expression
+        /// checks land in the correct lexical scope (inside the lambda / loop
+        /// where their JSX appeared) without being inserted mid-expression
+        /// (which would break lambdas, ternaries, and assignment RHS).
+        /// </summary>
+        private static void EmitSegmentAndFlushPending(
+            VirtualDocBuilder b,
+            string seg,
+            int segStartInSetup,
+            int uitkxSetupStartOffset,
+            int gapOffset,
+            int gapLength,
+            int gapNewlines,
+            ref int currentLine,
+            string escapedPath,
+            List<(int jsxStart, int jsxEnd)> pendingExprChecks,
+            string source,
+            DirectiveSet directives,
+            ref int exprCtr,
+            ref int attrCtr)
+        {
+            if (pendingExprChecks.Count == 0)
+            {
+                EmitMappedWithGap(b, seg, segStartInSetup, uitkxSetupStartOffset,
+                    gapOffset, gapLength, gapNewlines, currentLine, escapedPath);
+                currentLine += CountNewlines(seg);
+                return;
+            }
+
+            // Find first ';' at paren-depth 0 — a true statement boundary.
+            int splitPos = -1;
+            int pd = 0;
+            for (int k = 0; k < seg.Length; k++)
+            {
+                char c = seg[k];
+                if (c == '(') pd++;
+                else if (c == ')') { if (pd > 0) pd--; }
+                else if (c == ';' && pd == 0) { splitPos = k; break; }
+            }
+
+            if (splitPos < 0)
+            {
+                // No statement boundary — emit as-is, checks stay pending.
+                EmitMappedWithGap(b, seg, segStartInSetup, uitkxSetupStartOffset,
+                    gapOffset, gapLength, gapNewlines, currentLine, escapedPath);
+                currentLine += CountNewlines(seg);
+                return;
+            }
+
+            // Emit up to and including the ';'.
+            string before = seg.Substring(0, splitPos + 1);
+            EmitMappedWithGap(b, before, segStartInSetup, uitkxSetupStartOffset,
+                gapOffset, gapLength, gapNewlines, currentLine, escapedPath);
+            currentLine += CountNewlines(before);
+
+            // Flush pending expression checks at the statement boundary.
+            foreach (var (pStart, pEnd) in pendingExprChecks)
+                EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd,
+                    uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+            pendingExprChecks.Clear();
+
+            // Emit the remainder of the segment.
+            if (splitPos + 1 < seg.Length)
+            {
+                string after = seg.Substring(splitPos + 1);
+                EmitMappedWithGap(b, after, segStartInSetup + splitPos + 1, uitkxSetupStartOffset,
+                    gapOffset, gapLength, gapNewlines, currentLine, escapedPath);
+                currentLine += CountNewlines(after);
+            }
         }
 
         /// <summary>

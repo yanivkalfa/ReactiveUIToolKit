@@ -1,5 +1,20 @@
 ﻿# Changelog
 
+## [1.0.259] - 2026-03-18
+- Revert: removed string literal skipping from VDG scanner (v1.0.258) — caused widespread regressions.
+
+## [1.0.258] - 2026-03-18
+- Fix: VDG setup-code scanner now skips string literals (regular, verbatim, interpolated) and char literals. Previously, C# content like `$"{label}: <null event>"` could trigger JSX branch detectors on `<` or `:` inside strings, causing broken VDoc output and cascade errors.
+
+## [1.0.257] - 2026-03-18
+- Feature: JSX child expressions `{expr}` now get Roslyn type-checking. Previously only `@(expr)` inline expressions and attribute expressions `attr={expr}` were checked; bare `{childNode}` children were silently ignored by the parser.
+
+## [1.0.256] - 2026-03-18
+- Fix: expression checks for setup-code JSX now flush at first statement boundary (';' at paren-depth 0) within the next segment, preserving lexical scope for variables inside lambdas/loops while still avoiding mid-expression insertion.
+
+## [1.0.255] - 2026-03-18
+- Fix: setup-code JSX expression checks no longer break surrounding C# syntax. Deferred checks were flushed inline into expression contexts (lambda bodies, ternary operands, assignment RHS), causing cascade errors ("namespace cannot contain members", "name does not exist"). All pending checks now emit at end of setup code in a clean statement context.
+
 ## [1.0.254] - 2026-03-18
 - Fix: Site A no longer dims component closing brace (uses FunctionBodyEndLine-1). Add render-return wrapper dimming for the return() line that wraps the render root but is not part of the AST.
 
