@@ -490,9 +490,9 @@ namespace ReactiveUITK.Language.Parser
                 });
 
                 int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
-                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag);
                 var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
                 var bareJsxRanges1 = FindBareJsxRanges(source, bodyStart, bodyEndExclusive);
+                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag, setupMarkupRanges1, bareJsxRanges1);
                 CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
@@ -542,10 +542,6 @@ namespace ReactiveUITK.Language.Parser
                     Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
                 );
 
-            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence.
-            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag);
-            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag);
-
             int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
             int setupGapOffset = returnStart - fseTrimStart2;
             int setupGapLength = returnStmtEndExclusive - returnStart;
@@ -557,6 +553,12 @@ namespace ReactiveUITK.Language.Parser
                     source,
                     bodyStart,       returnStart,
                     returnStmtEndExclusive, bodyEndExclusive);
+
+            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence,
+            // but skip @( inside embedded JSX markup where it is valid syntax.
+            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+
             CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
@@ -1578,15 +1580,17 @@ namespace ReactiveUITK.Language.Parser
 
         /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
-        /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings
-        /// and comments, emitting <see cref="DiagnosticCodes.AtExprInSetupCode"/>
-        /// for each occurrence.
+        /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings,
+        /// comments, and embedded JSX markup ranges, emitting
+        /// <see cref="DiagnosticCodes.AtExprInSetupCode"/> for each occurrence.
         /// </summary>
         private static void ScanAtExprInSetupCode(
             string source,
             int rangeStart,
             int rangeEnd,
-            List<ParseDiagnostic> diagnosticBag)
+            List<ParseDiagnostic> diagnosticBag,
+            ImmutableArray<(int Start, int End, int Line)> jsxRanges = default,
+            ImmutableArray<(int Start, int End, int Line)> bareJsxRanges = default)
         {
             int i = rangeStart;
             while (i < rangeEnd)
@@ -1654,20 +1658,32 @@ namespace ReactiveUITK.Language.Parser
                 // Detect @(
                 if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
                 {
-                    diagnosticBag.Add(new ParseDiagnostic
+                    // @(expr) is valid inside embedded JSX markup — skip those.
+                    if (!IsInsideJsxRange(i, jsxRanges) && !IsInsideJsxRange(i, bareJsxRanges))
                     {
-                        Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, i),
-                        SourceColumn = ColAtPos(source, i),
-                        EndColumn = ColAtPos(source, i) + 2,
-                        Message = "'@(...)' syntax is not supported in setup code. " +
-                                  "Use a local variable instead: var x = (...); then reference x.",
-                    });
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            SourceColumn = ColAtPos(source, i),
+                            EndColumn = ColAtPos(source, i) + 2,
+                            Message = "'@(...)' syntax is not supported in setup code. " +
+                                      "Use a local variable instead: var x = (...); then reference x.",
+                        });
+                    }
                 }
 
                 i++;
             }
+        }
+
+        private static bool IsInsideJsxRange(int pos, ImmutableArray<(int Start, int End, int Line)> ranges)
+        {
+            if (ranges.IsDefaultOrEmpty) return false;
+            foreach (var (s, e, _) in ranges)
+                if (pos >= s && pos < e) return true;
+            return false;
         }
 
         private static int LineAtPos(string source, int pos)

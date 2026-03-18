@@ -8706,10 +8706,10 @@ component Comp {
         // Key identifiers must map to their correct source lines
         var checks = new[]
         {
-            ("MctvSetChild", 233),
-            ("MctvDeleteLast", 261),
-            ("TreeViewRowState", 21),
-            ("var secondElement", 281),
+            ("MctvSetChild", 252),
+            ("MctvDeleteLast", 280),
+            ("TreeViewRowState", 40),
+            ("var secondElement", 300),
         };
         foreach (var (id, expectedLine) in checks)
         {

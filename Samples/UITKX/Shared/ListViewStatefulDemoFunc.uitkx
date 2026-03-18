@@ -26,7 +26,7 @@ component ListViewStatefulDemoFunc(IReadOnlyList<ListViewRowState>? items = null
       ? <Label text={row.Text ?? "<null>"} key={funcKey} />
       : <IntroCounterFunc key={funcKey} />;
 
-      return <VisualElement key={$"lv-wrap-{id}"}>{childNode}</VisualElement>;
+      return <VisualElement key={$"lv-wrap-{id}"}>@(childNode)</VisualElement>;
   };
 
   var rowRenderer = useMemo<RowRenderer>(() => BuildRowRenderer(), new object[] { safeItems });
