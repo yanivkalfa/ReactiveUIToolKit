@@ -7,7 +7,11 @@
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
-component ShowcaseTreeTabsSection(Action<int>? onTreeCountChanged = null, Action<int>? onMctvCountChanged = null, Action<int>? onTreeTabIndexChanged = null) {
+component ShowcaseTreeTabsSection(
+  Action<int>? onTreeCountChanged = null, 
+  Action<int>? onMctvCountChanged = null, 
+  Action<int>? onTreeTabIndexChanged = null
+) {
   // ── State ──────────────────────────────────────────────────────────────
   var (treeTabIndex, setTreeTabIndex) = useState(0);
   var (showTabs, setShowTabs) = useState(true);

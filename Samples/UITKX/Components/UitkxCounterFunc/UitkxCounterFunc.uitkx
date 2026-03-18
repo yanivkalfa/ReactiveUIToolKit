@@ -8,12 +8,16 @@
 @using ReactiveUITK.Samples.UITKXShared
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
-component UitkxCounterFunc {
+component UitkxCounterFunc(
+  IReadOnlyList<ListViewRowState>? items = null, 
+  Action? addItem = null, 
+  Action? setTopItem = null, 
+  Action? deleteLast = null, 
+  Action<int>? onCountChanged = null
+) {
   var safeItems = Array.Empty<ListViewRowState>();
-  var someVara = (
-    <Box>
-      @(safeItems)
-    </Box>
+  var bla = (
+    <Box />
   );
   RowRenderer BuildRowRenderer() =>
   (index, obj) =>
@@ -36,16 +40,6 @@ component UitkxCounterFunc {
       </VisualElement>
     );
   };
-
-  var someVara = (
-    <Box>
-      @(safeItems)
-    </Box>
-  );
-
-  var someVarb = (
-    <Box />
-  );
 
   var (count, setCount) = useState(0);
   var (mode, setMode) = useState("normal");

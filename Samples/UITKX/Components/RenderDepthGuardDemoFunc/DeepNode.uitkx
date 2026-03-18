@@ -14,10 +14,10 @@ component DeepNode(int remaining = 0, int maxDisplay = 0) {
 
   if (remaining <= 0) {
     return (
-    <VisualElement style={nodeStyle}>
-      <Text text={$"Level {currentLevel}: leaf node"} />
-    </VisualElement>
-  );
+      <VisualElement style={nodeStyle}>
+        <Text text={$"Level {currentLevel}: leaf node"} />
+      </VisualElement>
+    );
   }
 
   return (

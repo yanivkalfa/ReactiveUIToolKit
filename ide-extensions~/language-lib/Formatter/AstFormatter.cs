@@ -161,11 +161,34 @@ namespace ReactiveUITK.Language.Formatter
                     p.DefaultValue != null
                         ? $"{p.Type} {p.Name} = {p.DefaultValue}"
                         : $"{p.Type} {p.Name}"
-                );
+                ).ToList();
                 paramList = $"({string.Join(", ", parts)})";
             }
 
-            Ln($"component {componentName}{paramList} {{");
+            string headerLine = $"component {componentName}{paramList} {{";
+            if (paramList.Length > 0 && headerLine.Length > _opts.PrintWidth)
+            {
+                // Wrap params one-per-line, each indented one level
+                var parts = directives.FunctionParams.Select(p =>
+                    p.DefaultValue != null
+                        ? $"{p.Type} {p.Name} = {p.DefaultValue}"
+                        : $"{p.Type} {p.Name}"
+                );
+                _sb.Append($"component {componentName}(\n");
+                _indent++;
+                var paramArray = parts.ToArray();
+                for (int pi = 0; pi < paramArray.Length; pi++)
+                {
+                    bool isLast = pi == paramArray.Length - 1;
+                    Ln(isLast ? paramArray[pi] : paramArray[pi] + ", ");
+                }
+                _indent--;
+                Ln(") {");
+            }
+            else
+            {
+                Ln(headerLine);
+            }
             _indent++;
 
             var fullSetupCode = directives.FunctionSetupCode?.Trim();

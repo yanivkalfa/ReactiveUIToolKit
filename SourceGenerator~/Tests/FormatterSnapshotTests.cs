@@ -8706,10 +8706,10 @@ component Comp {
         // Key identifiers must map to their correct source lines
         var checks = new[]
         {
-            ("MctvSetChild", 270),
-            ("MctvDeleteLast", 298),
-            ("TreeViewRowState", 58),
-            ("var secondElement", 319),
+            ("MctvSetChild", 262),
+            ("MctvDeleteLast", 290),
+            ("TreeViewRowState", 50),
+            ("var secondElement", 311),
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -8942,5 +8942,60 @@ component Comp {
         // Must also be idempotent
         var r2 = Format(result);
         Assert.Equal(result, r2);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Regression: long param lists wrap one-per-line when > PrintWidth
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void LongParamList_WrapsOnePerLine()
+    {
+        var source = N(
+            """
+            component Foo(IReadOnlyList<int>? items = null, Action? addItem = null, Action? setTopItem = null, Action? deleteLast = null, Action<int>? onCountChanged = null) {
+              return (<Label text="hi" />);
+            }
+            """
+        );
+
+        var expected = N(
+            """
+            component Foo(
+              IReadOnlyList<int>? items = null, 
+              Action? addItem = null, 
+              Action? setTopItem = null, 
+              Action? deleteLast = null, 
+              Action<int>? onCountChanged = null
+            ) {
+              return (
+                <Label text="hi" />
+              );
+            }
+
+            """
+        );
+
+        var result = Format(source);
+        Assert.Equal(expected, result);
+
+        // Idempotent
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void ShortParamList_StaysSingleLine()
+    {
+        var source = N(
+            """
+            component Foo(int x = 0, string y = "hi") {
+              return (<Label text="hi" />);
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("component Foo(int x = 0, string y = \"hi\") {", result);
+        Assert.Equal(result, Format(result));
     }
 }

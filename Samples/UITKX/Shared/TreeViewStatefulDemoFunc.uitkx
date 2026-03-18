@@ -6,7 +6,17 @@
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
-component TreeViewStatefulDemoFunc(IReadOnlyList<TreeViewRowState>? rows = null, Action? addParent = null, Action? addChild = null, Action? setParent = null, Action? setChild = null, Action? deleteLast = null, IList<int>? expandedItemIds = null, TreeExpansionEventHandler? onExpandedChanged = null, Action<int>? onCountChanged = null) {
+component TreeViewStatefulDemoFunc(
+  IReadOnlyList<TreeViewRowState>? rows = null, 
+  Action? addParent = null, 
+  Action? addChild = null, 
+  Action? setParent = null, 
+  Action? setChild = null, 
+  Action? deleteLast = null, 
+  IList<int>? expandedItemIds = null, 
+  TreeExpansionEventHandler? onExpandedChanged = null, 
+  Action<int>? onCountChanged = null
+) {
   var safeRows = rows ?? Array.Empty<TreeViewRowState>();
 
   var rootItems = useMemo(() => {

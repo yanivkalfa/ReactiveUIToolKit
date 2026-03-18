@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ReactiveUITK.SourceGenerator.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3d79960afb1c55ffeffa8c08d260b782c49c2e5e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+88933b5d606add76f4ced226ad0ac01f0cb509ae")]
 [assembly: System.Reflection.AssemblyProductAttribute("ReactiveUITK.SourceGenerator.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ReactiveUITK.SourceGenerator.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

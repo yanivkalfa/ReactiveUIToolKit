@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using ReactiveUITK.Core
 @using UnityEngine
@@ -6,7 +6,12 @@
 @using static ReactiveUITK.Props.Typed.StyleKeys
 @using System.Diagnostics
 
-component ShowcaseTopBar(string inputText = "", ChangeEventHandler<string>? onInputChange = null, Action? onSetText = null, DateTime currentTime = default) {
+component ShowcaseTopBar(
+  string inputText = "", 
+  ChangeEventHandler<string>? onInputChange = null, 
+  Action? onSetText = null, 
+  DateTime currentTime = default
+) {
   var topBarStyle = new Style {
     (StyleKeys.FlexDirection, "row"),
     (JustifyContent, "space-between"),
