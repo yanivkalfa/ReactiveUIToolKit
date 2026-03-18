@@ -218,14 +218,16 @@ namespace ReactiveUITK.Language.IntelliSense
         private static bool IsInsideSetupCodeMarkup(
             ParseResult parseResult, string text, int line1, int col0)
         {
-            if (parseResult.Directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+            if (parseResult.Directives.SetupCodeMarkupRanges.IsDefaultOrEmpty
+                && parseResult.Directives.SetupCodeBareJsxRanges.IsDefaultOrEmpty)
                 return false;
             int offset = OffsetFromLineCol(text, line1, col0);
-            foreach (var (start, end, _) in parseResult.Directives.SetupCodeMarkupRanges)
-            {
-                if (offset >= start && offset < end)
-                    return true;
-            }
+            if (!parseResult.Directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+                foreach (var (start, end, _) in parseResult.Directives.SetupCodeMarkupRanges)
+                    if (offset >= start && offset < end) return true;
+            if (!parseResult.Directives.SetupCodeBareJsxRanges.IsDefaultOrEmpty)
+                foreach (var (start, end, _) in parseResult.Directives.SetupCodeBareJsxRanges)
+                    if (offset >= start && offset < end) return true;
             return false;
         }
 

@@ -129,6 +129,15 @@ namespace ReactiveUITK.Language.Parser
         /// </summary>
         ImmutableArray<(int Start, int End, int Line)> SetupCodeMarkupRanges = default,
         /// <summary>
+        /// Absolute (start, end, line) ranges in the original .uitkx source for
+        /// bare JSX elements in function-style setup code that are NOT
+        /// paren-wrapped — e.g. <c>return &lt;Tag/&gt;</c>,
+        /// <c>cond ? &lt;A/&gt; : &lt;B/&gt;</c>, <c>var x = &lt;Tag/&gt;</c>.
+        /// Used by the virtual-document generator for expression type-checks
+        /// but NOT by the formatter (which only handles paren-wrapped blocks).
+        /// </summary>
+        ImmutableArray<(int Start, int End, int Line)> SetupCodeBareJsxRanges = default,
+        /// <summary>
         /// Position inside the trimmed <see cref="FunctionSetupCode"/> where the
         /// gap left by the removed <c>return (…);</c> statement begins.
         /// Characters at or beyond this offset correspond to source positions

@@ -492,6 +492,7 @@ namespace ReactiveUITK.Language.Parser
                 int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
                 ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag);
                 var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
+                var bareJsxRanges1 = FindBareJsxRanges(source, bodyStart, bodyEndExclusive);
                 CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
@@ -511,7 +512,8 @@ namespace ReactiveUITK.Language.Parser
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol,
                     HasExplicitNamespace: inlineNamespace != null,
-                    SetupCodeMarkupRanges: setupMarkupRanges1
+                    SetupCodeMarkupRanges: setupMarkupRanges1,
+                    SetupCodeBareJsxRanges: bareJsxRanges1
                 );
                 return true;
             }
@@ -551,6 +553,10 @@ namespace ReactiveUITK.Language.Parser
                     source,
                     bodyStart,       returnStart,
                     returnStmtEndExclusive, bodyEndExclusive);
+            var bareJsxRanges2 = FindBareJsxRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
             CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
@@ -573,6 +579,7 @@ namespace ReactiveUITK.Language.Parser
                 FunctionReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
                 FunctionBodyEndLine: LineAtPos(source, bodyEndExclusive),
                 SetupCodeMarkupRanges: setupMarkupRanges2,
+                SetupCodeBareJsxRanges: bareJsxRanges2,
                 FunctionSetupGapOffset: setupGapOffset,
                 FunctionSetupGapLength: setupGapLength
             );
@@ -1886,6 +1893,153 @@ namespace ReactiveUITK.Language.Parser
         {
             var r1 = FindJsxBlockRanges(source, range1Start, range1End);
             var r2 = FindJsxBlockRanges(source, range2Start, range2End);
+            if (r2.IsDefaultOrEmpty) return r1;
+            if (r1.IsDefaultOrEmpty) return r2;
+            return r1.AddRange(r2);
+        }
+
+        /// <summary>
+        /// Finds bare (non-paren-wrapped) JSX ranges in setup code:
+        /// <c>return &lt;Tag/&gt;</c>, <c>? &lt;Tag/&gt;</c>,
+        /// <c>: &lt;Tag/&gt;</c>, <c>= &lt;Tag/&gt;</c>.
+        /// These are NOT detected by <see cref="FindJsxBlockRanges"/> and are
+        /// stored separately to avoid breaking the formatter's block-index
+        /// alignment.
+        /// </summary>
+        private static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+            string source, int rangeStart, int rangeEnd)
+        {
+            var result = ImmutableArray.CreateBuilder<(int, int, int)>();
+            int i = rangeStart;
+            while (i < rangeEnd)
+            {
+                // Skip // line comments
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
+                {
+                    while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // Skip /* ... */ block comments
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '*')
+                {
+                    int end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = end >= 0 ? end + 2 : rangeEnd;
+                    continue;
+                }
+
+                // ── Bare return: return <Tag ─────────────────────────────
+                if (source[i] == 'r' && i + 5 < rangeEnd
+                    && source.Substring(i, 6) == "return"
+                    && (i == 0 || !(char.IsLetterOrDigit(source[i - 1]) || source[i - 1] == '_'))
+                    && (i + 6 >= rangeEnd || !(char.IsLetterOrDigit(source[i + 6]) || source[i + 6] == '_')))
+                {
+                    int peek = i + 6;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Ternary true branch: ? <Tag  (but NOT ?. or ??) ─────
+                if (source[i] == '?' && i + 1 < rangeEnd
+                    && source[i + 1] != '.' && source[i + 1] != '?')
+                {
+                    int peek = i + 1;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Ternary false branch: : <Tag  (but NOT ::) ──────────
+                if (source[i] == ':' && i + 1 < rangeEnd
+                    && source[i + 1] != ':')
+                {
+                    int peek = i + 1;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Bare assignment: = <Tag  (but NOT ==, =>, !=, <=, >=)
+                if (source[i] == '=' && i + 1 < rangeEnd
+                    && source[i + 1] != '=' && source[i + 1] != '>'
+                    && (i == 0 || (source[i - 1] != '!' && source[i - 1] != '<' && source[i - 1] != '>')))
+                {
+                    int peek = i + 1;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                i++;
+            }
+            return result.ToImmutable();
+        }
+
+        /// <summary>Two-range overload for <see cref="FindBareJsxRanges"/>.</summary>
+        private static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+            string source,
+            int range1Start, int range1End,
+            int range2Start, int range2End)
+        {
+            var r1 = FindBareJsxRanges(source, range1Start, range1End);
+            var r2 = FindBareJsxRanges(source, range2Start, range2End);
             if (r2.IsDefaultOrEmpty) return r1;
             if (r1.IsDefaultOrEmpty) return r2;
             return r1.AddRange(r2);

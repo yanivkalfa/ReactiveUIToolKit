@@ -124,10 +124,17 @@ public sealed class DiagnosticsPublisher
         // These blocks are replaced by (object)null! in the Roslyn virtual doc,
         // so Roslyn never sees them — we must check them here at T1/T2 level.
         var setupJsxNodes = ImmutableArray<AstNode>.Empty;
-        if (!directives.SetupCodeMarkupRanges.IsDefaultOrEmpty)
+        var allSetupJsxRanges = directives.SetupCodeMarkupRanges;
+        if (!directives.SetupCodeBareJsxRanges.IsDefaultOrEmpty)
+        {
+            allSetupJsxRanges = allSetupJsxRanges.IsDefaultOrEmpty
+                ? directives.SetupCodeBareJsxRanges
+                : allSetupJsxRanges.AddRange(directives.SetupCodeBareJsxRanges);
+        }
+        if (!allSetupJsxRanges.IsDefaultOrEmpty)
         {
             var setupBuilder = ImmutableArray.CreateBuilder<AstNode>();
-            foreach (var (jsxStart, jsxEnd, jsxLine) in directives.SetupCodeMarkupRanges)
+            foreach (var (jsxStart, jsxEnd, jsxLine) in allSetupJsxRanges)
             {
                 var jsxDirectives = directives with
                 {

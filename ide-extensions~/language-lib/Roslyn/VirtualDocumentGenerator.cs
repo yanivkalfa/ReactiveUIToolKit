@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using ReactiveUITK.Language.Nodes;
@@ -442,6 +443,8 @@ namespace ReactiveUITK.Language.Roslyn
             // Setup code — emitted in segments so that JSX paren blocks
             // (e.g. `var x = (<Box>...</Box>)`) are replaced with a valid C#
             // placeholder and never seen by Roslyn as markup.
+            int __exprCtr = 0;
+            int __attrCtr = 0;
             if (!string.IsNullOrEmpty(d.FunctionSetupCode) && d.FunctionSetupStartLine > 0)
             {
                 // Use the exact character offset of the trimmed content when available;
@@ -474,7 +477,11 @@ namespace ReactiveUITK.Language.Roslyn
                     escapedPath: escapedPath,
                     gapOffset: d.FunctionSetupGapOffset,
                     gapLength: d.FunctionSetupGapLength,
-                    gapNewlines: gapNewlines
+                    gapNewlines: gapNewlines,
+                    source: source,
+                    directives: d,
+                    exprCtr: ref __exprCtr,
+                    attrCtr: ref __attrCtr
                 );
             }
 
@@ -483,8 +490,7 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold(
                 "            // ── Expression type checks ─────────────────────────────────\n"
             );
-            int __exprCtr = 0;
-            int __attrCtr = 0;
+            b.Scaffold("#pragma warning disable 0162\n");
             EmitNodeExpressionsScoped(
                 markupOnlyNodes.ToImmutable(),
                 b,
@@ -493,42 +499,7 @@ namespace ReactiveUITK.Language.Roslyn
                 ref __exprCtr,
                 ref __attrCtr
             );
-
-            // Expression checks for setup-code JSX blocks (e.g.
-            // `var node = (<Button onClick={_ => setCount(count + 1)} />)`).
-            // These blocks were replaced with (VirtualNode)null! above, so
-            // Roslyn never sees the expressions inside them. Parse each block
-            // and emit expression statements so C# errors and completions work.
-            if (!d.SetupCodeMarkupRanges.IsDefaultOrEmpty)
-            {
-                b.Scaffold(
-                    "            // ── Setup JSX expression checks ─────────────────────────\n"
-                );
-                var setupParseDiags = new List<ParseDiagnostic>();
-                foreach (var (jsxStart, jsxEnd, jsxLine) in d.SetupCodeMarkupRanges)
-                {
-                    var jsxDirectives = d with
-                    {
-                        MarkupStartIndex = jsxStart,
-                        MarkupEndIndex = jsxEnd,
-                        MarkupStartLine = jsxLine,
-                    };
-                    var jsxNodes = UitkxParser.Parse(
-                        source,
-                        escapedPath,
-                        jsxDirectives,
-                        setupParseDiags
-                    );
-                    EmitNodeExpressionsScoped(
-                        jsxNodes,
-                        b,
-                        escapedPath,
-                        indent: "            ",
-                        ref __exprCtr,
-                        ref __attrCtr
-                    );
-                }
-            }
+            b.Scaffold("#pragma warning restore 0162\n");
 
             // Ensure all code paths return — components whose setup code only has
             // conditional `return (object)null!` branches need a fallback.
@@ -659,7 +630,46 @@ namespace ReactiveUITK.Language.Roslyn
                         ? cb.CodeContentOffset
                         : OffsetOfLine(source, codeLine);
 
-                b.Mapped(cb.Code, uitkxStart, SourceRegionKind.CodeBlock, codeLine);
+                string codeText = cb.Code;
+
+                // Splice ReturnMarkups: replace JSX spans with valid C#
+                // placeholders so Roslyn doesn't choke on raw markup in setup code.
+                if (!cb.ReturnMarkups.IsEmpty)
+                {
+                    var markups = cb.ReturnMarkups
+                        .OrderBy(m => m.StartOffsetInCodeBlock)
+                        .ToArray();
+                    var spliced = new System.Text.StringBuilder(codeText.Length);
+                    int prev = 0;
+
+                    foreach (var m in markups)
+                    {
+                        int start = Math.Max(0, Math.Min(m.StartOffsetInCodeBlock, codeText.Length));
+                        int end = Math.Max(0, Math.Min(m.EndOffsetInCodeBlock, codeText.Length));
+
+                        if (start > prev)
+                            spliced.Append(codeText, prev, start - prev);
+
+                        // Count newlines in the original span to preserve line mapping
+                        int newlines = 0;
+                        for (int k = start; k < end; k++)
+                            if (codeText[k] == '\n')
+                                newlines++;
+
+                        spliced.Append("default(object)");
+                        for (int k = 0; k < newlines; k++)
+                            spliced.Append('\n');
+
+                        prev = end;
+                    }
+
+                    if (prev < codeText.Length)
+                        spliced.Append(codeText, prev, codeText.Length - prev);
+
+                    codeText = spliced.ToString();
+                }
+
+                b.Mapped(codeText, uitkxStart, SourceRegionKind.CodeBlock, codeLine);
                 b.Scaffold("\n");
                 b.Scaffold("#line default\n");
                 break; // only one @code block per file
@@ -1323,14 +1333,24 @@ namespace ReactiveUITK.Language.Roslyn
             int uitkxSetupStartOffset,
             int uitkxSetupStartLine,
             string escapedPath,
-            int gapOffset = -1,
-            int gapLength = 0,
-            int gapNewlines = 0
+            int gapOffset,
+            int gapLength,
+            int gapNewlines,
+            string source,
+            DirectiveSet directives,
+            ref int exprCtr,
+            ref int attrCtr
         )
         {
             int segStart = 0;
             int currentLine = uitkxSetupStartLine;
             int i = 0;
+
+            // JSX ranges whose expression checks cannot be emitted inline
+            // (ternary, arrow, assignment, paren-wrapped).  They are emitted
+            // right after the next C# segment that contains a ';', which
+            // keeps them in the correct lexical scope.
+            var pendingExprChecks = new List<(int jsxStart, int jsxEnd)>();
 
             while (i < setupCode.Length)
             {
@@ -1348,6 +1368,170 @@ namespace ReactiveUITK.Language.Roslyn
                     int end = setupCode.IndexOf('\n', i + 2);
                     i = end >= 0 ? end + 1 : setupCode.Length;
                     continue;
+                }
+
+                // ── Branch 0: return <Tag  (bare return with inline markup) ────
+                // Handles `return <Label text="..." />;` without wrapping parens.
+                if (
+                    setupCode[i] == 'r'
+                    && i + 5 < setupCode.Length
+                    && setupCode.Substring(i, 6) == "return"
+                    && (i == 0 || !char.IsLetterOrDigit(setupCode[i - 1]) && setupCode[i - 1] != '_')
+                    && (i + 6 >= setupCode.Length || !char.IsLetterOrDigit(setupCode[i + 6]) && setupCode[i + 6] != '_')
+                )
+                {
+                    int peek0 = i + 6;
+                    while (
+                        peek0 < setupCode.Length
+                        && (
+                            setupCode[peek0] == ' '
+                            || setupCode[peek0] == '\t'
+                            || setupCode[peek0] == '\r'
+                            || setupCode[peek0] == '\n'
+                        )
+                    )
+                        peek0++;
+
+                    if (
+                        peek0 < setupCode.Length
+                        && setupCode[peek0] == '<'
+                        && peek0 + 1 < setupCode.Length
+                        && char.IsLetter(setupCode[peek0 + 1])
+                    )
+                    {
+                        int jsxStart = peek0;
+                        if (i > segStart)
+                        {
+                            string seg = setupCode.Substring(segStart, i - segStart);
+                            int segLine = currentLine;
+                            EmitMappedWithGap(
+                                b,
+                                seg,
+                                segStart,
+                                uitkxSetupStartOffset,
+                                gapOffset,
+                                gapLength,
+                                gapNewlines,
+                                segLine,
+                                escapedPath
+                            );
+                            currentLine += CountNewlines(seg);
+                            if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                            {
+                                foreach (var (pStart, pEnd) in pendingExprChecks)
+                                    EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                                pendingExprChecks.Clear();
+                            }
+                        }
+
+                        int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
+
+                        // Consume trailing whitespace + `;` so the replacement
+                        // forms a complete statement before expression checks.
+                        int afterJsx = jsxEnd;
+                        while (afterJsx < setupCode.Length &&
+                               (setupCode[afterJsx] == ' ' || setupCode[afterJsx] == '\t'))
+                            afterJsx++;
+                        bool hasSemicolon = afterJsx < setupCode.Length && setupCode[afterJsx] == ';';
+                        int consumeEnd = hasSemicolon ? afterJsx + 1 : jsxEnd;
+
+                        int jsxNewlines = CountNewlines(setupCode, jsxStart, consumeEnd);
+                        // Emit expression checks BEFORE the return so they are
+                        // reachable and don't trigger CS0162 dimming.
+                        EmitInlineExprChecks(b, source, directives, escapedPath, jsxStart, jsxEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                        b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                        b.Scaffold("return (global::ReactiveUITK.Core.VirtualNode)null!");
+                        if (hasSemicolon) b.Scaffold(";");
+                        b.Scaffold("\n");
+                        for (int k = 0; k < jsxNewlines; k++)
+                            b.Scaffold("\n");
+
+                        currentLine += jsxNewlines;
+                        segStart = consumeEnd;
+                        i = consumeEnd;
+                        continue;
+                    }
+                }
+
+                // ── Branch 0b: ? <Tag  or  : <Tag  (ternary branches) ──────────
+                // Handles `cond ? <Label .../> : <Other .../>;` without parens.
+                // Excluded: ?. (null-conditional), ?? (null-coalescing), :: (scope)
+                if (setupCode[i] == '?' || setupCode[i] == ':')
+                {
+                    char ch = setupCode[i];
+                    bool valid = true;
+                    if (
+                        ch == '?'
+                        && i + 1 < setupCode.Length
+                        && (setupCode[i + 1] == '.' || setupCode[i + 1] == '?')
+                    )
+                        valid = false;
+                    if (ch == ':' && i + 1 < setupCode.Length && setupCode[i + 1] == ':')
+                        valid = false;
+
+                    if (valid)
+                    {
+                        int peek0t = i + 1;
+                        while (
+                            peek0t < setupCode.Length
+                            && (
+                                setupCode[peek0t] == ' '
+                                || setupCode[peek0t] == '\t'
+                                || setupCode[peek0t] == '\r'
+                                || setupCode[peek0t] == '\n'
+                            )
+                        )
+                            peek0t++;
+
+                        if (
+                            peek0t < setupCode.Length
+                            && setupCode[peek0t] == '<'
+                            && peek0t + 1 < setupCode.Length
+                            && char.IsLetter(setupCode[peek0t + 1])
+                        )
+                        {
+                            int jsxStart = peek0t;
+                            // Emit everything up to and including '?' or ':'
+                            int emitUpTo = i + 1;
+                            if (emitUpTo > segStart)
+                            {
+                                string seg = setupCode.Substring(segStart, emitUpTo - segStart);
+                                int segLine = currentLine;
+                                EmitMappedWithGap(
+                                    b,
+                                    seg,
+                                    segStart,
+                                    uitkxSetupStartOffset,
+                                    gapOffset,
+                                    gapLength,
+                                    gapNewlines,
+                                    segLine,
+                                    escapedPath
+                                );
+                                currentLine += CountNewlines(seg);
+                                if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                                {
+                                    foreach (var (pStart, pEnd) in pendingExprChecks)
+                                        EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                                    pendingExprChecks.Clear();
+                                }
+                            }
+
+                            int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
+
+                            int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
+                            b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
+                            b.Scaffold(" (global::ReactiveUITK.Core.VirtualNode)null!\n");
+                            for (int k = 0; k < jsxNewlines; k++)
+                                b.Scaffold("\n");
+                            pendingExprChecks.Add((jsxStart, jsxEnd));
+
+                            currentLine += jsxNewlines;
+                            segStart = jsxEnd;
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
                 }
 
                 // ── Branch 2: => <Tag  (lambda arrow with bare inline markup) ──
@@ -1392,15 +1576,22 @@ namespace ReactiveUITK.Language.Roslyn
                                 escapedPath
                             );
                             currentLine += CountNewlines(seg);
+                            if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                            {
+                                foreach (var (pStart, pEnd) in pendingExprChecks)
+                                    EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                                pendingExprChecks.Clear();
+                            }
                         }
 
                         int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
 
                         int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
                         b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                        b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                        b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!\n");
                         for (int k = 0; k < jsxNewlines; k++)
                             b.Scaffold("\n");
+                        pendingExprChecks.Add((jsxStart, jsxEnd));
 
                         currentLine += jsxNewlines;
                         segStart = jsxEnd;
@@ -1465,15 +1656,22 @@ namespace ReactiveUITK.Language.Roslyn
                                     escapedPath
                                 );
                                 currentLine += CountNewlines(seg);
+                                if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                                {
+                                    foreach (var (pStart, pEnd) in pendingExprChecks)
+                                        EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                                    pendingExprChecks.Clear();
+                                }
                             }
 
                             int jsxEnd = FindJsxElementEnd(setupCode, jsxStart, setupCode.Length);
 
                             int jsxNewlines = CountNewlines(setupCode, jsxStart, jsxEnd);
                             b.Scaffold($"#line {currentLine} \"{escapedPath}\"\n");
-                            b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                            b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!\n");
                             for (int k = 0; k < jsxNewlines; k++)
                                 b.Scaffold("\n");
+                            pendingExprChecks.Add((jsxStart, jsxEnd));
 
                             currentLine += jsxNewlines;
                             segStart = jsxEnd;
@@ -1502,6 +1700,12 @@ namespace ReactiveUITK.Language.Roslyn
                             escapedPath
                         );
                         currentLine += CountNewlines(seg);
+                        if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                        {
+                            foreach (var (pStart, pEnd) in pendingExprChecks)
+                                EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                            pendingExprChecks.Clear();
+                        }
                     }
                     // Skip the `@` — the `(` will be re-processed next iteration.
                     segStart = i + 1;
@@ -1555,6 +1759,12 @@ namespace ReactiveUITK.Language.Roslyn
                     );
                     // Advance currentLine by the newlines inside the segment.
                     currentLine += CountNewlines(seg);
+                    if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                    {
+                        foreach (var (pStart, pEnd) in pendingExprChecks)
+                            EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                        pendingExprChecks.Clear();
+                    }
                 }
 
                 // 2. Find the matching close paren (depth-balanced, ignores {}).
@@ -1579,9 +1789,10 @@ namespace ReactiveUITK.Language.Roslyn
                 int jsxNewlines2 = CountNewlines(setupCode, i, j);
                 int placeholderLine = currentLine;
                 b.Scaffold($"#line {placeholderLine} \"{escapedPath}\"\n");
-                b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!");
+                b.Scaffold("(global::ReactiveUITK.Core.VirtualNode)null!\n");
                 for (int k = 0; k < jsxNewlines2; k++)
                     b.Scaffold("\n");
+                pendingExprChecks.Add((i + 1, j - 1));
 
                 currentLine += jsxNewlines2;
                 segStart = j;
@@ -1604,9 +1815,75 @@ namespace ReactiveUITK.Language.Roslyn
                     segLine,
                     escapedPath
                 );
+                if (pendingExprChecks.Count > 0 && seg.Contains(';'))
+                {
+                    foreach (var (pStart, pEnd) in pendingExprChecks)
+                        EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                    pendingExprChecks.Clear();
+                }
+            }
+
+            // Safety net: flush any remaining pending checks at the end
+            // of the setup code (even without a ';' in the trailing segment).
+            if (pendingExprChecks.Count > 0)
+            {
+                foreach (var (pStart, pEnd) in pendingExprChecks)
+                    EmitInlineExprChecks(b, source, directives, escapedPath, pStart, pEnd, uitkxSetupStartOffset, gapOffset, gapLength, ref exprCtr, ref attrCtr);
+                pendingExprChecks.Clear();
             }
 
             b.Scaffold("\n");
+        }
+
+        /// <summary>
+        /// Parses a JSX range (in setupCode-space) and emits inline expression
+        /// checks so that variables from nested scopes (lambdas, local functions)
+        /// are type-checked in their correct scope rather than at the outer
+        /// render-method level.
+        /// </summary>
+        private static void EmitInlineExprChecks(
+            VirtualDocBuilder b,
+            string source,
+            DirectiveSet directives,
+            string escapedPath,
+            int jsxStartInSetup,
+            int jsxEndInSetup,
+            int uitkxSetupStartOffset,
+            int gapOffset,
+            int gapLength,
+            ref int exprCtr,
+            ref int attrCtr
+        )
+        {
+            // Convert setupCode-space to source-space.
+            bool pastGap = gapOffset >= 0 && jsxStartInSetup >= gapOffset;
+            int srcStart = uitkxSetupStartOffset + jsxStartInSetup
+                + (pastGap ? gapLength : 0);
+            int srcEnd = uitkxSetupStartOffset + jsxEndInSetup
+                + (pastGap ? gapLength : 0);
+            // Compute 1-based source line.
+            int srcLine = 1;
+            for (int li = 0; li < srcStart && li < source.Length; li++)
+                if (source[li] == '\n') srcLine++;
+            var jsxDirectives = directives with
+            {
+                MarkupStartIndex = srcStart,
+                MarkupEndIndex = srcEnd,
+                MarkupStartLine = srcLine,
+            };
+            var diags = new List<ParseDiagnostic>();
+            var nodes = UitkxParser.Parse(source, escapedPath, jsxDirectives, diags);
+            if (nodes.Length > 0)
+            {
+                b.Scaffold("#line hidden\n");
+                b.Scaffold("#pragma warning disable 0162\n");
+                EmitNodeExpressionsScoped(
+                    nodes, b, escapedPath,
+                    indent: "            ",
+                    ref exprCtr, ref attrCtr
+                );
+                b.Scaffold("#pragma warning restore 0162\n");
+            }
         }
 
         /// <summary>

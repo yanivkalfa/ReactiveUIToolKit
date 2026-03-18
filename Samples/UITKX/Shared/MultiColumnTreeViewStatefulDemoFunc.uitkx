@@ -1,0 +1,190 @@
+@namespace ReactiveUITK.Samples.UITKXShared
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK.Core
+@using ReactiveUITK.Props.Typed
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component MultiColumnTreeViewStatefulDemoFunc(
+  IReadOnlyList<MultiColumnTreeViewRowState>? rows = null,
+  List<SortedColumnDef>? sortDefs = null,
+  Dictionary<string, float>? columnWidths = null,
+  Dictionary<string, bool>? columnVisibility = null,
+  Dictionary<string, int>? columnDisplayIndex = null,
+  Action? addParent = null,
+  Action? addChild = null,
+  Action? setParent = null,
+  Action? setChild = null,
+  Action? deleteLast = null,
+  ColumnSortEventHandler? onSortChanged = null,
+  ColumnLayoutEventHandler? onLayoutChanged = null,
+  Action<int>? onCountChanged = null
+) {
+  var safeRows = rows ?? Array.Empty<MultiColumnTreeViewRowState>();
+
+  List<TreeViewItemData<object>> BuildRoots()
+  {
+    var rowBuffer = new List<MultiColumnTreeViewRowState>();
+    for (int i = 0; i < safeRows.Count; i++)
+    {
+      if (safeRows[i] != null)
+      {
+        rowBuffer.Add(safeRows[i]);
+      }
+    }
+
+    var sortedRows = ReactiveUITK.Shared.Util.SortUtils.MultiSort(
+      sortDefs,
+      rowBuffer,
+      (row, col) =>
+        string.Equals(col, "Name", StringComparison.OrdinalIgnoreCase) ? row?.Parent?.Text
+        : string.Equals(col, "ID", StringComparison.OrdinalIgnoreCase) ? row?.Parent?.Id
+        : null
+    );
+
+    var list = new List<TreeViewItemData<object>>();
+    if (sortedRows == null)
+    {
+      return list;
+    }
+
+    for (int i = 0; i < sortedRows.Count; i++)
+    {
+      var row = sortedRows[i];
+      if (row == null)
+      {
+        continue;
+      }
+
+      var pid = row.Pid;
+      List<TreeViewItemData<object>>? children = null;
+      if (row.HasChild)
+      {
+        children = new List<TreeViewItemData<object>>
+        {
+          new TreeViewItemData<object>(
+            pid + 1,
+            row.Child ?? new SharedTreeRowItem
+            {
+              Id = Guid.NewGuid().ToString("N"),
+              Text = "Child",
+              IsChild = true,
+            },
+            null
+          ),
+        };
+      }
+
+      list.Add(new TreeViewItemData<object>(
+        pid,
+        row.Parent ?? new SharedTreeRowItem
+        {
+          Id = Guid.NewGuid().ToString("N"),
+          Text = "Parent",
+        },
+        children
+      ));
+    }
+
+    return list;
+  }
+
+  var rootItems = useMemo(() => BuildRoots(), new object[] { safeRows, sortDefs });
+
+  List<MultiColumnTreeViewProps.ColumnDef> BuildColumns() =>
+    new List<MultiColumnTreeViewProps.ColumnDef>
+    {
+      new()
+      {
+        Name = "Name",
+        Title = "Name",
+        Width = 200f,
+        Sortable = true,
+        Cell = (index, obj) =>
+        {
+          var row = obj as SharedTreeRowItem;
+          if (row == null)
+          {
+            return <Label text="<invalid>" key={$"mctv-invalid-{index}"} />;
+          }
+
+          var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
+          var funcKey = $"mctv-row-{id}";
+          var childNode = row.ShouldOverrideElement
+            ? <Label text={row.Text ?? "<null>"} key={funcKey} />
+            : <IntroCounterFunc key={funcKey} />;
+
+          return <VisualElement key={$"mctv-name-wrap-{id}"}>{childNode}</VisualElement>;
+        },
+      },
+      new()
+      {
+        Name = "ID",
+        Title = "ID",
+        Width = 180f,
+        Sortable = true,
+        Cell = (index, obj) =>
+        {
+          var row = obj as SharedTreeRowItem;
+          var id = row?.Id ?? index.ToString();
+          var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
+          return <Label text={shortId} key={$"mctv-id-cell-{id}"} />;
+        },
+      },
+    };
+
+  var columns = useMemo(() => BuildColumns(), new object[] { rootItems.Count });
+
+  var countValue = 0;
+  for (int i = 0; i < safeRows.Count; i++)
+  {
+    var row = safeRows[i];
+    if (row == null)
+    {
+      continue;
+    }
+    countValue += 1;
+    if (row.HasChild)
+    {
+      countValue += 1;
+    }
+  }
+
+  useEffect(() => {
+    onCountChanged?.Invoke(countValue);
+    return null;
+  }, new object[] { countValue });
+
+  PointerEventHandler Safe(Action? candidate) => _ => candidate?.Invoke();
+  var controlsStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (MarginBottom, 6f),
+  };
+
+  return (
+    <VisualElement>
+      <VisualElement style={controlsStyle}>
+        <Button text="Add Parent" onClick={Safe(addParent)} />
+        <Button text="Add Child" onClick={Safe(addChild)} />
+        <Button text="Set Parent" onClick={Safe(setParent)} />
+        <Button text="Set Child" onClick={Safe(setChild)} />
+        <Button text="Delete Last" onClick={Safe(deleteLast)} />
+      </VisualElement>
+      <MultiColumnTreeView
+        rootItems={rootItems}
+        selection={SelectionType.None}
+        fixedItemHeight={20f}
+        columns={columns}
+        sortingMode={ColumnSortingMode.Custom}
+        sortedColumns={sortDefs}
+        columnSortingChanged={onSortChanged ?? (_ => {})}
+        columnWidths={columnWidths}
+        columnVisibility={columnVisibility}
+        columnDisplayIndex={columnDisplayIndex}
+        columnLayoutChanged={onLayoutChanged}
+        style={new Style { (MarginBottom, 30f) }}
+      />
+    </VisualElement>
+  );
+}

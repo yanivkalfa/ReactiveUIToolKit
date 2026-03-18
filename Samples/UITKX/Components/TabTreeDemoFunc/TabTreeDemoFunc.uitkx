@@ -1,5 +1,5 @@
 ﻿@namespace ReactiveUITK.Samples.UITKXComponents
-@using ReactiveUITK.Samples.Shared
+@using ReactiveUITK.Samples.UITKXShared
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Props.Typed
@@ -280,24 +280,28 @@ component TabTreeDemoFunc {
     Tabs = new List<TabViewProps.TabDef>
     {
       new() { Title = "Intro", Content = () => V.Label(new LabelProps { Text = "This is a TabView + TreeView demo." }) },
-      new() { Title = "Tree", Content = () => V.Func<TreeViewStatefulDemoFunc.Props>(TreeViewStatefulDemoFunc.Render, new TreeViewStatefulDemoFunc.Props {
-        Rows = treeRows,
-        AddParent = TreeAddParent,
-        AddChild = TreeAddChild,
-        SetParent = TreeSetParent,
-        SetChild = TreeSetChild,
-        DeleteLast = TreeDeleteLast,
-        ExpandedItemIds = treeExpandedIds,
-        OnExpandedChanged = TreeExpandedChanged,
-      }) },
-      new() { Title = "Tree (Columns)", Content = () => V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(MultiColumnTreeViewStatefulDemoFunc.Render, new MultiColumnTreeViewStatefulDemoFunc.Props {
-        Rows = mctvRows,
-        AddParent = MctvAddParent,
-        AddChild = MctvAddChild,
-        SetParent = MctvSetParent,
-        SetChild = MctvSetChild,
-        DeleteLast = MctvDeleteLast,
-      }) },
+      new() { Title = "Tree", Content = () => (
+        <TreeViewStatefulDemoFunc
+          rows={treeRows}
+          addParent={TreeAddParent}
+          addChild={TreeAddChild}
+          setParent={TreeSetParent}
+          setChild={TreeSetChild}
+          deleteLast={TreeDeleteLast}
+          expandedItemIds={treeExpandedIds}
+          onExpandedChanged={TreeExpandedChanged}
+        />
+      ) },
+      new() { Title = "Tree (Columns)", Content = () => (
+        <MultiColumnTreeViewStatefulDemoFunc
+          rows={mctvRows}
+          addParent={MctvAddParent}
+          addChild={MctvAddChild}
+          setParent={MctvSetParent}
+          setChild={MctvSetChild}
+          deleteLast={MctvDeleteLast}
+        />
+      ) },
     },
     Style = new Style { (Height, 240f) },
   };

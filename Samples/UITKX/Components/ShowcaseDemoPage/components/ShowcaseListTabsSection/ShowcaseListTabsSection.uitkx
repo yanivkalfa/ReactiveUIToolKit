@@ -2,7 +2,7 @@
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Props.Typed
-@using ReactiveUITK.Samples.Shared
+@using ReactiveUITK.Samples.UITKXShared
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
@@ -151,37 +151,37 @@ component ShowcaseListTabsSection(Action<int>? onListCountChanged = null, Action
     SelectedIndexChanged = idx => setListTabIndex(idx),
     Tabs = new List<TabViewProps.TabDef> {
       new() {
-        Title = "Intro", Content = () => V.Func(IntroCounterFunc.Render)
+        Title = "Intro", Content = () => <IntroCounterFunc />
       },
       new() {
         Title = "List",
-        Content = () =>
-        V.Func<ListViewStatefulDemoFunc.Props>(ListViewStatefulDemoFunc.Render,
-        new ListViewStatefulDemoFunc.Props {
-          Items = listRows,
-          AddItem = ListAddItem,
-          SetTopItem = ListSetTopItem,
-          DeleteLast = ListDeleteLast,
-          OnCountChanged = count => onListCountChanged?.Invoke(count),
-        })
+        Content = () => (
+          <ListViewStatefulDemoFunc
+            items={listRows}
+            addItem={ListAddItem}
+            setTopItem={ListSetTopItem}
+            deleteLast={ListDeleteLast}
+            onCountChanged={count => onListCountChanged?.Invoke(count)}
+          />
+        )
       },
       new() {
         Title = "Columns",
-        Content = () =>
-        V.Func<MultiColumnListViewStatefulDemoFunc.Props>(MultiColumnListViewStatefulDemoFunc.Render,
-        new MultiColumnListViewStatefulDemoFunc.Props {
-          Items = mclvRows,
-          SortDefs = mclvSortDefs,
-          ColumnWidths = mclvLayout?.ColumnWidths,
-          ColumnVisibility = mclvLayout?.ColumnVisibility,
-          ColumnDisplayIndex = mclvLayout?.ColumnDisplayIndex,
-          AddItem = MclvAddItem,
-          SetTopItem = MclvSetTopItem,
-          DeleteLast = MclvDeleteLast,
-          OnSortChanged = MclvSortChanged,
-          OnLayoutChanged = MclvLayoutChanged,
-          OnCountChanged = count => onMclvCountChanged?.Invoke(count),
-        })
+        Content = () => (
+          <MultiColumnListViewStatefulDemoFunc
+            items={mclvRows}
+            sortDefs={mclvSortDefs}
+            columnWidths={mclvLayout?.ColumnWidths}
+            columnVisibility={mclvLayout?.ColumnVisibility}
+            columnDisplayIndex={mclvLayout?.ColumnDisplayIndex}
+            addItem={MclvAddItem}
+            setTopItem={MclvSetTopItem}
+            deleteLast={MclvDeleteLast}
+            onSortChanged={MclvSortChanged}
+            onLayoutChanged={MclvLayoutChanged}
+            onCountChanged={count => onMclvCountChanged?.Invoke(count)}
+          />
+        )
       },
     },
     Style = new Style { (Height, 240f) },

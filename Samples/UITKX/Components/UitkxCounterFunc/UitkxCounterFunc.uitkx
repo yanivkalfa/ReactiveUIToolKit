@@ -5,7 +5,7 @@
 @using UnityEngine.UIElements
 @using ReactiveUITK.Signals
 @using ReactiveUITK.Router
-@using ReactiveUITK.Samples.Shared
+@using ReactiveUITK.Samples.UITKXShared
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
 component UitkxCounterFunc {

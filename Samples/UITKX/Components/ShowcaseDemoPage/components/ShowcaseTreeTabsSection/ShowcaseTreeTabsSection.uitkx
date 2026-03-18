@@ -2,7 +2,7 @@
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Props.Typed
-@using ReactiveUITK.Samples.Shared
+@using ReactiveUITK.Samples.UITKXShared
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
@@ -307,42 +307,42 @@ component ShowcaseTreeTabsSection(Action<int>? onTreeCountChanged = null, Action
     SelectedTabIndex = treeTabIndex,
     SelectedIndexChanged = idx => setTreeTabIndex(idx),
     Tabs = new List<TabViewProps.TabDef> {
-      new() { Title = "Intro", Content = () => V.Func(IntroCounterFunc.Render) },
+      new() { Title = "Intro", Content = () => (<IntroCounterFunc />) },
       new() {
         Title = "Tree",
-        Content = () =>
-        V.Func<TreeViewStatefulDemoFunc.Props>(TreeViewStatefulDemoFunc.Render,
-        new TreeViewStatefulDemoFunc.Props {
-          Rows = treeRows,
-          AddParent = TreeAddParent,
-          AddChild = TreeAddChild,
-          SetParent = TreeSetParent,
-          SetChild = TreeSetChild,
-          DeleteLast = TreeDeleteLast,
-          ExpandedItemIds = treeExpandedIds,
-          OnExpandedChanged = TreeExpandedChanged,
-          OnCountChanged = count => onTreeCountChanged?.Invoke(count),
-        })
+        Content = () => (
+          <TreeViewStatefulDemoFunc
+            rows={treeRows}
+            addParent={TreeAddParent}
+            addChild={TreeAddChild}
+            setParent={TreeSetParent}
+            setChild={TreeSetChild}
+            deleteLast={TreeDeleteLast}
+            expandedItemIds={treeExpandedIds}
+            onExpandedChanged={TreeExpandedChanged}
+            onCountChanged={count => onTreeCountChanged?.Invoke(count)}
+          />
+        )
       },
       new() {
         Title = "Columns",
-        Content = () =>
-        V.Func<MultiColumnTreeViewStatefulDemoFunc.Props>(MultiColumnTreeViewStatefulDemoFunc.Render,
-        new MultiColumnTreeViewStatefulDemoFunc.Props {
-          Rows = mctvRows,
-          SortDefs = mctvSortDefs,
-          ColumnWidths = mctvLayout?.ColumnWidths,
-          ColumnVisibility = mctvLayout?.ColumnVisibility,
-          ColumnDisplayIndex = mctvLayout?.ColumnDisplayIndex,
-          AddParent = MctvAddParent,
-          AddChild = MctvAddChild,
-          SetParent = MctvSetParent,
-          SetChild = MctvSetChild,
-          DeleteLast = MctvDeleteLast,
-          OnSortChanged = MctvSortChanged,
-          OnLayoutChanged = MctvLayoutChanged,
-          OnCountChanged = count => onMctvCountChanged?.Invoke(count),
-        })
+        Content = () => (
+          <MultiColumnTreeViewStatefulDemoFunc
+            rows={mctvRows}
+            sortDefs={mctvSortDefs}
+            columnWidths={mctvLayout?.ColumnWidths}
+            columnVisibility={mctvLayout?.ColumnVisibility}
+            columnDisplayIndex={mctvLayout?.ColumnDisplayIndex}
+            addParent={MctvAddParent}
+            addChild={MctvAddChild}
+            setParent={MctvSetParent}
+            setChild={MctvSetChild}
+            deleteLast={MctvDeleteLast}
+            onSortChanged={MctvSortChanged}
+            onLayoutChanged={MctvLayoutChanged}
+            onCountChanged={count => onMctvCountChanged?.Invoke(count)}
+          />
+        )
       },
     },
     Style = new Style { (Height, 240f) },

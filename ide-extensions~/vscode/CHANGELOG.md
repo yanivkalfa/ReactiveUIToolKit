@@ -1,5 +1,53 @@
 ﻿# Changelog
 
+## [1.0.254] - 2026-03-18
+- Fix: Site A no longer dims component closing brace (uses FunctionBodyEndLine-1). Add render-return wrapper dimming for the return() line that wraps the render root but is not part of the AST.
+
+## [1.0.253] - 2026-03-18
+- Fix: decouple isFunctionStyle from skipReturnCheck so Site B (sibling-level dimming) fires for function-style components. Early return in setup code now dims the render root element too.
+
+## [1.0.252] - 2026-03-18
+- Fix: off-by-one in function-style unreachable diagnostics (srcLine used @code convention but synthetic source has no leading newline); remove skipTopLevel to detect early returns in setup code.
+
+## [1.0.251] - 2026-03-18
+- Fix: production-grade unreachable-after-return dimming. Rewrote CheckUnreachableAfterReturn with unified depth-aware tracker supporting multi-line return(...); detection. Removed CS0162 merging hack and FindScopeEnd. Suppressed CS0162 globally in favor of UITKX0107.
+
+## [1.0.250] - 2026-03-18
+- Revert global CS0162 suppression; instead merge per-statement CS0162 into full-block unreachable ranges so entire code after return is dimmed consistently
+
+## [1.0.249] - 2026-03-18
+- Suppress CS0162 (unreachable code) globally — virtual document return-placeholders cause false unreachable dimming; genuine unreachability is covered by UITKX0107/UITKX0110
+
+## [1.0.248] - 2026-03-18
+- Fix spurious dimming of code after return statements: move expression checks before return so they are reachable; suppress CS0162 for all scaffolded expression checks via pragma
+
+## [1.0.247] - 2026-03-17
+- Expression checks for JSX in nested scopes (lambdas, local functions): deferred emission at nearest statement boundary keeps checks in correct lexical scope
+
+## [1.0.246] - 2026-03-17
+- already set
+
+## [1.0.246] - 2026-03-17
+- Minor improvements and bug fixes.
+
+## [1.0.246] - 2026-03-17
+- Fix: skip expression diagnostics for JSX inside nested scopes (lambdas/local functions) to prevent false 'does not exist' errors
+
+## [1.0.245] - 2026-03-17
+- Fix: emit expression diagnostics for bare JSX in function-style setup code (return/ternary/assignment patterns)
+
+## [1.0.244] - 2026-03-17
+- Fix: emit expression diagnostics for bare JSX in function-style setup code (return/ternary/assignment patterns)
+
+## [1.0.243] - 2026-03-17
+- Fix broken diagnostics in setup code: #line directives were inlined with JSX placeholders, causing Roslyn to lose line mapping for all subsequent C# code
+
+## [1.0.242] - 2026-03-17
+- Fix false diagnostics for bare return/ternary JSX in setup code (return <Tag/>, ? <Tag/>, : <Tag/>)
+
+## [1.0.241] - 2026-03-17
+- Fix false red squiggles for JSX in setup code (return/ternary/assignment markup inside local functions and lambdas)
+
 ## [1.0.240] - 2026-03-17
 - Fix Go-To-Definition navigating into dist~ folders; support multiple return statements in function-style components (use last return as canonical markup)
 
