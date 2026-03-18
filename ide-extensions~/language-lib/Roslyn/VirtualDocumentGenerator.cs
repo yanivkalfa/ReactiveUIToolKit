@@ -1373,6 +1373,13 @@ namespace ReactiveUITK.Language.Roslyn
                     continue;
                 }
 
+                // Skip string and char literals so branches never fire inside them
+                {
+                    int before = i;
+                    if (DirectiveParser.TrySkipStringOrCharLiteral(setupCode, setupCode.Length, ref i))
+                        continue;
+                }
+
                 // ── Branch 0: return <Tag  (bare return with inline markup) ────
                 // Handles `return <Label text="..." />;` without wrapping parens.
                 if (

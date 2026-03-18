@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## [1.0.260] - 2026-03-18
+- Fix: string/char literals inside setup code no longer trigger false JSX detection.
+  Interpolated strings like `$"{label}: <null event>"` with `:` or `<` are now correctly
+  skipped by both the DirectiveParser (FindJsxBlockRanges, FindBareJsxRanges) and the
+  VDG scanner — fixes false "mismatched tag", "unterminated string", and "name does not
+  exist" errors in SyntheticEventDemoFunc and similar files.
+
 ## [1.0.259] - 2026-03-18
 - Revert: removed string literal skipping from VDG scanner (v1.0.258) — caused widespread regressions.
 

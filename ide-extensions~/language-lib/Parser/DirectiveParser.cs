@@ -1813,6 +1813,10 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
+                // Skip string and char literals
+                if (TrySkipStringOrCharLiteral(source, rangeEnd, ref i))
+                    continue;
+
                 // ── Bare arrow: => <Tag ──────────────────────────────────
                 if (source[i] == '=' && i + 1 < rangeEnd && source[i + 1] == '>')
                 {
@@ -1927,6 +1931,10 @@ namespace ReactiveUITK.Language.Parser
                     i = end >= 0 ? end + 2 : rangeEnd;
                     continue;
                 }
+
+                // Skip string and char literals
+                if (TrySkipStringOrCharLiteral(source, rangeEnd, ref i))
+                    continue;
 
                 // ── Bare return: return <Tag ─────────────────────────────
                 if (source[i] == 'r' && i + 5 < rangeEnd
@@ -2134,6 +2142,154 @@ namespace ReactiveUITK.Language.Parser
             if (i < source.Length && source[i] == '\n')
                 i++;
             line++;
+        }
+
+        /// <summary>
+        /// If <c>source[i]</c> starts a C# string or char literal, advances
+        /// <paramref name="i"/> past its closing delimiter and returns <c>true</c>.
+        /// Handles regular <c>"..."</c>, verbatim <c>@"..."</c>,
+        /// interpolated <c>$"..."</c>, combined <c>$@"..."</c> / <c>@$"..."</c>,
+        /// and char <c>'...'</c> literals.  Inside interpolated strings the
+        /// method tracks brace depth and recursively skips nested string literals
+        /// within interpolation holes.
+        /// </summary>
+        internal static bool TrySkipStringOrCharLiteral(string source, int rangeEnd, ref int i)
+        {
+            if (i >= rangeEnd) return false;
+            char c0 = source[i];
+
+            // ── Char literal '...' ─────────────────────────────────────────
+            if (c0 == '\'')
+            {
+                int j = i + 1;
+                while (j < rangeEnd)
+                {
+                    if (source[j] == '\\') { j += 2; continue; }
+                    if (source[j] == '\'') { i = j + 1; return true; }
+                    j++;
+                }
+                i = rangeEnd;
+                return true;
+            }
+
+            // ── Detect string kind ─────────────────────────────────────────
+            bool isVerbatim = false;
+            bool isInterpolated = false;
+            int quotePos = -1;
+
+            if (c0 == '"')
+            {
+                quotePos = i;
+            }
+            else if (c0 == '$' && i + 1 < rangeEnd)
+            {
+                if (source[i + 1] == '"')
+                {
+                    isInterpolated = true;
+                    quotePos = i + 1;
+                }
+                else if (source[i + 1] == '@' && i + 2 < rangeEnd && source[i + 2] == '"')
+                {
+                    isInterpolated = true;
+                    isVerbatim = true;
+                    quotePos = i + 2;
+                }
+            }
+            else if (c0 == '@' && i + 1 < rangeEnd)
+            {
+                if (source[i + 1] == '"')
+                {
+                    isVerbatim = true;
+                    quotePos = i + 1;
+                }
+                else if (source[i + 1] == '$' && i + 2 < rangeEnd && source[i + 2] == '"')
+                {
+                    isInterpolated = true;
+                    isVerbatim = true;
+                    quotePos = i + 2;
+                }
+            }
+
+            if (quotePos < 0) return false;
+
+            // ── Scan to end of string ──────────────────────────────────────
+            int k = quotePos + 1;
+            int braceDepth = 0;
+
+            while (k < rangeEnd)
+            {
+                char ch = source[k];
+
+                // Inside an interpolation hole — track braces, skip nested strings
+                if (isInterpolated && braceDepth > 0)
+                {
+                    if (ch == '{') { braceDepth++; k++; continue; }
+                    if (ch == '}') { braceDepth--; k++; continue; }
+                    // Nested string or char literal inside interpolation
+                    if (ch == '"' || ch == '\'' || ch == '$' || ch == '@')
+                    {
+                        if (TrySkipStringOrCharLiteral(source, rangeEnd, ref k))
+                            continue;
+                    }
+                    // Skip // and /* */ inside interpolation
+                    if (ch == '/' && k + 1 < rangeEnd)
+                    {
+                        if (source[k + 1] == '/') { while (k < rangeEnd && source[k] != '\n') k++; continue; }
+                        if (source[k + 1] == '*')
+                        {
+                            int ce = source.IndexOf("*/", k + 2, StringComparison.Ordinal);
+                            k = ce >= 0 ? ce + 2 : rangeEnd;
+                            continue;
+                        }
+                    }
+                    k++;
+                    continue;
+                }
+
+                // Inside string text (braceDepth == 0)
+                if (isVerbatim)
+                {
+                    if (ch == '"')
+                    {
+                        if (k + 1 < rangeEnd && source[k + 1] == '"')
+                        { k += 2; continue; } // escaped ""
+                        i = k + 1; return true; // end of string
+                    }
+                    if (isInterpolated && ch == '{')
+                    {
+                        if (k + 1 < rangeEnd && source[k + 1] == '{')
+                        { k += 2; continue; } // escaped {{
+                        braceDepth++;
+                    }
+                    if (isInterpolated && ch == '}')
+                    {
+                        if (k + 1 < rangeEnd && source[k + 1] == '}')
+                        { k += 2; continue; } // escaped }}
+                    }
+                    k++;
+                    continue;
+                }
+
+                // Regular or interpolated non-verbatim
+                if (ch == '\\') { k += 2; continue; }
+                if (ch == '"') { i = k + 1; return true; }
+                if (isInterpolated && ch == '{')
+                {
+                    if (k + 1 < rangeEnd && source[k + 1] == '{')
+                    { k += 2; continue; } // escaped {{
+                    braceDepth++;
+                }
+                if (isInterpolated && ch == '}')
+                {
+                    if (k + 1 < rangeEnd && source[k + 1] == '}')
+                    { k += 2; continue; } // escaped }}
+                }
+                k++;
+            }
+
+            // Unterminated — advance to end
+            i = rangeEnd;
+            return true;
         }
     }
 }
