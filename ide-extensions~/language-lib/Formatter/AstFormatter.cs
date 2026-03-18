@@ -1109,6 +1109,19 @@ namespace ReactiveUITK.Language.Formatter
             if (t.IndexOf(" = ", System.StringComparison.Ordinal) >= 0)
                 return true;
 
+            // Expression-bodied method declarations: e.g.
+            //   RowRenderer BuildRowRenderer() =>
+            // These end with '=>' and start with a type name (uppercase letter).
+            // Lambda continuations like `(index, obj) =>` are excluded because
+            // they start with '(' not a letter.
+            if (
+                t.Length >= 2
+                && t[t.Length - 1] == '>'
+                && t[t.Length - 2] == '='
+                && char.IsUpper(first)
+            )
+                return true;
+
             return false;
         }
 

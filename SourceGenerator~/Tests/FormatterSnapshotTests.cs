@@ -8706,10 +8706,10 @@ component Comp {
         // Key identifiers must map to their correct source lines
         var checks = new[]
         {
-            ("MctvSetChild", 264),
-            ("MctvDeleteLast", 292),
-            ("TreeViewRowState", 52),
-            ("var secondElement", 313),
+            ("MctvSetChild", 270),
+            ("MctvDeleteLast", 298),
+            ("TreeViewRowState", 58),
+            ("var secondElement", 319),
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -8858,5 +8858,89 @@ component Comp {
         var result = Format(modified);
         Assert.NotEqual(modified, result);
         Assert.Contains("<Button", result);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Regression: under-indented JSX var before lambda with JSX bleeds indent
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void UnderIndentedJsxVar_DoesNotBleedIntoFollowingLambda()
+    {
+        // The `var someVara` line is at 2sp instead of the correct 4sp.
+        // After formatting, it should normalise to 2sp (component body indent)
+        // but the `RowRenderer BuildRowRenderer()` block that follows must NOT
+        // get extra indentation inside its braces.
+        var source = N(
+            """
+            component Counter {
+              var safeItems = Array.Empty<int>();
+            var someVara = (
+                <Box>
+                  @(safeItems)
+                </Box>
+              );
+              RowRenderer BuildRowRenderer() =>
+              (index, obj) =>
+              {
+                var row = obj as string;
+                if (row == null)
+                {
+                  return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+                }
+
+                return (
+                  <VisualElement key={$"lv-wrap-{index}"}>
+                    @(row)
+                  </VisualElement>
+                );
+              };
+
+              return (
+                <Label text="hi" />
+              );
+            }
+            """
+        );
+
+        var expected = N(
+            """
+            component Counter {
+              var safeItems = Array.Empty<int>();
+              var someVara = (
+                <Box>
+                  @(safeItems)
+                </Box>
+              );
+              RowRenderer BuildRowRenderer() =>
+              (index, obj) =>
+              {
+                var row = obj as string;
+                if (row == null)
+                {
+                  return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+                }
+
+                return (
+                  <VisualElement key={$"lv-wrap-{index}"}>
+                    @(row)
+                  </VisualElement>
+                );
+              };
+
+              return (
+                <Label text="hi" />
+              );
+            }
+
+            """
+        );
+
+        var result = Format(source);
+        Assert.Equal(expected, result);
+
+        // Must also be idempotent
+        var r2 = Format(result);
+        Assert.Equal(result, r2);
     }
 }

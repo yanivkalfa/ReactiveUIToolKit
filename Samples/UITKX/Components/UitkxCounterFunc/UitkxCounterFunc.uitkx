@@ -10,7 +10,11 @@
 
 component UitkxCounterFunc {
   var safeItems = Array.Empty<ListViewRowState>();
-
+  var someVara = (
+    <Box>
+      @(safeItems)
+    </Box>
+  );
   RowRenderer BuildRowRenderer() =>
   (index, obj) =>
   {
@@ -39,7 +43,9 @@ component UitkxCounterFunc {
     </Box>
   );
 
-  var someVarb = (<Box />);
+  var someVarb = (
+    <Box />
+  );
 
   var (count, setCount) = useState(0);
   var (mode, setMode) = useState("normal");
