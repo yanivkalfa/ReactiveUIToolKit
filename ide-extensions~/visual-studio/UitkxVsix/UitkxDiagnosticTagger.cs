@@ -223,18 +223,17 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
             if (!spans.IntersectsWith(span))
                 continue;
 
+            var hasUnnecessary = diag.Tags != null && diag.Tags.Contains(1);
+
             var errorType = diag.Severity switch
             {
-                1 => PredefinedErrorTypeNames.SyntaxError, // Error
-                2 => PredefinedErrorTypeNames.Warning, // Warning
+                1 => PredefinedErrorTypeNames.SyntaxError, // Error (keep red even if Unnecessary)
+                2 => PredefinedErrorTypeNames.Warning, // Warning (keep yellow even if Unnecessary)
                 3 => PredefinedErrorTypeNames.HintedSuggestion, // Information
+                4 when hasUnnecessary => PredefinedErrorTypeNames.HintedSuggestion, // Hint+Unnecessary → dimmed
                 4 => PredefinedErrorTypeNames.HintedSuggestion, // Hint
                 _ => PredefinedErrorTypeNames.SyntaxError,
             };
-
-            // Unreachable code (DiagnosticTag.Unnecessary = 1) gets a dimmed style.
-            if (diag.Tags != null && diag.Tags.Contains(1))
-                errorType = PredefinedErrorTypeNames.HintedSuggestion;
 
             yield return new TagSpan<IErrorTag>(span, new ErrorTag(errorType, diag.Message));
         }
@@ -353,8 +352,12 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
 
         foreach (var diag in _diagnostics)
         {
-            // Only dim diagnostics tagged with Unnecessary (1).
+            // Only dim Hint-severity diagnostics tagged with Unnecessary (1).
+            // Error/Warning + Unnecessary (unused params/vars) keep their squiggle;
+            // they don't need the full "excluded code" gray overlay.
             if (diag.Tags == null || !diag.Tags.Contains(1))
+                continue;
+            if (diag.Severity is 1 or 2)
                 continue;
 
             var start = GetPosition(snapshot, diag.StartLine, diag.StartChar);
