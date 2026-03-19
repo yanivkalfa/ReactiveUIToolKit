@@ -961,8 +961,12 @@ namespace ReactiveUITK.Language.Diagnostics
         }
 
         /// <summary>
-        /// Recursively collects all C# expression / code text from the AST
-        /// into a single <see cref="System.Text.StringBuilder"/> for usage scanning.
+        /// Recursively collects C# expression text from markup nodes only
+        /// (element attributes, inline expressions, control-flow conditions).
+        /// <see cref="CodeBlockNode.Code"/> is deliberately excluded — setup
+        /// code is handled separately by <see cref="IsUsedInSetupCode"/> with
+        /// scope-aware shadowing. Only <see cref="ReturnMarkupNode"/> elements
+        /// inside code blocks are collected.
         /// </summary>
         private static void CollectCSharpText(ImmutableArray<AstNode> nodes, System.Text.StringBuilder sb)
         {
@@ -975,7 +979,8 @@ namespace ReactiveUITK.Language.Diagnostics
                         break;
 
                     case CodeBlockNode cb:
-                        sb.Append(' ').Append(cb.Code).Append(' ');
+                        // Do NOT append cb.Code — it is scanned by IsUsedInSetupCode.
+                        // Only collect from return-markup elements embedded in code.
                         foreach (var rm in cb.ReturnMarkups)
                             CollectCSharpTextFromElement(rm.Element, sb);
                         break;
