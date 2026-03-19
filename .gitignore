@@ -9,25 +9,41 @@ ReactiveUIToolKitDocs~/**/*.meta
 ReactiveUIToolKitDocs~/dist/*
 ReactiveUIToolKitDocs~/node_modules/*
 
-# Source generator build artifacts — the compiled DLL in Analyzers/ IS committed;
+# ── Source generator ────────────────────────────────────────────
+# The compiled DLL in Analyzers/ IS committed;
 # only the intermediate build output dirs and side-files are ignored.
 SourceGenerator~/obj/
 SourceGenerator~/bin/
 SourceGenerator~/Tests/obj/
 SourceGenerator~/Tests/bin/
-Analyzers/*.deps.json
-Analyzers/*.pdb
 
-# Visual Studio IDE cache (locked by VS at runtime)
+# ── Analyzers (distributed DLLs) ───────────────────────────────
+# PDBs, deps.json, and their Unity .meta companions are not needed
+Analyzers/*.deps.json
+Analyzers/*.deps.json.meta
+Analyzers/*.pdb
+Analyzers/*.pdb.meta
+Analyzers/publish/
+Analyzers/publish.meta
+
+# ── VSIX build artifacts (all IDEs) ────────────────────────────
+# Never commit .vsix files anywhere in the repo
+**/*.vsix
+UitkxVsix.vsix.meta
+
+# ── Visual Studio IDE cache ────────────────────────────────────
 .vs/
 ide-extensions~/visual-studio/UitkxVsix/.vs/
 
-# VS extension build artifacts
+# VS2022 extension build artifacts
 ide-extensions~/visual-studio/UitkxVsix/bin/
 ide-extensions~/visual-studio/UitkxVsix/obj/
 ide-extensions~/visual-studio/UitkxVsix/server/
-ide-extensions~/visual-studio/UitkxVsix/.vsix/
-ide-extensions~/visual-studio/UitkxVsix/*.vsix
+ide-extensions~/visual-studio/UitkxVsix/_inspect_*/
+
+# VS Code extension build artifacts
+ide-extensions~/vscode/server/
+ide-extensions~/vscode/node_modules/
 
 # LSP server build artifacts
 ide-extensions~/lsp-server/bin/
@@ -37,7 +53,11 @@ ide-extensions~/lsp-server/obj/
 ide-extensions~/language-lib/bin/
 ide-extensions~/language-lib/obj/
 
-# Publisher credentials — never commit the real token
+# ── Temporary debugging scripts ────────────────────────────────
+*.csx
+!SourceGenerator~/Tests/FormatTest.csx
+
+# ── Credentials — never commit real tokens ─────────────────────
 publisher-secrets.json
 publisher-secrets.json.meta
 
