@@ -12,6 +12,7 @@ import { UitkxGettingStartedPage } from './pages/UITKX/GettingStarted/UitkxGetti
 import { UitkxIntroductionPage } from './pages/UITKX/Introduction/UitkxIntroductionPage'
 import { UitkxRouterPage } from './pages/UITKX/Router/UitkxRouterPage'
 import { UitkxSignalsPage } from './pages/UITKX/Signals/UitkxSignalsPage'
+import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 
 export type DocTrack = 'uitkx' | 'csharp'
 
@@ -176,6 +177,15 @@ export const uitkxSections: DocSection[] = [
         keywords: ['uitkx', 'signals', 'shared state'],
         track: 'uitkx',
         element: () => <UitkxSignalsPage />,
+      },
+      {
+        id: 'uitkx-hmr-page',
+        canonicalId: 'hmr',
+        title: 'Hot Module Replacement',
+        path: '/tooling/hmr',
+        keywords: ['uitkx', 'hmr', 'hot reload', 'live editing', 'instant preview'],
+        track: 'uitkx',
+        element: () => <HmrPage />,
       },
     ],
   },
