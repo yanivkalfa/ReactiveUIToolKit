@@ -1,6 +1,6 @@
 # IntelliSense Bugs — Phase 2 Plan
 
-**Parent plan:** [`root/plan/intellisense-plan.md`](../plan/intellisense-plan.md)  
+**Parent plan:** [`intellisense-plan.md`](intellisense-plan.md)  
 **Status:** ACTIVE  
 **Created:** 2026-03-10  
 **Mandate:** No shortcuts. No temporary workarounds. Production-grade solutions only.
