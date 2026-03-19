@@ -829,25 +829,32 @@ namespace ReactiveUITK.Language.Diagnostics
 
         /// <summary>
         /// UITKX0111 — For each function-style component parameter, check whether
-        /// its name appears anywhere in the setup code or the markup AST.
+        /// its name appears in the setup code (with scope-aware shadowing) or
+        /// the markup AST (expressions, attribute bindings, conditions).
         /// </summary>
         private static void CheckUnusedParameters(
             DirectiveSet d,
             ImmutableArray<AstNode> rootNodes,
             List<ParseDiagnostic> diags)
         {
-            // Collect all C# text from setup code + markup into one string.
-            var sb = new System.Text.StringBuilder();
-            if (!string.IsNullOrEmpty(d.FunctionSetupCode))
-                sb.Append(' ').Append(d.FunctionSetupCode).Append(' ');
-            CollectCSharpText(rootNodes, sb);
-
-            string allText = sb.ToString();
+            // Collect C# text from markup only (expressions, attributes,
+            // conditions).  Markup never has local declarations, so a
+            // simple word-boundary check is safe here.
+            var markupSb = new System.Text.StringBuilder();
+            CollectCSharpText(rootNodes, markupSb);
+            string markupText = markupSb.ToString();
 
             foreach (var p in d.FunctionParams)
             {
-                // Word-boundary check: param name must appear as a standalone identifier.
-                if (Regex.IsMatch(allText, @"\b" + Regex.Escape(p.Name) + @"\b"))
+                var nameRx = new Regex(@"\b" + Regex.Escape(p.Name) + @"\b");
+
+                // 1. Used in markup?  Simple text search is sufficient.
+                if (nameRx.IsMatch(markupText))
+                    continue;
+
+                // 2. Used in setup code?  Scope-aware: skip usages inside
+                //    scopes that declare their own local with the same name.
+                if (IsUsedInSetupCode(d.FunctionSetupCode, p.Name, nameRx))
                     continue;
 
                 int col    = p.NameColumn >= 0 ? p.NameColumn : 0;
@@ -865,6 +872,92 @@ namespace ReactiveUITK.Language.Diagnostics
                     EndColumn  = endCol,
                 });
             }
+        }
+
+        /// <summary>
+        /// Scope-aware check: does <paramref name="paramName"/> appear in
+        /// <paramref name="setupCode"/> at a brace depth where it is NOT
+        /// shadowed by a local declaration (<c>var name</c>, <c>Type name</c>,
+        /// or a function parameter with the same name)?
+        /// </summary>
+        private static bool IsUsedInSetupCode(
+            string? setupCode, string paramName, Regex nameRx)
+        {
+            if (string.IsNullOrEmpty(setupCode))
+                return false;
+            if (!nameRx.IsMatch(setupCode))
+                return false; // fast bail
+
+            // Matches a local variable declaration that introduces `paramName`
+            // as a new local: "var name", "int name", "List<T>? name", etc.
+            var declRx = new Regex(
+                @"(?:var|int|uint|long|ulong|short|ushort|byte|sbyte|char" +
+                @"|float|double|decimal|bool|string|object|dynamic|nint|nuint" +
+                @"|[A-Z]\w*(?:<[^>]*>)?(?:\?|\[\])*)" +
+                @"\s+" + Regex.Escape(paramName) + @"\b");
+
+            var lines = setupCode.Replace("\r\n", "\n").Split('\n');
+            int depth = 0;
+            // shadowAt[d] == true  ⇒  a local with this name was declared at depth d.
+            // Shadows apply at depth d and all deeper levels until the scope exits.
+            var shadowAt = new bool[128];
+
+            for (int li = 0; li < lines.Length; li++)
+            {
+                string line = lines[li];
+                string trimmed = line.Trim();
+
+                if (trimmed.Length == 0)
+                {
+                    // Still track braces on blank lines.
+                    for (int c = 0; c < line.Length; c++)
+                    {
+                        if (line[c] == '{') { depth++; }
+                        else if (line[c] == '}')
+                        {
+                            if (depth > 0 && depth < 128) shadowAt[depth] = false;
+                            if (depth > 0) depth--;
+                        }
+                    }
+                    continue;
+                }
+
+                // Check if this line contains a local declaration.
+                if (declRx.IsMatch(line) && depth >= 0 && depth < 128)
+                    shadowAt[depth] = true;
+
+                // Check if the name is used on this line AND not shadowed.
+                if (nameRx.IsMatch(line))
+                {
+                    bool shadowed = false;
+                    for (int sd = 0; sd <= depth && sd < 128; sd++)
+                        if (shadowAt[sd]) { shadowed = true; break; }
+
+                    if (!shadowed)
+                    {
+                        // If the line also has a declaration, the name after
+                        // "var/Type" is the declaration itself — remove it and
+                        // re-check.  This way `var items = f(items)` still
+                        // counts the RHS `items` as a parameter use.
+                        string stripped = declRx.Replace(line, "");
+                        if (nameRx.IsMatch(stripped))
+                            return true;
+                    }
+                }
+
+                // Update depth from braces on this line.
+                for (int c = 0; c < line.Length; c++)
+                {
+                    if (line[c] == '{') { depth++; }
+                    else if (line[c] == '}')
+                    {
+                        if (depth > 0 && depth < 128) shadowAt[depth] = false;
+                        if (depth > 0) depth--;
+                    }
+                }
+            }
+
+            return false;
         }
 
         /// <summary>

@@ -340,6 +340,9 @@ public sealed class DiagnosticsPublisher
                 d.Code == DiagnosticCodes.UnreachableAfterReturn
                 || d.Code == DiagnosticCodes.UnreachableAfterBreakOrContinue
                 || d.Code == "CS0162" // Roslyn: Unreachable code detected
+                || d.Code == DiagnosticCodes.UnusedParameter // UITKX0111
+                || d.Code == "CS0219" // Roslyn: unused local variable
+                || d.Code == "CS8321" // Roslyn: unused local function
                     ? new Container<DiagnosticTag>(DiagnosticTag.Unnecessary)
                     : null,
         };

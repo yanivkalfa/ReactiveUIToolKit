@@ -9058,6 +9058,60 @@ component Comp {
         Assert.Contains("'x'", unused[0].Message);
     }
 
+    [Fact]
+    public void UITKX0111_ShadowedLocalDoesNotCountAsUse()
+    {
+        // `items` appears inside a local function as a local var — that
+        // shadows the component parameter, so the parameter is still unused.
+        var source = N(
+            @"component Foo(int items = 0) {
+  void Shuffle()
+  {
+    var items = new List<int>();
+    items.Add(1);
+  }
+  return (<Label text=""hi"" />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        var unused = diags.Where(d => d.Code == "UITKX0111").ToList();
+        Assert.Single(unused);
+        Assert.Contains("'items'", unused[0].Message);
+    }
+
+    [Fact]
+    public void UITKX0111_UnshadowedLocalFunctionUseCounts()
+    {
+        // `items` used inside a local function WITHOUT redeclaring it
+        // → the parameter IS being used.
+        var source = N(
+            @"component Foo(int items = 0) {
+  void DoWork()
+  {
+    Console.WriteLine(items);
+  }
+  return (<Label text=""hi"" />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    [Fact]
+    public void UITKX0111_ShadowedButRHSUsesParam()
+    {
+        // The declaration `var items = f(items)` shadows the name, but the
+        // RHS still references the parameter — so the param IS used.
+        var source = N(
+            @"component Foo(int items = 0) {
+  var items = items + 1;
+  return (<Label text={items.ToString()} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
     private static System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic> RunAnalyzer(
         string source,
         string filePath)
