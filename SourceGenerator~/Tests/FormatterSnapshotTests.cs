@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Language.Formatter;
 using Xunit;
@@ -8706,10 +8707,10 @@ component Comp {
         // Key identifiers must map to their correct source lines
         var checks = new[]
         {
-            ("MctvSetChild", 262),
-            ("MctvDeleteLast", 290),
-            ("TreeViewRowState", 50),
-            ("var secondElement", 311),
+            ("MctvSetChild", 264),
+            ("MctvDeleteLast", 292),
+            ("TreeViewRowState", 52),
+            ("var secondElement", 313),
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -8997,5 +8998,80 @@ component Comp {
         var result = Format(source);
         Assert.Contains("component Foo(int x = 0, string y = \"hi\") {", result);
         Assert.Equal(result, Format(result));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  UITKX0111 — Unused component parameter
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void UITKX0111_UnusedParam_IsReported()
+    {
+        var source = N(
+            @"component Foo(int x = 0, string y = ""hi"") {
+  return (<Label text=""hello"" />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        var unused = diags.Where(d => d.Code == "UITKX0111").ToList();
+        Assert.Equal(2, unused.Count);
+        Assert.Contains(unused, d => d.Message.Contains("'x'"));
+        Assert.Contains(unused, d => d.Message.Contains("'y'"));
+    }
+
+    [Fact]
+    public void UITKX0111_UsedParam_NoFalsePositive_InSetupCode()
+    {
+        var source = N(
+            @"component Foo(int x = 0) {
+  var doubled = x * 2;
+  return (<Label text={doubled.ToString()} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    [Fact]
+    public void UITKX0111_UsedParam_NoFalsePositive_InMarkup()
+    {
+        var source = N(
+            @"component Foo(string label = ""hi"") {
+  return (<Label text={label} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    [Fact]
+    public void UITKX0111_MixedUsedAndUnused()
+    {
+        var source = N(
+            @"component Foo(int x = 0, string label = ""hi"") {
+  return (<Label text={label} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        var unused = diags.Where(d => d.Code == "UITKX0111").ToList();
+        Assert.Single(unused);
+        Assert.Contains("'x'", unused[0].Message);
+    }
+
+    private static System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic> RunAnalyzer(
+        string source,
+        string filePath)
+    {
+        var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(
+            source, filePath, diags);
+        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(
+            source, filePath, directives, diags);
+        var parseResult = new ReactiveUITK.Language.Parser.ParseResult(
+            directives, nodes,
+            System.Collections.Immutable.ImmutableArray.CreateRange(diags));
+        var analyzer = new ReactiveUITK.Language.Diagnostics.DiagnosticsAnalyzer();
+        var t2 = analyzer.Analyze(parseResult, filePath);
+        return t2.ToList();
     }
 }

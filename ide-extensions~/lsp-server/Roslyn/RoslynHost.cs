@@ -83,6 +83,8 @@ namespace UitkxLanguageServer.Roslyn
                     // CS0219: unused local variable — promoted to Error so the user sees it
                     // as a red squiggle immediately, matching standard C# IDE behaviour.
                     ["CS0219"] = ReportDiagnostic.Error, // unused variable → error
+                    // CS8321: unused local function — promoted to Error to match CS0219.
+                    ["CS8321"] = ReportDiagnostic.Error, // unused local function → error
                 }
             );
 

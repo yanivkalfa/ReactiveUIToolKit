@@ -14,7 +14,14 @@ namespace ReactiveUITK.Language.Parser
     ///   <item><description><see cref="DefaultValue"/> — verbatim default expression, or <c>null</c> if omitted (maps to <c>default</c> in the generated class).</description></item>
     /// </list>
     /// </summary>
-    public sealed record FunctionParam(string Type, string Name, string? DefaultValue);
+    public sealed record FunctionParam(string Type, string Name, string? DefaultValue)
+    {
+        /// <summary>1-based source line where the parameter name appears. 0 when not tracked.</summary>
+        public int SourceLine { get; init; } = 0;
+
+        /// <summary>0-based column of the first character of the parameter name. -1 when not tracked.</summary>
+        public int NameColumn { get; init; } = -1;
+    }
 
     // ── Directive data ────────────────────────────────────────────────────────
 

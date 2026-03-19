@@ -22,6 +22,7 @@ namespace ReactiveUITK.Language.Diagnostics
     ///   <item>UITKX0107 — Unreachable code after top-level <c>return</c> in <c>@code</c></item>
     ///   <item>UITKX0108 — Component has more than one root render node</item>
     ///   <item>UITKX0109 — Unknown attribute on a known element (when attribute map available)</item>
+    ///   <item>UITKX0111 — Unused component parameter in function-style component</item>
     /// </list>
     ///
     /// Tier-1 (parser syntax) errors are already present in
@@ -166,6 +167,12 @@ namespace ReactiveUITK.Language.Diagnostics
                         });
                     }
                 }
+            }
+
+            // ── T2: UITKX0111 — Unused component parameter ───────────────────
+            if (d.IsFunctionStyle && !d.FunctionParams.IsDefaultOrEmpty)
+            {
+                CheckUnusedParameters(d, parseResult.RootNodes, diags);
             }
 
             return diags;
@@ -814,6 +821,131 @@ namespace ReactiveUITK.Language.Diagnostics
                 if (text[i] == ch)
                     count++;
             return count;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  UNUSED PARAMETER CHECK
+        // ═══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// UITKX0111 — For each function-style component parameter, check whether
+        /// its name appears anywhere in the setup code or the markup AST.
+        /// </summary>
+        private static void CheckUnusedParameters(
+            DirectiveSet d,
+            ImmutableArray<AstNode> rootNodes,
+            List<ParseDiagnostic> diags)
+        {
+            // Collect all C# text from setup code + markup into one string.
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrEmpty(d.FunctionSetupCode))
+                sb.Append(' ').Append(d.FunctionSetupCode).Append(' ');
+            CollectCSharpText(rootNodes, sb);
+
+            string allText = sb.ToString();
+
+            foreach (var p in d.FunctionParams)
+            {
+                // Word-boundary check: param name must appear as a standalone identifier.
+                if (Regex.IsMatch(allText, @"\b" + Regex.Escape(p.Name) + @"\b"))
+                    continue;
+
+                int col    = p.NameColumn >= 0 ? p.NameColumn : 0;
+                int endCol = col + p.Name.Length;
+                int line   = p.SourceLine > 0 ? p.SourceLine : d.ComponentDeclarationLine;
+
+                diags.Add(new ParseDiagnostic
+                {
+                    Code       = DiagnosticCodes.UnusedParameter,
+                    Severity   = ParseSeverity.Error,
+                    Message    = $"Parameter '{p.Name}' is declared but never used.",
+                    SourceLine = line,
+                    SourceColumn = col,
+                    EndLine    = line,
+                    EndColumn  = endCol,
+                });
+            }
+        }
+
+        /// <summary>
+        /// Recursively collects all C# expression / code text from the AST
+        /// into a single <see cref="System.Text.StringBuilder"/> for usage scanning.
+        /// </summary>
+        private static void CollectCSharpText(ImmutableArray<AstNode> nodes, System.Text.StringBuilder sb)
+        {
+            foreach (var node in nodes)
+            {
+                switch (node)
+                {
+                    case ExpressionNode en:
+                        sb.Append(' ').Append(en.Expression).Append(' ');
+                        break;
+
+                    case CodeBlockNode cb:
+                        sb.Append(' ').Append(cb.Code).Append(' ');
+                        foreach (var rm in cb.ReturnMarkups)
+                            CollectCSharpTextFromElement(rm.Element, sb);
+                        break;
+
+                    case ElementNode el:
+                        CollectCSharpTextFromElement(el, sb);
+                        break;
+
+                    case IfNode ifn:
+                        foreach (var br in ifn.Branches)
+                        {
+                            if (br.Condition != null)
+                                sb.Append(' ').Append(br.Condition).Append(' ');
+                            CollectCSharpText(br.Body, sb);
+                        }
+                        break;
+
+                    case ForeachNode fe:
+                        sb.Append(' ').Append(fe.CollectionExpression).Append(' ');
+                        CollectCSharpText(fe.Body, sb);
+                        break;
+
+                    case ForNode fn:
+                        sb.Append(' ').Append(fn.ForExpression).Append(' ');
+                        CollectCSharpText(fn.Body, sb);
+                        break;
+
+                    case WhileNode wh:
+                        sb.Append(' ').Append(wh.Condition).Append(' ');
+                        CollectCSharpText(wh.Body, sb);
+                        break;
+
+                    case SwitchNode sw:
+                        sb.Append(' ').Append(sw.SwitchExpression).Append(' ');
+                        foreach (var sc in sw.Cases)
+                        {
+                            if (sc.ValueExpression != null)
+                                sb.Append(' ').Append(sc.ValueExpression).Append(' ');
+                            CollectCSharpText(sc.Body, sb);
+                        }
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Collects C# text from an element's attributes and children.
+        /// </summary>
+        private static void CollectCSharpTextFromElement(ElementNode el, System.Text.StringBuilder sb)
+        {
+            foreach (var attr in el.Attributes)
+            {
+                switch (attr.Value)
+                {
+                    case CSharpExpressionValue cv:
+                        sb.Append(' ').Append(cv.Expression).Append(' ');
+                        break;
+                    case JsxExpressionValue jv when jv.Element != null:
+                        CollectCSharpTextFromElement(jv.Element, sb);
+                        break;
+                }
+            }
+            CollectCSharpText(el.Children, sb);
         }
 
         // ═══════════════════════════════════════════════════════════════════════

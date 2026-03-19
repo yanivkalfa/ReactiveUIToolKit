@@ -661,6 +661,11 @@ namespace ReactiveUITK.Language.Parser
 
                 SkipSpaces(source, ref i);
 
+                // Capture position before reading the identifier so we can
+                // attach squiggles to unused-parameter diagnostics later.
+                int paramNameLine = line;
+                int paramNameCol  = ComputeColumn(source, i);
+
                 // Parse parameter name
                 if (!TryReadIdentifier(source, ref i, out string paramName))
                 {
@@ -689,7 +694,11 @@ namespace ReactiveUITK.Language.Parser
                     defaultValue = ReadDefaultValue(source, ref i);
                 }
 
-                result.Add(new FunctionParam(typeName, paramName, defaultValue));
+                result.Add(new FunctionParam(typeName, paramName, defaultValue)
+                {
+                    SourceLine = paramNameLine,
+                    NameColumn = paramNameCol,
+                });
 
                 SkipSpaces(source, ref i);
                 if (i < source.Length && source[i] == ',')
@@ -1536,6 +1545,16 @@ namespace ReactiveUITK.Language.Parser
         {
             while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
                 i++;
+        }
+
+        /// <summary>
+        /// Returns the 0-based column of position <paramref name="pos"/> in
+        /// <paramref name="source"/> by scanning backwards to the nearest newline.
+        /// </summary>
+        private static int ComputeColumn(string source, int pos)
+        {
+            int lineStart = source.LastIndexOf('\n', pos > 0 ? pos - 1 : 0);
+            return lineStart < 0 ? pos : pos - lineStart - 1;
         }
 
         private static void SkipWhitespace(string source, ref int i)
