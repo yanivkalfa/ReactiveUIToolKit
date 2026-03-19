@@ -1,7 +1,7 @@
 # IntelliSense Bugs — Phase 2 Plan
 
 **Parent plan:** [`intellisense-plan.md`](intellisense-plan.md)  
-**Status:** ACTIVE  
+**Status:** ✅ COMPLETED — archived 2026-03-19  
 **Created:** 2026-03-10  
 **Mandate:** No shortcuts. No temporary workarounds. Production-grade solutions only.
 
@@ -39,7 +39,7 @@ Shipped so far: v1.0.139 (T01-T09), v1.0.140 (block-body lambda stub emission), 
 
 ---
 
-### CO-3 · Dead code after @return / @break / @continue not dimmed — ❌ OPEN (user reports not working)
+### ~~CO-3~~ · Dead code after @return / @break / @continue not dimmed — ✅ COMPLETED
 
 **Symptom:** Statements written after an unconditional `@return` in markup control flow are not grayed out.  
 **Root cause:** UITKX has no reachability analysis pass; no equivalent to Roslyn's "unreachable code" diagnostic for the markup control-flow layer.  
@@ -59,7 +59,7 @@ Shipped so far: v1.0.139 (T01-T09), v1.0.140 (block-body lambda stub emission), 
 
 ## New Items — v1.0.141 Testing
 
-### N-1 · `.Current` / `.Value` — no semantic colour — ❌ OPEN (user reports still no colour after v1.0.148)
+### N-1 · `.Current` / `.Value` — no semantic colour — ➡️ MOVED TO TECH_DEBT.md (TD-12)
 
 **Symptom:** Inside `RouterHooks.UseBlocker(…)` the variable `allowNextRef` (declared by `useRef<bool>()`) has no member completions.  
 **Root cause:** Still under investigation after v1.0.141. Likely one of:
@@ -124,7 +124,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ---
 
-### N-5 · Enter after tag / brace / @case produces wrong indentation — ❌ OPEN (root causes tracked as FMT-1 – FMT-4)
+### ~~N-5~~ · Enter after tag / brace / @case produces wrong indentation — ✅ COMPLETED (root causes FMT-1–4 also completed)
 
 **Symptom:** Pressing Enter after `<VisualElement …>` (or any element) places the cursor at column 0 (`<`), with no auto-indent.  
 **Root cause:** The VS Code extension's `language-configuration.json` (or equivalent indentation rule) either has no `indentationRules` / `onEnterRules` that recognize the UITKX tag structure, or the rule exists but does not fire for function-style component files.  
@@ -137,7 +137,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ---
 
-### N-6 · On-save formatter does not format the entire component body — ⚠️ PARTIAL (user reports semi-working)
+### ~~N-6~~ · On-save formatter does not format the entire component body — ✅ COMPLETED
 
 **Symptom:** The entire component body (markup + setup code) is not reformatted when the file is saved (despite format-on-save being enabled). Confirmed: not just lambda bodies — the whole component body is skipped.  
 **Root cause candidates:**
@@ -161,12 +161,12 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 | 1 | ~~N-2~~ | Block-body lambda `evt.` completions | Small | — | ✅ Shipped |
 | 2 | ~~N-4~~ | JSX comment inside attribute list | Medium | — | ✅ Shipped |
 | 3 | ~~N-3~~ | `return;` inside block-body lambda shows error | Small | — | ✅ v1.0.144 |
-| 4 | N-5 | Enter after tag / brace / @case indentation | Small | — | ❌ OPEN → FMT-1–4 |
-| 5 | N-1 | `.Current`/`.Value` semantic colour | Medium | — | ❌ OPEN |
+| 4 | ~~N-5~~ | Enter after tag / brace / @case indentation | Small | — | ✅ COMPLETED |
+| 5 | N-1 | `.Current`/`.Value` semantic colour | Medium | — | ➡️ Moved to TD-12 |
 | 6 | ~~CO-1 + CO-4~~ | Re-enable CS0246 / CS0219 (type errors + unused vars) | Medium | — | ✅ v1.0.144 |
-| 7 | N-6 | On-save formatter for entire component body | Large | — | ⚠️ PARTIAL |
+| 7 | ~~N-6~~ | On-save formatter for entire component body | Large | — | ✅ COMPLETED |
 | 8 | ~~CO-2~~ | StyleKeys string value completions | Large | — | ✅ v1.0.144 |
-| 9 | CO-3 | Dead-code dimming after @return/@break | Large | — | ❌ OPEN |
+| 9 | ~~CO-3~~ | Dead-code dimming after @return/@break | Large | — | ✅ COMPLETED |
 
 ---
 
@@ -174,7 +174,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ## New Items — Post v1.0.149 (Formatting & Indentation)
 
-### FMT-1 · `var (count, setCount)` / `var (mode, setMode)` wrong indentation after Format Document — ❌ OPEN
+### ~~FMT-1~~ · `var (count, setCount)` / `var (mode, setMode)` wrong indentation after Format Document — ✅ COMPLETED
 
 **Symptom:** In a function-style component with two `useState` calls, Format Document produces inconsistent indentation between the two lines. E.g. `var (count, setCount) = useState(0)` comes out at 2-space but `var (mode, setMode) = useState("normal")` comes out at 4-space (or vice versa).  
 **Root cause:** `EmitSetupCodeWithJsx` splits the setup code into C# segments at JSX block boundaries and calls `FormatStatements` on each segment independently. The Roslyn formatter formats each segment in isolation without surrounding context, so relative indentation within a multi-statement segment may be miscalculated for tuple-deconstruction patterns.  
@@ -183,7 +183,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ---
 
-### FMT-2 · Enter after `component X {` places cursor 2 columns too far — ❌ OPEN
+### ~~FMT-2~~ · Enter after `component X {` places cursor 2 columns too far — ✅ COMPLETED
 
 **Symptom:** After typing `component Counter {` and pressing Enter, the cursor lands at column 4 (two indents) instead of column 2 (one indent).  
 **Root cause:** Both `increaseIndentPattern` (before v1.0.149 fix: `^.*\{\s*$`) AND the matching `onEnterRule` fired simultaneously, doubling the indent. Attempted fix in v1.0.149 (removed `{` from `increaseIndentPattern`), but user reports issue persists.  
@@ -192,7 +192,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ---
 
-### FMT-3 · Enter after `<VisualElement>` places cursor at same column as `<` — ❌ OPEN
+### ~~FMT-3~~ · Enter after `<VisualElement>` places cursor at same column as `<` — ✅ COMPLETED
 
 **Symptom:** After `<VisualElement>` (open tag on its own line), pressing Enter places the cursor at the same column as `<` instead of one indent level in.  
 **Root cause:** The `onEnterRule` for open tags requires `beforeText` to match, but the rule may not be firing. `decreaseIndentPattern` was added in v1.0.149 for `</` tags but the open-tag indent rule may still be misconfigured.  
@@ -201,7 +201,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ---
 
-### FMT-4 · Enter after `@case "value":` places cursor under `@` — ❌ OPEN
+### ~~FMT-4~~ · Enter after `@case "value":` places cursor under `@` — ✅ COMPLETED
 
 **Symptom:** After `@case "squared":`, pressing Enter places the cursor directly below `@` (column 0 or same column) instead of one indent level deeper for the case body.  
 **Root cause:** No `onEnterRule` existed for lines ending with `:`. An attempt was made in v1.0.149 with `beforeText: "^\\s*@(?:case\\b.*|default):\\s*$"`, but user reports it is still not working.  
@@ -219,7 +219,7 @@ The `{/* … */}` syntax inside a tag's attribute list is not recognized as a co
 
 ## New Items — Post v1.0.151
 
-### SU-1 · `setState(prev => newValue)` callback form shows LSP type error — ❌ OPEN
+### ~~SU-1~~ · `setState(prev => newValue)` callback form shows LSP type error — ✅ COMPLETED
 
 **Symptom:** Usage of the functional-update / callback form of a `useState` setter:
 ```uitkx

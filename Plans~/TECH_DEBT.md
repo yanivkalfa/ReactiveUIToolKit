@@ -5,10 +5,9 @@
 
 ---
 
-## Source Generator — CRITICAL
+## ~~Source Generator — CRITICAL~~
 
-### TD-01: Early `return` in component body is ignored
-**Priority: Critical**
+### ~~TD-01: Early `return` in component body is ignored~~ — ✅ COMPLETED
 
 The source generator always uses the **last** top-level markup block as the Render method's return expression, ignoring any earlier `return` statements. All three cases below silently compile but don't work:
 
@@ -24,10 +23,9 @@ The source generator always uses the **last** top-level markup block as the Rend
 
 ---
 
-## IDE Extensions — CRITICAL
+## ~~IDE Extensions — CRITICAL~~
 
-### TD-02: Go-To-Definition navigates to `dist~/` instead of source files
-**Priority: Critical**
+### ~~TD-02: Go-To-Definition navigates to `dist~/` instead of source files~~ — ✅ COMPLETED
 
 Ctrl+clicking a component reference navigates to the copy inside `dist~/Samples~/` instead of the actual source file under `Samples/UITKX/Components/`.
 
@@ -41,19 +39,12 @@ Ctrl+clicking a component reference navigates to the copy inside `dist~/Samples~
 
 ## LSP Server — Completion Context
 
-### TD-03: `@code` completion leaks into non-header contexts
+### ~~TD-03: `@code` completion leaks into non-header contexts~~ — ✅ COMPLETED
 **Priority: Medium**
 
-`@code` completion has repeatedly leaked into non-header contexts due to multiple overlapping completion paths (cursor-kind routing, context stack inference, and schema-driven item sources).
+`@code` completion is properly gated to directive header context via `inDirectiveHeader` checks in `CompletionHandler.cs`. Post-filter also strips `@code` items outside the header zone.
 
-**Current mitigation**: A final post-filter in the LSP completion handler removes `@code` from results whenever the cursor is not in the strict header zone.
-
-**Follow-up**:
-- Consolidate all completion context gating into one authoritative function
-- Add explicit completion snapshot tests for: header, after `@code`, first markup lines, and embedded markup inside `@code`
-- Remove the safety filter after canonical gating + tests are stable
-
-### TD-04: Hover shows 30+ inherited props (noise)
+### ~~TD-04: Hover shows 30+ inherited props (noise)~~ — ✅ COMPLETED
 **Priority: Low**
 
 Hovering over `<Button>` shows `Text` from `ButtonProps` plus all 30+ inherited properties from `BaseProps`.
@@ -64,12 +55,10 @@ Hovering over `<Button>` shows `Text` from `ButtonProps` plus all 30+ inherited 
 
 ## Runtime — Dead Code
 
-### TD-05: Dead `memoize` / `memoCompare` fields
-**Priority: Medium**
+### TD-05: ~~Dead~~ `memoize` / `memoCompare` fields — VERIFY USAGE
+**Priority: Low** (downgraded — fields appear to be actively used)
 
-`VirtualNode.Memoize` and `VirtualNode.TypedMemoCompare` are stored but never read by the reconciler. The `memoize` and `memoCompare` parameters on `V.Func(...)` are no-ops — all components already bail out unconditionally via `IProps.Equals`.
-
-**Fix**: Remove all `memoize` / `memoCompare` parameters and fields. Search call sites for `memoize: true` in Samples before deleting.
+**Update 2026-03-19:** Investigation shows `VNode.Memoize` and `VNode.TypedMemoCompare` ARE read by the reconciler and passed through `V.Func()`. The `memoize` parameter on `V.Func(...)` is NOT a no-op. This item may be invalid — verify whether `IProps.Equals` bail-out actually makes memoize redundant before removing anything.
 
 ### TD-06: `SyntheticEventDemoFunc` uses `extraProps` unnecessarily
 **Priority: Low**
@@ -145,3 +134,35 @@ If C# code contains `(` or `)` inside a string literal like `"hello (world)"` or
 Burst logs `Mono.Cecil.AssemblyResolutionException` on every domain reload. ReactiveUITK has no `[BurstCompile]` methods — purely a false positive. Red console noise.
 
 **Fix**: In **Edit > Project Settings > Burst AOT Settings**, add `Assembly-CSharp-Editor` to the exclusion list or restrict the scan to an explicit allowlist.
+
+---
+
+## IDE Extensions — IntelliSense (carried from archived plans)
+
+### TD-12: `.Current` / `.Value` — no semantic colour on `useRef` variables
+**Priority: Medium**
+**Carried from:** intellisense-bugs-v2.md (N-1)
+
+Inside `RouterHooks.UseBlocker(…)`, the variable `allowNextRef` (declared by `useRef<bool>()`) shows no semantic colouring for `.Current` / `.Value` members. After v1.0.148 the issue persists.
+
+**Root cause candidates:**
+- `EnsureReadyAsync` rebuilds workspace but `GetVirtualDocument` in `CompletionHandler` may race between new `FileState` and stale `vdoc` snapshot
+- OR the `useRef<T>` stub in the virtual document is not emitted correctly (returns type `global::ReactiveUITK.Ref<T>`) when `T` is inferred from context
+
+**Fix plan:**
+1. Add `ServerLog` tracing to confirm workspace rebuild completes before `GetCompletionsAsync`
+2. Check generated virtual document — confirm `allowNextRef` has type `Ref<bool>`
+3. If type is correct, suspect `CompletionService` positioning issue
+
+### TD-13: Zero IntelliSense integration test coverage
+**Priority: Medium**
+**Carried from:** intellisense-plan.md (T-10)
+
+No automated tests exist for LSP completion / signature-help scenarios. Key scenarios that need coverage:
+- `Ctrl+Space` on blank line in setup code → C# scope symbols
+- `from.` in setup code → member completions
+- `.` on markup line → no C# popup
+- `StyleKeys.` inside `style={…}` → member completions
+- `onClick={` → C# scope completions
+- `(` after method call → signature help
+- Hover over expression in `style={expr}` → type tooltip

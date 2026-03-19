@@ -1,6 +1,6 @@
 # IntelliSense Production Plan — ReactiveUIToolKit / UITKX
 
-**Status:** ACTIVE — all tasks NOT STARTED  
+**Status:** ✅ COMPLETED — archived 2026-03-19 (T-01 through T-08 shipped, T-09 N/A, T-10 moved to TECH_DEBT.md as TD-13)  
 **Target IDEs:** VS Code (primary), Visual Studio 2022 (primary), JetBrains Rider (bonus)  
 **Author:** Copilot (Claude Sonnet 4.6)  
 **Created:** 2025  
