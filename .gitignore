@@ -61,3 +61,7 @@ ide-extensions~/language-lib/obj/
 publisher-secrets.json
 publisher-secrets.json.meta
 
+# ── Stale/orphan entries ───────────────────────────────────────
+_docs_branch/
+_docs_branch.meta
+
