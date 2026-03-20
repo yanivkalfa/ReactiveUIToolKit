@@ -190,6 +190,108 @@ public sealed class SemanticTokenTests
             "Expected a comment token for {/* */}");
     }
 
+    [Fact]
+    public void JsxComment_SetterInsideComment_IsSuppressed()
+    {
+        // function-style component with useState and a commented-out setter call
+        var source =
+            "component Counter {\n" +
+            "  var (count, setCount) = useState(0);\n" +
+            "  return (\n" +
+            "    <Box>\n" +
+            "      {/* <Button onClick={_ => setCount(count + 1)} /> */}\n" +
+            "    </Box>\n" +
+            "  );\n" +
+            "}";
+        var tokens = GetTokens(source);
+        // The comment line (line 4, 0-indexed) must NOT contain a Function token
+        var line4Fn = tokens.Where(t => t.Line == 4 && t.TokenType == SemanticTokenTypes.Function).ToArray();
+        Assert.Empty(line4Fn);
+        // But the comment token itself must exist on that line
+        Assert.True(tokens.Any(t => t.Line == 4 && t.TokenType == SemanticTokenTypes.Comment),
+            "Expected a comment token on the JSX comment line");
+    }
+
+    [Fact]
+    public void JsxComment_MultiLine_SettersSuppressed()
+    {
+        var source =
+            "component Counter {\n" +
+            "  var (count, setCount) = useState(0);\n" +
+            "  return (\n" +
+            "    <Box>\n" +
+            "      {/* multi-line comment\n" +
+            "        setCount(count + 1)\n" +
+            "        setCount(count - 1)\n" +
+            "      */}\n" +
+            "    </Box>\n" +
+            "  );\n" +
+            "}";
+        var tokens = GetTokens(source);
+        // Lines 5 and 6 (0-indexed) are inside the comment — no Function tokens allowed
+        var fnInComment = tokens.Where(t =>
+            (t.Line == 5 || t.Line == 6) && t.TokenType == SemanticTokenTypes.Function).ToArray();
+        Assert.Empty(fnInComment);
+        // Comment tokens must exist on lines 4-7
+        for (int l = 4; l <= 7; l++)
+            Assert.True(tokens.Any(t => t.Line == l && t.TokenType == SemanticTokenTypes.Comment),
+                $"Expected a comment token on line {l}");
+    }
+
+    [Fact]
+    public void CStyleComment_SettersSuppressed()
+    {
+        // In code context, {/* */} is a C# block + comment — no JsxCommentNode
+        var source =
+            "component Counter {\n" +
+            "  var (count, setCount) = useState(0);\n" +
+            "  /* setCount(count + 1) */\n" +
+            "  return (\n" +
+            "    <Box />\n" +
+            "  );\n" +
+            "}";
+        var tokens = GetTokens(source);
+        // Line 2 (0-indexed) is inside a C-style comment — no Function token
+        var line2Fn = tokens.Where(t => t.Line == 2 && t.TokenType == SemanticTokenTypes.Function).ToArray();
+        Assert.Empty(line2Fn);
+    }
+
+    [Fact]
+    public void LineComment_SetterSuppressed()
+    {
+        var source =
+            "component Counter {\n" +
+            "  var (count, setCount) = useState(0);\n" +
+            "  // setCount(count + 1)\n" +
+            "  return (\n" +
+            "    <Box />\n" +
+            "  );\n" +
+            "}";
+        var tokens = GetTokens(source);
+        // Line 2 inside a // comment — no Function token
+        var line2Fn = tokens.Where(t => t.Line == 2 && t.TokenType == SemanticTokenTypes.Function).ToArray();
+        Assert.Empty(line2Fn);
+    }
+
+    [Fact]
+    public void SetterOutsideComment_StillColored()
+    {
+        // Setter calls NOT in comments should still get Function tokens
+        var source =
+            "component Counter {\n" +
+            "  var (count, setCount) = useState(0);\n" +
+            "  return (\n" +
+            "    <Box>\n" +
+            "      <Button onClick={_ => setCount(count + 1)} />\n" +
+            "    </Box>\n" +
+            "  );\n" +
+            "}";
+        var tokens = GetTokens(source);
+        // setCount on line 4 (the onClick handler) should still be a Function
+        var line4Fn = tokens.Where(t => t.Line == 4 && t.TokenType == SemanticTokenTypes.Function).ToArray();
+        Assert.NotEmpty(line4Fn);
+    }
+
     // ── No tokens in wrong places ──────────────────────────────────────────
 
     [Fact]

@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.281] - 2026-03-20
+- Fix comment coloring - skip hook setter tokens inside C-style and JSX comment regions
+
 ## [1.0.280] - 2026-03-20
 - Fix JSX comment coloring - suppress hook setter tokens inside comment spans
 
