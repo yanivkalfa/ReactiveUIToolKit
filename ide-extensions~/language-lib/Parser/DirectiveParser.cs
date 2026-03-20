@@ -1900,6 +1900,8 @@ namespace ReactiveUITK.Language.Parser
                 int j     = i + 1;
                 while (j < rangeEnd && depth > 0)
                 {
+                    if (TrySkipStringOrCharLiteral(source, rangeEnd, ref j))
+                        continue;
                     if      (source[j] == '(') depth++;
                     else if (source[j] == ')') depth--;
                     j++;

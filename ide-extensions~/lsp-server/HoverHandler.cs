@@ -106,6 +106,16 @@ public sealed class HoverHandler : IHoverHandler
         //    because Roslyn gives the most accurate type information.
         if (!string.IsNullOrEmpty(localPath))
         {
+            try
+            {
+                _roslynHost
+                    .EnsureReadyAsync(localPath, text, parseResult, cancellationToken)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { /* workspace not ready — fall through to non-Roslyn hover */ }
+
             var vdoc = _roslynHost.GetVirtualDocument(localPath);
             if (vdoc != null && vdoc.Map.ToVirtualOffset(offset).HasValue)
             {

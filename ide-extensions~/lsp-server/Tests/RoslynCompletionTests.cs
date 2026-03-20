@@ -145,4 +145,17 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
         Assert.True(items.Count > 0, "Expected inline expression dot-completions");
         Assert.Contains(items, i => i.Label == "ToUpper");
     }
+
+    // ── useRef completions ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task FunctionStyle_UseRef_DotCompletion_ShowsCurrentAndValue()
+    {
+        var raw = "component Test {\n  var myRef = useRef(false);\n  var x = myRef.|;\n  return (\n    <Label/>\n  );\n}";
+        var (source, offset) = ExtractCursor(raw);
+        var items = await GetCompletions(source, offset, trigger: '.');
+        Assert.True(items.Count > 0, "Expected useRef dot-completion items");
+        Assert.Contains(items, i => i.Label == "Current");
+        Assert.Contains(items, i => i.Label == "Value");
+    }
 }

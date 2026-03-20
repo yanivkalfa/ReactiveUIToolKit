@@ -2016,6 +2016,10 @@ namespace ReactiveUITK.Language.Formatter
                     continue;
                 }
 
+                // Skip string and char literals
+                if (DirectiveParser.TrySkipStringOrCharLiteral(code, code.Length, ref i))
+                    continue;
+
                 if (code[i] != '(')
                 {
                     i++;
@@ -2049,6 +2053,8 @@ namespace ReactiveUITK.Language.Formatter
                     j = i + 1;
                 while (j < code.Length && depth > 0)
                 {
+                    if (DirectiveParser.TrySkipStringOrCharLiteral(code, code.Length, ref j))
+                        continue;
                     if (code[j] == '(')
                         depth++;
                     else if (code[j] == ')')

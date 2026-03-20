@@ -7,7 +7,7 @@
 
 ## Test Coverage Summary (as of 2026-03-20)
 
-**Total: 857 tests across 2 projects, all green.**
+**Total: 858 tests across 2 projects, all green.**
 
 ### SourceGenerator~/Tests/ (836 tests, net10.0)
 
@@ -24,12 +24,12 @@
 | **VirtualDocumentTests.cs** | **13** | **Virtual doc generation, source-map round-trips, region kind tagging** |
 | **DiagnosticsAnalyzerTests.cs** | **27** | **All Tier-2 diagnostics: UITKX0101–0111, severity checks, span verification** |
 
-### ide-extensions~/lsp-server/Tests/ (21 tests, net8.0)
+### ide-extensions~/lsp-server/Tests/ (22 tests, net8.0)
 
 | File | Tests | Coverage |
 |------|-------|---------|
 | **RoslynHostTests.cs** | **8** | **In-process workspace, semantic model, hover-style type queries, idempotent rebuild** |
-| **RoslynCompletionTests.cs** | **7** | **Dot-completion (strings, ints, expressions, code blocks, inline, function-style)** |
+| **RoslynCompletionTests.cs** | **8** | **Dot-completion (strings, ints, expressions, code blocks, inline, function-style, useRef)** |
 | **LspProtocolTests.cs** | **6** | **Full JSON-RPC round-trip: init, didOpen, didChange, hover, completion, formatting** |
 
 **Bold** = added in this session. No production code was modified (only a `<Compile Remove>` in the LSP csproj).
@@ -39,7 +39,7 @@
 ## Tier 1 — Correctness (fix bugs users can hit)
 
 ### 1. TD-09: Fix paren-depth counter to skip strings/chars
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 858 green
 
 **Priority:** High — root cause of TD-07 and TD-10.
 
@@ -55,7 +55,7 @@ Two methods have naive paren-depth loops that don't skip string/char literals:
 ---
 
 ### 2. TD-07 + TD-10: Verify formatter after TD-09 fix
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 836 formatter tests green
 
 **Priority:** High — blocked by #1.
 
@@ -69,7 +69,7 @@ After TD-09 is fixed, re-run `FormatterSnapshotTests.Idempotency_SampleFile_IsUn
 ---
 
 ### 3. TD-12: Fix useRef `.Current`/`.Value` semantic colour
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 22 LSP tests green (incl. new useRef test)
 
 **Priority:** High — visible IDE bug.
 

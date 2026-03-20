@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.275] - 2026-03-20
+- TD-09: Fix paren-depth in ScanJsxParenBlocks/FindJsxBlockRanges to skip string literals; TD-12: Fix HoverHandler EnsureReadyAsync for useRef semantic colour; Add useRef completion test
+
 ## [1.0.274] - 2026-03-20
 - Add comprehensive test suite: 75 language-lib tests (semantic tokens, cursor context, virtual document, diagnostics analyzer) + 21 LSP server tests (Roslyn completions, host workspace, full protocol integration). No production code changes.
 
