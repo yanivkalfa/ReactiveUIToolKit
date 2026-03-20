@@ -345,16 +345,16 @@ public sealed class HoverHandler : IHoverHandler
             string md;
             if (sym != null)
             {
-                var display = sym.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                var display = SanitizeInternalTypes(sym.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat));
                 var kind = sym.Kind.ToString().ToLowerInvariant();
                 md = $"**({kind})** `{display}`";
 
                 // Append type if it's different from the display string.
                 if (type != null)
                 {
-                    var typeDisplay = type.ToDisplayString(
+                    var typeDisplay = SanitizeInternalTypes(type.ToDisplayString(
                         SymbolDisplayFormat.MinimallyQualifiedFormat
-                    );
+                    ));
                     if (!display.Contains(typeDisplay))
                         md = $"**({kind})** `{sym.Name}` : `{typeDisplay}`";
                 }
@@ -370,9 +370,9 @@ public sealed class HoverHandler : IHoverHandler
             }
             else
             {
-                var typeDisplay = type!.ToDisplayString(
+                var typeDisplay = SanitizeInternalTypes(type!.ToDisplayString(
                     SymbolDisplayFormat.MinimallyQualifiedFormat
-                );
+                ));
                 md = $"`{typeDisplay}`";
             }
 
@@ -392,6 +392,18 @@ public sealed class HoverHandler : IHoverHandler
             ServerLog.Log($"[HoverHandler] Roslyn hover error: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Replaces internal virtual-document stub type names with user-friendly equivalents.
+    /// </summary>
+    private static string SanitizeInternalTypes(string display)
+    {
+        display = Regex.Replace(display, @"__UitkxRef__<(.+?)>", "Ref<$1>");
+        display = Regex.Replace(display, @"__StateSetter__<(.+?)>", "Action<Func<$1, $1>>");
+        display = display.Replace("__UitkxRef__", "Ref");
+        display = display.Replace("__StateSetter__", "StateSetter");
+        return display;
     }
 
     private static string ExtractXmlSummary(string xml)

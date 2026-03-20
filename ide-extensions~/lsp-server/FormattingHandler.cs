@@ -76,19 +76,49 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
 
         ServerLog.Log($"[Formatting] applying edit for '{localPath}' (input={text.Length} chars, output={formatted.Length} chars)");
 
-        // Replace the entire document with the formatted version.
-        // Use the original text to compute the end position so the range is exact.
-        var lines = text.Split('\n');
-        var lastLine = lines.Length - 1;
-        var lastChar = lines[lastLine].Length;
+        // Compute a minimal text edit covering only the changed line range.
+        // This preserves cursor position far better than replacing the entire document.
+        var origLines = text.Split('\n');
+        var fmtLines  = formatted.Split('\n');
+
+        // Find first differing line.
+        int prefixLen = 0;
+        int minLen = Math.Min(origLines.Length, fmtLines.Length);
+        while (prefixLen < minLen && origLines[prefixLen] == fmtLines[prefixLen])
+            prefixLen++;
+
+        // Find last differing line (from the end).
+        int suffixLen = 0;
+        while (suffixLen < minLen - prefixLen
+            && origLines[origLines.Length - 1 - suffixLen] == fmtLines[fmtLines.Length - 1 - suffixLen])
+            suffixLen++;
+
+        int origEnd = origLines.Length - suffixLen;
+        int fmtEnd  = fmtLines.Length  - suffixLen;
+
+        // Build the replacement text from the changed lines.
+        var changedLines = new string[fmtEnd - prefixLen];
+        Array.Copy(fmtLines, prefixLen, changedLines, 0, changedLines.Length);
+        var newText = string.Join("\n", changedLines);
+
+        // Compute end column of the last original line being replaced.
+        int endLine = origEnd - 1;
+        int endChar = endLine >= 0 && endLine < origLines.Length ? origLines[endLine].Length : 0;
+
+        // If the changed range doesn't border the end of the file, we need
+        // to include the trailing newline separators in the replacement.
+        if (suffixLen > 0 && changedLines.Length > 0)
+            newText += "\n";
+        if (suffixLen > 0 && changedLines.Length == 0 && prefixLen < origEnd)
+            newText = "";
 
         var edit = new TextEdit
         {
             Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-                new Position(0, 0),
-                new Position(lastLine, lastChar)
+                new Position(prefixLen, 0),
+                new Position(endLine, endChar)
             ),
-            NewText = formatted,
+            NewText = newText,
         };
 
         return Task.FromResult<TextEditContainer?>(new TextEditContainer(edit));

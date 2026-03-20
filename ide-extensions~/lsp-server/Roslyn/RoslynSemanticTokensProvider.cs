@@ -53,8 +53,8 @@ namespace UitkxLanguageServer.Roslyn
             // Methods / functions
             ["method name"] = SemanticTokenTypes.Function,
             ["extension method name"] = SemanticTokenTypes.Function,
-            // Variables / properties / members
-            ["property name"] = SemanticTokenTypes.Variable,
+            // Properties / fields / members
+            ["property name"] = SemanticTokenTypes.Property,
             ["field name"] = SemanticTokenTypes.Variable,
             ["enum member name"] = SemanticTokenTypes.Variable,
             ["event name"] = SemanticTokenTypes.Variable,

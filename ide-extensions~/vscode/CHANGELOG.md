@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.276] - 2026-03-20
+- Hover: sanitize internal stub types (Ref<T>, StateSetter); Property semantic color distinct from variables; Formatter: minimal text edits to preserve cursor position
+
 ## [1.0.275] - 2026-03-20
 - TD-09: Fix paren-depth in ScanJsxParenBlocks/FindJsxBlockRanges to skip string literals; TD-12: Fix HoverHandler EnsureReadyAsync for useRef semantic colour; Add useRef completion test
 
