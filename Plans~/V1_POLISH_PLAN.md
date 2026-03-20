@@ -7,9 +7,9 @@
 
 ## Test Coverage Summary (as of 2026-03-20)
 
-**Total: 858 tests across 2 projects, all green.**
+**Total: 863 tests across 2 projects, all green.**
 
-### SourceGenerator~/Tests/ (836 tests, net10.0)
+### SourceGenerator~/Tests/ (841 tests, net10.0)
 
 | File | Tests | Coverage |
 |------|-------|---------|
@@ -19,7 +19,7 @@
 | EmitterTests.cs | 46 | C# code emission, props resolution |
 | LoweringTests.cs | 5 | CanonicalLowering render-root flattening |
 | DebugDumpTest.cs | 4 | Debug AST dump output |
-| **SemanticTokenTests.cs** | **17** | **Token classification: directives, elements, attributes, control flow, comments** |
+| **SemanticTokenTests.cs** | **22** | **Token classification: directives, elements, attributes, control flow, comments, setter-in-comment suppression** |
 | **CursorContextTests.cs** | **18** | **AstCursorContext.Find(): tag/attribute/expression/code-block classification** |
 | **VirtualDocumentTests.cs** | **13** | **Virtual doc generation, source-map round-trips, region kind tagging** |
 | **DiagnosticsAnalyzerTests.cs** | **27** | **All Tier-2 diagnostics: UITKX0101–0111, severity checks, span verification** |
@@ -140,7 +140,7 @@ Create test project under `ide-extensions~/lsp-server/Tests/`. Use OmniSharp `La
 ## Tier 3 — Clean API Surface (ship-ready code)
 
 ### 6. TD-05: Remove dead memoize/memoCompare fields
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 863 green
 
 **Priority:** Low — dead API surface confuses readers.
 
@@ -161,7 +161,7 @@ Search for `memoize: true` in Samples to clean up call sites first.
 ---
 
 ### 7. TD-06: Convert SyntheticEventDemoFunc from extraProps to direct attributes
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 863 green
 
 **Priority:** Low — sample code should show best practices.
 
@@ -177,7 +177,7 @@ The `extraProps` mechanism stays in the framework for genuinely untyped passthro
 ## Tier 4 — Documentation
 
 ### 8. Directive & syntax reference page (docs site)
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Medium — users need a single reference for all UITKX syntax.
 
@@ -234,7 +234,7 @@ Create a new page in `ReactiveUIToolKitDocs~/src/pages/UITKX/` covering the comp
 ---
 
 ### 9. Diagnostics catalog page (docs site)
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Medium — users need error code reference.
 
@@ -252,7 +252,7 @@ Codes to cover:
 ---
 
 ### 10. Configuration reference page (docs site)
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Medium — undocumented config file.
 
@@ -264,7 +264,7 @@ Document all `uitkx.config.json` options: what each key does, default values, va
 ---
 
 ### 11. Debugging guide (docs site)
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Low — helps advanced users troubleshoot.
 
@@ -281,7 +281,7 @@ How-to page covering:
 ---
 
 ### 12. Editor-specific limitations (docs site)
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Low — set user expectations per editor.
 
@@ -296,7 +296,7 @@ Add a "Known Limitations" section covering:
 ---
 
 ### 13. TD-11: Add Burst AOT troubleshooting note (docs site)
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Low — quick doc addition.
 
@@ -308,7 +308,7 @@ Add to troubleshooting/FAQ: "If you see `Mono.Cecil.AssemblyResolutionException:
 ---
 
 ### 14. Latency targets documentation
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Priority:** Low — internal reference.
 
