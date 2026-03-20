@@ -5,6 +5,37 @@
 
 ---
 
+## Test Coverage Summary (as of 2026-03-20)
+
+**Total: 857 tests across 2 projects, all green.**
+
+### SourceGenerator~/Tests/ (836 tests, net10.0)
+
+| File | Tests | Coverage |
+|------|-------|---------|
+| ParserTests.cs | 36 | Directive parsing, markup nodes, @break/@continue, error recovery |
+| FormatterSnapshotTests.cs | 213+ | Format idempotency, indentation, whitespace |
+| DiagnosticTests.cs | 23 | Generator-level diagnostics (UITKX0001–0021) |
+| EmitterTests.cs | 46 | C# code emission, props resolution |
+| LoweringTests.cs | 5 | CanonicalLowering render-root flattening |
+| DebugDumpTest.cs | 4 | Debug AST dump output |
+| **SemanticTokenTests.cs** | **17** | **Token classification: directives, elements, attributes, control flow, comments** |
+| **CursorContextTests.cs** | **18** | **AstCursorContext.Find(): tag/attribute/expression/code-block classification** |
+| **VirtualDocumentTests.cs** | **13** | **Virtual doc generation, source-map round-trips, region kind tagging** |
+| **DiagnosticsAnalyzerTests.cs** | **27** | **All Tier-2 diagnostics: UITKX0101–0111, severity checks, span verification** |
+
+### ide-extensions~/lsp-server/Tests/ (21 tests, net8.0)
+
+| File | Tests | Coverage |
+|------|-------|---------|
+| **RoslynHostTests.cs** | **8** | **In-process workspace, semantic model, hover-style type queries, idempotent rebuild** |
+| **RoslynCompletionTests.cs** | **7** | **Dot-completion (strings, ints, expressions, code blocks, inline, function-style)** |
+| **LspProtocolTests.cs** | **6** | **Full JSON-RPC round-trip: init, didOpen, didChange, hover, completion, formatting** |
+
+**Bold** = added in this session. No production code was modified (only a `<Compile Remove>` in the LSP csproj).
+
+---
+
 ## Tier 1 — Correctness (fix bugs users can hit)
 
 ### 1. TD-09: Fix paren-depth counter to skip strings/chars
@@ -58,7 +89,7 @@ Virtual document stubs are correct (`__UitkxRef__<T>` has `Current` and `Value` 
 ## Tier 2 — Safety Nets (prevent regressions)
 
 ### 4. TD-08: Add UITKX0107 regression tests
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 836 green
 
 **Priority:** High — 4 dimming mechanisms with zero test coverage.
 
@@ -78,7 +109,7 @@ Create `UnreachableDiagnosticTests.cs` in `SourceGenerator~/Tests/`. Same patter
 ---
 
 ### 5. TD-13: Create LSP integration test harness
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** 21 green
 
 **Priority:** Medium — foundation for testing all LSP features.
 

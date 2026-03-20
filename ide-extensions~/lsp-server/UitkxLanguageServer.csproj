@@ -34,6 +34,10 @@
   <ItemGroup>
     <ProjectReference Include="../language-lib/UitkxLanguage.csproj" />
   </ItemGroup>
+  <!-- Exclude test project sources from the main compilation -->
+  <ItemGroup>
+    <Compile Remove="Tests/**" />
+  </ItemGroup>
   <!-- Embed schema as resource so we can resolve it without relying on cwd -->
   <ItemGroup>
     <EmbeddedResource Include="..\grammar\uitkx-schema.json">

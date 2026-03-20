@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.274] - 2026-03-20
+- Add comprehensive test suite: 75 language-lib tests (semantic tokens, cursor context, virtual document, diagnostics analyzer) + 21 LSP server tests (Roslyn completions, host workspace, full protocol integration). No production code changes.
+
 ## [1.0.260] - 2026-03-18
 - Fix: string/char literals inside setup code no longer trigger false JSX detection.
   Interpolated strings like `$"{label}: <null event>"` with `:` or `<` are now correctly
