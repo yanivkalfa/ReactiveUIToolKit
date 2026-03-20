@@ -55,15 +55,17 @@ Hovering over `<Button>` shows `Text` from `ButtonProps` plus all 30+ inherited 
 
 ## Runtime — Dead Code
 
-### TD-05: ~~Dead~~ `memoize` / `memoCompare` fields — VERIFY USAGE
-**Priority: Low** (downgraded — fields appear to be actively used)
+### TD-05: Dead `memoize` / `memoCompare` fields
+**Priority: Low**
 
-**Update 2026-03-19:** Investigation shows `VNode.Memoize` and `VNode.TypedMemoCompare` ARE read by the reconciler and passed through `V.Func()`. The `memoize` parameter on `V.Func(...)` is NOT a no-op. This item may be invalid — verify whether `IProps.Equals` bail-out actually makes memoize redundant before removing anything.
+**Update 2026-03-20:** Thorough investigation confirms these ARE dead code. `VNode.Memoize` and `VNode.TypedMemoCompare` are written in constructors and copy-constructors but **never read** by the reconciler. The actual bailout in `FiberFunctionComponent.cs` uses `IProps.Equals()` and `ReferenceEquals` — it never checks `Memoize` or `TypedMemoCompare`. `FiberNode` doesn't even store these properties.
+
+**Fix**: Remove `Memoize` and `TypedMemoCompare` from `VNode`, remove `memoize`/`memoCompare` constructor parameters, and remove the corresponding parameters on `V.Func(...)`. Search for `memoize: true` in Samples first to clean up call sites.
 
 ### TD-06: `SyntheticEventDemoFunc` uses `extraProps` unnecessarily
 **Priority: Low**
 
-`SyntheticEventDemoFunc.uitkx` passes pointer/wheel handlers via the `extraProps` escape hatch. These events are already hardcoded in `PropsApplier.ApplyEvent` and typed on `BaseProps` — they should be plain JSX attributes.
+`SyntheticEventDemoFunc.uitkx` passes pointer/wheel handlers via the `extraProps` escape hatch. These events are already typed on `BaseProps` — they should be plain JSX attributes. The `extraProps` mechanism itself remains in the framework for genuinely untyped passthrough — this is only about this one sample file using it when it doesn't need to.
 
 **Fix**: Replace `extraProps` block with direct JSX attributes:
 ```uitkx
@@ -78,25 +80,27 @@ Hovering over `<Button>` shows `Text` from `ButtonProps` plus all 30+ inherited 
 ## Diagnostics & Formatter
 
 ### TD-07: Formatter squiggly errors in complex files
-**Priority: High**
+**Priority: High** — **Root cause: TD-09**
 
 **Files affected**: `ListViewStatefulDemoFunc.uitkx`, `UitkxCounterFunc.uitkx`, and likely others.
 
-The formatter produces incorrect output when components get misaligned. The JSX placeholder splice-back mechanism (`EmitSetupCodeWithJsx`) can misalign surrounding C# code, cascading errors.
+The formatter produces incorrect output when components get misaligned. The JSX placeholder splice-back mechanism (`EmitSetupCodeWithJsx`) can misalign surrounding C# code, cascading errors. Root cause is TD-09 — the naive paren-depth counter in `ScanJsxParenBlocks` miscounts when strings contain `(` or `)`, causing placeholder boundaries to land at wrong positions.
 
-**Fix**: Fix affected files to canonical format, write regression tests in `FormatterSnapshotTests.cs`, then fix the formatter's JSX-in-setup-code handling.
+**Fix**: Fix TD-09 first (add string-skipping to paren counters), then verify these files format correctly. If issues persist after TD-09, debug by diffing first-pass vs second-pass formatter output.
 
 ### TD-08: Zero regression tests for UITKX0107 (unreachable-after-return)
 **Priority: High**
 
 We spent v1.0.251–254 fixing unreachable-after-return dimming through 4 separate mechanisms but there are **zero automated tests** for any of it. Any future change could silently break dimming.
 
-**What's needed**: Create `UnreachableDiagnosticTests.cs` with tests for:
-- Single-line `return expr;` at depth 0 and depth > 0
-- Multi-line `return (\n<Box/>\n);` at depth > 0 (lambda)
+**Approach**: Add `UnreachableDiagnosticTests.cs` in `SourceGenerator~/Tests/`. Same pattern as existing `DiagnosticTests.cs` — parse a `.uitkx` string through `DiagnosticsAnalyzer`, collect emitted diagnostics, assert UITKX0107 at expected spans.
+
+**Test cases needed**:
+- Single-line `return expr;` followed by markup → UITKX0107 on trailing markup
+- Multi-line `return (\n<Box/>\n);` at depth > 0 (lambda) → dims correctly
 - Early return in function-style setup code → dims remaining setup + render root
 - Nested lambda return → dims within lambda, not outside
-- No false positives on clean files
+- No false positives on clean files (negative case)
 - Site A: code after render return is dimmed (excluding `}`)
 
 **Architecture reference (v1.0.254)**:
@@ -107,33 +111,51 @@ We spent v1.0.251–254 fixing unreachable-after-return dimming through 4 separa
 - CS0162 suppressed globally — UITKX0107 handles all dimming
 
 ### TD-09: Paren-depth counter doesn't skip strings/chars
-**Priority: Low**
+**Priority: Medium** (upgraded — root cause of TD-07 and TD-10)
 
-**Files**: `VirtualDocumentGenerator.cs` (~line 1121), `DirectiveParser.cs` (`FindJsxBlockRanges`)
+**Files**:
+- `AstFormatter.cs` → `ScanJsxParenBlocks` (~line 2045)
+- `DirectiveParser.cs` → `FindJsxBlockRanges` (~line 1907)
 
-If C# code contains `(` or `)` inside a string literal like `"hello (world)"` or char `'('`, the paren-depth counter miscounts. Risk is low but technically wrong.
+Both have naive paren-depth loops that don't skip string/char literals. Other methods in the same files (e.g. `FindJsxElementEnd`) DO properly skip strings using `TrySkipStringOrCharLiteral()` — the omission is inconsistent.
 
-**Fix**: Add string/char literal skipping in paren-counting loops (similar to existing comment skipping).
+**Example that breaks**: `var node = (<Box onToggle={e => UpdateLog("(test)")} />);` — the `(` inside the string miscounts paren depth, causing the JSX block boundary to land at the wrong position.
+
+**Fix**: Add `TrySkipStringOrCharLiteral()` call at the top of each paren-counting loop:
+```csharp
+while (j < code.Length && depth > 0)
+{
+    if (TrySkipStringOrCharLiteral(code, ref j)) continue; // ← ADD
+    if (code[j] == '(') depth++;
+    else if (code[j] == ')') depth--;
+    j++;
+}
+```
+The helper already exists and handles `"..."`, `@"..."`, `$"..."`, `"""..."""`, and `'x'`.
+
+**Fixes TD-07 and likely TD-10.**
 
 ### TD-10: Four pre-existing formatter idempotency failures
-**Priority: Medium**
+**Priority: Medium** — **Likely caused by TD-09**
 
 **Failing files**:
 - `Components/ShowcaseDemoPage/components/ShowcaseDemoPage.uitkx` (both plain + Roslyn)
 - `Shared/MultiColumnTreeViewStatefulDemoFunc.uitkx` (both plain + Roslyn)
 
-`Format(content) != content` — the formatter changes these files even though they should be canonical. Likely related to TD-07.
+`Format(content) != content` — the formatter changes these files even though they should be canonical. The paren-depth bug (TD-09) causes JSX block boundaries to differ between passes, producing different output each time.
+
+**Fix**: Fix TD-09 first, then re-run `FormatterSnapshotTests.Idempotency_SampleFile_IsUnchanged()`. If failures persist, diff first-pass vs second-pass output character by character to find where they diverge.
 
 ---
 
 ## Environment — Noise
 
 ### TD-11: Burst AOT error: `Failed to resolve assembly: Assembly-CSharp-Editor`
-**Priority: Low**
+**Priority: Low** — documentation only
 
 Burst logs `Mono.Cecil.AssemblyResolutionException` on every domain reload. ReactiveUITK has no `[BurstCompile]` methods — purely a false positive. Red console noise.
 
-**Fix**: In **Edit > Project Settings > Burst AOT Settings**, add `Assembly-CSharp-Editor` to the exclusion list or restrict the scan to an explicit allowlist.
+**Fix**: Add to docs troubleshooting section: "If you see `Mono.Cecil.AssemblyResolutionException: Failed to resolve assembly: Assembly-CSharp-Editor` in the console, this is a Burst false positive. Go to Edit > Project Settings > Burst AOT Settings and exclude `Assembly-CSharp-Editor`."
 
 ---
 
@@ -145,20 +167,26 @@ Burst logs `Mono.Cecil.AssemblyResolutionException` on every domain reload. Reac
 
 Inside `RouterHooks.UseBlocker(…)`, the variable `allowNextRef` (declared by `useRef<bool>()`) shows no semantic colouring for `.Current` / `.Value` members. After v1.0.148 the issue persists.
 
-**Root cause candidates:**
-- `EnsureReadyAsync` rebuilds workspace but `GetVirtualDocument` in `CompletionHandler` may race between new `FileState` and stale `vdoc` snapshot
-- OR the `useRef<T>` stub in the virtual document is not emitted correctly (returns type `global::ReactiveUITK.Ref<T>`) when `T` is inferred from context
+**Investigation 2026-03-20:** Virtual document stubs are correct — `__UitkxRef__<T>` class has `Current` and `Value` properties, and `useRef<T>()` returns it. Likely a timing race or Roslyn type resolution edge case, not a stub emission bug.
 
 **Fix plan:**
-1. Add `ServerLog` tracing to confirm workspace rebuild completes before `GetCompletionsAsync`
-2. Check generated virtual document — confirm `allowNextRef` has type `Ref<bool>`
-3. If type is correct, suspect `CompletionService` positioning issue
+1. Add `ServerLog` tracing to `CompletionHandler` to confirm workspace rebuild completes before `GetCompletionsAsync`
+2. Check generated virtual document — confirm `allowNextRef` has type `__UitkxRef__<bool>`
+3. If type is correct, likely a race condition — add a gate/await before completion request
 
 ### TD-13: Zero IntelliSense integration test coverage
 **Priority: Medium**
 **Carried from:** intellisense-plan.md (T-10)
 
-No automated tests exist for LSP completion / signature-help scenarios. Key scenarios that need coverage:
+No automated tests exist for LSP completion / signature-help scenarios.
+
+**Approach**: Create test project under `ide-extensions~/lsp-server/Tests/`. Use OmniSharp's `LanguageServer.From()` test mode — spin up server in-process with `PipeReader/PipeWriter`, send/receive JSON-RPC messages directly. Each test ~20 lines. Same harness also covers:
+- `textDocument/semanticTokens/full` → verify token types/colors
+- `textDocument/publishDiagnostics` → verify codes, severities, spans
+- `textDocument/formatting` → verify formatted output
+- Diagnostics stability under editing (send `didChange` with partial content, verify recovery)
+
+**Key completion scenarios**:
 - `Ctrl+Space` on blank line in setup code → C# scope symbols
 - `from.` in setup code → member completions
 - `.` on markup line → no C# popup
