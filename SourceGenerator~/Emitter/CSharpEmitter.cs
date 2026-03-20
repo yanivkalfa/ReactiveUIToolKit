@@ -738,9 +738,6 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (!children.IsEmpty)
             {
-                // Use named parameter to skip the optional 'bool memoize' and
-                // 'Func<TProps,TProps,bool> memoCompare' slots that sit between
-                // 'key' and 'children' in the V.Func<TProps> overload.
                 _sb.Append(", children: __C(");
                 EmitChildArgs(children);
                 _sb.Append(")");

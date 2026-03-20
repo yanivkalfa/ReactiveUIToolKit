@@ -7,9 +7,13 @@ import { UitkxAPIPage } from './pages/UITKX/API/UitkxAPIPage'
 import { UitkxComponentReferencePage } from './pages/UITKX/Components/UitkxComponentReferencePage'
 import { UitkxComponentsPage } from './pages/UITKX/Components/UitkxComponentsPage'
 import { UitkxConceptsPage } from './pages/UITKX/Concepts/UitkxConceptsPage'
+import { UitkxConfigPage } from './pages/UITKX/Config/UitkxConfigPage'
+import { UitkxDebuggingPage } from './pages/UITKX/Debugging/UitkxDebuggingPage'
+import { UitkxDiagnosticsPage } from './pages/UITKX/Diagnostics/UitkxDiagnosticsPage'
 import { UitkxDifferencesPage } from './pages/UITKX/Differences/UitkxDifferencesPage'
 import { UitkxGettingStartedPage } from './pages/UITKX/GettingStarted/UitkxGettingStartedPage'
 import { UitkxIntroductionPage } from './pages/UITKX/Introduction/UitkxIntroductionPage'
+import { UitkxReferencePage } from './pages/UITKX/Reference/UitkxReferencePage'
 import { UitkxRouterPage } from './pages/UITKX/Router/UitkxRouterPage'
 import { UitkxSignalsPage } from './pages/UITKX/Signals/UitkxSignalsPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
@@ -206,14 +210,57 @@ export const uitkxSections: DocSection[] = [
     ],
   },
   {
+    id: 'uitkx-reference-guides',
+    title: 'Reference & Guides',
+    track: 'uitkx',
+    pages: [
+      {
+        id: 'uitkx-language-reference',
+        canonicalId: 'language-reference',
+        title: 'Language Reference',
+        path: '/reference',
+        keywords: ['uitkx', 'directives', 'syntax', 'control flow', 'expressions'],
+        track: 'uitkx',
+        element: () => <UitkxReferencePage />,
+      },
+      {
+        id: 'uitkx-diagnostics',
+        canonicalId: 'diagnostics',
+        title: 'Diagnostics',
+        path: '/diagnostics',
+        keywords: ['uitkx', 'diagnostics', 'errors', 'warnings', 'codes'],
+        track: 'uitkx',
+        element: () => <UitkxDiagnosticsPage />,
+      },
+      {
+        id: 'uitkx-config',
+        canonicalId: 'configuration',
+        title: 'Configuration',
+        path: '/config',
+        keywords: ['uitkx', 'config', 'settings', 'vscode', 'extension'],
+        track: 'uitkx',
+        element: () => <UitkxConfigPage />,
+      },
+      {
+        id: 'uitkx-debugging',
+        canonicalId: 'debugging',
+        title: 'Debugging Guide',
+        path: '/debugging',
+        keywords: ['uitkx', 'debugging', 'troubleshooting', 'logs', 'generated code'],
+        track: 'uitkx',
+        element: () => <UitkxDebuggingPage />,
+      },
+    ],
+  },
+  {
     id: 'uitkx-known-issues',
-    title: 'Known Issues',
+    title: 'Known Issues & Limitations',
     track: 'uitkx',
     pages: [
       {
         id: 'uitkx-known-issues-page',
         canonicalId: 'known-issues-page',
-        title: 'Known Issues',
+        title: 'Known Issues & Limitations',
         path: '/known-issues',
         keywords: ['issues', 'limitations', 'known issues'],
         track: 'uitkx',

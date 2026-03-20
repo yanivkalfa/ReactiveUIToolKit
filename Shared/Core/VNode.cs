@@ -27,7 +27,6 @@ namespace ReactiveUITK.Core
 
         public VirtualNodeType NodeType { get; }
         public string ElementTypeName { get; }
-        public bool Memoize { get; }
         public UnityEngine.UIElements.VisualElement PortalTarget { get; }
         public VirtualNode Fallback { get; }
         public System.Func<bool> SuspenseReady { get; }
@@ -55,11 +54,7 @@ namespace ReactiveUITK.Core
         /// </summary>
         public IProps TypedProps { get; }
 
-        /// <summary>
-        /// Custom equality delegate for the typed-props path.
-        /// Called only when <see cref="TypedFunctionRender"/> is set.
-        /// </summary>
-        public System.Func<IProps, IProps, bool> TypedMemoCompare { get; }
+
 
         public VirtualNode(
             VirtualNodeType nodeType,
@@ -68,7 +63,6 @@ namespace ReactiveUITK.Core
             string key,
             IReadOnlyDictionary<string, object> properties,
             IReadOnlyList<VirtualNode> children,
-            bool memoize = false,
             UnityEngine.UIElements.VisualElement portalTarget = null,
             VirtualNode fallback = null,
             System.Func<bool> suspenseReady = null,
@@ -78,8 +72,7 @@ namespace ReactiveUITK.Core
             string errorResetToken = null,
             IReadOnlyList<PropTypeDefinition> propTypes = null,
             System.Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> typedFunctionRender = null,
-            IProps typedProps = null,
-            System.Func<IProps, IProps, bool> typedMemoCompare = null
+            IProps typedProps = null
         )
         {
             NodeType = nodeType;
@@ -88,7 +81,6 @@ namespace ReactiveUITK.Core
             Key = key;
             Properties = CloneProps(properties);
             Children = CloneChildren(children);
-            Memoize = memoize;
             PortalTarget = portalTarget;
             Fallback = fallback;
             SuspenseReady = suspenseReady;
@@ -99,14 +91,12 @@ namespace ReactiveUITK.Core
             PropTypes = ClonePropTypes(propTypes);
             TypedFunctionRender = typedFunctionRender;
             TypedProps = typedProps;
-            TypedMemoCompare = typedMemoCompare;
         }
 
         private VirtualNode(VirtualNode template, IReadOnlyList<PropTypeDefinition> propTypes)
         {
             NodeType = template.NodeType;
             ElementTypeName = template.ElementTypeName;
-            Memoize = template.Memoize;
             PortalTarget = template.PortalTarget;
             Fallback = template.Fallback;
             SuspenseReady = template.SuspenseReady;
@@ -121,7 +111,6 @@ namespace ReactiveUITK.Core
             PropTypes = ClonePropTypes(propTypes);
             TypedFunctionRender = template.TypedFunctionRender;
             TypedProps = template.TypedProps;
-            TypedMemoCompare = template.TypedMemoCompare;
         }
 
         public IReadOnlyList<PropTypeDefinition> PropTypes { get; }

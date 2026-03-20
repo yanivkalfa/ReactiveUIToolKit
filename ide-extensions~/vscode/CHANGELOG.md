@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.282] - 2026-03-20
+- Remove dead memoize/memoCompare API; convert SyntheticEventDemo to direct attributes; add docs pages (language reference, diagnostics, config, debugging, editor limitations)
+
 ## [1.0.281] - 2026-03-20
 - Fix comment coloring - skip hook setter tokens inside C-style and JSX comment regions
 
