@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.279] - 2026-03-20
+- Drop Roslyn property semantic token override — let TmLanguage grammar color persist for .Current/.Value etc
+
 ## [1.0.278] - 2026-03-20
 - Formatter: skip blank-line whitespace edits to preserve cursor position; Property semantic token scopes for theme-independent coloring
 

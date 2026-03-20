@@ -54,7 +54,9 @@ namespace UitkxLanguageServer.Roslyn
             ["method name"] = SemanticTokenTypes.Function,
             ["extension method name"] = SemanticTokenTypes.Function,
             // Properties / fields / members
-            ["property name"] = SemanticTokenTypes.Property,
+            // Note: "property name" is intentionally omitted — the TmLanguage grammar
+            // provides good property coloring and Roslyn semantic tokens would override
+            // it with a less distinguishable color in most themes.
             ["field name"] = SemanticTokenTypes.Variable,
             ["enum member name"] = SemanticTokenTypes.Variable,
             ["event name"] = SemanticTokenTypes.Variable,
