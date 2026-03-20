@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.277] - 2026-03-20
+- Property color now distinct from variable color; Formatter: per-line TextEdits for stable cursor position; Fix CRLF mismatch in edit computation
+
 ## [1.0.276] - 2026-03-20
 - Hover: sanitize internal stub types (Ref<T>, StateSetter); Property semantic color distinct from variables; Formatter: minimal text edits to preserve cursor position
 

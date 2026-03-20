@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
@@ -76,52 +77,64 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
 
         ServerLog.Log($"[Formatting] applying edit for '{localPath}' (input={text.Length} chars, output={formatted.Length} chars)");
 
-        // Compute a minimal text edit covering only the changed line range.
-        // This preserves cursor position far better than replacing the entire document.
-        var origLines = text.Split('\n');
+        // Emit per-line TextEdits to preserve cursor position.
+        // Normalize \r\n to \n before splitting so line comparison matches the
+        // formatter's normalized output.
+        var normalizedText = text.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLines = normalizedText.Split('\n');
         var fmtLines  = formatted.Split('\n');
 
-        // Find first differing line.
-        int prefixLen = 0;
+        var edits = new List<TextEdit>();
+
         int minLen = Math.Min(origLines.Length, fmtLines.Length);
-        while (prefixLen < minLen && origLines[prefixLen] == fmtLines[prefixLen])
-            prefixLen++;
 
-        // Find last differing line (from the end).
-        int suffixLen = 0;
-        while (suffixLen < minLen - prefixLen
-            && origLines[origLines.Length - 1 - suffixLen] == fmtLines[fmtLines.Length - 1 - suffixLen])
-            suffixLen++;
-
-        int origEnd = origLines.Length - suffixLen;
-        int fmtEnd  = fmtLines.Length  - suffixLen;
-
-        // Build the replacement text from the changed lines.
-        var changedLines = new string[fmtEnd - prefixLen];
-        Array.Copy(fmtLines, prefixLen, changedLines, 0, changedLines.Length);
-        var newText = string.Join("\n", changedLines);
-
-        // Compute end column of the last original line being replaced.
-        int endLine = origEnd - 1;
-        int endChar = endLine >= 0 && endLine < origLines.Length ? origLines[endLine].Length : 0;
-
-        // If the changed range doesn't border the end of the file, we need
-        // to include the trailing newline separators in the replacement.
-        if (suffixLen > 0 && changedLines.Length > 0)
-            newText += "\n";
-        if (suffixLen > 0 && changedLines.Length == 0 && prefixLen < origEnd)
-            newText = "";
-
-        var edit = new TextEdit
+        // Replace changed lines that exist in both original and formatted.
+        for (int i = 0; i < minLen; i++)
         {
-            Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-                new Position(prefixLen, 0),
-                new Position(endLine, endChar)
-            ),
-            NewText = newText,
-        };
+            if (origLines[i] != fmtLines[i])
+            {
+                edits.Add(new TextEdit
+                {
+                    Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
+                        new Position(i, 0),
+                        new Position(i, origLines[i].Length)),
+                    NewText = fmtLines[i],
+                });
+            }
+        }
 
-        return Task.FromResult<TextEditContainer?>(new TextEditContainer(edit));
+        // Handle line count differences.
+        if (fmtLines.Length > origLines.Length)
+        {
+            // Formatter added lines — insert after the last original line.
+            var extraLines = new string[fmtLines.Length - origLines.Length];
+            Array.Copy(fmtLines, origLines.Length, extraLines, 0, extraLines.Length);
+            edits.Add(new TextEdit
+            {
+                Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
+                    new Position(origLines.Length - 1, origLines[origLines.Length - 1].Length),
+                    new Position(origLines.Length - 1, origLines[origLines.Length - 1].Length)),
+                NewText = "\n" + string.Join("\n", extraLines),
+            });
+        }
+        else if (origLines.Length > fmtLines.Length)
+        {
+            // Formatter removed lines — delete the trailing originals.
+            int lastFmt = fmtLines.Length - 1;
+            int lastOrig = origLines.Length - 1;
+            edits.Add(new TextEdit
+            {
+                Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
+                    new Position(lastFmt, fmtLines[lastFmt].Length),
+                    new Position(lastOrig, origLines[lastOrig].Length)),
+                NewText = "",
+            });
+        }
+
+        if (edits.Count == 0)
+            return Task.FromResult<TextEditContainer?>(null);
+
+        return Task.FromResult<TextEditContainer?>(new TextEditContainer(edits));
     }
 
     /// <summary>
