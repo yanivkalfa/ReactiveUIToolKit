@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.280] - 2026-03-20
+- Fix JSX comment coloring - suppress hook setter tokens inside comment spans
+
 ## [1.0.279] - 2026-03-20
 - Drop Roslyn property semantic token override — let TmLanguage grammar color persist for .Current/.Value etc
 

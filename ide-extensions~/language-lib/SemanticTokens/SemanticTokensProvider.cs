@@ -115,6 +115,37 @@ namespace ReactiveUITK.Language.SemanticTokens
                     merged[key] = token;
             }
 
+            // Suppress non-comment tokens that are contained within a comment
+            // token on the same line (e.g. setCount(...) inside {/* ... */}).
+            var commentTokens = merged.Values
+                .Where(t => t.TokenType == SemanticTokenTypes.Comment)
+                .ToList();
+
+            if (commentTokens.Count > 0)
+            {
+                var keysToRemove = new List<(int, int, int)>();
+                foreach (var kvp in merged)
+                {
+                    var t = kvp.Value;
+                    if (t.TokenType == SemanticTokenTypes.Comment)
+                        continue;
+
+                    foreach (var ct in commentTokens)
+                    {
+                        if (ct.Line == t.Line
+                            && t.Column >= ct.Column
+                            && t.Column + t.Length <= ct.Column + ct.Length)
+                        {
+                            keysToRemove.Add(kvp.Key);
+                            break;
+                        }
+                    }
+                }
+
+                foreach (var key in keysToRemove)
+                    merged.Remove(key);
+            }
+
             return merged.Values;
         }
 
