@@ -68,7 +68,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 - [x] Validate support matrix (VSCode / VS2022 / Rider) is accurate. <!-- VS Code: full, VS2022: full VSIX, Rider: Gradle stub -->
 - [x] Validate TextMate grammar fallback behavior where required. <!-- uitkx.tmLanguage.json provides pre-LSP coloring, semantic tokens override after connection -->
 - [ ] Validate feature degradation path per editor host. <!-- documentation task: document what works/doesn't in each editor -->
-- [ ] Document known editor-specific limitations. <!-- known: VS2022 {/* */} comments not colored green, Rider stub unclear on coverage, VS Code brief TmLanguage flash before LSP -->
+- [ ] Document known editor-specific limitations. <!-- known: Rider stub unclear on coverage, VS Code brief TmLanguage flash before LSP. VS2022 dimming + JSX comment coloring both fixed. -->
 
 ---
 
