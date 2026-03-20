@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.278] - 2026-03-20
+- Formatter: skip blank-line whitespace edits to preserve cursor position; Property semantic token scopes for theme-independent coloring
+
 ## [1.0.277] - 2026-03-20
 - Property color now distinct from variable color; Formatter: per-line TextEdits for stable cursor position; Fix CRLF mismatch in edit computation
 

@@ -93,6 +93,11 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
         {
             if (origLines[i] != fmtLines[i])
             {
+                // Skip edits that only strip trailing whitespace from blank lines.
+                // This preserves cursor indentation on the line the user is editing.
+                if (origLines[i].TrimEnd().Length == 0 && fmtLines[i].TrimEnd().Length == 0)
+                    continue;
+
                 edits.Add(new TextEdit
                 {
                     Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(

@@ -17,6 +17,7 @@ component UitkxCounterFunc(
 ) {
   var myRef = useRef(false);
   var val = myRef.Current;
+
   return (
     <Label text={myRef.Value.ToString()} />
   );
@@ -587,4 +588,3 @@ component UitkxCounterFunc(
     </ScrollView>
   );
 }
-
