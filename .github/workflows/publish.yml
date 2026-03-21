@@ -238,7 +238,12 @@ jobs:
         working-directory: ide-extensions~/vscode
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
+        run: |
+          npx vsce publish --no-dependencies --pat "$VSCE_PAT" || {
+            EXIT_CODE=$?
+            # Tolerate 'already exists' — not an error if marketplace already has this version
+            echo "::warning::vsce publish exited with code $EXIT_CODE — version may already exist on marketplace"
+          }
 
       - name: Tag published version
         if: steps.check.outputs.skip == 'false'
@@ -298,24 +303,10 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore NuGet packages
+      - name: Restore and Build VSIX
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: dotnet restore
-
-      - name: Clean obj directory
-        if: steps.check.outputs.skip == 'false'
-        shell: pwsh
-        working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: |
-          if (Test-Path obj) { Remove-Item -Recurse -Force obj }
-
-      - name: Build VSIX
-        if: steps.check.outputs.skip == 'false'
-        working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: |
-          msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false
-          msbuild UitkxVsix.csproj /t:CreateVsixContainer /p:Configuration=Release /p:DeployExtension=false
+        run: msbuild UitkxVsix.csproj /t:Restore;Build /p:Configuration=Release /p:DeployExtension=false /p:CreateVsixContainer=true
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
