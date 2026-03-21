@@ -305,8 +305,17 @@ jobs:
         working-directory: ide-extensions~/visual-studio/UitkxVsix
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -no_logo
-          msbuild UitkxVsix.csproj /t:Restore /p:Configuration=Release
-          msbuild UitkxVsix.csproj /t:Rebuild /p:Configuration=Release /p:DeployExtension=false
+          msbuild UitkxVsix.csproj -restore -t:Build -p:Configuration=Release -p:DeployExtension=false
+          echo === Searching for VSIX files ===
+          dir /s /b *.vsix 2>nul || echo No .vsix files found anywhere
+          echo === Checking obj for nuget props ===
+          if exist obj\UitkxVsix.csproj.nuget.g.props (
+            findstr /i "VSSDK" obj\UitkxVsix.csproj.nuget.g.props
+          ) else (
+            echo nuget.g.props not found
+          )
+          echo === Checking GenerateVsixContainer in build output ===
+          dir /s /b bin\Release\net472\*.vsix 2>nul || echo No vsix in bin\Release\net472
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
