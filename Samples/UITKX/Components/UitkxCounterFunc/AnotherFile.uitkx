@@ -11,7 +11,7 @@
 component AnotherFile {
   return (
     <ScrollView>
-      <Label text="WhaaaaaaaaatEve       eeaaa" />
+      <Label text="WhaaaaaaaaatEveeeaaa" />
     </ScrollView>
   );
 }
