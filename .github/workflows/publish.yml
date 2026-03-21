@@ -305,6 +305,7 @@ jobs:
 
       - name: Restore and Build VSIX
         if: steps.check.outputs.skip == 'false'
+        shell: cmd
         working-directory: ide-extensions~/visual-studio/UitkxVsix
         run: msbuild UitkxVsix.csproj /t:Restore;Build /p:Configuration=Release /p:DeployExtension=false /p:CreateVsixContainer=true
 
