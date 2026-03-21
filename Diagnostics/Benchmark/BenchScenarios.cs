@@ -332,12 +332,40 @@ namespace ReactiveUITK.Bench
 
         public static Action SharedDemo()
         {
+            int frame = 0;
             return () =>
             {
+                frame++;
                 if (BenchSharedHost.SharedDemoRenderer != null)
                 {
                     var vnode = BenchSharedHost.SharedDemoRenderer.Invoke();
-                    BenchSharedHost.Render(vnode);
+
+                    // Every ~2s (120 frames) change interaction label to force
+                    // actual reconciliation work, not just bailout.
+                    int phase = frame / 120;
+                    var interaction = V.Label(
+                        new LabelProps
+                        {
+                            Text = $"Interaction cycle {phase}",
+                            Style = new Style
+                            {
+                                (TextColor, new UColor(0.4f, 0.4f, 0.4f, 1f)),
+                                (FontSize, 10f),
+                                (Height, 14f),
+                            },
+                        }
+                    );
+
+                    var wrapper = V.VisualElement(
+                        new VisualElementProps
+                        {
+                            Style = new Style { (FlexDirection, "column"), (FlexGrow, 1f) },
+                        },
+                        null,
+                        interaction,
+                        vnode
+                    );
+                    BenchSharedHost.Render(wrapper);
                 }
                 else
                 {

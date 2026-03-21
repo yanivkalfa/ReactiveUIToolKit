@@ -31,10 +31,14 @@ namespace ReactiveUITK.Bench.EditorTools
         private bool _showMinMaxBands = true;
         private bool _showP95 = true;
         private bool _normalizeXToDuration = true;
+        private bool _averageRuns = false;
 
         private bool _onlyEditor = false;
         private bool _onlyRuntime = false;
         private string _search = "";
+
+        private readonly List<Item> _averagedItems = new();
+        private bool _averagedDirty = true;
 
         private class RunEntry
         {
@@ -82,7 +86,7 @@ namespace ReactiveUITK.Bench.EditorTools
 
                 using (new EditorGUILayout.HorizontalScope())
                 {
-                    if (GUILayout.Button("Add Run…", GUILayout.Width(120)))
+                    if (GUILayout.Button("Add Run…", GUILayout.Width(90)))
                     {
                         var start = GetDefaultStartFolder();
                         var folder = EditorUtility.OpenFolderPanel(
@@ -95,10 +99,25 @@ namespace ReactiveUITK.Bench.EditorTools
                             TryAddRun(folder);
                         }
                     }
-                    if (GUILayout.Button("Clear", GUILayout.Width(80)))
+                    if (GUILayout.Button("Add All…", GUILayout.Width(90)))
+                    {
+                        var start = GetDefaultStartFolder();
+                        var parent = EditorUtility.OpenFolderPanel(
+                            "Select parent folder (each subfolder = one run)",
+                            start,
+                            ""
+                        );
+                        if (!string.IsNullOrEmpty(parent))
+                        {
+                            TryAddAllRuns(parent);
+                        }
+                    }
+                    if (GUILayout.Button("Clear", GUILayout.Width(60)))
                     {
                         _runs.Clear();
                         _items.Clear();
+                        _averagedItems.Clear();
+                        _averagedDirty = true;
                     }
                     GUILayout.FlexibleSpace();
                 }
@@ -149,6 +168,15 @@ namespace ReactiveUITK.Bench.EditorTools
                     "Normalize X by duration",
                     _normalizeXToDuration
                 );
+                var prevAvg = _averageRuns;
+                _averageRuns = EditorGUILayout.ToggleLeft(
+                    "Average across runs",
+                    _averageRuns
+                );
+                if (prevAvg != _averageRuns)
+                {
+                    _averagedDirty = true;
+                }
 
                 GUILayout.Space(6);
                 EditorGUILayout.LabelField("Filters", EditorStyles.boldLabel);
@@ -174,9 +202,11 @@ namespace ReactiveUITK.Bench.EditorTools
                 );
                 EditorGUI.DrawRect(rect, new Color(0.10f, 0.10f, 0.10f));
 
+                var displayItems = GetDisplayItems();
+
                 float maxX = 1f,
                     globalYMax = 60f;
-                foreach (var it in _items.Where(VisibleAndPasses))
+                foreach (var it in displayItems.Where(VisibleAndPasses))
                 {
                     var s = it.file.scenario;
                     var secs = it.file.perSecond;
@@ -204,7 +234,7 @@ namespace ReactiveUITK.Bench.EditorTools
 
                 DrawAxes(rect, maxX, yMax);
 
-                foreach (var it in _items.Where(VisibleAndPasses))
+                foreach (var it in displayItems.Where(VisibleAndPasses))
                 {
                     Plot(rect, it, maxX, yMax);
                 }
@@ -212,13 +242,161 @@ namespace ReactiveUITK.Bench.EditorTools
                 GUILayout.Space(8);
 
                 _summaryScroll = EditorGUILayout.BeginScrollView(_summaryScroll);
-                foreach (var it in _items.Where(PassesFilters))
+                foreach (var it in displayItems.Where(PassesFilters))
                 {
                     DrawSummaryRow(it);
                     GUILayout.Space(4);
                 }
                 EditorGUILayout.EndScrollView();
             }
+        }
+
+        private List<Item> GetDisplayItems()
+        {
+            if (!_averageRuns)
+            {
+                return _items;
+            }
+
+            if (!_averagedDirty)
+            {
+                return _averagedItems;
+            }
+
+            _averagedItems.Clear();
+            _averagedDirty = false;
+
+            var groups = _items
+                .Where(it => it.file.scenario != null)
+                .GroupBy(it => it.file.scenario.name ?? "")
+                .OrderBy(g =>
+                    g.Min(it => it.file.scenario.index)
+                );
+
+            int colorIdx = 0;
+            foreach (var group in groups)
+            {
+                var list = group.ToList();
+                if (list.Count == 0)
+                {
+                    continue;
+                }
+
+                var first = list[0].file;
+                int maxBins = list.Max(it => it.file.perSecond?.Count ?? 0);
+                var avgBins = new List<BenchPerSecondBucket>(maxBins);
+
+                for (int b = 0; b < maxBins; b++)
+                {
+                    float sumFpsAvg = 0, sumFpsMin = 0, sumFpsMax = 0;
+                    long sumMonoMax = 0, sumAllocAvg = 0, sumAllocMax = 0;
+                    int sumSamples = 0, sumGc = 0, sumWorkUnits = 0;
+                    float sumRecMs = 0, sumRecMsMax = 0;
+                    int contributors = 0;
+
+                    foreach (var it in list)
+                    {
+                        var ps = it.file.perSecond;
+                        if (ps == null || b >= ps.Count)
+                        {
+                            continue;
+                        }
+
+                        var bucket = ps[b];
+                        sumFpsAvg += bucket.fpsAvg;
+                        sumFpsMin += bucket.fpsMin;
+                        sumFpsMax += bucket.fpsMax;
+                        sumSamples += bucket.sampleCount;
+                        sumMonoMax += bucket.monoUsedMax;
+                        sumGc += bucket.gcCollections;
+                        sumAllocAvg += bucket.renderAllocBytesAvg;
+                        sumAllocMax += bucket.renderAllocBytesMax;
+                        sumRecMs += bucket.reconcilerMsAvg;
+                        sumRecMsMax += bucket.reconcilerMsMax;
+                        sumWorkUnits += bucket.workUnitsTotal;
+                        contributors++;
+                    }
+
+                    if (contributors == 0)
+                    {
+                        continue;
+                    }
+
+                    float n = contributors;
+                    avgBins.Add(
+                        new BenchPerSecondBucket
+                        {
+                            sec = b,
+                            fpsAvg = sumFpsAvg / n,
+                            fpsMin = sumFpsMin / n,
+                            fpsMax = sumFpsMax / n,
+                            sampleCount = sumSamples / contributors,
+                            monoUsedMax = sumMonoMax / contributors,
+                            gcCollections = sumGc / contributors,
+                            renderAllocBytesAvg = sumAllocAvg / contributors,
+                            renderAllocBytesMax = sumAllocMax / contributors,
+                            reconcilerMsAvg = sumRecMs / n,
+                            reconcilerMsMax = sumRecMsMax / n,
+                            workUnitsTotal = sumWorkUnits / contributors,
+                        }
+                    );
+                }
+
+                float cnt = list.Count;
+                var avgSummary = new BenchScenarioSummary
+                {
+                    fpsAvg = list.Sum(it => it.file.scenarioSummary.fpsAvg) / cnt,
+                    fpsP95 = list.Sum(it => it.file.scenarioSummary.fpsP95) / cnt,
+                    fpsMin = list.Sum(it => it.file.scenarioSummary.fpsMin) / cnt,
+                    fpsMax = list.Sum(it => it.file.scenarioSummary.fpsMax) / cnt,
+                    samplesTotal = (int)(list.Sum(it => it.file.scenarioSummary.samplesTotal) / cnt),
+                    secondsTotal =
+                        (int)(list.Sum(it => it.file.scenarioSummary.secondsTotal) / cnt),
+                    monoUsedMax = (long)(list.Sum(it => it.file.scenarioSummary.monoUsedMax) / cnt),
+                    gcCollectionsTotal =
+                        (int)(list.Sum(it => it.file.scenarioSummary.gcCollectionsTotal) / cnt),
+                    renderAllocBytesAvg =
+                        (long)(list.Sum(it => it.file.scenarioSummary.renderAllocBytesAvg) / cnt),
+                    renderAllocBytesMax =
+                        (long)(list.Sum(it => it.file.scenarioSummary.renderAllocBytesMax) / cnt),
+                    reconcilerMsAvg =
+                        list.Sum(it => it.file.scenarioSummary.reconcilerMsAvg) / cnt,
+                    reconcilerMsMax =
+                        list.Sum(it => it.file.scenarioSummary.reconcilerMsMax) / cnt,
+                    workUnitsTotal =
+                        (int)(list.Sum(it => it.file.scenarioSummary.workUnitsTotal) / cnt),
+                };
+
+                var avgFile = new BenchScenarioFile
+                {
+                    runId = $"avg_{list.Count}_runs",
+                    suite = first.suite,
+                    env = first.env,
+                    scenario = new BenchScenarioHeader
+                    {
+                        index = first.scenario.index,
+                        name = first.scenario.name,
+                        durationSec = list.Average(it => it.file.scenario.durationSec),
+                        startedAt = first.scenario.startedAt,
+                        endedAt = first.scenario.endedAt,
+                    },
+                    scenarioSummary = avgSummary,
+                    perSecond = avgBins,
+                };
+
+                _averagedItems.Add(
+                    new Item
+                    {
+                        path = "",
+                        file = avgFile,
+                        visible = true,
+                        color = kColors[colorIdx++ % kColors.Length],
+                        runName = $"avg ({list.Count} runs)",
+                    }
+                );
+            }
+
+            return _averagedItems;
         }
 
         private void DrawSummaryRow(Item it)
@@ -247,9 +425,9 @@ namespace ReactiveUITK.Bench.EditorTools
             GUI.Label(new Rect(nameRect.xMax + 8, row.y + 3, 360, row.height - 6), info);
 
             var tail =
-                $"samples {sum.samplesTotal}  secs {sum.secondsTotal}  GC {sum.gcCollectionsTotal}  mem {Fmt(sum.monoUsedMax)}  — run: {it.runName}";
+                $"samples {sum.samplesTotal}  secs {sum.secondsTotal}  GC {sum.gcCollectionsTotal}  renderAlloc {Fmt(sum.renderAllocBytesAvg)}/frame  reconciler {sum.reconcilerMsAvg:F1}ms  mem {Fmt(sum.monoUsedMax)}  — run: {it.runName}";
             GUI.Label(
-                new Rect(row.xMax - 420, row.y + 3, 412, row.height - 6),
+                new Rect(row.xMax - 580, row.y + 3, 572, row.height - 6),
                 tail,
                 EditorStyles.miniLabel
             );
@@ -365,7 +543,7 @@ namespace ReactiveUITK.Bench.EditorTools
             Handles.EndGUI();
         }
 
-        private void TryAddRun(string folder)
+        private void TryAddRun(string folder, bool silent = false)
         {
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
             {
@@ -375,11 +553,14 @@ namespace ReactiveUITK.Bench.EditorTools
             var jsons = Directory.GetFiles(folder, "*.json", SearchOption.TopDirectoryOnly);
             if (jsons.Length == 0)
             {
-                EditorUtility.DisplayDialog(
-                    "No JSON files",
-                    "Pick a folder that contains per-scenario JSON files.",
-                    "OK"
-                );
+                if (!silent)
+                {
+                    EditorUtility.DisplayDialog(
+                        "No JSON files",
+                        "Pick a folder that contains per-scenario JSON files.",
+                        "OK"
+                    );
+                }
                 return;
             }
 
@@ -401,6 +582,53 @@ namespace ReactiveUITK.Bench.EditorTools
             EditorPrefs.SetString(Pref_LastRunFolder, folder);
 
             RebuildItems();
+        }
+
+        private void TryAddAllRuns(string parentFolder)
+        {
+            if (string.IsNullOrEmpty(parentFolder) || !Directory.Exists(parentFolder))
+            {
+                return;
+            }
+
+            // If the parent itself contains JSON files, treat it as a single run
+            var parentJsons = Directory.GetFiles(
+                parentFolder,
+                "*.json",
+                SearchOption.TopDirectoryOnly
+            );
+            if (parentJsons.Length > 0)
+            {
+                TryAddRun(parentFolder, silent: true);
+            }
+
+            // Add each subfolder that contains JSON files
+            var subdirs = Directory.GetDirectories(parentFolder);
+            Array.Sort(subdirs);
+            int added = 0;
+            foreach (var sub in subdirs)
+            {
+                var jsons = Directory.GetFiles(sub, "*.json", SearchOption.TopDirectoryOnly);
+                if (jsons.Length > 0)
+                {
+                    TryAddRun(sub, silent: true);
+                    added++;
+                }
+            }
+
+            if (added == 0 && parentJsons.Length == 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "No runs found",
+                    "No subfolders with JSON files were found in the selected folder.",
+                    "OK"
+                );
+            }
+        }
+
+        private void InvalidateAveraged()
+        {
+            _averagedDirty = true;
         }
 
         private void RebuildItems()
@@ -441,6 +669,7 @@ namespace ReactiveUITK.Bench.EditorTools
                     }
                 }
             }
+            InvalidateAveraged();
             Repaint();
         }
 
@@ -520,6 +749,18 @@ namespace ReactiveUITK.Bench.EditorTools
 
         private string GetDefaultStartFolder()
         {
+            // If we have a known last run output folder, go one level up to show all runs
+            if (!string.IsNullOrEmpty(BenchPerSecondLogger.LastRunFolder)
+                && Directory.Exists(BenchPerSecondLogger.LastRunFolder))
+            {
+                var parent = Directory.GetParent(BenchPerSecondLogger.LastRunFolder);
+                if (parent != null && parent.Exists)
+                {
+                    return parent.FullName;
+                }
+                return BenchPerSecondLogger.LastRunFolder;
+            }
+
             var last = EditorPrefs.GetString(Pref_LastRunFolder, null);
             if (!string.IsNullOrEmpty(last) && Directory.Exists(last))
             {
@@ -535,13 +776,26 @@ namespace ReactiveUITK.Bench.EditorTools
             var guess = Path.Combine(
                 Application.dataPath,
                 "ReactiveUIToolKit",
-                "Samples",
-                "benchmark",
-                "results_editor"
+                "Diagnostics",
+                "Benchmark",
+                "Results",
+                "Editor"
             );
             if (Directory.Exists(guess))
             {
                 return guess;
+            }
+
+            var guessRoot = Path.Combine(
+                Application.dataPath,
+                "ReactiveUIToolKit",
+                "Diagnostics",
+                "Benchmark",
+                "Results"
+            );
+            if (Directory.Exists(guessRoot))
+            {
+                return guessRoot;
             }
 
             return Application.dataPath;
