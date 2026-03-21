@@ -305,15 +305,14 @@ jobs:
 
       - name: Restore NuGet packages
         if: steps.check.outputs.skip == 'false'
-        shell: cmd
         working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: msbuild UitkxVsix.csproj /t:Restore /p:Configuration=Release
+        run: dotnet restore
 
       - name: Build VSIX
         if: steps.check.outputs.skip == 'false'
         shell: cmd
         working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false
+        run: msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false /verbosity:normal
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
