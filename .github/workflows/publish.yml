@@ -1,8 +1,6 @@
 name: Publish
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
@@ -14,39 +12,41 @@ concurrency:
 
 jobs:
   # ════════════════════════════════════════════════════════════════════════════
-  # Dist branch — only on v* tag
+  # Dist branch — publishes only if version changed
   # ════════════════════════════════════════════════════════════════════════════
   deploy-dist:
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Extract version from tag
-        id: version
-        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - name: Verify package.json version matches tag
+      - name: Check if version already published
+        id: check
         run: |
-          pkg_version="v$(node -p "require('./package.json').version")"
-          if [ "$pkg_version" != "${{ steps.version.outputs.tag }}" ]; then
-            echo "::error::package.json version ($pkg_version) does not match tag (${{ steps.version.outputs.tag }})"
-            exit 1
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git tag --list "v$VERSION" | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Unity package v$VERSION already published — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup .NET
+        if: steps.check.outputs.skip == 'false'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.x"
 
       - name: Build source generator DLLs
+        if: steps.check.outputs.skip == 'false'
         run: |
           dotnet restore SourceGenerator~/ReactiveUITK.SourceGenerator.csproj
           dotnet build SourceGenerator~/ReactiveUITK.SourceGenerator.csproj -c Release --no-restore
 
       - name: Read paths to omit from config.json
+        if: steps.check.outputs.skip == 'false'
         run: |
           node -e "
             const config = require('./config.json');
@@ -55,6 +55,7 @@ jobs:
           " > /tmp/omit_paths.json
 
       - name: Build dist
+        if: steps.check.outputs.skip == 'false'
         run: |
           set -e
           DIST_DIR="dist_build"
@@ -110,9 +111,10 @@ jobs:
           fi
 
       - name: Push to dist branch
+        if: steps.check.outputs.skip == 'false'
         run: |
           set -e
-          TAG="${{ steps.version.outputs.tag }}"
+          VERSION="v${{ steps.check.outputs.version }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -129,12 +131,20 @@ jobs:
           if git diff --cached --quiet; then
             echo "No dist changes to deploy"
           else
-            git commit -m "dist update $TAG"
+            git commit -m "dist update $VERSION"
           fi
           git push origin dist
 
           cd ..
           git worktree remove _dist_worktree
+
+      - name: Tag published version
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.check.outputs.version }}"
+          git push origin "v${{ steps.check.outputs.version }}"
 
   # ════════════════════════════════════════════════════════════════════════════
   # Documentation site

@@ -17,10 +17,10 @@ Each artifact versions independently. Bump only the ones you're releasing.
 | **LSP Server** | `ide-extensions~/lsp-server/UitkxLanguageServer.csproj` | `<Version>` | `1.0.0` |
 | **VS Code Changelog** | `ide-extensions~/vscode/CHANGELOG.md` | Entry header | — |
 
-> **Note:** The `v*` tag (e.g. `v0.2.24`) must match the Unity `package.json` version.
-> IDE extension versions are checked independently via their own git tags
-> (`vscode-v{ver}`, `vs2022-v{ver}`). If a version was already published,
-> that job is skipped automatically.
+> **Note:** All publish jobs check their version file against git tags and
+> skip automatically if that version was already published. Tags are created
+> by the CI on successful publish (`v{ver}`, `vscode-v{ver}`, `vs2022-v{ver}`).
+> No manual tagging is needed.
 
 ---
 
@@ -37,8 +37,10 @@ Each artifact versions independently. Bump only the ones you're releasing.
 ## Automated (CI) — `publish.yml`
 
 A single workflow (`publish.yml`) runs all publish jobs. It triggers on:
-- **`v*` tag push** — runs dist deploy + docs + all IDE extension jobs
-- **`workflow_dispatch`** — runs docs + IDE extension jobs (no dist)
+- **`workflow_dispatch`** — manually run from GitHub Actions UI
+
+Each job independently checks its version file against git tags.
+If the version was already published, that job is skipped.
 
 ### Releasing a new version
 
@@ -46,22 +48,19 @@ A single workflow (`publish.yml`) runs all publish jobs. It triggers on:
 # 1. Bump versions in the files listed above (only the ones that changed)
 # 2. Update CHANGELOG.md entries as needed
 # 3. Commit and push to main
-
-# 4. Tag with the Unity package version (must match package.json)
-git tag v0.2.24
-git push origin v0.2.24
+# 4. Go to GitHub Actions → Publish → Run workflow
 ```
 
 This triggers 4 parallel jobs:
 
 | Job | What it does | Skip condition |
 |---|---|---|
-| **deploy-dist** | Builds source generator DLLs, packages dist, pushes to `dist` branch | Only runs on `v*` tags |
+| **deploy-dist** | Builds source generator DLLs, packages dist, pushes to `dist` branch | Skipped if `v{ver}` tag exists |
 | **deploy-docs** | Builds docs site, pushes to `documentations` branch | Never skipped |
 | **publish-vscode** | Builds LSP server + VS Code extension, publishes to marketplace | Skipped if `vscode-v{ver}` tag exists |
 | **publish-vs2022** | Builds LSP server + VSIX, publishes via VsixPublisher.exe | Skipped if `vs2022-v{ver}` tag exists |
 
-Each IDE extension job auto-tags on success (e.g. `vscode-v1.0.283`, `vs2022-v1.0.59`).
+Each job auto-tags on success (e.g. `v0.2.24`, `vscode-v1.0.283`, `vs2022-v1.0.59`).
 
 ### Required GitHub Secrets
 
@@ -148,7 +147,7 @@ npm run build
 
 ## Pre-Release Checklist
 
-Before tagging a release:
+Before publishing:
 
 - [ ] All tests pass: `dotnet test SourceGenerator~/Tests/` (841+ tests)
 - [ ] All LSP tests pass: `dotnet test ide-extensions~/lsp-server/Tests/` (22+ tests)

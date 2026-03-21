@@ -45,6 +45,11 @@ namespace ReactiveUITK.Bench
         public int secondsTotal;
         public long monoUsedMax;
         public int gcCollectionsTotal;
+        public long renderAllocBytesAvg;
+        public long renderAllocBytesMax;
+        public float reconcilerMsAvg;
+        public float reconcilerMsMax;
+        public int workUnitsTotal;
     }
 
     [Serializable]
@@ -57,6 +62,11 @@ namespace ReactiveUITK.Bench
         public int sampleCount;
         public long monoUsedMax;
         public int gcCollections;
+        public long renderAllocBytesAvg;
+        public long renderAllocBytesMax;
+        public float reconcilerMsAvg;
+        public float reconcilerMsMax;
+        public int workUnitsTotal;
     }
 
     [Serializable]
@@ -98,8 +108,20 @@ namespace ReactiveUITK.Bench
         private static float _accFpsMax;
         private static long _accMonoUsedMax;
         private static int _accGcStart;
+        private static long _accRenderAllocSum;
+        private static long _accRenderAllocMax;
+        private static long _totalRenderAllocSum;
+        private static long _totalRenderAllocMax;
+        private static long _accReconcilerMsSum;
+        private static long _accReconcilerMsMax;
+        private static long _totalReconcilerMsSum;
+        private static long _totalReconcilerMsMax;
+        private static int _accWorkUnitsSum;
+        private static int _totalWorkUnitsSum;
 
         private static BenchOutputTarget _forcedOutput = BenchOutputTarget.Auto;
+
+        public static string LastRunFolder { get; private set; }
 
 #if UNITY_EDITOR
         private static double NowSec() => EditorApplication.timeSinceStartup;
@@ -172,6 +194,16 @@ namespace ReactiveUITK.Bench
             _accFpsMax = float.NegativeInfinity;
             _accMonoUsedMax = 0;
             _accGcStart = GC.CollectionCount(0);
+            _accRenderAllocSum = 0;
+            _accRenderAllocMax = 0;
+            _totalRenderAllocSum = 0;
+            _totalRenderAllocMax = 0;
+            _accReconcilerMsSum = 0;
+            _accReconcilerMsMax = 0;
+            _totalReconcilerMsSum = 0;
+            _totalReconcilerMsMax = 0;
+            _accWorkUnitsSum = 0;
+            _totalWorkUnitsSum = 0;
 
             _gcAtScenarioStart = _accGcStart;
 
@@ -179,7 +211,7 @@ namespace ReactiveUITK.Bench
             _active = true;
         }
 
-        public static void SampleFrame(float dt)
+        public static void SampleFrame(float dt, long renderAllocBytes = 0, long reconcilerMs = 0, int workUnits = 0)
         {
             if (!_active)
             {
@@ -218,6 +250,11 @@ namespace ReactiveUITK.Bench
                 _accFpsMax = float.NegativeInfinity;
                 _accMonoUsedMax = 0;
                 _accGcStart = GC.CollectionCount(0);
+                _accRenderAllocSum = 0;
+                _accRenderAllocMax = 0;
+                _accReconcilerMsSum = 0;
+                _accReconcilerMsMax = 0;
+                _accWorkUnitsSum = 0;
                 _lastSecondBin = secBin;
             }
 
@@ -245,6 +282,30 @@ namespace ReactiveUITK.Bench
             {
                 _monoUsedMaxScenario = monoUsed;
             }
+
+            _accRenderAllocSum += renderAllocBytes;
+            if (renderAllocBytes > _accRenderAllocMax)
+            {
+                _accRenderAllocMax = renderAllocBytes;
+            }
+            _totalRenderAllocSum += renderAllocBytes;
+            if (renderAllocBytes > _totalRenderAllocMax)
+            {
+                _totalRenderAllocMax = renderAllocBytes;
+            }
+
+            _accReconcilerMsSum += reconcilerMs;
+            if (reconcilerMs > _accReconcilerMsMax)
+            {
+                _accReconcilerMsMax = reconcilerMs;
+            }
+            _totalReconcilerMsSum += reconcilerMs;
+            if (reconcilerMs > _totalReconcilerMsMax)
+            {
+                _totalReconcilerMsMax = reconcilerMs;
+            }
+            _accWorkUnitsSum += workUnits;
+            _totalWorkUnitsSum += workUnits;
 
             _samplesTotal++;
         }
@@ -310,6 +371,8 @@ namespace ReactiveUITK.Bench
 
             Directory.CreateDirectory(root);
 
+            LastRunFolder = root;
+
             var fileName = $"{_idx:D2}_{Sanitize(_name)}_{DateTime.Now:yyyyMMdd_HHmmss}.json";
             var path = Path.Combine(root, fileName);
 
@@ -360,6 +423,11 @@ namespace ReactiveUITK.Bench
                     secondsTotal = _bins?.Count ?? 0,
                     monoUsedMax = _monoUsedMaxScenario,
                     gcCollectionsTotal = GC.CollectionCount(0) - _gcAtScenarioStart,
+                    renderAllocBytesAvg = _samplesTotal > 0 ? _totalRenderAllocSum / _samplesTotal : 0,
+                    renderAllocBytesMax = _totalRenderAllocMax,
+                    reconcilerMsAvg = _samplesTotal > 0 ? (float)_totalReconcilerMsSum / _samplesTotal : 0f,
+                    reconcilerMsMax = _totalReconcilerMsMax,
+                    workUnitsTotal = _totalWorkUnitsSum,
                 };
             }
 
@@ -373,6 +441,11 @@ namespace ReactiveUITK.Bench
                 secondsTotal = _bins?.Count ?? 0,
                 monoUsedMax = _monoUsedMaxScenario,
                 gcCollectionsTotal = GC.CollectionCount(0) - _gcAtScenarioStart,
+                renderAllocBytesAvg = 0,
+                renderAllocBytesMax = 0,
+                reconcilerMsAvg = 0f,
+                reconcilerMsMax = 0f,
+                workUnitsTotal = 0,
             };
         }
 
@@ -406,6 +479,11 @@ namespace ReactiveUITK.Bench
                     sampleCount = _accFpsCount,
                     monoUsedMax = _accMonoUsedMax,
                     gcCollections = Mathf.Max(0, gcDelta),
+                    renderAllocBytesAvg = _accFpsCount > 0 ? _accRenderAllocSum / _accFpsCount : 0,
+                    renderAllocBytesMax = _accRenderAllocMax,
+                    reconcilerMsAvg = _accFpsCount > 0 ? (float)_accReconcilerMsSum / _accFpsCount : 0f,
+                    reconcilerMsMax = _accReconcilerMsMax,
+                    workUnitsTotal = _accWorkUnitsSum,
                 }
             );
         }
