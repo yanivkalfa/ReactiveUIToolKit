@@ -1,3 +1,0 @@
-# Ignore UITKX component template files — these are formatted by the
-# ReactiveUITK.uitkx VS Code extension, not by CSharpier.
-**/*.uitkx

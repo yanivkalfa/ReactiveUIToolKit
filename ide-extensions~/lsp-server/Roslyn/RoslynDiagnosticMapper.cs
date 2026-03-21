@@ -39,36 +39,39 @@ namespace UitkxLanguageServer.Roslyn
         /// Diagnostic IDs that are suppressed globally for UITKX virtual documents.
         /// All of these are false-positives caused by the generated scaffold.
         /// </summary>
-        private static readonly HashSet<string> s_suppressedIds =
-            new HashSet<string>(StringComparer.Ordinal)
-            {
-                // CS0246 — type/namespace not found.
-                // Previously suppressed globally; now emitted only around specific scaffold
-                // lines via #pragma warning disable CS0246 so that real user type-not-found
-                // errors (e.g. misspelled type names) surface as diagnostics.
-                // "CS0246",
-                "CS8019", // Unnecessary using directive
-                "CS1591", // Missing XML comment
-                "CS0649", // Field '…' is never assigned to
-                "CS0414", // The field '…' is assigned but its value is never used
-                "CS8618", // Non-nullable field '…' must contain a non-null value
-                "CS0169", // The field '…' is never used
-                "CS8625", // Cannot convert null literal to non-nullable reference type (scaffold default!)
-                // CS0219 — variable assigned but never used.
-                // Previously suppressed to avoid cascade noise from broken parses; removed
-                // so that genuine unused-variable warnings surface to the editor.
-                // "CS0219",
-                "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
-                // CS1660 no longer needed — useState setter is now modeled as __StateSetter__<T>(Func<T,T>)
-                // so lambda bodies get full type inference. Direct-value calls produce CS1503 instead,
-                // which is filtered below by message inspection (not global suppression).
-                "CS1977", // Cannot use lambda as argument to dynamically dispatched operation — block-body
-                          // lambda params are typed as `dynamic` in the scaffold; nested lambdas passed to
-                          // methods on those params (e.g. dm.AppendAction("X", _ => ...)) trigger this error.
-                          // Unity's source generator knows the real types and never hits this.
-                "CS0436", // Type conflicts with imported type — companion .cs files in the same directory
-                          // shadow types in Assembly-CSharp.dll. Intentional; safety net for #line-mapped spans.
-            };
+        private static readonly HashSet<string> s_suppressedIds = new HashSet<string>(
+            StringComparer.Ordinal
+        )
+        {
+            // CS0246 — type/namespace not found.
+            // Previously suppressed globally; now emitted only around specific scaffold
+            // lines via #pragma warning disable CS0246 so that real user type-not-found
+            // errors (e.g. misspelled type names) surface as diagnostics.
+            // "CS0246",
+            "CS0162", // Unreachable code detected — suppressed globally; UITKX0107 handles all
+            // unreachable-after-return dimming directly from .uitkx source analysis.
+            "CS8019", // Unnecessary using directive
+            "CS1591", // Missing XML comment
+            "CS0649", // Field '…' is never assigned to
+            "CS0414", // The field '…' is assigned but its value is never used
+            "CS8618", // Non-nullable field '…' must contain a non-null value
+            "CS0169", // The field '…' is never used
+            "CS8625", // Cannot convert null literal to non-nullable reference type (scaffold default!)
+            // CS0219 — variable assigned but never used.
+            // Previously suppressed to avoid cascade noise from broken parses; removed
+            // so that genuine unused-variable warnings surface to the editor.
+            // "CS0219",
+            "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
+            // CS1660 no longer needed — useState setter is now modeled as __StateSetter__<T>(Func<T,T>)
+            // so lambda bodies get full type inference. Direct-value calls produce CS1503 instead,
+            // which is filtered below by message inspection (not global suppression).
+            "CS1977", // Cannot use lambda as argument to dynamically dispatched operation — block-body
+            // lambda params are typed as `dynamic` in the scaffold; nested lambdas passed to
+            // methods on those params (e.g. dm.AppendAction("X", _ => ...)) trigger this error.
+            // Unity's source generator knows the real types and never hits this.
+            "CS0436", // Type conflicts with imported type — companion .cs files in the same directory
+            // shadow types in Assembly-CSharp.dll. Intentional; safety net for #line-mapped spans.
+        };
 
         // ── Public API ────────────────────────────────────────────────────────
 
@@ -89,7 +92,8 @@ namespace UitkxLanguageServer.Roslyn
         public IReadOnlyList<ParseDiagnostic> Map(
             IReadOnlyList<(Diagnostic Diagnostic, SourceMapEntry? MapEntry)> diagnosticsWithMap,
             string uitkxFilePath,
-            string? uitkxSource = null)
+            string? uitkxSource = null
+        )
         {
             var result = new List<ParseDiagnostic>(diagnosticsWithMap.Count);
 
@@ -115,39 +119,42 @@ namespace UitkxLanguageServer.Roslyn
 
                 // ── Resolve position ─────────────────────────────────────────
 
-                int uitkxLine    = 0;
-                int uitkxCol     = 0;
+                int uitkxLine = 0;
+                int uitkxCol = 0;
                 int uitkxEndLine = 0;
-                int uitkxEndCol  = 0;
+                int uitkxEndCol = 0;
 
                 if (mapEntry != null)
                 {
                     // Source-map route: character-precise column from offsets.
                     var span = diag.Location.SourceSpan;
-                    int uitkxStartOffset = mapEntry.UitkxStart
-                        + Math.Max(0, span.Start - mapEntry.VirtualStart);
-                    int uitkxEndOffset   = mapEntry.UitkxStart
-                        + Math.Min(span.End - mapEntry.VirtualStart,
-                                   mapEntry.UitkxEnd - mapEntry.UitkxStart);
+                    int uitkxStartOffset =
+                        mapEntry.UitkxStart + Math.Max(0, span.Start - mapEntry.VirtualStart);
+                    int uitkxEndOffset =
+                        mapEntry.UitkxStart
+                        + Math.Min(
+                            span.End - mapEntry.VirtualStart,
+                            mapEntry.UitkxEnd - mapEntry.UitkxStart
+                        );
 
                     if (uitkxSource != null)
                     {
-                        (uitkxLine, uitkxCol)     = OffsetToLineCol(uitkxSource, uitkxStartOffset);
+                        (uitkxLine, uitkxCol) = OffsetToLineCol(uitkxSource, uitkxStartOffset);
                         (uitkxEndLine, uitkxEndCol) = OffsetToLineCol(uitkxSource, uitkxEndOffset);
                     }
                     else
                     {
                         // Fallback: line from entry, column unknown
-                        uitkxLine    = mapEntry.UitkxLine;
-                        uitkxCol     = 0;
+                        uitkxLine = mapEntry.UitkxLine;
+                        uitkxCol = 0;
                         uitkxEndLine = uitkxLine;
-                        uitkxEndCol  = 0;
+                        uitkxEndCol = 0;
                     }
                 }
                 else
                 {
                     // #line directive route via Roslyn's mapped span
-                    var loc        = diag.Location;
+                    var loc = diag.Location;
                     var mappedSpan = loc.GetMappedLineSpan();
 
                     // If the mapped path doesn't point to our uitkx file, skip.
@@ -157,25 +164,27 @@ namespace UitkxLanguageServer.Roslyn
                         continue;
 
                     // mappedLineSpan uses 0-based lines; ParseDiagnostic uses 1-based
-                    uitkxLine    = mappedSpan.IsValid ? mappedSpan.Span.Start.Line + 1 : 0;
-                    uitkxCol     = mappedSpan.IsValid ? mappedSpan.Span.Start.Character : 0;
-                    uitkxEndLine = mappedSpan.IsValid ? mappedSpan.Span.End.Line + 1   : uitkxLine;
-                    uitkxEndCol  = mappedSpan.IsValid ? mappedSpan.Span.End.Character  : uitkxCol;
+                    uitkxLine = mappedSpan.IsValid ? mappedSpan.Span.Start.Line + 1 : 0;
+                    uitkxCol = mappedSpan.IsValid ? mappedSpan.Span.Start.Character : 0;
+                    uitkxEndLine = mappedSpan.IsValid ? mappedSpan.Span.End.Line + 1 : uitkxLine;
+                    uitkxEndCol = mappedSpan.IsValid ? mappedSpan.Span.End.Character : uitkxCol;
                 }
 
                 if (uitkxLine <= 0)
                     continue; // position unknown — skip rather than report at line 0
 
-                result.Add(new ParseDiagnostic
-                {
-                    Code        = diag.Id,
-                    Severity    = ToParseServerity(diag.Severity),
-                    Message     = diag.GetMessage(),
-                    SourceLine  = uitkxLine,
-                    SourceColumn = uitkxCol,
-                    EndLine     = uitkxEndLine,
-                    EndColumn   = uitkxEndCol,
-                });
+                result.Add(
+                    new ParseDiagnostic
+                    {
+                        Code = diag.Id,
+                        Severity = ToParseServerity(diag.Severity),
+                        Message = diag.GetMessage(),
+                        SourceLine = uitkxLine,
+                        SourceColumn = uitkxCol,
+                        EndLine = uitkxEndLine,
+                        EndColumn = uitkxEndCol,
+                    }
+                );
             }
 
             return result;
@@ -209,10 +218,10 @@ namespace UitkxLanguageServer.Roslyn
         private static ParseSeverity ToParseServerity(RoslynDiagnosticSeverity s) =>
             s switch
             {
-                RoslynDiagnosticSeverity.Error   => ParseSeverity.Error,
+                RoslynDiagnosticSeverity.Error => ParseSeverity.Error,
                 RoslynDiagnosticSeverity.Warning => ParseSeverity.Warning,
-                RoslynDiagnosticSeverity.Info    => ParseSeverity.Information,
-                _                                => ParseSeverity.Hint,
+                RoslynDiagnosticSeverity.Info => ParseSeverity.Information,
+                _ => ParseSeverity.Hint,
             };
 
         /// <summary>
@@ -223,7 +232,7 @@ namespace UitkxLanguageServer.Roslyn
         private static (int Line, int Col) OffsetToLineCol(string source, int offset)
         {
             offset = Math.Max(0, Math.Min(offset, source.Length));
-            int line     = 1;
+            int line = 1;
             int lineStart = 0;
             for (int i = 0; i < offset; i++)
             {

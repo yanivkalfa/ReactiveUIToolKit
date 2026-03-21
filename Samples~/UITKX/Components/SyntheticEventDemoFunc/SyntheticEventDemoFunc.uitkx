@@ -1,6 +1,5 @@
 ﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
-@using System.Collections.Generic
 
 component SyntheticEventDemoFunc {
   var (log, setLog) = useState("Click, drag, or scroll inside the panel to inspect normalized synthetic events.");
@@ -9,7 +8,10 @@ component SyntheticEventDemoFunc {
   {
     if (evt == null)
     {
-      setLog($"{label}: <null event>"); return;
+      setLog($"{label}: <null event>");
+      {
+        return;
+      }
     }
     string summary = $"{label}: type={evt.Type}";
     if (evt is ReactiveWheelEvent wheel)
@@ -42,12 +44,10 @@ component SyntheticEventDemoFunc {
       />
       <VisualElement
         style={panelStyle}
-        extraProps={new Dictionary<string, object> {
-            { "onPointerDown", (PointerEventHandler)(e => UpdateLog("PointerDown", e)) },
-            { "onPointerMove", (PointerEventHandler)(e => UpdateLog("PointerMove", e)) },
-            { "onPointerUp", (PointerEventHandler)(e => UpdateLog("PointerUp", e)) },
-            { "onWheel", (WheelEventHandler)(e => UpdateLog("Wheel", e)) }
-        }}
+        onPointerDown={e => UpdateLog("PointerDown", e)}
+        onPointerMove={e => UpdateLog("PointerMove", e)}
+        onPointerUp={e => UpdateLog("PointerUp", e)}
+        onWheel={e => UpdateLog("Wheel", e)}
       >
         <Label
           text="Interact here (pointer & wheel events)"

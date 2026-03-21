@@ -17,6 +17,11 @@ namespace ReactiveUITK.Core
         private VisualElement rootElement;
         private VNodeHostRenderer vnodeHostRenderer;
 
+#if UNITY_EDITOR
+        /// <summary>HMR: exposes the VNodeHostRenderer for tree walking.</summary>
+        internal VNodeHostRenderer VNodeHostRendererInternal => vnodeHostRenderer;
+#endif
+
         private void EnsureSetup()
         {
             if (elementRegistry == null)

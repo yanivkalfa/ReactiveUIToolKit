@@ -14,6 +14,9 @@ namespace ReactiveUITK.EditorSupport
         private static readonly Dictionary<VisualElement, VNodeHostRenderer> renderersByHost =
             new();
 
+        /// <summary>HMR: enumerates all active VNodeHostRenderers for fiber tree walking.</summary>
+        internal static IEnumerable<VNodeHostRenderer> GetAllRenderers() => renderersByHost.Values;
+
         /// <summary>
         /// Mounts a component tree on <paramref name="hostElement"/>.
         /// </summary>

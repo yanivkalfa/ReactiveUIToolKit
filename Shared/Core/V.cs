@@ -1098,16 +1098,10 @@ namespace ReactiveUITK
             System.Func<Core.IProps, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
             TProps typedProps,
             string key = null,
-            bool memoize = false,
-            System.Func<TProps, TProps, bool> memoCompare = null,
             params VirtualNode[] children
         )
             where TProps : class, Core.IProps
         {
-            System.Func<Core.IProps, Core.IProps, bool> wrappedCompare =
-                memoCompare != null
-                    ? (Core.IProps a, Core.IProps b) => memoCompare(a as TProps, b as TProps)
-                    : null;
             return new VirtualNode(
                 VirtualNodeType.FunctionComponent,
                 elementTypeName: null,
@@ -1115,10 +1109,8 @@ namespace ReactiveUITK
                 key: key,
                 properties: EmptyProps(),
                 children: children ?? EmptyChildren(),
-                memoize: memoize,
                 typedFunctionRender: renderFunction,
-                typedProps: (Core.IProps)typedProps ?? Core.EmptyProps.Instance,
-                typedMemoCompare: wrappedCompare
+                typedProps: (Core.IProps)typedProps ?? Core.EmptyProps.Instance
             );
         }
 
@@ -1131,8 +1123,6 @@ namespace ReactiveUITK
             System.Func<Core.IProps, IReadOnlyList<VirtualNode>, VirtualNode> render,
             Core.IProps props = null,
             string key = null,
-            bool memoize = false,
-            System.Func<Core.IProps, Core.IProps, bool> memoCompare = null,
             params VirtualNode[] children
         )
         {
@@ -1143,10 +1133,8 @@ namespace ReactiveUITK
                 key: key,
                 properties: EmptyProps(),
                 children: children ?? EmptyChildren(),
-                memoize: memoize,
                 typedFunctionRender: render,
-                typedProps: props ?? Core.EmptyProps.Instance,
-                typedMemoCompare: memoCompare
+                typedProps: props ?? Core.EmptyProps.Instance
             );
         }
 
@@ -1190,8 +1178,6 @@ namespace ReactiveUITK
                 RouterFunc.Render,
                 new RouterFuncProps { History = history, InitialPath = initialPath },
                 key,
-                false,
-                null,
                 children
             );
         }
@@ -1213,8 +1199,6 @@ namespace ReactiveUITK
                     Element = element,
                 },
                 key,
-                false,
-                null,
                 children
             );
         }
@@ -1248,7 +1232,7 @@ namespace ReactiveUITK
             params VirtualNode[] children
         )
         {
-            return Func<AnimateProps>(AnimateFunc.Render, props, key, false, null, children);
+            return Func<AnimateProps>(AnimateFunc.Render, props, key, children);
         }
 
         public static VirtualNode Suspense(
@@ -1309,11 +1293,10 @@ namespace ReactiveUITK
             System.Func<Core.IProps, IReadOnlyList<VirtualNode>, VirtualNode> renderFunction,
             Core.IProps functionProps = null,
             string key = null,
-            System.Func<Core.IProps, Core.IProps, bool> memoCompare = null,
             params VirtualNode[] children
         )
         {
-            return Func(renderFunction, functionProps, key, true, memoCompare, children);
+            return Func(renderFunction, functionProps, key, children);
         }
 
         private static IReadOnlyDictionary<string, object> EmptyProps() => VirtualNode.EmptyProps;

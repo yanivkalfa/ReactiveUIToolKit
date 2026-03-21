@@ -22,6 +22,7 @@ namespace ReactiveUITK.Language.Diagnostics
     ///   <item>UITKX0107 — Unreachable code after top-level <c>return</c> in <c>@code</c></item>
     ///   <item>UITKX0108 — Component has more than one root render node</item>
     ///   <item>UITKX0109 — Unknown attribute on a known element (when attribute map available)</item>
+    ///   <item>UITKX0111 — Unused component parameter in function-style component</item>
     /// </list>
     ///
     /// Tier-1 (parser syntax) errors are already present in
@@ -117,26 +118,61 @@ namespace ReactiveUITK.Language.Diagnostics
 
             // ── T2: AST walks ─────────────────────────────────────────────────
             WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags,
-                skipReturnCheck: d.IsFunctionStyle);
+                isFunctionStyle: d.IsFunctionStyle);
 
             // ── T2: Function-style unreachable-after-return ───────────────────
-            if (d.IsFunctionStyle && d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
+            if (d.IsFunctionStyle)
             {
-                int unreachStart = d.FunctionReturnEndLine + 1;
-                int unreachEnd = d.FunctionBodyEndLine;
-                if (unreachEnd >= unreachStart)
+                // Site A — dim code between the render return's `;` and the
+                // component closing `}`, but never the `}` itself.
+                if (d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
                 {
-                    diags.Add(new ParseDiagnostic
+                    int unreachStart = d.FunctionReturnEndLine + 1;
+                    int unreachEnd = d.FunctionBodyEndLine - 1; // exclude `}`
+                    if (unreachEnd >= unreachStart)
                     {
-                        Code = DiagnosticCodes.UnreachableAfterReturn,
-                        Severity = ParseSeverity.Hint,
-                        Message = "Unreachable code after 'return'.",
-                        SourceLine = unreachStart,
-                        SourceColumn = 0,
-                        EndLine = unreachEnd,
-                        EndColumn = 9999,
-                    });
+                        diags.Add(new ParseDiagnostic
+                        {
+                            Code = DiagnosticCodes.UnreachableAfterReturn,
+                            Severity = ParseSeverity.Hint,
+                            Message = "Unreachable code after 'return'.",
+                            SourceLine = unreachStart,
+                            SourceColumn = 0,
+                            EndLine = unreachEnd,
+                            EndColumn = 9999,
+                        });
+                    }
                 }
+
+                // Render-return wrapper — if setup code has an early return,
+                // the `return (` line that wraps the render root ISN'T an AST
+                // node, so neither CheckUnreachableAfterReturn (code-block
+                // internal) nor Site B (sibling ElementNodes) covers it.
+                // Emit a one-line diagnostic for that gap.
+                if (d.MarkupStartLine > 0)
+                {
+                    var setupCb = parseResult.RootNodes
+                        .OfType<CodeBlockNode>().FirstOrDefault();
+                    if (setupCb != null && HasTopLevelReturn(setupCb))
+                    {
+                        diags.Add(new ParseDiagnostic
+                        {
+                            Code = DiagnosticCodes.UnreachableAfterReturn,
+                            Severity = ParseSeverity.Hint,
+                            Message = "Unreachable code after 'return'.",
+                            SourceLine = d.MarkupStartLine,
+                            SourceColumn = 0,
+                            EndLine = d.MarkupStartLine,
+                            EndColumn = 9999,
+                        });
+                    }
+                }
+            }
+
+            // ── T2: UITKX0111 — Unused component parameter ───────────────────
+            if (d.IsFunctionStyle && !d.FunctionParams.IsDefaultOrEmpty)
+            {
+                CheckUnusedParameters(d, parseResult.RootNodes, diags);
             }
 
             return diags;
@@ -257,7 +293,8 @@ namespace ReactiveUITK.Language.Diagnostics
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
             List<ParseDiagnostic> diags,
-            bool skipReturnCheck = false
+            bool skipReturnCheck = false,
+            bool isFunctionStyle = false
         )
         {
             // UITKX0104 — Duplicate literal key among siblings at this level.
@@ -267,7 +304,8 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 var node = nodes[idx];
                 WalkNode(node, insideForeach, projectElements, knownAttributes, diags,
-                    skipReturnCheck: skipReturnCheck && node is CodeBlockNode);
+                    skipReturnCheck: skipReturnCheck && node is CodeBlockNode,
+                    isFunctionStyle: isFunctionStyle && node is CodeBlockNode);
 
                 bool isScopeEnder = node is BreakNode || node is ContinueNode;
                 bool isReturnEnder = !isScopeEnder && !skipReturnCheck
@@ -378,7 +416,8 @@ namespace ReactiveUITK.Language.Diagnostics
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
             List<ParseDiagnostic> diags,
-            bool skipReturnCheck = false
+            bool skipReturnCheck = false,
+            bool isFunctionStyle = false
         )
         {
             switch (node)
@@ -411,7 +450,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     break;
 
                 case CodeBlockNode cb:
-                    CheckUnreachableAfterReturn(cb, diags, skipTopLevel: skipReturnCheck);
+                    CheckUnreachableAfterReturn(cb, diags, isFunctionStyle: isFunctionStyle);
                     foreach (var rm in cb.ReturnMarkups)
                     {
                         CheckElement(rm.Element, insideForeach, projectElements, knownAttributes, diags);
@@ -612,28 +651,40 @@ namespace ReactiveUITK.Language.Diagnostics
         private static void CheckUnreachableAfterReturn(
             CodeBlockNode cb,
             List<ParseDiagnostic> diags,
-            bool skipTopLevel = false
+            bool isFunctionStyle = false
         )
         {
             if (string.IsNullOrWhiteSpace(cb.Code))
                 return;
 
             var lines = cb.Code.Replace("\r\n", "\n").Split('\n');
-            bool seenTopLevelReturn = false;
             int depth = 0;
 
-            // Nested unreachable tracking: when a return is found at depth > 0,
-            // all subsequent lines at that depth (until the matching '}') are
-            // unreachable.
-            int nestedUnreachDepth = -1;
-            int nestedRangeStart   = -1;
-            int nestedRangeEnd     = -1;
+            // For normal @code blocks, SourceLine = the @code line; code
+            // starts one line below → +1.  For function-style, the synthetic
+            // @code wrapper puts code on the *same* line → no +1.
+            int lineBase = isFunctionStyle ? cb.SourceLine : cb.SourceLine + 1;
+
+            // ── Unified unreachable-zone tracker ──────────────────────────
+            // Works at ALL brace depths.  When a return statement completes
+            // (single-line or multi-line + balanced parens + `;`), every
+            // subsequent line at the same or deeper depth is unreachable
+            // until a `}` drops us below the return's depth.
+            //
+            // `unreachDepth`  — the brace depth at which the return was
+            //                   found, or −1 when not in an unreachable zone.
+            // `parenTracking` — > 0 while we are inside a multi-line return's
+            //                   `return ( … )` parenthesised expression.
+            int unreachDepth   = -1;
+            int rangeStart     = -1;
+            int rangeEnd       = -1;
+            int parenTracking  = -1; // -1 = not tracking; ≥ 0 = paren depth
 
             for (int i = 0; i < lines.Length; i++)
             {
                 string line = lines[i];
                 string trimmed = line.Trim();
-                int srcLine = cb.SourceLine + 1 + i;
+                int srcLine = lineBase + i;
 
                 int opens  = CountChar(line, '{');
                 int closes = CountChar(line, '}');
@@ -648,92 +699,116 @@ namespace ReactiveUITK.Language.Diagnostics
 
                 bool isComment = trimmed.StartsWith("//", System.StringComparison.Ordinal);
 
-                // ── Top-level return (depth 0) ─────────────────────────────
-                if (!skipTopLevel)
+                // ── Multi-line return tracking ─────────────────────────────
+                // We saw `return (` on a previous line.  Count parens across
+                // lines until they balance, then check for `;`.
+                if (parenTracking >= 0)
                 {
-                    if (seenTopLevelReturn && !isComment)
+                    for (int ci = 0; ci < line.Length; ci++)
                     {
-                        int leading = line.Length - line.TrimStart().Length;
-                        diags.Add(
-                            MakeDiag(
-                                DiagnosticCodes.UnreachableAfterReturn,
-                                ParseSeverity.Hint,
-                                "Unreachable code after 'return'.",
-                                srcLine,
-                                leading,
-                                line.Length
-                            )
-                        );
+                        char ch = line[ci];
+                        if (ch == '(') parenTracking++;
+                        else if (ch == ')')
+                        {
+                            parenTracking--;
+                            if (parenTracking <= 0)
+                            {
+                                // Parens balanced.  Check the rest of the
+                                // line (after `)`) for `;`.
+                                string rest = line.Substring(ci + 1).Trim();
+                                if (rest.StartsWith(";", System.StringComparison.Ordinal))
+                                {
+                                    // Return statement complete on this line.
+                                    // Start unreachable zone from next line.
+                                    unreachDepth = depth;
+                                }
+                                parenTracking = -1;
+                                break;
+                            }
+                        }
                     }
-
-                    if (!seenTopLevelReturn && depth == 0 && s_topLevelReturnRegex.IsMatch(line))
-                    {
-                        seenTopLevelReturn = true;
-                        depth = nextDepth;
-                        continue;
-                    }
+                    depth = nextDepth;
+                    continue;
                 }
 
-                // ── Nested return (depth > 0) ──────────────────────────────
-                if (!seenTopLevelReturn)
+                // ── Flush unreachable zone when exiting scope ──────────────
+                if (unreachDepth >= 0 && nextDepth < unreachDepth)
                 {
-                    // Check if the closing brace on this line exits the
-                    // unreachable scope.
-                    if (nestedUnreachDepth >= 0 && nextDepth < nestedUnreachDepth)
+                    if (rangeStart > 0 && rangeEnd >= rangeStart)
                     {
-                        // Emit the accumulated range.
-                        if (nestedRangeStart > 0 && nestedRangeEnd >= nestedRangeStart)
+                        diags.Add(new ParseDiagnostic
                         {
-                            diags.Add(new ParseDiagnostic
+                            Code       = DiagnosticCodes.UnreachableAfterReturn,
+                            Severity   = ParseSeverity.Hint,
+                            Message    = "Unreachable code after 'return'.",
+                            SourceLine = rangeStart,
+                            SourceColumn = 0,
+                            EndLine    = rangeEnd,
+                            EndColumn  = 9999,
+                        });
+                    }
+                    unreachDepth = -1;
+                    rangeStart   = -1;
+                    rangeEnd     = -1;
+                }
+
+                // ── Accumulate unreachable lines ───────────────────────────
+                if (unreachDepth >= 0 && depth >= unreachDepth && !isComment)
+                {
+                    if (rangeStart < 0) rangeStart = srcLine;
+                    rangeEnd = srcLine;
+                }
+
+                // ── Detect new return ──────────────────────────────────────
+                if (unreachDepth < 0 && !isComment
+                    && s_topLevelReturnRegex.IsMatch(line))
+                {
+
+                    // Single-line return: `return <Tag/>;` or `return expr;`
+                    if (trimmed.EndsWith(";", System.StringComparison.Ordinal))
+                    {
+                        unreachDepth = depth;
+                    }
+                    // Multi-line paren-wrapped: `return (`
+                    else
+                    {
+                        string afterReturn = trimmed.Substring("return".Length).TrimStart();
+                        if (afterReturn.StartsWith("(", System.StringComparison.Ordinal))
+                        {
+                            // Start tracking parens from this line.
+                            parenTracking = 0;
+                            for (int ci = 0; ci < line.Length; ci++)
                             {
-                                Code       = DiagnosticCodes.UnreachableAfterReturn,
-                                Severity   = ParseSeverity.Hint,
-                                Message    = "Unreachable code after 'return'.",
-                                SourceLine = nestedRangeStart,
-                                SourceColumn = 0,
-                                EndLine    = nestedRangeEnd,
-                                EndColumn  = 9999,
-                            });
+                                if (line[ci] == '(') parenTracking++;
+                                else if (line[ci] == ')') parenTracking--;
+                            }
+                            if (parenTracking <= 0)
+                            {
+                                // Balanced on same line — check for ;
+                                if (trimmed.EndsWith(";", System.StringComparison.Ordinal))
+                                {
+                                    unreachDepth = depth;
+                                }
+                                parenTracking = -1;
+                            }
                         }
-                        nestedUnreachDepth = -1;
-                        nestedRangeStart   = -1;
-                        nestedRangeEnd     = -1;
-                    }
-
-                    // Mark line as unreachable if inside a nested unreachable zone.
-                    if (nestedUnreachDepth >= 0 && depth >= nestedUnreachDepth && !isComment)
-                    {
-                        if (nestedRangeStart < 0) nestedRangeStart = srcLine;
-                        nestedRangeEnd = srcLine;
-                    }
-
-                    // Detect return at any depth > 0 (only when not already
-                    // inside an unreachable zone).  Only single-line returns
-                    // (ending with ';') start an unreachable zone.  Multi-line
-                    // return expressions like `return () => { ... };` must NOT
-                    // dim their body — it's the return value, not dead code.
-                    if (nestedUnreachDepth < 0 && depth > 0
-                        && s_topLevelReturnRegex.IsMatch(line)
-                        && trimmed.EndsWith(";", System.StringComparison.Ordinal))
-                    {
-                        nestedUnreachDepth = depth;
                     }
                 }
 
                 depth = nextDepth;
             }
 
-            // Flush any remaining nested range at end of code block.
-            if (nestedUnreachDepth >= 0 && nestedRangeStart > 0 && nestedRangeEnd >= nestedRangeStart)
+            // Flush any remaining unreachable range at end of code block.
+            if (unreachDepth >= 0 && rangeStart > 0 && rangeEnd >= rangeStart)
             {
                 diags.Add(new ParseDiagnostic
                 {
                     Code       = DiagnosticCodes.UnreachableAfterReturn,
                     Severity   = ParseSeverity.Hint,
                     Message    = "Unreachable code after 'return'.",
-                    SourceLine = nestedRangeStart,
+                    SourceLine = rangeStart,
                     SourceColumn = 0,
-                    EndLine    = nestedRangeEnd,
+                    EndLine    = rangeEnd,
                     EndColumn  = 9999,
                 });
             }
@@ -746,6 +821,229 @@ namespace ReactiveUITK.Language.Diagnostics
                 if (text[i] == ch)
                     count++;
             return count;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  UNUSED PARAMETER CHECK
+        // ═══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// UITKX0111 — For each function-style component parameter, check whether
+        /// its name appears in the setup code (with scope-aware shadowing) or
+        /// the markup AST (expressions, attribute bindings, conditions).
+        /// </summary>
+        private static void CheckUnusedParameters(
+            DirectiveSet d,
+            ImmutableArray<AstNode> rootNodes,
+            List<ParseDiagnostic> diags)
+        {
+            // Collect C# text from markup only (expressions, attributes,
+            // conditions).  Markup never has local declarations, so a
+            // simple word-boundary check is safe here.
+            var markupSb = new System.Text.StringBuilder();
+            CollectCSharpText(rootNodes, markupSb);
+            string markupText = markupSb.ToString();
+
+            foreach (var p in d.FunctionParams)
+            {
+                var nameRx = new Regex(@"\b" + Regex.Escape(p.Name) + @"\b");
+
+                // 1. Used in markup?  Simple text search is sufficient.
+                if (nameRx.IsMatch(markupText))
+                    continue;
+
+                // 2. Used in setup code?  Scope-aware: skip usages inside
+                //    scopes that declare their own local with the same name.
+                if (IsUsedInSetupCode(d.FunctionSetupCode, p.Name, nameRx))
+                    continue;
+
+                int col    = p.NameColumn >= 0 ? p.NameColumn : 0;
+                int endCol = col + p.Name.Length;
+                int line   = p.SourceLine > 0 ? p.SourceLine : d.ComponentDeclarationLine;
+
+                diags.Add(new ParseDiagnostic
+                {
+                    Code       = DiagnosticCodes.UnusedParameter,
+                    Severity   = ParseSeverity.Error,
+                    Message    = $"Parameter '{p.Name}' is declared but never used.",
+                    SourceLine = line,
+                    SourceColumn = col,
+                    EndLine    = line,
+                    EndColumn  = endCol,
+                });
+            }
+        }
+
+        /// <summary>
+        /// Scope-aware check: does <paramref name="paramName"/> appear in
+        /// <paramref name="setupCode"/> at a brace depth where it is NOT
+        /// shadowed by a local declaration (<c>var name</c>, <c>Type name</c>,
+        /// or a function parameter with the same name)?
+        /// </summary>
+        private static bool IsUsedInSetupCode(
+            string? setupCode, string paramName, Regex nameRx)
+        {
+            if (string.IsNullOrEmpty(setupCode))
+                return false;
+            if (!nameRx.IsMatch(setupCode))
+                return false; // fast bail
+
+            // Matches a local variable declaration that introduces `paramName`
+            // as a new local: "var name", "int name", "List<T>? name", etc.
+            var declRx = new Regex(
+                @"(?:var|int|uint|long|ulong|short|ushort|byte|sbyte|char" +
+                @"|float|double|decimal|bool|string|object|dynamic|nint|nuint" +
+                @"|[A-Z]\w*(?:<[^>]*>)?(?:\?|\[\])*)" +
+                @"\s+" + Regex.Escape(paramName) + @"\b");
+
+            var lines = setupCode.Replace("\r\n", "\n").Split('\n');
+            int depth = 0;
+            // shadowAt[d] == true  ⇒  a local with this name was declared at depth d.
+            // Shadows apply at depth d and all deeper levels until the scope exits.
+            var shadowAt = new bool[128];
+
+            for (int li = 0; li < lines.Length; li++)
+            {
+                string line = lines[li];
+                string trimmed = line.Trim();
+
+                if (trimmed.Length == 0)
+                {
+                    // Still track braces on blank lines.
+                    for (int c = 0; c < line.Length; c++)
+                    {
+                        if (line[c] == '{') { depth++; }
+                        else if (line[c] == '}')
+                        {
+                            if (depth > 0 && depth < 128) shadowAt[depth] = false;
+                            if (depth > 0) depth--;
+                        }
+                    }
+                    continue;
+                }
+
+                // Check if this line contains a local declaration.
+                if (declRx.IsMatch(line) && depth >= 0 && depth < 128)
+                    shadowAt[depth] = true;
+
+                // Check if the name is used on this line AND not shadowed.
+                if (nameRx.IsMatch(line))
+                {
+                    bool shadowed = false;
+                    for (int sd = 0; sd <= depth && sd < 128; sd++)
+                        if (shadowAt[sd]) { shadowed = true; break; }
+
+                    if (!shadowed)
+                    {
+                        // If the line also has a declaration, the name after
+                        // "var/Type" is the declaration itself — remove it and
+                        // re-check.  This way `var items = f(items)` still
+                        // counts the RHS `items` as a parameter use.
+                        string stripped = declRx.Replace(line, "");
+                        if (nameRx.IsMatch(stripped))
+                            return true;
+                    }
+                }
+
+                // Update depth from braces on this line.
+                for (int c = 0; c < line.Length; c++)
+                {
+                    if (line[c] == '{') { depth++; }
+                    else if (line[c] == '}')
+                    {
+                        if (depth > 0 && depth < 128) shadowAt[depth] = false;
+                        if (depth > 0) depth--;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Recursively collects C# expression text from markup nodes only
+        /// (element attributes, inline expressions, control-flow conditions).
+        /// <see cref="CodeBlockNode.Code"/> is deliberately excluded — setup
+        /// code is handled separately by <see cref="IsUsedInSetupCode"/> with
+        /// scope-aware shadowing. Only <see cref="ReturnMarkupNode"/> elements
+        /// inside code blocks are collected.
+        /// </summary>
+        private static void CollectCSharpText(ImmutableArray<AstNode> nodes, System.Text.StringBuilder sb)
+        {
+            foreach (var node in nodes)
+            {
+                switch (node)
+                {
+                    case ExpressionNode en:
+                        sb.Append(' ').Append(en.Expression).Append(' ');
+                        break;
+
+                    case CodeBlockNode cb:
+                        // Do NOT append cb.Code — it is scanned by IsUsedInSetupCode.
+                        // Only collect from return-markup elements embedded in code.
+                        foreach (var rm in cb.ReturnMarkups)
+                            CollectCSharpTextFromElement(rm.Element, sb);
+                        break;
+
+                    case ElementNode el:
+                        CollectCSharpTextFromElement(el, sb);
+                        break;
+
+                    case IfNode ifn:
+                        foreach (var br in ifn.Branches)
+                        {
+                            if (br.Condition != null)
+                                sb.Append(' ').Append(br.Condition).Append(' ');
+                            CollectCSharpText(br.Body, sb);
+                        }
+                        break;
+
+                    case ForeachNode fe:
+                        sb.Append(' ').Append(fe.CollectionExpression).Append(' ');
+                        CollectCSharpText(fe.Body, sb);
+                        break;
+
+                    case ForNode fn:
+                        sb.Append(' ').Append(fn.ForExpression).Append(' ');
+                        CollectCSharpText(fn.Body, sb);
+                        break;
+
+                    case WhileNode wh:
+                        sb.Append(' ').Append(wh.Condition).Append(' ');
+                        CollectCSharpText(wh.Body, sb);
+                        break;
+
+                    case SwitchNode sw:
+                        sb.Append(' ').Append(sw.SwitchExpression).Append(' ');
+                        foreach (var sc in sw.Cases)
+                        {
+                            if (sc.ValueExpression != null)
+                                sb.Append(' ').Append(sc.ValueExpression).Append(' ');
+                            CollectCSharpText(sc.Body, sb);
+                        }
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Collects C# text from an element's attributes and children.
+        /// </summary>
+        private static void CollectCSharpTextFromElement(ElementNode el, System.Text.StringBuilder sb)
+        {
+            foreach (var attr in el.Attributes)
+            {
+                switch (attr.Value)
+                {
+                    case CSharpExpressionValue cv:
+                        sb.Append(' ').Append(cv.Expression).Append(' ');
+                        break;
+                    case JsxExpressionValue jv when jv.Element != null:
+                        CollectCSharpTextFromElement(jv.Element, sb);
+                        break;
+                }
+            }
+            CollectCSharpText(el.Children, sb);
         }
 
         // ═══════════════════════════════════════════════════════════════════════

@@ -5,11 +5,50 @@
 @using UnityEngine.UIElements
 @using ReactiveUITK.Signals
 @using ReactiveUITK.Router
-@using ReactiveUITK.Samples.Shared
+@using ReactiveUITK.Samples.UITKXShared
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
-component UitkxCounterFunc {
-  // ── useState variants ──────────────────────────────────────────────────────
+component UitkxCounterFunc(
+  IReadOnlyList<ListViewRowState>? items = null, 
+  Action? addItem = null, 
+  Action? setTopItem = null, 
+  Action? deleteLast = null, 
+  Action<int>? onCountChanged = null
+) {
+  var myRef = useRef(false);
+  var val = myRef.Current;
+
+  return (
+    <Label text={myRef.Value.ToString()} />
+  );
+
+
+  var safeItems = Array.Empty<ListViewRowState>();
+  var bla = (
+    <Box />
+  );
+  RowRenderer BuildRowRenderer() =>
+  (index, obj) =>
+  {
+    var row = obj as ListViewRowState;
+    if (row == null)
+    {
+      return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+    }
+
+    var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
+    var funcKey = $"lv-row-{id}";
+    var childNode = row.ShouldOverrideElement
+    ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+    : (<IntroCounterFunc key={funcKey} />);
+
+    return (
+      <VisualElement key={$"lv-wrap-{id}"}>
+        @(childNode)
+      </VisualElement>
+    );
+  };
+
   var (count, setCount) = useState(0);
   var (mode, setMode) = useState("normal");
   var (mounted, setMounted) = useState(true);
@@ -224,7 +263,7 @@ component UitkxCounterFunc {
 
   {/* return (
     <Box>
-      <Label text="sas" />
+      <Label text="This is a TabView demo." />
     </Box>
   ); */}
 
@@ -260,11 +299,12 @@ component UitkxCounterFunc {
 
   void MctvDeleteLast()
   {
-    var bla = (
-      <Box>
-        <Label text="This is a TabView demo." />
-      </Box>
-    );
+    {/* var bla = (
+      <VisualElement>
+        <Button text="-5" onClick={_ => setCount(count - 5)} />
+        <Button text="+5" onClick={_ => setCount(count + 5)} />
+      </VisualElement>
+    ); */}
     setMctvRows(prev =>
     {
       return prev;
@@ -292,10 +332,7 @@ component UitkxCounterFunc {
     Tabs = new List<TabViewProps.TabDef>
     {
       new TabViewProps.TabDef { Title = "Log", Content = () => (
-        <VisualElement>
-          <Button text="-5" onClick={_ => setCount(count - 5)} />
-          <Button text="+5" onClick={_ => setCount(count + 5)} />
-        </VisualElement>
+        <Box />
       )},
       new TabViewProps.TabDef { Title = "Counter", Content = () => secondElement },
       new TabViewProps.TabDef { Title = "Mode", Content = () => V.Label(new LabelProps { Text = $"Mode: {mode}" }) },
@@ -304,7 +341,10 @@ component UitkxCounterFunc {
   };
 
   {/* return (
-    <Box />
+    <VisualElement>
+      <Button text="-5" onClick={_ => setCount(count - 5)} />
+      <Button text="+5" onClick={_ => setCount(count + 5)} />
+    </VisualElement>
   ); */}
 
 
@@ -360,10 +400,17 @@ component UitkxCounterFunc {
 
   // ── var: inline JSX node ───────────────────────────────────────────────────
   var inlineNode = (
-    <VisualElement>
-      <Button text="-5" onClick={_ => setCount(count - 5)} />
-      <Button text="+5" onClick={_ => setCount(count + 5)} />
-    </VisualElement>
+    <Portal target={portalTarget}>
+      @if (mounted) {
+        <Button
+          text="Portal Button (click me)"
+          onClick={_ => AppendLog("Portal button clicked")}
+          style={new Style { (StyleKeys.MarginTop, 6f) }}
+        />
+      } @else {
+        <Label text="Portal unmounted." />
+      }
+    </Portal>
   );
 
   // ── var: portalNode (setup-code JSX) ──────────────────────────────────────

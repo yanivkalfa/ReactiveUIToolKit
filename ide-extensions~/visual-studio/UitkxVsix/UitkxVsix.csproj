@@ -64,8 +64,10 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
-  <Import
-    Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets"
-    Condition="'$(PkgMicrosoft_VSSDK_BuildTools)' != '' And Exists('$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets')"
-  />
+  <!--
+    VsSDK.targets is imported via Directory.Build.targets (not here) so that
+    it runs AFTER Microsoft.Common.CurrentVersion.targets.  Importing it at
+    the bottom of an SDK-style csproj causes its PrepareForRunDependsOn
+    additions to be overwritten, which silently prevents VSIX creation.
+  -->
 </Project>

@@ -14,6 +14,10 @@ https://github.com/ReactiveUITK/ReactiveUIToolKit
 
 ## Changelog
 
+### [1.0.58] - 2026-03-19
+- Fix unused diagnostic dimming: Error-severity unused params/vars keep red squiggle instead of being downgraded to blue dots; add build-local.ps1 script
+
+
 ### [1.0.57] - 2026-03-17
 - Companion file injection + VisualElementSafe schema fix (fixes CS0103 on Styles and UITKX0105 on VisualElementSafe)
 

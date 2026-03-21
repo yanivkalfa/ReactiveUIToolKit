@@ -26,10 +26,7 @@ namespace UitkxVsix;
 [Order(Before = "default")]
 internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitionCommandArgs>
 {
-    private static readonly string LogPath = Path.Combine(
-        Path.GetTempPath(),
-        "uitkx-gotodef.log"
-    );
+    private static readonly string LogPath = Path.Combine(Path.GetTempPath(), "uitkx-gotodef.log");
 
     private static void Log(string msg)
     {
@@ -42,10 +39,12 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
 
     public string DisplayName => "UITKX Go To Definition";
 
-    public CommandState GetCommandState(GoToDefinitionCommandArgs args) =>
-        CommandState.Available;
+    public CommandState GetCommandState(GoToDefinitionCommandArgs args) => CommandState.Available;
 
-    public bool ExecuteCommand(GoToDefinitionCommandArgs args, CommandExecutionContext executionContext)
+    public bool ExecuteCommand(
+        GoToDefinitionCommandArgs args,
+        CommandExecutionContext executionContext
+    )
     {
         Log("GoToDefinition command fired");
 
@@ -80,9 +79,16 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
 
-            Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.Run(
-                async () => await GoToDefinitionCoreAsync(
-                    rpc, uri, snapshot.GetText(), lineNo, charNo, cts.Token));
+            Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.Run(async () =>
+                await GoToDefinitionCoreAsync(
+                    rpc,
+                    uri,
+                    snapshot.GetText(),
+                    lineNo,
+                    charNo,
+                    cts.Token
+                )
+            );
         }
         catch (OperationCanceledException)
         {
@@ -121,11 +127,7 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
 
         var result = await rpc.InvokeWithParameterObjectAsync<JToken?>(
                 "textDocument/definition",
-                new
-                {
-                    textDocument = new { uri = fileUri },
-                    position = new { line, character },
-                },
+                new { textDocument = new { uri = fileUri }, position = new { line, character } },
                 token
             )
             .ConfigureAwait(false);
@@ -157,15 +159,25 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
         var targetChar = targetRange["start"]?["character"]?.Value<int>() ?? 0;
 
         string targetPath;
-        try { targetPath = new Uri(targetUri!).LocalPath; }
-        catch { return false; }
+        try
+        {
+            targetPath = new Uri(targetUri!).LocalPath;
+        }
+        catch
+        {
+            return false;
+        }
 
         Log($"Navigating to {targetPath}:{targetLine}:{targetChar}");
 
-        await Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(token);
+        await Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(
+            token
+        );
 
-        var dte = (EnvDTE.DTE)Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(EnvDTE.DTE));
-        if (dte == null) return false;
+        var dte = (EnvDTE.DTE)
+            Microsoft.VisualStudio.Shell.Package.GetGlobalService(typeof(EnvDTE.DTE));
+        if (dte == null)
+            return false;
 
         var window = dte.ItemOperations.OpenFile(targetPath);
         var sel = window?.Document?.Selection as EnvDTE.TextSelection;
@@ -185,17 +197,23 @@ internal sealed class UitkxGoToDefinitionHandler : ICommandHandler<GoToDefinitio
 [Order(Before = "default")]
 internal sealed class UitkxNavigableSymbolSourceProvider : INavigableSymbolSourceProvider
 {
-    private static readonly string LogPath = Path.Combine(
-        Path.GetTempPath(),
-        "uitkx-gotodef.log"
-    );
+    private static readonly string LogPath = Path.Combine(Path.GetTempPath(), "uitkx-gotodef.log");
 
-    public INavigableSymbolSource? TryCreateNavigableSymbolSource(ITextView textView, ITextBuffer buffer)
+    public INavigableSymbolSource? TryCreateNavigableSymbolSource(
+        ITextView textView,
+        ITextBuffer buffer
+    )
     {
-        try { File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] TryCreateNavigableSymbolSource called\n"); }
+        try
+        {
+            File.AppendAllText(
+                LogPath,
+                $"[{DateTime.UtcNow:O}] TryCreateNavigableSymbolSource called\n"
+            );
+        }
         catch { }
-        return buffer.Properties.GetOrCreateSingletonProperty(
-            () => new UitkxNavigableSymbolSource(buffer)
+        return buffer.Properties.GetOrCreateSingletonProperty(() =>
+            new UitkxNavigableSymbolSource(buffer)
         );
     }
 }
@@ -204,20 +222,23 @@ internal sealed class UitkxNavigableSymbolSource : INavigableSymbolSource
 {
     private readonly ITextBuffer _buffer;
 
-    private static readonly string LogPath = Path.Combine(
-        Path.GetTempPath(),
-        "uitkx-gotodef.log"
-    );
+    private static readonly string LogPath = Path.Combine(Path.GetTempPath(), "uitkx-gotodef.log");
 
     private static void Log(string msg)
     {
-        try { File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n"); }
+        try
+        {
+            File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n");
+        }
         catch { }
     }
 
     public UitkxNavigableSymbolSource(ITextBuffer buffer) => _buffer = buffer;
 
-    public async Task<INavigableSymbol?> GetNavigableSymbolAsync(SnapshotSpan triggerSpan, CancellationToken token)
+    public async Task<INavigableSymbol?> GetNavigableSymbolAsync(
+        SnapshotSpan triggerSpan,
+        CancellationToken token
+    )
     {
         Log($"GetNavigableSymbolAsync called at {triggerSpan.Start.Position}");
 
@@ -241,14 +262,15 @@ internal sealed class UitkxNavigableSymbolSource : INavigableSymbolSource
         try
         {
             var result = await rpc.InvokeWithParameterObjectAsync<JToken?>(
-                "textDocument/definition",
-                new
-                {
-                    textDocument = new { uri },
-                    position = new { line = lineNo, character = charNo },
-                },
-                token
-            ).ConfigureAwait(false);
+                    "textDocument/definition",
+                    new
+                    {
+                        textDocument = new { uri },
+                        position = new { line = lineNo, character = charNo },
+                    },
+                    token
+                )
+                .ConfigureAwait(false);
 
             if (result == null || result.Type == JTokenType.Null)
             {
@@ -256,8 +278,10 @@ internal sealed class UitkxNavigableSymbolSource : INavigableSymbolSource
                 return null;
             }
 
-            JToken? location = result is JArray arr && arr.Count > 0 ? arr[0]
-                             : result is JObject ? result : null;
+            JToken? location =
+                result is JArray arr && arr.Count > 0 ? arr[0]
+                : result is JObject ? result
+                : null;
             if (location == null)
                 return null;
 
@@ -282,8 +306,10 @@ internal sealed class UitkxNavigableSymbolSource : INavigableSymbolSource
         var pos = point.Position;
         var start = pos;
         var end = pos;
-        while (start > 0 && IsWordChar(snapshot[start - 1])) start--;
-        while (end < snapshot.Length && IsWordChar(snapshot[end])) end++;
+        while (start > 0 && IsWordChar(snapshot[start - 1]))
+            start--;
+        while (end < snapshot.Length && IsWordChar(snapshot[end]))
+            end++;
         return new SnapshotSpan(snapshot, Span.FromBounds(start, Math.Max(end, start + 1)));
     }
 
@@ -301,7 +327,13 @@ internal sealed class UitkxNavigableSymbol : INavigableSymbol
 
     public SnapshotSpan SymbolSpan { get; }
 
-    public UitkxNavigableSymbol(SnapshotSpan span, string uri, int line, int character, ITextBuffer buffer)
+    public UitkxNavigableSymbol(
+        SnapshotSpan span,
+        string uri,
+        int line,
+        int character,
+        ITextBuffer buffer
+    )
     {
         SymbolSpan = span;
         _uri = uri;
@@ -316,14 +348,22 @@ internal sealed class UitkxNavigableSymbol : INavigableSymbol
     public void Navigate(INavigableRelationship relationship)
     {
         var rpc = UitkxLanguageClient.InternalRpc;
-        if (rpc == null) return;
+        if (rpc == null)
+            return;
 
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.Run(
-                async () => await UitkxGoToDefinitionHandler.GoToDefinitionCoreAsync(
-                    rpc, _uri, _buffer.CurrentSnapshot.GetText(), _line, _character, cts.Token));
+            Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.Run(async () =>
+                await UitkxGoToDefinitionHandler.GoToDefinitionCoreAsync(
+                    rpc,
+                    _uri,
+                    _buffer.CurrentSnapshot.GetText(),
+                    _line,
+                    _character,
+                    cts.Token
+                )
+            );
         }
         catch { }
     }

@@ -295,4 +295,61 @@ public class DiagnosticTests
                         or "UITKX0010"
         );
     }
+
+    // ── UITKX0306: @(expr) in setup code ─────────────────────────────────────
+
+    [Fact]
+    public void UITKX0306_AtExprInRawSetupCode_Fires()
+    {
+        var src = """
+            @namespace Test.NS
+            component C {
+              var x = @(123);
+              return (
+                <box />
+              );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(result.HasDiagnostic("UITKX0306"),
+            "Expected UITKX0306 for @(expr) in raw C# setup code");
+    }
+
+    [Fact]
+    public void UITKX0306_AtExprInsideJsxInSetupCode_DoesNotFire()
+    {
+        var src = """
+            @namespace Test.NS
+            component C {
+              var childNode = 42;
+              var el = (
+                <box>@(childNode)</box>
+              );
+              return (
+                <box />
+              );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src);
+        Assert.False(result.HasDiagnostic("UITKX0306"),
+            "Should NOT fire UITKX0306 for @(expr) inside embedded JSX in setup code");
+    }
+
+    [Fact]
+    public void UITKX0306_AtExprInsideBareJsxReturn_DoesNotFire()
+    {
+        var src = """
+            @namespace Test.NS
+            component C {
+              var childNode = 42;
+              var el = () => <box>@(childNode)</box>;
+              return (
+                <box />
+              );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src);
+        Assert.False(result.HasDiagnostic("UITKX0306"),
+            "Should NOT fire UITKX0306 for @(expr) inside bare arrow JSX in setup code");
+    }
 }

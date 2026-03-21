@@ -1,0 +1,135 @@
+@namespace ReactiveUITK.Samples.UITKXShared
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK.Core
+@using ReactiveUITK.Props.Typed
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component TreeViewStatefulDemoFunc(
+  IReadOnlyList<TreeViewRowState>? rows = null, 
+  Action? addParent = null, 
+  Action? addChild = null, 
+  Action? setParent = null, 
+  Action? setChild = null, 
+  Action? deleteLast = null, 
+  IList<int>? expandedItemIds = null, 
+  TreeExpansionEventHandler? onExpandedChanged = null, 
+  Action<int>? onCountChanged = null
+) {
+  var safeRows = rows ?? Array.Empty<TreeViewRowState>();
+
+  var rootItems = useMemo(() => {
+    var combined = new List<TreeViewItemData<object>>();
+    for (int i = 0; i < safeRows.Count; i++)
+    {
+      var row = safeRows[i];
+      if (row == null)
+      {
+        continue;
+      }
+
+      var baseId = row.Pid != 0 ? row.Pid : 1000 + (i * 2);
+      List<TreeViewItemData<object>>? children = null;
+      if (row.HasChild)
+      {
+        children = new List<TreeViewItemData<object>>
+        {
+          new TreeViewItemData<object>(
+          baseId + 1,
+          row.Child ?? new SharedTreeRowItem
+          {
+            Id = Guid.NewGuid().ToString("N"),
+            Text = "Child",
+            IsChild = true,
+          },
+          null
+          ),
+        };
+      }
+
+      combined.Add(new TreeViewItemData<object>(
+      baseId,
+      row.Parent ?? new SharedTreeRowItem
+      {
+        Id = Guid.NewGuid().ToString("N"),
+        Text = "Parent",
+      },
+      children
+      ));
+    }
+    return combined;
+  }, new object[] { safeRows });
+
+  RowRenderer BuildRowRenderer() =>
+    (index, obj) =>
+    {
+      var row = obj as SharedTreeRowItem;
+      if (row == null)
+      {
+        return (<Label text="<invalid row payload>" key={$"tv-invalid-{index}"} />);
+      }
+
+      var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
+      var prefix = row.IsChild ? "child" : "parent";
+      var funcKey = $"tv-{prefix}-{id}";
+      var childNode = row.ShouldOverrideElement
+      ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+      : (<IntroCounterFunc key={funcKey} />);
+
+      return (
+        <VisualElement key={$"tv-wrap-{prefix}-{id}"}>
+          @(childNode)
+        </VisualElement>
+      );
+  };
+
+  var rowRenderer = useMemo<RowRenderer>(() => BuildRowRenderer(), new object[] { safeRows });
+
+  var countValue = 0;
+  for (int i = 0; i < safeRows.Count; i++)
+  {
+    var row = safeRows[i];
+    if (row == null)
+    {
+      continue;
+    }
+    countValue += 1;
+    if (row.HasChild)
+    {
+      countValue += 1;
+    }
+  }
+
+  useEffect(() => {
+    onCountChanged?.Invoke(countValue);
+    return null;
+  }, new object[] { countValue });
+
+  PointerEventHandler Safe(Action? candidate) => _ => candidate?.Invoke();
+  var controlsStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (MarginBottom, 6f),
+  };
+
+  return (
+    <VisualElement>
+      <VisualElement style={controlsStyle}>
+        <Button text="Add Parent" onClick={Safe(addParent)} />
+        <Button text="Add Child" onClick={Safe(addChild)} />
+        <Button text="Set Parent" onClick={Safe(setParent)} />
+        <Button text="Set Child" onClick={Safe(setChild)} />
+        <Button text="Delete Last" onClick={Safe(deleteLast)} />
+      </VisualElement>
+      <TreeView
+        rootItems={rootItems}
+        selection={SelectionType.None}
+        fixedItemHeight={20f}
+        row={rowRenderer}
+        expandedItemIds={expandedItemIds}
+        itemExpandedChanged={onExpandedChanged}
+        style={new Style { (MarginBottom, 30f) }}
+      />
+    </VisualElement>
+  );
+}

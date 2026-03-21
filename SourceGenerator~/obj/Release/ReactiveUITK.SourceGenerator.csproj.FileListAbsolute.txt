@@ -1,0 +1,12 @@
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/Analyzers/ReactiveUITK.SourceGenerator.deps.json
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/Analyzers/ReactiveUITK.SourceGenerator.dll
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/Analyzers/ReactiveUITK.SourceGenerator.pdb
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.csproj.AssemblyReference.cache
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.GeneratedMSBuildEditorConfig.editorconfig
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.AssemblyInfoInputs.cache
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.AssemblyInfo.cs
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.csproj.CoreCompileInputs.cache
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.sourcelink.json
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/Reactive.D4FB0E4F.Up2Date
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.dll
+/home/runner/work/ReactiveUIToolKit/ReactiveUIToolKit/SourceGenerator~/obj/Release/ReactiveUITK.SourceGenerator.pdb

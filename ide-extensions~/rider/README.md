@@ -36,6 +36,13 @@ cd rider
 Requires JDK 17 and a Rider 2024.1 download (handled automatically by
 `intellijPlatform` Gradle plugin).
 
+## Known Limitations
+
+- Stub implementation only — the extent of working features has not been fully
+  verified. Source generation and `#line` mapping work via standard Roslyn
+  support.
+- The LSP server does not yet support Go-To-Definition or Find References.
+
 ## License
 
 MIT

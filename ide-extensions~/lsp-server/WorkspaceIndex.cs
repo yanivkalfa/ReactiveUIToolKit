@@ -26,71 +26,83 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// <summary>A single publicly-declared prop on a *Props class.</summary>
     public sealed class PropInfo
     {
-        public string Name   { get; init; } = "";
-        public string Type   { get; init; } = "";
+        public string Name { get; init; } = "";
+        public string Type { get; init; } = "";
+
         /// <summary>Cleaned XML doc text (tags stripped), or empty string.</summary>
         public string XmlDoc { get; init; } = "";
+
         /// <summary>1-based line number of the declaration in the source file.</summary>
-        public int    Line   { get; init; }
+        public int Line { get; init; }
     }
 
     /// <summary>All info gathered for one UITKX element (its <c>*Props</c> class).</summary>
     public sealed class ElementInfo
     {
-        public string         FilePath    { get; init; } = "";
+        public string FilePath { get; init; } = "";
+
         /// <summary>1-based line of the class declaration.</summary>
-        public int            FileLine    { get; init; }
+        public int FileLine { get; init; }
+
         /// <summary>All props including inherited (resolved).</summary>
-        public List<PropInfo> Props       { get; init; } = new();
+        public List<PropInfo> Props { get; init; } = new();
+
         /// <summary>Only the props declared directly on this element's Props class.</summary>
-        public List<PropInfo> OwnProps    { get; init; } = new();
+        public List<PropInfo> OwnProps { get; init; } = new();
+
         /// <summary>Base element name if the Props class extends another *Props class.</summary>
-        public string?        BaseElement { get; init; }
+        public string? BaseElement { get; init; }
     }
 
     // ── State ────────────────────────────────────────────────────────────────
 
-    private readonly HashSet<string>                 _elements    = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _elements = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ElementInfo> _elementInfo = new(StringComparer.Ordinal);
-    private readonly ReaderWriterLockSlim            _lock        = new();
+    private readonly ReaderWriterLockSlim _lock = new();
 
     // ── Patterns ─────────────────────────────────────────────────────────────
 
     // Matches:  "class FooProps"  "record FooProps"  "struct FooProps"
     private static readonly Regex s_classPattern = new(
         @"\b(?:class|record|struct)\s+(\w+)Props\b",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     // Matches:  "class Props"  "record Props"  "struct Props"  (no prefix — component name = filename stem)
     private static readonly Regex s_nestedPropsPattern = new(
         @"\b(?:class|record|struct)\s+Props\b",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     // Detects a base *Props class in the inheritance list.
     // E.g.  ": BaseProps"  ": BaseProps, ISerializable"
     private static readonly Regex s_basePropsPattern = new(
         @":\s*(?:[\w.]+\s*,\s*)*?([A-Z]\w{1,})Props\b",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     // Matches public property declarations with a Pascal-case name.
     // E.g.  "public string Text {"  "public Action<int>? OnClick {"
     private static readonly Regex s_propPattern = new(
         @"^\s*public\s+(?<type>[\w<>\[\],\s\?]+?)\s+(?<name>[A-Z][A-Za-z0-9_]*)\s*\{",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
 
     // Matches function-style component declarations inside a .uitkx file:
     //   component FooBar {
     //   @component FooBar
     private static readonly Regex s_uitkxComponentPattern = new(
         @"^(?:@component|component)\s+([A-Z][A-Za-z0-9_]*)",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
+    );
 
     // Extended declaration pattern that also captures the optional parameter list.
     // Group "name" = component name.  Group "params" = raw param list if present.
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
     private static readonly Regex s_uitkxDeclPattern = new(
         @"^(?:@component|component)\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline);
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
+    );
 
     // ── IOnLanguageServerStarted ─────────────────────────────────────────────
 
@@ -115,13 +127,22 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             if (!string.IsNullOrEmpty(rootUri))
                 root = new Uri(rootUri).LocalPath;
         }
-        catch { /* URI parse failure — fall through */ }
+        catch
+        { /* URI parse failure — fall through */
+        }
 
         if (string.IsNullOrEmpty(root))
             root = server.ClientSettings.RootPath;
 
         if (!string.IsNullOrEmpty(root))
-            _ = Task.Run(() => { ScanDirectory(root); ScanCompleted?.Invoke(); }, cancellationToken);
+            _ = Task.Run(
+                () =>
+                {
+                    ScanDirectory(root);
+                    ScanCompleted?.Invoke();
+                },
+                cancellationToken
+            );
 
         return Task.CompletedTask;
     }
@@ -134,8 +155,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         get
         {
             _lock.EnterReadLock();
-            try { return new HashSet<string>(_elements, StringComparer.Ordinal); }
-            finally { _lock.ExitReadLock(); }
+            try
+            {
+                return new HashSet<string>(_elements, StringComparer.Ordinal);
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
 
@@ -148,8 +175,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         get
         {
             _lock.EnterReadLock();
-            try { return _elements.Count > 0; }
-            finally { _lock.ExitReadLock(); }
+            try
+            {
+                return _elements.Count > 0;
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
         }
     }
 
@@ -163,7 +196,10 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 return Array.Empty<PropInfo>();
             return ResolveProps(info);
         }
-        finally { _lock.ExitReadLock(); }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     /// <summary>Returns the <see cref="ElementInfo"/> for the element, or <c>null</c>.</summary>
@@ -178,22 +214,25 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             if (resolved == info.Props)
                 return new ElementInfo
                 {
-                    FilePath    = info.FilePath,
-                    FileLine    = info.FileLine,
-                    Props       = resolved,
-                    OwnProps    = info.Props,
+                    FilePath = info.FilePath,
+                    FileLine = info.FileLine,
+                    Props = resolved,
+                    OwnProps = info.Props,
                     BaseElement = info.BaseElement,
                 };
             return new ElementInfo
             {
-                FilePath    = info.FilePath,
-                FileLine    = info.FileLine,
-                Props       = resolved,
-                OwnProps    = info.Props,
+                FilePath = info.FilePath,
+                FileLine = info.FileLine,
+                Props = resolved,
+                OwnProps = info.Props,
                 BaseElement = info.BaseElement,
             };
         }
-        finally { _lock.ExitReadLock(); }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
     }
 
     /// <summary>
@@ -202,8 +241,11 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     private List<PropInfo> ResolveProps(ElementInfo info, int depth = 0)
     {
-        if (depth > 5 || info.BaseElement is null ||
-            !_elementInfo.TryGetValue(info.BaseElement, out var baseInfo))
+        if (
+            depth > 5
+            || info.BaseElement is null
+            || !_elementInfo.TryGetValue(info.BaseElement, out var baseInfo)
+        )
             return info.Props;
 
         var baseProps = ResolveProps(baseInfo, depth + 1);
@@ -224,12 +266,17 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     /// </summary>
     public void Refresh(string filePath)
     {
+        // Skip files inside tilde-suffixed folders (dist~, Samples~, etc.)
+        if (IsInsideTildeFolder(filePath))
+            return;
+
         if (filePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
         {
             if (!File.Exists(filePath))
             {
                 var dir = Path.GetDirectoryName(filePath);
-                if (dir is not null) ScanDirectory(dir);
+                if (dir is not null)
+                    ScanDirectory(dir);
                 return;
             }
             IndexFile(filePath);
@@ -252,31 +299,57 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             ServerLog.Log($"WorkspaceIndex: scanning '{rootPath}' for *.cs and *.uitkx filesâ€¦");
             int count = 0;
-            foreach (var file in Directory.EnumerateFiles(
-                rootPath, "*.cs", SearchOption.AllDirectories))
+            foreach (
+                var file in Directory.EnumerateFiles(rootPath, "*.cs", SearchOption.AllDirectories)
+            )
             {
+                if (IsInsideTildeFolder(file)) continue;
                 IndexFile(file);
                 count++;
             }
             ServerLog.Log(
-                $"WorkspaceIndex: indexed {count} Props file(s) → {_elements.Count} element name(s).");
+                $"WorkspaceIndex: indexed {count} Props file(s) → {_elements.Count} element name(s)."
+            );
 
             // Also scan .uitkx files to discover function-style component names
             // (e.g. `component FooBar { … }` or `@component FooBar`).
             int uitkxCount = 0;
-            foreach (var file in Directory.EnumerateFiles(
-                rootPath, "*.uitkx", SearchOption.AllDirectories))
+            foreach (
+                var file in Directory.EnumerateFiles(
+                    rootPath,
+                    "*.uitkx",
+                    SearchOption.AllDirectories
+                )
+            )
             {
+                if (IsInsideTildeFolder(file)) continue;
                 IndexUitkxFile(file);
                 uitkxCount++;
             }
             ServerLog.Log(
-                $"WorkspaceIndex: indexed {uitkxCount} .uitkx file(s) → {_elements.Count} total element name(s).");
+                $"WorkspaceIndex: indexed {uitkxCount} .uitkx file(s) → {_elements.Count} total element name(s)."
+            );
         }
         catch (Exception ex)
         {
             ServerLog.Log($"WorkspaceIndex scan error: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Returns true if any path segment ends with '~' (Unity's convention for
+    /// ignored folders like dist~, Samples~, GeneratedPreview~, etc.).
+    /// Files in these folders should not be indexed.
+    /// </summary>
+    private static bool IsInsideTildeFolder(string filePath)
+    {
+        var segments = filePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        foreach (var seg in segments)
+        {
+            if (seg.Length > 1 && seg[seg.Length - 1] == '~')
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -301,7 +374,8 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 // Find the 1-based line number of the match
                 int lineNumber = 1;
                 for (int i = 0; i < m.Index && i < content.Length; i++)
-                    if (content[i] == '\n') lineNumber++;
+                    if (content[i] == '\n')
+                        lineNumber++;
 
                 // Parse function-style params if present.
                 // Each param looks like:  type paramName  or  type paramName = default
@@ -316,15 +390,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                         string beforeEquals = param.Split('=')[0].Trim();
                         string[] tokens = beforeEquals.Split(
                             new[] { ' ', '\t', '\n', '\r' },
-                            StringSplitOptions.RemoveEmptyEntries);
+                            StringSplitOptions.RemoveEmptyEntries
+                        );
                         if (tokens.Length >= 2)
                         {
-                            props.Add(new PropInfo
-                            {
-                                Name = tokens[tokens.Length - 1],
-                                Type = string.Join(" ", tokens, 0, tokens.Length - 1),
-                                Line = lineNumber,
-                            });
+                            props.Add(
+                                new PropInfo
+                                {
+                                    Name = tokens[tokens.Length - 1],
+                                    Type = string.Join(" ", tokens, 0, tokens.Length - 1),
+                                    Line = lineNumber,
+                                }
+                            );
                         }
                     }
                 }
@@ -344,14 +421,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         {
             var lines = File.ReadAllLines(filePath);
             string? currentElement = null;
-            string? currentBase   = null;
-            int     currentLine   = 0;
-            var     currentProps  = new List<PropInfo>();
-            var     xmlBuf        = new List<string>();
+            string? currentBase = null;
+            int currentLine = 0;
+            var currentProps = new List<PropInfo>();
+            var xmlBuf = new List<string>();
 
             for (int i = 0; i < lines.Length; i++)
             {
-                var raw     = lines[i];
+                var raw = lines[i];
                 var trimmed = raw.Trim();
 
                 // ── Class / record / struct *Props declaration ────────────
@@ -359,16 +436,25 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 if (classMatch.Success)
                 {
                     if (currentElement is not null)
-                        CommitElement(filePath, currentElement, currentLine, currentProps, currentBase);
+                        CommitElement(
+                            filePath,
+                            currentElement,
+                            currentLine,
+                            currentProps,
+                            currentBase
+                        );
 
                     currentElement = classMatch.Groups[1].Value;
-                    currentLine    = i + 1;
-                    currentProps   = new List<PropInfo>();
+                    currentLine = i + 1;
+                    currentProps = new List<PropInfo>();
                     xmlBuf.Clear();
 
                     // Detect base *Props class (e.g. ": BaseProps")
                     currentBase = null;
-                    var baseMatch = s_basePropsPattern.Match(trimmed, classMatch.Index + classMatch.Length);
+                    var baseMatch = s_basePropsPattern.Match(
+                        trimmed,
+                        classMatch.Index + classMatch.Length
+                    );
                     if (baseMatch.Success)
                         currentBase = baseMatch.Groups[1].Value;
                     continue;
@@ -379,12 +465,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 if (nestedPropsMatch.Success)
                 {
                     if (currentElement is not null)
-                        CommitElement(filePath, currentElement, currentLine, currentProps, currentBase);
+                        CommitElement(
+                            filePath,
+                            currentElement,
+                            currentLine,
+                            currentProps,
+                            currentBase
+                        );
 
                     currentElement = Path.GetFileNameWithoutExtension(filePath);
-                    currentLine    = i + 1;
-                    currentProps   = new List<PropInfo>();
-                    currentBase    = null;
+                    currentLine = i + 1;
+                    currentProps = new List<PropInfo>();
+                    currentBase = null;
                     xmlBuf.Clear();
                     continue;
                 }
@@ -400,13 +492,15 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 var propMatch = s_propPattern.Match(raw);
                 if (propMatch.Success && currentElement is not null)
                 {
-                    currentProps.Add(new PropInfo
-                    {
-                        Name   = propMatch.Groups["name"].Value,
-                        Type   = propMatch.Groups["type"].Value.Trim(),
-                        XmlDoc = BuildDoc(xmlBuf),
-                        Line   = i + 1,
-                    });
+                    currentProps.Add(
+                        new PropInfo
+                        {
+                            Name = propMatch.Groups["name"].Value,
+                            Type = propMatch.Groups["type"].Value.Trim(),
+                            XmlDoc = BuildDoc(xmlBuf),
+                            Line = i + 1,
+                        }
+                    );
                     xmlBuf.Clear();
                     continue;
                 }
@@ -426,14 +520,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     }
 
     private void CommitElement(
-        string filePath, string elementName, int fileLine,
-        List<PropInfo> props, string? baseElement = null)
+        string filePath,
+        string elementName,
+        int fileLine,
+        List<PropInfo> props,
+        string? baseElement = null
+    )
     {
         var info = new ElementInfo
         {
-            FilePath    = filePath,
-            FileLine    = fileLine,
-            Props       = new List<PropInfo>(props),
+            FilePath = filePath,
+            FileLine = fileLine,
+            Props = new List<PropInfo>(props),
             BaseElement = baseElement,
         };
         _lock.EnterWriteLock();
@@ -442,14 +540,18 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             _elements.Add(elementName);
             _elementInfo[elementName] = info;
         }
-        finally { _lock.ExitWriteLock(); }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string BuildDoc(List<string> xmlBuf)
     {
-        if (xmlBuf.Count == 0) return "";
+        if (xmlBuf.Count == 0)
+            return "";
         var raw = string.Join(" ", xmlBuf);
         return Regex.Replace(raw, @"<[^>]+>", "").Trim();
     }

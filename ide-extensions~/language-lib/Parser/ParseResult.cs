@@ -14,7 +14,14 @@ namespace ReactiveUITK.Language.Parser
     ///   <item><description><see cref="DefaultValue"/> — verbatim default expression, or <c>null</c> if omitted (maps to <c>default</c> in the generated class).</description></item>
     /// </list>
     /// </summary>
-    public sealed record FunctionParam(string Type, string Name, string? DefaultValue);
+    public sealed record FunctionParam(string Type, string Name, string? DefaultValue)
+    {
+        /// <summary>1-based source line where the parameter name appears. 0 when not tracked.</summary>
+        public int SourceLine { get; init; } = 0;
+
+        /// <summary>0-based column of the first character of the parameter name. -1 when not tracked.</summary>
+        public int NameColumn { get; init; } = -1;
+    }
 
     // ── Directive data ────────────────────────────────────────────────────────
 
@@ -128,6 +135,15 @@ namespace ReactiveUITK.Language.Parser
         /// Default: empty / not used.
         /// </summary>
         ImmutableArray<(int Start, int End, int Line)> SetupCodeMarkupRanges = default,
+        /// <summary>
+        /// Absolute (start, end, line) ranges in the original .uitkx source for
+        /// bare JSX elements in function-style setup code that are NOT
+        /// paren-wrapped — e.g. <c>return &lt;Tag/&gt;</c>,
+        /// <c>cond ? &lt;A/&gt; : &lt;B/&gt;</c>, <c>var x = &lt;Tag/&gt;</c>.
+        /// Used by the virtual-document generator for expression type-checks
+        /// but NOT by the formatter (which only handles paren-wrapped blocks).
+        /// </summary>
+        ImmutableArray<(int Start, int End, int Line)> SetupCodeBareJsxRanges = default,
         /// <summary>
         /// Position inside the trimmed <see cref="FunctionSetupCode"/> where the
         /// gap left by the removed <c>return (…);</c> statement begins.

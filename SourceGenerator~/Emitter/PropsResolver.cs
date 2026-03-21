@@ -32,7 +32,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// <summary>
         /// Peer components keyed by their metadata type name (e.g. "App.UI.Child").
         /// </summary>
-        private readonly ImmutableDictionary<string, PeerComponentInfo> _peerComponentsByMetadataName;
+        private readonly ImmutableDictionary<
+            string,
+            PeerComponentInfo
+        > _peerComponentsByMetadataName;
 
         /// <summary>Lowercase tag → TagResolution for every V.* built-in.</summary>
         private readonly Dictionary<string, TagResolution> _builtinMap;
@@ -124,8 +127,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // ── Path A: peer-UITKX component (same code-gen pass) ─────────────
             if (TryFindVisiblePeerComponent(componentTypeName, searchNamespaces, out var peer))
             {
-                var mutableRefParams = peer.FunctionParams
-                    .Where(fp => IsMutableRefTypeName(fp.Type))
+                var mutableRefParams = peer
+                    .FunctionParams.Where(fp => IsMutableRefTypeName(fp.Type))
                     .ToList();
 
                 if (mutableRefParams.Count == 0)
@@ -468,8 +471,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // Same-pass UITKX peers must win over any stale compiled metadata with
             // the same simple name so that cross-namespace composition targets the
             // current source-generated component shape.
-            if (TryFindVisiblePeerComponent(componentTypeName, usingNamespaces, out var peer)
-                && peer.EmitsGeneratedProps)
+            if (
+                TryFindVisiblePeerComponent(componentTypeName, usingNamespaces, out var peer)
+                && peer.EmitsGeneratedProps
+            )
             {
                 return peer.SourceQualifiedPropsTypeName;
             }
@@ -487,13 +492,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             // Support already-compiled function-style components from referenced
             // assemblies: their generated props are nested as TypeName+TypeNameProps.
-            foreach (var componentMetadataName in EnumerateCandidateComponentMetadataNames(
-                componentTypeName,
-                resolvedComponentTypeName,
-                usingNamespaces
-            ))
+            foreach (
+                var componentMetadataName in EnumerateCandidateComponentMetadataNames(
+                    componentTypeName,
+                    resolvedComponentTypeName,
+                    usingNamespaces
+                )
+            )
             {
-                if (TryGetTypeSymbol($"{componentMetadataName}+{candidate}", out var generatedNestedProps))
+                if (
+                    TryGetTypeSymbol(
+                        $"{componentMetadataName}+{candidate}",
+                        out var generatedNestedProps
+                    )
+                )
                     return ToSourceQualifiedTypeName(generatedNestedProps);
             }
 
@@ -503,11 +515,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             //   V.Func<TypeName.Props>(TypeName.Render, new TypeName.Props { ... })
             // This supports legacy C# static classes that follow the ValuesBarFunc
             // pattern (nested Props class rather than a sibling {TypeName}Props class).
-            foreach (var componentMetadataName in EnumerateCandidateComponentMetadataNames(
-                componentTypeName,
-                resolvedComponentTypeName,
-                usingNamespaces
-            ))
+            foreach (
+                var componentMetadataName in EnumerateCandidateComponentMetadataNames(
+                    componentTypeName,
+                    resolvedComponentTypeName,
+                    usingNamespaces
+                )
+            )
             {
                 if (TryGetTypeSymbol($"{componentMetadataName}+Props", out var legacyNestedProps))
                     return ToSourceQualifiedTypeName(legacyNestedProps);
@@ -559,13 +573,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             string normalizedTypeName = NormalizeMetadataTypeName(typeName);
 
-            if (normalizedTypeName.Contains(".", StringComparison.Ordinal)
-                && _peerComponentsByMetadataName.TryGetValue(normalizedTypeName, out peer!))
+            if (
+                normalizedTypeName.Contains(".", StringComparison.Ordinal)
+                && _peerComponentsByMetadataName.TryGetValue(normalizedTypeName, out peer!)
+            )
                 return true;
 
             foreach (var ns in searchNamespaces)
             {
-                if (_peerComponentsByMetadataName.TryGetValue($"{ns}.{normalizedTypeName}", out peer!))
+                if (
+                    _peerComponentsByMetadataName.TryGetValue(
+                        $"{ns}.{normalizedTypeName}",
+                        out peer!
+                    )
+                )
                     return true;
             }
 
@@ -592,7 +613,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (Add(seen, normalizedComponentTypeName))
                 yield return normalizedComponentTypeName;
 
-            string normalizedResolvedTypeName = NormalizeMetadataTypeName(resolvedComponentTypeName);
+            string normalizedResolvedTypeName = NormalizeMetadataTypeName(
+                resolvedComponentTypeName
+            );
             if (Add(seen, normalizedResolvedTypeName))
                 yield return normalizedResolvedTypeName;
 
