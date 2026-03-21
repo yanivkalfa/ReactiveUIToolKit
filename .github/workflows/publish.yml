@@ -303,11 +303,17 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore and Build VSIX
+      - name: Restore NuGet packages
         if: steps.check.outputs.skip == 'false'
         shell: cmd
         working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: msbuild UitkxVsix.csproj /t:Restore;Build /p:Configuration=Release /p:DeployExtension=false /p:CreateVsixContainer=true
+        run: msbuild UitkxVsix.csproj /t:Restore /p:Configuration=Release
+
+      - name: Build VSIX
+        if: steps.check.outputs.skip == 'false'
+        shell: cmd
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
