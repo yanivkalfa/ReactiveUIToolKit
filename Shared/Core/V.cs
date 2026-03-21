@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using ReactiveUITK.Core;
@@ -32,7 +32,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
@@ -46,7 +45,6 @@ namespace ReactiveUITK
         public static VirtualNode Button(ButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Button",
@@ -60,7 +58,6 @@ namespace ReactiveUITK
         public static VirtualNode Tab(TabProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Tab",
@@ -74,7 +71,6 @@ namespace ReactiveUITK
         public static VirtualNode TabView(TabViewProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "TabView",
@@ -134,9 +130,7 @@ namespace ReactiveUITK
                     );
             }
 
-            props["style"] = BuildSafeAreaStyle(userStyle);
-
-            IReadOnlyDictionary<string, object> finalProps = CloneStyleDictionary(props);
+            props["style"] = BuildSafeAreaStyle(userStyle);            IReadOnlyDictionary<string, object> finalProps = props;
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "VisualElement",
@@ -150,7 +144,6 @@ namespace ReactiveUITK
         public static VirtualNode TextField(TextFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "TextField",
@@ -164,7 +157,6 @@ namespace ReactiveUITK
         public static VirtualNode EnumField(EnumFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "EnumField",
@@ -235,7 +227,6 @@ namespace ReactiveUITK
         public static VirtualNode ObjectField(ObjectFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ObjectField",
@@ -249,7 +240,6 @@ namespace ReactiveUITK
         public static VirtualNode Scroller(ScrollerProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "Scroller",
@@ -263,7 +253,6 @@ namespace ReactiveUITK
         public static VirtualNode TextElement(TextElementProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "TextElement",
@@ -277,7 +266,6 @@ namespace ReactiveUITK
         public static VirtualNode IMGUIContainer(IMGUIContainerProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "IMGUIContainer",
@@ -291,7 +279,6 @@ namespace ReactiveUITK
         public static VirtualNode Vector2IntField(Vector2IntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "Vector2IntField",
@@ -305,7 +292,6 @@ namespace ReactiveUITK
         public static VirtualNode Vector3IntField(Vector3IntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "Vector3IntField",
@@ -319,7 +305,6 @@ namespace ReactiveUITK
         public static VirtualNode RectField(RectFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "RectField",
@@ -333,7 +318,6 @@ namespace ReactiveUITK
         public static VirtualNode RectIntField(RectIntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "RectIntField",
@@ -347,7 +331,6 @@ namespace ReactiveUITK
         public static VirtualNode BoundsField(BoundsFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "BoundsField",
@@ -361,7 +344,6 @@ namespace ReactiveUITK
         public static VirtualNode MinMaxSlider(MinMaxSliderProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "MinMaxSlider",
@@ -379,7 +361,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "TemplateContainer",
@@ -393,7 +374,6 @@ namespace ReactiveUITK
         public static VirtualNode BoundsIntField(BoundsIntFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "BoundsIntField",
@@ -407,7 +387,6 @@ namespace ReactiveUITK
         public static VirtualNode EnumFlagsField(EnumFlagsFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "EnumFlagsField",
@@ -425,7 +404,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToggleButtonGroup",
@@ -439,7 +417,6 @@ namespace ReactiveUITK
         public static VirtualNode Hash128Field(Hash128FieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "Hash128Field",
@@ -458,7 +435,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "Toolbar",
@@ -472,7 +448,6 @@ namespace ReactiveUITK
         public static VirtualNode ToolbarButton(ToolbarButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarButton",
@@ -486,7 +461,6 @@ namespace ReactiveUITK
         public static VirtualNode ToolbarToggle(ToolbarToggleProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarToggle",
@@ -500,7 +474,6 @@ namespace ReactiveUITK
         public static VirtualNode ToolbarMenu(ToolbarMenuProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarMenu",
@@ -517,7 +490,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarBreadcrumbs",
@@ -534,7 +506,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarPopupSearchField",
@@ -551,7 +522,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarSearchField",
@@ -565,7 +535,6 @@ namespace ReactiveUITK
         public static VirtualNode ToolbarSpacer(ToolbarSpacerProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "ToolbarSpacer",
@@ -579,7 +548,6 @@ namespace ReactiveUITK
         public static VirtualNode PropertyField(PropertyFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "PropertyField",
@@ -593,7 +561,6 @@ namespace ReactiveUITK
         public static VirtualNode InspectorElement(InspectorElementProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "InspectorElement",
@@ -612,7 +579,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 "TwoPaneSplitView",
@@ -627,7 +593,6 @@ namespace ReactiveUITK
         public static VirtualNode FloatField(FloatFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "FloatField",
@@ -641,7 +606,6 @@ namespace ReactiveUITK
         public static VirtualNode IntegerField(IntegerFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "IntegerField",
@@ -655,7 +619,6 @@ namespace ReactiveUITK
         public static VirtualNode LongField(LongFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "LongField",
@@ -669,7 +632,6 @@ namespace ReactiveUITK
         public static VirtualNode DoubleField(DoubleFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "DoubleField",
@@ -686,7 +648,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "UnsignedIntegerField",
@@ -700,7 +661,6 @@ namespace ReactiveUITK
         public static VirtualNode UnsignedLongField(UnsignedLongFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "UnsignedLongField",
@@ -714,7 +674,6 @@ namespace ReactiveUITK
         public static VirtualNode Vector2Field(Vector2FieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Vector2Field",
@@ -728,7 +687,6 @@ namespace ReactiveUITK
         public static VirtualNode Vector3Field(Vector3FieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Vector3Field",
@@ -742,7 +700,6 @@ namespace ReactiveUITK
         public static VirtualNode Vector4Field(Vector4FieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Vector4Field",
@@ -756,7 +713,6 @@ namespace ReactiveUITK
         public static VirtualNode ColorField(ColorFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "ColorField",
@@ -774,7 +730,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Box",
@@ -788,7 +743,6 @@ namespace ReactiveUITK
         public static VirtualNode ListView(ListViewProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "ListView",
@@ -802,7 +756,6 @@ namespace ReactiveUITK
         public static VirtualNode TreeView(TreeViewProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "TreeView",
@@ -819,7 +772,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "MultiColumnTreeView",
@@ -836,7 +788,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "MultiColumnListView",
@@ -850,7 +801,6 @@ namespace ReactiveUITK
         public static VirtualNode Label(LabelProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Label",
@@ -868,7 +818,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "GroupBox",
@@ -882,7 +831,6 @@ namespace ReactiveUITK
         public static VirtualNode Toggle(ToggleProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Toggle",
@@ -896,7 +844,6 @@ namespace ReactiveUITK
         public static VirtualNode RadioButton(RadioButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "RadioButton",
@@ -914,7 +861,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "RadioButtonGroup",
@@ -928,7 +874,6 @@ namespace ReactiveUITK
         public static VirtualNode ProgressBar(ProgressBarProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "ProgressBar",
@@ -942,7 +887,6 @@ namespace ReactiveUITK
         public static VirtualNode RepeatButton(RepeatButtonProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "RepeatButton",
@@ -956,7 +900,6 @@ namespace ReactiveUITK
         public static VirtualNode Image(ImageProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Image",
@@ -970,7 +913,6 @@ namespace ReactiveUITK
         public static VirtualNode HelpBox(HelpBoxProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "HelpBox",
@@ -988,7 +930,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "ScrollView",
@@ -1002,7 +943,6 @@ namespace ReactiveUITK
         public static VirtualNode Slider(SliderProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Slider",
@@ -1016,7 +956,6 @@ namespace ReactiveUITK
         public static VirtualNode SliderInt(SliderIntProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "SliderInt",
@@ -1030,7 +969,6 @@ namespace ReactiveUITK
         public static VirtualNode DropdownField(DropdownFieldProps props, string key = null)
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "DropdownField",
@@ -1048,7 +986,6 @@ namespace ReactiveUITK
         )
         {
             IReadOnlyDictionary<string, object> map = props?.ToDictionary();
-            map = CloneStyleDictionary(map);
             return new VirtualNode(
                 VirtualNodeType.Element,
                 elementTypeName: "Foldout",
@@ -1067,7 +1004,7 @@ namespace ReactiveUITK
         {
             var propsDict =
                 hostProps != null
-                    ? CloneStyleDictionary(hostProps.ToDictionary())
+                    ? hostProps.ToDictionary()
                     : (IReadOnlyDictionary<string, object>)EmptyProps();
             return new VirtualNode(
                 VirtualNodeType.Host,
@@ -1091,7 +1028,7 @@ namespace ReactiveUITK
         /// instance passed here, wrapped only in the <see cref="Core.IProps"/> interface.
         ///
         /// Equality for bailout is determined by <typeparamref name="TProps"/>'s
-        /// <see cref="object.Equals(object)"/> implementation — generated props classes
+        /// <see cref="object.Equals(object)"/> implementation � generated props classes
         /// get structural equality automatically.
         /// </summary>
         public static VirtualNode Func<TProps>(

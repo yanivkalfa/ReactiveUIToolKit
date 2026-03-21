@@ -36,8 +36,8 @@ namespace ReactiveUITK.Elements
             IReadOnlyDictionary<string, object> next
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             previous.TryGetValue("contentContainer", out var prevCC);
             next.TryGetValue("contentContainer", out var nextCC);
             if (!ReferenceEquals(prevCC, nextCC) && nextCC is Dictionary<string, object> ccMap)
@@ -129,8 +129,8 @@ namespace ReactiveUITK.Elements
         {
             if (element is ScrollView sv)
             {
-                previous ??= new Dictionary<string, object>();
-                next ??= new Dictionary<string, object>();
+                previous ??= s_emptyProps;
+                next ??= s_emptyProps;
 
                 TryDiffProp<ScrollViewMode>(previous, next, "mode", m => sv.mode = m);
                 if (!TryDiffProp<ScrollViewMode>(previous, next, "mode", m => sv.mode = m))

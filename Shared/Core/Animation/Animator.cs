@@ -156,8 +156,13 @@ namespace ReactiveUITK.Core.Animation
                     bool reversed = track.Yoyo && (cycleIndex % 2 == 1);
                     float t = reversed ? (1f - cycleT) : cycleT;
                     float eased = Easing.Evaluate(track.Ease, t);
-                    object v = Lerp(from, to, eased);
-                    Apply(ve, prop, v);
+                    // Typed dispatch avoids boxing the Lerp result on every tick
+                    if (from is float ff && to is float tf)
+                        ApplyFloat(ve, prop, Mathf.Lerp(ff, tf, eased));
+                    else if (from is Color fc && to is Color tc)
+                        ApplyColor(ve, prop, Color.Lerp(fc, tc, eased));
+                    else
+                        Apply(ve, prop, Lerp(from, to, eased));
                     try
                     {
                         track.OnUpdate?.Invoke(eased);
@@ -496,6 +501,68 @@ namespace ReactiveUITK.Core.Animation
             }
             f = 0f;
             return false;
+        }
+
+        private static void ApplyFloat(VisualElement ve, string prop, float f)
+        {
+            switch (prop)
+            {
+                case "opacity": ve.style.opacity = f; break;
+                case "width": ve.style.width = new Length(f, LengthUnit.Pixel); break;
+                case "height": ve.style.height = new Length(f, LengthUnit.Pixel); break;
+                case "minWidth": ve.style.minWidth = new Length(f, LengthUnit.Pixel); break;
+                case "minHeight": ve.style.minHeight = new Length(f, LengthUnit.Pixel); break;
+                case "maxWidth": ve.style.maxWidth = new Length(f, LengthUnit.Pixel); break;
+                case "maxHeight": ve.style.maxHeight = new Length(f, LengthUnit.Pixel); break;
+                case "marginLeft": ve.style.marginLeft = new Length(f, LengthUnit.Pixel); break;
+                case "marginRight": ve.style.marginRight = new Length(f, LengthUnit.Pixel); break;
+                case "marginTop": ve.style.marginTop = new Length(f, LengthUnit.Pixel); break;
+                case "marginBottom": ve.style.marginBottom = new Length(f, LengthUnit.Pixel); break;
+                case "paddingLeft": ve.style.paddingLeft = new Length(f, LengthUnit.Pixel); break;
+                case "paddingRight": ve.style.paddingRight = new Length(f, LengthUnit.Pixel); break;
+                case "paddingTop": ve.style.paddingTop = new Length(f, LengthUnit.Pixel); break;
+                case "paddingBottom": ve.style.paddingBottom = new Length(f, LengthUnit.Pixel); break;
+                case "borderLeftWidth": ve.style.borderLeftWidth = f; break;
+                case "borderRightWidth": ve.style.borderRightWidth = f; break;
+                case "borderTopWidth": ve.style.borderTopWidth = f; break;
+                case "borderBottomWidth": ve.style.borderBottomWidth = f; break;
+                case "letterSpacing": ve.style.letterSpacing = f; break;
+                case "unityTextOutlineWidth":
+                    try { ve.style.unityTextOutlineWidth = f; } catch { }
+                    break;
+                case "translateX":
+                    try
+                    {
+                        var st = ve.style.translate;
+                        var cur = st.value;
+                        ve.style.translate = new StyleTranslate(
+                            new Translate(new Length(f, LengthUnit.Pixel), cur.y, cur.z));
+                    }
+                    catch { }
+                    break;
+                case "translateY":
+                    try
+                    {
+                        var st = ve.style.translate;
+                        var cur = st.value;
+                        ve.style.translate = new StyleTranslate(
+                            new Translate(cur.x, new Length(f, LengthUnit.Pixel), cur.z));
+                    }
+                    catch { }
+                    break;
+            }
+        }
+
+        private static void ApplyColor(VisualElement ve, string prop, Color c)
+        {
+            switch (prop)
+            {
+                case "backgroundColor": ve.style.backgroundColor = c; break;
+                case "color": ve.style.color = c; break;
+                case "unityTextOutlineColor":
+                    try { ve.style.unityTextOutlineColor = c; } catch { }
+                    break;
+            }
         }
     }
 }

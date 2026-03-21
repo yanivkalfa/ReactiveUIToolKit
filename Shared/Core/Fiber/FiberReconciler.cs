@@ -154,8 +154,6 @@ namespace ReactiveUITK.Core.Fiber
             FiberNode rootCurrent = fiber;
             bool isDeleted = false;
 
-            var fiberName =
-                fiber?.ElementType ?? fiber?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             // Mark the target fiber as having an update
             if (fiber != null)
             {
@@ -173,18 +171,7 @@ namespace ReactiveUITK.Core.Fiber
                 // Mark parent as having a subtree update
                 if (rootCurrent.Parent != null)
                 {
-                    var parentName =
-                        rootCurrent.Parent.ElementType
-                        ?? rootCurrent.Parent.TypedRender?.Method.DeclaringType?.Name
-                        ?? "Unknown";
                     rootCurrent.Parent.SubtreeHasUpdates = true;
-                }
-                else
-                {
-                    var currName =
-                        rootCurrent.ElementType
-                        ?? rootCurrent.TypedRender?.Method.DeclaringType?.Name
-                        ?? "Unknown";
                 }
 
                 if (rootCurrent.Parent == null)
@@ -244,8 +231,6 @@ namespace ReactiveUITK.Core.Fiber
             {
                 // Queue the specific fiber update to replay it after commit
                 _deferredUpdates.Enqueue((fiber, vnode));
-                var fiberName2 =
-                    fiber?.ElementType ?? fiber?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 return;
             }
 
@@ -548,8 +533,6 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Propagate update flags to WIP - root is special case, doesn't use factory
-            var componentName =
-                current.ElementType ?? current.TypedRender?.Method.DeclaringType?.Name ?? "root";
             workInProgress.HasPendingStateUpdate = current.HasPendingStateUpdate;
             workInProgress.SubtreeHasUpdates = current.SubtreeHasUpdates;
             workInProgress.ReadsContext = current.ReadsContext;
@@ -620,10 +603,12 @@ namespace ReactiveUITK.Core.Fiber
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
 
-                // CRITICAL: Update all ComponentState.Fiber references to the new committed tree
-                // This must happen AFTER swap so ComponentState points to fibers with fully connected parent chains
-                // UseEffect callbacks will fire next and need correct fiber references for ScheduleUpdateOnFiber
-                UpdateComponentStateReferences(_root.Current);
+                // Commit props, update ComponentState.Fiber references, and clear flags
+                // in a single tree walk (merged from three separate walks).
+                // Must happen AFTER swap so ComponentState points to committed fibers,
+                // and BEFORE deferred updates so their NEW flags aren't cleared.
+                // Safe before passive effects because _isCommitting defers all state updates.
+                CommitPropsAndClearFlags(_root.Current);
 
                 // Flush passive effects in two passes: all cleanups first, then all setups.
                 // This preserves React's invariant that no component's setup runs before all
@@ -673,12 +658,6 @@ namespace ReactiveUITK.Core.Fiber
                 _root.FirstEffect = null;
                 _root.LastEffect = null;
 
-                // PHASE 3: Commit props and clear remaining flags (SubtreeHasUpdates, ReadsContext)
-                // CRITICAL: We clear flags HERE, before processing deferred updates
-                // This cleans up the render we just finished.
-                // Any deferred updates processed next will set NEW flags on the tree, which we must NOT clear.
-                CommitPropsAndClearFlags(_root.Current);
-
                 EmitMetrics();
             }
             finally
@@ -691,10 +670,6 @@ namespace ReactiveUITK.Core.Fiber
                 while (_deferredUpdates.Count > 0)
                 {
                     var (fiber, vnode) = _deferredUpdates.Dequeue();
-                    var name =
-                        fiber?.ElementType
-                        ?? fiber?.TypedRender?.Method.DeclaringType?.Name
-                        ?? "Unknown";
                     // Update flags/WIP but DON'T schedule work yet
                     ScheduleUpdateOnFiber(fiber, vnode, scheduleWork: false);
                     pendingUpdates = true;
@@ -1005,8 +980,6 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            var fiberName =
-                fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             // Depth-first delete: clean up subtree before removing the current node.
             // If this is a function component, clean up effects and signal subscriptions.
             if (fiber.Tag == FiberTag.FunctionComponent && fiber.ComponentState != null)
@@ -1057,6 +1030,9 @@ namespace ReactiveUITK.Core.Fiber
             // If this fiber has a HostElement, remove it from its parent
             if (fiber.HostElement != null)
             {
+                // Clean up previousStyles tracking to prevent memory leak (P0-5)
+                ReactiveUITK.Props.PropsApplier.NotifyElementRemoved(fiber.HostElement);
+
                 var parentFiber = fiber.Parent;
                 while (parentFiber != null && parentFiber.HostElement == null)
                 {
@@ -1264,13 +1240,13 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (vnode == null)
             {
-                return new Dictionary<string, object>();
+                return VirtualNode.EmptyProps;
             }
 
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return new Dictionary<string, object>(); // Suspense uses TypedPendingProps (SuspenseProps)
+                    return VirtualNode.EmptyProps;
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -1279,7 +1255,7 @@ namespace ReactiveUITK.Core.Fiber
                     };
 
                 default:
-                    return vnode.Properties ?? new Dictionary<string, object>();
+                    return vnode.Properties ?? VirtualNode.EmptyProps;
             }
         }
 
@@ -1348,14 +1324,19 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Phase 3: Commit props and clear flags after commit
+        /// Commit props, update ComponentState references, and clear flags in a single tree walk.
+        /// Merges the former UpdateComponentStateReferences and CommitPropsAndClearFlags methods.
         /// </summary>
         private void CommitPropsAndClearFlags(FiberNode fiber)
         {
             if (fiber == null)
                 return;
 
-            var name = fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
+            // Update ComponentState.Fiber so hooks reference the committed fiber
+            if (fiber.ComponentState != null)
+            {
+                fiber.ComponentState.Fiber = fiber;
+            }
 
             // Commit props for next comparison
             fiber.Props = fiber.PendingProps;
@@ -1379,26 +1360,6 @@ namespace ReactiveUITK.Core.Fiber
                 CommitPropsAndClearFlags(child);
                 child = child.Sibling;
             }
-        }
-
-        /// <summary>
-        /// Recursively update all ComponentState.Fiber references to point to the new tree.
-        /// Called after tree swap to ensure UseEffect callbacks reference the correct fibers.
-        /// </summary>
-        private void UpdateComponentStateReferences(FiberNode fiber)
-        {
-            if (fiber == null)
-                return;
-
-            // Update this fiber's component state if it exists
-            if (fiber.ComponentState != null)
-            {
-                fiber.ComponentState.Fiber = fiber;
-            }
-
-            // Recurse to children and siblings
-            UpdateComponentStateReferences(fiber.Child);
-            UpdateComponentStateReferences(fiber.Sibling);
         }
     }
 }

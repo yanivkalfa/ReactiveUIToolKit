@@ -45,15 +45,12 @@ namespace ReactiveUITK.Core.Fiber
             componentState.EffectIndex = 0;
             componentState.LayoutEffectIndex = 0;
 
-            var componentName =
-                wipFiber.ElementType
-                ?? wipFiber.TypedRender?.Method.DeclaringType?.Name
-                ?? "Unknown";
-
             // Wire up state updates to Fiber reconciler
             // CRITICAL FIX: Use componentState.Fiber (kept current by UpdateComponentStateReferences)
             // instead of capturing wipFiber, which becomes stale after tree swap in CommitRoot.
-            componentState.OnStateUpdated = () =>
+            // PERF: Only create the delegate once — componentState.Fiber is updated by
+            // reference via UpdateComponentStateReferences, so the captured closure remains valid.
+            componentState.OnStateUpdated ??= () =>
                 reconciler.ScheduleUpdateOnFiber(componentState.Fiber, null);
 
             // Props equality check (typed path — all function components use IProps now).
@@ -130,6 +127,9 @@ namespace ReactiveUITK.Core.Fiber
                 // Guard against infinite render loops caused by unconditional setState during render
                 if (s_renderDepth > MaxRenderDepth)
                 {
+                    var componentName = wipFiber.ElementType
+                        ?? wipFiber.TypedRender?.Method.DeclaringType?.Name
+                        ?? "Unknown";
                     UnityEngine.Debug.LogError(
                         $"[Fiber] Maximum render depth ({MaxRenderDepth}) exceeded in '{componentName}'. "
                             + "A component may be calling setState unconditionally during render."
@@ -332,13 +332,13 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (vnode == null)
             {
-                return new Dictionary<string, object>();
+                return VirtualNode.EmptyProps;
             }
 
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return new Dictionary<string, object>(); // Suspense uses TypedPendingProps; dict props not needed
+                    return VirtualNode.EmptyProps;
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -347,7 +347,7 @@ namespace ReactiveUITK.Core.Fiber
                     };
 
                 default:
-                    return vnode.Properties ?? new Dictionary<string, object>();
+                    return vnode.Properties ?? VirtualNode.EmptyProps;
             }
         }
 

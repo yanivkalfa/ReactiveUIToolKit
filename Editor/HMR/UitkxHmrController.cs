@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using ReactiveUITK.Core;
 using UnityEditor;
 using UnityEditor.Build;
@@ -38,6 +39,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         private readonly List<string> _recentErrors = new();
         private bool _compilationQueued;
         private string _queuedPath;
+
+        // ── Pending retry state (auto-cascade for new-file dependencies) ────
+        private readonly Dictionary<string, string> _pendingRetryPaths = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+        private bool _retryingPending;
 
         // ── Settings ──────────────────────────────────────────────────────────
         public bool AutoStopOnPlayMode
@@ -97,6 +104,7 @@ namespace ReactiveUITK.EditorSupport.HMR
             _swapCount = 0;
             _errorCount = 0;
             _recentErrors.Clear();
+            _pendingRetryPaths.Clear();
 
             s_instance = this;
             error = null;
@@ -119,6 +127,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Stop watching
             _watcher.OnUitkxChanged -= OnUitkxFileChanged;
             _watcher.Stop();
+
+            _pendingRetryPaths.Clear();
 
             // Unlock assembly reloads (triggers pending compilation)
             _suppressor.Unlock();
@@ -200,14 +210,37 @@ namespace ReactiveUITK.EditorSupport.HMR
                         $"[HMR] {result.ComponentName} updated ({result.TotalMs:F0}ms, "
                             + $"{swapped} instance(s)) — {result.TimingBreakdown}"
                     );
+
+                // Remove from pending retries if this was a re-attempt
+                _pendingRetryPaths.Remove(uitkxPath);
+
+                // A successful compilation may unblock pending failures that
+                // depend on this component. Schedule a retry pass on the next frame.
+                if (_pendingRetryPaths.Count > 0 && !_retryingPending)
+                    EditorApplication.delayCall += RetryPendingCompilations;
             }
             else
             {
-                _errorCount++;
-                _recentErrors.Add(result.Error);
-                if (_recentErrors.Count > 10)
-                    _recentErrors.RemoveAt(0);
-                Debug.LogWarning(result.Error);
+                // Try to auto-discover and compile missing dependencies.
+                // CS0103 means an unresolved name — may be a .uitkx component
+                // the FileWatcher missed.
+                if (TryResolveMissingDependencies(result.Error, uitkxPath))
+                {
+                    // Dependencies were compiled — retry will happen via
+                    // the cascade mechanism on the next frame.
+                    return;
+                }
+
+                // During auto-retry, suppress duplicate error logging
+                if (!_retryingPending || !_pendingRetryPaths.ContainsKey(uitkxPath))
+                {
+                    _errorCount++;
+                    _recentErrors.Add(result.Error);
+                    if (_recentErrors.Count > 10)
+                        _recentErrors.RemoveAt(0);
+                    Debug.LogWarning(result.Error);
+                }
+                _pendingRetryPaths[uitkxPath] = result.Error;
             }
 
             // Process queued file change
@@ -217,6 +250,122 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _queuedPath = null;
                 // Use delayCall to avoid deep recursion
                 EditorApplication.delayCall += () => ProcessFileChange(queued);
+            }
+        }
+
+        // ── Missing dependency discovery ──────────────────────────────────────
+
+        private static readonly Regex s_cs0103Re = new(
+            @"error CS0103: The name '(\w+)' does not exist",
+            RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// Parse CS0103 errors, search Assets/ for matching .uitkx files,
+        /// compile them on-demand. Returns true if any dependencies were
+        /// newly compiled (caller should retry via cascade).
+        /// </summary>
+        private bool TryResolveMissingDependencies(string errorText, string failedPath)
+        {
+            if (errorText == null || _compiler == null)
+                return false;
+
+            var matches = s_cs0103Re.Matches(errorText);
+            if (matches.Count == 0)
+                return false;
+
+            bool anyCompiled = false;
+            string assetsDir = Path.GetFullPath(UnityEngine.Application.dataPath);
+
+            foreach (Match m in matches)
+            {
+                string missingName = m.Groups[1].Value;
+
+                // Already compiled in this HMR session?
+                if (_compiler.HmrAssemblyPaths.ContainsKey(missingName))
+                    continue;
+
+                // Search for a matching .uitkx file on disk
+                string uitkxPath = FindUitkxByComponentName(assetsDir, missingName);
+                if (
+                    uitkxPath == null
+                    || uitkxPath.Equals(failedPath, StringComparison.OrdinalIgnoreCase)
+                )
+                    continue;
+
+                Debug.Log(
+                    $"[HMR] Auto-discovered dependency: {missingName} → {Path.GetFileName(uitkxPath)}"
+                );
+                ProcessFileChange(uitkxPath);
+
+                if (_compiler.HmrAssemblyPaths.ContainsKey(missingName))
+                    anyCompiled = true;
+            }
+
+            if (anyCompiled)
+            {
+                // Queue the failed file for retry now that deps are available
+                _pendingRetryPaths[failedPath] = errorText;
+                if (!_retryingPending)
+                    EditorApplication.delayCall += RetryPendingCompilations;
+            }
+
+            return anyCompiled;
+        }
+
+        /// <summary>
+        /// Search Assets/ recursively for a .uitkx file whose name matches
+        /// the given component name (case-insensitive).
+        /// </summary>
+        private static string FindUitkxByComponentName(string assetsDir, string componentName)
+        {
+            string target = componentName + ".uitkx";
+            try
+            {
+                foreach (
+                    var file in Directory.EnumerateFiles(
+                        assetsDir,
+                        "*.uitkx",
+                        SearchOption.AllDirectories
+                    )
+                )
+                {
+                    if (Path.GetFileName(file).Equals(target, StringComparison.OrdinalIgnoreCase))
+                        return file;
+                }
+            }
+            catch
+            { /* IO errors during scan — skip */
+            }
+            return null;
+        }
+
+        // ── Auto-cascade retry ────────────────────────────────────────────────
+
+        /// <summary>
+        /// Retry compilation of previously-failed files. A successful compilation
+        /// of component A may have registered a new assembly that unblocks
+        /// component B which references A.
+        /// </summary>
+        private void RetryPendingCompilations()
+        {
+            if (!_active || _pendingRetryPaths.Count == 0)
+                return;
+
+            _retryingPending = true;
+            try
+            {
+                var paths = new List<string>(_pendingRetryPaths.Keys);
+                foreach (var path in paths)
+                {
+                    if (!_active)
+                        break;
+                    ProcessFileChange(path);
+                }
+            }
+            finally
+            {
+                _retryingPending = false;
             }
         }
 

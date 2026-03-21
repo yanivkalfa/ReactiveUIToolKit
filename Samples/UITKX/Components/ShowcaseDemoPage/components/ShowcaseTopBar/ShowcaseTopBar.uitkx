@@ -59,7 +59,7 @@ component ShowcaseTopBar(
       </VisualElement>
       <TextField
         style={textInputStyle}
-        placeholder="Type haaaaaere..."
+        placeholder="Type here..."
         hidePlaceholderOnFocus={false}
         value={inputText}
         labelText={string.IsNullOrEmpty(inputText) ? string.Empty : "Value: " + inputText}

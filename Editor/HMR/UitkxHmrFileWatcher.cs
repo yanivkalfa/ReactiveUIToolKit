@@ -24,7 +24,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         private readonly object _lock = new object();
         private bool _disposed;
 
-        private const int DebounceMs = 150; // 150ms debounce
+        private const int DebounceMs = 50; // 50ms debounce
 
         public void Start(string watchRoot)
         {

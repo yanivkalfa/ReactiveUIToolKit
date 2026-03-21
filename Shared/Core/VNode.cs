@@ -79,8 +79,10 @@ namespace ReactiveUITK.Core
             ElementTypeName = elementTypeName;
             TextContent = textContent;
             Key = key;
-            Properties = CloneProps(properties);
-            Children = CloneChildren(children);
+            // Trust immutability: callers (V.cs factories) already create fresh dictionaries
+            // via ToDictionary(). Defensive cloning was tripling allocation per element.
+            Properties = properties ?? EmptyPropsInstance;
+            Children = children ?? EmptyChildrenInstance;
             PortalTarget = portalTarget;
             Fallback = fallback;
             SuspenseReady = suspenseReady;

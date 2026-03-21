@@ -49,8 +49,8 @@ namespace ReactiveUITK.Elements
             IReadOnlyDictionary<string, object> next
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             previous.TryGetValue("label", out var prevLabel);
             next.TryGetValue("label", out var nextLabel);
             if (
@@ -123,8 +123,8 @@ namespace ReactiveUITK.Elements
         {
             if (element is DropdownField df)
             {
-                previous ??= new Dictionary<string, object>();
-                next ??= new Dictionary<string, object>();
+                previous ??= s_emptyProps;
+                next ??= s_emptyProps;
 
                 previous.TryGetValue("choices", out var prevChoices);
                 next.TryGetValue("choices", out var nextChoices);

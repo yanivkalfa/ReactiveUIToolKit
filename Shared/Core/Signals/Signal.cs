@@ -22,6 +22,7 @@ namespace ReactiveUITK.Signals
         private readonly object gate = new();
         private readonly List<Action<T>> listeners = new();
         private readonly IEqualityComparer<T> comparer;
+        private Action<T>[] cachedSnapshot;
         private T value;
 
         internal Signal(string key, T initialValue, IEqualityComparer<T> comparer = null)
@@ -54,6 +55,7 @@ namespace ReactiveUITK.Signals
             lock (gate)
             {
                 listeners.Add(listener);
+                cachedSnapshot = null;
             }
             return new SignalSubscription(() => Unsubscribe(listener));
         }
@@ -63,6 +65,7 @@ namespace ReactiveUITK.Signals
             lock (gate)
             {
                 listeners.Remove(listener);
+                cachedSnapshot = null;
             }
         }
 
@@ -88,7 +91,8 @@ namespace ReactiveUITK.Signals
                 value = newValue;
                 if (listeners.Count > 0)
                 {
-                    snapshot = listeners.ToArray();
+                    cachedSnapshot ??= listeners.ToArray();
+                    snapshot = cachedSnapshot;
                 }
             }
             if (snapshot == null)

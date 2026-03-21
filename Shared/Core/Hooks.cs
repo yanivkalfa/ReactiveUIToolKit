@@ -889,40 +889,69 @@ namespace ReactiveUITK.Core
             }
             RecordHook(metadata, state, HookIdReducer);
             state.HookStates ??= new List<object>();
-            if (state.HookIndex >= state.HookStates.Count)
+
+            ReducerHookState<TState, TAction> hookState;
+            if (
+                state.HookIndex < state.HookStates.Count
+                && state.HookStates[state.HookIndex] is ReducerHookState<TState, TAction> existing
+            )
             {
-                state.HookStates.Add(initialState);
+                hookState = existing;
+                hookState.Reducer = reducer; // Always use the latest reducer
             }
+            else
+            {
+                hookState = new ReducerHookState<TState, TAction>
+                {
+                    Value = initialState,
+                    Reducer = reducer,
+                };
+                if (state.HookIndex < state.HookStates.Count)
+                    state.HookStates[state.HookIndex] = hookState;
+                else
+                    state.HookStates.Add(hookState);
+            }
+
             int index = state.HookIndex;
-            TState currentState = (TState)state.HookStates[index];
+            TState currentState = hookState.Value;
+
+            // Cache dispatch delegate — only allocate once per hook slot
+            if (hookState.Dispatch == null)
+            {
+                hookState.Dispatch = action =>
+                {
+                    var hs = (ReducerHookState<TState, TAction>)state.HookStates[index];
+                    TState previous = hs.Value;
+                    TState next;
+                    try
+                    {
+                        next = hs.Reducer(previous, action);
+                    }
+                    catch
+                    {
+                        next = previous;
+                    }
+                    if (!EqualityComparer<TState>.Default.Equals(previous, next))
+                    {
+                        hs.Value = next;
+                        RequestComponentRerender(metadata);
+                    }
+                };
+            }
+
             state.HookIndex++;
             if (metadata != null)
             {
                 metadata?.SyncComponentState(state);
             }
-            void Dispatch(TAction action)
-            {
-                TState previous = (TState)state.HookStates[index];
-                TState next;
-                try
-                {
-                    next = reducer(previous, action);
-                }
-                catch
-                {
-                    next = previous;
-                }
-                if (!Equals(previous, next))
-                {
-                    state.HookStates[index] = next;
-                    RequestComponentRerender(metadata);
-                }
-            }
-            if (metadata != null)
-            {
-                metadata?.SyncComponentState(state);
-            }
-            return (currentState, Dispatch);
+            return (currentState, hookState.Dispatch);
+        }
+
+        private sealed class ReducerHookState<TState, TAction>
+        {
+            public TState Value;
+            public Func<TState, TAction, TState> Reducer;
+            public Action<TAction> Dispatch;
         }
 
         public static T UseMemo<T>(Func<T> factory, params object[] dependencies)
@@ -1491,7 +1520,8 @@ namespace ReactiveUITK.Core
 
         public static T UseSignal<T>(Signal<T> signal)
         {
-            return UseSignal(signal, static value => value, EqualityComparer<T>.Default);
+            // Fast-path: identity selector + default comparer → skip boxing wrappers
+            return (T)UseSignalInternal(signal, null, null);
         }
 
         public static TSlice UseSignal<T, TSlice>(

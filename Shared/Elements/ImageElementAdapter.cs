@@ -68,8 +68,8 @@ namespace ReactiveUITK.Elements
         {
             if (element is Image img)
             {
-                previous ??= new Dictionary<string, object>();
-                next ??= new Dictionary<string, object>();
+                previous ??= s_emptyProps;
+                next ??= s_emptyProps;
 
                 previous.TryGetValue("image", out var prevImage);
                 next.TryGetValue("image", out var nextImage);

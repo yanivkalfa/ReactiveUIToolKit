@@ -66,20 +66,21 @@ export const HmrPage: FC = () => (
           <ListItemText primary={<>The file is parsed and emitted to C# using <code>ReactiveUITK.Language.dll</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>C# is compiled via Unity's built-in Roslyn compiler (<code>csc.dll</code>).</>} />
+          <ListItemText primary={<>C# is compiled in-process via Roslyn (<code>Microsoft.CodeAnalysis.CSharp</code> 4.3.1), with automatic fallback to external <code>csc.dll</code> if Roslyn DLLs aren't available.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<>The compiled assembly is loaded via <code>Assembly.Load(byte[])</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>The new <code>Render</code> delegate is swapped into all matching Fiber nodes.</>} />
+          <ListItemText primary={<>The new <code>Render</code> delegate is swapped into all active <code>RootRenderer</code> instances.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary="A re-render is triggered — hooks run against preserved state." />
         </ListItem>
       </List>
       <Typography variant="body1" paragraph>
-        Total time: typically <strong>50–200 ms</strong> from save to visual update.
+        Total time: typically <strong>25–100 ms</strong> compile + emit from save to visual update
+        (first compile per session is ~1–1.5s due to Roslyn JIT warmup).
       </Typography>
     </Section>
 
@@ -112,19 +113,53 @@ export const HmrPage: FC = () => (
 
     <Section title="Companion Files">
       <Typography variant="body1" paragraph>
-        When a <code>.uitkx</code> file changes, HMR automatically includes all{' '}
-        <code>.cs</code> files in the same directory (excluding <code>.g.cs</code> generated files)
-        in the compilation. This covers:
+        Companion <code>.cs</code> files are <strong>optional</strong>. The source generator
+        produces a complete class from the <code>.uitkx</code> file alone. However, you can add
+        <code>.cs</code> files in the same directory to share styles, types, or utilities. When a{' '}
+        <code>.uitkx</code> file changes, HMR automatically includes all <code>.cs</code> files in
+        the same directory (excluding <code>.g.cs</code>) in the compilation:
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<>Partial class declarations (e.g. <code>MyComponent.cs</code>)</>} />
+          <ListItemText primary={<>Style helpers (e.g. <code>MyComponent.styles.cs</code>)</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Style files (e.g. <code>MyComponent.styles.cs</code>)</>} />
+          <ListItemText primary={<>Type / prop definitions (e.g. <code>MyComponent.types.cs</code>)</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Type definitions (e.g. <code>MyComponent.types.cs</code>)</>} />
+          <ListItemText primary={<>Shared utilities (e.g. <code>MyComponent.utils.cs</code>)</>} />
+        </ListItem>
+      </List>
+      <Typography variant="body1" paragraph>
+        Companion <code>.cs</code> file changes also trigger HMR — saving a{' '}
+        <code>.styles.cs</code> or <code>.utils.cs</code> file automatically detects the
+        associated <code>.uitkx</code> in the same directory, recompiles everything, and swaps the
+        result in-place.
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <strong>Creating new companion files</strong> works too — simply create a <code>.cs</code>{' '}
+        file in the same directory as your <code>.uitkx</code>. The file watcher detects new files
+        and includes them in the next compilation.
+      </Typography>
+    </Section>
+
+    <Section title="New Component Support">
+      <Typography variant="body1" paragraph>
+        HMR can compile and load <strong>new</strong> <code>.uitkx</code> files that don't exist in
+        any pre-compiled assembly:
+      </Typography>
+      <List sx={Styles.list}>
+        <ListItem disablePadding>
+          <ListItemText primary="When a parent component references an unknown child, CS0103 errors are caught." />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>HMR scans the project for matching <code>.uitkx</code> files and compiles them first.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary="The parent is automatically retried after the dependency resolves." />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary="Cross-component references are managed via an assembly registry." />
         </ListItem>
       </List>
     </Section>
@@ -249,9 +284,17 @@ export const HmrPage: FC = () => (
               </TableCell>
             </TableRow>
             <TableRow>
-              <TableCell>New components not hot-loaded</TableCell>
+              <TableCell>First compile is slow</TableCell>
               <TableCell>
-                A new <code>.uitkx</code> file compiles but has no active fibers to swap into yet.
+                ~1–1.5s on first HMR compile per session (Roslyn JIT warmup). Subsequent compiles
+                are 25–100ms.
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell>Requires NuGet cache</TableCell>
+              <TableCell>
+                In-process Roslyn loads DLLs from <code>~/.nuget/packages/</code>. Falls back to
+                external <code>csc.dll</code> if unavailable.
               </TableCell>
             </TableRow>
             <TableRow>
@@ -282,6 +325,12 @@ export const HmrPage: FC = () => (
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<>Verify Unity's Roslyn compiler is present at <code>{'${EditorPath}'}/Data/DotNetSdkRoslyn/csc.dll</code>.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Check for <code>[HMR] In-process Roslyn compiler loaded successfully</code> in Console.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>If Roslyn fails to load, verify that <code>~/.nuget/packages/microsoft.codeanalysis.csharp/4.3.1/</code> exists.</>} />
         </ListItem>
       </List>
 

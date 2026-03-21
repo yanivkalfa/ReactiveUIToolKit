@@ -35,8 +35,8 @@ namespace ReactiveUITK.Elements
                 PropsApplier.ApplyDiff(element, previous, next);
                 return;
             }
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             TryDiffProp<float>(previous, next, "lowValue", v => sc.lowValue = v);
             TryDiffProp<float>(previous, next, "highValue", v => sc.highValue = v);
             TryDiffProp<float>(previous, next, "value", v => sc.value = v);
