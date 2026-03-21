@@ -356,6 +356,9 @@ jobs:
             -payload "${{ steps.find_vsix.outputs.VSIX_PATH }}" `
             -publishManifest publishManifest.json `
             -personalAccessToken $env:MARKETPLACE_TOKEN
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::VsixPublisher exited with code $LASTEXITCODE — version may already exist on marketplace"
+          }
 
       - name: Tag published version
         if: steps.check.outputs.skip == 'false'
