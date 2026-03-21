@@ -6,6 +6,7 @@ import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { UitkxAPIPage } from './pages/UITKX/API/UitkxAPIPage'
 import { UitkxComponentReferencePage } from './pages/UITKX/Components/UitkxComponentReferencePage'
 import { UitkxComponentsPage } from './pages/UITKX/Components/UitkxComponentsPage'
+import { CompanionFilesPage } from './pages/UITKX/CompanionFiles/CompanionFilesPage'
 import { UitkxConceptsPage } from './pages/UITKX/Concepts/UitkxConceptsPage'
 import { UitkxConfigPage } from './pages/UITKX/Config/UitkxConfigPage'
 import { UitkxDebuggingPage } from './pages/UITKX/Debugging/UitkxDebuggingPage'
@@ -91,9 +92,26 @@ export const uitkxSections: DocSection[] = [
         title: 'Install & Setup',
         path: '/getting-started',
         keywords: ['uitkx', 'install', 'setup', 'component', 'partial'],
-        searchContent: 'uitkx getting started primary authoring model reactiveuitoolkit function-style .uitkx components companion partial class generated output reactiveuitk renderer install via unity package manager open package manager add package from git url create a uitkx component setup code returned markup generator emits render matching partial class unity compile mount rootrenderer v.func @namespace MyGame.UI component HelloWorld var count setCount useState return VisualElement Text Hello ReactiveUITK Button Increment onClick setCount count + 1 namespace MyGame.UI public partial class HelloWorld MonoBehaviour UIDocument RootRenderer Initialize rootVisualElement uiDocument',
+        searchContent: 'uitkx getting started primary authoring model reactiveuitoolkit function-style .uitkx components source generator produces complete class no boilerplate install via unity package manager open package manager add package from git url create a uitkx component setup code returned markup generator emits render mount rootrenderer v.func @namespace MyGame.UI component HelloWorld var count setCount useState return VisualElement Text Hello ReactiveUITK Button Increment onClick setCount count + 1 companion files optional styles types utils',
         track: 'uitkx',
         element: () => <UitkxGettingStartedPage />,
+      },
+    ],
+  },
+  {
+    id: 'uitkx-companion-files',
+    title: 'Companion Files',
+    track: 'uitkx',
+    pages: [
+      {
+        id: 'uitkx-companion-files-page',
+        canonicalId: 'companion-files',
+        title: 'Companion Files',
+        path: '/companion-files',
+        keywords: ['uitkx', 'companion', 'styles', 'types', 'utils', 'partial class'],
+        searchContent: 'companion files optional .cs file styles types utils naming conventions directory layout source generator produces complete class no boilerplate needed MyComponent.styles.cs style constants helpers colours sizes MyComponent.types.cs enums structs DTOs MyComponent.utils.cs pure helper formatting functions hmr support editing companion triggers hmr creating new file detected instantly @code blocks when not to use simple components small helpers',
+        track: 'uitkx',
+        element: () => <CompanionFilesPage />,
       },
     ],
   },
@@ -198,7 +216,7 @@ export const uitkxSections: DocSection[] = [
         title: 'Hot Module Replacement',
         path: '/tooling/hmr',
         keywords: ['uitkx', 'hmr', 'hot reload', 'live editing', 'instant preview'],
-        searchContent: 'hot module replacement hmr edit .uitkx files changes instantly unity editor without domain reload component state quick start open reactiveuitk hmr mode start edit save updates in-place hook state counters refs effects preserved assembly reloads filesystemwatcher detects parsed emitted compiled roslyn compiler csc.dll assembly.load render delegate swapped fiber nodes re-render hooks state preservation usestate useref useeffect usememo usecallback usecontext companion files .cs partial class style types hmr window stats swap count error timing parse emit compile keyboard shortcuts toggle start stop lifecycle limitations old assemblies memory mono unload 10-30 kb per swap troubleshooting console errors',
+        searchContent: 'hot module replacement hmr edit .uitkx files changes instantly unity editor without domain reload component state quick start open reactiveuitk hmr mode start edit save updates in-place hook state counters refs effects preserved assembly reloads filesystemwatcher detects parsed emitted compiled in-process roslyn microsoft.codeanalysis.csharp csc.dll fallback assembly.load render delegate swapped rootrenderer instances re-render hooks state preservation usestate useref useeffect usememo usecallback usecontext companion files .cs partial class style types create new companion auto-detected new component support cs0103 dependency auto-discovery cross-component assembly registry hmr window stats swap count error timing parse emit compile keyboard shortcuts toggle start stop lifecycle limitations old assemblies memory mono unload 10-30 kb per swap first compile jit warmup nuget cache troubleshooting console errors',
         track: 'uitkx',
         element: () => <HmrPage />,
       },

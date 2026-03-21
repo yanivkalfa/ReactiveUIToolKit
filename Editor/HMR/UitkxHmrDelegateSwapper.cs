@@ -43,10 +43,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 total += WalkAndSwap(fiberRenderer.Root, componentName, newDelegate);
             }
 
-            // ── 3. Walk runtime renderer ─────────────────────────────────────
-            if (RootRenderer.Instance != null)
+            // ── 3. Walk runtime renderers ─────────────────────────────────
+            foreach (var rootRenderer in RootRenderer.AllInstances)
             {
-                var vhr = RootRenderer.Instance.VNodeHostRendererInternal;
+                var vhr = rootRenderer.VNodeHostRendererInternal;
                 if (vhr?.FiberRendererInternal?.Root?.Current != null)
                     total += WalkAndSwap(
                         vhr.FiberRendererInternal.Root,
