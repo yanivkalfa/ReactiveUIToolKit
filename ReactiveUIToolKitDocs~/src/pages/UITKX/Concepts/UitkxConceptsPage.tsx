@@ -32,7 +32,7 @@ export const UitkxConceptsPage: FC = () => (
           <ListItemText primary="State setters are called directly like functions, for example setCount(count + 1)." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="Use companion partial classes only to host generated output, not as the main place where UI is authored." />
+          <ListItemText primary="Companion .cs files are optional — use them to share styles, types, or utilities. The source generator produces the full class from the .uitkx file alone." />
         </ListItem>
       </List>
     </Box>

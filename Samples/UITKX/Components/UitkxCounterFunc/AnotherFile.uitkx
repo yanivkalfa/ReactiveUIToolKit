@@ -1,0 +1,18 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using ReactiveUITK.Signals
+@using ReactiveUITK.Router
+@using ReactiveUITK.Samples.UITKXShared
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component AnotherFile {
+  
+  return (
+    <ScrollView>
+      <Label text="WhaaaaaaaaatEve       eeaaa" />
+    </ScrollView>
+  );
+}
