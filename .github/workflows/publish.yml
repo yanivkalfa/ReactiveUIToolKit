@@ -305,8 +305,9 @@ jobs:
 
       - name: Restore NuGet packages
         if: steps.check.outputs.skip == 'false'
+        shell: cmd
         working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: dotnet restore
+        run: msbuild UitkxVsix.csproj /t:Restore /p:Configuration=Release
 
       - name: Build VSIX
         if: steps.check.outputs.skip == 'false'
