@@ -98,8 +98,8 @@ namespace ReactiveUITK.Elements
         {
             if (element is Tab tab)
             {
-                previous ??= new Dictionary<string, object>();
-                next ??= new Dictionary<string, object>();
+                previous ??= s_emptyProps;
+                next ??= s_emptyProps;
                 previous.TryGetValue("text", out var p);
                 next.TryGetValue("text", out var n);
                 if (!Equals(p, n) && n is string txt)

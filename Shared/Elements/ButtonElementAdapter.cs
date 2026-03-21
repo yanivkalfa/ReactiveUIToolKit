@@ -68,8 +68,8 @@ namespace ReactiveUITK.Elements
         {
             if (element is Button button)
             {
-                previous ??= new Dictionary<string, object>();
-                next ??= new Dictionary<string, object>();
+                previous ??= s_emptyProps;
+                next ??= s_emptyProps;
                 string prevText =
                     previous.TryGetValue("text", out var p) && p is string ps ? ps : null;
                 string nextText = next.TryGetValue("text", out var n) && n is string ns ? ns : null;

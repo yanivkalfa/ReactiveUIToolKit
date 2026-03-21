@@ -98,66 +98,71 @@ namespace ReactiveUITK.Core.Fiber
             if (current == null)
                 return null;
 
-            var clone = new FiberNode
-            {
-                Tag = current.Tag,
-                ElementType = current.ElementType,
-                Key = current.Key,
-                TypedRender = current.TypedRender,
-                TypedProps = current.TypedProps,
-                TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps,
-                HostElement = current.HostElement,
-                ComponentState = current.ComponentState, // CRITICAL: Share, don't clone! Callbacks reference this.
-                Props = current.Props,
-                ContextFrame = current.ContextFrame,
-                ContextProviderId = current.ContextProviderId,
-                ProvidedContext = current.ProvidedContext,
-                PortalTarget = current.PortalTarget,
-                Index = current.Index,
+            // Reuse the alternate fiber if available (React pattern: avoid allocation
+            // on every re-render for stable tree positions).
+            var clone = current.Alternate ?? new FiberNode();
 
-                // Reset these for new tree
-                Child = null,
-                Sibling = null,
-                Parent = null,
+            // === Identity and type ===
+            clone.Tag = current.Tag;
+            clone.ElementType = current.ElementType;
+            clone.Key = current.Key;
+            clone.TypedRender = current.TypedRender;
 
-                ErrorBoundaryActive = current.ErrorBoundaryActive,
-                ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback,
-                ErrorBoundaryLastException = current.ErrorBoundaryLastException,
-                ErrorBoundaryResetKey = current.ErrorBoundaryResetKey,
+            // === Props ===
+            clone.TypedProps = current.TypedProps;
+            clone.TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps;
+            clone.Props = current.Props;
+            clone.PendingProps = newVNode != null ? ExtractProps(newVNode) : current.PendingProps;
+            clone.Children = newVNode != null ? newVNode.Children : current.Children;
 
-                // AUTOMATIC FLAG PROPAGATION - This is why the factory exists!
-                HasPendingStateUpdate = current.HasPendingStateUpdate,
-                SubtreeHasUpdates = current.SubtreeHasUpdates,
-                ReadsContext = current.ReadsContext,
+            // === Host/DOM ===
+            clone.HostElement = current.HostElement;
+            clone.PortalTarget = current.PortalTarget;
 
-                // Set up alternate chain
-                Alternate = current,
+            // === State ===
+            clone.ComponentState = current.ComponentState; // CRITICAL: Share, don't clone!
+            clone.Index = current.Index;
 
-                // Update for new render - handle null newVNode (happens during bailout cloning)
-                PendingProps = newVNode != null ? ExtractProps(newVNode) : current.PendingProps,
-                Children = newVNode != null ? newVNode.Children : current.Children,
-                EffectTag = EffectFlags.None, // Reused fiber starts clean; render/CompleteWork adds flags if needed
-                LastRenderedVNode = newVNode ?? current.LastRenderedVNode,
-            };
+            // === Context ===
+            clone.ContextFrame = current.ContextFrame;
+            clone.ContextProviderId = current.ContextProviderId;
+            clone.ProvidedContext = current.ProvidedContext;
 
-            // Link back to clone
+            // === Error boundary ===
+            clone.ErrorBoundaryActive = current.ErrorBoundaryActive;
+            clone.ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback;
+            clone.ErrorBoundaryLastException = current.ErrorBoundaryLastException;
+            clone.ErrorBoundaryResetKey = current.ErrorBoundaryResetKey;
+
+            // === Flags (automatic propagation) ===
+            clone.HasPendingStateUpdate = current.HasPendingStateUpdate;
+            clone.SubtreeHasUpdates = current.SubtreeHasUpdates;
+            clone.ReadsContext = current.ReadsContext;
+
+            // === Reset tree structure (rebuilt during reconciliation) ===
+            clone.Child = null;
+            clone.Sibling = null;
+            clone.Parent = null;
+
+            // === Reset effect tracking ===
+            clone.EffectTag = EffectFlags.None;
+            clone.NextEffect = null;
+            clone.Deletions = null;
+            clone.LayoutEffects = null;
+            clone.PassiveEffects = null;
+
+            // === Rendered output ===
+            clone.LastRenderedVNode = newVNode ?? current.LastRenderedVNode;
+
+            // === Alternate chain ===
+            clone.Alternate = current;
             current.Alternate = clone;
 
             // Fix: Suspense VNodes always have TypedProps=null because SuspenseProps is
             // internal infrastructure, not exposed as IProps on the VirtualNode.
-            // Without this patch, CloneForReuse falls back to current.TypedPendingProps
-            // (the STALE SuspenseProps from the initial render), causing the bailout check
-            // in RenderFunctionComponent to see propsEqual=true and skip re-rendering.
-            // Result: Suspense always renders its first-ever children regardless of what
-            // the parent re-rendered — breaking ErrorBoundary and async load updates.
             if (newVNode?.NodeType == VirtualNodeType.Suspense)
                 clone.TypedPendingProps = FiberIntrinsicComponents.CreateSuspenseProps(newVNode);
 
-            // NOTE: We DON'T update ComponentState.Fiber here because the clone's parent chain
-            // isn't fully connected yet. The update happens in CommitRoot after tree swap
-            // when all parent references are guaranteed to be correct.
-
-            var name = clone.ElementType ?? clone.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             return clone;
         }
 
@@ -169,13 +174,9 @@ namespace ReactiveUITK.Core.Fiber
         {
             if (parent?.Alternate?.Child == null)
             {
-                var parentName =
-                    parent?.ElementType ?? parent?.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 return null;
             }
 
-            var parentName2 =
-                parent.ElementType ?? parent.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
             var current = parent.Alternate.Child;
 
             // Clone first child - pass null VNode to preserve prop identity
@@ -206,13 +207,12 @@ namespace ReactiveUITK.Core.Fiber
         private static IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
         {
             if (vnode == null)
-                return new Dictionary<string, object>();
+                return VirtualNode.EmptyProps;
 
-            // Match FiberFunctionComponent.ExtractProps implementation
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return new Dictionary<string, object>();
+                    return VirtualNode.EmptyProps;
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -221,7 +221,7 @@ namespace ReactiveUITK.Core.Fiber
                     };
 
                 default:
-                    return vnode.Properties ?? new Dictionary<string, object>();
+                    return vnode.Properties ?? VirtualNode.EmptyProps;
             }
         }
     }
