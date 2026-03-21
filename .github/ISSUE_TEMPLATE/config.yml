@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://reactiveuitoolkit.info
+    about: Check the docs for guides, API reference, and troubleshooting
