@@ -378,81 +378,8 @@ jobs:
           path: ${{ steps.find_vsix.outputs.VSIX_PATH }}
 
   # ════════════════════════════════════════════════════════════════════════════
-  # Rider plugin — publishes only if version changed
+  # Rider plugin — disabled until the Rider extension is ready for publishing
   # ════════════════════════════════════════════════════════════════════════════
-  publish-rider:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check if version already published
-        id: check
-        run: |
-          VERSION=$(grep '^pluginVersion' ide-extensions~/rider/gradle.properties | cut -d'=' -f2 | tr -d ' ')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if git tag --list "rider-v$VERSION" | grep -q .; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Rider plugin v$VERSION already published — skipping"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup .NET
-        if: steps.check.outputs.skip == 'false'
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.x"
-
-      - name: Build LSP server
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj \
-            -c Release \
-            --self-contained false \
-            -o ide-extensions~/rider/src/main/resources/server
-
-      - name: Setup JDK 17
-        if: steps.check.outputs.skip == 'false'
-        uses: actions/setup-java@v4
-        with:
-          java-version: "17"
-          distribution: "corretto"
-
-      - name: Validate Gradle wrapper
-        if: steps.check.outputs.skip == 'false'
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Setup Gradle
-        if: steps.check.outputs.skip == 'false'
-        uses: gradle/actions/setup-gradle@v3
-
-      - name: Build plugin
-        if: steps.check.outputs.skip == 'false'
-        working-directory: ide-extensions~/rider
-        run: ./gradlew buildPlugin
-
-      - name: Sign plugin
-        if: steps.check.outputs.skip == 'false'
-        working-directory: ide-extensions~/rider
-        env:
-          CERTIFICATE_CHAIN:    ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
-          PRIVATE_KEY:          ${{ secrets.JETBRAINS_PRIVATE_KEY }}
-          PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
-        run: ./gradlew signPlugin
-
-      - name: Publish plugin
-        if: steps.check.outputs.skip == 'false'
-        working-directory: ide-extensions~/rider
-        env:
-          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
-        run: ./gradlew publishPlugin
-
-      - name: Tag published version
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "rider-v${{ steps.check.outputs.version }}"
-          git push origin "rider-v${{ steps.check.outputs.version }}"
+  # publish-rider:
+  #   runs-on: ubuntu-latest
+  #   ... (re-enable when Gradle wrapper and JetBrains secrets are set up)
