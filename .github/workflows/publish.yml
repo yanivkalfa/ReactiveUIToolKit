@@ -338,19 +338,24 @@ jobs:
 
       - name: Publish to VS Marketplace
         if: steps.check.outputs.skip == 'false'
-        shell: cmd
+        shell: pwsh
         working-directory: ide-extensions~/visual-studio/UitkxVsix
         env:
           MARKETPLACE_TOKEN: ${{ secrets.VS_MARKETPLACE_TOKEN }}
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -no_logo
-          for /f "delims=" %%P in ('dir /s /b "%USERPROFILE%\.nuget\packages\microsoft.vssdk.buildtools\*\tools\vssdk\bin\VsixPublisher.exe" 2^>nul ^| sort /r') do set "VSIX_PUB=%%P"
-          if not defined VSIX_PUB (
-            echo ::error::VsixPublisher.exe not found
-            exit /b 1
-          )
-          echo Using: %VSIX_PUB%
-          "%VSIX_PUB%" publish -payload "${{ steps.find_vsix.outputs.VSIX_PATH }}" -publishManifest publishManifest.json -personalAccessToken %MARKETPLACE_TOKEN%
+          $pub = Get-ChildItem -Path "$env:USERPROFILE\.nuget\packages\microsoft.vssdk.buildtools" -Recurse -Filter "VsixPublisher.exe" |
+                 Where-Object { $_.DirectoryName -match 'tools[\\/]vssdk[\\/]bin$' } |
+                 Sort-Object FullName -Descending |
+                 Select-Object -First 1
+          if (-not $pub) {
+            Write-Host "::error::VsixPublisher.exe not found in NuGet cache"
+            exit 1
+          }
+          Write-Host "Using: $($pub.FullName)"
+          & $pub.FullName publish `
+            -payload "${{ steps.find_vsix.outputs.VSIX_PATH }}" `
+            -publishManifest publishManifest.json `
+            -personalAccessToken $env:MARKETPLACE_TOKEN
 
       - name: Tag published version
         if: steps.check.outputs.skip == 'false'
