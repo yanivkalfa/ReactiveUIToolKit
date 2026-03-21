@@ -33,8 +33,8 @@ namespace ReactiveUITK.Elements
                 PropsApplier.ApplyDiff(element, previous, next);
                 return;
             }
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             ApplySlotsDiff(box, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
         }
@@ -58,8 +58,8 @@ namespace ReactiveUITK.Elements
             IReadOnlyDictionary<string, object> next
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             previous.TryGetValue("contentContainer", out var pcc);
             next.TryGetValue("contentContainer", out var ncc);
             if (!ReferenceEquals(pcc, ncc) && ncc is Dictionary<string, object> ccMap)

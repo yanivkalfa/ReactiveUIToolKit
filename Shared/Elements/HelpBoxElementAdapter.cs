@@ -50,8 +50,8 @@ namespace ReactiveUITK.Elements
             if (element is HelpBox hb)
             {
                 TryDiffProp<string>(previous, next, "text", v => hb.text = v ?? string.Empty);
-                previous ??= new Dictionary<string, object>();
-                next ??= new Dictionary<string, object>();
+                previous ??= s_emptyProps;
+                next ??= s_emptyProps;
                 previous.TryGetValue("messageType", out var pm);
                 next.TryGetValue("messageType", out var nm);
                 if (!Equals(pm, nm))
