@@ -11,6 +11,10 @@ namespace ReactiveUITK.Elements
     {
         protected const string MountName = "__ru_mount";
 
+        protected static readonly IReadOnlyDictionary<string, object> s_emptyProps =
+            new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(
+                new Dictionary<string, object>(0));
+
         public abstract VisualElement Create();
 
         public virtual void ApplyProperties(
@@ -66,8 +70,8 @@ namespace ReactiveUITK.Elements
             Action<T> assign
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             previous.TryGetValue(key, out var prevRaw);
             next.TryGetValue(key, out var nextRaw);
 

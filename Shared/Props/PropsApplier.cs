@@ -14,10 +14,21 @@ namespace ReactiveUITK.Props
             VisualElement,
             Dictionary<string, object>
         > previousStyles = new();
+
+        private static readonly IReadOnlyDictionary<string, object> s_emptyReadOnlyProps =
+            new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(
+                new Dictionary<string, object>(0));
+        private static readonly IDictionary<string, object> s_emptyMutableProps =
+            new Dictionary<string, object>(0);
+
         private static int totalStyleSets;
         private static int totalStyleResets;
         private static int totalEventsRegistered;
         private static int totalEventsRemoved;
+
+        private static readonly char[] s_classNameSeparators = { ' ', '\t', '\n', '\r' };
+        private static readonly HashSet<string> s_oldClassSet = new();
+        private static readonly HashSet<string> s_newClassSet = new();
 
         private static readonly Dictionary<string, Action<VisualElement, object>> styleSetters =
             new(StringComparer.Ordinal);
@@ -762,21 +773,33 @@ namespace ReactiveUITK.Props
             };
         }
 
+        private static readonly Dictionary<string, string> s_canonicalizeCache = new(64);
+
         private static string Canonicalize(string key)
         {
             if (string.IsNullOrEmpty(key))
             {
                 return key;
             }
+            if (s_canonicalizeCache.TryGetValue(key, out var cached))
+            {
+                return cached;
+            }
+            string result;
             if (key.StartsWith("-unity-", StringComparison.OrdinalIgnoreCase))
             {
-                return ToCamelCase(key.Substring(7));
+                result = ToCamelCase(key.Substring(7));
             }
-            if (key.IndexOf('-') >= 0)
+            else if (key.IndexOf('-') >= 0)
             {
-                return ToCamelCase(key);
+                result = ToCamelCase(key);
             }
-            return key;
+            else
+            {
+                result = key;
+            }
+            s_canonicalizeCache[key] = result;
+            return result;
         }
 
         private static string ToCamelCase(string dashed)
@@ -820,8 +843,8 @@ namespace ReactiveUITK.Props
             IReadOnlyDictionary<string, object> next
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyReadOnlyProps;
+            next ??= s_emptyReadOnlyProps;
 
             foreach (KeyValuePair<string, object> prevEntry in previous)
             {
@@ -860,10 +883,10 @@ namespace ReactiveUITK.Props
             {
                 var prevMap =
                     prevStyleObj as IDictionary<string, object>
-                    ?? (IDictionary<string, object>)new Dictionary<string, object>();
+                    ?? s_emptyMutableProps;
                 var nextMap =
                     nextStyleObj as IDictionary<string, object>
-                    ?? (IDictionary<string, object>)new Dictionary<string, object>();
+                    ?? s_emptyMutableProps;
                 foreach (KeyValuePair<string, object> previousStyle in prevMap)
                 {
                     if (!nextMap.ContainsKey(previousStyle.Key))
@@ -1010,30 +1033,40 @@ namespace ReactiveUITK.Props
                 string oldClasses = oldValue as string;
                 if (oldClasses != null)
                 {
-                    var oldSet = new HashSet<string>(
-                        (oldClasses ?? string.Empty).Split(
-                            new[] { ' ', '\t', '\n', '\r' },
-                            StringSplitOptions.RemoveEmptyEntries
-                        )
-                    );
-                    var newSet = new HashSet<string>(
-                        (newClasses ?? string.Empty).Split(
-                            new[] { ' ', '\t', '\n', '\r' },
-                            StringSplitOptions.RemoveEmptyEntries
-                        )
-                    );
-                    foreach (var cls in oldSet)
+                    // Fast-path: both are single-token class names (no whitespace)
+                    bool oldIsSingle = oldClasses.IndexOfAny(s_classNameSeparators) < 0;
+                    bool newIsSingle = newClasses != null && newClasses.IndexOfAny(s_classNameSeparators) < 0;
+                    if (oldIsSingle && newIsSingle)
                     {
-                        if (!newSet.Contains(cls))
+                        if (!string.Equals(oldClasses, newClasses, StringComparison.Ordinal))
                         {
-                            element.RemoveFromClassList(cls);
+                            element.RemoveFromClassList(oldClasses);
+                            element.AddToClassList(newClasses);
                         }
                     }
-                    foreach (var cls in newSet)
+                    else if (oldIsSingle && string.IsNullOrEmpty(newClasses))
                     {
-                        if (!oldSet.Contains(cls))
+                        element.RemoveFromClassList(oldClasses);
+                    }
+                    else
+                    {
+                        // General diff with reusable static HashSets
+                        s_oldClassSet.Clear();
+                        s_newClassSet.Clear();
+                        foreach (var token in (oldClasses ?? string.Empty).Split(s_classNameSeparators, StringSplitOptions.RemoveEmptyEntries))
+                            s_oldClassSet.Add(token);
+                        foreach (var token in (newClasses ?? string.Empty).Split(s_classNameSeparators, StringSplitOptions.RemoveEmptyEntries))
+                            s_newClassSet.Add(token);
+
+                        foreach (var cls in s_oldClassSet)
                         {
-                            element.AddToClassList(cls);
+                            if (!s_newClassSet.Contains(cls))
+                                element.RemoveFromClassList(cls);
+                        }
+                        foreach (var cls in s_newClassSet)
+                        {
+                            if (!s_oldClassSet.Contains(cls))
+                                element.AddToClassList(cls);
                         }
                     }
                 }
@@ -1042,13 +1075,14 @@ namespace ReactiveUITK.Props
                     element.ClearClassList();
                     if (!string.IsNullOrEmpty(newClasses))
                     {
-                        var tokens = newClasses.Split(
-                            new[] { ' ', '\t', '\n', '\r' },
-                            StringSplitOptions.RemoveEmptyEntries
-                        );
-                        foreach (var cls in tokens)
+                        if (newClasses.IndexOfAny(s_classNameSeparators) < 0)
                         {
-                            element.AddToClassList(cls);
+                            element.AddToClassList(newClasses);
+                        }
+                        else
+                        {
+                            foreach (var cls in newClasses.Split(s_classNameSeparators, StringSplitOptions.RemoveEmptyEntries))
+                                element.AddToClassList(cls);
                         }
                     }
                 }
@@ -1122,7 +1156,7 @@ namespace ReactiveUITK.Props
             )
             {
                 var tokens = oldClasses.Split(
-                    new[] { ' ', '\t', '\n', '\r' },
+                    s_classNameSeparators,
                     StringSplitOptions.RemoveEmptyEntries
                 );
                 foreach (var cls in tokens)
@@ -1608,14 +1642,6 @@ namespace ReactiveUITK.Props
             {
                 if (meta.EventHandlers.ContainsKey(eventPropName))
                 {
-                    Debug.Log(
-                        "[ApplyEvent] unregister (newHandler null) eventPropName="
-                            + eventPropName
-                            + ", element="
-                            + element.name
-                            + ", parent="
-                            + (element.parent != null ? element.parent.name : "<null>")
-                    );
                     RemoveEvent(element, eventPropName, meta.EventHandlers[eventPropName], meta);
                     meta.EventHandlerTargets.Remove(eventPropName);
                     meta.EventHandlerSignatures.Remove(eventPropName);
@@ -2001,17 +2027,6 @@ namespace ReactiveUITK.Props
             {
                 return;
             }
-            Debug.Log(
-                "[RemoveEvent] begin eventPropName="
-                    + eventPropName
-                    + ", element="
-                    + element.name
-                    + ", parent="
-                    + (element.parent != null ? element.parent.name : "<null>")
-                    + ", handlerType="
-                    + handler.GetType().Name
-            );
-
             if (eventPropName == "onClick" && handler is EventCallback<ClickEvent> clickCb)
             {
                 element.UnregisterCallback(clickCb);
@@ -2233,17 +2248,6 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    Debug.Log(
-                        "[RemoveEvent] fallback stored wrapper eventPropName="
-                            + eventPropName
-                            + ", element="
-                            + element.name
-                            + ", parent="
-                            + (element.parent != null ? element.parent.name : "<null>")
-                            + ", storedType="
-                            + stored?.GetType().Name
-                    );
-
                     RemoveEvent(element, eventPropName, stored, meta);
                     return;
                 }
@@ -2312,35 +2316,87 @@ namespace ReactiveUITK.Props
             }
             try
             {
-                var ve = evt?.target as VisualElement;
-                if (
-                    Core.Diagnostics.DiagnosticsConfig.EnableDiffTracing
-                    && Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
-                        == Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
-                )
+                // ── Fast typed dispatch — covers 95%+ of real-world handlers ──
+                // Action (zero-arg) — already the #1 path
+                if (del is Action action) { action(); return; }
+
+                // Common single-event-type handlers
+                if (del is Action<ClickEvent> clickH) { clickH(evt as ClickEvent); return; }
+                if (del is Action<PointerDownEvent> ptrDown) { ptrDown(evt as PointerDownEvent); return; }
+                if (del is Action<PointerUpEvent> ptrUp) { ptrUp(evt as PointerUpEvent); return; }
+                if (del is Action<PointerMoveEvent> ptrMove) { ptrMove(evt as PointerMoveEvent); return; }
+                if (del is Action<PointerEnterEvent> ptrEnter) { ptrEnter(evt as PointerEnterEvent); return; }
+                if (del is Action<PointerLeaveEvent> ptrLeave) { ptrLeave(evt as PointerLeaveEvent); return; }
+                if (del is Action<PointerOverEvent> ptrOver) { ptrOver(evt as PointerOverEvent); return; }
+                if (del is Action<PointerOutEvent> ptrOut) { ptrOut(evt as PointerOutEvent); return; }
+                if (del is Action<MouseDownEvent> mouseDown) { mouseDown(evt as MouseDownEvent); return; }
+                if (del is Action<MouseUpEvent> mouseUp) { mouseUp(evt as MouseUpEvent); return; }
+                if (del is Action<MouseMoveEvent> mouseMove) { mouseMove(evt as MouseMoveEvent); return; }
+                if (del is Action<MouseEnterEvent> mouseEnter) { mouseEnter(evt as MouseEnterEvent); return; }
+                if (del is Action<MouseLeaveEvent> mouseLeave) { mouseLeave(evt as MouseLeaveEvent); return; }
+                if (del is Action<MouseOverEvent> mouseOver) { mouseOver(evt as MouseOverEvent); return; }
+                if (del is Action<MouseOutEvent> mouseOut) { mouseOut(evt as MouseOutEvent); return; }
+                if (del is Action<WheelEvent> wheel) { wheel(evt as WheelEvent); return; }
+                if (del is Action<FocusEvent> focus) { focus(evt as FocusEvent); return; }
+                if (del is Action<BlurEvent> blur) { blur(evt as BlurEvent); return; }
+                if (del is Action<FocusInEvent> focusIn) { focusIn(evt as FocusInEvent); return; }
+                if (del is Action<FocusOutEvent> focusOut) { focusOut(evt as FocusOutEvent); return; }
+                if (del is Action<KeyDownEvent> keyDown) { keyDown(evt as KeyDownEvent); return; }
+                if (del is Action<KeyUpEvent> keyUp) { keyUp(evt as KeyUpEvent); return; }
+                if (del is Action<NavigationSubmitEvent> navSubmit) { navSubmit(evt as NavigationSubmitEvent); return; }
+                if (del is Action<NavigationCancelEvent> navCancel) { navCancel(evt as NavigationCancelEvent); return; }
+                if (del is Action<NavigationMoveEvent> navMove) { navMove(evt as NavigationMoveEvent); return; }
+                if (del is Action<GeometryChangedEvent> geom) { geom(evt as GeometryChangedEvent); return; }
+                if (del is Action<AttachToPanelEvent> attach) { attach(evt as AttachToPanelEvent); return; }
+                if (del is Action<DetachFromPanelEvent> detach) { detach(evt as DetachFromPanelEvent); return; }
+                if (del is Action<TooltipEvent> tooltip) { tooltip(evt as TooltipEvent); return; }
+                if (del is Action<TransitionEndEvent> transEnd) { transEnd(evt as TransitionEndEvent); return; }
+
+                // ChangeEvent<T> typed handlers
+                if (del is Action<ChangeEvent<string>> ceStr) { ceStr(evt as ChangeEvent<string>); return; }
+                if (del is Action<ChangeEvent<bool>> ceBool) { ceBool(evt as ChangeEvent<bool>); return; }
+                if (del is Action<ChangeEvent<int>> ceInt) { ceInt(evt as ChangeEvent<int>); return; }
+                if (del is Action<ChangeEvent<float>> ceFloat) { ceFloat(evt as ChangeEvent<float>); return; }
+                if (del is Action<ChangeEvent<double>> ceDouble) { ceDouble(evt as ChangeEvent<double>); return; }
+                if (del is Action<ChangeEvent<long>> ceLong) { ceLong(evt as ChangeEvent<long>); return; }
+                if (del is Action<ChangeEvent<Enum>> ceEnum) { ceEnum(evt as ChangeEvent<Enum>); return; }
+                if (del is Action<ChangeEvent<UnityEngine.Object>> ceObj) { ceObj(evt as ChangeEvent<UnityEngine.Object>); return; }
+
+                // ReactiveEvent handler
+                if (del is Action<ReactiveEvent> reactiveH)
                 {
-                    Debug.Log(
-                        "[InvokeHandler] eventType="
-                            + (evt != null ? evt.GetType().Name : "<null>")
-                            + ", target="
-                            + (ve != null ? ve.name : "<null>")
-                    );
-                }
-            }
-            catch { }
-            ReactiveEvent syntheticEvent = ReactiveEvent.Create(evt);
-            if (syntheticEvent != null)
-            {
-                syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;
-            }
-            try
-            {
-                if (del is Action action)
-                {
-                    action();
+                    var synth = ReactiveEvent.Create(evt);
+                    if (synth != null) synth.CurrentTarget = evt?.currentTarget as VisualElement;
+                    reactiveH(synth);
                     return;
                 }
 
+                // ── Extract newValue from ChangeEvent<T> for shorthand value handlers ──
+                object newValue = null;
+                if (evt != null)
+                {
+                    var evtType = evt.GetType();
+                    if (evtType.IsGenericType
+                        && evtType.Name.StartsWith("ChangeEvent`", StringComparison.Ordinal))
+                    {
+                        try { newValue = evtType.GetProperty("newValue")?.GetValue(evt); }
+                        catch { }
+                    }
+                }
+
+                // Value-shorthand handlers: Action<string>, Action<bool>, etc.
+                if (del is Action<string> strH) { strH(newValue as string); return; }
+                if (del is Action<bool> boolH && newValue is bool bv) { boolH(bv); return; }
+                if (del is Action<int> intH && newValue is int iv) { intH(iv); return; }
+                if (del is Action<float> floatH && newValue is float fv) { floatH(fv); return; }
+                if (del is Action<double> doubleH && newValue is double dv) { doubleH(dv); return; }
+                if (del is Action<long> longH && newValue is long lv) { longH(lv); return; }
+                if (del is Action<object> objH) { objH(newValue ?? (object)evt); return; }
+
+                // EventBase base type
+                if (del is Action<EventBase> evtH) { evtH(evt); return; }
+
+                // ── Slow fallback — DynamicInvoke for unknown signatures ──
                 var method = del.Method;
                 var parameters = method.GetParameters();
 
@@ -2350,91 +2406,50 @@ namespace ReactiveUITK.Props
                     return;
                 }
 
-                object newValue = null;
-                var evtObj = evt as object;
-                var evtType = evtObj?.GetType();
-                if (
-                    evtType != null
-                    && evtType.IsGenericType
-                    && evtType.Name.StartsWith("ChangeEvent`", StringComparison.Ordinal)
-                )
-                {
-                    try
-                    {
-                        newValue = evtType.GetProperty("newValue")?.GetValue(evtObj);
-                    }
-                    catch { }
-                }
-
                 if (parameters.Length == 1)
                 {
                     var p0 = parameters[0].ParameterType;
-
                     if (evt != null && p0.IsAssignableFrom(evt.GetType()))
                     {
                         del.DynamicInvoke(evt);
                         return;
                     }
-
-                    if (syntheticEvent != null && p0.IsInstanceOfType(syntheticEvent))
+                    if (newValue != null && p0.IsInstanceOfType(newValue))
                     {
-                        del.DynamicInvoke(syntheticEvent);
+                        del.DynamicInvoke(newValue);
                         return;
                     }
-
-                    if (newValue != null)
+                    // Lazy synthetic event creation for fallback path only
+                    var syntheticEvent = ReactiveEvent.Create(evt);
+                    if (syntheticEvent != null)
                     {
-                        if (p0.IsInstanceOfType(newValue))
+                        syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;
+                        if (p0.IsInstanceOfType(syntheticEvent))
                         {
-                            del.DynamicInvoke(newValue);
+                            del.DynamicInvoke(syntheticEvent);
                             return;
                         }
-                        try
-                        {
-                            var converted = System.Convert.ChangeType(newValue, p0);
-                            del.DynamicInvoke(converted);
-                            return;
-                        }
-                        catch { }
                     }
-
                     if (p0 == typeof(object))
                     {
                         del.DynamicInvoke(newValue ?? (object)evt);
                         return;
                     }
-
                     return;
                 }
 
+                // Multi-param fallback
                 {
                     object[] args = new object[parameters.Length];
                     var p0 = parameters[0].ParameterType;
                     if (evt != null && p0.IsAssignableFrom(evt.GetType()))
-                    {
                         args[0] = evt;
-                    }
-                    else if (syntheticEvent != null && p0.IsInstanceOfType(syntheticEvent))
-                    {
-                        args[0] = syntheticEvent;
-                    }
                     else if (newValue != null && p0.IsInstanceOfType(newValue))
-                    {
                         args[0] = newValue;
-                    }
                     else
                     {
-                        try
-                        {
-                            if (newValue != null)
-                            {
-                                args[0] = System.Convert.ChangeType(newValue, p0);
-                            }
-                        }
-                        catch
-                        {
-                            args[0] = null;
-                        }
+                        try { if (newValue != null) args[0] = System.Convert.ChangeType(newValue, p0); }
+                        catch { args[0] = null; }
                     }
                     del.DynamicInvoke(args);
                 }

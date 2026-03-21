@@ -10,6 +10,24 @@ namespace ReactiveUITK.Core.Fiber
     /// </summary>
     public static class FiberChildReconciliation
     {
+        // Pre-computed index → string cache for MapRemainingChildren
+        private static readonly string[] s_indexStrings = InitIndexStrings(256);
+
+        private static string[] InitIndexStrings(int count)
+        {
+            var arr = new string[count];
+            for (int i = 0; i < count; i++)
+                arr[i] = i.ToString();
+            return arr;
+        }
+
+        private static string IndexToString(int index)
+        {
+            return (uint)index < (uint)s_indexStrings.Length
+                ? s_indexStrings[index]
+                : index.ToString();
+        }
+
         /// <summary>
         /// Reconcile children - diff old and new children, create/update/delete fibers
         /// </summary>
@@ -19,11 +37,6 @@ namespace ReactiveUITK.Core.Fiber
             IReadOnlyList<VirtualNode> newChildren
         )
         {
-            // Unconditional log for debugging duplication
-            var name =
-                returnFiber.ElementType
-                ?? returnFiber.TypedRender?.Method.DeclaringType?.Name
-                ?? "Unknown";
             // Optimization for likely case: the list of children is empty
             if (newChildren == null || newChildren.Count == 0)
             {
@@ -32,8 +45,8 @@ namespace ReactiveUITK.Core.Fiber
                 return;
             }
 
-            // Try keyed reconciliation first
-            if (HasKeys(newChildren))
+            // Check first child for keys (React convention: all-or-nothing keyed within a sibling set)
+            if (newChildren.Count > 0 && !string.IsNullOrEmpty(newChildren[0]?.Key))
             {
                 ReconcileChildrenWithKeys(returnFiber, currentFirstChild, newChildren);
             }
@@ -157,7 +170,7 @@ namespace ReactiveUITK.Core.Fiber
             for (int newIdx = 0; newIdx < newChildren.Count; newIdx++)
             {
                 var newChild = newChildren[newIdx];
-                var key = newChild.Key ?? newIdx.ToString();
+                var key = newChild.Key ?? IndexToString(newIdx);
 
                 FiberNode newFiber = null;
 
@@ -221,10 +234,6 @@ namespace ReactiveUITK.Core.Fiber
 
             // Use centralized factory for consistent flag propagation
             var reused = FiberFactory.CloneForReuse(oldFiber, newVNode);
-            var name =
-                oldFiber.ElementType
-                ?? oldFiber.TypedRender?.Method.DeclaringType?.Name
-                ?? "Unknown";
             return reused;
         }
 
@@ -369,35 +378,6 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Clone existing fiber for reuse
-        /// </summary>
-        private static FiberNode CloneFiber(FiberNode fiber)
-        {
-            return new FiberNode
-            {
-                Tag = fiber.Tag,
-                ElementType = fiber.ElementType,
-                Key = fiber.Key,
-                TypedRender = fiber.TypedRender,
-                TypedProps = fiber.TypedProps,
-                TypedPendingProps = fiber.TypedPendingProps,
-                HostElement = fiber.HostElement,
-                ComponentState = fiber.ComponentState,
-                Alternate = fiber,
-                Props = fiber.Props,
-                ContextFrame = fiber.ContextFrame,
-                ContextProviderId = fiber.ContextProviderId,
-                ProvidedContext = fiber.ProvidedContext,
-                PortalTarget = fiber.PortalTarget,
-                LastRenderedVNode = fiber.LastRenderedVNode,
-                ErrorBoundaryActive = fiber.ErrorBoundaryActive,
-                ErrorBoundaryShowingFallback = fiber.ErrorBoundaryShowingFallback,
-                ErrorBoundaryLastException = fiber.ErrorBoundaryLastException,
-                ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey,
-            };
-        }
-
-        /// <summary>
         /// Mark fiber for placement at index
         /// </summary>
         private static FiberNode PlaceExistingChild(FiberNode fiber, int newIndex)
@@ -408,8 +388,6 @@ namespace ReactiveUITK.Core.Fiber
             // PHASE 2: Propagate flags from alternate when reusing
             if (fiber.Alternate != null)
             {
-                var name =
-                    fiber.ElementType ?? fiber.TypedRender?.Method.DeclaringType?.Name ?? "Unknown";
                 fiber.SubtreeHasUpdates = fiber.Alternate.SubtreeHasUpdates;
                 fiber.ReadsContext = fiber.Alternate.ReadsContext;
             }
@@ -468,7 +446,7 @@ namespace ReactiveUITK.Core.Fiber
 
             while (child != null)
             {
-                var key = child.Key ?? index.ToString();
+                var key = child.Key ?? IndexToString(index);
                 map[key] = child;
                 child = child.Sibling;
                 index++;
@@ -478,32 +456,19 @@ namespace ReactiveUITK.Core.Fiber
         }
 
         /// <summary>
-        /// Check if any children have keys
-        /// </summary>
-        private static bool HasKeys(IReadOnlyList<VirtualNode> children)
-        {
-            foreach (var child in children)
-            {
-                if (!string.IsNullOrEmpty(child?.Key))
-                    return true;
-            }
-            return false;
-        }
-
-        /// <summary>
         /// Extract props from vnode
         /// </summary>
         private static IReadOnlyDictionary<string, object> ExtractProps(VirtualNode vnode)
         {
             if (vnode == null)
             {
-                return new Dictionary<string, object>();
+                return VirtualNode.EmptyProps;
             }
 
             switch (vnode.NodeType)
             {
                 case VirtualNodeType.Suspense:
-                    return new Dictionary<string, object>();
+                    return VirtualNode.EmptyProps;
 
                 case VirtualNodeType.Text:
                     return new Dictionary<string, object>
@@ -512,7 +477,7 @@ namespace ReactiveUITK.Core.Fiber
                     };
 
                 default:
-                    return vnode.Properties ?? new Dictionary<string, object>();
+                    return vnode.Properties ?? VirtualNode.EmptyProps;
             }
         }
 
@@ -525,38 +490,6 @@ namespace ReactiveUITK.Core.Fiber
         {
             // Use centralized factory for consistent flag propagation
             return FiberFactory.CloneChildrenForBailout(parent);
-        }
-
-        /// <summary>
-        /// Clone a fiber node
-        /// </summary>
-        private static FiberNode CloneFiber(
-            FiberNode current,
-            IReadOnlyDictionary<string, object> newProps
-        )
-        {
-            var clone = new FiberNode
-            {
-                Tag = current.Tag,
-                ElementType = current.ElementType,
-                Key = current.Key,
-                TypedRender = current.TypedRender,
-                TypedProps = current.TypedProps,
-                TypedPendingProps = current.TypedPendingProps,
-                HostElement = current.HostElement,
-                Props = current.Props,
-                PendingProps = newProps,
-                Children = current.Children,
-                Alternate = current,
-                ComponentState = current.ComponentState,
-                // Propagate update flags
-                HasPendingStateUpdate = current.HasPendingStateUpdate,
-                SubtreeHasUpdates = current.SubtreeHasUpdates,
-                ReadsContext = current.ReadsContext,
-            };
-
-            current.Alternate = clone;
-            return clone;
         }
     }
 }
