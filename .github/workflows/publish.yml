@@ -352,10 +352,11 @@ jobs:
             exit 1
           }
           Write-Host "Using: $($pub.FullName)"
+          $ErrorActionPreference = 'Continue'
           & $pub.FullName publish `
             -payload "${{ steps.find_vsix.outputs.VSIX_PATH }}" `
             -publishManifest publishManifest.json `
-            -personalAccessToken $env:MARKETPLACE_TOKEN
+            -personalAccessToken $env:MARKETPLACE_TOKEN 2>&1 | ForEach-Object { Write-Host $_ }
           if ($LASTEXITCODE -ne 0) {
             Write-Host "::warning::VsixPublisher exited with code $LASTEXITCODE — version may already exist on marketplace"
           }
