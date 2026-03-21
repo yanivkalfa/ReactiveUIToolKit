@@ -305,8 +305,7 @@ jobs:
         working-directory: ide-extensions~/visual-studio/UitkxVsix
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -no_logo
-          msbuild UitkxVsix.csproj /t:Restore /p:Configuration=Release
-          msbuild UitkxVsix.csproj /t:Rebuild /p:Configuration=Release /p:DeployExtension=false
+          msbuild UitkxVsix.csproj -restore -t:Build -p:Configuration=Release -p:DeployExtension=false
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
