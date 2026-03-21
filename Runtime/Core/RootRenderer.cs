@@ -18,6 +18,10 @@ namespace ReactiveUITK.Core
         private VNodeHostRenderer vnodeHostRenderer;
 
 #if UNITY_EDITOR
+        /// <summary>HMR: all active RootRenderer instances for multi-tree walking.</summary>
+        private static readonly HashSet<RootRenderer> s_allInstances = new();
+        internal static IEnumerable<RootRenderer> AllInstances => s_allInstances;
+
         /// <summary>HMR: exposes the VNodeHostRenderer for tree walking.</summary>
         internal VNodeHostRenderer VNodeHostRendererInternal => vnodeHostRenderer;
 #endif
@@ -63,11 +67,17 @@ namespace ReactiveUITK.Core
                 return;
             }
             Instance = this;
+#if UNITY_EDITOR
+            s_allInstances.Add(this);
+#endif
             EnsureSetup();
         }
 
         private void OnDestroy()
         {
+#if UNITY_EDITOR
+            s_allInstances.Remove(this);
+#endif
             if (Instance == this)
             {
                 Instance = null;

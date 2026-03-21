@@ -14,11 +14,6 @@ component HelloWorld {
   );
 }`
 
-export const UITKX_HELLO_WORLD_PARTIAL = `namespace MyGame.UI
-{
-    public partial class HelloWorld { }
-}`
-
 export const UITKX_HELLO_WORLD_BOOTSTRAP = `using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK;

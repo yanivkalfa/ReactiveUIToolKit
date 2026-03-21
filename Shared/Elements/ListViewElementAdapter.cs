@@ -19,6 +19,7 @@ namespace ReactiveUITK.Elements
             public IList LastItems;
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
+            public Dictionary<int, string> BoundKeyByIndex = new();
 
             public bool IsScrolling { get; set; }
             public bool ScrollWired { get; set; }
@@ -36,6 +37,9 @@ namespace ReactiveUITK.Elements
 
         private static readonly ConditionalWeakTable<ListView, CachedParts> cachedPartsByList =
             new();
+
+        // P1-6: Cache reflection lookups for DeriveRowKey per Type
+        private static readonly Dictionary<Type, Func<object, string>> s_idAccessorCache = new();
 
         private static HostContext GetRowHostContext()
         {
@@ -143,6 +147,7 @@ namespace ReactiveUITK.Elements
                         }
                         var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
                         var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        parts.BoundKeyByIndex[i] = key;
                         if (!parts.Pool.TryGetValue(key, out var entry))
                         {
                             var mount = new VisualElement();
@@ -174,18 +179,13 @@ namespace ReactiveUITK.Elements
                     listView.unbindItem = (ve, i) =>
                     {
                         var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
-                        foreach (var kv in parts.Pool)
+                        if (parts.BoundKeyByIndex.TryGetValue(i, out var key)
+                            && parts.Pool.TryGetValue(key, out var entry)
+                            && entry.mount != null && entry.mount.parent == ve)
                         {
-                            var mount = kv.Value.mount;
-                            if (mount != null && mount.parent == ve)
-                            {
-                                try
-                                {
-                                    mount.RemoveFromHierarchy();
-                                }
-                                catch { }
-                            }
+                            try { entry.mount.RemoveFromHierarchy(); } catch { }
                         }
+                        parts.BoundKeyByIndex.Remove(i);
                     };
                 }
             }
@@ -219,8 +219,8 @@ namespace ReactiveUITK.Elements
                 PropsApplier.ApplyDiff(element, previous, next);
                 return;
             }
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
 
             previous.TryGetValue("items", out var prevItemsObj);
@@ -277,6 +277,7 @@ namespace ReactiveUITK.Elements
                         }
                         var key = DeriveRowKey(listView, i, item) ?? ($"row-{i}");
                         var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
+                        parts.BoundKeyByIndex[i] = key;
                         if (!parts.Pool.TryGetValue(key, out var entry))
                         {
                             var mount = new VisualElement();
@@ -308,18 +309,13 @@ namespace ReactiveUITK.Elements
                     listView.unbindItem = (ve, i) =>
                     {
                         var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
-                        foreach (var kv in parts.Pool)
+                        if (parts.BoundKeyByIndex.TryGetValue(i, out var key)
+                            && parts.Pool.TryGetValue(key, out var entry)
+                            && entry.mount != null && entry.mount.parent == ve)
                         {
-                            var mount = kv.Value.mount;
-                            if (mount != null && mount.parent == ve)
-                            {
-                                try
-                                {
-                                    mount.RemoveFromHierarchy();
-                                }
-                                catch { }
-                            }
+                            try { entry.mount.RemoveFromHierarchy(); } catch { }
                         }
+                        parts.BoundKeyByIndex.Remove(i);
                     };
                 }
                 else if (changed && parts.LastItems != null)
@@ -395,8 +391,8 @@ namespace ReactiveUITK.Elements
             IReadOnlyDictionary<string, object> next
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             previous.TryGetValue("contentContainer", out var prevCC);
             next.TryGetValue("contentContainer", out var nextCC);
             if (!ReferenceEquals(prevCC, nextCC) && nextCC is Dictionary<string, object> ccMap)
@@ -417,41 +413,47 @@ namespace ReactiveUITK.Elements
 
         private static string DeriveRowKey(ListView listView, int index, object item)
         {
+            if (item == null)
+                return $"row-{index}";
+
             try
             {
-                if (item != null)
+                var t = item.GetType();
+                if (!s_idAccessorCache.TryGetValue(t, out var accessor))
                 {
-                    var t = item.GetType();
-                    var f = t.GetField(
-                        "Id",
-                        System.Reflection.BindingFlags.Instance
-                            | System.Reflection.BindingFlags.Public
-                    );
-                    if (f?.FieldType == typeof(string))
-                    {
-                        var s = f.GetValue(item) as string;
-                        if (!string.IsNullOrEmpty(s))
-                        {
-                            return s;
-                        }
-                    }
-                    var p = t.GetProperty(
-                        "Id",
-                        System.Reflection.BindingFlags.Instance
-                            | System.Reflection.BindingFlags.Public
-                    );
-                    if (p?.PropertyType == typeof(string))
-                    {
-                        var s = p.GetValue(item) as string;
-                        if (!string.IsNullOrEmpty(s))
-                        {
-                            return s;
-                        }
-                    }
+                    accessor = BuildIdAccessor(t);
+                    s_idAccessorCache[t] = accessor;
+                }
+                if (accessor != null)
+                {
+                    var s = accessor(item);
+                    if (!string.IsNullOrEmpty(s))
+                        return s;
                 }
             }
             catch { }
             return $"row-{index}";
+        }
+
+        private static Func<object, string> BuildIdAccessor(Type t)
+        {
+            var f = t.GetField(
+                "Id",
+                System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public
+            );
+            if (f?.FieldType == typeof(string))
+                return obj => f.GetValue(obj) as string;
+
+            var p = t.GetProperty(
+                "Id",
+                System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.Public
+            );
+            if (p?.PropertyType == typeof(string))
+                return obj => p.GetValue(obj) as string;
+
+            return null;
         }
 
         private static void EnsureViewDataKey(

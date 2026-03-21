@@ -76,8 +76,8 @@ namespace ReactiveUITK.Elements
                     )
                 )
                 {
-                    previous ??= new Dictionary<string, object>();
-                    next ??= new Dictionary<string, object>();
+                    previous ??= s_emptyProps;
+                    next ??= s_emptyProps;
                     previous.TryGetValue("direction", out var pd);
                     next.TryGetValue("direction", out var nd);
                     if (!Equals(pd, nd) && nd is string ds)
@@ -118,8 +118,8 @@ namespace ReactiveUITK.Elements
             string slotKey
         )
         {
-            previous ??= new Dictionary<string, object>();
-            next ??= new Dictionary<string, object>();
+            previous ??= s_emptyProps;
+            next ??= s_emptyProps;
             previous.TryGetValue(slotKey, out var prevSlot);
             next.TryGetValue(slotKey, out var nextSlot);
             if (!ReferenceEquals(prevSlot, nextSlot))
