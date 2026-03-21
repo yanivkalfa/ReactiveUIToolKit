@@ -1,0 +1,592 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using ReactiveUITK.Signals
+@using ReactiveUITK.Router
+@using ReactiveUITK.Samples.UITKXShared
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component UitkxTestFileDoNotTouch(
+  IReadOnlyList<ListViewRowState>? items = null, 
+  Action? addItem = null, 
+  Action? setTopItem = null, 
+  Action? deleteLast = null, 
+  Action<int>? onCountChanged = null
+) {
+  var myRef = useRef(false);
+  var val = myRef.Current;
+
+  return (
+    <Label text={myRef.Value.ToString()} />
+  );
+
+
+  var safeItems = Array.Empty<ListViewRowState>();
+  var bla = (
+    <Box />
+  );
+  RowRenderer BuildRowRenderer() =>
+  (index, obj) =>
+  {
+    var row = obj as ListViewRowState;
+    if (row == null)
+    {
+      return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+    }
+
+    var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
+    var funcKey = $"lv-row-{id}";
+    var childNode = row.ShouldOverrideElement
+    ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+    : (<IntroCounterFunc key={funcKey} />);
+
+    return (
+      <VisualElement key={$"lv-wrap-{id}"}>
+        @(childNode)
+      </VisualElement>
+    );
+  };
+
+  var (count, setCount) = useState(0);
+  var (mode, setMode) = useState("normal");
+  var (mounted, setMounted) = useState(true);
+  var (selected, setSelected) = useState(0);
+  var (log, setLog) = useState(new List<string> { "Ready." });
+  var (trigger, setTrigger) = useState(0);
+  var (tabIndex, setTabIndex) = useState(0);
+
+  var (treeRows, setTreeRows) = useState(new List<TreeViewRowState>());
+  var (treeNextPid, setTreeNextPid) = useState(2);
+  var (treeExpandedIds, setTreeExpandedIds) = useState<List<int>?>(null);
+
+  var (mctvRows, setMctvRows) = useState(new List<MultiColumnTreeViewRowState>());
+  var (mctvNextPid, setMctvNextPid) = useState(2);
+
+  // ── useContext ─────────────────────────────────────────────────────────────
+  var portalTarget = useContext<VisualElement>(PortalContextKeys.ModalRoot);
+  var themeColor = useContext<Color>("context-demo-theme");
+
+  // ── provideContext ─────────────────────────────────────────────────────────
+  provideContext("kitchen-sink-theme", themeColor);
+
+  // ── useSignal / useMemo ────────────────────────────────────────────────────
+  var counterSignal = useMemo(() => SignalFactory.Get<int>("demo.counter", 0), Array.Empty<object>());
+  var signalCount = useSignal(counterSignal);
+  var doubleCount = useMemo(() => count * 2, new object[] { count });
+  var options = useMemo(() => new List<string> {
+    "Alpha",
+    "Beta",
+    "Gamma",
+  }, Array.Empty<object>());
+
+    // ── useRef ─────────────────────────────────────────────────────────────────
+  var renderCountRef = useRef<int>(0);
+  renderCountRef.Current++;
+  var renderCount = renderCountRef.Current;
+
+  // ── useEffect: IDisposable subscription cleanup ────────────────────────────
+  useEffect(() =>
+  {
+    bool captured = false;
+    void OnSignalChange(int value)
+    {
+      if (captured)
+      {
+        return;
+      }
+      setLog(prev => new List<string>(prev) { $"Signal changed: {value}" });
+    }
+    var subscription = counterSignal.Subscribe(OnSignalChange);
+    return () =>
+    {
+      captured = true;
+      subscription.Dispose();
+    };
+  }, new object[] { counterSignal });
+
+  // ── useEffect: FiberReconciler event + null return ─────────────────────────
+  useEffect(() =>
+  {
+    setLog(prev => new List<string>(prev) { $"Mounted at {DateTime.Now:HH:mm:ss}" });
+    return null;
+  }, Array.Empty<object>());
+
+  // ── useLayoutEffect ────────────────────────────────────────────────────────
+  useLayoutEffect(() =>
+  {
+    setTrigger(t => t);
+    return null;
+  }, new object[] { count });
+
+  // ── void method: single-statement body ────────────────────────────────────
+  void Reset() { setCount(0); }
+
+  // ── void method: multi-statement body with guard ───────────────────────────
+  void AppendLog(string message)
+  {
+    var next = new List<string>(log.Count + 1) {
+      $"{DateTime.Now:HH:mm:ss}: {message}",
+    };
+    next.AddRange(log);
+    if (next.Count > 8)
+    {
+      next.RemoveRange(8, next.Count - 8);
+    }
+    setLog(next);
+  }
+
+  // ── void method: for loop + tuple swap ────────────────────────────────────
+  void ShuffleOptions()
+  {
+    if (options.Count == 0)
+    {
+      return;
+    }
+    var items = new List<string>(options);
+    for (int i = items.Count - 1; i > 0; i--)
+    {
+      int j = i / 2;
+      (items[i], items[j]) = (items[j], items[i]);
+    }
+    AppendLog($"Shuffled {items.Count} items");
+  }
+
+  // ── void method: if / else-if / else chain ─────────────────────────────────
+  void TripleIncrement()
+  {
+    setCount(v => v + 1);
+    setCount(v => v + 1);
+    setCount(v => v + 1);
+    AppendLog("Queued +1 three times");
+  }
+
+  // ── void method: switch statement ─────────────────────────────────────────
+  void ApplyMode(string newMode)
+  {
+    switch (newMode)
+    {
+      case "squared":
+        AppendLog("Switched to squared");
+        break;
+      case "doubled":
+        AppendLog("Switched to doubled");
+        break;
+      default:
+        AppendLog($"Switched to {newMode}");
+        break;
+    }
+    setMode(newMode);
+  }
+
+  // ── void method: event handler with is-pattern matching ───────────────────
+  void HandleEvent(ReactiveEvent evt)
+  {
+    if (evt == null)
+    {
+      AppendLog("null event");
+      return;
+    }
+    if (evt is ReactivePointerEvent pointer)
+    {
+      AppendLog($"pointer pos={pointer.Position.x:0.0},{pointer.Position.y:0.0}");
+    }
+    else if (evt is ReactiveWheelEvent wheel)
+    {
+      AppendLog($"wheel delta={wheel.Delta.y:0.0}");
+    }
+  }
+
+  // ── TreeView actions ───────────────────────────────────────────────────────
+  void TreeAddParent()
+  {
+    var pid = treeNextPid;
+    setTreeNextPid(treeNextPid + 2);
+    setTreeRows(prev =>
+    {
+      var next = prev != null
+      ? new List<TreeViewRowState>(prev)
+      : new List<TreeViewRowState>();
+
+      next.Add(new TreeViewRowState
+      {
+        Pid = pid,
+        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
+        HasChild = false,
+      });
+      return next;
+    });
+  }
+
+  void TreeSetParent()
+  {
+    setTreeRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null)
+      {
+        return prev;
+      }
+      var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+      parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+      parentItem.ShouldOverrideElement = true;
+      var next = new List<TreeViewRowState>(prev);
+      next[next.Count - 1] = new TreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = parentItem,
+        Child = source.Child,
+        HasChild = source.HasChild,
+      };
+      return next;
+    });
+  }
+
+  void TreeDeleteLast()
+  {
+    setTreeRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var next = new List<TreeViewRowState>(prev);
+      next.RemoveAt(next.Count - 1);
+      return next;
+    });
+  }
+
+  {/* return (
+    <Box>
+      <Label text="This is a TabView demo." />
+    </Box>
+  ); */}
+
+
+   // ── MultiColumnTreeView actions ────────────────────────────────────────────
+  void MctvSetChild()
+  {
+    setMctvRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null || !source.HasChild)
+      {
+        return prev;
+      }
+      var childItem = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+      childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+      childItem.ShouldOverrideElement = true;
+      var next = new List<MultiColumnTreeViewRowState>(prev);
+      next[next.Count - 1] = new MultiColumnTreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = source.Parent,
+        Child = childItem,
+        HasChild = true,
+      };
+      return next;
+    });
+  }
+
+  void MctvDeleteLast()
+  {
+    {/* var bla = (
+      <VisualElement>
+        <Button text="-5" onClick={_ => setCount(count - 5)} />
+        <Button text="+5" onClick={_ => setCount(count + 5)} />
+      </VisualElement>
+    ); */}
+    setMctvRows(prev =>
+    {
+      return prev;
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var next = new List<MultiColumnTreeViewRowState>(prev);
+      next.RemoveAt(next.Count - 1);
+      return next;
+    });
+  }
+
+  var secondElement = (
+    <VisualElement>
+      <Button text="-5" onClick={_ => setCount(count - 5)} />
+      <Button text="+5" onClick={_ => setCount(count + 5)} />
+    </VisualElement>
+  );
+
+  // ── TabViewProps with TabDef closures ──────────────────────────────────────
+  var tabViewProps = new TabViewProps
+  {
+    SelectedIndex = tabIndex,
+    Tabs = new List<TabViewProps.TabDef>
+    {
+      new TabViewProps.TabDef { Title = "Log", Content = () => (
+        <Box />
+      )},
+      new TabViewProps.TabDef { Title = "Counter", Content = () => secondElement },
+      new TabViewProps.TabDef { Title = "Mode", Content = () => V.Label(new LabelProps { Text = $"Mode: {mode}" }) },
+    },
+    Style = new Style { (StyleKeys.Height, 160f) },
+  };
+
+  {/* return (
+    <VisualElement>
+      <Button text="-5" onClick={_ => setCount(count - 5)} />
+      <Button text="+5" onClick={_ => setCount(count + 5)} />
+    </VisualElement>
+  ); */}
+
+
+  // ── var: simple Style initializer ─────────────────────────────────────────
+  var containerStyle = new Style {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.FlexDirection, "column"),
+  };
+
+    // ── var: multi-line Style initializer ─────────────────────────────────────
+  var rowStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.FlexWrap, "wrap"),
+    (StyleKeys.MarginBottom, 6f),
+  };
+
+  var badgeStyle = new Style {
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),
+    (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.MarginBottom, 8f),
+  };
+
+  var panelStyle = new Style {
+    (StyleKeys.Height, 80f),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.25f, 0.9f)),
+    (StyleKeys.JustifyContent, "center"),
+    (StyleKeys.AlignItems, "center"),
+    (StyleKeys.MarginBottom, 10f),
+  };
+
+    // ── var: multi-line ternary ────────────────────────────────────────────────
+  var syncColor = count >= 0
+    ? new Color(0.3f, 0.85f, 0.45f, 1f)
+    : new Color(0.95f, 0.65f, 0.1f, 1f);
+
+  var syncLabelStyle = new Style {
+    (StyleKeys.MarginTop, 6f),
+    (StyleKeys.FontSize, 13f),
+    (StyleKeys.Color, syncColor),
+  };
+
+  // ── var: typed MenuBuilderHandler lambda ───────────────────────────────────
+  MenuBuilderHandler buildMenu = dm =>
+  {
+    dm.AppendAction("Reset", _ => Reset());
+    dm.AppendAction("Set 10", _ => setCount(10));
+    dm.AppendAction("Set 100", _ => setCount(100));
+    dm.AppendAction("Shuffle", _ => ShuffleOptions());
+  };
+
+  // ── var: inline JSX node ───────────────────────────────────────────────────
+  var inlineNode = (
+    <Portal target={portalTarget}>
+      @if (mounted) {
+        <Button
+          text="Portal Button (click me)"
+          onClick={_ => AppendLog("Portal button clicked")}
+          style={new Style { (StyleKeys.MarginTop, 6f) }}
+        />
+      } @else {
+        <Label text="Portal unmounted." />
+      }
+    </Portal>
+  );
+
+  // ── var: portalNode (setup-code JSX) ──────────────────────────────────────
+  var portalNode = portalTarget != null
+    ? (
+      <Portal target={portalTarget}>
+        @if (mounted) {
+          <Button
+            text="Portal Button (click me)"
+            onClick={_ => AppendLog("Portal button clicked")}
+            style={new Style { (StyleKeys.MarginTop, 6f) }}
+          />
+        } @else {
+          <Label text="Portal unmounted." />
+        }
+      </Portal>
+    )
+    : null;
+
+  // ── bool helper ───────────────────────────────────────────────────────────
+  bool IsLoading() => trigger > 1000;
+
+  // ── var: string.Join ──────────────────────────────────────────────────────
+  var optionsText = options.Count == 0
+    ? "No options"
+    : string.Join(", ", options);
+
+  return (
+    <ScrollView style={containerStyle}>
+      <Label
+        text="Kitchen Sink Component"
+        style={new Style { (StyleKeys.FontSize, 16f), ("unityFontStyleAndWeight", FontStyle.Bold), (StyleKeys.MarginBottom, 6f) }}
+      />
+      @switch (mode) {
+        @case "squared":
+          <Label text={$"Mode: Squared — Count²: {count * count}"} />
+        @case "doubled":
+          <Label text={$"Mode: Doubled — ×2: {doubleCount}"} />
+        @case "normal":
+          <Label text={$"Mode: Normal — Count: {count}"} />
+          <Button text="-5" onClick={_ => setCount(count - 5)} />
+        @default:
+          <Label text={$"Mode: Unknown ({mode})"} />
+      }
+      @if (count < -5) {
+        <Label text="Count cannot be less than -5!" />
+      } @else if (count < 0) {
+        <Label text="Count is negative!" />
+      } @else if (count == 0) {
+        <Label text="Count is zero" />
+      } @else {
+        @for (int i = 0; i < count; i++) {
+          @continue;
+          @if (i % 2 == 0) {
+            <Label text={$"Even row {i}"} />
+          } @else {
+            <Label text={$"Odd row {i}"} />
+          }
+        }
+        <Label text={$"Total rows: {count}"} />
+      }
+      @foreach (var entry in log) {
+        <Label key={entry} text={entry} />
+      }
+      <VisualElement style={badgeStyle}>
+        <Label text={$"Count: {count} Render#: {renderCount}"} />
+        <Label text={$"Signal: {signalCount}  Double: {doubleCount}"} />
+        <Label text={$"Options: {optionsText}"} style={syncLabelStyle} />
+      </VisualElement>
+      <VisualElement style={rowStyle}>
+        <Button
+          text="-5"
+          onClick={_ => setCount(count - 5)}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Button
+          text="-"
+          onClick={_ => setCount(count - 1)}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Label
+          text={$"{count}"}
+          style={new Style { (StyleKeys.MinWidth, 30f), ("unityTextAlign", "middle-center") }}
+        />
+        <Button
+          text="+"
+          onClick={_ => setCount(count + 1)}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Button text="+5" onClick={_ => setCount(count + 5)} />
+      </VisualElement>
+      <VisualElement style={rowStyle}>
+        <Button
+          text="Normal"
+          onClick={_ => ApplyMode("normal")}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Button
+          text="Squared"
+          onClick={_ => ApplyMode("squared")}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Button text="Doubled" onClick={_ => ApplyMode("doubled")} />
+      </VisualElement>
+      <VisualElement style={rowStyle}>
+        <Button
+          text="×3"
+          onClick={_ => TripleIncrement()}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Button
+          text="Reset"
+          onClick={_ => Reset()}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Button text="Shuffle" onClick={_ => ShuffleOptions()} />
+      </VisualElement>
+      <ToggleButtonGroup value={selected}>
+        @foreach (var opt in options) {
+          <Button
+            key={opt}
+            text={opt}
+            onClick={_ => setSelected(options.IndexOf(opt))}
+          />
+        }
+      </ToggleButtonGroup>
+      <Label
+        text={$"Selected: {(selected < options.Count ? options[selected] : "none")}"}
+        style={new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.FontSize, 13f), (StyleKeys.Color, new Color(0.85f, 0.95f, 1f, 1f)) }}
+      />
+      <Toolbar style={new Style { (StyleKeys.MarginTop, 6f) }}>
+        <ToolbarMenu text="Actions" populateMenu={buildMenu} />
+      </Toolbar>
+      <TabView
+        selectedIndex={tabViewProps.SelectedIndex}
+        tabs={tabViewProps.Tabs}
+        style={tabViewProps.Style}
+      />
+      <VisualElement
+        style={panelStyle}
+        extraProps={new Dictionary<string, object> {
+          { "onPointerDown", (PointerEventHandler)(e => HandleEvent(e)) },
+          { "onPointerMove", (PointerEventHandler)(e => HandleEvent(e)) },
+          { "onWheel", (WheelEventHandler)(e => HandleEvent(e)) }
+        }}
+      >
+        <Label
+          text="Interact here (pointer and wheel events)"
+          style={new Style { (StyleKeys.TextColor, Color.white) }}
+        />
+      </VisualElement>
+      <Suspense
+        isReady={IsLoading}
+        fallback={V.Label(new LabelProps { Text = "Suspense fallback..." })}
+      >
+        <Label text={$"Trigger value: {trigger}"} />
+      </Suspense>
+      <Button
+        text={mounted ? "Unmount Portal" : "Mount Portal"}
+        onClick={_ => setMounted(!mounted)}
+        style={new Style { (StyleKeys.MinWidth, 140f), (StyleKeys.MarginBottom, 6f), (StyleKeys.MarginTop, 4f) }}
+      />
+      @(portalNode)
+      @(inlineNode)
+      {/* ── visualElementSafe: safe-area-aware wrapper ── */}
+      <visualElementSafe style={badgeStyle}>
+        <Label text="Inside a visualElementSafe (safe-area padding applied)" />
+      </visualElementSafe>
+      {/* ── Route element with inline JSX (no V.Func / V.Text needed) ── */}
+      <Router>
+        <Route path="/" exact element={<Label text="JSX route — home" />} />
+        <Route path="/jsxDemo" element={<Label text="JSX route — demo" />} />
+      </Router>
+      <UitkxTestSubFileDoNotTouch
+        message="UitkxCounterFunc — Go-to-definition test"
+      />
+    </ScrollView>
+  );
+}

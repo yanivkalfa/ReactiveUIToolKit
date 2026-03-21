@@ -98,7 +98,6 @@ component ShowcaseDemoPage {
   return (
     <VisualElement ref={rootRef} style={outerStyle}>
       <Label text="asaaaaaa" />
-      <AnotherFile />
       <VisualElement style={safeStyle}>
         <VisualElement style={barSlotStyle}>
           <ValuesBar items={valuesItems} />
