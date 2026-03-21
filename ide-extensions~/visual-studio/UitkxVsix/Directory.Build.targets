@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Import VSSDK targets here (instead of in the .csproj) so that they run
+    AFTER Microsoft.Common.CurrentVersion.targets.  In SDK-style projects the
+    bottom-of-csproj import fires before the SDK targets and its
+    PrepareForRunDependsOn additions get overwritten, preventing VSIX creation.
+  -->
+  <Import
+    Project="$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets"
+    Condition="'$(PkgMicrosoft_VSSDK_BuildTools)' != '' And Exists('$(PkgMicrosoft_VSSDK_BuildTools)\tools\vssdk\Microsoft.VsSDK.targets')"
+  />
+</Project>
