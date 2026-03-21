@@ -87,6 +87,7 @@ component ShowcaseDemoPage {
   };
   var barSlotStyle = new Style { (FlexShrink, 0f), (MinHeight, 110f) };
   var mainScrollStyle = new Style { (FlexGrow, 1f), (PaddingBottom, 20f) };
+
   var pageStyle = new Style {
     (StyleKeys.FlexDirection, "column"),
     (FlexGrow, 1f),
@@ -96,7 +97,8 @@ component ShowcaseDemoPage {
 
   return (
     <VisualElement ref={rootRef} style={outerStyle}>
-      <Label text="aasd" />
+      <Label text="asaaaaaa" />
+      <AnotherFile />
       <VisualElement style={safeStyle}>
         <VisualElement style={barSlotStyle}>
           <ValuesBar items={valuesItems} />
