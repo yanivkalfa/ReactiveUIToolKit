@@ -315,8 +315,28 @@ jobs:
         shell: pwsh
         working-directory: ide-extensions~/visual-studio/UitkxVsix
         run: |
-          $vsix = Get-ChildItem -Recurse -Filter "*.vsix" | Select-Object -First 1
-          echo "VSIX_PATH=$($vsix.FullName)" >> $env:GITHUB_OUTPUT
+          # Search in known output locations
+          $candidates = @(
+            "bin\Release\net472\UitkxVsix.vsix",
+            "bin\Release\UitkxVsix.vsix",
+            "UitkxVsix.vsix"
+          )
+          $found = $null
+          foreach ($c in $candidates) {
+            if (Test-Path $c) { $found = (Resolve-Path $c).Path; break }
+          }
+          if (-not $found) {
+            # Fallback: recursive search
+            $vsix = Get-ChildItem -Recurse -Filter "*.vsix" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($vsix) { $found = $vsix.FullName }
+          }
+          if (-not $found) {
+            Write-Host "::error::No .vsix file found. Listing build output:"
+            Get-ChildItem -Recurse bin | Format-Table FullName
+            exit 1
+          }
+          Write-Host "Found VSIX: $found"
+          echo "VSIX_PATH=$found" >> $env:GITHUB_OUTPUT
 
       - name: Publish to VS Marketplace
         if: steps.check.outputs.skip == 'false'
