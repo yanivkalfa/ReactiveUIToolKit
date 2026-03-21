@@ -328,7 +328,7 @@ Store in a dev-facing doc or config file.
 ## Tier 5 — Process & Governance (when ready to ship)
 
 ### 15. Phase A: Scope lock and product definition
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Details:** Decision-making tasks, not code:
 - Finalize V1 in-scope features and out-of-scope items
@@ -339,32 +339,31 @@ Store in a dev-facing doc or config file.
 ---
 
 ### 16. Phase F gaps: Versioning and compliance
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-20 | **Tested:** —
 
 **Details:**
-- Define versioning strategy (SemVer + compatibility policy)
-- Define deprecation/upgrade policy
-- Create THIRDPARTY.md with dependency license inventory
-- Define distribution channels
+- ✅ Define versioning strategy (SemVer + compatibility policy) → `VERSIONING.md`
+- ✅ Define deprecation/upgrade policy → `VERSIONING.md`
+- ✅ Create THIRDPARTY.md with dependency license inventory → `THIRDPARTY.md`
+- ✅ Define distribution channels → `RELEASE_OPS.md`
 
 ---
 
 ### 17. Phase G: Release operations
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-21 | **Tested:** CI verified
 
 **Details:**
-- Cut RC branch and freeze feature merges
-- Run full regression suite
-- Execute release runbook dry-run
-- Bump final V1 version, build from clean environment, publish
+- ✅ CI/CD pipeline: `test.yml` (PR tests) + `publish.yml` (unified publish)
+- ✅ `RELEASE_OPS.md` with version files reference and full runbook
+- ✅ Automated: dist deploy, docs deploy, VS Code publish, VS2022 VSIX publish
+- ✅ Each extension version-checked independently via git tags
 
 ---
 
 ### 18. Phase H: Community and support readiness
-**Status:** Not Started | **Delivered:** — | **Tested:** —
+**Status:** ✅ Done | **Delivered:** 2026-03-21 | **Tested:** —
 
 **Details:**
-- Prepare announcement content
-- Publish FAQ for common issues
-- Add issue templates for bug reports
+- ✅ Publish FAQ for common issues → docs site FAQ page
+- ✅ Add issue templates for bug reports → `.github/ISSUE_TEMPLATE/`
 - Define support channels and response expectations

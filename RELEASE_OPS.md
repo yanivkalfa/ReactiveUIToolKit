@@ -4,6 +4,26 @@ Step-by-step guide for publishing ReactiveUIToolKit releases.
 
 ---
 
+## Version Files Reference
+
+Each artifact versions independently. Bump only the ones you're releasing.
+
+| Artifact | File | Property | Current |
+|---|---|---|---|
+| **Unity Package** | `package.json` | `version` | `0.2.23` |
+| **VS Code Extension** | `ide-extensions~/vscode/package.json` | `version` | `1.0.282` |
+| **VS 2022 Extension** | `ide-extensions~/visual-studio/UitkxVsix/source.extension.vsixmanifest` | `Identity Version` | `1.0.58` |
+| **Rider Plugin** *(disabled)* | `ide-extensions~/rider/gradle.properties` | `pluginVersion` | `1.0.0` |
+| **LSP Server** | `ide-extensions~/lsp-server/UitkxLanguageServer.csproj` | `<Version>` | `1.0.0` |
+| **VS Code Changelog** | `ide-extensions~/vscode/CHANGELOG.md` | Entry header | — |
+
+> **Note:** The `v*` tag (e.g. `v0.2.24`) must match the Unity `package.json` version.
+> IDE extension versions are checked independently via their own git tags
+> (`vscode-v{ver}`, `vs2022-v{ver}`). If a version was already published,
+> that job is skipped automatically.
+
+---
+
 ## Prerequisites
 
 - .NET 8+ SDK installed (`dotnet --version`)
@@ -14,26 +34,41 @@ Step-by-step guide for publishing ReactiveUIToolKit releases.
 
 ---
 
-## Automated (Tag-Triggered) — IDE Extensions
+## Automated (CI) — `publish.yml`
 
-These happen automatically when you push a tag.
+A single workflow (`publish.yml`) runs all publish jobs. It triggers on:
+- **`v*` tag push** — runs dist deploy + docs + all IDE extension jobs
+- **`workflow_dispatch`** — runs docs + IDE extension jobs (no dist)
 
-### VS Code + Visual Studio Extensions
+### Releasing a new version
 
 ```bash
-# 1. Ensure all changes are merged to main
-# 2. Bump version in ide-extensions~/vscode/package.json
-# 3. Update CHANGELOG.md
-# 4. Commit and push
+# 1. Bump versions in the files listed above (only the ones that changed)
+# 2. Update CHANGELOG.md entries as needed
+# 3. Commit and push to main
 
-git tag ide-v1.0.283
-git push origin ide-v1.0.283
+# 4. Tag with the Unity package version (must match package.json)
+git tag v0.2.24
+git push origin v0.2.24
 ```
 
-This triggers three GitHub Actions workflows:
-- `publish-vscode.yml` → VS Code Marketplace + Open VSX
-- `publish-vsix.yml` → Visual Studio Marketplace
-- `publish-rider.yml` → JetBrains Marketplace (when ready)
+This triggers 4 parallel jobs:
+
+| Job | What it does | Skip condition |
+|---|---|---|
+| **deploy-dist** | Builds source generator DLLs, packages dist, pushes to `dist` branch | Only runs on `v*` tags |
+| **deploy-docs** | Builds docs site, pushes to `documentations` branch | Never skipped |
+| **publish-vscode** | Builds LSP server + VS Code extension, publishes to marketplace | Skipped if `vscode-v{ver}` tag exists |
+| **publish-vs2022** | Builds LSP server + VSIX, publishes via VsixPublisher.exe | Skipped if `vs2022-v{ver}` tag exists |
+
+Each IDE extension job auto-tags on success (e.g. `vscode-v1.0.283`, `vs2022-v1.0.59`).
+
+### Required GitHub Secrets
+
+| Secret | Purpose |
+|---|---|
+| `VSCE_PAT` | Azure DevOps PAT for VS Code Marketplace publishing |
+| `VS_MARKETPLACE_TOKEN` | Azure DevOps PAT for VS 2022 Marketplace publishing |
 
 Monitor progress at: `https://github.com/<org>/ReactiveUIToolKit/actions`
 
@@ -99,14 +134,14 @@ butler push ReactiveUIToolKit-v1.0.0.unitypackage your-account/reactiveuitoolkit
 
 ## Manual — Documentation Site
 
-The docs site is deployed automatically via GitHub Actions on merge to `main`
-(the `deploy-docs.yml` workflow). To deploy manually:
+The docs site is deployed automatically by `publish.yml` (pushes to the
+`documentations` branch on every publish run). To deploy manually:
 
 ```bash
 cd ReactiveUIToolKitDocs~
 npm ci
 npm run build
-# Deploy the dist/ folder to your hosting provider
+# The dist/ folder is then pushed to the documentations branch
 ```
 
 ---
@@ -120,7 +155,7 @@ Before tagging a release:
 - [ ] VS Code extension builds: `cd ide-extensions~/vscode && npm ci && npm run build`
 - [ ] Docs site builds: `cd ReactiveUIToolKitDocs~ && npm ci && npm run build`
 - [ ] CHANGELOG.md updated with version and changes
-- [ ] Version bumped in `package.json` (Unity), extension `package.json`, VSIX manifest
+- [ ] Versions bumped in relevant files (see **Version Files Reference** table above)
 - [ ] No uncommitted changes: `git status` is clean
 - [ ] Branch is up to date with `main`
 
