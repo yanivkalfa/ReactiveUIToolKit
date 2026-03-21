@@ -74,6 +74,7 @@ export type Page = {
   title: string
   path: string
   keywords?: string[]
+  searchContent?: string
   group?: 'basic' | 'advanced'
   element: () => ReactElement
 }
@@ -94,6 +95,7 @@ export const pages: Section[] = [
         title: 'Introduction',
         path: '/',
         keywords: ['overview', 'unity 6.2', 'reactive', 'ui toolkit'],
+        searchContent: 'reactiveuitoolkit react-like component model unity hooks state effects reconciliation v.func v.memo visualelement diffing scheduler rendering fiber dom-like',
         element: () => <IntroductionPage />,
       },
     ],
@@ -107,6 +109,7 @@ export const pages: Section[] = [
         title: 'Install & Setup',
         path: '/getting-started',
         keywords: ['install', 'setup', 'unity package manager', 'dist'],
+        searchContent: 'install setup unity package manager git url create component mount rootrenderer uidocument rootvisualelement editorrootrendererutility partial class render method v.func v.memo',
         element: () => <GettingStartedPage />,
       },
     ],
@@ -120,6 +123,7 @@ export const pages: Section[] = [
         title: 'Concepts & Environment',
         path: '/concepts',
         keywords: ['concepts', 'environment', 'defines', 'trace', 'react differences'],
+        searchContent: 'concepts environment defines tracings symbols env_dev env_staging env_prod ruitk_trace_verbose ruitk_trace_basic runtime diagnostics intrinsic tags hooks markup reconciliation scheduling companion partial classes',
         element: () => <ConceptsPage />,
       },
     ],
@@ -133,6 +137,7 @@ export const pages: Section[] = [
         title: 'Different from React',
         path: '/differences',
         keywords: ['react', 'usestate', 'signals', 'differences'],
+        searchContent: 'different from react usestate setter value updater function fiber schedule asynchronously scheduler sliced render deferred passive effects concurrent jsx-like syntax visualelement interop unity controls styles events',
         element: () => <DifferencesPage />,
       },
     ],
@@ -146,6 +151,7 @@ export const pages: Section[] = [
         title: 'Router',
         path: '/tooling/router',
         keywords: ['navigation', 'routes'],
+        searchContent: 'router routing route links routerhooks usenavigate usego useparams usequery uselocationinfo usenavigationstate useblocker declarative route composition navigation routernavlink',
         element: () => <RouterPage />,
       },
       {
@@ -153,6 +159,7 @@ export const pages: Section[] = [
         title: 'Signals',
         path: '/tooling/signals',
         keywords: ['state', 'observable'],
+        searchContent: 'signals shared-state primitive signal registry usesignal dispatch signalfactory.get signalsruntime.ensureinitialized signals.get counter increment',
         element: () => <SignalsPage />,
       },
     ],
@@ -619,6 +626,7 @@ export const pages: Section[] = [
         title: 'Animation hooks',
         path: '/special-hooks/animation',
         keywords: ['hooks', 'animation', 'UseAnimate', 'UseTweenFloat'],
+        searchContent: 'animation hooks useanimate usetweenfloat animate tween float interpolation easing duration delay loop repeat playback',
         element: () => <AnimationHooksPage />,
       },
       {
@@ -626,6 +634,7 @@ export const pages: Section[] = [
         title: 'Router hooks',
         path: '/special-hooks/router',
         keywords: ['hooks', 'router', 'RouterHooks'],
+        searchContent: 'router hooks routerhooks usenavigate useparams usequery uselocationinfo usenavigationstate useblocker usego usepath imperative navigation',
         element: () => <RouterHooksPage />,
       },
       {
@@ -633,6 +642,7 @@ export const pages: Section[] = [
         title: 'Signal hooks',
         path: '/special-hooks/signals',
         keywords: ['hooks', 'signals', 'UseSignal'],
+        searchContent: 'signal hooks usesignal dispatch signalfactory signalfactory.get signals.get shared-state reactive',
         element: () => <SignalsHooksPage />,
       },
       {
@@ -640,6 +650,7 @@ export const pages: Section[] = [
         title: 'Safe area hooks',
         path: '/special-hooks/safe-area',
         keywords: ['hooks', 'safe area', 'UseSafeArea', 'VisualElementSafe'],
+        searchContent: 'safe area hooks usesafearea visualelementsafe notch insets screen safe zone padding margins mobile',
         element: () => <SafeAreaHooksPage />,
       },
     ],
@@ -653,6 +664,7 @@ export const pages: Section[] = [
         title: 'API Reference',
         path: '/api',
         keywords: ['api', 'namespace', 'props', 'hooks', 'router', 'signals'],
+        searchContent: 'api reference namespace props hooks usestate useeffect usememo useref usecallback usecontext router signals runtime types v vnode virtualnode rootrenderer editorrootrendererutility',
         element: () => <APIPage />,
       },
     ],

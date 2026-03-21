@@ -1178,8 +1178,6 @@ namespace ReactiveUITK
                 RouterFunc.Render,
                 new RouterFuncProps { History = history, InitialPath = initialPath },
                 key,
-                false,
-                null,
                 children
             );
         }
@@ -1201,8 +1199,6 @@ namespace ReactiveUITK
                     Element = element,
                 },
                 key,
-                false,
-                null,
                 children
             );
         }
@@ -1236,7 +1232,7 @@ namespace ReactiveUITK
             params VirtualNode[] children
         )
         {
-            return Func<AnimateProps>(AnimateFunc.Render, props, key, false, null, children);
+            return Func<AnimateProps>(AnimateFunc.Render, props, key, children);
         }
 
         public static VirtualNode Suspense(

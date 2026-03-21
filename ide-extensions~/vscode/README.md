@@ -33,6 +33,10 @@ Adds language support for `.uitkx` ReactiveUIToolKit component templates.
 
 ## Known Limitations
 
+- **Brief colour flash on file open** — TextMate grammar colours appear
+  first (e.g. PascalCase names briefly show as green "type" tokens), then the
+  LSP semantic tokens override them within ~200 ms. This is inherent to how
+  VS Code layers TM grammar and semantic tokens.
 - Diagnostics (red squiggles) are produced by the Roslyn source generator, not
   the LSP server. Open the Unity Editor to see generator diagnostics in the
   Unity console.

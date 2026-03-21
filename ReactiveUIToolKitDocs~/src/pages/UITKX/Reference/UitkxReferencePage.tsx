@@ -17,13 +17,7 @@ const DIRECTIVE_HEADER_EXAMPLE = `@namespace My.Game.UI
 @component MyButton
 @props MyButtonProps
 @key "root-key"
-@inject ILogger logger
-
-@code {
-  var x = ComputeSomething();
-}
-
-<Button text="Click me" />`
+@inject ILogger logger`
 
 const FUNCTION_STYLE_EXAMPLE = `@using UnityEngine
 
@@ -60,7 +54,7 @@ const CONTROL_FLOW_EXAMPLE = `<VisualElement>
 const EXPRESSION_EXAMPLE = `<Label text={$"Count: {count}"} />
 <Button onClick={_ => setCount(count + 1)} />
 <VisualElement>
-  @(DateTime.Now.ToString())
+  @(MyCustomComponent)
   {/* This is a JSX comment */}
 </VisualElement>`
 
@@ -121,11 +115,6 @@ export const UitkxReferencePage: FC = () => (
             <TableCell><code>@inject</code></TableCell>
             <TableCell><code>@inject ILogger logger</code></TableCell>
             <TableCell>Dependency-injected field</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell><code>@code</code></TableCell>
-            <TableCell><code>@code {'{ var x = 1; }'}</code></TableCell>
-            <TableCell>Embeds C# setup code before the render return</TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -241,8 +230,8 @@ export const UitkxReferencePage: FC = () => (
         <TableBody>
           <TableRow>
             <TableCell><code>@(expr)</code></TableCell>
-            <TableCell><code>@(DateTime.Now.ToString())</code></TableCell>
-            <TableCell>Inline C# expression in markup children</TableCell>
+            <TableCell><code>@(MyCustomComponent)</code></TableCell>
+            <TableCell>Render a component or expression inline in markup children</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>{'{expr}'}</code></TableCell>

@@ -1,0 +1,436 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  # ════════════════════════════════════════════════════════════════════════════
+  # Dist branch — only on v* tag
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy-dist:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify package.json version matches tag
+        run: |
+          pkg_version="v$(node -p "require('./package.json').version")"
+          if [ "$pkg_version" != "${{ steps.version.outputs.tag }}" ]; then
+            echo "::error::package.json version ($pkg_version) does not match tag (${{ steps.version.outputs.tag }})"
+            exit 1
+          fi
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Build source generator DLLs
+        run: |
+          dotnet restore SourceGenerator~/ReactiveUITK.SourceGenerator.csproj
+          dotnet build SourceGenerator~/ReactiveUITK.SourceGenerator.csproj -c Release --no-restore
+
+      - name: Read paths to omit from config.json
+        run: |
+          node -e "
+            const config = require('./config.json');
+            const paths = config.pathsToOmitFromDist || [];
+            console.log(JSON.stringify(paths));
+          " > /tmp/omit_paths.json
+
+      - name: Build dist
+        run: |
+          set -e
+          DIST_DIR="dist_build"
+
+          mkdir -p "$DIST_DIR"
+
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.vs' \
+            --exclude='.github' \
+            --exclude='dist_build' \
+            --exclude='dist~' \
+            ./ "$DIST_DIR/"
+
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const patterns = JSON.parse(fs.readFileSync('/tmp/omit_paths.json', 'utf8'));
+            const distDir = '$DIST_DIR';
+
+            function rmSafe(p) {
+              const full = path.join(distDir, p);
+              if (fs.existsSync(full)) {
+                const stat = fs.statSync(full);
+                if (stat.isDirectory()) {
+                  fs.rmSync(full, { recursive: true });
+                } else {
+                  fs.unlinkSync(full);
+                }
+                console.log('Removed: ' + p);
+              }
+              const meta = full + '.meta';
+              if (fs.existsSync(meta)) {
+                fs.unlinkSync(meta);
+                console.log('Removed: ' + p + '.meta');
+              }
+            }
+
+            for (const pattern of patterns) {
+              const trimmed = pattern.trim().replace(/\\\\/g, '/');
+              if (trimmed.endsWith('/**')) {
+                rmSafe(trimmed.slice(0, -3));
+              } else {
+                rmSafe(trimmed);
+              }
+            }
+          "
+
+          if [ -d "$DIST_DIR/Samples" ]; then
+            rm -rf "$DIST_DIR/Samples~"
+            mv "$DIST_DIR/Samples" "$DIST_DIR/Samples~"
+            rm -f "$DIST_DIR/Samples.meta"
+          fi
+
+      - name: Push to dist branch
+        run: |
+          set -e
+          TAG="${{ steps.version.outputs.tag }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git worktree add -B dist _dist_worktree origin/dist 2>/dev/null || {
+            git worktree add -b dist _dist_worktree HEAD
+          }
+
+          find _dist_worktree -mindepth 1 -not -path '*/.git/*' -not -name '.git' -delete
+          cp -r dist_build/* _dist_worktree/
+
+          cd _dist_worktree
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No dist changes to deploy"
+          else
+            git commit -m "dist update $TAG"
+          fi
+          git push origin dist
+
+          cd ..
+          git worktree remove _dist_worktree
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Documentation site
+  # ════════════════════════════════════════════════════════════════════════════
+  deploy-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: ReactiveUIToolKitDocs~
+        run: npm ci
+
+      - name: Build
+        working-directory: ReactiveUIToolKitDocs~
+        run: npm run build
+
+      - name: Deploy to documentations branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git worktree add --force _docs_branch documentations 2>/dev/null || {
+            git branch documentations
+            git worktree add _docs_branch documentations
+          }
+
+          find _docs_branch -mindepth 1 -not -path '*/.git/*' -not -name '.git' -delete
+          cp -r ReactiveUIToolKitDocs~/dist/* _docs_branch/
+
+          cd _docs_branch
+          git add -A
+          git diff --cached --quiet && echo "No docs changes to deploy" && exit 0
+          git commit -m "docs update"
+          git push origin documentations
+
+          cd ..
+          git worktree remove _docs_branch
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # VS Code extension — publishes only if version changed
+  # ════════════════════════════════════════════════════════════════════════════
+  publish-vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if version already published
+        id: check
+        run: |
+          VERSION=$(node -p "require('./ide-extensions~/vscode/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git tag --list "vscode-v$VERSION" | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::VS Code extension v$VERSION already published — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup .NET
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Build LSP server
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj \
+            -c Release \
+            --self-contained false \
+            -o ide-extensions~/vscode/server
+
+      - name: Setup Node.js
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/vscode
+        run: npm ci
+
+      - name: Package extension
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/vscode
+        run: npx vsce package --no-dependencies -o uitkx.vsix
+
+      - name: Publish to VS Marketplace
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --no-dependencies --pat "$VSCE_PAT"
+
+      - name: Tag published version
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "vscode-v${{ steps.check.outputs.version }}"
+          git push origin "vscode-v${{ steps.check.outputs.version }}"
+
+      - name: Upload VSIX artifact
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: uitkx-vscode-${{ steps.check.outputs.version }}
+          path: ide-extensions~/vscode/uitkx.vsix
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Visual Studio 2022 extension — publishes only if version changed
+  # ════════════════════════════════════════════════════════════════════════════
+  publish-vs2022:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if version already published
+        id: check
+        shell: pwsh
+        run: |
+          [xml]$manifest = Get-Content "ide-extensions~/visual-studio/UitkxVsix/source.extension.vsixmanifest"
+          $version = $manifest.PackageManifest.Metadata.Identity.Version
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          $existing = git tag --list "vs2022-v$version"
+          if ($existing) {
+            echo "skip=true" >> $env:GITHUB_OUTPUT
+            echo "::notice::VS 2022 extension v$version already published — skipping"
+          } else {
+            echo "skip=false" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Setup .NET
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Build LSP server
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj `
+            -c Release `
+            --self-contained false `
+            -o ide-extensions~/visual-studio/UitkxVsix/server
+
+      - name: Add MSBuild to PATH
+        if: steps.check.outputs.skip == 'false'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Restore NuGet packages
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: dotnet restore
+
+      - name: Clean obj directory
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: |
+          if (Test-Path obj) { Remove-Item -Recurse -Force obj }
+
+      - name: Build VSIX
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: |
+          msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false
+          msbuild UitkxVsix.csproj /t:CreateVsixContainer /p:Configuration=Release /p:DeployExtension=false
+
+      - name: Locate VSIX
+        if: steps.check.outputs.skip == 'false'
+        id: find_vsix
+        shell: pwsh
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: |
+          $vsix = Get-ChildItem -Recurse -Filter "*.vsix" | Select-Object -First 1
+          echo "VSIX_PATH=$($vsix.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Publish to VS Marketplace
+        if: steps.check.outputs.skip == 'false'
+        env:
+          MARKETPLACE_TOKEN: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+        shell: pwsh
+        run: |
+          $vsixPath = "${{ steps.find_vsix.outputs.VSIX_PATH }}"
+          $body = [System.IO.File]::ReadAllBytes($vsixPath)
+          Invoke-RestMethod `
+            -Uri "https://marketplace.visualstudio.com/_apis/gallery/publishers/ReactiveUITK/extensions/UitkxVsix/vspackage?api-version=7.2-preview.1" `
+            -Method PUT `
+            -Headers @{ Authorization = "Bearer $env:MARKETPLACE_TOKEN"; "Content-Type" = "application/octet-stream" } `
+            -Body $body
+
+      - name: Tag published version
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "vs2022-v${{ steps.check.outputs.version }}"
+          git push origin "vs2022-v${{ steps.check.outputs.version }}"
+
+      - name: Upload VSIX artifact
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: uitkx-vs2022-${{ steps.check.outputs.version }}
+          path: ${{ steps.find_vsix.outputs.VSIX_PATH }}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Rider plugin — publishes only if version changed
+  # ════════════════════════════════════════════════════════════════════════════
+  publish-rider:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if version already published
+        id: check
+        run: |
+          VERSION=$(grep '^pluginVersion' ide-extensions~/rider/gradle.properties | cut -d'=' -f2 | tr -d ' ')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git tag --list "rider-v$VERSION" | grep -q .; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Rider plugin v$VERSION already published — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup .NET
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Build LSP server
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj \
+            -c Release \
+            --self-contained false \
+            -o ide-extensions~/rider/src/main/resources/server
+
+      - name: Setup JDK 17
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "corretto"
+
+      - name: Validate Gradle wrapper
+        if: steps.check.outputs.skip == 'false'
+        uses: gradle/actions/wrapper-validation@v3
+
+      - name: Setup Gradle
+        if: steps.check.outputs.skip == 'false'
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build plugin
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/rider
+        run: ./gradlew buildPlugin
+
+      - name: Sign plugin
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/rider
+        env:
+          CERTIFICATE_CHAIN:    ${{ secrets.JETBRAINS_CERTIFICATE_CHAIN }}
+          PRIVATE_KEY:          ${{ secrets.JETBRAINS_PRIVATE_KEY }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.JETBRAINS_PRIVATE_KEY_PASSWORD }}
+        run: ./gradlew signPlugin
+
+      - name: Publish plugin
+        if: steps.check.outputs.skip == 'false'
+        working-directory: ide-extensions~/rider
+        env:
+          PUBLISH_TOKEN: ${{ secrets.JETBRAINS_MARKETPLACE_TOKEN }}
+        run: ./gradlew publishPlugin
+
+      - name: Tag published version
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "rider-v${{ steps.check.outputs.version }}"
+          git push origin "rider-v${{ steps.check.outputs.version }}"
