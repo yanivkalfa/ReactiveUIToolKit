@@ -1,5 +1,6 @@
 using System;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Fiber;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -22,6 +23,11 @@ namespace ReactiveUITK.Bench
 
         public static int CurrentIndex => _scenarioIndex;
         public static string CurrentName => _currentName;
+        public static bool IsComplete { get; private set; }
+        public static event Action OnAllScenariosComplete;
+
+        private static long _lastRenderMs;
+        private static int _lastWorkUnits;
 
 #if UNITY_EDITOR
         private static double _lastEditorNow = -1;
@@ -42,6 +48,8 @@ namespace ReactiveUITK.Bench
                     : "ReactiveUITK Bench (Runtime)";
             BenchPerSecondLogger.BeginRun(title, overrides, outputTarget);
 
+            IsComplete = false;
+            FiberReconciler.MetricsEmitted += OnReconcilerMetrics;
             _scenarioIndex = -1;
             NextScenario();
         }
@@ -53,7 +61,12 @@ namespace ReactiveUITK.Bench
                 return;
             }
 
+            long gcBefore = GC.GetTotalMemory(false);
+            _lastRenderMs = 0;
+            _lastWorkUnits = 0;
             _currentRender.Invoke();
+            long gcAfter = GC.GetTotalMemory(false);
+            long renderAlloc = Math.Max(0, gcAfter - gcBefore);
 
 #if UNITY_EDITOR
             double now = EditorApplication.timeSinceStartup;
@@ -73,7 +86,7 @@ namespace ReactiveUITK.Bench
             _metrics.Sample(dt);
             _timer += dt;
 
-            BenchPerSecondLogger.SampleFrame(dt);
+            BenchPerSecondLogger.SampleFrame(dt, renderAlloc, _lastRenderMs, _lastWorkUnits);
 
             if (_timer >= _currentDuration)
             {
@@ -122,7 +135,10 @@ namespace ReactiveUITK.Bench
             {
                 _currentRender = null;
                 _currentName = null;
+                IsComplete = true;
+                FiberReconciler.MetricsEmitted -= OnReconcilerMetrics;
                 Debug.Log("[Bench] All scenarios done.");
+                OnAllScenariosComplete?.Invoke();
                 return;
             }
 
@@ -141,6 +157,12 @@ namespace ReactiveUITK.Bench
         public static void Render(VirtualNode vnode)
         {
             _renderer?.Render(vnode);
+        }
+
+        private static void OnReconcilerMetrics(FiberReconciler.FiberReconcilerMetrics m)
+        {
+            _lastRenderMs = m.LastRenderMs;
+            _lastWorkUnits = m.WorkUnits;
         }
     }
 }
