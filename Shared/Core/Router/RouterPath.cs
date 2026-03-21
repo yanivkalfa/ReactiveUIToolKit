@@ -6,6 +6,37 @@ namespace ReactiveUITK.Router
 {
     public static class RouterPath
     {
+        public static string Combine(string basePath, string relativePath)
+        {
+            string normalizedBase = Normalize(basePath);
+            normalizedBase = TrimTrailingWildcard(normalizedBase);
+
+            if (string.IsNullOrWhiteSpace(relativePath))
+            {
+                return normalizedBase;
+            }
+
+            if (relativePath == "*" || relativePath == "/*")
+            {
+                if (normalizedBase == "/")
+                {
+                    return "/*";
+                }
+                return Normalize(normalizedBase.TrimEnd('/') + "/*");
+            }
+
+            if (relativePath.StartsWith("/"))
+            {
+                return Normalize(relativePath);
+            }
+
+            string combined = normalizedBase == "/"
+                ? "/" + relativePath
+                : normalizedBase.TrimEnd('/') + "/" + relativePath;
+
+            return Normalize(combined);
+        }
+
         public static RouterLocation Parse(string raw, object state = null)
         {
             string working = raw ?? "/";
@@ -99,6 +130,25 @@ namespace ReactiveUITK.Router
                 buffer.Add(trimmed);
             }
             return buffer;
+        }
+
+        private static string TrimTrailingWildcard(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return "/";
+            }
+
+            if (path.EndsWith("/*", StringComparison.Ordinal))
+            {
+                if (path.Length <= 2)
+                {
+                    return "/";
+                }
+                return path.Substring(0, path.Length - 2);
+            }
+
+            return path;
         }
     }
 }

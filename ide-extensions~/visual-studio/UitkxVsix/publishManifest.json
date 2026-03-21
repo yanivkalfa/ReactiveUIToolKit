@@ -1,0 +1,10 @@
+{
+  "publisher": "ReactiveUITK",
+  "identity": {
+    "internalName": "uitkx-visualstudio"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "overview": "overview.md"
+}

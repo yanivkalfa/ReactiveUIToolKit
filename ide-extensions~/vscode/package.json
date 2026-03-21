@@ -1,0 +1,179 @@
+{
+  "name": "uitkx",
+  "displayName": "UITKX",
+  "description": "Language support for .uitkx ReactiveUIToolKit component templates",
+  "icon": "images/logo.png",
+  "version": "1.0.282",
+  "publisher": "ReactiveUITK",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ReactiveUITK/ReactiveUIToolKit"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "uitkx",
+    "unity",
+    "ui-toolkit",
+    "reactive"
+  ],
+  "activationEvents": [
+    "onLanguage:uitkx"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "uitkx",
+        "aliases": [
+          "UITKX",
+          "uitkx"
+        ],
+        "extensions": [
+          ".uitkx"
+        ],
+        "filenames": [],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "uitkx",
+        "scopeName": "source.uitkx",
+        "path": "./syntaxes/uitkx.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "UITKX",
+      "properties": {
+        "uitkx.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the UitkxLanguageServer.dll. Leave empty to use the bundled server."
+        },
+        "uitkx.server.dotnetPath": {
+          "type": "string",
+          "default": "dotnet",
+          "description": "Path to the dotnet executable used to run the LSP server."
+        },
+        "uitkx.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace LSP communication between VS Code and the language server."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[uitkx]": {
+        "editor.defaultFormatter": "ReactiveUITK.uitkx",
+        "editor.formatOnSave": true,
+        "editor.autoIndent": "full",
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true,
+        "editor.bracketPairColorization.enabled": false,
+        "editor.semanticTokenColorCustomizations": {
+          "rules": {
+            "*.uitkxUnreachable": {
+              "foreground": "#6b6b6b",
+              "italic": true
+            },
+            "property:uitkx": {
+              "foreground": "#DCDCAA"
+            },
+            "variable:uitkx": {
+              "foreground": "#9CDCFE"
+            }
+          }
+        }
+      }
+    },
+    "semanticTokenScopes": [
+      {
+        "language": "uitkx",
+        "scopes": {
+          "property": ["variable.other.property"]
+        }
+      }
+    ],
+    "semanticTokenTypes": [
+      {
+        "id": "uitkxElement",
+        "superType": "class",
+        "description": "UITKX element tag names (e.g. Box, Label, MyComponent)"
+      },
+      {
+        "id": "uitkxDirective",
+        "superType": "keyword",
+        "description": "UITKX control-flow directives (@if, @foreach, @switch, etc.)"
+      },
+      {
+        "id": "uitkxAttribute",
+        "superType": "property",
+        "description": "UITKX attribute names on elements (e.g. text, class)"
+      },
+      {
+        "id": "uitkxExpression",
+        "superType": "operator",
+        "description": "UITKX inline expression delimiters @(...)"
+      },
+      {
+        "id": "uitkxDirectiveName",
+        "superType": "namespace",
+        "description": "UITKX directive value tokens (namespace, component name, etc.)"
+      }
+    ],
+    "semanticTokenModifiers": [
+      {
+        "id": "uitkxUnreachable",
+        "description": "Applied to code that is unreachable after @break, @continue, or return in the same scope"
+      }
+    ],
+    "commands": [
+      {
+        "command": "uitkx.toggleBlockComment",
+        "title": "UITKX: Toggle Block Comment"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "uitkx.toggleBlockComment",
+        "key": "ctrl+/",
+        "when": "editorTextFocus && editorLangId == uitkx"
+      },
+      {
+        "command": "uitkx.toggleBlockComment",
+        "key": "cmd+/",
+        "when": "editorTextFocus && editorLangId == uitkx"
+      }
+    ]
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('fs').cpSync('../grammar/uitkx.tmLanguage.json','syntaxes/uitkx.tmLanguage.json')\"",
+    "build": "node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "npm run prebuild && npm run build",
+    "package": "vsce package",
+    "publish": "vsce publish",
+    "deploy": "vsce publish"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.27.3",
+    "typescript": "^5.3.0"
+  }
+}

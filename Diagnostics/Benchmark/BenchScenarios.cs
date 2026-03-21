@@ -27,7 +27,7 @@ namespace ReactiveUITK.Bench
             var labelStyle = new Style { (TextColor, UColor.white) };
 
             return V.VisualElement(
-                style,
+                new VisualElementProps { Style = style },
                 key,
                 V.Label(new LabelProps { Text = text, Style = labelStyle })
             );
@@ -63,7 +63,7 @@ namespace ReactiveUITK.Bench
         {
             var headerStyle = new Style { (TextColor, UColor.white) };
             var vnode = V.VisualElement(
-                Column(),
+                new VisualElementProps { Style = Column() },
                 null,
                 V.Label(
                     new LabelProps
@@ -73,33 +73,39 @@ namespace ReactiveUITK.Bench
                     }
                 ),
                 V.VisualElement(
-                    new Style { (Height, 48f), (MarginBottom, 8f), (BackgroundColor, UColor.red) },
+                    new VisualElementProps { Style = new Style { (Height, 48f), (MarginBottom, 8f), (BackgroundColor, UColor.red) } },
                     "bar_r"
                 ),
                 V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (Height, 48f),
-                        (MarginBottom, 8f),
-                        (BackgroundColor, UColor.green),
+                        Style = new Style
+                        {
+                            (Height, 48f),
+                            (MarginBottom, 8f),
+                            (BackgroundColor, UColor.green),
+                        }
                     },
                     "bar_g"
                 ),
                 V.VisualElement(
-                    new Style { (Height, 48f), (MarginBottom, 8f), (BackgroundColor, UColor.blue) },
+                    new VisualElementProps { Style = new Style { (Height, 48f), (MarginBottom, 8f), (BackgroundColor, UColor.blue) } },
                     "bar_b"
                 ),
                 V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (Height, 48f),
-                        (MarginBottom, 8f),
-                        (BackgroundColor, UColor.yellow),
+                        Style = new Style
+                        {
+                            (Height, 48f),
+                            (MarginBottom, 8f),
+                            (BackgroundColor, UColor.yellow),
+                        }
                     },
                     "bar_y"
                 ),
                 V.VisualElement(
-                    new Style { (Height, 48f), (MarginBottom, 0f), (BackgroundColor, UColor.cyan) },
+                    new VisualElementProps { Style = new Style { (Height, 48f), (MarginBottom, 0f), (BackgroundColor, UColor.cyan) } },
                     "bar_c"
                 )
             );
@@ -110,7 +116,7 @@ namespace ReactiveUITK.Bench
         {
             var headerStyle = new Style { (TextColor, UColor.white) };
             var vnode = V.VisualElement(
-                Column(),
+                new VisualElementProps { Style = Column() },
                 null,
                 V.Label(new LabelProps { Text = "Static Screen", Style = headerStyle }),
                 Row("Hello 1"),
@@ -132,11 +138,14 @@ namespace ReactiveUITK.Bench
                     children.Add(Row($"Row {i} :: {tick % 1000}", key: $"k{i}", last: i == n - 1));
                 }
                 var vnode = V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (FlexDirection, "column"),
-                        (FlexGrow, 1f),
-                        (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        Style = new Style
+                        {
+                            (FlexDirection, "column"),
+                            (FlexGrow, 1f),
+                            (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        }
                     },
                     null,
                     children.ToArray()
@@ -170,11 +179,14 @@ namespace ReactiveUITK.Bench
                     children.Add(Row($"Item {i}", key: $"id{i}", last: idx == order.Count - 1));
                 }
                 var vnode = V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (FlexDirection, "column"),
-                        (FlexGrow, 1f),
-                        (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        Style = new Style
+                        {
+                            (FlexDirection, "column"),
+                            (FlexGrow, 1f),
+                            (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        }
                     },
                     null,
                     children.ToArray()
@@ -202,11 +214,14 @@ namespace ReactiveUITK.Bench
                     }
                 }
                 var vnode = V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (FlexDirection, "column"),
-                        (FlexGrow, 1f),
-                        (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        Style = new Style
+                        {
+                            (FlexDirection, "column"),
+                            (FlexGrow, 1f),
+                            (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        }
                     },
                     null,
                     children.ToArray()
@@ -232,7 +247,7 @@ namespace ReactiveUITK.Bench
                 lastShouldThrow = shouldThrow;
 
                 VirtualNode guardedChild = V.Func(
-                    (props, children) =>
+                    (IProps props, IReadOnlyList<VirtualNode> children) =>
                     {
                         if (shouldThrow)
                         {
@@ -280,7 +295,7 @@ namespace ReactiveUITK.Bench
                     }
                 );
 
-                var vnode = V.VisualElement(Column(), null, statusLabel, boundary);
+                var vnode = V.VisualElement(new VisualElementProps { Style = Column() }, null, statusLabel, boundary);
 
                 BenchSharedHost.Render(vnode);
             };
@@ -299,11 +314,14 @@ namespace ReactiveUITK.Bench
                     children.Add(Row($"Row {id}", key: $"row_{id}", last: i == 99));
                 }
                 var vnode = V.VisualElement(
-                    new Style
+                    new VisualElementProps
                     {
-                        (FlexDirection, "column"),
-                        (FlexGrow, 1f),
-                        (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        Style = new Style
+                        {
+                            (FlexDirection, "column"),
+                            (FlexGrow, 1f),
+                            (BackgroundColor, new UColor(0.12f, 0.12f, 0.12f, 1f)),
+                        }
                     },
                     null,
                     children.ToArray()
@@ -324,11 +342,11 @@ namespace ReactiveUITK.Bench
                 else
                 {
                     var vnode = V.VisualElement(
-                        Column(),
+                        new VisualElementProps { Style = Column() },
                         null,
                         V.Label(new LabelProps { Text = "SharedDemo hook not set" }),
                         V.VisualElement(
-                            new Style { (Height, 40f), (BackgroundColor, UColor.magenta) },
+                            new VisualElementProps { Style = new Style { (Height, 40f), (BackgroundColor, UColor.magenta) } },
                             "mag"
                         )
                     );

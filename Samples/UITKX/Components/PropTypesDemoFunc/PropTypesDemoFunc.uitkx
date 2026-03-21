@@ -1,0 +1,35 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component PropTypesDemoFunc {
+  var (useDefaults, setUseDefaults) = useState(false);
+
+  string? badgeLabel = useDefaults ? null : "All systems nominal";
+  var badgeColor = useDefaults ? new Color(0.3f, 0.3f, 0.3f) : Color.green;
+  var modeText = useDefaults ? "Missing props (null label shows fallback)" : "Valid props";
+
+  return (
+    <VisualElement
+      style={new Style { (StyleKeys.FlexGrow, 1f), (StyleKeys.Padding, 10f) }}
+    >
+      <Label
+        text="PropTypes demo"
+        style={new Style { (StyleKeys.FontSize, 16f), ("unityFontStyleAndWeight", FontStyle.Bold) }}
+      />
+      <StatusBadge label={badgeLabel} statusColor={badgeColor} />
+      <Label
+        text={modeText}
+        style={new Style { (StyleKeys.WhiteSpace, "normal") }}
+      />
+      <Button
+        text={useDefaults ? "Switch to valid props" : "Show default fallbacks"}
+        onClick={_ => setUseDefaults(!useDefaults)}
+        style={new Style { (StyleKeys.MinWidth, 160f), (StyleKeys.MarginBottom, 6f) }}
+      />
+      <Label
+        text="With typed props, the C# type system enforces prop correctness at compile time. Toggle above to pass null/default values and see the badge fallback."
+        style={new Style { (StyleKeys.WhiteSpace, "normal") }}
+      />
+    </VisualElement>
+  );
+}

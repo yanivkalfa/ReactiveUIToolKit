@@ -17,9 +17,7 @@ namespace ReactiveUITK.Elements
             {
                 view.itemExpandedChanged += handler;
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void Unsubscribe(TreeView view, Action<TreeViewExpansionChangedArgs> handler)
@@ -32,9 +30,7 @@ namespace ReactiveUITK.Elements
             {
                 view.itemExpandedChanged -= handler;
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void ExpandItem(TreeView view, int id, bool expandAllChildren)
@@ -47,9 +43,7 @@ namespace ReactiveUITK.Elements
             {
                 view.ExpandItem(id, expandAllChildren);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void Refresh(TreeView view)
@@ -62,9 +56,7 @@ namespace ReactiveUITK.Elements
             {
                 view.RefreshItems();
             }
-            catch
-            {
-            }
+            catch { }
         }
     }
 }

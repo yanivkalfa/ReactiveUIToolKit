@@ -1,0 +1,144 @@
+@namespace ReactiveUITK.Samples.UITKXShared
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK.Core
+@using ReactiveUITK.Props.Typed
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component MultiColumnListViewStatefulDemoFunc(
+  IReadOnlyList<MultiColumnListViewRowState>? items = null, 
+  List<SortedColumnDef>? sortDefs = null, 
+  Dictionary<string, float>? columnWidths = null, 
+  Dictionary<string, bool>? columnVisibility = null, 
+  Dictionary<string, int>? columnDisplayIndex = null, 
+  Action? addItem = null, 
+  Action? setTopItem = null, 
+  Action? deleteLast = null, 
+  ColumnSortEventHandler? onSortChanged = null, 
+  ColumnLayoutEventHandler? onLayoutChanged = null, 
+  Action<int>? onCountChanged = null
+) {
+  var safeItems = items ?? Array.Empty<MultiColumnListViewRowState>();
+
+  List<MultiColumnListViewProps.ColumnDef> BuildColumns() =>
+    new List<MultiColumnListViewProps.ColumnDef>
+    {
+      new()
+      {
+        Name = "ID",
+        Title = "ID",
+        Width = 140f,
+        MinWidth = 100f,
+        Resizable = true,
+        Stretchable = true,
+        Sortable = true,
+        Cell = (index, obj) =>
+        {
+          var item = obj as MultiColumnListViewRowState;
+          var id = item?.Id ?? index.ToString();
+          var shortId = id.Length > 6 ? id.Substring(0, 6) : id;
+          return (<Label text={shortId} key={$"id-cell-{id}"} />);
+        },
+      },
+      new()
+      {
+        Name = "Text",
+        Title = "Text",
+        Width = 260f,
+        MinWidth = 140f,
+        Resizable = true,
+        Stretchable = true,
+        Sortable = true,
+        Cell = (index, obj) =>
+        {
+          var item = obj as MultiColumnListViewRowState;
+          if (item == null)
+          {
+            return (<Label text="<invalid>" key={$"invalid-{index}"} />);
+          }
+
+          var id = item.Id ?? index.ToString();
+          var funcKey = $"mclv-row-{id}";
+          var childNode = item.ShouldOverrideElement
+          ? (<Label text={item.Text ?? "<null>"} key={funcKey} />)
+          : (<IntroCounterFunc key={funcKey} />);
+
+          return (
+            <VisualElement key={$"row-wrap-{id}"}>
+              @(childNode)
+            </VisualElement>
+          );
+        },
+      },
+  };
+
+  var columns = useMemo(() => BuildColumns(), new object[] { safeItems });
+
+  var displayed = useMemo(() => {
+    List<SortedColumnDef>? defsTree = null;
+    if (sortDefs != null)
+    {
+      defsTree = new List<SortedColumnDef>(sortDefs.Count);
+      foreach (var def in sortDefs)
+      {
+        defsTree.Add(new SortedColumnDef
+        {
+          Name = def?.Name,
+          Direction = def?.Direction,
+          Index = def?.Index,
+        });
+      }
+    }
+
+    return ReactiveUITK.Shared.Util.SortUtils.MultiSort(
+    defsTree,
+    safeItems,
+    (row, col) =>
+    string.Equals(col, "ID", StringComparison.OrdinalIgnoreCase) ? row?.Id
+    : string.Equals(col, "Text", StringComparison.OrdinalIgnoreCase) ? row?.Text
+    : null
+    );
+  }, new object[] { safeItems, sortDefs });
+
+  useEffect(() => {
+    onCountChanged?.Invoke(safeItems.Count);
+    return null;
+  }, new object[] { safeItems.Count });
+
+  PointerEventHandler Safe(Action? candidate) => _ => candidate?.Invoke();
+  var controlsStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (MarginBottom, 6f),
+    (FlexShrink, 0f),
+  };
+
+  return (
+    <VisualElement key="mclv-root">
+      <VisualElement style={controlsStyle} key="controls">
+        <Button text="Add Parent" onClick={Safe(addItem)} key="btn-add" />
+        <Button text="Set Value" onClick={Safe(setTopItem)} key="btn-set" />
+        <Button
+          text="Delete Last"
+          onClick={Safe(deleteLast)}
+          key="btn-delete"
+        />
+      </VisualElement>
+      <MultiColumnListView
+        items={displayed}
+        selection={SelectionType.None}
+        fixedItemHeight={20f}
+        columns={columns}
+        sortingMode={ColumnSortingMode.Custom}
+        sortedColumns={sortDefs}
+        columnSortingChanged={onSortChanged ?? (_ => {})}
+        columnWidths={columnWidths}
+        columnVisibility={columnVisibility}
+        columnDisplayIndex={columnDisplayIndex}
+        columnLayoutChanged={onLayoutChanged}
+        style={new Style { (MarginBottom, 30f) }}
+        key="mclv-list"
+      />
+    </VisualElement>
+  );
+}

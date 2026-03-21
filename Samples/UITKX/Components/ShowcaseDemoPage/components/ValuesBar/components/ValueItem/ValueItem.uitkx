@@ -1,0 +1,43 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using UnityEngine
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component ValueItem(string typeText = "", string typeValue = "") {
+  var containerStyle = new Style {
+    (FlexDirection, "row"),
+    (AlignItems, "center"),
+    (BackgroundColor, new Color(0.98f, 0.98f, 0.98f, 1f)),
+    (BorderWidth, 1f),
+    (BorderColor, new Color(0.88f, 0.88f, 0.88f, 1f)),
+    (BorderRadius, 4f),
+    (PaddingLeft, 6f),
+    (PaddingRight, 6f),
+    (PaddingTop, 3f),
+    (PaddingBottom, 3f),
+    (MarginRight, 8f),
+    (MarginBottom, 6f),
+    (FlexGrow, 1f),
+    (MinWidth, 140f),
+  };
+
+  var labelStyle = new Style {
+    (TextColor, new Color(0.35f, 0.35f, 0.35f, 1f)),
+    ("unityFontStyle", "bold"),
+  };
+
+  var valueStyle = new Style {
+    (TextColor, new Color(0.1f, 0.1f, 0.1f, 1f)),
+    (MarginLeft, 4f),
+  };
+
+  var displayLabel = string.IsNullOrEmpty(typeText) ? string.Empty : (typeText + ":");
+  var displayValue = typeValue ?? string.Empty;
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Label text={displayLabel} style={labelStyle} />
+      <Label text={displayValue} style={valueStyle} />
+    </VisualElement>
+  );
+}

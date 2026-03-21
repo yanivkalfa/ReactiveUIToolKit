@@ -1,0 +1,343 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Samples.UITKXShared
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK.Props.Typed
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component TabTreeDemoFunc {
+  var (tabIndex, setTabIndex) = useState(0);
+
+  var (treeRows, setTreeRows) = useState(new List<TreeViewRowState>());
+  var (treeNextPid, setTreeNextPid) = useState(2);
+  var (treeExpandedIds, setTreeExpandedIds) = useState<List<int>?>(null);
+
+  var (mctvRows, setMctvRows) = useState(new List<MultiColumnTreeViewRowState>());
+  var (mctvNextPid, setMctvNextPid) = useState(2);
+
+  // ── TreeView actions ────────────────────────────────────────────────
+  void TreeAddParent()
+  {
+    var pid = treeNextPid;
+    setTreeNextPid(treeNextPid + 2);
+    setTreeRows(prev =>
+    {
+      var next = prev != null ? new List<TreeViewRowState>(prev) : new List<TreeViewRowState>();
+      next.Add(new TreeViewRowState
+      {
+        Pid = pid,
+        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
+        HasChild = false,
+      });
+      return next;
+    });
+  }
+
+  void TreeAddChild()
+  {
+    setTreeRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null)
+      {
+        return prev;
+      }
+      var next = new List<TreeViewRowState>(prev);
+      next[next.Count - 1] = new TreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = source.Parent,
+        Child = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Child", IsChild = true },
+        HasChild = true,
+      };
+      return next;
+    });
+  }
+
+  void TreeSetParent()
+  {
+    setTreeRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null)
+      {
+        return prev;
+      }
+      var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+      parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+      parentItem.ShouldOverrideElement = true;
+      var next = new List<TreeViewRowState>(prev);
+      next[next.Count - 1] = new TreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = parentItem,
+        Child = source.Child,
+        HasChild = source.HasChild,
+      };
+      return next;
+    });
+  }
+
+  void TreeSetChild()
+  {
+    setTreeRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null || !source.HasChild)
+      {
+        return prev;
+      }
+      var childItem = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+      childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+      childItem.ShouldOverrideElement = true;
+      var next = new List<TreeViewRowState>(prev);
+      next[next.Count - 1] = new TreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = source.Parent,
+        Child = childItem,
+        HasChild = true,
+      };
+      return next;
+    });
+  }
+
+  void TreeDeleteLast()
+  {
+    setTreeRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var next = new List<TreeViewRowState>(prev);
+      next.RemoveAt(next.Count - 1);
+      return next;
+    });
+  }
+
+  void TreeExpandedChanged(TreeViewExpansionChangedArgs args)
+  {
+    setTreeExpandedIds(prev =>
+    {
+      var nextSet = prev != null ? new HashSet<int>(prev) : new HashSet<int>();
+      if (args != null)
+      {
+        if (args.isExpanded)
+        {
+          nextSet.Add(args.id);
+        }
+        else
+        {
+          nextSet.Remove(args.id);
+        }
+      }
+      var nextList = new List<int>(nextSet);
+      nextList.Sort();
+      // Bailout: return same reference if content unchanged → no re-render → breaks expansion loop
+      if (prev != null && prev.Count == nextList.Count)
+      {
+        var prevSet = new HashSet<int>(prev);
+        if (prevSet.SetEquals(nextSet))
+        {
+          return prev;
+        }
+      }
+      return nextList;
+    });
+  }
+
+  // ── MultiColumnTreeView actions ─────────────────────────────────────
+  void MctvAddParent()
+  {
+    var pid = mctvNextPid;
+    setMctvNextPid(mctvNextPid + 2);
+    setMctvRows(prev =>
+    {
+      var next = prev != null ? new List<MultiColumnTreeViewRowState>(prev) : new List<MultiColumnTreeViewRowState>();
+      next.Add(new MultiColumnTreeViewRowState
+      {
+        Pid = pid,
+        Parent = new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Parent" },
+        HasChild = false,
+      });
+      return next;
+    });
+  }
+
+  void MctvAddChild()
+  {
+    setMctvRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null)
+      {
+        return prev;
+      }
+      var next = new List<MultiColumnTreeViewRowState>(prev);
+      next[next.Count - 1] = new MultiColumnTreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = source.Parent,
+        Child = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), Text = "Child", IsChild = true },
+        HasChild = true,
+      };
+      return next;
+    });
+  }
+
+  void MctvSetParent()
+  {
+    setMctvRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null)
+      {
+        return prev;
+      }
+      var parentItem = source.Parent ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N") };
+      parentItem.Text = $"{parentItem.Id} {DateTime.Now:HH:mm:ss}";
+      parentItem.ShouldOverrideElement = true;
+      var next = new List<MultiColumnTreeViewRowState>(prev);
+      next[next.Count - 1] = new MultiColumnTreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = parentItem,
+        Child = source.Child,
+        HasChild = source.HasChild,
+      };
+      return next;
+    });
+  }
+
+  void MctvSetChild()
+  {
+    setMctvRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var source = prev[prev.Count - 1];
+      if (source == null || !source.HasChild)
+      {
+        return prev;
+      }
+      var childItem = source.Child ?? new SharedTreeRowItem { Id = Guid.NewGuid().ToString("N"), IsChild = true };
+      childItem.Text = $"{childItem.Id} {DateTime.Now:HH:mm:ss}";
+      childItem.ShouldOverrideElement = true;
+      var next = new List<MultiColumnTreeViewRowState>(prev);
+      next[next.Count - 1] = new MultiColumnTreeViewRowState
+      {
+        Pid = source.Pid,
+        Parent = source.Parent,
+        Child = childItem,
+        HasChild = true,
+      };
+      return next;
+    });
+  }
+
+  void MctvDeleteLast()
+  {
+    setMctvRows(prev =>
+    {
+      if (prev == null || prev.Count == 0)
+      {
+        return prev;
+      }
+      var next = new List<MultiColumnTreeViewRowState>(prev);
+      next.RemoveAt(next.Count - 1);
+      return next;
+    });
+  }
+
+  // ── Tab definitions (capture closures with current state + actions) ──
+  var tabViewProps = new TabViewProps
+  {
+    SelectedIndex = tabIndex,
+    Tabs = new List<TabViewProps.TabDef>
+    {
+      new() { Title = "Intro", Content = () => V.Label(new LabelProps { Text = "This is a TabView + TreeView demo." }) },
+      new() { Title = "Tree", Content = () => (
+        <TreeViewStatefulDemoFunc
+          rows={treeRows}
+          addParent={TreeAddParent}
+          addChild={TreeAddChild}
+          setParent={TreeSetParent}
+          setChild={TreeSetChild}
+          deleteLast={TreeDeleteLast}
+          expandedItemIds={treeExpandedIds}
+          onExpandedChanged={TreeExpandedChanged}
+        />
+      ) },
+      new() { Title = "Tree (Columns)", Content = () => (
+        <MultiColumnTreeViewStatefulDemoFunc
+          rows={mctvRows}
+          addParent={MctvAddParent}
+          addChild={MctvAddChild}
+          setParent={MctvSetParent}
+          setChild={MctvSetChild}
+          deleteLast={MctvDeleteLast}
+        />
+      ) },
+    },
+    Style = new Style { (Height, 240f) },
+  };
+
+  return (
+    <GroupBox
+      text="Tabs + TreeView"
+      style={new Style { (PaddingLeft, 6f), (PaddingTop, 4f) }}
+    >
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (MarginTop, 6f) }}
+      >
+        <Button
+          text="Intro"
+          onClick={_ => setTabIndex(0)}
+          style={new Style { (Width, 80f) }}
+          key="tabs-btn-intro"
+        />
+        <Button
+          text="Tree"
+          onClick={_ => setTabIndex(1)}
+          style={new Style { (Width, 80f), (MarginLeft, 6f) }}
+          key="tabs-btn-tree"
+        />
+        <Button
+          text="Columns"
+          onClick={_ => setTabIndex(2)}
+          style={new Style { (Width, 90f), (MarginLeft, 6f) }}
+          key="tabs-btn-columns"
+        />
+      </VisualElement>
+      <TabView
+        selectedIndex={tabViewProps.SelectedIndex}
+        tabs={tabViewProps.Tabs}
+        style={tabViewProps.Style}
+      />
+    </GroupBox>
+  );
+}

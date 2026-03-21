@@ -15,7 +15,7 @@ namespace ReactiveUITK.Elements
         public sealed class Cached : IExpansionState, IScrollState
         {
             public bool RowWired;
-            public Func<int, object, VirtualNode> RowFn;
+            public RowRenderer RowFn;
 
             public Dictionary<string, (IVNodeHostRenderer renderer, VisualElement mount)> Pool =
                 new();
@@ -26,6 +26,7 @@ namespace ReactiveUITK.Elements
             public Dictionary<int, bool> ExpandAllById { get; set; } = new();
             public bool OurHandlerAttached { get; set; }
             public Delegate UserExpandedHandler { get; set; }
+            public Action<TreeViewExpansionChangedArgs> UserExpandedHandlerWrapped { get; set; }
             public bool TrackUserExpansion { get; set; } = true;
 
             public bool IsScrolling { get; set; }
@@ -110,10 +111,7 @@ namespace ReactiveUITK.Elements
             }
             TryApplyProp<int>(properties, "selectedIndex", i => tv.SetSelection(i));
 
-            if (
-                properties.TryGetValue("row", out var rowFn)
-                && rowFn is Func<int, object, VirtualNode> rf
-            )
+            if (properties.TryGetValue("row", out var rowFn) && rowFn is RowRenderer rf)
             {
                 parts.RowFn = rf;
                 if (!parts.RowWired)

@@ -23,7 +23,8 @@ namespace ReactiveUITK.Elements
                     "text",
                     value =>
                     {
-                        labelElement.text = value ?? string.Empty;
+                        var newVal = value ?? string.Empty;
+                        labelElement.text = newVal;
                     }
                 );
             }

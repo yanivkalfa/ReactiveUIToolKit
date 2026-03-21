@@ -36,9 +36,10 @@ namespace ReactiveUITK.Router
             var patternSegments = RouterPath.SplitSegments(normalizedPattern);
 
             bool hasWildcard =
-                patternSegments.Length > 0
-                && patternSegments[patternSegments.Length - 1] == "*";
-            int matchSegmentCount = hasWildcard ? patternSegments.Length - 1 : patternSegments.Length;
+                patternSegments.Length > 0 && patternSegments[patternSegments.Length - 1] == "*";
+            int matchSegmentCount = hasWildcard
+                ? patternSegments.Length - 1
+                : patternSegments.Length;
             int locationSegmentCount = locationSegments.Length;
 
             if (matchSegmentCount > locationSegmentCount)

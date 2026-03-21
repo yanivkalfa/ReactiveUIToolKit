@@ -9,17 +9,13 @@ namespace ReactiveUITK.Core.AnimationComponents
     public static class AnimateFunc
     {
         public static VirtualNode Render(
-            Dictionary<string, object> props,
+            IProps rawProps,
             IReadOnlyList<VirtualNode> children
         )
         {
-            props ??= new Dictionary<string, object>();
-            props.TryGetValue("tracks", out var tracksObj);
-            props.TryGetValue("autoplay", out var autoplayObj);
-            props.TryGetValue("style", out var styleObj);
-
-            var tracks = tracksObj as IReadOnlyList<AnimateTrack>;
-            bool autoplay = autoplayObj is bool b ? b : true;
+            var p = rawProps as AnimateProps;
+            var tracks = p?.Tracks;
+            bool autoplay = p?.Autoplay ?? true;
 
             var container = Hooks.UseRef();
 
@@ -30,7 +26,7 @@ namespace ReactiveUITK.Core.AnimationComponents
                 container.style.flexShrink = 0f;
             }
 
-            var style = styleObj as Style;
+            var style = p?.Style;
             var arr = children is VirtualNode[] a
                 ? a
                 : (
@@ -38,7 +34,7 @@ namespace ReactiveUITK.Core.AnimationComponents
                         ? new List<VirtualNode>(children).ToArray()
                         : Array.Empty<VirtualNode>()
                 );
-            return ReactiveUITK.V.VisualElement(style, null, arr);
+            return ReactiveUITK.V.VisualElement(new VisualElementProps { Style = style }, null, arr);
         }
     }
 }

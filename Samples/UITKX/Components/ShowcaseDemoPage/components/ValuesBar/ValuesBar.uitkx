@@ -1,0 +1,42 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component ValuesBar(IEnumerable<KeyValuePair<string, string>>? items = null) {
+  var safeItems = items ?? Array.Empty<KeyValuePair<string, string>>();
+
+  var barContainerStyle = new Style {
+    (BackgroundColor, Color.white),
+    (BorderBottomWidth, 1f),
+    (BorderBottomColor, new Color(0.85f, 0.85f, 0.85f, 1f)),
+    (PaddingLeft, 10f),
+    (PaddingRight, 10f),
+    (PaddingTop, 6f),
+    (PaddingBottom, 6f),
+  };
+
+  var scrollContentProps = new Dictionary<string, object> {
+    {
+      "style",
+      new Style {
+        (FlexDirection, "row"),
+        (FlexWrap, "wrap"),
+        (AlignItems, "stretch"),
+        (AlignContent, "flex-start"),
+        (FlexGrow, 1f),
+      }
+    },
+  };
+
+  return (
+    <VisualElement style={barContainerStyle}>
+      <ScrollView mode="vertical" contentContainer={scrollContentProps}>
+        @foreach (var kv in safeItems) {
+          <ValueItem key={kv.Key} typeText={kv.Key} typeValue={kv.Value} />
+        }
+      </ScrollView>
+    </VisualElement>
+  );
+}

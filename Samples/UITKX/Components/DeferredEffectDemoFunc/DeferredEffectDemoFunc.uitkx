@@ -1,0 +1,89 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System
+
+component DeferredEffectDemoFunc {
+  var (commitCount, setCommitCount) = useState(0);
+  var (effectCount, setEffectCount) = useState(0);
+  var (lastCommitTime, setLastCommitTime) = useState("—");
+  var (lastEffectTime, setLastEffectTime) = useState("—");
+  var (trigger, setTrigger) = useState(0);
+
+  useLayoutEffect(() =>
+  {
+    setCommitCount(n => n + 1);
+    setLastCommitTime(DateTime.Now.ToString("HH:mm:ss.fff"));
+    return null;
+  }, new object[] { trigger });
+
+  useEffect(() =>
+  {
+    setEffectCount(n => n + 1);
+    setLastEffectTime(DateTime.Now.ToString("HH:mm:ss.fff"));
+    return null;
+  }, new object[] { trigger });
+
+  var inSync = commitCount == effectCount;
+
+  var containerStyle = new Style {
+    (StyleKeys.Padding, 14f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
+  };
+
+  var cardStyle = new Style {
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.MarginTop, 10f),
+    (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.12f, 0.9f)),
+    (StyleKeys.BorderRadius, 4f),
+  };
+
+  var syncColor = inSync ? new Color(0.3f, 0.85f, 0.45f, 1f) : new Color(0.95f, 0.65f, 0.1f, 1f);
+
+  var syncLabelStyle = new Style {
+    (StyleKeys.MarginTop, 6f),
+    (StyleKeys.FontSize, 13f),
+    (StyleKeys.Color, syncColor),
+  };
+
+  var syncMessage = inSync
+    ? "✔ In sync — both match"
+    : $"⏳ Commit is ahead by {commitCount - effectCount} — effect pending next frame";
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Text text="Deferred UseEffect — Step 3 Test" />
+      <Label
+        text="UseLayoutEffect is synchronous. UseEffect is deferred (next frame via scheduler). Click the button and watch Commit get ahead of Effect for one frame."
+        style={new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.Color, new Color(0.75f, 0.75f, 0.75f, 1f)), (StyleKeys.WhiteSpace, "normal") }}
+      />
+      <Button
+        text="Force Re-render (change trigger)"
+        onClick={_ => setTrigger(t => t + 1)}
+        style={new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 240f) }}
+      />
+      <VisualElement style={cardStyle}>
+        <Label
+          text={$"Commit #  (UseLayoutEffect) : {commitCount}"}
+          style={new Style { (StyleKeys.Color, new Color(0.4f, 0.8f, 1.0f, 1f)) }}
+        />
+        <Label
+          text={$"Effect  #  (UseEffect)      : {effectCount}"}
+          style={new Style { (StyleKeys.Color, new Color(0.6f, 1.0f, 0.5f, 1f)), (StyleKeys.MarginTop, 4f) }}
+        />
+        <Label text={syncMessage} style={syncLabelStyle} />
+      </VisualElement>
+      <VisualElement style={cardStyle}>
+        <Text text="Last timestamps:" />
+        <Label
+          text={$"  Commit time : {lastCommitTime}"}
+          style={new Style { (StyleKeys.Color, new Color(0.4f, 0.8f, 1.0f, 1f)), (StyleKeys.MarginTop, 4f), (StyleKeys.FontSize, 11f) }}
+        />
+        <Label
+          text={$"  Effect time : {lastEffectTime}"}
+          style={new Style { (StyleKeys.Color, new Color(0.6f, 1.0f, 0.5f, 1f)), (StyleKeys.MarginTop, 2f), (StyleKeys.FontSize, 11f) }}
+        />
+      </VisualElement>
+    </VisualElement>
+  );
+}

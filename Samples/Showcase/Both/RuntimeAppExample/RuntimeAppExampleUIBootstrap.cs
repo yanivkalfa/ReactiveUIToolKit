@@ -1,6 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
-using ReactiveUITK.Samples.Shared;
+using ReactiveUITK.Props.Typed;
+using ReactiveUITK.Samples.UITKXComponents;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -30,7 +31,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 return;
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
-            rootRenderer.Render(V.Func(SharedDemoPage.Render));
+            var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(ShowcaseDemoPage.Render)));
         }
     }
 }

@@ -1,4 +1,5 @@
 using ReactiveUITK.Core.Config;
+using ReactiveUITK.Core.Diagnostics;
 
 namespace ReactiveUITK.Core
 {
@@ -9,7 +10,7 @@ namespace ReactiveUITK.Core
             return ReactiveUITKConfig.Current.EnvironmentLabel ?? "production";
         }
 
-        public static Reconciler.DiffTraceLevel ResolveTraceLevel()
+        public static DiagnosticsConfig.TraceLevel ResolveTraceLevel()
         {
             return ReactiveUITKConfig.Current.TraceLevel;
         }

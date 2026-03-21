@@ -1,0 +1,77 @@
+@namespace ReactiveUITK.Samples.UITKXShared
+@using System
+@using System.Collections
+@using System.Collections.Generic
+@using ReactiveUITK.Core
+@using ReactiveUITK.Props.Typed
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component ListViewStatefulDemoFunc(
+  IReadOnlyList<ListViewRowState>? items = null, 
+  Action? addItem = null, 
+  Action? setTopItem = null, 
+  Action? deleteLast = null, 
+  Action<int>? onCountChanged = null
+) {
+  var safeItems = items ?? Array.Empty<ListViewRowState>();
+
+  RowRenderer BuildRowRenderer() =>
+    (index, obj) =>
+    {
+      var row = obj as ListViewRowState;
+      if (row == null)
+      {
+        return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+      }
+
+      var id = !string.IsNullOrEmpty(row.Id) ? row.Id : index.ToString();
+      var funcKey = $"lv-row-{id}";
+      var childNode = row.ShouldOverrideElement
+      ? (<Label text={row.Text ?? "<null>"} key={funcKey} />)
+      : (<IntroCounterFunc key={funcKey} />);
+
+      return (
+        <VisualElement key={$"lv-wrap-{id}"}>
+          @(childNode)
+        </VisualElement>
+      );
+  };
+
+  var rowRenderer = useMemo<RowRenderer>(() => BuildRowRenderer(), new object[] { safeItems });
+
+  useEffect(() => {
+    onCountChanged?.Invoke(safeItems.Count);
+    return null;
+  }, new object[] { safeItems.Count });
+
+  IList listItems = safeItems as IList ?? new List<ListViewRowState>(safeItems);
+  PointerEventHandler Safe(Action? candidate) => _ => candidate?.Invoke();
+  var controlsStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (FlexShrink, 0f),
+    (MarginBottom, 6f),
+  };
+  var listStyle = new Style {
+    (FlexGrow, 1f),
+    (BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 1f)),
+  };
+
+  return (
+    <VisualElement>
+      <VisualElement style={controlsStyle}>
+        <Button text="Add" onClick={Safe(addItem)} />
+        <Button text="Set Value" onClick={Safe(setTopItem)} />
+        <Button text="Delete Last" onClick={Safe(deleteLast)} />
+      </VisualElement>
+      <ListView
+        items={listItems}
+        fixedItemHeight={20f}
+        selection={SelectionType.None}
+        row={rowRenderer}
+        style={listStyle}
+      />
+    </VisualElement>
+  );
+}

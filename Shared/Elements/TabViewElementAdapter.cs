@@ -165,7 +165,7 @@ namespace ReactiveUITK.Elements
             {
                 var tab = new Tab();
                 string title = null;
-                Func<VirtualNode> dynamicContent = null;
+                ContentRenderer dynamicContent = null;
                 VirtualNode staticContent = null;
 
                 object titleObj = null;
@@ -177,7 +177,7 @@ namespace ReactiveUITK.Elements
                 tabDefinition?.TryGetValue("staticContent", out staticObj);
 
                 title = titleObj as string;
-                dynamicContent = contentObj as Func<VirtualNode>;
+                dynamicContent = contentObj as ContentRenderer;
                 staticContent = staticObj as VirtualNode;
 
                 SetTabTitle(tab, title ?? string.Empty);

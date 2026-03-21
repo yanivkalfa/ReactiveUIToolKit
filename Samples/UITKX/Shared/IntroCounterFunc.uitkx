@@ -1,0 +1,19 @@
+@namespace ReactiveUITK.Samples.UITKXShared
+@using ReactiveUITK.Props.Typed
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component IntroCounterFunc {
+  var (count, setCount) = useState(0);
+  var rowStyle = new Style { (FlexDirection, "row"), (AlignItems, "center") };
+
+  return (
+    <VisualElement style={rowStyle}>
+      <Label text={$"Count: {count}"} />
+      <Button
+        text="+1"
+        onClick={_ => setCount(count + 1)}
+        style={new Style { (MarginLeft, 8f) }}
+      />
+    </VisualElement>
+  );
+}

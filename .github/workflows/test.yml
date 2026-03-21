@@ -1,0 +1,116 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  source-generator-tests:
+    name: Source Generator Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore SourceGenerator~/Tests/ReactiveUITK.SourceGenerator.Tests.csproj
+
+      - name: Build
+        run: dotnet build SourceGenerator~/Tests/ReactiveUITK.SourceGenerator.Tests.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test SourceGenerator~/Tests/ReactiveUITK.SourceGenerator.Tests.csproj -c Release --no-build --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-generator-test-results
+          path: SourceGenerator~/Tests/TestResults/results.trx
+
+  lsp-server-tests:
+    name: LSP Server Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Restore
+        run: dotnet restore ide-extensions~/lsp-server/Tests/UitkxLanguageServer.Tests.csproj
+
+      - name: Build
+        run: dotnet build ide-extensions~/lsp-server/Tests/UitkxLanguageServer.Tests.csproj -c Release --no-restore
+
+      - name: Test
+        run: dotnet test ide-extensions~/lsp-server/Tests/UitkxLanguageServer.Tests.csproj -c Release --no-build --logger "trx;LogFileName=results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lsp-server-test-results
+          path: ide-extensions~/lsp-server/Tests/TestResults/results.trx
+
+  vscode-extension-build:
+    name: VS Code Extension Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.x"
+
+      - name: Build LSP server
+        run: |
+          dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj \
+            -c Release \
+            --runtime linux-x64 \
+            --self-contained false \
+            -o ide-extensions~/vscode/server
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and build
+        working-directory: ide-extensions~/vscode
+        run: |
+          npm ci
+          npm run build
+
+      - name: Package (dry run)
+        working-directory: ide-extensions~/vscode
+        run: npx vsce package --no-dependencies -o test.vsix
+
+  docs-build:
+    name: Docs Site Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and build
+        working-directory: ReactiveUIToolKitDocs~
+        run: |
+          npm ci
+          npm run build

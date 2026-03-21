@@ -1,0 +1,23 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component StatusBadge(string? label = null, Color statusColor = default) {
+  var displayLabel = label ?? "<missing>";
+
+  var badgeStyle = new Style {
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.BackgroundColor, new Color(statusColor.r, statusColor.g, statusColor.b, 0.2f)),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderColor, statusColor),
+  };
+
+  return (
+    <VisualElement style={badgeStyle}>
+      <Label
+        text={displayLabel}
+        style={new Style { (StyleKeys.TextColor, statusColor), (StyleKeys.UnityTextOutlineColor, new Color(0f, 0f, 0f, 0.4f)) }}
+      />
+    </VisualElement>
+  );
+}

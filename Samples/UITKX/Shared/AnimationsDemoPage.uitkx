@@ -1,0 +1,69 @@
+﻿@namespace ReactiveUITK.Samples.UITKXShared
+
+component AnimationsDemoPage {
+  var (repeatClickCount, setRepeatClickCount) = useState(0);
+  var (animNonce, setAnimNonce) = useState(0);
+
+  var repeatPulseTracks = useMemo(
+    () => new List<AnimateTrack>
+    {
+      new AnimateTrack { Property = "opacity", From = 1f, To = 0.4f, Duration = 0.8f, Ease = Ease.EaseInOutSine, Yoyo = true, Loop = true },
+      new AnimateTrack { Property = "translateY", From = 0f, To = 6f, Duration = 0.8f, Ease = Ease.EaseInOutSine, Yoyo = true, Loop = true },
+    },
+    0
+  );
+
+  var multiTracks = useMemo(
+    () => new List<AnimateTrack>
+    {
+      new AnimateTrack { Property = "opacity", From = 0f, To = 1f, Duration = 0.5f, Ease = Ease.EaseOutCubic },
+      new AnimateTrack { Property = "translateY", From = 12f, To = 0f, Duration = 0.5f, Ease = Ease.EaseOutCubic },
+      new AnimateTrack { Property = "width", From = 120f, To = 180f, Duration = 0.6f, Ease = Ease.EaseInOutSine, Yoyo = true, Loop = true },
+      new AnimateTrack { Property = "height", From = 32f, To = 44f, Duration = 0.6f, Ease = Ease.EaseInOutSine, Yoyo = true, Loop = true },
+      new AnimateTrack { Property = "backgroundColor", From = new UColor(0.75f, 0.85f, 1f, 1f), To = new UColor(1f, 1f, 1f, 1f), Duration = 0.5f, Ease = Ease.EaseOutCubic },
+    },
+    animNonce
+  );
+
+  var flashAnimTracks = useMemo(
+    () => new List<AnimateTrack>
+    {
+      new AnimateTrack { Property = "opacity", From = 1f, To = 0.3f, Duration = 0.8f, Ease = Ease.EaseInOutSine, Yoyo = true, Loop = true },
+    },
+    0
+  );
+
+  return (
+    <Box style={new Style { (FlexDirection, "column"), (Padding, 12f) }}>
+      <Label text="Animations" style={new Style { (FontSize, 18f) }} />
+      <Animate tracks={flashAnimTracks}>
+        <Box
+          style={new Style { (Width, 160f), (Height, 60f), (BackgroundColor, new UColor(0.3f, 0.6f, 0.9f, 1f)), (BorderRadius, 6f), (JustifyContent, "center"), (AlignItems, "center"), (MarginTop, 6f) }}
+        >
+          <Label
+            text="Flashing Box"
+            style={new Style { (TextColor, UColor.white) }}
+          />
+        </Box>
+      </Animate>
+      <Animate tracks={multiTracks}>
+        <Box
+          style={new Style { (Width, 200f), (Height, 120f), (BackgroundColor, new UColor(0.95f, 0.95f, 0.95f, 1f)), (BorderRadius, 8f), (JustifyContent, "center"), (AlignItems, "center"), (MarginTop, 8f) }}
+        >
+          <Label text="Animated Card" />
+        </Box>
+      </Animate>
+      <Label text="Animated Repeat Button" />
+      <Animate tracks={repeatPulseTracks}>
+        <RepeatButton
+          text={$"Repeat ({repeatClickCount})"}
+          onClick={_ => setRepeatClickCount(repeatClickCount + 1)}
+        />
+      </Animate>
+      <Button
+        text="Re-seed Multi-track"
+        onClick={_ => setAnimNonce(animNonce + 1)}
+      />
+    </Box>
+  );
+}

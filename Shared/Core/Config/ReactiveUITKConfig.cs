@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using ReactiveUITK.Core.Diagnostics;
 using UnityEngine;
 
 namespace ReactiveUITK.Core.Config
@@ -22,8 +23,8 @@ namespace ReactiveUITK.Core.Config
         }
 
         public string EnvironmentLabel { get; private set; } = "production";
-        public ReactiveUITK.Core.Reconciler.DiffTraceLevel TraceLevel { get; private set; } =
-            ReactiveUITK.Core.Reconciler.DiffTraceLevel.None;
+        public DiagnosticsConfig.TraceLevel TraceLevel { get; private set; } =
+            DiagnosticsConfig.TraceLevel.None;
         public bool EnableDiffTracing { get; private set; } = false;
         public bool UseExceptionBoundaryFlow { get; private set; } = false;
 
@@ -75,20 +76,20 @@ namespace ReactiveUITK.Core.Config
             return Path.Combine(assets, "ReactiveUIToolKit", "config.json");
         }
 
-        private static ReactiveUITK.Core.Reconciler.DiffTraceLevel ParseTraceLevel(string value)
+        private static DiagnosticsConfig.TraceLevel ParseTraceLevel(string value)
         {
             switch (value)
             {
                 case "Verbose":
                 case "verbose":
-                    return ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose;
+                    return DiagnosticsConfig.TraceLevel.Verbose;
                 case "Basic":
                 case "basic":
-                    return ReactiveUITK.Core.Reconciler.DiffTraceLevel.Basic;
+                    return DiagnosticsConfig.TraceLevel.Basic;
                 case "None":
                 case "none":
                 default:
-                    return ReactiveUITK.Core.Reconciler.DiffTraceLevel.None;
+                    return DiagnosticsConfig.TraceLevel.None;
             }
         }
     }

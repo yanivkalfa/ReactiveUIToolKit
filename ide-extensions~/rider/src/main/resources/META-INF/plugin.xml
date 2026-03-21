@@ -1,0 +1,31 @@
+<idea-plugin>
+  <id>com.reactiveuitk.uitkx</id>
+  <name>UITKX</name>
+  <vendor url="https://github.com/your-org/ReactiveUIToolKit">ReactiveUITK</vendor>
+  <description>
+    <![CDATA[
+    <p>Language support for <b>.uitkx</b> ReactiveUIToolKit component templates.</p>
+    <ul>
+      <li>Syntax highlighting (TextMate grammar)</li>
+      <li>Completions for element tags, attributes, and directives</li>
+      <li>Hover documentation</li>
+    </ul>
+    <p>Powered by the UITKX Language Server (requires .NET 8+ runtime on PATH).</p>
+  ]]>
+  </description>
+  <depends>com.intellij.modules.rider</depends>
+  <!-- LSP API is available in Rider 2023.2+ (build 233+) -->
+  <depends>com.intellij.modules.platform</depends>
+  <extensions defaultExtensionNs="com.intellij">
+    <!-- File type -->
+    <fileType
+      name="UITKX"
+      implementationClass="com.reactiveuitk.uitkx.UitkxFileType"
+      fieldName="INSTANCE"
+      language="UITKX"
+      extensions="uitkx"
+    />
+    <!-- LSP server support: maps *.uitkx files to the UITKX LSP server -->
+    <platform.lsp.serverSupportProvider implementation="com.reactiveuitk.uitkx.UitkxLspServerSupportProvider" />
+  </extensions>
+</idea-plugin>

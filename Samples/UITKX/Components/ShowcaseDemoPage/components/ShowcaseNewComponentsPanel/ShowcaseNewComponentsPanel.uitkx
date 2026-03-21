@@ -1,0 +1,71 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System
+@using System.Collections.Generic
+@using ReactiveUITK.Core
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static ReactiveUITK.Props.Typed.StyleKeys
+
+component ShowcaseNewComponentsPanel(
+  bool foldoutOpen = true, 
+  ChangeEventHandler<bool>? onFoldoutChange = null, 
+  float sliderValue = 0.5f, 
+  ChangeEventHandler<float>? onSliderChange = null, 
+  int sliderIntValue = 5, 
+  ChangeEventHandler<int>? onSliderIntChange = null, 
+  List<string>? ddChoices = null, 
+  string ddValue = "", 
+  ChangeEventHandler<string>? onDdChange = null
+) {
+  var groupContentStyle = new Style {
+    (PaddingLeft, 8f), (PaddingRight, 8f),
+    (PaddingTop, 6f), (PaddingBottom, 6f),
+  };
+
+  var messageType = sliderIntValue % 3 == 0 ? "error" : (sliderIntValue % 2 == 0 ? "warning" : "info");
+
+  return (
+    <GroupBox
+      text="New Components"
+      contentContainer={new Dictionary<string, object> { { "style", groupContentStyle } }}
+    >
+      <Foldout
+        text="More settings"
+        value={foldoutOpen}
+        onChange={onFoldoutChange}
+        header={new Dictionary<string, object> { { "style", new Style { (BackgroundColor, new Color(0.95f, 0.95f, 0.95f, 1f)), (PaddingLeft, 4f), (PaddingTop, 2f), (PaddingBottom, 2f) } } }}
+        contentContainer={new Dictionary<string, object> { { "style", new Style { (PaddingLeft, 6f) } } }}
+      >
+        <Label text="Inside foldout" />
+      </Foldout>
+      <Image
+        style={new Style { (Width, 96f), (Height, 96f), (BackgroundColor, new Color(0.7f, 0.85f, 1f, 1f)), (BorderRadius, 6f) }}
+      />
+      <Label text={$"Slider: {sliderValue:F2}"} />
+      <Slider
+        lowValue={0f}
+        highValue={1f}
+        value={sliderValue}
+        direction="horizontal"
+        onChange={onSliderChange}
+        style={new Style { (Width, 200f) }}
+      />
+      <Label text={$"SliderInt: {sliderIntValue}"} />
+      <SliderInt
+        lowValue={0}
+        highValue={10}
+        value={sliderIntValue}
+        onChange={onSliderIntChange}
+      />
+      <HelpBox
+        messageType={messageType}
+        text="This is a HelpBox showing state-driven message type."
+      />
+      <DropdownField
+        choices={ddChoices}
+        value={ddValue}
+        onChange={onDdChange}
+      />
+    </GroupBox>
+  );
+}

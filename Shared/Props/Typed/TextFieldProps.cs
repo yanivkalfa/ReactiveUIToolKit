@@ -1,12 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using ReactiveUITK.Core;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class TextFieldProps
+    public sealed class TextFieldProps : BaseProps
     {
-        public string Name { get; set; }
-        public string ClassName { get; set; }
         public string Value { get; set; }
         public bool? Multiline { get; set; }
         public bool? Password { get; set; }
@@ -14,28 +13,18 @@ namespace ReactiveUITK.Props.Typed
         public int? MaxLength { get; set; }
         public string Placeholder { get; set; }
         public bool? HidePlaceholderOnFocus { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
 
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> TextElement { get; set; }
 
-        public System.Action<ChangeEvent<string>> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChange { get; set; }
 
         public string LabelText { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name))
-            {
-                dict["name"] = Name;
-            }
-            if (!string.IsNullOrEmpty(ClassName))
-            {
-                dict["className"] = ClassName;
-            }
+            var dict = base.ToDictionary();
             if (Value != null)
             {
                 dict["value"] = Value;
@@ -83,14 +72,6 @@ namespace ReactiveUITK.Props.Typed
             if (TextElement != null)
             {
                 dict["textElement"] = TextElement;
-            }
-            if (Style != null)
-            {
-                dict["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                dict["ref"] = Ref;
             }
             return dict;
         }

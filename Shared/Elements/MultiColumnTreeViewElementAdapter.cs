@@ -21,12 +21,13 @@ namespace ReactiveUITK.Elements
         {
             public IList LastRoot;
             internal List<ColumnSignature> ColSig;
-            public List<Func<int, object, VirtualNode>> CellFns;
+            public List<RowRenderer> CellFns;
 
             public HashSet<int> DesiredExpanded { get; set; } = new();
             public Dictionary<int, bool> ExpandAllById { get; set; } = new();
             public bool OurHandlerAttached { get; set; }
             public Delegate UserExpandedHandler { get; set; }
+            public Action<TreeViewExpansionChangedArgs> UserExpandedHandlerWrapped { get; set; }
             public bool TrackUserExpansion { get; set; } = true;
             internal ExpansionStateTracker<MultiColumnTreeView, Cached> ExpansionTracker =
                 new ExpansionStateTracker<MultiColumnTreeView, Cached>();
@@ -173,7 +174,7 @@ namespace ReactiveUITK.Elements
                 return;
             }
 
-            var payload = new MultiColumnTreeViewProps.ColumnLayoutState
+            var payload = new ColumnLayoutState
             {
                 ColumnWidths = CloneDict(snapshot?.Widths),
                 ColumnVisibility = CloneDict(snapshot?.Visibility),
@@ -216,7 +217,7 @@ namespace ReactiveUITK.Elements
         private static bool TryDispatchLayoutDelegate(
             MultiColumnTreeView view,
             Delegate callback,
-            MultiColumnTreeViewProps.ColumnLayoutState payload
+            ColumnLayoutState payload
         )
         {
             if (callback == null || payload == null)
@@ -226,13 +227,13 @@ namespace ReactiveUITK.Elements
 
             switch (callback)
             {
-                case Action<MultiColumnTreeViewProps.ColumnLayoutState> typed:
+                case ColumnLayoutEventHandler typedNew:
+                    typedNew(payload);
+                    return true;
+                case Action<ColumnLayoutState> typed:
                     typed(payload);
                     return true;
-                case Action<
-                    VisualElement,
-                    MultiColumnTreeViewProps.ColumnLayoutState
-                > typedWithView:
+                case Action<VisualElement, ColumnLayoutState> typedWithView:
                     typedWithView(view, payload);
                     return true;
                 case Action<Dictionary<string, float>> widthsOnly:
@@ -271,7 +272,7 @@ namespace ReactiveUITK.Elements
                         args[i] = view;
                         continue;
                     }
-                    if (typeof(MultiColumnTreeViewProps.ColumnLayoutState).IsAssignableFrom(pt))
+                    if (typeof(ColumnLayoutState).IsAssignableFrom(pt))
                     {
                         args[i] = payload;
                         continue;
@@ -555,14 +556,14 @@ namespace ReactiveUITK.Elements
             )
             {
                 var sig = new List<ColumnSignature>();
-                var fns = new List<Func<int, object, VirtualNode>>();
+                var fns = new List<RowRenderer>();
                 foreach (var c in list)
                 {
                     c.TryGetValue("name", out var n);
                     c.TryGetValue("title", out var t);
                     c.TryGetValue("cell", out var cell);
                     sig.Add(new ColumnSignature { Name = n as string, Title = t as string });
-                    fns.Add(cell as Func<int, object, VirtualNode>);
+                    fns.Add(cell as RowRenderer);
                 }
                 bool same = parts.ColSig != null && parts.ColSig.Count == sig.Count;
                 if (same)
@@ -774,7 +775,7 @@ namespace ReactiveUITK.Elements
                 );
             }
 
-            var cellFnByName = new Dictionary<string, Func<int, object, VirtualNode>>();
+            var cellFnByName = new Dictionary<string, RowRenderer>();
             if (
                 parts?.ColSig != null
                 && parts?.CellFns != null
@@ -874,7 +875,7 @@ namespace ReactiveUITK.Elements
                         catch { }
                         ve.Add(entry.mount);
                     }
-                    Func<int, object, VirtualNode> fn = null;
+                    RowRenderer fn = null;
 
                     if (
                         !string.IsNullOrEmpty(col.name)

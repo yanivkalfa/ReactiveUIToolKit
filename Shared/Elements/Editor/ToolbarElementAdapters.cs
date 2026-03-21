@@ -44,7 +44,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new ToolbarButton();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is ToolbarButton btn && properties != null)
             {
@@ -56,12 +59,20 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ToolbarButton btn)
             {
-                string prev = previous != null && previous.TryGetValue("text", out var p) ? p as string : null;
-                string nxt = next != null && next.TryGetValue("text", out var n) ? n as string : null;
+                string prev =
+                    previous != null && previous.TryGetValue("text", out var p)
+                        ? p as string
+                        : null;
+                string nxt =
+                    next != null && next.TryGetValue("text", out var n) ? n as string : null;
                 if (!string.Equals(prev, nxt, StringComparison.Ordinal))
                 {
                     btn.text = nxt ?? string.Empty;
@@ -75,7 +86,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new ToolbarToggle();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is ToolbarToggle t && properties != null)
             {
@@ -91,18 +105,31 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ToolbarToggle t)
             {
-                string prevText = previous != null && previous.TryGetValue("text", out var p) ? p as string : null;
-                string nextText = next != null && next.TryGetValue("text", out var n) ? n as string : null;
+                string prevText =
+                    previous != null && previous.TryGetValue("text", out var p)
+                        ? p as string
+                        : null;
+                string nextText =
+                    next != null && next.TryGetValue("text", out var n) ? n as string : null;
                 if (!string.Equals(prevText, nextText, StringComparison.Ordinal))
                 {
                     t.text = nextText ?? string.Empty;
                 }
-                bool prevVal = previous != null && previous.TryGetValue("value", out var pv) && pv is bool pb && pb;
-                bool nextVal = next != null && next.TryGetValue("value", out var nv) && nv is bool nb && nb;
+                bool prevVal =
+                    previous != null
+                    && previous.TryGetValue("value", out var pv)
+                    && pv is bool pb
+                    && pb;
+                bool nextVal =
+                    next != null && next.TryGetValue("value", out var nv) && nv is bool nb && nb;
                 if (prevVal != nextVal)
                 {
                     t.value = nextVal;
@@ -116,7 +143,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new ToolbarMenu();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is ToolbarMenu m && properties != null)
             {
@@ -124,11 +154,17 @@ namespace ReactiveUITK.Elements
                 {
                     m.text = ts ?? string.Empty;
                 }
-                if (properties.TryGetValue("populateMenu", out var pm) && pm is Action<DropdownMenu> action)
+                if (
+                    properties.TryGetValue("populateMenu", out var pm)
+                    && pm is Action<DropdownMenu> action
+                )
                 {
                     // ToolbarMenu.menu is read-only; populate the existing instance.
                     // Avoid repeated appends for the same callback instance.
-                    if (!_lastPopulate.TryGetValue(m, out var existing) || !ReferenceEquals(existing, action))
+                    if (
+                        !_lastPopulate.TryGetValue(m, out var existing)
+                        || !ReferenceEquals(existing, action)
+                    )
                     {
                         _lastPopulate.Remove(m);
                         _lastPopulate.Add(m, action);
@@ -139,18 +175,32 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ToolbarMenu m)
             {
-                string prev = previous != null && previous.TryGetValue("text", out var p) ? p as string : null;
-                string nxt = next != null && next.TryGetValue("text", out var n) ? n as string : null;
+                string prev =
+                    previous != null && previous.TryGetValue("text", out var p)
+                        ? p as string
+                        : null;
+                string nxt =
+                    next != null && next.TryGetValue("text", out var n) ? n as string : null;
                 if (!string.Equals(prev, nxt, StringComparison.Ordinal))
                 {
                     m.text = nxt ?? string.Empty;
                 }
-                Action<DropdownMenu> prevAct = previous != null && previous.TryGetValue("populateMenu", out var pa) ? pa as Action<DropdownMenu> : null;
-                Action<DropdownMenu> nextAct = next != null && next.TryGetValue("populateMenu", out var na) ? na as Action<DropdownMenu> : null;
+                Action<DropdownMenu> prevAct =
+                    previous != null && previous.TryGetValue("populateMenu", out var pa)
+                        ? pa as Action<DropdownMenu>
+                        : null;
+                Action<DropdownMenu> nextAct =
+                    next != null && next.TryGetValue("populateMenu", out var na)
+                        ? na as Action<DropdownMenu>
+                        : null;
                 if (!ReferenceEquals(prevAct, nextAct) && nextAct != null)
                 {
                     _lastPopulate.Remove(m);
@@ -161,7 +211,10 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ToolbarMenu, Action<DropdownMenu>> _lastPopulate = new();
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<
+            ToolbarMenu,
+            Action<DropdownMenu>
+        > _lastPopulate = new();
     }
 
     public sealed class ToolbarBreadcrumbsElementAdapter : BaseElementAdapter
@@ -173,11 +226,17 @@ namespace ReactiveUITK.Elements
             return element; // no child mounting; managed via items
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is ToolbarBreadcrumbs bc && properties != null)
             {
-                if (properties.TryGetValue("items", out var itemsObj) && itemsObj is System.Collections.IEnumerable items)
+                if (
+                    properties.TryGetValue("items", out var itemsObj)
+                    && itemsObj is System.Collections.IEnumerable items
+                )
                 {
                     bc.Clear();
                     int idx = 0;
@@ -185,13 +244,19 @@ namespace ReactiveUITK.Elements
                     {
                         string label = it?.ToString() ?? string.Empty;
                         int captured = idx;
-                        bc.PushItem(label, () =>
-                        {
-                            if (properties.TryGetValue("onItem", out var cb) && cb is Action<int> onItem)
+                        bc.PushItem(
+                            label,
+                            () =>
                             {
-                                onItem(captured);
+                                if (
+                                    properties.TryGetValue("onItem", out var cb)
+                                    && cb is Action<int> onItem
+                                )
+                                {
+                                    onItem(captured);
+                                }
                             }
-                        });
+                        );
                         idx++;
                     }
                 }
@@ -199,7 +264,11 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ToolbarBreadcrumbs)
             {
@@ -219,7 +288,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new ToolbarPopupSearchField();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is ToolbarPopupSearchField sf && properties != null)
             {
@@ -231,12 +303,20 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ToolbarPopupSearchField sf)
             {
-                string pv = previous != null && previous.TryGetValue("value", out var p) ? p as string : null;
-                string nv = next != null && next.TryGetValue("value", out var n) ? n as string : null;
+                string pv =
+                    previous != null && previous.TryGetValue("value", out var p)
+                        ? p as string
+                        : null;
+                string nv =
+                    next != null && next.TryGetValue("value", out var n) ? n as string : null;
                 if (!string.Equals(pv, nv, StringComparison.Ordinal))
                 {
                     sf.value = nv ?? string.Empty;
@@ -250,7 +330,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new ToolbarSearchField();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is ToolbarSearchField sf && properties != null)
             {
@@ -262,12 +345,20 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is ToolbarSearchField sf)
             {
-                string pv = previous != null && previous.TryGetValue("value", out var p) ? p as string : null;
-                string nv = next != null && next.TryGetValue("value", out var n) ? n as string : null;
+                string pv =
+                    previous != null && previous.TryGetValue("value", out var p)
+                        ? p as string
+                        : null;
+                string nv =
+                    next != null && next.TryGetValue("value", out var n) ? n as string : null;
                 if (!string.Equals(pv, nv, StringComparison.Ordinal))
                 {
                     sf.value = nv ?? string.Empty;
@@ -281,12 +372,19 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new ToolbarSpacer();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             PropsApplier.ApplyDiff(element, previous, next);
         }

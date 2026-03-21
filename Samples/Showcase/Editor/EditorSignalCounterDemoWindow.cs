@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorSignalCounterDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Signal Counter")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Signal Counter")]
         public static void ShowWindow()
         {
             EditorSignalCounterDemoWindow window = GetWindow<EditorSignalCounterDemoWindow>(

@@ -1,0 +1,35 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using UnityEngine.UIElements
+
+component RefChild(
+  Ref<TextField>? inputRef = null, 
+  Ref<Label>? labelRef = null, 
+  Action? onSnapshot = null
+) {
+  var value = inputRef?.Current?.value ?? "Hello ReactiveUITK refs!";
+
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.FlexDirection, "column"),
+        (StyleKeys.MarginTop, 10f),
+        (StyleKeys.Padding, 8f),
+        (StyleKeys.BorderWidth, 1f),
+        (StyleKeys.BorderColor, new Color(0.82f, 0.82f, 0.82f, 1f))
+      }}
+    >
+      <Label text={$"Child sees value: {value}"} ref={labelRef} />
+      <TextField
+        value={value}
+        ref={inputRef}
+        style={new Style { (StyleKeys.MarginTop, 6f) }}
+      />
+      <Button
+        text="Focus input (child via ref)"
+        onClick={_ => { inputRef?.Current?.Focus(); onSnapshot?.Invoke(); }}
+        style={new Style { (StyleKeys.MarginTop, 8f) }}
+      />
+    </VisualElement>
+  );
+}

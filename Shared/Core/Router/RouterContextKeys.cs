@@ -7,6 +7,8 @@ namespace ReactiveUITK.Router
     {
         public const string RouterState = "__router_state";
         public const string RouteMatch = "__router_route_match";
+        public const string RoutePattern = "__router_route_pattern";
+        public const string RouteContextEntry = "__router_route_context_entry";
 
         internal static IReadOnlyDictionary<string, string> EmptyParams { get; } =
             new ReadOnlyDictionary<string, string>(new Dictionary<string, string>());

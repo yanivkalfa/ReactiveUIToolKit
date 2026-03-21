@@ -211,6 +211,17 @@ namespace ReactiveUITK
             }
         }
 
+        public void PumpNow()
+        {
+            float frameStart = Time.realtimeSinceStartup * 1000f;
+            // Drain high/normal/low queues without respecting the normal frame budget.
+            ExecuteQueue(highPriorityQueue, highPriorityTracker, ref frameStart, allowOverBudget: true);
+            ExecuteQueue(normalPriorityQueue, normalPriorityTracker, ref frameStart, allowOverBudget: true);
+            ExecuteQueue(lowPriorityQueue, lowPriorityTracker, ref frameStart, allowOverBudget: true);
+            ExecuteQueue(idlePriorityQueue, idlePriorityTracker, ref frameStart, allowOverBudget: true);
+            FlushBatchedEffects();
+        }
+
         private void FlushBatchedEffects()
         {
             if (batchedEffectActions.Count == 0)

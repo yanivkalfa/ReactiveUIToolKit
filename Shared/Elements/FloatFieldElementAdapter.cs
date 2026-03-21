@@ -48,7 +48,10 @@ namespace ReactiveUITK.Elements
             PropsApplier.ApplyDiff(element, previous, next);
         }
 
-        private static void ApplySlots(FloatField field, IReadOnlyDictionary<string, object> properties)
+        private static void ApplySlots(
+            FloatField field,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (properties == null)
             {
@@ -87,7 +90,10 @@ namespace ReactiveUITK.Elements
             next ??= new Dictionary<string, object>();
             previous.TryGetValue("label", out var prevLabel);
             next.TryGetValue("label", out var nextLabel);
-            if (!ReferenceEquals(prevLabel, nextLabel) && nextLabel is Dictionary<string, object> labelMap)
+            if (
+                !ReferenceEquals(prevLabel, nextLabel)
+                && nextLabel is Dictionary<string, object> labelMap
+            )
             {
                 if (field.labelElement != null)
                 {
@@ -107,4 +113,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-

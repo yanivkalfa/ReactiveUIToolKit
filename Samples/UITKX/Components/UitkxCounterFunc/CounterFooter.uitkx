@@ -1,0 +1,18 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component CounterFooter(string message = "Footer") {
+  var footerStyle = new Style {
+    (StyleKeys.PaddingTop, 8f),
+    (StyleKeys.PaddingBottom, 8f),
+    (StyleKeys.BorderTopWidth, 1f),
+    (StyleKeys.BorderTopColor, new Color(0.4f, 0.4f, 0.4f, 1f)),
+    (StyleKeys.MarginTop, 10f),
+  };
+
+  return (
+    <VisualElement style={footerStyle}>
+      <Label text={message} />
+    </VisualElement>
+  );
+}

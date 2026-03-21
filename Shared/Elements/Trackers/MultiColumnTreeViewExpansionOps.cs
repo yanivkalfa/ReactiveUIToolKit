@@ -20,9 +20,7 @@ namespace ReactiveUITK.Elements
             {
                 view.itemExpandedChanged += handler;
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void Unsubscribe(
@@ -38,9 +36,7 @@ namespace ReactiveUITK.Elements
             {
                 view.itemExpandedChanged -= handler;
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void ExpandItem(MultiColumnTreeView view, int id, bool expandAllChildren)
@@ -53,9 +49,7 @@ namespace ReactiveUITK.Elements
             {
                 view.ExpandItem(id, expandAllChildren, false);
             }
-            catch
-            {
-            }
+            catch { }
         }
 
         public void Refresh(MultiColumnTreeView view)
@@ -68,9 +62,7 @@ namespace ReactiveUITK.Elements
             {
                 view.RefreshItems();
             }
-            catch
-            {
-            }
+            catch { }
         }
     }
 }

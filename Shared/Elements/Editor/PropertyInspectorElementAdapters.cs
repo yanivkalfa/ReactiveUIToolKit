@@ -14,7 +14,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new PropertyField();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is PropertyField pf && properties != null)
             {
@@ -45,20 +48,33 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is PropertyField pf)
             {
-                string pl = previous != null && previous.TryGetValue("label", out var p) ? p as string : null;
-                string nl = next != null && next.TryGetValue("label", out var n) ? n as string : null;
+                string pl =
+                    previous != null && previous.TryGetValue("label", out var p)
+                        ? p as string
+                        : null;
+                string nl =
+                    next != null && next.TryGetValue("label", out var n) ? n as string : null;
                 if (!string.Equals(pl, nl, StringComparison.Ordinal))
                 {
                     pf.label = nl ?? string.Empty;
                 }
-                object pt = previous != null && previous.TryGetValue("target", out var pto) ? pto : null;
+                object pt =
+                    previous != null && previous.TryGetValue("target", out var pto) ? pto : null;
                 object nt = next != null && next.TryGetValue("target", out var nto) ? nto : null;
-                object pp = previous != null && previous.TryGetValue("bindingPath", out var ppo) ? ppo : null;
-                object np = next != null && next.TryGetValue("bindingPath", out var npo) ? npo : null;
+                object pp =
+                    previous != null && previous.TryGetValue("bindingPath", out var ppo)
+                        ? ppo
+                        : null;
+                object np =
+                    next != null && next.TryGetValue("bindingPath", out var npo) ? npo : null;
                 if (!ReferenceEquals(pt, nt) || !Equals(pp, np))
                 {
                     ApplyProperties(element, next);
@@ -72,7 +88,10 @@ namespace ReactiveUITK.Elements
     {
         public override VisualElement Create() => new InspectorElement();
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is InspectorElement ins && properties != null)
             {
@@ -86,11 +105,16 @@ namespace ReactiveUITK.Elements
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is InspectorElement)
             {
-                object pt = previous != null && previous.TryGetValue("target", out var pto) ? pto : null;
+                object pt =
+                    previous != null && previous.TryGetValue("target", out var pto) ? pto : null;
                 object nt = next != null && next.TryGetValue("target", out var nto) ? nto : null;
                 if (!ReferenceEquals(pt, nt))
                 {

@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorContextDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Context Demo")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Context Demo")]
         public static void Open()
         {
             var window = GetWindow<EditorContextDemoWindow>("Context Demo");

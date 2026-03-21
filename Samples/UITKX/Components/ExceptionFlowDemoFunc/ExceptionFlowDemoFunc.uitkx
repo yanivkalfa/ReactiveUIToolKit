@@ -1,0 +1,98 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System
+@using System.Threading.Tasks
+
+component ExceptionFlowDemoFunc {
+  var (shouldThrow, setShouldThrow) = useState(false);
+  var (pendingTask, setPendingTask) = useState<Task?>(null);
+
+  void ToggleError() {
+    setShouldThrow(!shouldThrow);
+  }
+
+  void StartSimulatedLoad() {
+    if (pendingTask != null && !pendingTask.IsCompleted)
+    {
+      return;
+    }
+    var loadTask = Task.Run(async () => {
+      await Task.Delay(1200);
+    });
+    setPendingTask(loadTask);
+  }
+
+  // Clear pendingTask once it finishes so the button resets to "Simulate Async Load".
+  // Without this the parent never re-renders after the task completes, leaving the
+  // button stuck on "Loading…".
+  useEffect(() => {
+    if (pendingTask == null || pendingTask.IsCompleted)
+    {
+      return null;
+    }
+    pendingTask.ContinueWith((Action<Task>)(_ => setPendingTask(default)));
+    return null;
+  }, new object[] { pendingTask });
+
+  bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
+
+  var cardStyle = new Style {
+    (StyleKeys.Padding, 12f),
+    (StyleKeys.MarginTop, 6f),
+    (StyleKeys.BackgroundColor, new Color(0.96f, 0.96f, 0.96f, 1f)),
+    (StyleKeys.Color, Color.black),
+    (StyleKeys.BorderRadius, 6f),
+  };
+
+  var suspenseFallback = (
+    <VisualElement
+      style={new Style { (StyleKeys.Padding, 8f), (StyleKeys.BackgroundColor, new Color(0.13f, 0.59f, 0.95f, 1f)), (StyleKeys.Color, Color.white), (StyleKeys.BorderRadius, 4f), (StyleKeys.FlexGrow, 1f), (StyleKeys.MinHeight, 60f), (StyleKeys.AlignItems, "center"), (StyleKeys.JustifyContent, "center") }}
+    >
+      <Text text="Suspense fallback: awaiting fake data…" />
+    </VisualElement>
+  );
+
+  var errorFallback = (
+    <VisualElement
+      style={new Style { (StyleKeys.Padding, 8f), (StyleKeys.BackgroundColor, new Color(0.96f, 0.26f, 0.21f, 1f)), (StyleKeys.Color, Color.white), (StyleKeys.BorderRadius, 4f), (StyleKeys.FlexGrow, 1f), (StyleKeys.MinHeight, 60f), (StyleKeys.AlignItems, "center"), (StyleKeys.JustifyContent, "center") }}
+    >
+      <Text text="Error fallback: boundary caught an exception." />
+    </VisualElement>
+  );
+
+  return (
+    <VisualElement
+      style={new Style { (StyleKeys.Padding, 14f), (StyleKeys.MarginTop, 10f), (StyleKeys.FlexGrow, 1f) }}
+    >
+      <Text text="Error Boundary + Suspense Control-Flow Demo" />
+      <VisualElement style={new Style { (StyleKeys.FlexDirection, "row") }}>
+        <Button
+          text={shouldThrow ? "Clear Error" : "Trigger Error"}
+          onClick={_ => ToggleError()}
+          style={new Style { (StyleKeys.Width, 140f), (StyleKeys.MarginRight, 8f) }}
+        />
+        <Button
+          text={pendingTask != null && !pendingTask.IsCompleted ? "Loading…" : "Simulate Async Load"}
+          onClick={_ => StartSimulatedLoad()}
+          style={new Style { (StyleKeys.Width, 180f) }}
+        />
+      </VisualElement>
+      <VisualElement style={cardStyle}>
+        <Text text="Content area" />
+        <ErrorBoundary
+          fallback={errorFallback}
+          onError={ex => UnityEngine.Debug.LogWarning($"Boundary captured: {ex?.Message}")}
+          resetKey={shouldThrow ? "throw" : "clear"}
+        >
+          <Suspense
+            isReady={SuspenseReady}
+            pendingTask={pendingTask}
+            fallback={suspenseFallback}
+          >
+            <UnstableChild shouldThrow={shouldThrow} />
+          </Suspense>
+        </ErrorBoundary>
+      </VisualElement>
+    </VisualElement>
+  );
+}

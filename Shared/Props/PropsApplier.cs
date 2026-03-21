@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using ReactiveUITK.Core;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -28,20 +29,20 @@ namespace ReactiveUITK.Props
         {
             styleSetters["width"] = (e, v) =>
             {
-                e.style.width = ConvertToLength(v);
+                e.style.width = ConvertToStyleLength(v);
             };
             styleSetters["height"] = (e, v) =>
             {
-                e.style.height = ConvertToLength(v);
+                e.style.height = ConvertToStyleLength(v);
             };
 
             styleSetters["flexGrow"] = (e, v) =>
             {
-                e.style.flexGrow = ConvertToFloat(v);
+                e.style.flexGrow = ConvertToStyleFloat(v);
             };
             styleSetters["flexShrink"] = (e, v) =>
             {
-                e.style.flexShrink = ConvertToFloat(v);
+                e.style.flexShrink = ConvertToStyleFloat(v);
             };
             styleSetters["flexDirection"] = (e, v) =>
             {
@@ -69,23 +70,23 @@ namespace ReactiveUITK.Props
             };
             styleSetters["flexBasis"] = (e, v) =>
             {
-                e.style.flexBasis = ConvertToLength(v);
+                e.style.flexBasis = ConvertToStyleLength(v);
             };
             styleSetters["minWidth"] = (e, v) =>
             {
-                e.style.minWidth = ConvertToLength(v);
+                e.style.minWidth = ConvertToStyleLength(v);
             };
             styleSetters["minHeight"] = (e, v) =>
             {
-                e.style.minHeight = ConvertToLength(v);
+                e.style.minHeight = ConvertToStyleLength(v);
             };
             styleSetters["maxWidth"] = (e, v) =>
             {
-                e.style.maxWidth = ConvertToLength(v);
+                e.style.maxWidth = ConvertToStyleLength(v);
             };
             styleSetters["maxHeight"] = (e, v) =>
             {
-                e.style.maxHeight = ConvertToLength(v);
+                e.style.maxHeight = ConvertToStyleLength(v);
             };
 
             styleSetters["position"] = (e, v) =>
@@ -95,19 +96,19 @@ namespace ReactiveUITK.Props
             };
             styleSetters["left"] = (e, v) =>
             {
-                e.style.left = ConvertToLength(v);
+                e.style.left = ConvertToStyleLength(v);
             };
             styleSetters["top"] = (e, v) =>
             {
-                e.style.top = ConvertToLength(v);
+                e.style.top = ConvertToStyleLength(v);
             };
             styleSetters["right"] = (e, v) =>
             {
-                e.style.right = ConvertToLength(v);
+                e.style.right = ConvertToStyleLength(v);
             };
             styleSetters["bottom"] = (e, v) =>
             {
-                e.style.bottom = ConvertToLength(v);
+                e.style.bottom = ConvertToStyleLength(v);
             };
 
             styleSetters["display"] = (e, v) =>
@@ -127,7 +128,7 @@ namespace ReactiveUITK.Props
             };
             styleSetters["opacity"] = (e, v) =>
             {
-                e.style.opacity = ConvertToFloat(v);
+                e.style.opacity = ConvertToStyleFloat(v);
             };
             styleSetters["whiteSpace"] = (e, v) =>
             {
@@ -137,7 +138,7 @@ namespace ReactiveUITK.Props
 
             styleSetters["fontSize"] = (e, v) =>
             {
-                e.style.fontSize = ConvertToFloat(v);
+                e.style.fontSize = ConvertToStyleLength(v);
             };
             styleSetters["textAlign"] = (e, v) =>
             {
@@ -180,7 +181,7 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    e.style.letterSpacing = ConvertToFloat(v);
+                    e.style.letterSpacing = ConvertToStyleLength(v);
                 }
                 catch { }
             };
@@ -208,7 +209,7 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    e.style.unityTextOutlineWidth = ConvertToFloat(v);
+                    e.style.unityTextOutlineWidth = ConvertToStyleFloat(v);
                 }
                 catch { }
             };
@@ -247,7 +248,7 @@ namespace ReactiveUITK.Props
 
             styleSetters["borderWidth"] = (e, v) =>
             {
-                var bw = ConvertToFloat(v);
+                var bw = ConvertToStyleFloat(v);
                 e.style.borderLeftWidth = bw;
                 e.style.borderRightWidth = bw;
                 e.style.borderTopWidth = bw;
@@ -263,19 +264,19 @@ namespace ReactiveUITK.Props
             };
             styleSetters["borderLeftWidth"] = (e, v) =>
             {
-                e.style.borderLeftWidth = ConvertToFloat(v);
+                e.style.borderLeftWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderRightWidth"] = (e, v) =>
             {
-                e.style.borderRightWidth = ConvertToFloat(v);
+                e.style.borderRightWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderTopWidth"] = (e, v) =>
             {
-                e.style.borderTopWidth = ConvertToFloat(v);
+                e.style.borderTopWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderBottomWidth"] = (e, v) =>
             {
-                e.style.borderBottomWidth = ConvertToFloat(v);
+                e.style.borderBottomWidth = ConvertToStyleFloat(v);
             };
             styleSetters["borderLeftColor"] = (e, v) =>
             {
@@ -295,7 +296,7 @@ namespace ReactiveUITK.Props
             };
             styleSetters["borderRadius"] = (e, v) =>
             {
-                var len = ConvertToLength(v);
+                var len = ConvertToStyleLength(v);
                 e.style.borderTopLeftRadius = len;
                 e.style.borderTopRightRadius = len;
                 e.style.borderBottomLeftRadius = len;
@@ -303,24 +304,24 @@ namespace ReactiveUITK.Props
             };
             styleSetters["borderTopLeftRadius"] = (e, v) =>
             {
-                e.style.borderTopLeftRadius = ConvertToLength(v);
+                e.style.borderTopLeftRadius = ConvertToStyleLength(v);
             };
             styleSetters["borderTopRightRadius"] = (e, v) =>
             {
-                e.style.borderTopRightRadius = ConvertToLength(v);
+                e.style.borderTopRightRadius = ConvertToStyleLength(v);
             };
             styleSetters["borderBottomLeftRadius"] = (e, v) =>
             {
-                e.style.borderBottomLeftRadius = ConvertToLength(v);
+                e.style.borderBottomLeftRadius = ConvertToStyleLength(v);
             };
             styleSetters["borderBottomRightRadius"] = (e, v) =>
             {
-                e.style.borderBottomRightRadius = ConvertToLength(v);
+                e.style.borderBottomRightRadius = ConvertToStyleLength(v);
             };
 
             styleSetters["margin"] = (e, v) =>
             {
-                var len = ConvertToLength(v);
+                var len = ConvertToStyleLength(v);
                 e.style.marginLeft = len;
                 e.style.marginRight = len;
                 e.style.marginTop = len;
@@ -328,7 +329,7 @@ namespace ReactiveUITK.Props
             };
             styleSetters["padding"] = (e, v) =>
             {
-                var len = ConvertToLength(v);
+                var len = ConvertToStyleLength(v);
                 e.style.paddingLeft = len;
                 e.style.paddingRight = len;
                 e.style.paddingTop = len;
@@ -336,35 +337,35 @@ namespace ReactiveUITK.Props
             };
             styleSetters["marginLeft"] = (e, v) =>
             {
-                e.style.marginLeft = ConvertToLength(v);
+                e.style.marginLeft = ConvertToStyleLength(v);
             };
             styleSetters["marginRight"] = (e, v) =>
             {
-                e.style.marginRight = ConvertToLength(v);
+                e.style.marginRight = ConvertToStyleLength(v);
             };
             styleSetters["marginTop"] = (e, v) =>
             {
-                e.style.marginTop = ConvertToLength(v);
+                e.style.marginTop = ConvertToStyleLength(v);
             };
             styleSetters["marginBottom"] = (e, v) =>
             {
-                e.style.marginBottom = ConvertToLength(v);
+                e.style.marginBottom = ConvertToStyleLength(v);
             };
             styleSetters["paddingLeft"] = (e, v) =>
             {
-                e.style.paddingLeft = ConvertToLength(v);
+                e.style.paddingLeft = ConvertToStyleLength(v);
             };
             styleSetters["paddingRight"] = (e, v) =>
             {
-                e.style.paddingRight = ConvertToLength(v);
+                e.style.paddingRight = ConvertToStyleLength(v);
             };
             styleSetters["paddingTop"] = (e, v) =>
             {
-                e.style.paddingTop = ConvertToLength(v);
+                e.style.paddingTop = ConvertToStyleLength(v);
             };
             styleSetters["paddingBottom"] = (e, v) =>
             {
-                e.style.paddingBottom = ConvertToLength(v);
+                e.style.paddingBottom = ConvertToStyleLength(v);
             };
 
             styleSetters["rotate"] = (e, v) =>
@@ -463,7 +464,7 @@ namespace ReactiveUITK.Props
                     }
                     if (parts.Length > 2)
                     {
-                        e.style.flexBasis = ConvertToLength(parts[2]);
+                        e.style.flexBasis = ConvertToStyleLength(parts[2]);
                     }
                 }
             };
@@ -935,6 +936,48 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "visible")
+            {
+                if (propertyValue is bool vis)
+                {
+                    element.visible = vis;
+                }
+                return;
+            }
+            if (propertyName == "enabled")
+            {
+                if (propertyValue is bool en)
+                {
+                    element.SetEnabled(en);
+                }
+                return;
+            }
+            if (propertyName == "tooltip")
+            {
+                element.tooltip = propertyValue as string;
+                return;
+            }
+            if (propertyName == "viewDataKey")
+            {
+                element.viewDataKey = propertyValue as string;
+                return;
+            }
+            if (propertyName == "delegatesFocus")
+            {
+                if (propertyValue is bool df)
+                {
+                    element.delegatesFocus = df;
+                }
+                return;
+            }
+            if (propertyName == "languageDirection")
+            {
+                if (propertyValue is LanguageDirection ld)
+                {
+                    element.languageDirection = ld;
+                }
+                return;
+            }
             if (propertyName == "ref")
             {
                 var meta = element.userData as NodeMetadata;
@@ -1101,6 +1144,31 @@ namespace ReactiveUITK.Props
             if (propertyName == "pickingMode")
             {
                 element.pickingMode = PickingMode.Position;
+                return;
+            }
+            if (propertyName == "visible")
+            {
+                element.visible = true;
+                return;
+            }
+            if (propertyName == "enabled")
+            {
+                element.SetEnabled(true);
+                return;
+            }
+            if (propertyName == "tooltip")
+            {
+                element.tooltip = string.Empty;
+                return;
+            }
+            if (propertyName == "viewDataKey")
+            {
+                element.viewDataKey = null;
+                return;
+            }
+            if (propertyName == "delegatesFocus")
+            {
+                element.delegatesFocus = false;
                 return;
             }
             if (propertyName == "style" && oldValue is IDictionary<string, object> oldMap)
@@ -1569,8 +1637,8 @@ namespace ReactiveUITK.Props
                 }
 
                 if (
-                    ReactiveUITK.Core.Reconciler.TraceLevel
-                    == ReactiveUITK.Core.Reconciler.DiffTraceLevel.Verbose
+                    ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                    == ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
                 )
                 {
                     try
@@ -1669,6 +1737,28 @@ namespace ReactiveUITK.Props
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<BlurEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onFocusIn")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<FocusInEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onFocusOut")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<FocusOutEvent> w = e => InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1818,12 +1908,80 @@ namespace ReactiveUITK.Props
                 meta.EventHandlerSignatures[eventPropName] = newSig;
                 return;
             }
+            if (eventPropName == "onDragUpdated")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DragUpdatedEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onDragPerform")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DragPerformEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onDragExited")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DragExitedEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
 #endif
             if (eventPropName == "onScroll")
             {
                 if (!meta.EventHandlers.ContainsKey(eventPropName))
                 {
                     EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onGeometryChanged")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<GeometryChangedEvent> w = e =>
+                        InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onAttachToPanel")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<AttachToPanelEvent> w = e => InvokeEvent(meta, eventPropName, e);
+                    element.RegisterCallback(w);
+                    meta.EventHandlers[eventPropName] = w;
+                }
+                meta.EventHandlerSignatures[eventPropName] = newSig;
+                return;
+            }
+            if (eventPropName == "onDetachFromPanel")
+            {
+                if (!meta.EventHandlers.ContainsKey(eventPropName))
+                {
+                    EventCallback<DetachFromPanelEvent> w = e =>
+                        InvokeEvent(meta, eventPropName, e);
                     element.RegisterCallback(w);
                     meta.EventHandlers[eventPropName] = w;
                 }
@@ -1928,6 +2086,20 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
+            if (eventPropName == "onFocusIn" && handler is EventCallback<FocusInEvent> fi)
+            {
+                element.UnregisterCallback(fi);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onFocusOut" && handler is EventCallback<FocusOutEvent> fo)
+            {
+                element.UnregisterCallback(fo);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
             if (eventPropName == "onKeyDown" && handler is EventCallback<KeyDownEvent> kd)
             {
                 element.UnregisterCallback(kd);
@@ -1997,10 +2169,61 @@ namespace ReactiveUITK.Props
                 totalEventsRemoved++;
                 return;
             }
+            if (eventPropName == "onDragUpdated" && handler is EventCallback<DragUpdatedEvent> du)
+            {
+                element.UnregisterCallback(du);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onDragPerform" && handler is EventCallback<DragPerformEvent> dp)
+            {
+                element.UnregisterCallback(dp);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (eventPropName == "onDragExited" && handler is EventCallback<DragExitedEvent> dx)
+            {
+                element.UnregisterCallback(dx);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
 #endif
             if (eventPropName == "onScroll" && handler is EventCallback<WheelEvent> se)
             {
                 element.UnregisterCallback(se);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (
+                eventPropName == "onGeometryChanged"
+                && handler is EventCallback<GeometryChangedEvent> gc
+            )
+            {
+                element.UnregisterCallback(gc);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (
+                eventPropName == "onAttachToPanel"
+                && handler is EventCallback<AttachToPanelEvent> atp
+            )
+            {
+                element.UnregisterCallback(atp);
+                meta.EventHandlers.Remove(eventPropName);
+                totalEventsRemoved++;
+                return;
+            }
+            if (
+                eventPropName == "onDetachFromPanel"
+                && handler is EventCallback<DetachFromPanelEvent> dfp
+            )
+            {
+                element.UnregisterCallback(dfp);
                 meta.EventHandlers.Remove(eventPropName);
                 totalEventsRemoved++;
                 return;
@@ -2091,8 +2314,9 @@ namespace ReactiveUITK.Props
             {
                 var ve = evt?.target as VisualElement;
                 if (
-                    Core.Reconciler.EnableDiffTracing
-                    && Core.Reconciler.TraceLevel == Core.Reconciler.DiffTraceLevel.Verbose
+                    Core.Diagnostics.DiagnosticsConfig.EnableDiffTracing
+                    && Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
+                        == Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
                 )
                 {
                     Debug.Log(
@@ -2104,7 +2328,7 @@ namespace ReactiveUITK.Props
                 }
             }
             catch { }
-            SyntheticEvent syntheticEvent = SyntheticEvent.Create(evt);
+            ReactiveEvent syntheticEvent = ReactiveEvent.Create(evt);
             if (syntheticEvent != null)
             {
                 syntheticEvent.CurrentTarget = evt?.currentTarget as VisualElement;
@@ -2241,16 +2465,138 @@ namespace ReactiveUITK.Props
             return 0f;
         }
 
+        private static StyleFloat ConvertToStyleFloat(object value)
+        {
+            if (TryConvertToStyleKeyword(value, out var keyword))
+            {
+                return new StyleFloat(keyword);
+            }
+
+            return new StyleFloat(ConvertToFloat(value));
+        }
+
+        private static StyleLength ConvertToStyleLength(object value)
+        {
+            if (value is StyleLength styleLength)
+            {
+                return styleLength;
+            }
+
+            if (TryConvertToStyleKeyword(value, out var keyword))
+            {
+                return new StyleLength(keyword);
+            }
+
+            return new StyleLength(ConvertToLength(value));
+        }
+
+        private static bool TryConvertToStyleKeyword(object value, out StyleKeyword keyword)
+        {
+            if (value is StyleKeyword direct && direct != StyleKeyword.Undefined)
+            {
+                keyword = direct;
+                return true;
+            }
+
+            if (value is string s && !string.IsNullOrWhiteSpace(s))
+            {
+                switch (s.Trim().ToLowerInvariant())
+                {
+                    case "auto":
+                        keyword = StyleKeyword.Auto;
+                        return true;
+                    case "none":
+                        keyword = StyleKeyword.None;
+                        return true;
+                    case "initial":
+                        keyword = StyleKeyword.Initial;
+                        return true;
+                    case "null":
+                    case "unset":
+                    case "default":
+                        keyword = StyleKeyword.Null;
+                        return true;
+                }
+            }
+
+            if (value == null)
+            {
+                keyword = StyleKeyword.Null;
+                return true;
+            }
+
+            keyword = StyleKeyword.Undefined;
+            return false;
+        }
+
         private static Length ConvertToLength(object value)
         {
+            if (value is Length existingLength)
+            {
+                return existingLength;
+            }
+
+            if (value is StyleLength styleLength)
+            {
+                return styleLength.value;
+            }
+
             if (value is float f)
             {
                 return new Length(f, LengthUnit.Pixel);
             }
 
+            if (value is double d)
+            {
+                return new Length((float)d, LengthUnit.Pixel);
+            }
+
             if (value is int i)
             {
                 return new Length(i, LengthUnit.Pixel);
+            }
+
+            if (value is string s)
+            {
+                string trimmed = s.Trim();
+                if (trimmed.EndsWith("%", StringComparison.Ordinal))
+                {
+                    string number = trimmed.Substring(0, trimmed.Length - 1);
+                    if (
+                        float.TryParse(
+                            number,
+                            NumberStyles.Float,
+                            CultureInfo.InvariantCulture,
+                            out float percent
+                        )
+                    )
+                    {
+                        return new Length(percent, LengthUnit.Percent);
+                    }
+                }
+                else if (
+                    trimmed.EndsWith("px", StringComparison.OrdinalIgnoreCase)
+                    && float.TryParse(
+                        trimmed[..^2],
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out float pixelsWithUnit
+                    )
+                )
+                {
+                    return new Length(pixelsWithUnit, LengthUnit.Pixel);
+                }
+                else if (
+                    float.TryParse(
+                        trimmed,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out float pixels
+                    )
+                )
+                {
+                    return new Length(pixels, LengthUnit.Pixel);
+                }
             }
 
             return new Length(0f, LengthUnit.Pixel);
