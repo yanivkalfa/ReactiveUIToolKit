@@ -58,7 +58,7 @@ namespace ReactiveUITK.Language.Parser
             string source,
             string filePath,
             List<ParseDiagnostic> diagnosticBag,
-            bool useLastReturn = false
+            bool useLastReturn = true
         )
         {
             if (source.Length > 0 && source[0] == '\uFEFF')
@@ -316,7 +316,7 @@ namespace ReactiveUITK.Language.Parser
             string filePath,
             List<ParseDiagnostic> diagnosticBag,
             out DirectiveSet directiveSet,
-            bool useLastReturn = false
+            bool useLastReturn = true
         )
         {
             directiveSet = default!;
@@ -490,8 +490,9 @@ namespace ReactiveUITK.Language.Parser
                 });
 
                 int fseTrimStart1 = FirstNonWhitespaceAt(source, bodyStart);
-                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag);
                 var setupMarkupRanges1 = FindJsxBlockRanges(source, bodyStart, bodyEndExclusive);
+                var bareJsxRanges1 = FindBareJsxRanges(source, bodyStart, bodyEndExclusive);
+                ScanAtExprInSetupCode(source, bodyStart, bodyEndExclusive, diagnosticBag, setupMarkupRanges1, bareJsxRanges1);
                 CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges1, diagnosticBag);
                 directiveSet = new DirectiveSet(
                     Namespace: functionNamespace,
@@ -511,25 +512,10 @@ namespace ReactiveUITK.Language.Parser
                     ComponentDeclarationLine: componentLine,
                     ComponentNameColumn: componentNameCol,
                     HasExplicitNamespace: inlineNamespace != null,
-                    SetupCodeMarkupRanges: setupMarkupRanges1
+                    SetupCodeMarkupRanges: setupMarkupRanges1,
+                    SetupCodeBareJsxRanges: bareJsxRanges1
                 );
                 return true;
-            }
-
-            int secondReturn = FindTopLevelReturnAfter(
-                source,
-                returnStmtEndExclusive,
-                bodyEndExclusive
-            );
-            if (secondReturn >= 0)
-            {
-                diagnosticBag.Add(new ParseDiagnostic
-                {
-                    Code = "UITKX2103",
-                    Severity = ParseSeverity.Warning,
-                    SourceLine = LineAtPos(source, secondReturn),
-                    Message = "Multiple top-level returns are not allowed in function-style components.",
-                });
             }
 
             int markupStart = returnOpenParen + 1;
@@ -556,10 +542,6 @@ namespace ReactiveUITK.Language.Parser
                     Math.Max(0, bodyEndExclusive - returnStmtEndExclusive)
                 );
 
-            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence.
-            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag);
-            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag);
-
             int fseTrimStart2 = FirstNonWhitespaceAt(source, bodyStart);
             int setupGapOffset = returnStart - fseTrimStart2;
             int setupGapLength = returnStmtEndExclusive - returnStart;
@@ -567,6 +549,16 @@ namespace ReactiveUITK.Language.Parser
                     source,
                     bodyStart,       returnStart,
                     returnStmtEndExclusive, bodyEndExclusive);
+            var bareJsxRanges2 = FindBareJsxRanges(
+                    source,
+                    bodyStart,       returnStart,
+                    returnStmtEndExclusive, bodyEndExclusive);
+
+            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence,
+            // but skip @( inside embedded JSX markup where it is valid syntax.
+            ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+            ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
+
             CheckMissingSemicolonAfterJsxParenBlocks(source, setupMarkupRanges2, diagnosticBag);
             directiveSet = new DirectiveSet(
                 Namespace: functionNamespace,
@@ -589,6 +581,7 @@ namespace ReactiveUITK.Language.Parser
                 FunctionReturnEndLine: LineAtPos(source, returnStmtEndExclusive - 1),
                 FunctionBodyEndLine: LineAtPos(source, bodyEndExclusive),
                 SetupCodeMarkupRanges: setupMarkupRanges2,
+                SetupCodeBareJsxRanges: bareJsxRanges2,
                 FunctionSetupGapOffset: setupGapOffset,
                 FunctionSetupGapLength: setupGapLength
             );
@@ -668,6 +661,11 @@ namespace ReactiveUITK.Language.Parser
 
                 SkipSpaces(source, ref i);
 
+                // Capture position before reading the identifier so we can
+                // attach squiggles to unused-parameter diagnostics later.
+                int paramNameLine = line;
+                int paramNameCol  = ComputeColumn(source, i);
+
                 // Parse parameter name
                 if (!TryReadIdentifier(source, ref i, out string paramName))
                 {
@@ -696,7 +694,11 @@ namespace ReactiveUITK.Language.Parser
                     defaultValue = ReadDefaultValue(source, ref i);
                 }
 
-                result.Add(new FunctionParam(typeName, paramName, defaultValue));
+                result.Add(new FunctionParam(typeName, paramName, defaultValue)
+                {
+                    SourceLine = paramNameLine,
+                    NameColumn = paramNameCol,
+                });
 
                 SkipSpaces(source, ref i);
                 if (i < source.Length && source[i] == ',')
@@ -1129,7 +1131,7 @@ namespace ReactiveUITK.Language.Parser
             out int openParen,
             out int closeParen,
             out int stmtEndExclusive,
-            bool useLastReturn = false
+            bool useLastReturn = true
         )
         {
             returnStart = -1;
@@ -1545,6 +1547,16 @@ namespace ReactiveUITK.Language.Parser
                 i++;
         }
 
+        /// <summary>
+        /// Returns the 0-based column of position <paramref name="pos"/> in
+        /// <paramref name="source"/> by scanning backwards to the nearest newline.
+        /// </summary>
+        private static int ComputeColumn(string source, int pos)
+        {
+            int lineStart = source.LastIndexOf('\n', pos > 0 ? pos - 1 : 0);
+            return lineStart < 0 ? pos : pos - lineStart - 1;
+        }
+
         private static void SkipWhitespace(string source, ref int i)
         {
             while (i < source.Length && char.IsWhiteSpace(source[i]))
@@ -1587,15 +1599,17 @@ namespace ReactiveUITK.Language.Parser
 
         /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
-        /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings
-        /// and comments, emitting <see cref="DiagnosticCodes.AtExprInSetupCode"/>
-        /// for each occurrence.
+        /// <paramref name="rangeEnd"/> for <c>@(</c> tokens that are outside strings,
+        /// comments, and embedded JSX markup ranges, emitting
+        /// <see cref="DiagnosticCodes.AtExprInSetupCode"/> for each occurrence.
         /// </summary>
         private static void ScanAtExprInSetupCode(
             string source,
             int rangeStart,
             int rangeEnd,
-            List<ParseDiagnostic> diagnosticBag)
+            List<ParseDiagnostic> diagnosticBag,
+            ImmutableArray<(int Start, int End, int Line)> jsxRanges = default,
+            ImmutableArray<(int Start, int End, int Line)> bareJsxRanges = default)
         {
             int i = rangeStart;
             while (i < rangeEnd)
@@ -1663,20 +1677,32 @@ namespace ReactiveUITK.Language.Parser
                 // Detect @(
                 if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
                 {
-                    diagnosticBag.Add(new ParseDiagnostic
+                    // @(expr) is valid inside embedded JSX markup — skip those.
+                    if (!IsInsideJsxRange(i, jsxRanges) && !IsInsideJsxRange(i, bareJsxRanges))
                     {
-                        Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
-                        Severity = ParseSeverity.Error,
-                        SourceLine = LineAtPos(source, i),
-                        SourceColumn = ColAtPos(source, i),
-                        EndColumn = ColAtPos(source, i) + 2,
-                        Message = "'@(...)' syntax is not supported in setup code. " +
-                                  "Use a local variable instead: var x = (...); then reference x.",
-                    });
+                        diagnosticBag.Add(new ParseDiagnostic
+                        {
+                            Code = Diagnostics.DiagnosticCodes.AtExprInSetupCode,
+                            Severity = ParseSeverity.Error,
+                            SourceLine = LineAtPos(source, i),
+                            SourceColumn = ColAtPos(source, i),
+                            EndColumn = ColAtPos(source, i) + 2,
+                            Message = "'@(...)' syntax is not supported in setup code. " +
+                                      "Use a local variable instead: var x = (...); then reference x.",
+                        });
+                    }
                 }
 
                 i++;
             }
+        }
+
+        private static bool IsInsideJsxRange(int pos, ImmutableArray<(int Start, int End, int Line)> ranges)
+        {
+            if (ranges.IsDefaultOrEmpty) return false;
+            foreach (var (s, e, _) in ranges)
+                if (pos >= s && pos < e) return true;
+            return false;
         }
 
         private static int LineAtPos(string source, int pos)
@@ -1822,6 +1848,10 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
+                // Skip string and char literals
+                if (TrySkipStringOrCharLiteral(source, rangeEnd, ref i))
+                    continue;
+
                 // ── Bare arrow: => <Tag ──────────────────────────────────
                 if (source[i] == '=' && i + 1 < rangeEnd && source[i + 1] == '>')
                 {
@@ -1870,6 +1900,8 @@ namespace ReactiveUITK.Language.Parser
                 int j     = i + 1;
                 while (j < rangeEnd && depth > 0)
                 {
+                    if (TrySkipStringOrCharLiteral(source, rangeEnd, ref j))
+                        continue;
                     if      (source[j] == '(') depth++;
                     else if (source[j] == ')') depth--;
                     j++;
@@ -1902,6 +1934,157 @@ namespace ReactiveUITK.Language.Parser
         {
             var r1 = FindJsxBlockRanges(source, range1Start, range1End);
             var r2 = FindJsxBlockRanges(source, range2Start, range2End);
+            if (r2.IsDefaultOrEmpty) return r1;
+            if (r1.IsDefaultOrEmpty) return r2;
+            return r1.AddRange(r2);
+        }
+
+        /// <summary>
+        /// Finds bare (non-paren-wrapped) JSX ranges in setup code:
+        /// <c>return &lt;Tag/&gt;</c>, <c>? &lt;Tag/&gt;</c>,
+        /// <c>: &lt;Tag/&gt;</c>, <c>= &lt;Tag/&gt;</c>.
+        /// These are NOT detected by <see cref="FindJsxBlockRanges"/> and are
+        /// stored separately to avoid breaking the formatter's block-index
+        /// alignment.
+        /// </summary>
+        private static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+            string source, int rangeStart, int rangeEnd)
+        {
+            var result = ImmutableArray.CreateBuilder<(int, int, int)>();
+            int i = rangeStart;
+            while (i < rangeEnd)
+            {
+                // Skip // line comments
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '/')
+                {
+                    while (i < rangeEnd && source[i] != '\n') i++;
+                    continue;
+                }
+
+                // Skip /* ... */ block comments
+                if (source[i] == '/' && i + 1 < rangeEnd && source[i + 1] == '*')
+                {
+                    int end = source.IndexOf("*/", i + 2, StringComparison.Ordinal);
+                    i = end >= 0 ? end + 2 : rangeEnd;
+                    continue;
+                }
+
+                // Skip string and char literals
+                if (TrySkipStringOrCharLiteral(source, rangeEnd, ref i))
+                    continue;
+
+                // ── Bare return: return <Tag ─────────────────────────────
+                if (source[i] == 'r' && i + 5 < rangeEnd
+                    && source.Substring(i, 6) == "return"
+                    && (i == 0 || !(char.IsLetterOrDigit(source[i - 1]) || source[i - 1] == '_'))
+                    && (i + 6 >= rangeEnd || !(char.IsLetterOrDigit(source[i + 6]) || source[i + 6] == '_')))
+                {
+                    int peek = i + 6;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Ternary true branch: ? <Tag  (but NOT ?. or ??) ─────
+                if (source[i] == '?' && i + 1 < rangeEnd
+                    && source[i + 1] != '.' && source[i + 1] != '?')
+                {
+                    int peek = i + 1;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Ternary false branch: : <Tag  (but NOT ::) ──────────
+                if (source[i] == ':' && i + 1 < rangeEnd
+                    && source[i + 1] != ':')
+                {
+                    int peek = i + 1;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                // ── Bare assignment: = <Tag  (but NOT ==, =>, !=, <=, >=)
+                if (source[i] == '=' && i + 1 < rangeEnd
+                    && source[i + 1] != '=' && source[i + 1] != '>'
+                    && (i == 0 || (source[i - 1] != '!' && source[i - 1] != '<' && source[i - 1] != '>')))
+                {
+                    int peek = i + 1;
+                    while (peek < rangeEnd &&
+                           (source[peek] == ' '  || source[peek] == '\t' ||
+                            source[peek] == '\r' || source[peek] == '\n'))
+                        peek++;
+
+                    if (peek < rangeEnd && source[peek] == '<'
+                        && peek + 1 < rangeEnd && char.IsLetter(source[peek + 1]))
+                    {
+                        int jsxEnd = FindJsxElementEnd(source, peek, rangeEnd);
+                        if (jsxEnd > peek)
+                        {
+                            int blockLine = LineAtPos(source, peek);
+                            result.Add((peek, jsxEnd, blockLine));
+                            i = jsxEnd;
+                            continue;
+                        }
+                    }
+                }
+
+                i++;
+            }
+            return result.ToImmutable();
+        }
+
+        /// <summary>Two-range overload for <see cref="FindBareJsxRanges"/>.</summary>
+        private static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+            string source,
+            int range1Start, int range1End,
+            int range2Start, int range2End)
+        {
+            var r1 = FindBareJsxRanges(source, range1Start, range1End);
+            var r2 = FindBareJsxRanges(source, range2Start, range2End);
             if (r2.IsDefaultOrEmpty) return r1;
             if (r1.IsDefaultOrEmpty) return r2;
             return r1.AddRange(r2);
@@ -1996,6 +2179,154 @@ namespace ReactiveUITK.Language.Parser
             if (i < source.Length && source[i] == '\n')
                 i++;
             line++;
+        }
+
+        /// <summary>
+        /// If <c>source[i]</c> starts a C# string or char literal, advances
+        /// <paramref name="i"/> past its closing delimiter and returns <c>true</c>.
+        /// Handles regular <c>"..."</c>, verbatim <c>@"..."</c>,
+        /// interpolated <c>$"..."</c>, combined <c>$@"..."</c> / <c>@$"..."</c>,
+        /// and char <c>'...'</c> literals.  Inside interpolated strings the
+        /// method tracks brace depth and recursively skips nested string literals
+        /// within interpolation holes.
+        /// </summary>
+        internal static bool TrySkipStringOrCharLiteral(string source, int rangeEnd, ref int i)
+        {
+            if (i >= rangeEnd) return false;
+            char c0 = source[i];
+
+            // ── Char literal '...' ─────────────────────────────────────────
+            if (c0 == '\'')
+            {
+                int j = i + 1;
+                while (j < rangeEnd)
+                {
+                    if (source[j] == '\\') { j += 2; continue; }
+                    if (source[j] == '\'') { i = j + 1; return true; }
+                    j++;
+                }
+                i = rangeEnd;
+                return true;
+            }
+
+            // ── Detect string kind ─────────────────────────────────────────
+            bool isVerbatim = false;
+            bool isInterpolated = false;
+            int quotePos = -1;
+
+            if (c0 == '"')
+            {
+                quotePos = i;
+            }
+            else if (c0 == '$' && i + 1 < rangeEnd)
+            {
+                if (source[i + 1] == '"')
+                {
+                    isInterpolated = true;
+                    quotePos = i + 1;
+                }
+                else if (source[i + 1] == '@' && i + 2 < rangeEnd && source[i + 2] == '"')
+                {
+                    isInterpolated = true;
+                    isVerbatim = true;
+                    quotePos = i + 2;
+                }
+            }
+            else if (c0 == '@' && i + 1 < rangeEnd)
+            {
+                if (source[i + 1] == '"')
+                {
+                    isVerbatim = true;
+                    quotePos = i + 1;
+                }
+                else if (source[i + 1] == '$' && i + 2 < rangeEnd && source[i + 2] == '"')
+                {
+                    isInterpolated = true;
+                    isVerbatim = true;
+                    quotePos = i + 2;
+                }
+            }
+
+            if (quotePos < 0) return false;
+
+            // ── Scan to end of string ──────────────────────────────────────
+            int k = quotePos + 1;
+            int braceDepth = 0;
+
+            while (k < rangeEnd)
+            {
+                char ch = source[k];
+
+                // Inside an interpolation hole — track braces, skip nested strings
+                if (isInterpolated && braceDepth > 0)
+                {
+                    if (ch == '{') { braceDepth++; k++; continue; }
+                    if (ch == '}') { braceDepth--; k++; continue; }
+                    // Nested string or char literal inside interpolation
+                    if (ch == '"' || ch == '\'' || ch == '$' || ch == '@')
+                    {
+                        if (TrySkipStringOrCharLiteral(source, rangeEnd, ref k))
+                            continue;
+                    }
+                    // Skip // and /* */ inside interpolation
+                    if (ch == '/' && k + 1 < rangeEnd)
+                    {
+                        if (source[k + 1] == '/') { while (k < rangeEnd && source[k] != '\n') k++; continue; }
+                        if (source[k + 1] == '*')
+                        {
+                            int ce = source.IndexOf("*/", k + 2, StringComparison.Ordinal);
+                            k = ce >= 0 ? ce + 2 : rangeEnd;
+                            continue;
+                        }
+                    }
+                    k++;
+                    continue;
+                }
+
+                // Inside string text (braceDepth == 0)
+                if (isVerbatim)
+                {
+                    if (ch == '"')
+                    {
+                        if (k + 1 < rangeEnd && source[k + 1] == '"')
+                        { k += 2; continue; } // escaped ""
+                        i = k + 1; return true; // end of string
+                    }
+                    if (isInterpolated && ch == '{')
+                    {
+                        if (k + 1 < rangeEnd && source[k + 1] == '{')
+                        { k += 2; continue; } // escaped {{
+                        braceDepth++;
+                    }
+                    if (isInterpolated && ch == '}')
+                    {
+                        if (k + 1 < rangeEnd && source[k + 1] == '}')
+                        { k += 2; continue; } // escaped }}
+                    }
+                    k++;
+                    continue;
+                }
+
+                // Regular or interpolated non-verbatim
+                if (ch == '\\') { k += 2; continue; }
+                if (ch == '"') { i = k + 1; return true; }
+                if (isInterpolated && ch == '{')
+                {
+                    if (k + 1 < rangeEnd && source[k + 1] == '{')
+                    { k += 2; continue; } // escaped {{
+                    braceDepth++;
+                }
+                if (isInterpolated && ch == '}')
+                {
+                    if (k + 1 < rangeEnd && source[k + 1] == '}')
+                    { k += 2; continue; } // escaped }}
+                }
+                k++;
+            }
+
+            // Unterminated — advance to end
+            i = rangeEnd;
+            return true;
         }
     }
 }

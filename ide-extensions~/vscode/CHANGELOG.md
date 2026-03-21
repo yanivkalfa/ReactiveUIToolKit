@@ -1,5 +1,105 @@
 ﻿# Changelog
 
+## [1.0.282] - 2026-03-20
+- Remove dead memoize/memoCompare API; convert SyntheticEventDemo to direct attributes; add docs pages (language reference, diagnostics, config, debugging, editor limitations)
+
+## [1.0.281] - 2026-03-20
+- Fix comment coloring - skip hook setter tokens inside C-style and JSX comment regions
+
+## [1.0.280] - 2026-03-20
+- Fix JSX comment coloring - suppress hook setter tokens inside comment spans
+
+## [1.0.279] - 2026-03-20
+- Drop Roslyn property semantic token override — let TmLanguage grammar color persist for .Current/.Value etc
+
+## [1.0.278] - 2026-03-20
+- Formatter: skip blank-line whitespace edits to preserve cursor position; Property semantic token scopes for theme-independent coloring
+
+## [1.0.277] - 2026-03-20
+- Property color now distinct from variable color; Formatter: per-line TextEdits for stable cursor position; Fix CRLF mismatch in edit computation
+
+## [1.0.276] - 2026-03-20
+- Hover: sanitize internal stub types (Ref<T>, StateSetter); Property semantic color distinct from variables; Formatter: minimal text edits to preserve cursor position
+
+## [1.0.275] - 2026-03-20
+- TD-09: Fix paren-depth in ScanJsxParenBlocks/FindJsxBlockRanges to skip string literals; TD-12: Fix HoverHandler EnsureReadyAsync for useRef semantic colour; Add useRef completion test
+
+## [1.0.274] - 2026-03-20
+- Add comprehensive test suite: 75 language-lib tests (semantic tokens, cursor context, virtual document, diagnostics analyzer) + 21 LSP server tests (Roslyn completions, host workspace, full protocol integration). No production code changes.
+
+## [1.0.260] - 2026-03-18
+- Fix: string/char literals inside setup code no longer trigger false JSX detection.
+  Interpolated strings like `$"{label}: <null event>"` with `:` or `<` are now correctly
+  skipped by both the DirectiveParser (FindJsxBlockRanges, FindBareJsxRanges) and the
+  VDG scanner — fixes false "mismatched tag", "unterminated string", and "name does not
+  exist" errors in SyntheticEventDemoFunc and similar files.
+
+## [1.0.259] - 2026-03-18
+- Revert: removed string literal skipping from VDG scanner (v1.0.258) — caused widespread regressions.
+
+## [1.0.258] - 2026-03-18
+- Fix: VDG setup-code scanner now skips string literals (regular, verbatim, interpolated) and char literals. Previously, C# content like `$"{label}: <null event>"` could trigger JSX branch detectors on `<` or `:` inside strings, causing broken VDoc output and cascade errors.
+
+## [1.0.257] - 2026-03-18
+- Feature: JSX child expressions `{expr}` now get Roslyn type-checking. Previously only `@(expr)` inline expressions and attribute expressions `attr={expr}` were checked; bare `{childNode}` children were silently ignored by the parser.
+
+## [1.0.256] - 2026-03-18
+- Fix: expression checks for setup-code JSX now flush at first statement boundary (';' at paren-depth 0) within the next segment, preserving lexical scope for variables inside lambdas/loops while still avoiding mid-expression insertion.
+
+## [1.0.255] - 2026-03-18
+- Fix: setup-code JSX expression checks no longer break surrounding C# syntax. Deferred checks were flushed inline into expression contexts (lambda bodies, ternary operands, assignment RHS), causing cascade errors ("namespace cannot contain members", "name does not exist"). All pending checks now emit at end of setup code in a clean statement context.
+
+## [1.0.254] - 2026-03-18
+- Fix: Site A no longer dims component closing brace (uses FunctionBodyEndLine-1). Add render-return wrapper dimming for the return() line that wraps the render root but is not part of the AST.
+
+## [1.0.253] - 2026-03-18
+- Fix: decouple isFunctionStyle from skipReturnCheck so Site B (sibling-level dimming) fires for function-style components. Early return in setup code now dims the render root element too.
+
+## [1.0.252] - 2026-03-18
+- Fix: off-by-one in function-style unreachable diagnostics (srcLine used @code convention but synthetic source has no leading newline); remove skipTopLevel to detect early returns in setup code.
+
+## [1.0.251] - 2026-03-18
+- Fix: production-grade unreachable-after-return dimming. Rewrote CheckUnreachableAfterReturn with unified depth-aware tracker supporting multi-line return(...); detection. Removed CS0162 merging hack and FindScopeEnd. Suppressed CS0162 globally in favor of UITKX0107.
+
+## [1.0.250] - 2026-03-18
+- Revert global CS0162 suppression; instead merge per-statement CS0162 into full-block unreachable ranges so entire code after return is dimmed consistently
+
+## [1.0.249] - 2026-03-18
+- Suppress CS0162 (unreachable code) globally — virtual document return-placeholders cause false unreachable dimming; genuine unreachability is covered by UITKX0107/UITKX0110
+
+## [1.0.248] - 2026-03-18
+- Fix spurious dimming of code after return statements: move expression checks before return so they are reachable; suppress CS0162 for all scaffolded expression checks via pragma
+
+## [1.0.247] - 2026-03-17
+- Expression checks for JSX in nested scopes (lambdas, local functions): deferred emission at nearest statement boundary keeps checks in correct lexical scope
+
+## [1.0.246] - 2026-03-17
+- already set
+
+## [1.0.246] - 2026-03-17
+- Minor improvements and bug fixes.
+
+## [1.0.246] - 2026-03-17
+- Fix: skip expression diagnostics for JSX inside nested scopes (lambdas/local functions) to prevent false 'does not exist' errors
+
+## [1.0.245] - 2026-03-17
+- Fix: emit expression diagnostics for bare JSX in function-style setup code (return/ternary/assignment patterns)
+
+## [1.0.244] - 2026-03-17
+- Fix: emit expression diagnostics for bare JSX in function-style setup code (return/ternary/assignment patterns)
+
+## [1.0.243] - 2026-03-17
+- Fix broken diagnostics in setup code: #line directives were inlined with JSX placeholders, causing Roslyn to lose line mapping for all subsequent C# code
+
+## [1.0.242] - 2026-03-17
+- Fix false diagnostics for bare return/ternary JSX in setup code (return <Tag/>, ? <Tag/>, : <Tag/>)
+
+## [1.0.241] - 2026-03-17
+- Fix false red squiggles for JSX in setup code (return/ternary/assignment markup inside local functions and lambdas)
+
+## [1.0.240] - 2026-03-17
+- Fix Go-To-Definition navigating into dist~ folders; support multiple return statements in function-style components (use last return as canonical markup)
+
 ## [1.0.239] - 2026-03-17
 - Add VisualElementSafe to uitkx-schema.json (fixes UITKX0105 unknown element)
 

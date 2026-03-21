@@ -46,10 +46,7 @@ namespace ReactiveUITK.Samples.Shared
             Style = new Style { (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)), (MarginLeft, 4f) },
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             string label = p?.TypeText ?? string.Empty;

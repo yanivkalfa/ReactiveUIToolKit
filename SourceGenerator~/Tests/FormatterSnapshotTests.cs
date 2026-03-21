@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Language.Formatter;
 using Xunit;
@@ -55,7 +56,7 @@ public sealed class FormatterSnapshotTests
     /// </summary>
     private static string WorkspaceRoot([CallerFilePath] string thisFile = "")
     {
-        var dir = Path.GetDirectoryName(thisFile)!;          // Tests/
+        var dir = Path.GetDirectoryName(thisFile)!; // Tests/
         return Path.GetFullPath(Path.Combine(dir, "../..")); // workspace root
     }
 
@@ -93,7 +94,7 @@ public sealed class FormatterSnapshotTests
     {
         _ = relativePath; // used for test display name only
         var content = N(File.ReadAllText(filePath));
-        var result  = Format(content);
+        var result = Format(content);
         Assert.Equal(content, result);
     }
 
@@ -113,7 +114,8 @@ public sealed class FormatterSnapshotTests
     {
         // new Style { } entries have inconsistent leading whitespace.
         // Expected: all entries at opening-line-indent (2) + indentSize (2) = 4 spaces.
-        var source = N("""
+        var source = N(
+            """
             component Counter {
               var s = new Style {
                     (StyleKeys.Padding, 14f),
@@ -122,7 +124,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -143,7 +146,8 @@ public sealed class FormatterSnapshotTests
         //     },                     <- depth 0 (leading '}'), rel=2 → 4 spaces
         //     0                      <- depth 0, rel=2  → 4 spaces (continuation)
         //   );                       <- depth 0, rel=0  → 2 spaces
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var x = useMemo(
                 () => new List<int>
@@ -156,7 +160,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -174,14 +179,16 @@ public sealed class FormatterSnapshotTests
         // Both useState lines have excessive indent (8-space).
         // After Trim() line-0 becomes 0-space, line-1 becomes 8-space.
         // baseSpaces = 8 → both lines emit at rel=0 → both at 2-space. ✓
-        var source = N("""
+        var source = N(
+            """
             component Counter {
                     var (count, setCount) = useState(0);
                     var (mode, setMode) = useState("normal");
                     var msg = $"Count={count}";
                     return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -194,13 +201,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FMT1_SetupVars_NoIndent_GetsIndented()
     {
-        var source = N("""
+        var source = N(
+            """
             component Counter {
             var (count, setCount) = useState(0);
             var (mode, setMode) = useState("normal");
             return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -213,14 +222,16 @@ public sealed class FormatterSnapshotTests
     {
         // The method body is MORE indented than the outer statements.
         // Re-anchor should preserve that relative difference.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               void DoThing() {
                 bar();
               }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -233,7 +244,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FMT1_LambdaBodyInsideMethod_RelativeIndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               void Load() {
                 setRows(prev => {
@@ -244,7 +256,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -264,7 +277,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void BlankLines_BetweenSetupStatements_Preserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var a = useMemo(() => 1, 0);
 
@@ -274,7 +288,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -291,7 +306,8 @@ public sealed class FormatterSnapshotTests
         // so should be reduced to one blank line in JSX regions.
         // (C# setup is passed through verbatim by re-anchor; this only applies
         //  to JSX node-list blank lines.)
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -301,7 +317,8 @@ public sealed class FormatterSnapshotTests
 
               <Label text="B" />
             </Box>
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -315,13 +332,15 @@ public sealed class FormatterSnapshotTests
         // The blank line immediately before the `return (` that the formatter
         // emits comes from the setup code ending.  The re-anchor should not eat
         // the trailing newline.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var x = 1;
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -352,7 +371,8 @@ public sealed class FormatterSnapshotTests
     public void JSX_Tag_LongAttrs_WrapsToOnePerLine()
     {
         // Total width exceeds PrintWidth=80, so attrs should each get their own line.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Button
@@ -362,7 +382,8 @@ public sealed class FormatterSnapshotTests
                 />
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -378,7 +399,8 @@ public sealed class FormatterSnapshotTests
     public void JSX_OpenTag_ClosingBracketOnOwnLine()
     {
         // When the open tag wraps, > goes on its own line (BracketSameLine=false).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <VisualElement style={new Style { (StyleKeys.FlexDirection, "column"), (StyleKeys.Padding, 12f) }}>
@@ -386,7 +408,8 @@ public sealed class FormatterSnapshotTests
                 </VisualElement>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -399,15 +422,17 @@ public sealed class FormatterSnapshotTests
     {
         // Return root is at 4-space (indent 2 = inside return paren inside component).
         // Children of root at 6-space, grandchildren at 8-space.
-        var source = N("""
+        var source = N(
+            """
             component Foo { return (<VisualElement><Box><Label text="x" /></Box></VisualElement>); }
-            """);
+            """
+        );
 
         var result = Format(source);
 
         Assert.Contains("\n    <VisualElement>", result); // 4-space: return root
-        Assert.Contains("\n      <Box>", result);           // 6-space: inside VisualElement
-        Assert.Contains("\n        <Label", result);        // 8-space: inside Box
+        Assert.Contains("\n      <Box>", result); // 6-space: inside VisualElement
+        Assert.Contains("\n        <Label", result); // 8-space: inside Box
         Assert.Contains("\n      </Box>", result);
         Assert.Contains("\n    </VisualElement>", result);
     }
@@ -425,13 +450,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void JSX_ExpressionBlock_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @(count.ToString())
             <Box />
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -441,13 +468,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void JSX_Comment_EmitsWithSpacesAroundContent()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             {/*   some note   */}
             <Box />
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -461,14 +490,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_If_IndentedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @if (show) {
                 <Label text="yes" />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -480,7 +511,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_IfElse_EmittedOnSameLine()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -489,7 +521,8 @@ public sealed class FormatterSnapshotTests
             } @else {
                 <Label text="no" />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -502,7 +535,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_ElseIf_EmittedOnSameLine()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -513,7 +547,8 @@ public sealed class FormatterSnapshotTests
             } @else {
                 <C />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -528,14 +563,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_Foreach_IndentedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @foreach (var item in items) {
                 <Label text={item} key={item} />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -554,7 +591,8 @@ public sealed class FormatterSnapshotTests
         //         <Group>      — at 8-space (indent 4)
         //           @foreach   — at 10-space (indent 5)
         //             <Row>    — at 12-space (indent 6)
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -568,7 +606,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -586,7 +625,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_Switch_IndentedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -598,7 +638,8 @@ public sealed class FormatterSnapshotTests
                 @default:
                     <LabelDefault />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -618,7 +659,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void Signature_NamespaceAndUsings_EmittedBeforeComponent()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace MyApp.Components
             @using UnityEngine
             @using System.Collections.Generic
@@ -626,7 +668,8 @@ public sealed class FormatterSnapshotTests
             component MyComp {
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -640,11 +683,13 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void Signature_FunctionParams_InSignatureLine()
     {
-        var source = N("""
+        var source = N(
+            """
             component Greeter(string name = "World", bool show = true) {
               return (<Label text={$"Hello {name}"} />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -664,13 +709,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void Signature_ClassStyle_DirectivesPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component MyClassComp
             @props MyProps
 
             <Box />
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -686,7 +733,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void CodeBlock_EmittedWithCorrectBraces()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -695,7 +743,8 @@ public sealed class FormatterSnapshotTests
                 var y = 2;
             }
             <Box />
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -743,7 +792,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void Edge_SingleLineSource_ExpandsToCanonical()
     {
-        var singleLine = "component Counter { var (c,setC) = useState(0); return (<Button text={c.ToString()} onClick={_=>setC(c+1)} />); }";
+        var singleLine =
+            "component Counter { var (c,setC) = useState(0); return (<Button text={c.ToString()} onClick={_=>setC(c+1)} />); }";
         var result = Format(singleLine);
 
         Assert.Contains("component Counter {", result);
@@ -764,11 +814,13 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void Edge_ComponentWithNoSetup_NoExtraBlank()
     {
-        var source = N("""
+        var source = N(
+            """
             component NoSetup {
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -790,7 +842,8 @@ public sealed class FormatterSnapshotTests
     public void StyleBlock_EntryIndent_Preserved()
     {
         // Already-correct 4-space entries (2 for var + 2 relative) must survive.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.Padding, 12f),
@@ -798,7 +851,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -814,7 +868,8 @@ public sealed class FormatterSnapshotTests
     {
         // Entries consistently over-indented at 6-space: the block-stack normaliser
         // places them at the canonical block-target (opener-emit + indentSize = 4sp).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                     (StyleKeys.Padding, 12f),
@@ -822,7 +877,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -840,14 +896,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_MultipleUseState_AllAtTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Multi {
               var (a, setA) = useState(0);
               var (b, setB) = useState(false);
               var (c, setC) = useState("hello");
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -859,7 +917,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_UseEffect_BodyPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component WithEffect {
               var (count, setCount) = useState(0);
               useEffect(() => {
@@ -868,7 +927,8 @@ public sealed class FormatterSnapshotTests
               }, new object[] { });
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -881,7 +941,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_UseMemo_MultiLineBody_Preserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Memo {
               var items = useMemo(
                 () => new List<string> { "a", "b", "c" },
@@ -889,7 +950,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -904,7 +966,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_JsxVarInSetup_EmittedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component WithJsxVar {
               var (show, setShow) = useState(false);
               var fallback = (
@@ -920,20 +983,22 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
         Assert.Contains("var (show, setShow) = useState(false);", result);
-        Assert.Contains("  var fallback = (", result);      // at 2-space
+        Assert.Contains("  var fallback = (", result); // at 2-space
         Assert.Contains("\n    <Label text=\"Loading...\" />", result); // at 4-space inside paren
-        Assert.Contains("\n  );", result);                   // closing ); at 2-space
+        Assert.Contains("\n  );", result); // closing ); at 2-space
     }
 
     [Fact]
     public void FunctionStyle_TwoJsxVars_BlankLineBetweenPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component WithTwoJsxVars {
               var first = (
                 <Label text="first" />
@@ -945,7 +1010,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -962,7 +1028,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_ArrowLambdaSelfClosingJsx_FormattedInline()
     {
-        var source = N("""
+        var source = N(
+            """
             component WithArrowJsx {
               var tabViewProps = new TabViewProps
               {
@@ -974,7 +1041,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -986,7 +1054,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_ArrowLambdaContainerJsx_ParenWrappedMultiline()
     {
-        var source = N("""
+        var source = N(
+            """
             component WithArrowContainer {
               var tabDef = new TabDef { Title = "Log", Content = () => <Box>
                 <Label text="hello" />
@@ -994,7 +1063,8 @@ public sealed class FormatterSnapshotTests
               </Box> };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1011,12 +1081,14 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_ArrowLambdaParenWrapped_ExistingFormPreserved()
     {
         // User already writes the canonical form with parens — stays inline
-        var source = N("""
+        var source = N(
+            """
             component WithArrowParen {
               var tabDef = new TabDef { Title = "Log", Content = () => (<Label text="hello" />) };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1028,13 +1100,15 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_ArrowLambdaVarRef_NoTransform()
     {
         // () => variable should remain unchanged — no JSX to format
-        var source = N("""
+        var source = N(
+            """
             component WithVarRef {
               var element = (<Label text="hello" />);
               var tabDef = new TabDef { Title = "Log", Content = () => element };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1048,12 +1122,14 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_BareAssignSelfClosingJsx_NormalizedToParens()
     {
         // var x = <Label /> → var x = (<Label />);
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var bla = <Label text="hello" />;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         Assert.Contains("var bla = (<Label text=\"hello\" />)", result);
@@ -1064,14 +1140,16 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_BareAssignContainerJsx_NormalizedToParens()
     {
         // var bla = <Box>...</Box> → var bla = (\n  <Box>...\n);
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var bla = <Box>
                 <Label text="hello" />
               </Box>;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         Assert.Contains("var bla = (", result);
@@ -1087,12 +1165,14 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_BareAssignSingleLineContainer_NormalizedToParens()
     {
         // var bla = <Box><Label /></Box> → normalized with parens AND expanded multi-line
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var bla = <Box><Label text="hello" /></Box>;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         Assert.Contains("var bla = (", result);
@@ -1110,12 +1190,14 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_BareAssignAlreadyParenWrapped_Unchanged()
     {
         // Already paren-wrapped — stays as-is
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var bla = (<Label text="hello" />);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         Assert.Contains("var bla = (<Label text=\"hello\" />)", result);
@@ -1126,7 +1208,8 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_ComparisonOperators_NotTreatedAsJsx()
     {
         // Comparison operators (<=, >=, ==) must NOT trigger JSX normalization
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var x = 5;
               if (x <= 10) { }
@@ -1135,7 +1218,8 @@ public sealed class FormatterSnapshotTests
               if (x != 2) { }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         // These should remain unchanged — no JSX normalization
@@ -1153,7 +1237,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_JsxInSwitchCase_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void ApplyMode(string newMode)
               {
@@ -1179,7 +1264,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1201,7 +1287,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_JsxInIfBlock_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void HandleEvent(ReactiveEvent evt)
               {
@@ -1221,7 +1308,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1240,7 +1328,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_JsxInMethodBody_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void TreeAddParent()
               {
@@ -1266,7 +1355,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1290,7 +1380,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_JsxInsideLambdaBody_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void MctvDeleteLast()
               {
@@ -1312,7 +1403,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1334,7 +1426,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_JsxInsideLambdaBodyAfterIf_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void MctvSetChild()
               {
@@ -1364,7 +1457,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1387,7 +1481,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void FunctionStyle_TabViewPropsMultilineArrowJsx_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var secondElement = (
                 <Label text="This is a TabView demo." />
@@ -1412,7 +1507,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1436,7 +1532,8 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_TabViewProps_StyleIndentAfterJsx()
     {
         // Style property after JSX block in nested initializer must keep correct indent
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var tabViewProps = new TabViewProps
               {
@@ -1456,7 +1553,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         // Style must be at 4sp (same depth as SelectedIndex, Tabs)
@@ -1474,7 +1572,8 @@ public sealed class FormatterSnapshotTests
     {
         // { on same line as first list item: formatter should split {content
         // into { + content on separate lines and indent correctly
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var tabViewProps = new TabViewProps
               {
@@ -1492,7 +1591,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
         // The formatter should split {new into { + new on separate lines
@@ -1511,7 +1611,8 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_MultipleJsxBlocks_AllIndentCorrectly()
     {
         // Two JSX blocks at different nesting depths in the same component.
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               var header = (
                 <Label text="header" />
@@ -1531,7 +1632,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1552,7 +1654,8 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_JsxAtStartOfMethod_IndentPreserved()
     {
         // JSX is the very first statement in a method.
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void Init()
               {
@@ -1564,7 +1667,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1579,7 +1683,8 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_JsxAtEndOfMethod_IndentPreserved()
     {
         // JSX is the very last statement in a method.
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void Finalize()
               {
@@ -1591,7 +1696,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1607,7 +1713,8 @@ public sealed class FormatterSnapshotTests
     public void FunctionStyle_JsxInNestedLambdaInsideIf_IndentPreserved()
     {
         // JSX deeply nested: method → if → lambda body.
-        var source = N("""
+        var source = N(
+            """
             component Comp {
               void Process()
               {
@@ -1625,7 +1732,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1642,14 +1750,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ClassStyle_NamespaceUsingsOrderPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace Foo.Bar
             @using System
             @using UnityEngine
             @component MyComp
 
             <Label text="x" />
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1668,11 +1778,13 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ClassStyle_BlankLineBetweenDirectivesAndMarkup()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
             <Box />
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1726,7 +1838,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_Break_EmittedWithSemicolon()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -1736,7 +1849,8 @@ public sealed class FormatterSnapshotTests
                 }
                 <Label text={x} />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1746,7 +1860,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void ControlFlow_Continue_EmittedWithSemicolon()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -1756,7 +1871,8 @@ public sealed class FormatterSnapshotTests
                 }
                 <Label text={x} />
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1802,11 +1918,13 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void DoubleFormat_MessyInput_Stable()
     {
-        var messy = N("""
+        var messy = N(
+            """
             component Foo{var (x,setX)=useState(0);return(<Box><Button text={x.ToString()} onClick={_=>setX(x+1)}/></Box>);}
-            """);
+            """
+        );
 
-        var first  = Format(messy);
+        var first = Format(messy);
         var second = Format(first);
 
         Assert.Equal(first, second);
@@ -1815,16 +1933,18 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void DoubleFormat_ClassStyle_Stable()
     {
-        var messy = N("""
+        var messy = N(
+            """
             @namespace NS
             @component MyComp
             <Box>
             <Label text="hello"/>
             <Button text="go" onClick={_=>doIt()}/>
             </Box>
-            """);
+            """
+        );
 
-        var first  = Format(messy);
+        var first = Format(messy);
         var second = Format(first);
 
         Assert.Equal(first, second);
@@ -1833,16 +1953,18 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void DoubleFormat_WithForEach_Stable()
     {
-        var messy = N("""
+        var messy = N(
+            """
             @namespace NS
             @component List
 
             @foreach(var item in items){
             <Label text={item}/>
             }
-            """);
+            """
+        );
 
-        var first  = Format(messy);
+        var first = Format(messy);
         var second = Format(first);
 
         Assert.Equal(first, second);
@@ -1851,15 +1973,17 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void DoubleFormat_FunctionStyleWithSetup_Stable()
     {
-        var messy = N("""
+        var messy = N(
+            """
             component Counter {
                     var (c, setC) = useState(0);
                     var label = $"Count: {c}";
                     return (<Button text={label} onClick={_=>setC(c+1)}/>);
             }
-            """);
+            """
+        );
 
-        var first  = Format(messy);
+        var first = Format(messy);
         var second = Format(first);
 
         Assert.Equal(first, second);
@@ -1880,12 +2004,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C01_Directive_UsingStatic_EmittedAfterRegularUsings()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @using System
             @using static ReactiveUITK.Props.Typed.StyleKeys
             component Foo { return (<Box />); }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1902,13 +2028,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C02a_UseState_Scalar_OverIndented_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var (count, setCount) = useState(0);
                   var (mode, setMode) = useState("normal");
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1920,12 +2048,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C02b_UseState_Bool_OverIndented_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var (mounted, setMounted) = useState(true);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1936,12 +2066,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C02c_UseState_GenericNullableType_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var (ids, setIds) = useState<List<int>?>(null);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1952,23 +2084,29 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C02d_UseState_InlineNewList_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var (log, setLog) = useState(new List<string> { "Ready." });
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
-        Assert.Contains("\n  var (log, setLog) = useState(new List<string> { \"Ready.\" });", result);
+        Assert.Contains(
+            "\n  var (log, setLog) = useState(new List<string> { \"Ready.\" });",
+            result
+        );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void C02e_UseState_MultipleGroups_WithBlankLine_BlankLinePreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var (a, setA) = useState(0);
               var (b, setB) = useState("x");
@@ -1978,7 +2116,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -1992,28 +2131,35 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C03a_UseContext_TypeKey_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var target = useContext<VisualElement>(PortalContextKeys.ModalRoot);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
-        Assert.Contains("\n  var target = useContext<VisualElement>(PortalContextKeys.ModalRoot);", result);
+        Assert.Contains(
+            "\n  var target = useContext<VisualElement>(PortalContextKeys.ModalRoot);",
+            result
+        );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void C03b_UseContext_StringKey_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var color = useContext<Color>("theme-color");
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2024,12 +2170,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C03c_ProvideContext_Statement_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   provideContext("my-key", someValue);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2042,12 +2190,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C04_UseSignal_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var count = useSignal(counterSignal);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2060,12 +2210,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C05a_UseMemo_ArrayEmptyDeps_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var sig = useMemo(() => GetSig(), Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2076,16 +2228,21 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C05b_UseMemo_NewObjectArrayDep_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var doubled = useMemo(() => count * 2, new object[] { count });
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
-        Assert.Contains("\n  var doubled = useMemo(() => count * 2, new object[] { count });", result);
+        Assert.Contains(
+            "\n  var doubled = useMemo(() => count * 2, new object[] { count });",
+            result
+        );
         Assert.Equal(result, Format(result));
     }
 
@@ -2094,7 +2251,8 @@ public sealed class FormatterSnapshotTests
     {
         // The List entries have inconsistent indent; block normaliser should
         // bring them all to opener-line-indent + indentSize.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var options = useMemo(() => new List<string> {
                     "Alpha",
@@ -2103,7 +2261,8 @@ public sealed class FormatterSnapshotTests
               }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2119,14 +2278,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C06_UseRef_DeclCurrentIncrementAndRead_OverIndented_Normalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var renderCountRef = useRef<int>(0);
                   renderCountRef.Current++;
                   var renderCount = renderCountRef.Current;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2141,7 +2302,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C07a_UseEffect_NullReturn_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   useEffect(() => {
                     doSomething();
@@ -2149,7 +2311,8 @@ public sealed class FormatterSnapshotTests
                   }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2163,7 +2326,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C07b_UseEffect_LambdaCleanup_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   useEffect(() => {
                     doSetup();
@@ -2173,7 +2337,8 @@ public sealed class FormatterSnapshotTests
                   }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2189,7 +2354,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C07c_UseEffect_LocalFunctionInsideBody_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   useEffect(() => {
                     bool captured = false;
@@ -2207,7 +2373,8 @@ public sealed class FormatterSnapshotTests
                   }, new object[] { signal });
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2229,7 +2396,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C07d_UseEffect_MultipleBodyStatements_NewObjectArrayDeps_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   useEffect(() => {
                     setCount(n => n + 1);
@@ -2238,7 +2406,8 @@ public sealed class FormatterSnapshotTests
                   }, new object[] { x, y });
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2253,7 +2422,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C08_UseLayoutEffect_NullReturn_WithDepsArray_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   useLayoutEffect(() => {
                     setTrigger(t => t);
@@ -2261,7 +2431,8 @@ public sealed class FormatterSnapshotTests
                   }, new object[] { count });
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2277,12 +2448,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09a_VoidMethod_SingleStatementOnSameLine_OverIndented_Normalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void Reset() { setCount(0); }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2293,7 +2466,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09b_VoidMethod_MultiStatementWithListInitAndGuard_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void AppendLog(string message) {
                     var next = new List<string>(log.Count + 1) {
@@ -2307,7 +2481,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2326,7 +2501,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09c_VoidMethod_ForLoopAndTupleSwap_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void Shuffle() {
                     if (items.Count == 0) {
@@ -2340,7 +2516,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2356,7 +2533,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09d_VoidMethod_SwitchCaseWithBreaks_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void ApplyMode(string newMode) {
                     switch (newMode) {
@@ -2374,7 +2552,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2394,7 +2573,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09e_VoidMethod_IsPatternMatchingWithElseIf_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void HandleEvent(ReactiveEvent evt) {
                     if (evt == null) {
@@ -2409,7 +2589,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2425,7 +2606,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09f_VoidMethod_LambdaStateSetter_NewObjectInit_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void AddItem() {
                     setRows(prev =>
@@ -2441,7 +2623,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2456,7 +2639,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09g_VoidMethod_LambdaStateSetter_MultipleEarlyReturnsAndNullCoalescing_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void SetParent() {
                     setRows(prev =>
@@ -2482,7 +2666,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2499,7 +2684,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C09h_VoidMethod_LambdaStateSetter_RemoveAtPattern_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void DeleteLast() {
                     setRows(prev =>
@@ -2514,7 +2700,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2529,7 +2716,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C10_TypedDelegateLambda_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   MenuBuilderHandler buildMenu = dm => {
                     dm.AppendAction("Reset", _ => doReset());
@@ -2537,7 +2725,8 @@ public sealed class FormatterSnapshotTests
                   };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2553,7 +2742,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C11_TabViewProps_WithTabDefList_OverIndented_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var tabViewProps = new TabViewProps
                   {
@@ -2567,7 +2757,8 @@ public sealed class FormatterSnapshotTests
                   };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2584,14 +2775,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C12a_MultiLineTernary_TwoArm_CanonicalForm_IsStable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var syncColor = count >= 0
                 ? new Color(0.3f, 0.85f, 0.45f, 1f)
                 : new Color(0.95f, 0.65f, 0.1f, 1f);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2604,14 +2797,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C12b_MultiLineTernary_OverIndented_NormalisedToTwoAndFour()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var syncColor = count >= 0
                     ? new Color(0.3f, 0.85f, 0.45f, 1f)
                     : new Color(0.95f, 0.65f, 0.1f, 1f);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2628,14 +2823,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C12c_MultiLineTernary_StringJoinArm_CanonicalForm_IsStable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var text = items.Count == 0
                 ? "No items"
                 : string.Join(", ", items);
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2656,7 +2853,8 @@ public sealed class FormatterSnapshotTests
         // of the outer '? V.Portal(' arm depends on those anchors, but the
         // critical invariants are: (1) the var line normalises to 2-space,
         // (2) key content is preserved verbatim, and (3) double-format is stable.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var portalNode = target != null
                 ? V.Portal(
@@ -2673,7 +2871,8 @@ public sealed class FormatterSnapshotTests
                 : null;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2690,7 +2889,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C14_InlineJsxNodeVar_CanonicalForm_IsStable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var inlineNode = (
                 <VisualElement>
@@ -2700,7 +2900,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2717,12 +2918,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C15a_ExpressionBodiedBoolMethod_OverIndented_Normalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   bool IsReady() => trigger > 1000;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2733,12 +2936,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C15b_BoolLocalFunction_CanonicalForm_IsStable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               bool SuspenseReady() => pendingTask == null || pendingTask.IsCompletedSuccessfully;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2751,7 +2956,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C16_CommentLines_SectionHeaders_OverIndented_Normalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   // ── Section header ──────────────────────────────────────────
                   var x = 1;
@@ -2759,7 +2965,8 @@ public sealed class FormatterSnapshotTests
                   var y = 2;
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2775,7 +2982,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C17a_MultiLineStyle_ThreeEntries_CanonicalForm_IsStable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var rowStyle = new Style {
                 (StyleKeys.FlexDirection, "row"),
@@ -2784,7 +2992,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2799,7 +3008,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C17b_MultiLineStyle_SixEntries_CanonicalForm_IsStable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var panelStyle = new Style {
                 (StyleKeys.Height, 80f),
@@ -2811,7 +3021,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2826,7 +3037,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C17c_MultiLineStyle_MixedIndentEntries_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var containerStyle = new Style {
                     (StyleKeys.FlexGrow, 1f),
@@ -2835,7 +3047,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2850,7 +3063,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C17d_MultiLineStyle_ColorConstructorEntry_PreservedVerbatim()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),
@@ -2858,11 +3072,15 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
-        Assert.Contains("(StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),", result);
+        Assert.Contains(
+            "(StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.23f, 0.85f)),",
+            result
+        );
         Assert.Contains("\n    (StyleKeys.BorderRadius, 4f),", result);
         Assert.Equal(result, Format(result));
     }
@@ -2872,7 +3090,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C18a_Switch_CaseWithSingleChild_MeskyIndent_Normalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -2887,7 +3106,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2904,7 +3124,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C18b_Switch_CaseWithMultipleChildren_AllChildrenAtSameIndent()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -2918,7 +3139,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2935,7 +3157,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C19a_IfElseIfElse_FourArm_AllBranchesFormatted()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -2951,7 +3174,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -2967,7 +3191,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C19b_ElseBranch_ContainsNestedForWithNestedIf_AllFormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -2986,7 +3211,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3003,7 +3229,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C19c_IfElseIf_MessyIndent_AllArmsNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3017,7 +3244,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3032,7 +3260,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C20a_Foreach_ChildWithStringKeyAttr_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3042,7 +3271,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3055,7 +3285,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C20b_Foreach_ChildWithExpressionKeyAttr_WrappedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3065,7 +3296,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3081,7 +3313,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C21a_KeyAttr_StaticString_PreservedVerbatim()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3089,7 +3322,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3100,7 +3334,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C21b_KeyAttr_CSharpExpression_PreservedVerbatim()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3108,7 +3343,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3121,7 +3357,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C22a_InlineStyle_SingleEntry_StaysOnOneLine()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3129,7 +3366,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3140,7 +3378,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C22b_InlineStyle_TwoEntries_StaysOnOneLine()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3148,11 +3387,15 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
-        Assert.Contains("(StyleKeys.MinWidth, 30f), (\"unityTextAlign\", \"middle-center\")", result);
+        Assert.Contains(
+            "(StyleKeys.MinWidth, 30f), (\"unityTextAlign\", \"middle-center\")",
+            result
+        );
         Assert.Equal(result, Format(result));
     }
 
@@ -3160,7 +3403,8 @@ public sealed class FormatterSnapshotTests
     public void C22c_InlineStyle_ThreeEntries_LongLine_WrapsElement()
     {
         // Combined line length exceeds print width → element wraps with each attr on own line.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3168,7 +3412,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3182,7 +3427,8 @@ public sealed class FormatterSnapshotTests
     public void C22d_InlineStyle_StringKey_PreservedVerbatim()
     {
         // ("unityFontStyleAndWeight", FontStyle.Bold) - string key, not StyleKeys constant
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3193,11 +3439,15 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
-        Assert.Contains("(StyleKeys.FontSize, 16f), (\"unityFontStyleAndWeight\", FontStyle.Bold)", result);
+        Assert.Contains(
+            "(StyleKeys.FontSize, 16f), (\"unityFontStyleAndWeight\", FontStyle.Bold)",
+            result
+        );
         Assert.Equal(result, Format(result));
     }
 
@@ -3206,7 +3456,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C23_StyleAttr_VarReference_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var myStyle = new Style {
                 (StyleKeys.FlexGrow, 1f),
@@ -3218,7 +3469,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3231,7 +3483,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C24_ExtraProps_DictionaryInitializer_IndentedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3247,7 +3500,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3262,7 +3516,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C25_Suspense_WithIsReadyAndFallback_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -3275,7 +3530,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3291,7 +3547,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C26a_InlineExprRender_SimpleVar_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var node = (<Label text="hi" />);
               return (
@@ -3300,7 +3557,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3311,7 +3569,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C26b_InlineExprRender_NullableVar_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var portalNode = target != null ? V.Label(new LabelProps { Text = "x" }) : null;
               return (
@@ -3320,7 +3579,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3333,7 +3593,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C27_Toolbar_WithToolbarMenu_PopulateMenuHandler_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               MenuBuilderHandler buildMenu = dm => { dm.AppendAction("A", _ => doA()); };
               return (
@@ -3347,7 +3608,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3363,7 +3625,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C28_TabView_SelectedIndexTabsAndStyle_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var (tabIndex, setTabIndex) = useState(0);
               var tabs = new List<TabViewProps.TabDef>
@@ -3380,7 +3643,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3396,7 +3660,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C29_ToggleButtonGroup_WithForeachChildren_FormattedCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var (selected, setSelected) = useState(0);
               var options = new string[] { "A", "B", "C" };
@@ -3410,7 +3675,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3425,7 +3691,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C30_ObjectInitializer_MultiProp_InsideLambdaBody_BlockNormalized()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   void AddItem() {
                     setRows(prev =>
@@ -3442,7 +3709,8 @@ public sealed class FormatterSnapshotTests
                   }
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3458,12 +3726,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C31_NullCoalescing_InPropertyAssignment_PreservedVerbatim()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var item = source.Parent ?? new Item { Id = Guid.NewGuid().ToString("N") };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3476,7 +3746,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C32_BlankLineBetweenSetupSections_Preserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var (treeRows, setTreeRows) = useState(new List<string>());
               var (treeNextPid, setTreeNextPid) = useState(2);
@@ -3486,7 +3757,8 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3501,7 +3773,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void C33_MultiLineContinuation_VFuncCall_IndentPreserved()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var tabDef = new TabViewProps.TabDef {
                 Title = "Intro",
@@ -3509,7 +3782,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
 
         var result = Format(source);
 
@@ -3527,7 +3801,8 @@ public sealed class FormatterSnapshotTests
         // useMemo (Array.Empty + List factory), useRef, useEffect (cleanup lambda
         // + local function), useLayoutEffect, void methods (single-line, multi-
         // statement, switch, is-pattern), MenuBuilderHandler, Style vars, ternary.
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @using System
             @using System.Collections.Generic
@@ -3656,9 +3931,10 @@ public sealed class FormatterSnapshotTests
 
               return (<Box />);
             }
-            """);
+            """
+        );
 
-        var first  = Format(source);
+        var first = Format(source);
         var second = Format(first);
 
         Assert.Equal(first, second);
@@ -3681,7 +3957,8 @@ public sealed class FormatterSnapshotTests
         // with @for in @else, @foreach with key, inline style (single/multi
         // entry), style var-ref, extraProps, Suspense, @(expr), ToggleButtonGroup,
         // Toolbar/ToolbarMenu, TabView.
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             component KSSJsx {
               var (count, setCount) = useState(0);
@@ -3776,9 +4053,10 @@ public sealed class FormatterSnapshotTests
                 </ScrollView>
               );
             }
-            """);
+            """
+        );
 
-        var first  = Format(source);
+        var first = Format(source);
         var second = Format(first);
 
         Assert.Equal(first, second);
@@ -3791,7 +4069,10 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("\n        @for (int i = 0;", first);
         Assert.Contains("\n          @if (i % 2 == 0) {", first);
         Assert.Contains("key={entry}", first);
-        Assert.Contains("(StyleKeys.MinWidth, 30f), (\"unityTextAlign\", \"middle-center\")", first);
+        Assert.Contains(
+            "(StyleKeys.MinWidth, 30f), (\"unityTextAlign\", \"middle-center\")",
+            first
+        );
         Assert.Contains("<ToggleButtonGroup value={selected}>", first);
         Assert.Contains("<Toolbar", first);
         Assert.Contains("<ToolbarMenu", first);
@@ -3814,7 +4095,8 @@ public sealed class FormatterSnapshotTests
     {
         // User pressed Tab twice before each var — each \t expands to 2 spaces.
         // The formatter must re-anchor to 2-space regardless of tab width used.
-        var source = "component Foo {\n\t\tvar (a, setA) = useState(0);\n\t\tvar (b, setB) = useState(1);\n\t\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\t\tvar (a, setA) = useState(0);\n\t\tvar (b, setB) = useState(1);\n\t\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
@@ -3825,7 +4107,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D02_TabIndent_UseStateBody_TabsExpandedAndNormalised()
     {
-        var source = "component Foo {\n\tvar (count, setCount) = useState(0);\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar (count, setCount) = useState(0);\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
@@ -3835,7 +4118,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D03_TabIndent_UseEffectBlock_AllTabsExpanded()
     {
-        var source = "component Foo {\n\tuseEffect(() => {\n\t\tdoSetup();\n\t\treturn null;\n\t}, Array.Empty<object>());\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tuseEffect(() => {\n\t\tdoSetup();\n\t\treturn null;\n\t}, Array.Empty<object>());\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  useEffect(() => {", result);
@@ -3848,7 +4132,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D04_TabIndent_VoidMethodBody_AllTabsExpanded()
     {
-        var source = "component Foo {\n\tvoid Reset() {\n\t\tsetCount(0);\n\t\tsetMode(\"normal\");\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvoid Reset() {\n\t\tsetCount(0);\n\t\tsetMode(\"normal\");\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  void Reset() {", result);
@@ -3861,7 +4146,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D05_TabIndent_StyleBlock_AllTabsExpanded()
     {
-        var source = "component Foo {\n\tvar s = new Style {\n\t\t(StyleKeys.Padding, 12f),\n\t\t(StyleKeys.FlexGrow, 1f),\n\t};\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar s = new Style {\n\t\t(StyleKeys.Padding, 12f),\n\t\t(StyleKeys.FlexGrow, 1f),\n\t};\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  var s = new Style {", result);
@@ -3874,7 +4160,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D06_TabIndent_NestedLambdaInMethod_AllTabsExpanded()
     {
-        var source = "component Foo {\n\tvoid Add() {\n\t\tsetList(prev => {\n\t\t\tvar next = new List<int>(prev);\n\t\t\tnext.Add(1);\n\t\t\treturn next;\n\t\t});\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvoid Add() {\n\t\tsetList(prev => {\n\t\t\tvar next = new List<int>(prev);\n\t\t\tnext.Add(1);\n\t\t\treturn next;\n\t\t});\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  void Add() {", result);
@@ -3889,7 +4176,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D07_TabIndent_MultiLineUseMemo_TabsExpanded()
     {
-        var source = "component Foo {\n\tvar opts = useMemo(() => new List<string> {\n\t\t\"Alpha\",\n\t\t\"Beta\",\n\t}, Array.Empty<object>());\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar opts = useMemo(() => new List<string> {\n\t\t\"Alpha\",\n\t\t\"Beta\",\n\t}, Array.Empty<object>());\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\"Alpha\",", result);
@@ -3900,7 +4188,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D08_TabIndent_UseEffectWithLocalFunction_TabsExpanded()
     {
-        var source = "component Foo {\n\tuseEffect(() => {\n\t\tbool go = true;\n\t\tvoid Inner(int v) {\n\t\t\tif (!go) return;\n\t\t\tsetVal(v);\n\t\t}\n\t\treturn null;\n\t}, Array.Empty<object>());\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tuseEffect(() => {\n\t\tbool go = true;\n\t\tvoid Inner(int v) {\n\t\t\tif (!go) return;\n\t\t\tsetVal(v);\n\t\t}\n\t\treturn null;\n\t}, Array.Empty<object>());\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n    bool go = true;", result);
@@ -3913,7 +4202,8 @@ public sealed class FormatterSnapshotTests
     public void D09_TabIndent_MixedTabAndSpaceOnSameLine_Normalised()
     {
         // Some lines have leading tab, others spaces — all should map to 2-space.
-        var source = "component Foo {\n\tvar a = 1;\n  var b = 2;\n\tvar c = 3;\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar a = 1;\n  var b = 2;\n\tvar c = 3;\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  var a = 1;", result);
@@ -3928,7 +4218,8 @@ public sealed class FormatterSnapshotTests
         // Tabs as LEADING whitespace — normaliser expands them to spaces.
         // Note: a tab *inside* code content (e.g. between tokens) is not
         // normalised by the formatter; only leading indentation tabs are handled.
-        var source = "component Foo {\n\tvar s = new Style {\n\t\t(StyleKeys.Padding, 4f),\n\t};\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar s = new Style {\n\t\t(StyleKeys.Padding, 4f),\n\t};\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("(StyleKeys.Padding, 4f),", result);
@@ -3938,7 +4229,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D11_TabIndent_TypedDelegateLambda_TabsExpanded()
     {
-        var source = "component Foo {\n\tMenuBuilderHandler menu = dm => {\n\t\tdm.AppendAction(\"Reset\", _ => setX(0));\n\t};\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tMenuBuilderHandler menu = dm => {\n\t\tdm.AppendAction(\"Reset\", _ => setX(0));\n\t};\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  MenuBuilderHandler menu = dm => {", result);
@@ -3951,13 +4243,15 @@ public sealed class FormatterSnapshotTests
     public void D12_TabIndent_EntireComponent_SingleTab_Normalised()
     {
         // User used single-tab indent throughout.
-        var source = N("""
+        var source = N(
+            """
             component Counter {
             	var (count, setCount) = useState(0);
             	void Inc() { setCount(count + 1); }
             	return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
@@ -3969,13 +4263,15 @@ public sealed class FormatterSnapshotTests
     public void D13_TabIndent_FourSpaceTabEquivalent_Normalised()
     {
         // User's editor uses 4-space-equivalent tabs (4 spaces) — still normalises.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                 var (a, setA) = useState(0);
                 var (b, setB) = useState("x");
                 return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(\"x\");", result);
@@ -3985,13 +4281,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D14_TabIndent_ThreeSpaceIndent_Normalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                var a = useState(1);
                var b = useState(2);
                return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var a = useState(1);", result);
         Assert.Contains("\n  var b = useState(2);", result);
@@ -4001,7 +4299,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void D15_TabIndent_SwitchBodyInVoidMethod_AllTabsExpanded()
     {
-        var source = "component Foo {\n\tvoid Apply(string m) {\n\t\tswitch (m) {\n\t\t\tcase \"a\":\n\t\t\t\tdoA();\n\t\t\t\tbreak;\n\t\t\tdefault:\n\t\t\t\tdoDefault();\n\t\t\t\tbreak;\n\t\t}\n\t\tsetMode(m);\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvoid Apply(string m) {\n\t\tswitch (m) {\n\t\t\tcase \"a\":\n\t\t\t\tdoA();\n\t\t\t\tbreak;\n\t\t\tdefault:\n\t\t\t\tdoDefault();\n\t\t\t\tbreak;\n\t\t}\n\t\tsetMode(m);\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  void Apply(string m) {", result);
@@ -4022,7 +4321,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E01_ZeroIndent_AllLinesAtColumn0_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
             var (a, setA) = useState(0);
             var (b, setB) = useState("x");
@@ -4032,7 +4332,8 @@ public sealed class FormatterSnapshotTests
             }
             return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(\"x\");", result);
@@ -4044,13 +4345,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E02_EightSpaceBase_AllLinesAt8Plus_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                     var (a, setA) = useState(0);
                     var (b, setB) = useState(1);
                     return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(1);", result);
@@ -4060,13 +4363,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E03_SixteenSpaceBase_AllLinesAt16Plus_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                             var (a, setA) = useState(0);
                             var (b, setB) = useState(1);
                             return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(1);", result);
@@ -4077,7 +4382,8 @@ public sealed class FormatterSnapshotTests
     public void E04_PerLineChaosIndent_DifferentEveryLine_StillNormalisesCorrectly()
     {
         // 3, 7, 1, 11 spaces — the minimum (1) becomes the base → relative diffs preserved.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                var a = useState(0);
                    var b = useState(1);
@@ -4085,7 +4391,8 @@ public sealed class FormatterSnapshotTests
                        var d = useState(3);
              return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // All depth-0 lines come out at 2sp + their relative offset above baseSpaces.
         // c (1sp) and return (1sp) are base → rel=0 → 2sp output.
@@ -4098,13 +4405,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E05_OneSpaceIndent_UnderIndented_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
              var (a, setA) = useState(0);
              var (b, setB) = useState(1);
              return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(1);", result);
@@ -4114,13 +4423,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E06_ThreeSpaceIndent_OffByOne_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                var (a, setA) = useState(0);
                var (b, setB) = useState(1);
                return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(1);", result);
@@ -4130,13 +4441,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E07_SixSpaceIndent_OffByFour_NormalisedToTwoSpace()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   var (a, setA) = useState(0);
                   var (b, setB) = useState(1);
                   return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (a, setA) = useState(0);", result);
         Assert.Contains("\n  var (b, setB) = useState(1);", result);
@@ -4148,7 +4461,8 @@ public sealed class FormatterSnapshotTests
     {
         // Block opener at 2sp, interior at 8sp (user pasted from deeply indented code).
         // Stack normaliser re-emits block interior at canonical 4sp.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               void Reset() {
                     setA(0);
@@ -4156,7 +4470,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  void Reset() {", result);
         Assert.Contains("\n    setA(0);", result);
@@ -4169,7 +4484,8 @@ public sealed class FormatterSnapshotTests
     public void E09_BlockInteriorAt20_FarOverIndented_NormalisedByStack()
     {
         // Block opener at 2sp, interior at absurd 20sp — stack normaliser fixes.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               void Apply() {
                                     doA();
@@ -4177,7 +4493,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  void Apply() {", result);
         Assert.Contains("\n    doA();", result);
@@ -4189,12 +4506,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void E10_ReturnStatement_OverIndented10Spaces_IsNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var x = 1;
                         return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  return (", result);
         Assert.Equal(result, Format(result));
@@ -4205,7 +4524,8 @@ public sealed class FormatterSnapshotTests
     {
         // useEffect with body at 8sp (over-indented) — stack normaliser resets to 4sp.
         // The closing '}, Array...' at 2sp is recognised as a depth-0 line.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               useEffect(() => {
                     doSetup();
@@ -4213,7 +4533,8 @@ public sealed class FormatterSnapshotTests
               }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  useEffect(() => {", result);
         Assert.Contains("\n    doSetup();", result);
@@ -4228,7 +4549,8 @@ public sealed class FormatterSnapshotTests
         // Mix of 0-indent and high-indent lines — the key invariants are:
         // (1) block interiors are normalised by the stack, and
         // (2) double-format is stable (formatter doesn't oscillate).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
             var (a, setA) = useState(0);
                     var (b, setB) = useState("x");
@@ -4241,7 +4563,8 @@ public sealed class FormatterSnapshotTests
             }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // Content is all present in the output.
         Assert.Contains("var (a, setA) = useState(0);", result);
@@ -4376,7 +4699,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void F12_Attr_MultipleAttrs_SpacesAroundEquals_AllNormalised()
     {
-        var source = "component Foo { return (<Button text = \"go\" onClick = {_ => doIt()} disabled />); }";
+        var source =
+            "component Foo { return (<Button text = \"go\" onClick = {_ => doIt()} disabled />); }";
         var result = Format(source);
         Assert.Contains("text=\"go\"", result);
         Assert.Contains("onClick={_ => doIt()}", result);
@@ -4390,7 +4714,8 @@ public sealed class FormatterSnapshotTests
     public void F13_Attr_StyleExprWithSpacesInsideBraces_Normalised()
     {
         // `style={ new Style { ... } }` spaces inside outer {} normalised
-        var source = "component Foo { return (<Box style={ new Style { (StyleKeys.Padding, 4f) } } />); }";
+        var source =
+            "component Foo { return (<Box style={ new Style { (StyleKeys.Padding, 4f) } } />); }";
         var result = Format(source);
         Assert.Contains("style={new Style { (StyleKeys.Padding, 4f) }}", result);
         Assert.Equal(result, Format(result));
@@ -4410,7 +4735,8 @@ public sealed class FormatterSnapshotTests
     public void F15_Attr_TrailingSpaceOnAttrLine_Stripped()
     {
         // A wrapped attr line with trailing space should have it stripped.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Button
@@ -4419,19 +4745,23 @@ public sealed class FormatterSnapshotTests
                 />
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         // No trailing spaces anywhere in output.
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void F16_Attr_SpaceBeforeEqualSign_WrappedElement_AllNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Button
@@ -4441,7 +4771,8 @@ public sealed class FormatterSnapshotTests
                 />
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("text=\"A long label\"", result);
         Assert.Contains("onClick={_ => doIt()}", result);
@@ -4455,7 +4786,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void F17_Attr_SpaceAfterEqualSign_WrappedElement_AllNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Button
@@ -4464,7 +4796,8 @@ public sealed class FormatterSnapshotTests
                 />
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("text=\"A long label\"", result);
         Assert.Contains("onClick={_ => doIt()}", result);
@@ -4475,7 +4808,8 @@ public sealed class FormatterSnapshotTests
     public void F18_Attr_TabBeforeAttrOnWrappedLine_Normalised()
     {
         // Wrapped attr lines with tab indent instead of spaces.
-        var source = "component Foo {\n  return (\n    <Button\n\t\ttext=\"go\"\n\t\tonClick={_ => doIt()}\n    />\n  );\n}";
+        var source =
+            "component Foo {\n  return (\n    <Button\n\t\ttext=\"go\"\n\t\tonClick={_ => doIt()}\n    />\n  );\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("text=\"go\"", result);
@@ -4510,10 +4844,12 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void G01_Directive_NamespaceExtraSpaces_Normalised()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace   MyApp.Components
             component Foo { return (<Box />); }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@namespace MyApp.Components", result);
         Assert.DoesNotContain("@namespace   ", result);
@@ -4523,12 +4859,14 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void G02_Directive_UsingExtraSpaces_Normalised()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @using   System
             @using   System.Collections.Generic
             component Foo { return (<Box />); }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@using System\n", result);
         Assert.Contains("@using System.Collections.Generic\n", result);
@@ -4543,11 +4881,13 @@ public sealed class FormatterSnapshotTests
         // but internal spaces within the value string are preserved as-is.
         // '@using   static   Foo' → value = 'static   Foo' → emits '@using static   Foo'.
         // The key invariant is that the using is parsed and re-emitted (stable).
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @using   static   ReactiveUITK.Props.Typed.StyleKeys
             component Foo { return (<Box />); }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@using", result);
         Assert.Contains("static", result);
@@ -4582,8 +4922,10 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
         // No trailing whitespace on any line.
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -4593,8 +4935,10 @@ public sealed class FormatterSnapshotTests
         var source = "@namespace NS\n@using System   \ncomponent Foo { return (<Box />); }";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -4606,33 +4950,39 @@ public sealed class FormatterSnapshotTests
         // '@namespace   My.App' → value 'My.App' → '@namespace My.App' ✓
         // '@using   System' → value 'System' → '@using System' ✓
         // '@using   static   My.StyleKeys' → value 'static   My.StyleKeys' (internal preserved)
-        var source = N("""
+        var source = N(
+            """
             @namespace   My.App   
             @using   System   
             @using   static   My.StyleKeys   
             component Foo { return (<Box />); }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@namespace My.App", result);
         Assert.Contains("@using System", result);
         Assert.Contains("@using", result);
         Assert.Contains("My.StyleKeys", result);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void G09_Directive_ClassStyle_ComponentDirectiveExtraSpaces_Normalised()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component   MyComp
             @props   MyProps
 
             <Box />
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@component MyComp", result);
         Assert.Contains("@props MyProps", result);
@@ -4643,14 +4993,16 @@ public sealed class FormatterSnapshotTests
     public void G10_Directive_ExtraBlankLinesBetweenUsings_CappedToOne()
     {
         // Multiple blank lines between @using directives — check output is sane.
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @using System
 
 
             @using System.Collections.Generic
             component Foo { return (<Box />); }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@using System", result);
         Assert.Contains("@using System.Collections.Generic", result);
@@ -4722,8 +5074,10 @@ public sealed class FormatterSnapshotTests
         var source = "component Foo {   \n  return (<Box />);\n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -4788,12 +5142,14 @@ public sealed class FormatterSnapshotTests
     public void I05_JSX_ChildrenOnSingleLine_Expanded()
     {
         // Children on one line → each gets its own line.
-        var source = "component Foo { return (<Box><Label text=\"a\" /><Label text=\"b\" /></Box>); }";
+        var source =
+            "component Foo { return (<Box><Label text=\"a\" /><Label text=\"b\" /></Box>); }";
         var result = Format(source);
         // Two separate Label lines in output.
         var countLabels = 0;
         foreach (var line in result.Split('\n'))
-            if (line.TrimStart().StartsWith("<Label")) countLabels++;
+            if (line.TrimStart().StartsWith("<Label"))
+                countLabels++;
         Assert.True(countLabels >= 2, "Both Label children should be on their own lines.");
         Assert.Equal(result, Format(result));
     }
@@ -4801,7 +5157,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I06_JSX_ExtraBlankLinesBetweenChildren_CappedAtOne()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -4812,7 +5169,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.DoesNotContain("\n\n\n", result);
         Assert.Equal(result, Format(result));
@@ -4821,7 +5179,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I07_JSX_ClosingTagWithTrailingSpaces_Stripped()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>   
@@ -4829,18 +5188,22 @@ public sealed class FormatterSnapshotTests
                 </Box>   
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void I08_JSX_AllChildrenOverIndented_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -4849,7 +5212,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         // Children of root element at 6-space (indent 3 = inside return paren, inside Box).
         Assert.Contains("\n      <Label text=\"a\" />", result);
@@ -4860,7 +5224,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I09_JSX_AllChildrenUnderIndented_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>
@@ -4869,7 +5234,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n      <Label text=\"a\" />", result);
         Assert.Contains("\n      <Label text=\"b\" />", result);
@@ -4879,14 +5245,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I10_JSX_IfBody_OverIndented_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @if (show) {
                         <Label text="yes" />
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
@@ -4895,14 +5263,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I11_JSX_IfBody_ZeroIndent_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @if (show) {
             <Label text="yes" />
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
@@ -4911,14 +5281,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I12_JSX_ForeachBody_OverIndented_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @foreach (var item in items) {
                         <Label text={item} key={item} />
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
@@ -4927,14 +5299,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I13_JSX_ForeachBody_ZeroIndent_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @foreach (var item in items) {
             <Label text={item} key={item} />
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
@@ -4943,7 +5317,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I14_JSX_SwitchCaseBody_OverIndented_NormalisedToCorrectDepth()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -4953,7 +5328,8 @@ public sealed class FormatterSnapshotTests
                 @default:
                                 <LabelDefault />
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    <LabelA />", result);
         Assert.Contains("\n    <LabelDefault />", result);
@@ -4963,7 +5339,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I15_JSX_NestedIfInsideForeach_AllOverIndented_AllNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
@@ -4972,7 +5349,8 @@ public sealed class FormatterSnapshotTests
                                     <Label text={x} />
                         }
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  @if (x != null) {", result);
         Assert.Contains("\n    <Label text={x} />", result);
@@ -4982,13 +5360,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I16_JSX_ExpressionBlock_TabIndented_Normalised()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             	@(myNode)
             <Box />
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("@(myNode)", result);
         Assert.DoesNotContain("\t", result);
@@ -4998,13 +5378,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I17_JSX_Comment_ExtraSpaces_Normalised()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             {/*    extra spaces    */}
             <Box />
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("{/* extra spaces */}", result);
         Assert.Equal(result, Format(result));
@@ -5013,7 +5395,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I18_JSX_DeepNesting_AllChildrenOverIndented_AllNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <VisualElement>
@@ -5023,7 +5406,8 @@ public sealed class FormatterSnapshotTests
                 </VisualElement>
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    <VisualElement>", result);
         Assert.Contains("\n      <Box>", result);
@@ -5036,7 +5420,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void I19_JSX_DeepNesting_AllChildrenZeroIndent_AllNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
             <VisualElement>
@@ -5046,7 +5431,8 @@ public sealed class FormatterSnapshotTests
             </VisualElement>
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    <VisualElement>", result);
         Assert.Contains("\n      <Box>", result);
@@ -5076,8 +5462,10 @@ public sealed class FormatterSnapshotTests
         var source = "@namespace NS   \n@component Foo\n<Box />";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5087,8 +5475,10 @@ public sealed class FormatterSnapshotTests
         var source = "@namespace NS\n@using System   \ncomponent Foo { return (<Box />); }";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5098,8 +5488,10 @@ public sealed class FormatterSnapshotTests
         var source = "component Foo {   \n  return (<Box />);\n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5109,8 +5501,10 @@ public sealed class FormatterSnapshotTests
         var source = "component Foo {\n  var x = useState(0);   \n  return (<Box />);\n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5120,15 +5514,18 @@ public sealed class FormatterSnapshotTests
         var source = "component Foo {\n  var x = 1;\n  return (<Box />);   \n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void J06_Trailing_OnJSXElementLine_Stripped()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Box>   
@@ -5136,18 +5533,22 @@ public sealed class FormatterSnapshotTests
                 </Box>   
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void J07_Trailing_OnAttrLine_Stripped()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Button   
@@ -5156,47 +5557,58 @@ public sealed class FormatterSnapshotTests
                 />   
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void J08_Trailing_OnIfLine_Stripped()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @if (show) {   
               <Label text="yes" />   
             }   
-            """);
+            """
+        );
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
     [Fact]
     public void J09_Trailing_OnForeachLine_Stripped()
     {
-        var source = N("""
+        var source = N(
+            """
             @namespace NS
             @component Foo
 
             @foreach (var item in items) {   
               <Label text={item} />   
             }   
-            """);
+            """
+        );
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5204,7 +5616,8 @@ public sealed class FormatterSnapshotTests
     public void J10_Trailing_OnEveryLine_AllStripped()
     {
         // Every single line has trailing spaces — formatter must strip all.
-        var source = N("""
+        var source = N(
+            """
             @namespace NS   
             @using System   
             component Counter {   
@@ -5216,11 +5629,14 @@ public sealed class FormatterSnapshotTests
                 </Box>   
               );   
             }   
-            """);
+            """
+        );
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5251,7 +5667,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void K03_CRLF_SetupWithEffectAndMethod_AllLinesNormalised()
     {
-        var source = "component Foo {\r\n  useEffect(() => {\r\n    doThing();\r\n    return null;\r\n  }, Array.Empty<object>());\r\n  void Reset() { setX(0); }\r\n  return (<Box />);\r\n}\r\n";
+        var source =
+            "component Foo {\r\n  useEffect(() => {\r\n    doThing();\r\n    return null;\r\n  }, Array.Empty<object>());\r\n  void Reset() { setX(0); }\r\n  return (<Box />);\r\n}\r\n";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Equal(result, Format(result));
@@ -5260,7 +5677,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void K04_CRLF_JSXChildren_AllLinesNormalised()
     {
-        var source = "component Foo {\r\n  return (\r\n    <Box>\r\n      <Label text=\"a\" />\r\n      <Label text=\"b\" />\r\n    </Box>\r\n  );\r\n}\r\n";
+        var source =
+            "component Foo {\r\n  return (\r\n    <Box>\r\n      <Label text=\"a\" />\r\n      <Label text=\"b\" />\r\n    </Box>\r\n  );\r\n}\r\n";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Equal(result, Format(result));
@@ -5269,7 +5687,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void K05_CRLF_IfElseChain_AllLinesNormalised()
     {
-        var source = "@namespace NS\r\n@component Foo\r\n\r\n@if (a) {\r\n  <LabelA />\r\n} @else {\r\n  <LabelB />\r\n}\r\n";
+        var source =
+            "@namespace NS\r\n@component Foo\r\n\r\n@if (a) {\r\n  <LabelA />\r\n} @else {\r\n  <LabelB />\r\n}\r\n";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Equal(result, Format(result));
@@ -5295,17 +5714,20 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void L01_DoubleFormat_TabsAndExtraSpaces_Stable()
     {
-        var source = N("""
-            @namespace   NS   
-            @using\tSystem   
-            component\tFoo\t{   
-            	var (a, setA) = useState(0);   
-            	void Reset() {   
-            		setA(0);   
-            	}   
-            	return (<Box />);   
-            }   
-            """).Replace("\\t", "\t");
+        var source = N(
+                """
+                @namespace   NS   
+                @using\tSystem   
+                component\tFoo\t{   
+                	var (a, setA) = useState(0);   
+                	void Reset() {   
+                		setA(0);   
+                	}   
+                	return (<Box />);   
+                }   
+                """
+            )
+            .Replace("\\t", "\t");
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5314,7 +5736,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void L02_DoubleFormat_ZeroIndentAndCRLF_Stable()
     {
-        var source = "component Foo {\r\nvar (a, setA) = useState(0);\r\nvoid Reset() {\r\nsetA(0);\r\n}\r\nreturn (<Box />);\r\n}\r\n";
+        var source =
+            "component Foo {\r\nvar (a, setA) = useState(0);\r\nvoid Reset() {\r\nsetA(0);\r\n}\r\nreturn (<Box />);\r\n}\r\n";
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5323,7 +5746,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void L03_DoubleFormat_AttrSpacesAndTrailingWhitespace_Stable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               return (
                 <Button   
@@ -5332,7 +5756,8 @@ public sealed class FormatterSnapshotTests
                 />   
               );
             }
-            """);
+            """
+        );
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5341,7 +5766,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void L04_DoubleFormat_16SpaceBaseWithTabsAndTrailingSpaces_Stable()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                             var (a, setA) = useState(0);   
                             useEffect(() => {   
@@ -5350,7 +5776,8 @@ public sealed class FormatterSnapshotTests
                             }, Array.Empty<object>());   
                             return (<Box />);   
             }
-            """);
+            """
+        );
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5361,7 +5788,8 @@ public sealed class FormatterSnapshotTests
     public void L05_DoubleFormat_JSXAllAbuses_Stable()
     {
         // Tabs, zero indent, extra spaces in attrs, trailing whitespace, CRLF.
-        var source = "component Foo {\r\n\tvar x = useState(0);\r\n\treturn(\r\n\t\t<Box>   \r\n\t\t\t<Label text = \"hi\"   />\r\n\t\t\t<Button text=\"go\" onClick ={_ => setX(1)}/>   \r\n\t\t</Box>   \r\n\t);\r\n}\r\n";
+        var source =
+            "component Foo {\r\n\tvar x = useState(0);\r\n\treturn(\r\n\t\t<Box>   \r\n\t\t\t<Label text = \"hi\"   />\r\n\t\t\t<Button text=\"go\" onClick ={_ => setX(1)}/>   \r\n\t\t</Box>   \r\n\t);\r\n}\r\n";
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5372,7 +5800,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void L06_DoubleFormat_DirectivesAllAbuses_Stable()
     {
-        var source = "@namespace   NS   \r\n@using   System   \r\n@using\tSystem.Collections.Generic\t\r\ncomponent Foo { return (<Box />); }";
+        var source =
+            "@namespace   NS   \r\n@using   System   \r\n@using\tSystem.Collections.Generic\t\r\ncomponent Foo { return (<Box />); }";
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5383,20 +5812,23 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void L07_DoubleFormat_SwitchAndForeachAllAbuses_Stable()
     {
-        var source = N("""
-            @namespace NS
-            @component Foo
+        var source = N(
+                """
+                @namespace NS
+                @component Foo
 
-            @switch (mode) {
-            	@case "a":
-            			<LabelA />   
-            	@default:
-            			<LabelDefault />   
-            }
-            @foreach (var item in items) {
-            		<Label text = {item} key ={item}/>   
-            }
-            """).Replace("    \t", "\t");
+                @switch (mode) {
+                	@case "a":
+                			<LabelA />   
+                	@default:
+                			<LabelDefault />   
+                }
+                @foreach (var item in items) {
+                		<Label text = {item} key ={item}/>   
+                }
+                """
+            )
+            .Replace("    \t", "\t");
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5407,7 +5839,8 @@ public sealed class FormatterSnapshotTests
     {
         // The everything-wrong variant: tabs, zero/extreme indent, trailing spaces,
         // CRLF, spaces around attr =, no space before />, missing space after return.
-        var source = "component KAOS {\r\n\tvar (count, setCount) = useState(0);\r\n\tvar (mode, setMode) = useState(\"normal\");\r\n\tuseEffect(() => {\r\n\t\tsetCount(n => n + 1);\r\n\t\treturn null;\r\n\t}, Array.Empty<object>());   \r\n\tvoid Reset() {\r\n\t\tsetCount(0);\r\n\t\tsetMode(\"normal\");\r\n\t}\r\n\treturn(\r\n\t\t<Box>   \r\n\t\t\t<Button text = \"Reset\" onClick ={_ => Reset()}/>   \r\n\t\t\t<Label text ={$\"{count}\"}/>   \r\n\t\t</Box>   \r\n\t);\r\n}\r\n";
+        var source =
+            "component KAOS {\r\n\tvar (count, setCount) = useState(0);\r\n\tvar (mode, setMode) = useState(\"normal\");\r\n\tuseEffect(() => {\r\n\t\tsetCount(n => n + 1);\r\n\t\treturn null;\r\n\t}, Array.Empty<object>());   \r\n\tvoid Reset() {\r\n\t\tsetCount(0);\r\n\t\tsetMode(\"normal\");\r\n\t}\r\n\treturn(\r\n\t\t<Box>   \r\n\t\t\t<Button text = \"Reset\" onClick ={_ => Reset()}/>   \r\n\t\t\t<Label text ={$\"{count}\"}/>   \r\n\t\t</Box>   \r\n\t);\r\n}\r\n";
         var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
@@ -5440,7 +5873,8 @@ public sealed class FormatterSnapshotTests
     public void M01_StyleEntry_SpaceAfterOpenParen_Stripped()
     {
         // '( StyleKeys.MarginTop, 6f),' — the space after '(' is stripped.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 ( StyleKeys.MarginTop, 6f),
@@ -5448,7 +5882,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.MarginTop, 6f),", result);
         Assert.Contains("(StyleKeys.Padding, 4f),", result);
@@ -5460,7 +5895,8 @@ public sealed class FormatterSnapshotTests
     {
         // '(StyleKeys.FontSize,          13f),' — multiple consecutive spaces
         // are collapsed to a single space by CollapseIntraLineSpaces.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.FontSize,          13f),
@@ -5468,7 +5904,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.FontSize, 13f),", result);
         Assert.Contains("(StyleKeys.LineHeight, 1.4f),", result);
@@ -5480,7 +5917,8 @@ public sealed class FormatterSnapshotTests
     {
         // '(StyleKeys.Color, syncColor   ),' — multiple spaces before ')'
         // are collapsed to a single space.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.Color, syncColor   ),
@@ -5488,7 +5926,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Color, syncColor),", result);
         Assert.Contains("(StyleKeys.BackgroundColor, bgColor),", result);
@@ -5500,11 +5939,14 @@ public sealed class FormatterSnapshotTests
     {
         // Trailing spaces AFTER the final ',' on a style entry line ARE removed
         // by the per-line TrimEnd() pass.
-        var source = "component Foo {\n  var s = new Style {\n    (StyleKeys.Padding, 14f),   \n    (StyleKeys.MarginTop, 8f),  \n  };\n  return (<Box style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n    (StyleKeys.Padding, 14f),   \n    (StyleKeys.MarginTop, 8f),  \n  };\n  return (<Box style={s} />);\n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Contains("(StyleKeys.Padding, 14f),", result);
         Assert.Contains("(StyleKeys.MarginTop, 8f),", result);
         Assert.Equal(result, Format(result));
@@ -5515,15 +5957,18 @@ public sealed class FormatterSnapshotTests
     {
         // Exact user-reported pattern: space after '(', multiple spaces after ',',
         // spaces before ')', trailing spaces on line — all collapsed / stripped.
-        var source = "component Sync {\n  var syncLabelStyle = new Style {\n    ( StyleKeys.MarginTop, 6f   ),   \n    (StyleKeys.FontSize,          13f),\n    (StyleKeys.Color, syncColor),\n  };\n  return (<Label style={syncLabelStyle} />);\n}";
+        var source =
+            "component Sync {\n  var syncLabelStyle = new Style {\n    ( StyleKeys.MarginTop, 6f   ),   \n    (StyleKeys.FontSize,          13f),\n    (StyleKeys.Color, syncColor),\n  };\n  return (<Label style={syncLabelStyle} />);\n}";
         var result = Format(source);
         // Multiple spaces collapsed; trailing whitespace on lines removed.
         Assert.Contains("(StyleKeys.MarginTop, 6f),", result);
         Assert.Contains("(StyleKeys.FontSize, 13f),", result);
         Assert.Contains("(StyleKeys.Color, syncColor),", result);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Equal(result, Format(result));
     }
 
@@ -5532,7 +5977,8 @@ public sealed class FormatterSnapshotTests
     {
         // Entries indented with tabs — leading tabs are expanded and the block-
         // stack normaliser places entries at the canonical 4-space depth.
-        var source = "component Foo {\n  var s = new Style {\n\t(StyleKeys.Padding, 14f),\n\t(StyleKeys.MarginTop, 8f),\n  };\n  return (<Box style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n\t(StyleKeys.Padding, 14f),\n\t(StyleKeys.MarginTop, 8f),\n  };\n  return (<Box style={s} />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("(StyleKeys.Padding, 14f),", result);
@@ -5545,7 +5991,8 @@ public sealed class FormatterSnapshotTests
     {
         // Entries pasted at 8-space indent (e.g. from a deeply-nested context) —
         // block-stack normaliser collapses them to the canonical block level.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                         (StyleKeys.Width, 200f),
@@ -5553,7 +6000,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    (StyleKeys.Width, 200f),", result);
         Assert.Contains("\n    (StyleKeys.Height, 40f),", result);
@@ -5566,7 +6014,8 @@ public sealed class FormatterSnapshotTests
     {
         // Entries at 2sp (same level as the 'var s' line — user forgot the extra
         // indent).  Block-stack normaliser promotes them to 4sp.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
               (StyleKeys.Padding, 12f),
@@ -5574,7 +6023,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    (StyleKeys.Padding, 12f),", result);
         Assert.Contains("\n    (StyleKeys.Margin, 6f),", result);
@@ -5587,7 +6037,8 @@ public sealed class FormatterSnapshotTests
     {
         // Every entry at a different indentation level — all should collapse to the
         // same canonical block-target depth.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
               (StyleKeys.Padding, 12f),
@@ -5597,7 +6048,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    (StyleKeys.Padding, 12f),", result);
         Assert.Contains("\n    (StyleKeys.Margin, 6f),", result);
@@ -5611,7 +6063,8 @@ public sealed class FormatterSnapshotTests
     public void M10_StyleBlock_ExtraBlankLineBetweenEntries_Stable()
     {
         // A single blank line between entries — emitted as-is and stable.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.Padding, 12f),
@@ -5620,7 +6073,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
         Assert.Contains("(StyleKeys.Margin, 6f),", result);
@@ -5632,7 +6086,8 @@ public sealed class FormatterSnapshotTests
     {
         // Several consecutive blank lines between entries — each is preserved as a
         // blank line and the output is idempotent.
-        var source = "component Foo {\n  var s = new Style {\n    (StyleKeys.Padding, 12f),\n\n\n\n    (StyleKeys.Margin, 6f),\n  };\n  return (<Box style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n    (StyleKeys.Padding, 12f),\n\n\n\n    (StyleKeys.Margin, 6f),\n  };\n  return (<Box style={s} />);\n}";
         var result = Format(source);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
         Assert.Contains("(StyleKeys.Margin, 6f),", result);
@@ -5644,7 +6099,8 @@ public sealed class FormatterSnapshotTests
     {
         // 'new Style{' (no space before '{') — the trailing '{' is still detected
         // by the block-stack push logic.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style{
                 (StyleKeys.Padding, 12f),
@@ -5652,7 +6108,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
         Assert.Contains("(StyleKeys.Margin, 6f),", result);
@@ -5664,7 +6121,8 @@ public sealed class FormatterSnapshotTests
     {
         // 'new Style   {' — multiple spaces before '{' are content; the block
         // opener is still recognised and entries normalised correctly.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style   {
                 (StyleKeys.Padding, 12f),
@@ -5672,7 +6130,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
         Assert.Contains("(StyleKeys.Margin, 6f),", result);
@@ -5684,7 +6143,8 @@ public sealed class FormatterSnapshotTests
     {
         // Tabs as indent AND internal extra spaces in the tuple expression.
         // Tabs are stripped from the leading position; internal multi-spaces collapsed.
-        var source = "component Foo {\n  var s = new Style {\n\t( StyleKeys.Padding,   12f  ),\n\t(  StyleKeys.Margin,    6f ),\n  };\n  return (<Box style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n\t( StyleKeys.Padding,   12f  ),\n\t(  StyleKeys.Margin,    6f ),\n  };\n  return (<Box style={s} />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
@@ -5697,7 +6157,8 @@ public sealed class FormatterSnapshotTests
     {
         // Two style variables in the same component, each with typical whitespace
         // errors — both blocks should be normalised with multi-spaces collapsed.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var labelStyle = new Style {
                 ( StyleKeys.FontSize,  13f),
@@ -5709,7 +6170,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={boxStyle}><Label style={labelStyle} /></Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.FontSize, 13f),", result);
         Assert.Contains("(StyleKeys.Color, textColor),", result);
@@ -5723,7 +6185,8 @@ public sealed class FormatterSnapshotTests
     {
         // Style block initialised inside a useEffect lambda — the block-stack
         // handles double nesting (lambda block + initialiser block) correctly.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               useEffect(() => {
                 var s = new Style {
@@ -5735,7 +6198,8 @@ public sealed class FormatterSnapshotTests
               }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Padding, 8f),", result);
         Assert.Contains("(StyleKeys.Margin, 4f),", result);
@@ -5746,12 +6210,15 @@ public sealed class FormatterSnapshotTests
     public void M17_StyleEntry_TabsWithTrailingSpacesOnLines_BothNormalised()
     {
         // Tabs on indent AND trailing spaces after the closing ',' — both stripped.
-        var source = "component Foo {\n  var s = new Style {\n\t(StyleKeys.Padding, 14f),   \n\t(StyleKeys.MarginTop, 8f),  \n  };\n  return (<Box style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n\t(StyleKeys.Padding, 14f),   \n\t(StyleKeys.MarginTop, 8f),  \n  };\n  return (<Box style={s} />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Contains("(StyleKeys.Padding, 14f),", result);
         Assert.Contains("(StyleKeys.MarginTop, 8f),", result);
         Assert.Equal(result, Format(result));
@@ -5762,7 +6229,8 @@ public sealed class FormatterSnapshotTests
     {
         // Long constructor expressions with column-alignment spaces —
         // multiple consecutive spaces are collapsed to single spaces.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.Color,           new Color(0.5f,   0.5f,   0.5f,   1f)),
@@ -5770,7 +6238,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f, 1f)),", result);
         Assert.Contains("(StyleKeys.BackgroundColor, new Color(1f, 0f, 0f, 0.8f)),", result);
@@ -5782,7 +6251,8 @@ public sealed class FormatterSnapshotTests
     {
         // Style block source with CRLF — all line endings normalised to LF,
         // multiple consecutive spaces collapsed.
-        var source = "component Foo {\r\n  var s = new Style {\r\n    ( StyleKeys.Padding,  12f),\r\n    (StyleKeys.Margin,     6f),\r\n  };\r\n  return (<Box style={s} />);\r\n}";
+        var source =
+            "component Foo {\r\n  var s = new Style {\r\n    ( StyleKeys.Padding,  12f),\r\n    (StyleKeys.Margin,     6f),\r\n  };\r\n  return (<Box style={s} />);\r\n}";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
@@ -5796,8 +6266,9 @@ public sealed class FormatterSnapshotTests
         // The everything-wrong style block: CRLF, tab indent, trailing spaces on
         // lines, space after '(', multiple spaces after ',', spaces before ')',
         // mixed per-entry indentation (tabs + extra spaces).
-        var source = "component Sync {\r\n\tvar syncLabelStyle = new Style {\r\n\t\t( StyleKeys.MarginTop, 6f   ),   \r\n\t\t(StyleKeys.FontSize,          13f),\r\n\t\t(StyleKeys.Color, syncColor   ),\r\n\t\t(StyleKeys.BackgroundColor,   bgColor ),\r\n\t};\r\n\treturn (<Label style={syncLabelStyle} text=\"Hello\" />);\r\n}";
-        var first  = Format(source);
+        var source =
+            "component Sync {\r\n\tvar syncLabelStyle = new Style {\r\n\t\t( StyleKeys.MarginTop, 6f   ),   \r\n\t\t(StyleKeys.FontSize,          13f),\r\n\t\t(StyleKeys.Color, syncColor   ),\r\n\t\t(StyleKeys.BackgroundColor,   bgColor ),\r\n\t};\r\n\treturn (<Label style={syncLabelStyle} text=\"Hello\" />);\r\n}";
+        var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
         Assert.DoesNotContain("\t", first);
@@ -5807,8 +6278,10 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("(StyleKeys.Color, syncColor),", first);
         Assert.Contains("(StyleKeys.BackgroundColor, bgColor),", first);
         foreach (var line in first.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -5831,7 +6304,8 @@ public sealed class FormatterSnapshotTests
     {
         // if body at 8sp (user copy-pasted from a nested context) —
         // block-stack places it at the canonical 4sp.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               if (ready) {
                         doWork();
@@ -5839,7 +6313,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  if (ready) {", result);
         Assert.Contains("\n    doWork();", result);
@@ -5852,7 +6327,8 @@ public sealed class FormatterSnapshotTests
     public void N02_IfElse_BothBodiesOverIndented_Normalised()
     {
         // Both branches over-indented; the '} else {' line tests pop+push at depth-0.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               if (flag) {
                         setA(1);
@@ -5861,7 +6337,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  if (flag) {", result);
         Assert.Contains("\n    setA(1);", result);
@@ -5875,7 +6352,8 @@ public sealed class FormatterSnapshotTests
     public void N03_IfElseIfElse_TabIndented_AllNormalised()
     {
         // Three-branch if/else if/else with tab indentation throughout.
-        var source = "component Foo {\n\tif (x == 0) {\n\t\thandleZero();\n\t} else if (x < 0) {\n\t\thandleNeg();\n\t} else {\n\t\thandlePos();\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tif (x == 0) {\n\t\thandleZero();\n\t} else if (x < 0) {\n\t\thandleNeg();\n\t} else {\n\t\thandlePos();\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  if (x == 0) {", result);
@@ -5891,11 +6369,14 @@ public sealed class FormatterSnapshotTests
     public void N04_IfBlock_TrailingSpacesOnEveryLine_Stripped()
     {
         // Trailing spaces after every token in an if block — all stripped.
-        var source = "component Foo {\n  if (ready) {   \n    doWork();   \n    finish();   \n  }   \n  return (<Box />);\n}";
+        var source =
+            "component Foo {\n  if (ready) {   \n    doWork();   \n    finish();   \n  }   \n  return (<Box />);\n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Contains("doWork();", result);
         Assert.Equal(result, Format(result));
     }
@@ -5905,7 +6386,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N05_Foreach_BodyOverIndented_NormalisedToBlockTarget()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               foreach (var item in items) {
                             process(item);
@@ -5913,7 +6395,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<List />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  foreach (var item in items) {", result);
         Assert.Contains("\n    process(item);", result);
@@ -5925,12 +6408,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N06_Foreach_TabIndent_TrailingSpaces_BothNormalised()
     {
-        var source = "component Foo {\n\tforeach (var item in items) {\n\t\tprocess(item);   \n\t\tlog(item);   \n\t}\n\treturn (<List />);\n}";
+        var source =
+            "component Foo {\n\tforeach (var item in items) {\n\t\tprocess(item);   \n\t\tlog(item);   \n\t}\n\treturn (<List />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         foreach (var line in result.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
         Assert.Contains("process(item);", result);
         Assert.Equal(result, Format(result));
     }
@@ -5940,14 +6426,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N07_ForLoop_BodyOverIndented_NormalisedToBlockTarget()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               for (int i = 0; i < count; i++) {
                             total += values[i];
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  for (int i = 0; i < count; i++) {", result);
         Assert.Contains("\n    total += values[i];", result);
@@ -5958,7 +6446,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N08_ForLoop_TabIndent_Normalised()
     {
-        var source = "component Foo {\n\tfor (int i = 0; i < 10; i++) {\n\t\tdoStep(i);\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tfor (int i = 0; i < 10; i++) {\n\t\tdoStep(i);\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  for (int i = 0; i < 10; i++) {", result);
@@ -5973,7 +6462,8 @@ public sealed class FormatterSnapshotTests
     {
         // try and catch bodies both over-indented; '} catch (...) {' tests the
         // pop-then-push at depth-0.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               try {
                             riskyCall();
@@ -5982,7 +6472,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  try {", result);
         Assert.Contains("\n    riskyCall();", result);
@@ -5995,7 +6486,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N10_TryCatchFinally_TabIndented_AllNormalised()
     {
-        var source = "component Foo {\n\ttry {\n\t\triskyCall();\n\t} catch (Exception e) {\n\t\tlog(e);\n\t} finally {\n\t\tcleanup();\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\ttry {\n\t\triskyCall();\n\t} catch (Exception e) {\n\t\tlog(e);\n\t} finally {\n\t\tcleanup();\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  try {", result);
@@ -6014,7 +6506,8 @@ public sealed class FormatterSnapshotTests
     {
         // 'case X:' and statement lines inside switch are all placed at the switch
         // block-target (4sp) — the formatter has no case-specific logic.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               switch (mode) {
                             case "a":
@@ -6029,7 +6522,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  switch (mode) {", result);
         Assert.Contains("doA();", result);
@@ -6042,7 +6536,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N12_Switch_TabIndented_AllNormalised()
     {
-        var source = "component Foo {\n\tswitch (val) {\n\t\tcase 1:\n\t\t\thandleOne();\n\t\t\tbreak;\n\t\tdefault:\n\t\t\thandleOther();\n\t\t\tbreak;\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tswitch (val) {\n\t\tcase 1:\n\t\t\thandleOne();\n\t\t\tbreak;\n\t\tdefault:\n\t\t\thandleOther();\n\t\t\tbreak;\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("handleOne();", result);
@@ -6055,7 +6550,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N13_ListInitialiser_EntriesOverIndented_NormalisedToBlockTarget()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var items = new List<string> {
                             "alpha",
@@ -6064,7 +6560,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var items = new List<string> {", result);
         Assert.Contains("\n    \"alpha\",", result);
@@ -6077,7 +6574,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N14_DictionaryInitialiser_TabIndented_NormalisedToBlockTarget()
     {
-        var source = "component Foo {\n\tvar map = new Dictionary<string, int> {\n\t\t{ \"a\", 1 },\n\t\t{ \"b\", 2 },\n\t\t{ \"c\", 3 },\n\t};\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar map = new Dictionary<string, int> {\n\t\t{ \"a\", 1 },\n\t\t{ \"b\", 2 },\n\t\t{ \"c\", 3 },\n\t};\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("{ \"a\", 1 },", result);
@@ -6089,7 +6587,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N15_ObjectInitialiser_PropertiesOverIndented_NormalisedToBlockTarget()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var cfg = new Config {
                             Width = 200,
@@ -6098,7 +6597,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var cfg = new Config {", result);
         Assert.Contains("\n    Width = 200,", result);
@@ -6115,7 +6615,8 @@ public sealed class FormatterSnapshotTests
     {
         // Three levels of nesting (void → if → for), each body wildly over-indented.
         // The block-stack automatically computes the correct target at each level.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               void Process() {
                             if (ready) {
@@ -6126,7 +6627,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  void Process() {", result);
         Assert.Contains("\n    if (ready) {", result);
@@ -6138,7 +6640,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N17_DeepNesting_VoidWithTryCatch_TabIndented_Normalised()
     {
-        var source = "component Foo {\n\tvoid SafeRun() {\n\t\ttry {\n\t\t\triskyOp();\n\t\t} catch (Exception e) {\n\t\t\tlastError = e.Message;\n\t\t}\n\t}\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvoid SafeRun() {\n\t\ttry {\n\t\t\triskyOp();\n\t\t} catch (Exception e) {\n\t\t\tlastError = e.Message;\n\t\t}\n\t}\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  void SafeRun() {", result);
@@ -6154,7 +6657,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void N18_UseMemo_MultiLineLambda_TabIndented_Normalised()
     {
-        var source = "component Foo {\n\tvar sorted = useMemo(() => {\n\t\tvar copy = new List<int>(items);\n\t\tcopy.Sort();\n\t\treturn copy;\n\t}, new object[] { items });\n\treturn (<Box />);\n}";
+        var source =
+            "component Foo {\n\tvar sorted = useMemo(() => {\n\t\tvar copy = new List<int>(items);\n\t\tcopy.Sort();\n\t\treturn copy;\n\t}, new object[] { items });\n\treturn (<Box />);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains("\n  var sorted = useMemo(() => {", result);
@@ -6169,7 +6673,8 @@ public sealed class FormatterSnapshotTests
     {
         // useEffect lambda with a try/catch inside it — double nesting, both
         // levels over-indented in the input.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               useEffect(() => {
                             try {
@@ -6181,7 +6686,8 @@ public sealed class FormatterSnapshotTests
               }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  useEffect(() => {", result);
         Assert.Contains("\n    try {", result);
@@ -6199,7 +6705,8 @@ public sealed class FormatterSnapshotTests
     {
         // Every type of block written with CRLF — line endings normalised,
         // content and indentation preserved.
-        var source = "component Foo {\r\n  if (a) {\r\n    doA();\r\n  }\r\n  foreach (var x in xs) {\r\n    use(x);\r\n  }\r\n  try {\r\n    risky();\r\n  } catch (Exception e) {\r\n    handle(e);\r\n  }\r\n  var list = new List<int> {\r\n    1,\r\n    2,\r\n    3,\r\n  };\r\n  return (<Box />);\r\n}";
+        var source =
+            "component Foo {\r\n  if (a) {\r\n    doA();\r\n  }\r\n  foreach (var x in xs) {\r\n    use(x);\r\n  }\r\n  try {\r\n    risky();\r\n  } catch (Exception e) {\r\n    handle(e);\r\n  }\r\n  var list = new List<int> {\r\n    1,\r\n    2,\r\n    3,\r\n  };\r\n  return (<Box />);\r\n}";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Contains("doA();", result);
@@ -6216,8 +6723,9 @@ public sealed class FormatterSnapshotTests
     {
         // Every block type in one component, with CRLF + tab indent + trailing
         // spaces + over-indentation — all abuses in one file.
-        var source = "component MEGA {\r\n\tvar (count, setCount) = useState(0);\r\n\tvar items = new List<string> {\r\n\t\t\"a\",   \r\n\t\t\"b\",   \r\n\t};\r\n\tvar cfg = new Config {\r\n\t\tWidth = 200,   \r\n\t\tHeight = 100,   \r\n\t};\r\n\tuseEffect(() => {\r\n\t\ttry {\r\n\t\t\tload();\r\n\t\t} catch (Exception e) {\r\n\t\t\tsetError(e);\r\n\t\t}\r\n\t\treturn null;\r\n\t}, Array.Empty<object>());   \r\n\tvoid Reset() {\r\n\t\tif (count > 0) {\r\n\t\t\tforeach (var x in items) {\r\n\t\t\t\tprocess(x);\r\n\t\t\t}\r\n\t\t}\r\n\t\tsetCount(0);\r\n\t}\r\n\treturn (<Box />);\r\n}";
-        var first  = Format(source);
+        var source =
+            "component MEGA {\r\n\tvar (count, setCount) = useState(0);\r\n\tvar items = new List<string> {\r\n\t\t\"a\",   \r\n\t\t\"b\",   \r\n\t};\r\n\tvar cfg = new Config {\r\n\t\tWidth = 200,   \r\n\t\tHeight = 100,   \r\n\t};\r\n\tuseEffect(() => {\r\n\t\ttry {\r\n\t\t\tload();\r\n\t\t} catch (Exception e) {\r\n\t\t\tsetError(e);\r\n\t\t}\r\n\t\treturn null;\r\n\t}, Array.Empty<object>());   \r\n\tvoid Reset() {\r\n\t\tif (count > 0) {\r\n\t\t\tforeach (var x in items) {\r\n\t\t\t\tprocess(x);\r\n\t\t\t}\r\n\t\t}\r\n\t\tsetCount(0);\r\n\t}\r\n\treturn (<Box />);\r\n}";
+        var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
         Assert.DoesNotContain("\t", first);
@@ -6230,8 +6738,10 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("\n    if (count > 0) {", first);
         Assert.Contains("\n      foreach (var x in items) {", first);
         foreach (var line in first.Split('\n'))
-            Assert.False(line.EndsWith(" ") || line.EndsWith("\t"),
-                $"Line has trailing whitespace: [{line}]");
+            Assert.False(
+                line.EndsWith(" ") || line.EndsWith("\t"),
+                $"Line has trailing whitespace: [{line}]"
+            );
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -6253,14 +6763,16 @@ public sealed class FormatterSnapshotTests
     {
         // The canonical CSharpier corruption pattern: section-header comment at
         // 2-space, useState/var lines bumped to 4-space.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── state ─────────────────────────────────────────────────────
                 var (count, setCount) = useState(0);
                 var (mode, setMode) = useState("normal");
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  // ── state", result);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
@@ -6272,7 +6784,8 @@ public sealed class FormatterSnapshotTests
     public void O02_CSharpierCorruption_MultipleCommentSections_AllVarsNormalised()
     {
         // Multiple comment sections, each followed by 4-space vars.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── state ─────────────────────────────────────────────────────
                 var (count, setCount) = useState(0);
@@ -6282,7 +6795,8 @@ public sealed class FormatterSnapshotTests
                 var doubled = useMemo(() => count * 2, new object[] { count });
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
         Assert.Contains("\n  var theme = useContext<Color>(\"theme\");", result);
@@ -6296,7 +6810,8 @@ public sealed class FormatterSnapshotTests
         // The exact user-reported pattern: section-header comment at 2sp, then
         // the var + Style block all shifted to 4sp by CSharpier. After formatting,
         // the var should be at 2sp, block entries at 4sp, '}; ' at 2sp.
-        var source = N("""
+        var source = N(
+            """
             component Sync {
               // ── styles ─────────────────────────────────────────────────────
                 var syncLabelStyle = new Style {
@@ -6306,7 +6821,8 @@ public sealed class FormatterSnapshotTests
                 };
               return (<Label style={syncLabelStyle} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var syncLabelStyle = new Style {", result);
         Assert.Contains("\n    (StyleKeys.MarginTop, 6f),", result);
@@ -6320,7 +6836,8 @@ public sealed class FormatterSnapshotTests
     public void O04_CSharpierCorruption_UseEffectAt4sp_NormalisedTo2sp()
     {
         // useEffect opener + body both at 4sp (CSharpier corruption).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── effect ─────────────────────────────────────────────────────
                 useEffect(() => {
@@ -6329,7 +6846,8 @@ public sealed class FormatterSnapshotTests
                 }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  useEffect(() => {", result);
         Assert.Contains("\n    doSetup();", result);
@@ -6341,7 +6859,8 @@ public sealed class FormatterSnapshotTests
     public void O05_CSharpierCorruption_VoidMethodAt4sp_NormalisedTo2sp()
     {
         // void method block with body at 4sp corruption.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── helpers ────────────────────────────────────────────────────
                 void Reset() {
@@ -6350,7 +6869,8 @@ public sealed class FormatterSnapshotTests
                 }
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  void Reset() {", result);
         Assert.Contains("\n    setCount(0);", result);
@@ -6365,7 +6885,8 @@ public sealed class FormatterSnapshotTests
         // Multi-line ternary with base statement at 4sp. After fix, the statement
         // goes to 2sp and the arms (starting '?' / ':') anchor to the STATEMENT's
         // input indent (4sp), preserving their +2sp offset → 4sp total.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── sync color ──────────────────────────────────────────────────
                 var syncColor = count >= 0
@@ -6373,7 +6894,8 @@ public sealed class FormatterSnapshotTests
                     : new Color(0.95f, 0.65f, 0.1f, 1f);
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var syncColor = count >= 0", result);
         // Arms preserve their relative offset from the statement line's input lead.
@@ -6388,27 +6910,27 @@ public sealed class FormatterSnapshotTests
         // The full real-world corruption: CRLF, comments at 2sp, all statement
         // lines bumped to 4sp including Style blocks, useEffect, void methods.
         var source =
-            "component Sync {\r\n" +
-            "  // ── state ──────────────────────────────────────────────────────\r\n" +
-            "    var (count, setCount) = useState(0);\r\n" +
-            "  // ── styles ─────────────────────────────────────────────────────\r\n" +
-            "    var syncLabelStyle = new Style {\r\n" +
-            "        (StyleKeys.MarginTop, 6f),\r\n" +
-            "        (StyleKeys.FontSize, 13f),\r\n" +
-            "        (StyleKeys.Color, syncColor),\r\n" +
-            "    };\r\n" +
-            "  // ── effect ─────────────────────────────────────────────────────\r\n" +
-            "    useEffect(() => {\r\n" +
-            "        doSetup();\r\n" +
-            "        return null;\r\n" +
-            "    }, Array.Empty<object>());\r\n" +
-            "  // ── helpers ────────────────────────────────────────────────────\r\n" +
-            "    void Reset() {\r\n" +
-            "        setCount(0);\r\n" +
-            "    }\r\n" +
-            "  return (<Label style={syncLabelStyle} text={$\"{count}\"} />);\r\n" +
-            "}";
-        var first  = Format(source);
+            "component Sync {\r\n"
+            + "  // ── state ──────────────────────────────────────────────────────\r\n"
+            + "    var (count, setCount) = useState(0);\r\n"
+            + "  // ── styles ─────────────────────────────────────────────────────\r\n"
+            + "    var syncLabelStyle = new Style {\r\n"
+            + "        (StyleKeys.MarginTop, 6f),\r\n"
+            + "        (StyleKeys.FontSize, 13f),\r\n"
+            + "        (StyleKeys.Color, syncColor),\r\n"
+            + "    };\r\n"
+            + "  // ── effect ─────────────────────────────────────────────────────\r\n"
+            + "    useEffect(() => {\r\n"
+            + "        doSetup();\r\n"
+            + "        return null;\r\n"
+            + "    }, Array.Empty<object>());\r\n"
+            + "  // ── helpers ────────────────────────────────────────────────────\r\n"
+            + "    void Reset() {\r\n"
+            + "        setCount(0);\r\n"
+            + "    }\r\n"
+            + "  return (<Label style={syncLabelStyle} text={$\"{count}\"} />);\r\n"
+            + "}";
+        var first = Format(source);
         var second = Format(first);
         Assert.Equal(first, second);
         Assert.DoesNotContain("\r", first);
@@ -6443,7 +6965,8 @@ public sealed class FormatterSnapshotTests
         // lines at 4sp. With only baseSpaces = min = 2, the 4sp lines used to
         // stay at 4sp (rel=2). IsStatementStarter forces all var/void lines to
         // rel=0 regardless of baseSpaces.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var (count, setCount) = useState(0);
                 var (mode, setMode) = useState("normal");
@@ -6451,7 +6974,8 @@ public sealed class FormatterSnapshotTests
                 var msg = $"Count={count}";
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
         Assert.Contains("\n  var (mode, setMode) = useState(\"normal\");", result);
@@ -6466,7 +6990,8 @@ public sealed class FormatterSnapshotTests
         // 3 or more spaces after '(' are accidental corruption and get stripped.
         // "(   StyleKeys.BackgroundColor, ...)" → "(StyleKeys.BackgroundColor, ...)".
         // 1–2 spaces are intentional alignment and are left intact (see M01, M14).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var panelStyle = new Style {
                 (   StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.25f, 0.9f)),
@@ -6475,7 +7000,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={panelStyle} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n    (StyleKeys.BackgroundColor, new Color(0.2f", result);
         Assert.Contains("\n    (StyleKeys.FontSize, 13f),", result);
@@ -6488,13 +7014,15 @@ public sealed class FormatterSnapshotTests
     {
         // A single var statement at 12sp (extreme over-indent from editor auto-indent
         // or similar). IsStatementStarter forces it to 2sp.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var (count, setCount) = useState(0);
                         var inlineLabel = "hello";
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
         Assert.Contains("\n  var inlineLabel = \"hello\";", result);
@@ -6507,7 +7035,8 @@ public sealed class FormatterSnapshotTests
         // Allman-style useEffect ('{' on its own line) with the opener at 4sp
         // (corrupted) and a correctly-indented bool at 2sp. Both the opener and
         // its '{' should land at 2sp; the body at 4sp.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               bool IsReady() => count > 0;
                 useEffect(() =>
@@ -6517,7 +7046,8 @@ public sealed class FormatterSnapshotTests
                 }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  bool IsReady() => count > 0;", result);
         Assert.Contains("\n  useEffect(() =>", result);
@@ -6533,7 +7063,8 @@ public sealed class FormatterSnapshotTests
     {
         // Full mixed-corruption scenario: correct lines at 2sp, corrupted at 4sp,
         // Style block entries with extra spaces, and a ternary at correct relative depth.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── state ───────────────────────────────────────────────────
                 var (count, setCount) = useState(0);
@@ -6552,7 +7083,8 @@ public sealed class FormatterSnapshotTests
                 }, Array.Empty<object>());
               return (<Box />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
         Assert.Contains("\n  var panelStyle = new Style {", result);
@@ -6571,7 +7103,8 @@ public sealed class FormatterSnapshotTests
     public void P06_StyleAlignmentSpacesAfterComma_Collapsed()
     {
         // Spaces after a comma (column-alignment) are collapsed to single space.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (StyleKeys.Color,           new Color(0.5f, 0.5f, 0.5f, 1f)),
@@ -6579,7 +7112,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Color, new Color", result);
         Assert.Contains("(StyleKeys.BackgroundColor, new Color", result);
@@ -6601,7 +7135,8 @@ public sealed class FormatterSnapshotTests
     {
         // CSharpier corruption: comment at 2sp, vars at 4sp.
         // The formatter should normalise vars to rel=0 (= 2sp with IndentStr).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // ── header ──
                 var (count, setCount) = useState(0);
@@ -6610,7 +7145,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{node}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  // ── header ──", result);
         Assert.Contains("\n  var (count, setCount) = useState(0);", result);
@@ -6624,7 +7160,8 @@ public sealed class FormatterSnapshotTests
         // A ContinueWith-style pattern: after the lambda's closing "},",
         // continuation arguments should preserve their relative indentation
         // (deeper than the },), not be flattened to block level.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               useEffect(() => {
                 var t = task;
@@ -6641,7 +7178,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // The },\n  CancellationToken line should NOT be flattened.
         Assert.Contains("  },\n      CancellationToken.None,", result);
@@ -6655,7 +7193,8 @@ public sealed class FormatterSnapshotTests
     {
         // The (   StyleKeys... → (StyleKeys... stripping should work in
         // the EmitCSharpLines path too.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                 (   StyleKeys.Padding, 8f),
@@ -6666,7 +7205,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box style={s}>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.Padding, 8f)", result);
         Assert.Contains("(StyleKeys.Margin, 4f)", result);
@@ -6679,7 +7219,8 @@ public sealed class FormatterSnapshotTests
     {
         // Multiple JSX paren-blocks — each C# segment between them should
         // have independent normalisation.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                 var a = (
                 <Label text="A" />
@@ -6694,7 +7235,8 @@ public sealed class FormatterSnapshotTests
                 </Box>
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         // Both var statements at rel=0 (2sp with IndentStr).
         Assert.Contains("\n  var a =", result);
@@ -6707,7 +7249,8 @@ public sealed class FormatterSnapshotTests
     {
         // Comments at small indent should not drag baseSpaces down and
         // prevent statement normalisation in the JSX path.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               // state
                 var (x, setX) = useState(0);
@@ -6717,7 +7260,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{node}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  // state", result);
         Assert.Contains("\n  var (x, setX) = useState(0);", result);
@@ -6731,7 +7275,8 @@ public sealed class FormatterSnapshotTests
     {
         // User complaint: "var syncLabelStyle = new Style { ... }; —
         // when I change inner element and save they don't get back to this form"
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style {
                     (StyleKeys.Padding, 8f),
@@ -6743,7 +7288,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box style={s}>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // All entries normalised to same level inside the Style block.
         Assert.Contains("    (StyleKeys.Padding, 8f),", result);
@@ -6757,7 +7303,8 @@ public sealed class FormatterSnapshotTests
     {
         // User complaint: "MenuBuilderHandler buildMenu = dm => { ... };
         // — nothing gets formatted inside"
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               MenuBuilderHandler buildMenu = dm => {
                        dm.AddItem("Option A", false, () => setChoice("A"));
@@ -6768,7 +7315,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // Both items normalised to same level inside the lambda body.
         Assert.Contains("    dm.AddItem(\"Option A\"", result);
@@ -6780,7 +7328,8 @@ public sealed class FormatterSnapshotTests
     public void Q08_JsxInSetup_SwitchCase_InnerBodyDeeperThanLabel()
     {
         // switch-case: case labels at block target, body one indent deeper.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               void Apply(string m) {
                 switch (m) {
@@ -6797,12 +7346,13 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("case \"a\":", result);
-        Assert.Contains("      DoA();", result);         // 6sp = blockTarget(4) + caseExtra(2)
+        Assert.Contains("      DoA();", result); // 6sp = blockTarget(4) + caseExtra(2)
         Assert.Contains("      break;", result);
-        Assert.Contains("    default:", result);          // 4sp = blockTarget
+        Assert.Contains("    default:", result); // 4sp = blockTarget
         Assert.Contains("      DoDefault();", result);
         Assert.Equal(result, Format(result));
     }
@@ -6829,7 +7379,10 @@ public sealed class FormatterSnapshotTests
     [InlineData("float   ratio   =   0.5f;", "float ratio = 0.5f;")]
     [InlineData("bool   flag   =   true;", "bool flag = true;")]
     [InlineData("var   items   =   new   List<int>();", "var items = new List<int>();")]
-    [InlineData("var   dict   =   new   Dictionary<string, int>();", "var dict = new Dictionary<string, int>();")]
+    [InlineData(
+        "var   dict   =   new   Dictionary<string, int>();",
+        "var dict = new Dictionary<string, int>();"
+    )]
     [InlineData("var   parentItem   =   source.Parent;", "var parentItem = source.Parent;")]
     [InlineData("count   +=   1;", "count += 1;")]
     [InlineData("x   -=   5;", "x -= 5;")]
@@ -6881,8 +7434,14 @@ public sealed class FormatterSnapshotTests
     [Theory]
     [InlineData("var a   =   b   ??   c;", "var a = b ?? c;")]
     [InlineData("var a   =   b   ??   default;", "var a = b ?? default;")]
-    [InlineData("var parentItem   =   source.Parent   ??   new   SharedTreeRowItem();", "var parentItem = source.Parent ?? new SharedTreeRowItem();")]
-    [InlineData("var val   =   first   ??   second   ??   third;", "var val = first ?? second ?? third;")]
+    [InlineData(
+        "var parentItem   =   source.Parent   ??   new   SharedTreeRowItem();",
+        "var parentItem = source.Parent ?? new SharedTreeRowItem();"
+    )]
+    [InlineData(
+        "var val   =   first   ??   second   ??   third;",
+        "var val = first ?? second ?? third;"
+    )]
     [InlineData("x   ??=   fallback;", "x ??= fallback;")]
     public void S03_NullOperators_MultiSpaces_Collapsed(string input, string expected)
     {
@@ -6897,9 +7456,15 @@ public sealed class FormatterSnapshotTests
     [Theory]
     [InlineData("DoWork(a,   b,   c);", "DoWork(a, b, c);")]
     [InlineData("var x   =   Math.Max(a,   b);", "var x = Math.Max(a, b);")]
-    [InlineData("var sb   =   new   StringBuilder(capacity);", "var sb = new StringBuilder(capacity);")]
+    [InlineData(
+        "var sb   =   new   StringBuilder(capacity);",
+        "var sb = new StringBuilder(capacity);"
+    )]
     [InlineData("list.AddRange(new[]   {   a,   b,   c   });", "list.AddRange(new[] { a, b, c });")]
-    [InlineData("var r   =   string.Format(\"{0}   {1}\",   a,   b);", "var r = string.Format(\"{0}   {1}\", a, b);")]
+    [InlineData(
+        "var r   =   string.Format(\"{0}   {1}\",   a,   b);",
+        "var r = string.Format(\"{0}   {1}\", a, b);"
+    )]
     [InlineData("var t   =   Tuple.Create(x,   y,   z);", "var t = Tuple.Create(x, y, z);")]
     [InlineData("Debug.Log(msg   +   suffix);", "Debug.Log(msg + suffix);")]
     [InlineData("var arr   =   Array.Empty<int>();", "var arr = Array.Empty<int>();")]
@@ -6922,11 +7487,20 @@ public sealed class FormatterSnapshotTests
     [InlineData("(StyleKeys.FontSize,          13f),", "(StyleKeys.FontSize, 13f),")]
     [InlineData("(StyleKeys.LineHeight,     1.4f),", "(StyleKeys.LineHeight, 1.4f),")]
     [InlineData("(StyleKeys.Color,   syncColor),", "(StyleKeys.Color, syncColor),")]
-    [InlineData("(StyleKeys.Color,       new   Color(0.5f,   0.5f,   0.5f,   1f)),", "(StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f, 1f)),")]
-    [InlineData("(StyleKeys.BackgroundColor,    new   Color(1f,   0f,   0f,   0.8f)),", "(StyleKeys.BackgroundColor, new Color(1f, 0f, 0f, 0.8f)),")]
+    [InlineData(
+        "(StyleKeys.Color,       new   Color(0.5f,   0.5f,   0.5f,   1f)),",
+        "(StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f, 1f)),"
+    )]
+    [InlineData(
+        "(StyleKeys.BackgroundColor,    new   Color(1f,   0f,   0f,   0.8f)),",
+        "(StyleKeys.BackgroundColor, new Color(1f, 0f, 0f, 0.8f)),"
+    )]
     public void S05_StyleTuples_MultiSpaces_Collapsed(string input, string expected)
     {
-        var source = "component Foo {\n  var s = new Style {\n    " + input + "\n  };\n  return (<Label style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n    "
+            + input
+            + "\n  };\n  return (<Label style={s} />);\n}";
         var result = Format(source);
         Assert.Contains(expected, result);
         Assert.Equal(result, Format(result));
@@ -7015,7 +7589,10 @@ public sealed class FormatterSnapshotTests
     [Theory]
     [InlineData("var a   =   x   >   0   ?   x   :   -x;", "var a = x > 0 ? x : -x;")]
     [InlineData("var a   =   flag   ?   optA   :   optB;", "var a = flag ? optA : optB;")]
-    [InlineData("var a   =   cond   ?   new   Foo()   :   null;", "var a = cond ? new Foo() : null;")]
+    [InlineData(
+        "var a   =   cond   ?   new   Foo()   :   null;",
+        "var a = cond ? new Foo() : null;"
+    )]
     [InlineData("var a   =   x   >=   0   ?   x   :   0;", "var a = x >= 0 ? x : 0;")]
     [InlineData("var a   =   list?.Count   ??   0;", "var a = list?.Count ?? 0;")]
     public void S10_Ternary_MultiSpaces_Collapsed(string input, string expected)
@@ -7037,7 +7614,10 @@ public sealed class FormatterSnapshotTests
     [InlineData("(  StyleKeys.Padding, 8f),", "(StyleKeys.Padding, 8f),")]
     public void S11_ParenSpaces_AllStripped(string input, string expected)
     {
-        var source = "component Foo {\n  var s = new Style {\n    " + input + "\n  };\n  return (<Label style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n    "
+            + input
+            + "\n  };\n  return (<Label style={s} />);\n}";
         var result = Format(source);
         Assert.Contains(expected, result);
         Assert.Equal(result, Format(result));
@@ -7065,12 +7645,18 @@ public sealed class FormatterSnapshotTests
     [InlineData("DoWork(a,   b,   c);", "DoWork(a, b, c);")]
     [InlineData("var   items   =   new   List<int>();", "var items = new List<int>();")]
     [InlineData("var a   =   x   >   0   ?   x   :   -x;", "var a = x > 0 ? x : -x;")]
-    [InlineData("var parentItem   =   source.Parent   ??   new   SharedTreeRowItem();", "var parentItem = source.Parent ?? new SharedTreeRowItem();")]
+    [InlineData(
+        "var parentItem   =   source.Parent   ??   new   SharedTreeRowItem();",
+        "var parentItem = source.Parent ?? new SharedTreeRowItem();"
+    )]
     [InlineData("var a   =   (x   +   y)   *   z;", "var a = (x + y) * z;")]
     [InlineData("var a   =   x   is   string;", "var a = x is string;")]
     public void T01_JsxPath_Expressions_MultiSpaces_Collapsed(string input, string expected)
     {
-        var source = "component Foo {\n  " + input + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
+        var source =
+            "component Foo {\n  "
+            + input
+            + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
         var result = Format(source);
         Assert.Contains(expected, result);
         Assert.Equal(result, Format(result));
@@ -7084,10 +7670,16 @@ public sealed class FormatterSnapshotTests
     [InlineData("(StyleKeys.Color,   syncColor),", "(StyleKeys.Color, syncColor),")]
     [InlineData("(StyleKeys.Padding,   8f),", "(StyleKeys.Padding, 8f),")]
     [InlineData("(StyleKeys.Margin,      4f),", "(StyleKeys.Margin, 4f),")]
-    [InlineData("(StyleKeys.Color,      new   Color(0.5f,  0.5f,  0.5f,  1f)),", "(StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f, 1f)),")]
+    [InlineData(
+        "(StyleKeys.Color,      new   Color(0.5f,  0.5f,  0.5f,  1f)),",
+        "(StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f, 1f)),"
+    )]
     public void T02_JsxPath_StyleTuples_MultiSpaces_Collapsed(string input, string expected)
     {
-        var source = "component Foo {\n  var s = new Style {\n    " + input + "\n  };\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box style={s}>{el}</Box>);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n    "
+            + input
+            + "\n  };\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box style={s}>{el}</Box>);\n}";
         var result = Format(source);
         Assert.Contains(expected, result);
         Assert.Equal(result, Format(result));
@@ -7103,7 +7695,10 @@ public sealed class FormatterSnapshotTests
     [InlineData("var x   =   \"a     b     c\";", "\"a     b     c\"")]
     public void T03_JsxPath_StringsAndComments_Preserved(string input, string expectedFragment)
     {
-        var source = "component Foo {\n  " + input + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
+        var source =
+            "component Foo {\n  "
+            + input
+            + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
         var result = Format(source);
         Assert.Contains(expectedFragment, result);
         Assert.Equal(result, Format(result));
@@ -7119,7 +7714,10 @@ public sealed class FormatterSnapshotTests
     [InlineData("DoWork(\ta,\tb\t);", "DoWork(a, b);")]
     public void T04_JsxPath_Tabs_ReplacedAndCollapsed(string input, string expected)
     {
-        var source = "component Foo {\n  " + input + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
+        var source =
+            "component Foo {\n  "
+            + input
+            + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
         var result = Format(source);
         Assert.DoesNotContain("\t", result);
         Assert.Contains(expected, result);
@@ -7138,7 +7736,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void U01_BareBrace_AfterVarNewStyle_PulledBack()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style
                     {
@@ -7146,7 +7745,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var s = new Style\n  {\n", result);
         Assert.Contains("(StyleKeys.Padding, 8f),", result);
@@ -7156,7 +7756,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void U02_BareBrace_AfterVarNewList_PulledBack()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var items = new List<int>
                   {
@@ -7164,7 +7765,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var items = new List<int>\n  {\n", result);
         Assert.Equal(result, Format(result));
@@ -7173,7 +7775,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void U03_BareBrace_AfterVarNewDict_PulledBack()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var dict = new Dictionary<string, int>
                       {
@@ -7181,7 +7784,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var dict = new Dictionary<string, int>\n  {\n", result);
         Assert.Equal(result, Format(result));
@@ -7190,7 +7794,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void U04_BareBrace_AlreadyCorrectIndent_Unchanged()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style
               {
@@ -7198,7 +7803,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label style={s} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var s = new Style\n  {\n", result);
         Assert.Equal(result, Format(result));
@@ -7209,7 +7815,8 @@ public sealed class FormatterSnapshotTests
     {
         // 'useEffect(() =>' is NOT a statement starter (no keyword match,
         // doesn't end with ; or {). Bare '{' after it is continuation.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var x = 1;
               useEffect(() =>
@@ -7219,7 +7826,8 @@ public sealed class FormatterSnapshotTests
               }, deps);
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // The { should NOT be at column 2 (pulled back) — it's a continuation.
         Assert.DoesNotContain("\n  useEffect(() =>\n  {\n", result);
@@ -7230,7 +7838,8 @@ public sealed class FormatterSnapshotTests
     public void U06_BareBrace_JsxPath_AfterVarNewStyle_PulledBack()
     {
         // Same as U01 but through EmitCSharpLines (JSX in setup).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var s = new Style
                     {
@@ -7241,7 +7850,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box style={s}>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var s = new Style\n  {\n", result);
         Assert.Equal(result, Format(result));
@@ -7251,7 +7861,8 @@ public sealed class FormatterSnapshotTests
     public void U07_BareBrace_JsxPath_AfterContinuation_NotPulledToRel0()
     {
         // Same as U05 but through EmitCSharpLines (JSX in setup).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var x = 1;
               useEffect(() =>
@@ -7264,7 +7875,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.DoesNotContain("\n  useEffect(() =>\n  {\n", result);
         Assert.Equal(result, Format(result));
@@ -7275,7 +7887,8 @@ public sealed class FormatterSnapshotTests
     {
         // Inside a block, the inner '{' should be at the block's target level,
         // not pulled to depth-0.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var outer = new Style
               {
@@ -7283,7 +7896,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // Inner content at blockTarget (4sp = 2sp base + 2sp indent)
         Assert.Contains("    (StyleKeys.Padding, 8f),", result);
@@ -7345,15 +7959,24 @@ public sealed class FormatterSnapshotTests
     [Theory]
     [InlineData("( StyleKeys.FlexGrow, 1f ),", "(StyleKeys.FlexGrow, 1f),")]
     [InlineData("( StyleKeys.Padding, 12f ),", "(StyleKeys.Padding, 12f),")]
-    [InlineData("( StyleKeys.FlexDirection, \"column\" ),", "(StyleKeys.FlexDirection, \"column\"),")]
+    [InlineData(
+        "( StyleKeys.FlexDirection, \"column\" ),",
+        "(StyleKeys.FlexDirection, \"column\"),"
+    )]
     [InlineData("( StyleKeys.Color, color ),", "(StyleKeys.Color, color),")]
     [InlineData("( StyleKeys.Height, 30f ),", "(StyleKeys.Height, 30f),")]
     [InlineData("(  StyleKeys.Width,  100f  ),", "(StyleKeys.Width, 100f),")]
     [InlineData("(   StyleKeys.Margin,   4f   ),", "(StyleKeys.Margin, 4f),")]
-    [InlineData("( StyleKeys.BackgroundColor, new Color(0.5f, 0.5f, 0.5f) ),", "(StyleKeys.BackgroundColor, new Color(0.5f, 0.5f, 0.5f)),")]
+    [InlineData(
+        "( StyleKeys.BackgroundColor, new Color(0.5f, 0.5f, 0.5f) ),",
+        "(StyleKeys.BackgroundColor, new Color(0.5f, 0.5f, 0.5f)),"
+    )]
     public void V03_StyleTuples_ParenSpaces_BothStripped(string input, string expected)
     {
-        var source = "component Foo {\n  var s = new Style {\n    " + input + "\n  };\n  return (<Label style={s} />);\n}";
+        var source =
+            "component Foo {\n  var s = new Style {\n    "
+            + input
+            + "\n  };\n  return (<Label style={s} />);\n}";
         var result = Format(source);
         Assert.Contains(expected, result);
         Assert.Equal(result, Format(result));
@@ -7408,7 +8031,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void V07_ForLoop_SpacesInsideParens_FullComponent()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var items = new List<int> { 1, 2, 3 };
               for ( int i = items.Count - 1; i > 0; i-- ) {
@@ -7416,7 +8040,8 @@ public sealed class FormatterSnapshotTests
               }
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("for (int i = items.Count - 1; i > 0; i--) {", result);
         Assert.DoesNotContain("( int", result);
@@ -7429,13 +8054,15 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void V08_MethodCall_SpaceBeforeCloseParen_FullComponent()
     {
-        var source = N("""
+        var source = N(
+            """
             component Counter {
               var (count, setCount) = useState(0);
               setCount(v => v + 1 );
               return (<Label text={count.ToString()} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("setCount(v => v + 1);", result);
         Assert.DoesNotContain("1 )", result);
@@ -7447,7 +8074,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void V09_StyleBlock_MixedParenSpaces_AllNormalised()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var containerStyle = new Style {
                 ( StyleKeys.FlexGrow, 1f ),
@@ -7456,7 +8084,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Box style={containerStyle} />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("(StyleKeys.FlexGrow, 1f),", result);
         Assert.Contains("(StyleKeys.Padding, 12f),", result);
@@ -7476,7 +8105,10 @@ public sealed class FormatterSnapshotTests
     [InlineData("if ( x > 0 )", "if (x > 0)")]
     public void V10_JsxPath_ParenSpaces_Stripped(string input, string expected)
     {
-        var source = "component Foo {\n  " + input + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
+        var source =
+            "component Foo {\n  "
+            + input
+            + "\n  var el = (\n    <Label text=\"hi\" />\n  );\n  return (<Box>{el}</Box>);\n}";
         var result = Format(source);
         Assert.Contains(expected, result);
         Assert.Equal(result, Format(result));
@@ -7494,14 +8126,16 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void W01_CustomTypeAssignment_AtRel0()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                   MenuBuilderHandler buildMenu = dm => {
                 dm.AppendAction("Reset", _ => Reset());
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  MenuBuilderHandler buildMenu = dm => {", result);
         Assert.Equal(result, Format(result));
@@ -7510,7 +8144,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void W02_CustomTypeAssignment_AllmanBrace_PulledBack()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               MenuBuilderHandler buildMenu = dm =>
                     {
@@ -7521,7 +8156,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // The { should be pulled back to rel=0 (same as statement)
         Assert.Contains("\n  MenuBuilderHandler buildMenu = dm =>\n  {\n", result);
@@ -7537,7 +8173,8 @@ public sealed class FormatterSnapshotTests
     public void W03_CustomTypeAssignment_OverIndented_NormalisedToRel0()
     {
         // If user tabs/spaces the MenuBuilderHandler line, it should normalize to rel=0.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
                     MenuBuilderHandler buildMenu = dm =>
                     {
@@ -7545,7 +8182,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  MenuBuilderHandler buildMenu = dm =>\n  {\n", result);
         Assert.Contains("    dm.AppendAction(\"A\"", result);
@@ -7555,7 +8193,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void W04_ActionAssignment_AllmanBrace_PulledBack()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               Action<int> callback = x =>
                   {
@@ -7563,7 +8202,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  Action<int> callback = x =>\n  {\n", result);
         Assert.Contains("    DoWork(x);", result);
@@ -7573,7 +8213,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void W05_FuncAssignment_AllmanBrace_PulledBack()
     {
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               Func<int, bool> predicate = n =>
                       {
@@ -7581,7 +8222,8 @@ public sealed class FormatterSnapshotTests
               };
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  Func<int, bool> predicate = n =>\n  {\n", result);
         Assert.Contains("    return n > 0;", result);
@@ -7592,7 +8234,8 @@ public sealed class FormatterSnapshotTests
     public void W06_CompoundOperator_NotMistakenForAssignment()
     {
         // += -= *= /= %= should NOT trigger the ' = ' heuristic.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               count += 1;
               total -= 5;
@@ -7601,7 +8244,8 @@ public sealed class FormatterSnapshotTests
               bits %= 3;
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // All should be at rel=0 because they end with ; (not because of = check)
         Assert.Contains("\n  count += 1;", result);
@@ -7616,7 +8260,8 @@ public sealed class FormatterSnapshotTests
     public void W07_CustomTypeAssignment_JsxPath_AllmanBrace()
     {
         // Same as W02 but through EmitCSharpLines path (JSX in setup).
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               MenuBuilderHandler buildMenu = dm =>
                     {
@@ -7627,7 +8272,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Box>{el}</Box>);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  MenuBuilderHandler buildMenu = dm =>\n  {\n", result);
         Assert.Contains("    dm.AppendAction(\"Reset\"", result);
@@ -7639,7 +8285,8 @@ public sealed class FormatterSnapshotTests
     {
         // (from, to) => should NOT be treated as a statement starter (no ' = ').
         // The bare { after it should remain at continuation indent.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               Hooks.UseBlocker(
                 (from, to) =>
@@ -7650,7 +8297,8 @@ public sealed class FormatterSnapshotTests
               );
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         // (from, to) should NOT be at rel=0 — it's a continuation inside UseBlocker()
         Assert.DoesNotContain("\n  (from, to) =>\n  {\n", result);
@@ -7662,7 +8310,8 @@ public sealed class FormatterSnapshotTests
     {
         // Full scenario: custom type, Allman brace, inner lines with parens
         // and multi-spaces — everything should be normalised.
-        var source = "component Foo {\n      MenuBuilderHandler buildMenu = dm =>\n          {\n    dm.AppendAction(  \"Reset\",   _ => Reset()  );\n    dm.AppendAction( \"Set 10\",  _ => setCount( 10 ) );\n  };\n  return (<Label />);\n}";
+        var source =
+            "component Foo {\n      MenuBuilderHandler buildMenu = dm =>\n          {\n    dm.AppendAction(  \"Reset\",   _ => Reset()  );\n    dm.AppendAction( \"Set 10\",  _ => setCount( 10 ) );\n  };\n  return (<Label />);\n}";
         var result = Format(source);
         Assert.Contains("\n  MenuBuilderHandler buildMenu = dm =>\n  {\n", result);
         Assert.Contains("dm.AppendAction(\"Reset\", _ => Reset());", result);
@@ -7677,7 +8326,8 @@ public sealed class FormatterSnapshotTests
     {
         // == and != should not trigger the ' = ' heuristic.
         // These lines end with ; so they're already statement starters.
-        var source = N("""
+        var source = N(
+            """
             component Foo {
               var a = x == y;
               var b = x != y;
@@ -7685,7 +8335,8 @@ public sealed class FormatterSnapshotTests
               var d = x <= y;
               return (<Label />);
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("\n  var a = x == y;", result);
         Assert.Contains("\n  var b = x != y;", result);
@@ -7705,7 +8356,9 @@ public sealed class FormatterSnapshotTests
     // ════════════════════════════════════════════════════════════════════════════
 
     private static readonly AstFormatter _fmtRoslyn = new AstFormatter(
-        FormatterOptions.Default, new TestRoslynFormatter());
+        FormatterOptions.Default,
+        new TestRoslynFormatter()
+    );
 
     private static string FormatWithRoslyn(string source) => N(_fmtRoslyn.Format(source));
 
@@ -7715,7 +8368,7 @@ public sealed class FormatterSnapshotTests
     {
         _ = relativePath;
         var content = N(File.ReadAllText(filePath));
-        var result  = FormatWithRoslyn(content);
+        var result = FormatWithRoslyn(content);
         Assert.Equal(content, result);
     }
 
@@ -7724,7 +8377,8 @@ public sealed class FormatterSnapshotTests
     {
         // Regression: Roslyn puts the { of return () => { ... }; at column 0,
         // which caused EmitCSharpLines to shift indentation on every save.
-        var source = N("""
+        var source = N(
+            """
             component C {
               useEffect(() =>
               {
@@ -7743,7 +8397,8 @@ public sealed class FormatterSnapshotTests
                 <Label text="ok" />
               );
             }
-            """);
+            """
+        );
         var r1 = FormatWithRoslyn(source);
         var r2 = FormatWithRoslyn(r1);
         var r3 = FormatWithRoslyn(r2);
@@ -7760,7 +8415,8 @@ public sealed class FormatterSnapshotTests
 
         public string? Format(string code, int indentSize = 4)
         {
-            if (string.IsNullOrEmpty(code)) return null;
+            if (string.IsNullOrEmpty(code))
+                return null;
             try
             {
                 const string prefix = "class __UitkxFmt__ {\n";
@@ -7768,22 +8424,37 @@ public sealed class FormatterSnapshotTests
                 string wrapped = prefix + code + suffix;
                 var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(wrapped);
                 var root = tree.GetRoot();
-                var opts = _ws.Options
-                    .WithChangedOption(Microsoft.CodeAnalysis.Formatting.FormattingOptions.IndentationSize, Microsoft.CodeAnalysis.LanguageNames.CSharp, indentSize)
-                    .WithChangedOption(Microsoft.CodeAnalysis.Formatting.FormattingOptions.UseTabs, Microsoft.CodeAnalysis.LanguageNames.CSharp, false);
+                var opts = _ws
+                    .Options.WithChangedOption(
+                        Microsoft.CodeAnalysis.Formatting.FormattingOptions.IndentationSize,
+                        Microsoft.CodeAnalysis.LanguageNames.CSharp,
+                        indentSize
+                    )
+                    .WithChangedOption(
+                        Microsoft.CodeAnalysis.Formatting.FormattingOptions.UseTabs,
+                        Microsoft.CodeAnalysis.LanguageNames.CSharp,
+                        false
+                    );
                 var fmtRoot = Microsoft.CodeAnalysis.Formatting.Formatter.Format(root, _ws, opts);
                 string fmtWrapped = fmtRoot.ToFullString();
                 int contentStart = fmtWrapped.IndexOf('\n');
                 int contentEnd = fmtWrapped.LastIndexOf('}');
-                if (contentStart < 0 || contentEnd <= contentStart) return null;
-                return fmtWrapped.Substring(contentStart + 1, contentEnd - contentStart - 1).TrimEnd('\r', '\n', ' ', '\t');
+                if (contentStart < 0 || contentEnd <= contentStart)
+                    return null;
+                return fmtWrapped
+                    .Substring(contentStart + 1, contentEnd - contentStart - 1)
+                    .TrimEnd('\r', '\n', ' ', '\t');
             }
-            catch { return null; }
+            catch
+            {
+                return null;
+            }
         }
 
         public string? FormatStatements(string code, int indentSize = 4)
         {
-            if (string.IsNullOrEmpty(code)) return null;
+            if (string.IsNullOrEmpty(code))
+                return null;
             try
             {
                 const string prefix = "class __UitkxFmt__ {\nvoid __render__() {\n";
@@ -7792,59 +8463,114 @@ public sealed class FormatterSnapshotTests
                 var tree = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(wrapped);
                 bool hasError = false;
                 foreach (var d in tree.GetDiagnostics())
-                    if (d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error) { hasError = true; break; }
-                if (hasError) return null;
+                    if (d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error)
+                    {
+                        hasError = true;
+                        break;
+                    }
+                if (hasError)
+                    return null;
                 var root = tree.GetRoot();
-                var opts = _ws.Options
-                    .WithChangedOption(Microsoft.CodeAnalysis.Formatting.FormattingOptions.IndentationSize, Microsoft.CodeAnalysis.LanguageNames.CSharp, indentSize)
-                    .WithChangedOption(Microsoft.CodeAnalysis.Formatting.FormattingOptions.UseTabs, Microsoft.CodeAnalysis.LanguageNames.CSharp, false);
+                var opts = _ws
+                    .Options.WithChangedOption(
+                        Microsoft.CodeAnalysis.Formatting.FormattingOptions.IndentationSize,
+                        Microsoft.CodeAnalysis.LanguageNames.CSharp,
+                        indentSize
+                    )
+                    .WithChangedOption(
+                        Microsoft.CodeAnalysis.Formatting.FormattingOptions.UseTabs,
+                        Microsoft.CodeAnalysis.LanguageNames.CSharp,
+                        false
+                    );
                 var fmtRoot = Microsoft.CodeAnalysis.Formatting.Formatter.Format(root, _ws, opts);
                 string formatted = fmtRoot.ToFullString();
                 const string methodSig = "void __render__()";
                 int methodIdx = formatted.IndexOf(methodSig, StringComparison.Ordinal);
-                if (methodIdx < 0) return null;
+                if (methodIdx < 0)
+                    return null;
                 int braceOpen = formatted.IndexOf('{', methodIdx + methodSig.Length);
-                if (braceOpen < 0) return null;
-                int depth = 1, pos = braceOpen + 1;
+                if (braceOpen < 0)
+                    return null;
+                int depth = 1,
+                    pos = braceOpen + 1;
                 while (pos < formatted.Length && depth > 0)
                 {
-                    if (formatted[pos] == '{') depth++;
-                    else if (formatted[pos] == '}') { depth--; if (depth == 0) break; }
+                    if (formatted[pos] == '{')
+                        depth++;
+                    else if (formatted[pos] == '}')
+                    {
+                        depth--;
+                        if (depth == 0)
+                            break;
+                    }
                     pos++;
                 }
-                string body = formatted.Substring(braceOpen + 1, pos - braceOpen - 1).Replace("\r\n", "\n").TrimStart('\n');
+                string body = formatted
+                    .Substring(braceOpen + 1, pos - braceOpen - 1)
+                    .Replace("\r\n", "\n")
+                    .TrimStart('\n');
                 var lines = body.Split('\n');
                 int baseIndent = int.MaxValue;
                 foreach (var line in lines)
                 {
-                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
                     int lead = 0;
-                    while (lead < line.Length && line[lead] == ' ') lead++;
-                    if (lead < baseIndent) baseIndent = lead;
+                    while (lead < line.Length && line[lead] == ' ')
+                        lead++;
+                    if (lead < baseIndent)
+                        baseIndent = lead;
                 }
-                if (baseIndent == int.MaxValue) baseIndent = 0;
+                if (baseIndent == int.MaxValue)
+                    baseIndent = 0;
                 var sb2 = new System.Text.StringBuilder();
                 for (int li = 0; li < lines.Length; li++)
                 {
                     string line = lines[li];
-                    if (string.IsNullOrWhiteSpace(line)) { sb2.Append('\n'); continue; }
-                    string stripped = baseIndent > 0 && line.Length > baseIndent ? line.Substring(baseIndent) : line.TrimStart(' ');
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        sb2.Append('\n');
+                        continue;
+                    }
+                    string stripped =
+                        baseIndent > 0 && line.Length > baseIndent
+                            ? line.Substring(baseIndent)
+                            : line.TrimStart(' ');
                     sb2.Append(stripped);
-                    if (li < lines.Length - 1) sb2.Append('\n');
+                    if (li < lines.Length - 1)
+                        sb2.Append('\n');
                 }
                 return sb2.ToString().TrimEnd('\r', '\n', ' ', '\t');
             }
-            catch { return null; }
+            catch
+            {
+                return null;
+            }
         }
     }
 
-    private static ReactiveUITK.Language.Roslyn.VirtualDocument GenerateVDoc(string source, string filePath)
+    private static ReactiveUITK.Language.Roslyn.VirtualDocument GenerateVDoc(
+        string source,
+        string filePath
+    )
     {
         var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
-        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(source, filePath, diags);
-        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(source, filePath, directives, diags);
-        var parseResult = new ReactiveUITK.Language.Parser.ParseResult(directives, nodes,
-            System.Collections.Immutable.ImmutableArray.CreateRange(diags));
+        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(
+            source,
+            filePath,
+            diags
+        );
+        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(
+            source,
+            filePath,
+            directives,
+            diags
+        );
+        var parseResult = new ReactiveUITK.Language.Parser.ParseResult(
+            directives,
+            nodes,
+            System.Collections.Immutable.ImmutableArray.CreateRange(diags)
+        );
         var vdg = new ReactiveUITK.Language.Roslyn.VirtualDocumentGenerator();
         return vdg.Generate(parseResult, source, filePath);
     }
@@ -7852,9 +8578,11 @@ public sealed class FormatterSnapshotTests
     private static string ExtractBetween(string text, string start, string end)
     {
         int s = text.IndexOf(start, StringComparison.Ordinal);
-        if (s < 0) return "";
+        if (s < 0)
+            return "";
         int e = text.IndexOf(end, s + start.Length, StringComparison.Ordinal);
-        if (e < 0) return text.Substring(s + start.Length);
+        if (e < 0)
+            return text.Substring(s + start.Length);
         return text.Substring(s + start.Length, e - s - start.Length);
     }
 
@@ -7869,7 +8597,8 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void B13a_VDG_CommentedOutReturn_DoesNotBreakLineMappingForSubsequentCode()
     {
-        var source = N(@"@namespace Test
+        var source = N(
+            @"@namespace Test
 component Comp {
   var (count, setCount) = useState(0);
 
@@ -7895,13 +8624,16 @@ component Comp {
       <Label text=""world"" />
     </Box>
   );
-}");
+}"
+        );
         var vdoc = GenerateVDoc(source, "test.uitkx");
         var text = vdoc.Text;
 
         // {/* ... */} block should be preserved as-is (no VirtualNode replacement inside).
-        Assert.DoesNotContain("(global::ReactiveUITK.Core.VirtualNode)null!", 
-            ExtractBetween(text, "{/*", "*/}"));
+        Assert.DoesNotContain(
+            "(global::ReactiveUITK.Core.VirtualNode)null!",
+            ExtractBetween(text, "{/*", "*/}")
+        );
 
         // MethodAfter must appear in the output.
         Assert.Contains("MethodAfter", text);
@@ -7922,7 +8654,8 @@ component Comp {
     [Fact]
     public void B13b_VDG_LineCommentWithJsxPatternDoesNotTriggerBranch()
     {
-        var source = N(@"@namespace Test
+        var source = N(
+            @"@namespace Test
 component Comp {
   var (count, setCount) = useState(0);
 
@@ -7932,7 +8665,8 @@ component Comp {
   return (
     <Box />
   );
-}");
+}"
+        );
         var vdoc = GenerateVDoc(source, "test.uitkx");
         var text = vdoc.Text;
 
@@ -7944,9 +8678,16 @@ component Comp {
     [Fact]
     public void B13c_VDG_RealFile_SourceMapOffsets_AreCorrect()
     {
-        var filePath = Path.Combine(WorkspaceRoot(), "Samples", "UITKX", "Components",
-            "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
-        if (!File.Exists(filePath)) return;
+        var filePath = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxCounterFunc",
+            "UitkxCounterFunc.uitkx"
+        );
+        if (!File.Exists(filePath))
+            return;
 
         var source = N(File.ReadAllText(filePath));
         var vdoc = GenerateVDoc(source, filePath);
@@ -7956,17 +8697,20 @@ component Comp {
         // All FunctionSetup entries must have matching text
         foreach (var e in map.Entries)
         {
-            if (e.Kind != ReactiveUITK.Language.Roslyn.SourceRegionKind.FunctionSetup) continue;
+            if (e.Kind != ReactiveUITK.Language.Roslyn.SourceRegionKind.FunctionSetup)
+                continue;
             string vText = text.Substring(e.VirtualStart, e.VirtualEnd - e.VirtualStart);
             string sText = source.Substring(e.UitkxStart, e.UitkxEnd - e.UitkxStart);
             Assert.Equal(sText, vText);
         }
 
         // Key identifiers must map to their correct source lines
-        var checks = new[] {
-            ("MctvSetChild", 233), ("MctvDeleteLast", 261),
-            ("TreeViewRowState", 21),
-            ("var secondElement", 281)
+        var checks = new[]
+        {
+            ("MctvSetChild", 272),
+            ("MctvDeleteLast", 300),
+            ("TreeViewRowState", 60),
+            ("var secondElement", 321),
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -7977,7 +8721,8 @@ component Comp {
             int uitkxOff = entry.Value.UitkxOffset;
             int line = 1;
             for (int c = 0; c < uitkxOff && c < source.Length; c++)
-                if (source[c] == '\n') line++;
+                if (source[c] == '\n')
+                    line++;
             Assert.Equal(expectedLine, line);
         }
     }
@@ -7991,7 +8736,8 @@ component Comp {
     [Fact]
     public void B14_VDG_SetupJsxExpressions_AreEmittedWithSourceMapping()
     {
-        var source = N(@"component Foo {
+        var source = N(
+            @"component Foo {
   var (count, setCount) = useState(0);
 
   var node = (
@@ -8001,7 +8747,8 @@ component Comp {
   return (
     <Box />
   );
-}");
+}"
+        );
         var vdoc = GenerateVDoc(source, "test.uitkx");
         var text = vdoc.Text;
         var map = vdoc.Map;
@@ -8033,7 +8780,8 @@ component Comp {
     [Fact]
     public void MultiReturn_EarlyReturnInSetup_FormatsCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Counter {
               var (count, setCount) = useState(0);
               return (<Box></Box>);
@@ -8042,7 +8790,8 @@ component Comp {
                 <Button text="hello" />
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.NotEqual(source, result);
         Assert.Contains("return (", result);
@@ -8051,7 +8800,8 @@ component Comp {
     [Fact]
     public void MultiReturn_CommentedReturnWithLooseJsx_FormatsCorrectly()
     {
-        var source = N("""
+        var source = N(
+            """
             component Counter {
               var (count, setCount) = useState(0);
               //return (
@@ -8062,7 +8812,8 @@ component Comp {
                 <Button text="hello" />
               );
             }
-            """);
+            """
+        );
         var result = Format(source);
         Assert.Contains("return (", result);
         Assert.Contains("<Button", result);
@@ -8071,9 +8822,16 @@ component Comp {
     [Fact]
     public void MultiReturn_ActualFile_Idempotent()
     {
-        var file = Path.Combine(WorkspaceRoot(),
-            "Samples", "UITKX", "Components", "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
-        if (!File.Exists(file)) return;
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxCounterFunc",
+            "UitkxCounterFunc.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
         var source = N(File.ReadAllText(file));
         var result = Format(source);
         Assert.Equal(source, result);
@@ -8082,15 +8840,292 @@ component Comp {
     [Fact]
     public void MultiReturn_ActualFile_EarlyReturnReplacedSingleLine_Formats()
     {
-        var file = Path.Combine(WorkspaceRoot(),
-            "Samples", "UITKX", "Components", "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
-        if (!File.Exists(file)) return;
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxCounterFunc",
+            "UitkxCounterFunc.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
         var source = N(File.ReadAllText(file));
-        var modified = source
-            .Replace("  {/* return (\n    <Box />\n  ); */}", "  return (<Box></Box>);");
+        var modified = source.Replace(
+            "  {/* return (\n    <VisualElement>\n      <Button text=\"-5\" onClick={_ => setCount(count - 5)} />\n      <Button text=\"+5\" onClick={_ => setCount(count + 5)} />\n    </VisualElement>\n  ); */}",
+            "  return (<Box></Box>);"
+        );
         Assert.NotEqual(source, modified);
         var result = Format(modified);
         Assert.NotEqual(modified, result);
         Assert.Contains("<Button", result);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Regression: under-indented JSX var before lambda with JSX bleeds indent
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void UnderIndentedJsxVar_DoesNotBleedIntoFollowingLambda()
+    {
+        // The `var someVara` line is at 2sp instead of the correct 4sp.
+        // After formatting, it should normalise to 2sp (component body indent)
+        // but the `RowRenderer BuildRowRenderer()` block that follows must NOT
+        // get extra indentation inside its braces.
+        var source = N(
+            """
+            component Counter {
+              var safeItems = Array.Empty<int>();
+            var someVara = (
+                <Box>
+                  @(safeItems)
+                </Box>
+              );
+              RowRenderer BuildRowRenderer() =>
+              (index, obj) =>
+              {
+                var row = obj as string;
+                if (row == null)
+                {
+                  return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+                }
+
+                return (
+                  <VisualElement key={$"lv-wrap-{index}"}>
+                    @(row)
+                  </VisualElement>
+                );
+              };
+
+              return (
+                <Label text="hi" />
+              );
+            }
+            """
+        );
+
+        var expected = N(
+            """
+            component Counter {
+              var safeItems = Array.Empty<int>();
+              var someVara = (
+                <Box>
+                  @(safeItems)
+                </Box>
+              );
+              RowRenderer BuildRowRenderer() =>
+              (index, obj) =>
+              {
+                var row = obj as string;
+                if (row == null)
+                {
+                  return (<Label text="<invalid>" key={$"lv-invalid-{index}"} />);
+                }
+
+                return (
+                  <VisualElement key={$"lv-wrap-{index}"}>
+                    @(row)
+                  </VisualElement>
+                );
+              };
+
+              return (
+                <Label text="hi" />
+              );
+            }
+
+            """
+        );
+
+        var result = Format(source);
+        Assert.Equal(expected, result);
+
+        // Must also be idempotent
+        var r2 = Format(result);
+        Assert.Equal(result, r2);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Regression: long param lists wrap one-per-line when > PrintWidth
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void LongParamList_WrapsOnePerLine()
+    {
+        var source = N(
+            """
+            component Foo(IReadOnlyList<int>? items = null, Action? addItem = null, Action? setTopItem = null, Action? deleteLast = null, Action<int>? onCountChanged = null) {
+              return (<Label text="hi" />);
+            }
+            """
+        );
+
+        var expected = N(
+            """
+            component Foo(
+              IReadOnlyList<int>? items = null, 
+              Action? addItem = null, 
+              Action? setTopItem = null, 
+              Action? deleteLast = null, 
+              Action<int>? onCountChanged = null
+            ) {
+              return (
+                <Label text="hi" />
+              );
+            }
+
+            """
+        );
+
+        var result = Format(source);
+        Assert.Equal(expected, result);
+
+        // Idempotent
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void ShortParamList_StaysSingleLine()
+    {
+        var source = N(
+            """
+            component Foo(int x = 0, string y = "hi") {
+              return (<Label text="hi" />);
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("component Foo(int x = 0, string y = \"hi\") {", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  UITKX0111 — Unused component parameter
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void UITKX0111_UnusedParam_IsReported()
+    {
+        var source = N(
+            @"component Foo(int x = 0, string y = ""hi"") {
+  return (<Label text=""hello"" />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        var unused = diags.Where(d => d.Code == "UITKX0111").ToList();
+        Assert.Equal(2, unused.Count);
+        Assert.Contains(unused, d => d.Message.Contains("'x'"));
+        Assert.Contains(unused, d => d.Message.Contains("'y'"));
+    }
+
+    [Fact]
+    public void UITKX0111_UsedParam_NoFalsePositive_InSetupCode()
+    {
+        var source = N(
+            @"component Foo(int x = 0) {
+  var doubled = x * 2;
+  return (<Label text={doubled.ToString()} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    [Fact]
+    public void UITKX0111_UsedParam_NoFalsePositive_InMarkup()
+    {
+        var source = N(
+            @"component Foo(string label = ""hi"") {
+  return (<Label text={label} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    [Fact]
+    public void UITKX0111_MixedUsedAndUnused()
+    {
+        var source = N(
+            @"component Foo(int x = 0, string label = ""hi"") {
+  return (<Label text={label} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        var unused = diags.Where(d => d.Code == "UITKX0111").ToList();
+        Assert.Single(unused);
+        Assert.Contains("'x'", unused[0].Message);
+    }
+
+    [Fact]
+    public void UITKX0111_ShadowedLocalDoesNotCountAsUse()
+    {
+        // `items` appears inside a local function as a local var — that
+        // shadows the component parameter, so the parameter is still unused.
+        var source = N(
+            @"component Foo(int items = 0) {
+  void Shuffle()
+  {
+    var items = new List<int>();
+    items.Add(1);
+  }
+  return (<Label text=""hi"" />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        var unused = diags.Where(d => d.Code == "UITKX0111").ToList();
+        Assert.Single(unused);
+        Assert.Contains("'items'", unused[0].Message);
+    }
+
+    [Fact]
+    public void UITKX0111_UnshadowedLocalFunctionUseCounts()
+    {
+        // `items` used inside a local function WITHOUT redeclaring it
+        // → the parameter IS being used.
+        var source = N(
+            @"component Foo(int items = 0) {
+  void DoWork()
+  {
+    Console.WriteLine(items);
+  }
+  return (<Label text=""hi"" />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    [Fact]
+    public void UITKX0111_ShadowedButRHSUsesParam()
+    {
+        // The declaration `var items = f(items)` shadows the name, but the
+        // RHS still references the parameter — so the param IS used.
+        var source = N(
+            @"component Foo(int items = 0) {
+  var items = items + 1;
+  return (<Label text={items.ToString()} />);
+}"
+        );
+        var diags = RunAnalyzer(source, "Foo.uitkx");
+        Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
+    }
+
+    private static System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic> RunAnalyzer(
+        string source,
+        string filePath)
+    {
+        var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(
+            source, filePath, diags);
+        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(
+            source, filePath, directives, diags);
+        var parseResult = new ReactiveUITK.Language.Parser.ParseResult(
+            directives, nodes,
+            System.Collections.Immutable.ImmutableArray.CreateRange(diags));
+        var analyzer = new ReactiveUITK.Language.Diagnostics.DiagnosticsAnalyzer();
+        var t2 = analyzer.Analyze(parseResult, filePath);
+        return t2.ToList();
     }
 }

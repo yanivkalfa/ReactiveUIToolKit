@@ -264,8 +264,26 @@ namespace ReactiveUITK.Core.Fiber
                     // All function components now use TypedRender.
                     if (fiber.TypedRender == null || vnode.TypedFunctionRender == null) return false;
                     if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)) return true;
-                    return fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
-                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target;
+                    if (fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
+                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target)
+                        return true;
+
+#if UNITY_EDITOR
+                    // HMR fallback: match by declaring type name when delegates differ
+                    // across assemblies after hot-reload.
+                    if (HmrState.IsActive)
+                    {
+                        var fiberType = fiber.TypedRender.Method.DeclaringType;
+                        var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
+                        if (fiberType != null && vnodeType != null
+                            && fiberType.Name == vnodeType.Name
+                            && fiber.TypedRender.Method.Name == vnode.TypedFunctionRender.Method.Name)
+                        {
+                            return true;
+                        }
+                    }
+#endif
+                    return false;
 
                 case VirtualNodeType.Suspense:
                     return fiber.Tag == FiberTag.FunctionComponent

@@ -335,7 +335,7 @@ namespace ReactiveUITK.CICD
         {
             try
             {
-                string packageRoot  = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
+                string packageRoot = Path.Combine(Application.dataPath, "ReactiveUIToolKit");
                 string extensionDir = Path.Combine(packageRoot, "ide-extensions~", "vscode");
 
                 if (!Directory.Exists(extensionDir))
@@ -354,16 +354,17 @@ namespace ReactiveUITK.CICD
                 {
                     bool proceed = EditorUtility.DisplayDialog(
                         "VS Extension Publish",
-                        "No VS Marketplace PAT found.\n\n" +
-                        "To publish to the marketplace, provide one of:\n" +
-                        "  • publisher-secrets.json  { \"vscePatToken\": \"<token>\" }\n" +
-                        "  • Environment variable VSCE_PAT\n" +
-                        "  • PowerShell: .\\scripts\\publish-extension.ps1 -PAT <token>\n\n" +
-                        "Package only (no marketplace upload)?",
+                        "No VS Marketplace PAT found.\n\n"
+                            + "To publish to the marketplace, provide one of:\n"
+                            + "  • publisher-secrets.json  { \"vscePatToken\": \"<token>\" }\n"
+                            + "  • Environment variable VSCE_PAT\n"
+                            + "  • PowerShell: .\\scripts\\publish-extension.ps1 -PAT <token>\n\n"
+                            + "Package only (no marketplace upload)?",
                         "Package Only",
                         "Cancel"
                     );
-                    if (!proceed) return;
+                    if (!proceed)
+                        return;
                 }
 
                 // ── changelog entry ──────────────────────────────────────────
@@ -371,26 +372,35 @@ namespace ReactiveUITK.CICD
                 // Simple one-shot dialog for the entry — use PS1 script for richer input
                 changelogEntry = EditorUtility.DisplayDialog(
                     "Changelog Entry",
-                    "Open the PowerShell publish script for a rich changelog prompt, " +
-                    "or press Continue to use a default entry.",
+                    "Open the PowerShell publish script for a rich changelog prompt, "
+                        + "or press Continue to use a default entry.",
                     "Continue with default",
                     "Cancel"
-                ) ? "Minor improvements and bug fixes." : null;
+                )
+                    ? "Minor improvements and bug fixes."
+                    : null;
 
-                if (changelogEntry == null) return;
+                if (changelogEntry == null)
+                    return;
 
                 // ── read config for npm path ─────────────────────────────────
                 string cfgPath = Path.Combine(packageRoot, "config.json");
                 ConfigModel cfg = null;
                 if (File.Exists(cfgPath))
                 {
-                    try { cfg = JsonUtility.FromJson<ConfigModel>(File.ReadAllText(cfgPath)); }
-                    catch (Exception ex) { Debug.LogWarning("Publish: config.json: " + ex.Message); }
+                    try
+                    {
+                        cfg = JsonUtility.FromJson<ConfigModel>(File.ReadAllText(cfgPath));
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning("Publish: config.json: " + ex.Message);
+                    }
                 }
                 string npmPath = cfg?.npmPath;
 
                 // ── bump extension version ───────────────────────────────────
-                string extPkgJson    = Path.Combine(extensionDir, "package.json");
+                string extPkgJson = Path.Combine(extensionDir, "package.json");
                 string bumpedVersion = BumpPatchVersion(extPkgJson);
                 if (!string.IsNullOrEmpty(bumpedVersion))
                     Debug.Log("[Publish] Extension bumped to v" + bumpedVersion);
@@ -408,7 +418,13 @@ namespace ReactiveUITK.CICD
 
                 // ── 1. npm run build ─────────────────────────────────────────
                 Debug.Log("[Publish] Building extension (npm run build)...");
-                int buildExit = RunNpm("run build", extensionDir, npmPath, out _, out string buildErr);
+                int buildExit = RunNpm(
+                    "run build",
+                    extensionDir,
+                    npmPath,
+                    out _,
+                    out string buildErr
+                );
                 if (buildExit != 0)
                 {
                     Debug.LogError("Publish: npm run build failed.\n" + buildErr);
@@ -434,7 +450,10 @@ namespace ReactiveUITK.CICD
                         .FirstOrDefault();
                     if (!string.IsNullOrEmpty(fallback))
                     {
-                        Debug.LogWarning($"[Publish] Expected uitkx-{extVersion}.vsix not found; using " + Path.GetFileName(fallback));
+                        Debug.LogWarning(
+                            $"[Publish] Expected uitkx-{extVersion}.vsix not found; using "
+                                + Path.GetFileName(fallback)
+                        );
                         vsixPath = fallback;
                     }
                     else
@@ -447,7 +466,9 @@ namespace ReactiveUITK.CICD
 
                 if (!hasToken)
                 {
-                    Debug.Log("[Publish] Marketplace publish skipped (no PAT). VSIX at: " + vsixPath);
+                    Debug.Log(
+                        "[Publish] Marketplace publish skipped (no PAT). VSIX at: " + vsixPath
+                    );
                     return;
                 }
 
@@ -456,8 +477,10 @@ namespace ReactiveUITK.CICD
                 Debug.Log("[Publish] Publishing to VS Marketplace...");
                 int publishExit = RunVsce(
                     $"publish --pat \"{pat}\" --packagePath \"{vsixPath}\"",
-                    extensionDir, npmPath,
-                    out _, out string publishErr
+                    extensionDir,
+                    npmPath,
+                    out _,
+                    out string publishErr
                 );
                 if (publishExit != 0)
                 {
@@ -636,9 +659,11 @@ namespace ReactiveUITK.CICD
                     continue;
                 }
                 // Skip .vs/ IDE cache directories (locked by VS at runtime).
-                if (relForward.Equals(".vs", StringComparison.OrdinalIgnoreCase)
+                if (
+                    relForward.Equals(".vs", StringComparison.OrdinalIgnoreCase)
                     || relForward.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase)
-                    || relForward.Contains("/.vs/", StringComparison.OrdinalIgnoreCase))
+                    || relForward.Contains("/.vs/", StringComparison.OrdinalIgnoreCase)
+                )
                 {
                     continue;
                 }
@@ -658,8 +683,10 @@ namespace ReactiveUITK.CICD
                     continue;
                 }
                 // Skip .vs/ IDE cache files (locked by VS at runtime).
-                if (relForward.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase)
-                    || relForward.Contains("/.vs/", StringComparison.OrdinalIgnoreCase))
+                if (
+                    relForward.StartsWith(".vs/", StringComparison.OrdinalIgnoreCase)
+                    || relForward.Contains("/.vs/", StringComparison.OrdinalIgnoreCase)
+                )
                 {
                     continue;
                 }
@@ -1034,13 +1061,17 @@ namespace ReactiveUITK.CICD
                 Application.platform == RuntimePlatform.WindowsEditor
                 || Application.platform == RuntimePlatform.WindowsPlayer;
 
-            string fileName  = string.Empty;
+            string fileName = string.Empty;
             string finalArgs = string.Empty;
-            string npmDir    = null;
+            string npmDir = null;
 
             if (!string.IsNullOrEmpty(npmPath))
             {
-                try { npmDir = Path.GetDirectoryName(npmPath); } catch { }
+                try
+                {
+                    npmDir = Path.GetDirectoryName(npmPath);
+                }
+                catch { }
 
                 if (string.IsNullOrEmpty(npmDir))
                 {
@@ -1049,26 +1080,35 @@ namespace ReactiveUITK.CICD
                 }
                 else
                 {
-                    fileName  = Path.Combine(npmDir, "node.exe");
-                    finalArgs = $"\"{Path.Combine(npmDir, "node_modules", "npm", "bin", "npm-cli.js")}\" {args}";
+                    fileName = Path.Combine(npmDir, "node.exe");
+                    finalArgs =
+                        $"\"{Path.Combine(npmDir, "node_modules", "npm", "bin", "npm-cli.js")}\" {args}";
                 }
             }
 
             if (string.IsNullOrEmpty(npmPath))
             {
-                if (isWindows) { fileName = "cmd.exe"; finalArgs = "/c npm " + args; }
-                else           { fileName = "npm";     finalArgs = args; }
+                if (isWindows)
+                {
+                    fileName = "cmd.exe";
+                    finalArgs = "/c npm " + args;
+                }
+                else
+                {
+                    fileName = "npm";
+                    finalArgs = args;
+                }
             }
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName               = fileName,
-                Arguments              = finalArgs,
-                WorkingDirectory       = workingDir,
-                UseShellExecute        = false,
+                FileName = fileName,
+                Arguments = finalArgs,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                CreateNoWindow         = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
             };
 
             if (!string.IsNullOrEmpty(npmDir))
@@ -1079,7 +1119,8 @@ namespace ReactiveUITK.CICD
                     var existing = psi.EnvironmentVariables[pathKey] ?? string.Empty;
                     if (!existing.Contains(npmDir))
                         psi.EnvironmentVariables[pathKey] = string.IsNullOrEmpty(existing)
-                            ? npmDir : (npmDir + ";" + existing);
+                            ? npmDir
+                            : (npmDir + ";" + existing);
                 }
                 catch { }
             }
@@ -1088,20 +1129,36 @@ namespace ReactiveUITK.CICD
             {
                 foreach (var kv in extraEnv)
                 {
-                    try { psi.EnvironmentVariables[kv.Key] = kv.Value; } catch { }
+                    try
+                    {
+                        psi.EnvironmentVariables[kv.Key] = kv.Value;
+                    }
+                    catch { }
                 }
             }
 
-            var p      = new System.Diagnostics.Process { StartInfo = psi };
-            var sbOut  = new StringBuilder();
-            var sbErr  = new StringBuilder();
-            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
-            p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+            var p = new System.Diagnostics.Process { StartInfo = psi };
+            var sbOut = new StringBuilder();
+            var sbErr = new StringBuilder();
+            p.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                    sbOut.AppendLine(e.Data);
+            };
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                    sbErr.AppendLine(e.Data);
+            };
 
-            try { p.Start(); }
+            try
+            {
+                p.Start();
+            }
             catch (Exception ex)
             {
-                stdout = string.Empty; stderr = ex.Message;
+                stdout = string.Empty;
+                stderr = ex.Message;
                 Debug.LogError("[npm] failed to start: " + ex.Message);
                 return -1;
             }
@@ -1111,8 +1168,10 @@ namespace ReactiveUITK.CICD
             p.WaitForExit();
             stdout = sbOut.ToString();
             stderr = sbErr.ToString();
-            if (!string.IsNullOrEmpty(stdout)) Debug.Log($"[npm] {args}\n{stdout}");
-            if (!string.IsNullOrEmpty(stderr)) Debug.Log($"[npm:err] {args}\n{stderr}");
+            if (!string.IsNullOrEmpty(stdout))
+                Debug.Log($"[npm] {args}\n{stdout}");
+            if (!string.IsNullOrEmpty(stderr))
+                Debug.Log($"[npm:err] {args}\n{stderr}");
             return p.ExitCode;
         }
 
@@ -1130,33 +1189,44 @@ namespace ReactiveUITK.CICD
             string finalArgs;
             if (isWindows)
             {
-                fileName  = "cmd.exe";
+                fileName = "cmd.exe";
                 finalArgs = $"/c {command} {commandArgs}";
             }
             else
             {
-                fileName  = command;
+                fileName = command;
                 finalArgs = commandArgs;
             }
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName               = fileName,
-                Arguments              = finalArgs,
-                WorkingDirectory       = workingDir,
-                UseShellExecute        = false,
+                FileName = fileName,
+                Arguments = finalArgs,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                CreateNoWindow         = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
             };
 
-            var p     = new System.Diagnostics.Process { StartInfo = psi };
+            var p = new System.Diagnostics.Process { StartInfo = psi };
             var sbOut = new StringBuilder();
             var sbErr = new StringBuilder();
-            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
-            p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+            p.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                    sbOut.AppendLine(e.Data);
+            };
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                    sbErr.AppendLine(e.Data);
+            };
 
-            try { p.Start(); }
+            try
+            {
+                p.Start();
+            }
             catch (Exception)
             {
                 // Command not found on PATH is expected on some machines; caller handles -1.
@@ -1169,8 +1239,10 @@ namespace ReactiveUITK.CICD
 
             string outText = sbOut.ToString();
             string errText = sbErr.ToString();
-            if (!string.IsNullOrEmpty(outText)) Debug.Log($"[{command}] {outText}");
-            if (!string.IsNullOrEmpty(errText)) Debug.Log($"[{command}:err] {errText}");
+            if (!string.IsNullOrEmpty(outText))
+                Debug.Log($"[{command}] {outText}");
+            if (!string.IsNullOrEmpty(errText))
+                Debug.Log($"[{command}:err] {errText}");
             return p.ExitCode;
         }
 
@@ -1178,11 +1250,15 @@ namespace ReactiveUITK.CICD
         /// Prepends a versioned entry to CHANGELOG.md.
         /// Format mirrors existing entries: ## [version] - yyyy-MM-dd followed by bullet lines.
         /// </summary>
-        private static void PrependChangelogEntry(string changelogPath, string version, string entry)
+        private static void PrependChangelogEntry(
+            string changelogPath,
+            string version,
+            string entry
+        )
         {
             try
             {
-                string today    = DateTime.Now.ToString("yyyy-MM-dd");
+                string today = DateTime.Now.ToString("yyyy-MM-dd");
                 string newBlock = $"## [{version}] - {today}\n- {entry}\n";
                 string existing = File.Exists(changelogPath)
                     ? File.ReadAllText(changelogPath, Encoding.UTF8)
@@ -1190,11 +1266,18 @@ namespace ReactiveUITK.CICD
 
                 string updated;
                 int headerNewline = existing.IndexOf('\n');
-                if (headerNewline >= 0 && existing.TrimStart().StartsWith("# Changelog", StringComparison.OrdinalIgnoreCase))
+                if (
+                    headerNewline >= 0
+                    && existing
+                        .TrimStart()
+                        .StartsWith("# Changelog", StringComparison.OrdinalIgnoreCase)
+                )
                 {
-                    updated = existing.Substring(0, headerNewline + 1)
-                            + "\n" + newBlock
-                            + existing.Substring(headerNewline + 1);
+                    updated =
+                        existing.Substring(0, headerNewline + 1)
+                        + "\n"
+                        + newBlock
+                        + existing.Substring(headerNewline + 1);
                 }
                 else
                 {
@@ -1231,34 +1314,38 @@ namespace ReactiveUITK.CICD
             if (!File.Exists(vsceBin))
                 vsceBin = null; // fall back to npx
 
-            string npmDir  = string.Empty;
+            string npmDir = string.Empty;
             if (!string.IsNullOrEmpty(npmPath))
             {
-                try { npmDir = Path.GetDirectoryName(npmPath) ?? string.Empty; } catch { }
+                try
+                {
+                    npmDir = Path.GetDirectoryName(npmPath) ?? string.Empty;
+                }
+                catch { }
             }
 
             string fileName;
             string finalArgs;
             if (vsceBin != null)
             {
-                fileName  = "cmd.exe";
+                fileName = "cmd.exe";
                 finalArgs = $"/c \"{vsceBin}\" {args}";
             }
             else
             {
-                fileName  = "cmd.exe";
+                fileName = "cmd.exe";
                 finalArgs = $"/c npx @vscode/vsce {args}";
             }
 
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName               = fileName,
-                Arguments              = finalArgs,
-                WorkingDirectory       = workingDir,
-                UseShellExecute        = false,
+                FileName = fileName,
+                Arguments = finalArgs,
+                WorkingDirectory = workingDir,
+                UseShellExecute = false,
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                CreateNoWindow         = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
             };
 
             if (!string.IsNullOrEmpty(npmDir))
@@ -1269,21 +1356,34 @@ namespace ReactiveUITK.CICD
                     var existing = psi.EnvironmentVariables[pathKey] ?? string.Empty;
                     if (!existing.Contains(npmDir))
                         psi.EnvironmentVariables[pathKey] = string.IsNullOrEmpty(existing)
-                            ? npmDir : (npmDir + ";" + existing);
+                            ? npmDir
+                            : (npmDir + ";" + existing);
                 }
                 catch { }
             }
 
-            var p     = new System.Diagnostics.Process { StartInfo = psi };
+            var p = new System.Diagnostics.Process { StartInfo = psi };
             var sbOut = new StringBuilder();
             var sbErr = new StringBuilder();
-            p.OutputDataReceived += (_, e) => { if (e.Data != null) sbOut.AppendLine(e.Data); };
-            p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sbErr.AppendLine(e.Data); };
+            p.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                    sbOut.AppendLine(e.Data);
+            };
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (e.Data != null)
+                    sbErr.AppendLine(e.Data);
+            };
 
-            try { p.Start(); }
+            try
+            {
+                p.Start();
+            }
             catch (Exception ex)
             {
-                stdout = string.Empty; stderr = ex.Message;
+                stdout = string.Empty;
+                stderr = ex.Message;
                 Debug.LogError("[vsce] failed to start: " + ex.Message);
                 return -1;
             }
@@ -1293,8 +1393,10 @@ namespace ReactiveUITK.CICD
             p.WaitForExit();
             stdout = sbOut.ToString();
             stderr = sbErr.ToString();
-            if (!string.IsNullOrEmpty(stdout)) Debug.Log($"[vsce] {args}\n{stdout}");
-            if (!string.IsNullOrEmpty(stderr)) Debug.Log($"[vsce:err] {args}\n{stderr}");
+            if (!string.IsNullOrEmpty(stdout))
+                Debug.Log($"[vsce] {args}\n{stdout}");
+            if (!string.IsNullOrEmpty(stderr))
+                Debug.Log($"[vsce:err] {args}\n{stderr}");
             return p.ExitCode;
         }
 
@@ -1302,10 +1404,13 @@ namespace ReactiveUITK.CICD
         private static PublisherSecrets ReadSecrets(string packageRoot)
         {
             string path = Path.Combine(packageRoot, "publisher-secrets.json");
-            if (!File.Exists(path)) return null;
+            if (!File.Exists(path))
+                return null;
             try
             {
-                return JsonUtility.FromJson<PublisherSecrets>(File.ReadAllText(path, Encoding.UTF8));
+                return JsonUtility.FromJson<PublisherSecrets>(
+                    File.ReadAllText(path, Encoding.UTF8)
+                );
             }
             catch (Exception ex)
             {
@@ -1317,16 +1422,21 @@ namespace ReactiveUITK.CICD
         /// <summary>Returns the version string from a package.json without bumping it.</summary>
         private static string ReadVersionFromPackageJson(string packageJsonPath)
         {
-            if (!File.Exists(packageJsonPath)) return "0.0.0";
+            if (!File.Exists(packageJsonPath))
+                return "0.0.0";
             try
             {
                 var m = Regex.Match(
-                    File.ReadAllText(packageJsonPath), "\"version\"\\s*:\\s*\"([^\"]+)\"",
+                    File.ReadAllText(packageJsonPath),
+                    "\"version\"\\s*:\\s*\"([^\"]+)\"",
                     RegexOptions.Multiline
                 );
                 return m.Success ? m.Groups[1].Value : "0.0.0";
             }
-            catch { return "0.0.0"; }
+            catch
+            {
+                return "0.0.0";
+            }
         }
 
         private static void DeleteAllExceptGit(string dir)

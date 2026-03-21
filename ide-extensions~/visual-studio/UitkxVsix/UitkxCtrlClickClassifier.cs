@@ -56,12 +56,16 @@ internal sealed class CtrlClickUnderlineClassifierProvider : IViewTaggerProvider
             return null;
         return view.Properties.GetOrCreateSingletonProperty(
             typeof(CtrlClickUnderlineClassifier),
-            () => new CtrlClickUnderlineClassifier(view, _classificationType));
+            () => new CtrlClickUnderlineClassifier(view, _classificationType)
+        );
     }
 
-    public ITagger<T>? CreateTagger<T>(ITextView textView, ITextBuffer buffer) where T : ITag
+    public ITagger<T>? CreateTagger<T>(ITextView textView, ITextBuffer buffer)
+        where T : ITag
     {
-        _classificationType ??= ClassificationRegistry.GetClassificationType("uitkx.ctrl-click-underline");
+        _classificationType ??= ClassificationRegistry.GetClassificationType(
+            "uitkx.ctrl-click-underline"
+        );
 
         if (textView.TextBuffer != buffer)
             return null;
@@ -104,10 +108,13 @@ internal sealed class CtrlClickUnderlineClassifier : ITagger<ClassificationTag>
         {
             var updateSpan = _underlineSpan.Value;
             if (oldSpan.HasValue)
-                updateSpan = new SnapshotSpan(updateSpan.Snapshot,
+                updateSpan = new SnapshotSpan(
+                    updateSpan.Snapshot,
                     Span.FromBounds(
                         Math.Min(updateSpan.Start, oldSpan.Value.Start),
-                        Math.Max(updateSpan.End, oldSpan.Value.End)));
+                        Math.Max(updateSpan.End, oldSpan.Value.End)
+                    )
+                );
             SendEvent(updateSpan);
         }
     }
@@ -118,9 +125,15 @@ internal sealed class CtrlClickUnderlineClassifier : ITagger<ClassificationTag>
             yield break;
 
         var request = new SnapshotSpan(spans[0].Start, spans[spans.Count - 1].End);
-        var underline = _underlineSpan.Value.TranslateTo(request.Snapshot, SpanTrackingMode.EdgeInclusive);
+        var underline = _underlineSpan.Value.TranslateTo(
+            request.Snapshot,
+            SpanTrackingMode.EdgeInclusive
+        );
         if (underline.IntersectsWith(request))
-            yield return new TagSpan<ClassificationTag>(underline, new ClassificationTag(_classificationType));
+            yield return new TagSpan<ClassificationTag>(
+                underline,
+                new ClassificationTag(_classificationType)
+            );
     }
 
     public event EventHandler<SnapshotSpanEventArgs>? TagsChanged;

@@ -115,6 +115,37 @@ namespace ReactiveUITK.Language.SemanticTokens
                     merged[key] = token;
             }
 
+            // Suppress non-comment tokens that are contained within a comment
+            // token on the same line (e.g. setCount(...) inside {/* ... */}).
+            var commentTokens = merged.Values
+                .Where(t => t.TokenType == SemanticTokenTypes.Comment)
+                .ToList();
+
+            if (commentTokens.Count > 0)
+            {
+                var keysToRemove = new List<(int, int, int)>();
+                foreach (var kvp in merged)
+                {
+                    var t = kvp.Value;
+                    if (t.TokenType == SemanticTokenTypes.Comment)
+                        continue;
+
+                    foreach (var ct in commentTokens)
+                    {
+                        if (ct.Line == t.Line
+                            && t.Column >= ct.Column
+                            && t.Column + t.Length <= ct.Column + ct.Length)
+                        {
+                            keysToRemove.Add(kvp.Key);
+                            break;
+                        }
+                    }
+                }
+
+                foreach (var key in keysToRemove)
+                    merged.Remove(key);
+            }
+
             return merged.Values;
         }
 
@@ -504,6 +535,7 @@ namespace ReactiveUITK.Language.SemanticTokens
             List<SemanticTokenData> tokens
         )
         {
+            var commentRanges = FindCommentRanges(source);
             var setterNames = new HashSet<string>(StringComparer.Ordinal);
 
             var matches = s_hookTupleRegex.Matches(source);
@@ -514,6 +546,9 @@ namespace ReactiveUITK.Language.SemanticTokens
                     continue;
 
                 setterNames.Add(setter.Value);
+
+                if (IsInsideComment(setter.Index, setter.Length, commentRanges))
+                    continue;
 
                 int offset = setter.Index;
                 int lineIdx = Array.BinarySearch(lineStarts, offset);
@@ -542,6 +577,9 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                 foreach (Match call in callRegex.Matches(source))
                 {
+                    if (IsInsideComment(call.Index, call.Length, commentRanges))
+                        continue;
+
                     int offset = call.Index;
                     int lineIdx = Array.BinarySearch(lineStarts, offset);
                     if (lineIdx < 0)
@@ -560,6 +598,77 @@ namespace ReactiveUITK.Language.SemanticTokens
                     );
                 }
             }
+        }
+
+        /// <summary>
+        /// Returns offset ranges (start, end-exclusive) for all C-style comments
+        /// (<c>/* ... */</c>, <c>{/* ... */}</c>, <c>// ...\n</c>).
+        /// </summary>
+        private static List<(int Start, int End)> FindCommentRanges(string source)
+        {
+            var ranges = new List<(int Start, int End)>();
+            int i = 0;
+            while (i < source.Length - 1)
+            {
+                char c = source[i];
+
+                // Skip string literals
+                if (c == '"')
+                {
+                    i++;
+                    while (i < source.Length && source[i] != '"')
+                    {
+                        if (source[i] == '\\') i++;
+                        i++;
+                    }
+                    if (i < source.Length) i++; // skip closing "
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < source.Length && source[i] != '\'')
+                    {
+                        if (source[i] == '\\') i++;
+                        i++;
+                    }
+                    if (i < source.Length) i++; // skip closing '
+                    continue;
+                }
+
+                if (c == '/' && source[i + 1] == '*')
+                {
+                    int start = i;
+                    i += 2;
+                    while (i < source.Length - 1 && !(source[i] == '*' && source[i + 1] == '/'))
+                        i++;
+                    i += 2; // skip */
+                    ranges.Add((start, i));
+                    continue;
+                }
+                if (c == '/' && source[i + 1] == '/')
+                {
+                    int start = i;
+                    i += 2;
+                    while (i < source.Length && source[i] != '\n')
+                        i++;
+                    ranges.Add((start, i));
+                    continue;
+                }
+                i++;
+            }
+            return ranges;
+        }
+
+        private static bool IsInsideComment(
+            int offset, int length, List<(int Start, int End)> commentRanges)
+        {
+            foreach (var (start, end) in commentRanges)
+            {
+                if (offset >= start && offset + length <= end)
+                    return true;
+            }
+            return false;
         }
 
         // ── @code body scanner ────────────────────────────────────────────────

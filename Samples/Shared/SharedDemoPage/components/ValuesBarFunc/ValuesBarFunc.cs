@@ -44,10 +44,7 @@ namespace ReactiveUITK.Samples.Shared
             },
         };
 
-        public static VirtualNode Render(
-            IProps rawProps,
-            IReadOnlyList<VirtualNode> children
-        )
+        public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)
         {
             var p = rawProps as Props;
             IEnumerable<KeyValuePair<string, string>> items =

@@ -65,6 +65,13 @@ namespace ReactiveUITK.Language.Diagnostics
         /// </summary>
         public const string UnreachableAfterBreakOrContinue = "UITKX0110";
 
+        /// <summary>
+        /// A component parameter is declared in the function-style header but
+        /// never referenced in setup code or markup.
+        /// Severity: Error.
+        /// </summary>
+        public const string UnusedParameter = "UITKX0111";
+
         // ── T1 — Parser codes (emitted by UitkxParser / DirectiveParser) ─────
         // Listed here for cross-reference only; not produced by DiagnosticsAnalyzer.
 

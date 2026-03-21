@@ -125,7 +125,8 @@ namespace ReactiveUITK.SourceGenerator
                 if (d.Severity == DiagnosticSeverity.Error)
                     errorCount++;
 
-            bool missingRequiredDirectives = !directives.IsFunctionStyle
+            bool missingRequiredDirectives =
+                !directives.IsFunctionStyle
                 && (directives.ComponentName == null || directives.Namespace == null);
 
             if (errorCount > 0 || missingRequiredDirectives)
@@ -144,9 +145,7 @@ namespace ReactiveUITK.SourceGenerator
                     {
                         int line = pd.SourceLine > 0 ? pd.SourceLine : 1;
                         sb.AppendLine($"#line {line} \"{linePath}\"");
-                        sb.AppendLine(
-                            $"#error {pd.Message.Replace('\n', ' ').Replace('\r', ' ')}"
-                        );
+                        sb.AppendLine($"#error {pd.Message.Replace('\n', ' ').Replace('\r', ' ')}");
                     }
                 if (!directives.IsFunctionStyle && directives.ComponentName == null)
                 {
@@ -173,10 +172,7 @@ namespace ReactiveUITK.SourceGenerator
             ct.ThrowIfCancellationRequested();
 
             // ── Stage 3: PropsResolver ────────────────────────────────────────
-            var resolver = new PropsResolver(
-                compilation,
-                peerComponents
-            );
+            var resolver = new PropsResolver(compilation, peerComponents);
 
             ct.ThrowIfCancellationRequested();
 
@@ -278,8 +274,11 @@ namespace ReactiveUITK.SourceGenerator
         /// </summary>
         private static bool IsInsideEditorFolder(string filePath)
         {
-            foreach (string part in (filePath ?? string.Empty).Split(
-                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }))
+            foreach (
+                string part in (filePath ?? string.Empty).Split(
+                    new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }
+                )
+            )
             {
                 if (string.Equals(part, "Editor", StringComparison.OrdinalIgnoreCase))
                     return true;
@@ -289,11 +288,10 @@ namespace ReactiveUITK.SourceGenerator
 
         private static Diagnostic ParseDiagToRoslyn(ParseDiagnostic pd)
         {
-            var severity = pd.Severity == ParseSeverity.Error
-                ? DiagnosticSeverity.Error
-                : pd.Severity == ParseSeverity.Warning
-                    ? DiagnosticSeverity.Warning
-                    : DiagnosticSeverity.Info;
+            var severity =
+                pd.Severity == ParseSeverity.Error ? DiagnosticSeverity.Error
+                : pd.Severity == ParseSeverity.Warning ? DiagnosticSeverity.Warning
+                : DiagnosticSeverity.Info;
             var desc = new DiagnosticDescriptor(
                 pd.Code,
                 title: "",
@@ -308,11 +306,16 @@ namespace ReactiveUITK.SourceGenerator
         private static string BuildHintName(string filePath)
         {
             string fileName = Path.GetFileName(filePath);
-            string normalizedPath = (filePath ?? string.Empty).Replace('\\', '/').ToLowerInvariant();
+            string normalizedPath = (filePath ?? string.Empty)
+                .Replace('\\', '/')
+                .ToLowerInvariant();
 
             using var md5 = MD5.Create();
             byte[] hash = md5.ComputeHash(Encoding.UTF8.GetBytes(normalizedPath));
-            string suffix = BitConverter.ToString(hash, 0, 6).Replace("-", string.Empty).ToLowerInvariant();
+            string suffix = BitConverter
+                .ToString(hash, 0, 6)
+                .Replace("-", string.Empty)
+                .ToLowerInvariant();
 
             return $"{fileName}.{suffix}.g.cs";
         }

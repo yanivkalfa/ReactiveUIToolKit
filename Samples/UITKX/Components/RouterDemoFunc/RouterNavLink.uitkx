@@ -1,9 +1,14 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Router
 @using System
 @using UnityEngine
 
-component RouterNavLink(string path = "/", string label = "", bool exact = false, bool replace = false) {
+component RouterNavLink(
+  string path = "/", 
+  string label = "", 
+  bool exact = false, 
+  bool replace = false
+) {
   var displayLabel = string.IsNullOrEmpty(label) ? path : label;
   var normalizedPath = RouterPath.Normalize(path);
   var location = RouterHooks.UseLocation();

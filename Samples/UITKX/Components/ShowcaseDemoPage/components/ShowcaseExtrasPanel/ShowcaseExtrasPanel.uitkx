@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Core
@@ -6,7 +6,18 @@
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
-component ShowcaseExtrasPanel(bool isOptionEnabled = false, ChangeEventHandler<bool>? onOptionEnabledChange = null, bool isRadioSingleSelected = false, ChangeEventHandler<bool>? onRadioSingleChange = null, List<string>? selectionChoices = null, int selectionIndex = 0, ChangeEventHandler<int>? onSelectionChange = null, int progressValue = 0, int batchClicks = 0, Action? onBatchClick = null) {
+component ShowcaseExtrasPanel(
+  bool isOptionEnabled = false, 
+  ChangeEventHandler<bool>? onOptionEnabledChange = null, 
+  bool isRadioSingleSelected = false, 
+  ChangeEventHandler<bool>? onRadioSingleChange = null, 
+  List<string>? selectionChoices = null, 
+  int selectionIndex = 0, 
+  ChangeEventHandler<int>? onSelectionChange = null, 
+  int progressValue = 0, 
+  int batchClicks = 0, 
+  Action? onBatchClick = null
+) {
   var containerStyle = new Style {
     (MarginTop, 12f),
     (PaddingLeft, 12f), (PaddingRight, 12f),

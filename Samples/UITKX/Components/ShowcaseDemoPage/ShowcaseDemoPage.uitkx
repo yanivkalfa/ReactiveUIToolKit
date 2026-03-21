@@ -1,7 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using System.Collections.Generic
-@using ReactiveUITK.Samples.Shared
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.StyleKeys
@@ -97,9 +96,10 @@ component ShowcaseDemoPage {
 
   return (
     <VisualElement ref={rootRef} style={outerStyle}>
+      <Label text="aasd" />
       <VisualElement style={safeStyle}>
         <VisualElement style={barSlotStyle}>
-          <ValuesBarFunc items={valuesItems} />
+          <ValuesBar items={valuesItems} />
         </VisualElement>
         <ScrollView mode="vertical" style={mainScrollStyle} name="main-scroll">
           <VisualElement style={pageStyle}>

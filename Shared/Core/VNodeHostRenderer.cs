@@ -19,6 +19,11 @@ namespace ReactiveUITK.Core
         private readonly VisualElement hostElement;
         private IReadOnlyDictionary<string, object> lastHostProps;
 
+#if UNITY_EDITOR
+        /// <summary>HMR: exposes the FiberRenderer for tree walking.</summary>
+        internal FiberRenderer FiberRendererInternal => fiberRenderer;
+#endif
+
         public VNodeHostRenderer(HostContext hostContext, VisualElement host)
         {
             hostElement = host;

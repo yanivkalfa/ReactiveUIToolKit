@@ -1,10 +1,11 @@
 import type { FC } from 'react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, Paper, InputBase, List, ListItemButton, ListItemText, Typography, Box, IconButton } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
 import { getFlatForTrack, getTrackFromPath } from '../../docs'
+import { getRenderedText } from '../../searchIndex'
 import Styles from './SearchModal.style'
 
 export type SearchModalProps = { open: boolean; onClose: () => void }
@@ -15,15 +16,30 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
   const track = getTrackFromPath(pathname)
   const flat = useMemo(() => getFlatForTrack(track), [track])
   const [q, setQ] = useState('')
+  const [sel, setSel] = useState(0)
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => inputRef.current?.focus(), 50)
+      return () => clearTimeout(t)
+    }
+  }, [open])
   const handleClose = () => {
     setQ('')
+    setSel(0)
     onClose()
   }
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase()
     if (!needle) return [] as typeof flat
-    return flat.filter((p) => p.title.toLowerCase().includes(needle) || (p.keywords || []).some((k) => k.toLowerCase().includes(needle)))
+    const words = needle.split(/\s+/).filter(Boolean)
+    return flat.filter((p) => {
+      const haystack = [p.title, (p.keywords || []).join(' '), p.searchContent || '', getRenderedText(p)].join(' ').toLowerCase()
+      return words.every((w) => haystack.includes(w))
+    })
   }, [flat, q])
+  // reset selection when results change
+  useEffect(() => setSel(0), [results])
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
       <DialogContent sx={Styles.content}>
@@ -31,13 +47,15 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
           <Paper sx={Styles.inputPaper} variant="outlined">
             <SearchIcon />
             <InputBase
-              autoFocus
+              inputRef={inputRef}
               placeholder={`Search ${track === 'uitkx' ? 'UITKX' : 'C#'} docs…`}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') handleClose()
-                if (e.key === 'Enter' && results[0]) { handleClose(); nav(results[0].path) }
+                if (e.key === 'ArrowDown') { e.preventDefault(); setSel((i) => Math.min(i + 1, results.length - 1)) }
+                if (e.key === 'ArrowUp') { e.preventDefault(); setSel((i) => Math.max(i - 1, 0)) }
+                if (e.key === 'Enter' && results[sel]) { handleClose(); nav(results[sel].path) }
               }}
               sx={{ flex: 1 }}
             />
@@ -45,8 +63,8 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
           <IconButton onClick={handleClose} aria-label="Close search"><CloseIcon /></IconButton>
         </Box>
         <List>
-          {results.map((r) => (
-            <ListItemButton key={r.id} onClick={() => { handleClose(); nav(r.path) }}>
+          {results.map((r, i) => (
+            <ListItemButton key={r.id} selected={i === sel} onClick={() => { handleClose(); nav(r.path) }}>
               <ListItemText primary={r.title} secondary={(r.keywords || []).join(', ')} />
             </ListItemButton>
           ))}
