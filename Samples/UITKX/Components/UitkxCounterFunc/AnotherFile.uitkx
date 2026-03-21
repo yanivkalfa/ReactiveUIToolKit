@@ -9,7 +9,6 @@
 @using static ReactiveUITK.Props.Typed.StyleKeys
 
 component AnotherFile {
-  
   return (
     <ScrollView>
       <Label text="WhaaaaaaaaatEve       eeaaa" />
