@@ -1,0 +1,1768 @@
+{
+  "version": "1.0",
+  "description": "UITKX element and directive schema for IDE tooling",
+  "universalAttributes": [
+    {
+      "name": "key",
+      "type": "string",
+      "description": "Unique reconciler key. Stabilises element identity across re-renders."
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "description": "VisualElement.name."
+    },
+    {
+      "name": "className",
+      "type": "string",
+      "description": "USS class names (space-separated)."
+    },
+    {
+      "name": "style",
+      "type": "Style",
+      "description": "Inline style overrides."
+    },
+    {
+      "name": "ref",
+      "type": "object",
+      "description": "Ref to the underlying VisualElement."
+    },
+    {
+      "name": "contentContainer",
+      "type": "object",
+      "description": "Props forwarded to the inner content container."
+    },
+    {
+      "name": "visible",
+      "type": "bool",
+      "description": "Whether the element is visible."
+    },
+    {
+      "name": "enabled",
+      "type": "bool",
+      "description": "Whether the element is enabled."
+    },
+    {
+      "name": "tooltip",
+      "type": "string",
+      "description": "Tooltip text."
+    },
+    {
+      "name": "viewDataKey",
+      "type": "string",
+      "description": "View data persistence key."
+    },
+    {
+      "name": "pickingMode",
+      "type": "PickingMode",
+      "description": "Mouse picking mode."
+    },
+    {
+      "name": "focusable",
+      "type": "bool",
+      "description": "Whether the element can receive focus."
+    },
+    {
+      "name": "tabIndex",
+      "type": "int",
+      "description": "Tab order index."
+    },
+    {
+      "name": "delegatesFocus",
+      "type": "bool",
+      "description": "Whether focus is delegated to a child."
+    },
+    {
+      "name": "languageDirection",
+      "type": "LanguageDirection",
+      "description": "Text language direction."
+    },
+    {
+      "name": "extraProps",
+      "type": "Dictionary<string,object>",
+      "description": "Arbitrary extra props forwarded to the element."
+    },
+    {
+      "name": "onClick",
+      "type": "PointerEventHandler",
+      "description": "Pointer click handler."
+    },
+    {
+      "name": "onPointerDown",
+      "type": "PointerEventHandler",
+      "description": "Pointer down handler."
+    },
+    {
+      "name": "onPointerUp",
+      "type": "PointerEventHandler",
+      "description": "Pointer up handler."
+    },
+    {
+      "name": "onPointerMove",
+      "type": "PointerEventHandler",
+      "description": "Pointer move handler."
+    },
+    {
+      "name": "onPointerEnter",
+      "type": "PointerEventHandler",
+      "description": "Pointer enter handler."
+    },
+    {
+      "name": "onPointerLeave",
+      "type": "PointerEventHandler",
+      "description": "Pointer leave handler."
+    },
+    {
+      "name": "onWheel",
+      "type": "WheelEventHandler",
+      "description": "Mouse wheel handler."
+    },
+    {
+      "name": "onScroll",
+      "type": "WheelEventHandler",
+      "description": "Scroll handler."
+    },
+    {
+      "name": "onDragEnter",
+      "type": "DragEventHandler",
+      "description": "Drag enter handler."
+    },
+    {
+      "name": "onDragLeave",
+      "type": "DragEventHandler",
+      "description": "Drag leave handler."
+    },
+    {
+      "name": "onDragUpdated",
+      "type": "DragEventHandler",
+      "description": "Drag updated handler."
+    },
+    {
+      "name": "onDragPerform",
+      "type": "DragEventHandler",
+      "description": "Drag perform handler."
+    },
+    {
+      "name": "onDragExited",
+      "type": "DragEventHandler",
+      "description": "Drag exited handler."
+    },
+    {
+      "name": "onFocus",
+      "type": "FocusEventHandler",
+      "description": "Focus gained handler."
+    },
+    {
+      "name": "onBlur",
+      "type": "FocusEventHandler",
+      "description": "Focus lost handler."
+    },
+    {
+      "name": "onFocusIn",
+      "type": "FocusEventHandler",
+      "description": "Focus-in (bubbling) handler."
+    },
+    {
+      "name": "onFocusOut",
+      "type": "FocusEventHandler",
+      "description": "Focus-out (bubbling) handler."
+    },
+    {
+      "name": "onKeyDown",
+      "type": "KeyboardEventHandler",
+      "description": "Key down handler."
+    },
+    {
+      "name": "onKeyUp",
+      "type": "KeyboardEventHandler",
+      "description": "Key up handler."
+    },
+    {
+      "name": "onInput",
+      "type": "InputEventHandler",
+      "description": "Input event handler."
+    },
+    {
+      "name": "onGeometryChanged",
+      "type": "GeometryChangedEventHandler",
+      "description": "Geometry changed handler."
+    },
+    {
+      "name": "onAttachToPanel",
+      "type": "PanelLifecycleEventHandler",
+      "description": "Attach to panel handler."
+    },
+    {
+      "name": "onDetachFromPanel",
+      "type": "PanelLifecycleEventHandler",
+      "description": "Detach from panel handler."
+    }
+  ],
+  "directives": [
+    {
+      "name": "namespace",
+      "description": "C# namespace for the generated partial class."
+    },
+    {
+      "name": "component",
+      "description": "Name of the component class (must match the .uitkx filename)."
+    },
+    {
+      "name": "using",
+      "description": "Adds a using directive to the generated file."
+    },
+    {
+      "name": "props",
+      "description": "Declares the props type consumed by this component."
+    },
+    {
+      "name": "key",
+      "description": "Sets a static key on the component root element."
+    },
+    {
+      "name": "code",
+      "description": "Embedded C# code block before the return statement."
+    }
+  ],
+  "controlFlow": [
+    {
+      "name": "if",
+      "description": "Conditional rendering — generates a ternary."
+    },
+    {
+      "name": "else",
+      "description": "Else branch of @if."
+    },
+    {
+      "name": "foreach",
+      "description": "Loop rendering — generates .Select().ToArray()."
+    },
+    {
+      "name": "switch",
+      "description": "Switch expression — generates a C# switch expression."
+    },
+    {
+      "name": "case",
+      "description": "Case arm inside @switch."
+    },
+    {
+      "name": "default",
+      "description": "Default arm inside @switch."
+    },
+    {
+      "name": "code",
+      "description": "Embedded C# code block before the return statement."
+    },
+    {
+      "name": "for",
+      "description": "C-style for loop — generates a standard for loop."
+    },
+    {
+      "name": "while",
+      "description": "While loop — generates a while loop."
+    },
+    {
+      "name": "break",
+      "description": "Loop-flow statement valid inside @for/@while bodies."
+    },
+    {
+      "name": "continue",
+      "description": "Loop-flow statement valid inside @for/@while bodies."
+    }
+  ],
+  "elements": {
+    "Label": {
+      "propsType": "LabelProps",
+      "description": "Renders a text label (VisualElement wrapping a text element).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Displayed text content."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name for USS or code queries."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "One or more USS class names (space-separated)."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "Button": {
+      "propsType": "ButtonProps",
+      "description": "Clickable button element.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Button label text."
+        },
+        {
+          "name": "enabled",
+          "type": "bool",
+          "description": "Whether the button is interactive."
+        },
+        {
+          "name": "onClick",
+          "type": "Action",
+          "description": "Callback invoked on click."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "Box": {
+      "propsType": "BoxProps",
+      "description": "Generic container box.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "contentContainer",
+          "type": "object",
+          "description": "Props for the inner content container."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "TextField": {
+      "propsType": "TextFieldProps",
+      "description": "Single-line or multi-line text input.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "string",
+          "description": "Current text value."
+        },
+        {
+          "name": "multiline",
+          "type": "bool",
+          "description": "Enable multi-line mode."
+        },
+        {
+          "name": "password",
+          "type": "bool",
+          "description": "Mask input characters as password."
+        },
+        {
+          "name": "readOnly",
+          "type": "bool",
+          "description": "Prevent user editing."
+        },
+        {
+          "name": "maxLength",
+          "type": "int",
+          "description": "Maximum character count."
+        },
+        {
+          "name": "placeholder",
+          "type": "string",
+          "description": "Placeholder string when empty."
+        },
+        {
+          "name": "hidePlaceholderOnFocus",
+          "type": "bool",
+          "description": "Hide placeholder immediately on focus."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "labelText",
+          "type": "string",
+          "description": "Label rendered beside the field."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "input",
+          "type": "object",
+          "description": "Input sub-element props."
+        },
+        {
+          "name": "textElement",
+          "type": "object",
+          "description": "Inner text element props."
+        }
+      ]
+    },
+    "Toggle": {
+      "propsType": "ToggleProps",
+      "description": "Boolean toggle / checkbox.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "bool",
+          "description": "Current checked state."
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Label text shown beside the toggle."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "input",
+          "type": "object",
+          "description": "Input sub-element props."
+        },
+        {
+          "name": "checkmark",
+          "type": "object",
+          "description": "Checkmark sub-element props."
+        }
+      ]
+    },
+    "Slider": {
+      "propsType": "SliderProps",
+      "description": "Float slider control.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "float",
+          "description": "Current slider value."
+        },
+        {
+          "name": "lowValue",
+          "type": "float",
+          "description": "Minimum value."
+        },
+        {
+          "name": "highValue",
+          "type": "float",
+          "description": "Maximum value."
+        },
+        {
+          "name": "direction",
+          "type": "string",
+          "description": "Horizontal or Vertical."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "input",
+          "type": "object",
+          "description": "Input sub-element props."
+        },
+        {
+          "name": "track",
+          "type": "object",
+          "description": "Track sub-element props."
+        },
+        {
+          "name": "dragContainer",
+          "type": "object",
+          "description": "Drag container props."
+        },
+        {
+          "name": "handle",
+          "type": "object",
+          "description": "Handle props."
+        },
+        {
+          "name": "handleBorder",
+          "type": "object",
+          "description": "Handle border props."
+        }
+      ]
+    },
+    "SliderInt": {
+      "propsType": "SliderIntProps",
+      "description": "Integer slider control.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "int",
+          "description": "Current integer value."
+        },
+        {
+          "name": "lowValue",
+          "type": "int",
+          "description": "Minimum value."
+        },
+        {
+          "name": "highValue",
+          "type": "int",
+          "description": "Maximum value."
+        },
+        {
+          "name": "direction",
+          "type": "string",
+          "description": "Horizontal or Vertical."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "Image": {
+      "propsType": "ImageProps",
+      "description": "Renders a Texture2D or Sprite.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "texture",
+          "type": "Texture2D",
+          "description": "Source Texture2D."
+        },
+        {
+          "name": "sprite",
+          "type": "Sprite",
+          "description": "Source Sprite."
+        },
+        {
+          "name": "scaleMode",
+          "type": "string",
+          "description": "ScaleMode enum value."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "ScrollView": {
+      "propsType": "ScrollViewProps",
+      "description": "Scrollable container.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "mode",
+          "type": "string",
+          "description": "ScrollViewMode (Vertical/Horizontal/VerticalAndHorizontal)."
+        },
+        {
+          "name": "verticalScrollerVisibility",
+          "type": "string",
+          "description": "ScrollerVisibility enum."
+        },
+        {
+          "name": "horizontalScrollerVisibility",
+          "type": "string",
+          "description": "ScrollerVisibility enum."
+        },
+        {
+          "name": "scrollOffset",
+          "type": "Vector2",
+          "description": "Initial scroll offset."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "contentContainer",
+          "type": "object",
+          "description": "Inner container props."
+        }
+      ]
+    },
+    "ListView": {
+      "propsType": "ListViewProps",
+      "description": "Virtualised list with MakeItem/BindItem callbacks.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "items",
+          "type": "IList",
+          "description": "Data source list."
+        },
+        {
+          "name": "selectedIndex",
+          "type": "int",
+          "description": "Initially selected index."
+        },
+        {
+          "name": "fixedItemHeight",
+          "type": "float",
+          "description": "Height of each row in pixels."
+        },
+        {
+          "name": "makeItem",
+          "type": "Func",
+          "description": "Factory callback that creates a row VisualElement."
+        },
+        {
+          "name": "bindItem",
+          "type": "Action",
+          "description": "Callback that binds data to a row element."
+        },
+        {
+          "name": "unbindItem",
+          "type": "Action",
+          "description": "Callback invoked when a row is recycled."
+        },
+        {
+          "name": "viewDataKey",
+          "type": "string",
+          "description": "View-data persistence key."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "row",
+          "type": "object",
+          "description": "Row sub-element props."
+        },
+        {
+          "name": "selection",
+          "type": "object",
+          "description": "Selection props."
+        },
+        {
+          "name": "contentContainer",
+          "type": "object",
+          "description": "Inner container props."
+        },
+        {
+          "name": "scrollView",
+          "type": "object",
+          "description": "Inner scroll view props."
+        }
+      ]
+    },
+    "TreeView": {
+      "propsType": "TreeViewProps",
+      "description": "Virtualised hierarchical tree list.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "rootItems",
+          "type": "IList",
+          "description": "Hierarchical root items."
+        },
+        {
+          "name": "fixedItemHeight",
+          "type": "float",
+          "description": "Height of each row."
+        },
+        {
+          "name": "selectedIndex",
+          "type": "int",
+          "description": "Initially selected index."
+        },
+        {
+          "name": "expandedItemIds",
+          "type": "IList",
+          "description": "IDs of initially expanded items."
+        },
+        {
+          "name": "stopTrackingUserChange",
+          "type": "bool",
+          "description": "Disable saved user expansion state."
+        },
+        {
+          "name": "itemExpandedChanged",
+          "type": "Action",
+          "description": "Callback on item expand/collapse."
+        },
+        {
+          "name": "viewDataKey",
+          "type": "string",
+          "description": "View-data persistence key."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "selection",
+          "type": "object",
+          "description": "Selection props."
+        },
+        {
+          "name": "row",
+          "type": "object",
+          "description": "Row sub-element props."
+        }
+      ]
+    },
+    "Foldout": {
+      "propsType": "FoldoutProps",
+      "description": "Expandable/collapsible section.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Section header text."
+        },
+        {
+          "name": "value",
+          "type": "bool",
+          "description": "Whether the foldout is expanded."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on expand/collapse."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "contentContainer",
+          "type": "object",
+          "description": "Inner container props."
+        },
+        {
+          "name": "header",
+          "type": "object",
+          "description": "Header sub-element props."
+        }
+      ]
+    },
+    "GroupBox": {
+      "propsType": "GroupBoxProps",
+      "description": "Labelled group box container.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Group title text."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "contentContainer",
+          "type": "object",
+          "description": "Inner container props."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        }
+      ]
+    },
+    "HelpBox": {
+      "propsType": "HelpBoxProps",
+      "description": "Info, warning, or error message box.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Message text."
+        },
+        {
+          "name": "messageType",
+          "type": "string",
+          "description": "HelpBoxMessageType (None/Info/Warning/Error)."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "ProgressBar": {
+      "propsType": "ProgressBarProps",
+      "description": "Horizontal progress indicator.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "float",
+          "description": "Progress value (0–100)."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "description": "Optional title overlay."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "progress",
+          "type": "object",
+          "description": "Progress bar inner element props."
+        },
+        {
+          "name": "titleElement",
+          "type": "object",
+          "description": "Title inner element props."
+        }
+      ]
+    },
+    "Tab": {
+      "propsType": "TabProps",
+      "description": "Individual tab inside a TabView.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Tab header label."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "TabView": {
+      "propsType": "TabViewProps",
+      "description": "Tabbed panel with switchable content.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "selectedIndex",
+          "type": "int",
+          "description": "Currently active tab index."
+        },
+        {
+          "name": "selectedTabIndex",
+          "type": "int",
+          "description": "Alias for selectedIndex."
+        },
+        {
+          "name": "tabs",
+          "type": "object",
+          "description": "Tab definitions."
+        },
+        {
+          "name": "selectedIndexChanged",
+          "type": "Action",
+          "description": "Callback when selected tab changes."
+        },
+        {
+          "name": "activeTabChanged",
+          "type": "Action",
+          "description": "Callback when active tab changes."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "title",
+          "type": "object",
+          "description": "Title container props."
+        },
+        {
+          "name": "content",
+          "type": "object",
+          "description": "Content container props."
+        },
+        {
+          "name": "staticContent",
+          "type": "object",
+          "description": "Static content props."
+        }
+      ]
+    },
+    "TextElement": {
+      "propsType": "TextElementProps",
+      "description": "Low-level text element (leaf node).",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Text content."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "RadioButton": {
+      "propsType": "RadioButtonProps",
+      "description": "Single radio button in a group.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "bool",
+          "description": "Whether this button is selected."
+        },
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Label text."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on selection change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        }
+      ]
+    },
+    "RadioButtonGroup": {
+      "propsType": "RadioButtonGroupProps",
+      "description": "Container managing a set of radio buttons.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "choices",
+          "type": "IList",
+          "description": "Choice labels."
+        },
+        {
+          "name": "value",
+          "type": "int",
+          "description": "Index of the selected choice."
+        },
+        {
+          "name": "index",
+          "type": "int",
+          "description": "Alias for value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on selection change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "contentContainer",
+          "type": "object",
+          "description": "Inner container props."
+        }
+      ]
+    },
+    "DropdownField": {
+      "propsType": "DropdownFieldProps",
+      "description": "Drop-down list selector.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "choices",
+          "type": "List<string>",
+          "description": "List of option strings."
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "description": "Currently selected option."
+        },
+        {
+          "name": "selectedIndex",
+          "type": "int",
+          "description": "Currently selected index."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on selection change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "EnumField": {
+      "propsType": "EnumFieldProps",
+      "description": "Enum value picker field.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "Enum",
+          "description": "Currently selected enum value."
+        },
+        {
+          "name": "enumType",
+          "type": "Type",
+          "description": "The System.Type of the enum."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "IntegerField": {
+      "propsType": "IntegerFieldProps",
+      "description": "Integer text input field.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "int",
+          "description": "Current integer value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "FloatField": {
+      "propsType": "FloatFieldProps",
+      "description": "Float text input field.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "value",
+          "type": "float",
+          "description": "Current float value."
+        },
+        {
+          "name": "onChange",
+          "type": "Action",
+          "description": "Callback on value change."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        },
+        {
+          "name": "label",
+          "type": "object",
+          "description": "Label sub-element props."
+        },
+        {
+          "name": "visualInput",
+          "type": "object",
+          "description": "Visual input sub-element props."
+        }
+      ]
+    },
+    "VisualElement": {
+      "propsType": "Dictionary",
+      "description": "Bare VisualElement — generic container with arbitrary props.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "VisualElementSafe": {
+      "propsType": "Dictionary",
+      "description": "VisualElement that automatically applies safe-area insets (notch, status bar, etc.).",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "Text": {
+      "propsType": "BuiltinText",
+      "description": "Shorthand for a plain text label.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "text",
+          "type": "string",
+          "description": "Text content (preferred alias)."
+        },
+        {
+          "name": "value",
+          "type": "string",
+          "description": "Text content."
+        },
+        {
+          "name": "name",
+          "type": "string",
+          "description": "VisualElement.name."
+        },
+        {
+          "name": "className",
+          "type": "string",
+          "description": "USS class names."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "ref",
+          "type": "object",
+          "description": "Ref to the underlying VisualElement."
+        }
+      ]
+    },
+    "Router": {
+      "propsType": "RouterFuncProps",
+      "description": "Root router component. Provides routing context to all descendant Route/Link components.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "history",
+          "type": "IRouterHistory",
+          "description": "Custom history implementation (defaults to in-memory history)."
+        },
+        {
+          "name": "initialPath",
+          "type": "string",
+          "description": "Initial navigation path (default '/')."
+        }
+      ]
+    },
+    "Route": {
+      "propsType": "RouteFuncProps",
+      "description": "Renders its children/element only when the current location matches the given path.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "path",
+          "type": "string",
+          "description": "URL path pattern to match (supports :param and *)."
+        },
+        {
+          "name": "exact",
+          "type": "bool",
+          "description": "When true the path must match exactly."
+        },
+        {
+          "name": "element",
+          "type": "VirtualNode",
+          "description": "VirtualNode to render when the route matches."
+        },
+        {
+          "name": "renderFunc",
+          "type": "Func<RouteMatch,VirtualNode>",
+          "description": "Factory delegate receiving the RouteMatch."
+        }
+      ]
+    },
+    "Link": {
+      "propsType": "LinkFuncProps",
+      "description": "Navigates to the given path when clicked.",
+      "acceptsChildren": false,
+      "attributes": [
+        {
+          "name": "to",
+          "type": "string",
+          "description": "Target path to navigate to."
+        },
+        {
+          "name": "label",
+          "type": "string",
+          "description": "Button label text."
+        },
+        {
+          "name": "replace",
+          "type": "bool",
+          "description": "Replace history entry instead of pushing."
+        },
+        {
+          "name": "style",
+          "type": "Style",
+          "description": "Inline style overrides."
+        },
+        {
+          "name": "state",
+          "type": "object",
+          "description": "Arbitrary navigation state passed to the target."
+        }
+      ]
+    },
+    "Suspense": {
+      "propsType": "SuspenseProps",
+      "description": "Shows a fallback while content is loading; switches to children once ready.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "isReady",
+          "type": "Func<bool>",
+          "description": "Delegate that returns true when content is ready to render."
+        },
+        {
+          "name": "pendingTask",
+          "type": "Task",
+          "description": "Task whose completion signals readiness."
+        },
+        {
+          "name": "fallback",
+          "type": "VirtualNode",
+          "description": "VirtualNode rendered while the content is not yet ready."
+        }
+      ]
+    },
+    "Portal": {
+      "propsType": "Portal",
+      "description": "Renders children into a different VisualElement target, outside the normal component tree.",
+      "acceptsChildren": true,
+      "attributes": [
+        {
+          "name": "target",
+          "type": "VisualElement",
+          "description": "The VisualElement into which children are rendered."
+        }
+      ]
+    },
+    "Fragment": {
+      "propsType": "Fragment",
+      "description": "Invisible wrapper that allows returning multiple root elements.",
+      "acceptsChildren": true,
+      "attributes": []
+    }
+  },
+  "styleKeyValues": {
+    "flexDirection": [
+      "row",
+      "column",
+      "row-reverse",
+      "column-reverse"
+    ],
+    "flexWrap": [
+      "nowrap",
+      "wrap",
+      "wrap-reverse"
+    ],
+    "justifyContent": [
+      "flex-start",
+      "flex-end",
+      "center",
+      "space-between",
+      "space-around"
+    ],
+    "alignItems": [
+      "auto",
+      "flex-start",
+      "flex-end",
+      "center",
+      "stretch"
+    ],
+    "alignSelf": [
+      "auto",
+      "flex-start",
+      "flex-end",
+      "center",
+      "stretch"
+    ],
+    "alignContent": [
+      "flex-start",
+      "flex-end",
+      "center",
+      "stretch",
+      "space-between",
+      "space-around"
+    ],
+    "position": [
+      "relative",
+      "absolute"
+    ],
+    "display": [
+      "flex",
+      "none"
+    ],
+    "visibility": [
+      "visible",
+      "hidden"
+    ],
+    "overflow": [
+      "visible",
+      "hidden",
+      "scroll"
+    ],
+    "whiteSpace": [
+      "normal",
+      "nowrap"
+    ],
+    "textAlign": [
+      "upper-left",
+      "upper-center",
+      "upper-right",
+      "middle-left",
+      "middle-center",
+      "middle-right",
+      "lower-left",
+      "lower-center",
+      "lower-right"
+    ],
+    "textOverflow": [
+      "clip",
+      "ellipsis"
+    ],
+    "unityTextOverflowPosition": [
+      "start",
+      "middle",
+      "end"
+    ]
+  }
+}

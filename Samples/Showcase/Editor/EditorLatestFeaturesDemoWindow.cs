@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorLatestFeaturesDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Latest Features Showcase")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Latest Features Showcase")]
         public static void ShowWindow()
         {
             EditorLatestFeaturesDemoWindow window = GetWindow<EditorLatestFeaturesDemoWindow>(
@@ -23,7 +23,10 @@ namespace ReactiveUITK.Samples.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(hostElement, V.Func(LatestFeaturesDemoFunc.Render));
+            EditorRootRendererUtility.Render(
+                hostElement,
+                V.Func(LatestFeaturesDemoFunc.LatestFeaturesDemo)
+            );
         }
 
         private void OnDisable()

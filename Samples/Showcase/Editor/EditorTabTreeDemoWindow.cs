@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorTabTreeDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Tabs + TreeView")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tabs + TreeView")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorTabTreeDemoWindow>("Tabs + TreeView Demo");

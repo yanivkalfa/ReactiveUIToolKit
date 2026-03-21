@@ -1,0 +1,37 @@
+export const RECT_INT_FIELD_BASIC = `// Example namespace: ReactiveUITK.Samples.Components
+
+using System.Collections.Generic;
+using ReactiveUITK;
+using ReactiveUITK.Core;
+using ReactiveUITK.Props.Typed;
+using UnityEngine;
+using UnityEngine.UIElements;
+
+public static class RectIntFieldExamples
+{
+  private static readonly Style VisualInputStyle = new Style
+  {
+    (StyleKeys.PaddingLeft, 4f),
+  };
+
+  // Function component – pass RectIntFieldExamples.Example to V.Func(...)
+  public static VirtualNode Example(
+    Dictionary<string, object> props,
+    IReadOnlyList<VirtualNode> children
+  )
+  {
+    var (rect, setRect) = Hooks.UseState(new RectInt(0, 0, 16, 16));
+
+    return V.RectIntField(
+      new RectIntFieldProps
+      {
+        Value = rect,
+        Label = new LabelProps { Text = "RectInt" }.ToDictionary(),
+        VisualInput = new Dictionary<string, object>
+        {
+          { "style", VisualInputStyle },
+        },
+      }
+    );
+  }
+}`

@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorAppExampleWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Showcase All")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Showcase All")]
         public static void ShowWindow()
         {
             EditorAppExampleWindow window = GetWindow<EditorAppExampleWindow>(

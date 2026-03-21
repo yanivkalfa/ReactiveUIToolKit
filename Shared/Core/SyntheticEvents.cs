@@ -4,6 +4,10 @@ using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Core
 {
+    /// <summary>Use <see cref="ReactiveEvent"/> instead.</summary>
+    [Obsolete(
+        "SyntheticEvent is deprecated. Use ReactiveEvent and the typed Reactive*Event subclasses instead."
+    )]
     public class SyntheticEvent
     {
         private readonly EventBase nativeEvent;
@@ -75,6 +79,8 @@ namespace ReactiveUITK.Core
         }
     }
 
+    /// <summary>Use <see cref="ReactivePointerEvent"/> instead.</summary>
+    [Obsolete("SyntheticPointerEvent is deprecated. Use ReactivePointerEvent instead.")]
     public class SyntheticPointerEvent : SyntheticEvent
     {
         internal SyntheticPointerEvent(EventBase evt, IPointerEvent pointer)
@@ -135,6 +141,8 @@ namespace ReactiveUITK.Core
         public Vector2 RadiusVariance { get; }
     }
 
+    /// <summary>Use <see cref="ReactiveWheelEvent"/> instead.</summary>
+    [Obsolete("SyntheticWheelEvent is deprecated. Use ReactiveWheelEvent instead.")]
     public sealed class SyntheticWheelEvent : SyntheticPointerEvent
     {
         internal SyntheticWheelEvent(EventBase evt, WheelEvent wheel)
@@ -149,6 +157,8 @@ namespace ReactiveUITK.Core
         public Vector3 Delta { get; }
     }
 
+    /// <summary>Use <see cref="ReactiveKeyboardEvent"/> instead.</summary>
+    [Obsolete("SyntheticKeyboardEvent is deprecated. Use ReactiveKeyboardEvent instead.")]
     public sealed class SyntheticKeyboardEvent : SyntheticEvent
     {
         internal SyntheticKeyboardEvent(EventBase evt, IKeyboardEvent keyboard)
@@ -173,6 +183,8 @@ namespace ReactiveUITK.Core
         public bool CommandKey { get; }
     }
 
+    /// <summary>Use <see cref="ChangeEventHandler{T}"/> instead.</summary>
+    [Obsolete("SyntheticChangeEvent is deprecated. Use ChangeEventHandler<T> instead.")]
     public sealed class SyntheticChangeEvent : SyntheticEvent
     {
         internal SyntheticChangeEvent(EventBase evt, IChangeEvent change)

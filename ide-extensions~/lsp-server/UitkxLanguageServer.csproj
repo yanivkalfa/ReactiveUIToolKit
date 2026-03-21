@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>UitkxLanguageServer</AssemblyName>
+    <RootNamespace>UitkxLanguageServer</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <SelfContained>false</SelfContained>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="OmniSharp.Extensions.LanguageServer" Version="0.19.9" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+    <!--
+      Roslyn for Tier-3 C# diagnostics, semantic tokens, and IntelliSense inside
+      .uitkx @code / @(expr) regions.
+      CSharp = core compilation API (SyntaxTree, Compilation, SemanticModel).
+      CSharp.Workspaces = AdhocWorkspace, Classifier, Formatter (code formatting).
+      Workspaces.Common = CompletionService base, Recommender (symbol recommendations).
+      Both ship net8.0 + netstandard2.0 targets; no conflict with Unity's internal
+      Roslyn 4.3.1 because lsp-server runs in a completely separate process.
+    -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.9.2" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.9.2" />
+    <!-- CompletionService, Recommender, and workspace service infrastructure. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.Common" Version="4.9.2" />
+    <!-- CompletionService + all C# completion providers (member access, keywords, etc.)
+         CompletionService.GetService(document) returns non-null only when
+         Microsoft.CodeAnalysis.CSharp.Features is in the MEF composition. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="4.9.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../language-lib/UitkxLanguage.csproj" />
+  </ItemGroup>
+  <!-- Exclude test project sources from the main compilation -->
+  <ItemGroup>
+    <Compile Remove="Tests/**" />
+  </ItemGroup>
+  <!-- Embed schema as resource so we can resolve it without relying on cwd -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\grammar\uitkx-schema.json">
+      <LogicalName>uitkx-schema.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

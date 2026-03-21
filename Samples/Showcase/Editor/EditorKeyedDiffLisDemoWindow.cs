@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorKeyedDiffLisDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Tests-(13-17-18-26)/Keyed Diff (LIS)")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Tests-(13-17-18-26)/Keyed Diff (LIS)")]
         public static void ShowWindow()
         {
             var window = GetWindow<EditorKeyedDiffLisDemoWindow>("Keyed Diff (LIS)");

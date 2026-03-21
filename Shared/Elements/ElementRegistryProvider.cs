@@ -61,7 +61,7 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "MinMaxSlider");
                 RegisterIfAllowed(registry, "TemplateContainer");
                 RegisterIfAllowed(registry, "BoundsIntField");
-                
+
 #if UNITY_EDITOR
                 RegisterIfAllowed(registry, "EnumFlagsField");
 #endif
@@ -76,7 +76,7 @@ namespace ReactiveUITK.Elements
                 RegisterIfAllowed(registry, "Vector2Field");
                 RegisterIfAllowed(registry, "Vector3Field");
                 RegisterIfAllowed(registry, "Vector4Field");
-                
+
 #if UNITY_EDITOR
                 RegisterIfAllowed(registry, "ColorField");
 #endif
@@ -116,7 +116,7 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "Tab", allowedSet);
             RegisterIfAllowed(registry, "TabView", allowedSet);
             RegisterIfAllowed(registry, "EnumField", allowedSet);
-            
+
 #if UNITY_EDITOR
             RegisterIfAllowed(registry, "ObjectField", allowedSet);
             RegisterIfAllowed(registry, "TwoPaneSplitView", allowedSet);
@@ -132,7 +132,7 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "MinMaxSlider", allowedSet);
             RegisterIfAllowed(registry, "TemplateContainer", allowedSet);
             RegisterIfAllowed(registry, "BoundsIntField", allowedSet);
-            
+
 #if UNITY_EDITOR
             RegisterIfAllowed(registry, "EnumFlagsField", allowedSet);
 #endif
@@ -147,7 +147,7 @@ namespace ReactiveUITK.Elements
             RegisterIfAllowed(registry, "Vector2Field", allowedSet);
             RegisterIfAllowed(registry, "Vector3Field", allowedSet);
             RegisterIfAllowed(registry, "Vector4Field", allowedSet);
-            
+
 #if UNITY_EDITOR
             RegisterIfAllowed(registry, "ColorField", allowedSet);
 #endif
@@ -256,7 +256,7 @@ namespace ReactiveUITK.Elements
                     case "EnumField":
                         registry.Register("EnumField", new EnumFieldElementAdapter());
                         break;
-                    
+
 #if UNITY_EDITOR
                     case "ObjectField":
                         registry.Register("ObjectField", new ObjectFieldElementAdapter());
@@ -290,16 +290,24 @@ namespace ReactiveUITK.Elements
                         registry.Register("MinMaxSlider", new MinMaxSliderElementAdapter());
                         break;
                     case "TemplateContainer":
-                        registry.Register("TemplateContainer", new TemplateContainerElementAdapter());
+                        registry.Register(
+                            "TemplateContainer",
+                            new TemplateContainerElementAdapter()
+                        );
                         break;
                     case "BoundsIntField":
                         registry.Register("BoundsIntField", new BoundsIntFieldElementAdapter());
                         break;
+#if UNITY_EDITOR
                     case "EnumFlagsField":
                         registry.Register("EnumFlagsField", new EnumFlagsFieldElementAdapter());
                         break;
+#endif
                     case "ToggleButtonGroup":
-                        registry.Register("ToggleButtonGroup", new ToggleButtonGroupElementAdapter());
+                        registry.Register(
+                            "ToggleButtonGroup",
+                            new ToggleButtonGroupElementAdapter()
+                        );
                         break;
                     case "Hash128Field":
                         registry.Register("Hash128Field", new Hash128FieldElementAdapter());
@@ -337,7 +345,7 @@ namespace ReactiveUITK.Elements
                     case "Vector4Field":
                         registry.Register("Vector4Field", new Vector4FieldElementAdapter());
                         break;
-                    
+
 #if UNITY_EDITOR
                     case "ColorField":
                         registry.Register("ColorField", new ColorFieldElementAdapter());
@@ -358,13 +366,22 @@ namespace ReactiveUITK.Elements
                         registry.Register("ToolbarToggle", new ToolbarToggleElementAdapter());
                         break;
                     case "ToolbarBreadcrumbs":
-                        registry.Register("ToolbarBreadcrumbs", new ToolbarBreadcrumbsElementAdapter());
+                        registry.Register(
+                            "ToolbarBreadcrumbs",
+                            new ToolbarBreadcrumbsElementAdapter()
+                        );
                         break;
                     case "ToolbarPopupSearchField":
-                        registry.Register("ToolbarPopupSearchField", new ToolbarPopupSearchFieldElementAdapter());
+                        registry.Register(
+                            "ToolbarPopupSearchField",
+                            new ToolbarPopupSearchFieldElementAdapter()
+                        );
                         break;
                     case "ToolbarSearchField":
-                        registry.Register("ToolbarSearchField", new ToolbarSearchFieldElementAdapter());
+                        registry.Register(
+                            "ToolbarSearchField",
+                            new ToolbarSearchFieldElementAdapter()
+                        );
                         break;
                     case "ToolbarSpacer":
                         registry.Register("ToolbarSpacer", new ToolbarSpacerElementAdapter());

@@ -13,21 +13,31 @@ namespace ReactiveUITK.Elements
             return (element as TemplateContainer) ?? element;
         }
 
-        public override void ApplyProperties(VisualElement element, IReadOnlyDictionary<string, object> properties)
+        public override void ApplyProperties(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> properties
+        )
         {
             if (element is not TemplateContainer tc || properties == null)
             {
                 PropsApplier.Apply(element, properties);
                 return;
             }
-            if (properties.TryGetValue("contentContainer", out var cc) && cc is Dictionary<string, object> ccMap)
+            if (
+                properties.TryGetValue("contentContainer", out var cc)
+                && cc is Dictionary<string, object> ccMap
+            )
             {
                 PropsApplier.Apply(tc.contentContainer, ccMap);
             }
             PropsApplier.Apply(element, properties);
         }
 
-        public override void ApplyPropertiesDiff(VisualElement element, IReadOnlyDictionary<string, object> previous, IReadOnlyDictionary<string, object> next)
+        public override void ApplyPropertiesDiff(
+            VisualElement element,
+            IReadOnlyDictionary<string, object> previous,
+            IReadOnlyDictionary<string, object> next
+        )
         {
             if (element is not TemplateContainer tc)
             {
@@ -46,4 +56,3 @@ namespace ReactiveUITK.Elements
         }
     }
 }
-

@@ -1,0 +1,6 @@
+{
+  "configProperties": {
+    "System.Runtime.Loader.UseRidGraph": false
+  },
+  "rollForward": "LatestMajor"
+}

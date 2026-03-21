@@ -1,0 +1,11 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+
+component UnstableChild(bool shouldThrow = false) {
+  if (shouldThrow) {
+    throw new System.InvalidOperationException("Simulated child exception.");
+  }
+
+  return (
+    <Text text="Child content rendered successfully." />
+  );
+}

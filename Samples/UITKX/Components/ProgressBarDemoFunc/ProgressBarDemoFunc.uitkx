@@ -1,0 +1,80 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System.Collections.Generic
+
+component ProgressBarDemoFunc {
+  var (progress, setProgress) = useState(15f);
+
+  float Clamp(float v) => Mathf.Clamp(v, 0f, 100f);
+
+  var containerStyle = new Style {
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 16f),
+  };
+
+  var progressBarStyle = new Style {
+    (StyleKeys.BorderWidth, 2f),
+    (StyleKeys.BorderColor, new Color(0.07f, 0.9f, 0.22f, 1f)),
+    (StyleKeys.BackgroundColor, new Color(0.02f, 0.2f, 0.02f, 0.7f)),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.Height, 30f),
+    (StyleKeys.JustifyContent, "center"),
+    (StyleKeys.PaddingLeft, 0f),
+    (StyleKeys.PaddingRight, 0f),
+    (StyleKeys.PaddingTop, 0f),
+    (StyleKeys.PaddingBottom, 0f),
+  };
+
+  var progressFillStyle = new Style {
+    (StyleKeys.BackgroundColor, new Color(0.4f, 0.95f, 0.4f, 0.7f)),
+    (StyleKeys.BorderRadius, 4f),
+    (StyleKeys.MarginLeft, 2f),
+    (StyleKeys.MarginRight, 2f),
+    (StyleKeys.MarginTop, 2f),
+    (StyleKeys.MarginBottom, 2f),
+  };
+
+  var titleStyle = new Style {
+    (StyleKeys.TextColor, new Color(0.92f, 1f, 0.92f, 1f)),
+    (StyleKeys.FontSize, 13f),
+  };
+
+  var buttonRowStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.JustifyContent, "space-between"),
+    (StyleKeys.MarginTop, 8f),
+  };
+
+  var btnStyle = new Style {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.MarginLeft, 4f),
+    (StyleKeys.MarginRight, 4f),
+  };
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Text text="ProgressBar component demo" />
+      <ProgressBar
+        value={progress}
+        title={$"Downloading - {progress:0}%"}
+        style={progressBarStyle}
+        progress={new Dictionary<string, object> { { "style", progressFillStyle } }}
+        titleElement={new Dictionary<string, object> { { "style", titleStyle } }}
+      />
+      <Text text={$"Current value: {progress:0}%"} />
+      <VisualElement style={buttonRowStyle}>
+        <Button
+          text="-10%"
+          onClick={_ => setProgress(v => Clamp(v - 10f))}
+          style={btnStyle}
+        />
+        <Button
+          text="+10%"
+          onClick={_ => setProgress(v => Clamp(v + 10f))}
+          style={btnStyle}
+        />
+        <Button text="Reset" onClick={_ => setProgress(15f)} style={btnStyle} />
+      </VisualElement>
+    </VisualElement>
+  );
+}

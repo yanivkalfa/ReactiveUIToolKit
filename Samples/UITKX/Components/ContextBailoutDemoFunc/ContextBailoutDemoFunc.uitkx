@@ -1,0 +1,34 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component ContextBailoutDemoFunc {
+  var blue = new Color(0.2f, 0.45f, 0.9f, 1f);
+  var orange = new Color(0.9f, 0.5f, 0.15f, 1f);
+
+  var (useBlue, setUseBlue) = useState(true);
+  var themeColor = useBlue ? blue : orange;
+
+  provideContext("bailout-test-theme", themeColor);
+
+  var containerStyle = new Style {
+    (StyleKeys.Padding, 14f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
+  };
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Text text="Context Through Bailout — Step 4 Test" />
+      <Label
+        text="Root provides a context color. Middle layer's props never change so it bails out. Without the fix the consumer would be stuck on the initial color. With the fix the consumer re-renders every toggle."
+        style={new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.Color, new Color(0.75f, 0.75f, 0.75f, 1f)), (StyleKeys.WhiteSpace, "normal") }}
+      />
+      <Button
+        text={$"Toggle Theme  (now: {(useBlue ? "Blue" : "Orange")})"}
+        onClick={_ => setUseBlue(b => !b)}
+        style={new Style { (StyleKeys.MarginTop, 10f), (StyleKeys.Width, 220f) }}
+      />
+      <MiddleLayer />
+    </VisualElement>
+  );
+}

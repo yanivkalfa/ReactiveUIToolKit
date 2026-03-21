@@ -9,7 +9,7 @@ namespace ReactiveUITK.Samples.Editor
 {
     public sealed class EditorSimpleUseEffectDemoWindow : EditorWindow
     {
-        [MenuItem("Window/ReactiveUITK/Demos/Simple UseEffect")]
+        [MenuItem("ReactiveUITK/Demos/Legacy/Simple UseEffect")]
         public static void ShowWindow()
         {
             EditorSimpleUseEffectDemoWindow window = GetWindow<EditorSimpleUseEffectDemoWindow>(

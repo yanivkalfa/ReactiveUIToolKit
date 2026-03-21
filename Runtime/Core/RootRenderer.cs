@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReactiveUITK.Core;
+using ReactiveUITK.Core.Diagnostics;
 using ReactiveUITK.Elements;
 using ReactiveUITK.Signals;
 using UnityEngine;
@@ -15,6 +16,11 @@ namespace ReactiveUITK.Core
         private ElementRegistry elementRegistry;
         private VisualElement rootElement;
         private VNodeHostRenderer vnodeHostRenderer;
+
+#if UNITY_EDITOR
+        /// <summary>HMR: exposes the VNodeHostRenderer for tree walking.</summary>
+        internal VNodeHostRenderer VNodeHostRendererInternal => vnodeHostRenderer;
+#endif
 
         private void EnsureSetup()
         {
@@ -36,10 +42,16 @@ namespace ReactiveUITK.Core
                 sharedHostContext.Environment["isEditor"] = false;
 
                 sharedHostContext.Environment["env"] = BuildDefinesConfig.ResolveEnvironment();
-                Reconciler.TraceLevel = BuildDefinesConfig.ResolveTraceLevel();
-                Reconciler.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
-                Reconciler.UseExceptionBoundaryFlow =
+
+                // Initialize global diagnostics configuration from build defines.
+                DiagnosticsConfig.CurrentTraceLevel = BuildDefinesConfig.ResolveTraceLevel();
+                DiagnosticsConfig.EnableDiffTracing = BuildDefinesConfig.ResolveEnableDiffTracing();
+                DiagnosticsConfig.UseExceptionBoundaryFlow =
                     BuildDefinesConfig.ResolveExceptionBoundaryFlow();
+
+                // For now, drive internal logs off the verbose trace level.
+                InternalLogOptions.EnableInternalLogs =
+                    DiagnosticsConfig.CurrentTraceLevel == DiagnosticsConfig.TraceLevel.Verbose;
             }
         }
 
@@ -54,10 +66,34 @@ namespace ReactiveUITK.Core
             EnsureSetup();
         }
 
-        public void Initialize(VisualElement uiRootElement)
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+            Unmount();
+        }
+
+        /// <summary>
+        /// Configures the root VisualElement and optionally seeds named environment slots
+        /// (portal targets, feature flags, etc.) into the shared <see cref="HostContext"/>.
+        /// Must be called before the first <see cref="Render"/> call.
+        /// </summary>
+        /// <param name="uiRootElement">The VisualElement that acts as the React root.</param>
+        /// <param name="env">
+        /// Optional callback invoked with the <see cref="HostContext"/> after built-in keys
+        /// (scheduler, env, etc.) are set.  Use this to seed named portal target slots:
+        /// <code>
+        /// rootRenderer.Initialize(uiDoc.rootVisualElement,
+        ///     env: ctx => ctx.Environment[PortalContextKeys.ModalRoot] = overlayLayer);
+        /// </code>
+        /// </param>
+        public void Initialize(VisualElement uiRootElement, Action<HostContext> env = null)
         {
             EnsureSetup();
             rootElement = uiRootElement;
+            env?.Invoke(sharedHostContext);
         }
 
         public void Render(VirtualNode rootNode)
@@ -65,7 +101,6 @@ namespace ReactiveUITK.Core
             EnsureSetup();
             if (rootElement == null)
             {
-                Debug.LogError("RootRenderer: root not initialized");
                 return;
             }
             if (vnodeHostRenderer == null)

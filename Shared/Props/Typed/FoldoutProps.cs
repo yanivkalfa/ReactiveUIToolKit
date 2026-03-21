@@ -1,33 +1,19 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Props.Typed
 {
-    public sealed class FoldoutProps
+    public sealed class FoldoutProps : BaseProps
     {
-        public string Name { get; set; }
-        public string ClassName { get; set; }
         public string Text { get; set; }
         public bool? Value { get; set; }
-        public Style Style { get; set; }
-        public object Ref { get; set; }
-
-        public Action<UnityEngine.UIElements.ChangeEvent<bool>> OnChange { get; set; }
-
-        public Dictionary<string, object> ContentContainer { get; set; }
+        public ChangeEventHandler<bool> OnChange { get; set; }
         public Dictionary<string, object> Header { get; set; }
 
-        public Dictionary<string, object> ToDictionary()
+        public override Dictionary<string, object> ToDictionary()
         {
-            var dict = new Dictionary<string, object>();
-            if (!string.IsNullOrEmpty(Name))
-            {
-                dict["name"] = Name;
-            }
-            if (!string.IsNullOrEmpty(ClassName))
-            {
-                dict["className"] = ClassName;
-            }
+            var dict = base.ToDictionary();
             if (Text != null)
             {
                 dict["text"] = Text;
@@ -40,21 +26,9 @@ namespace ReactiveUITK.Props.Typed
             {
                 dict["onChange"] = OnChange;
             }
-            if (ContentContainer != null)
-            {
-                dict["contentContainer"] = ContentContainer;
-            }
             if (Header != null)
             {
                 dict["header"] = Header;
-            }
-            if (Style != null)
-            {
-                dict["style"] = Style;
-            }
-            if (Ref != null)
-            {
-                dict["ref"] = Ref;
             }
             return dict;
         }

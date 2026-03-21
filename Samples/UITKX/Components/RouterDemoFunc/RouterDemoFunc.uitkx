@@ -1,0 +1,84 @@
+﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Router
+@using UnityEngine
+
+component RouterDemoFunc {
+  var paddedContainer = new Style {
+    (StyleKeys.FlexGrow, 1f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.Padding, 12f),
+  };
+
+  var cardStyle = new Style {
+    (StyleKeys.Padding, 10f),
+    (StyleKeys.BorderColor, new Color32(210, 210, 210, 255)),
+    (StyleKeys.BorderWidth, 1f),
+    (StyleKeys.BorderRadius, 6f),
+    (StyleKeys.MarginTop, 6f),
+  };
+
+  return (
+    <Router>
+      <VisualElement style={paddedContainer}>
+        <Text text="Lightweight Router Demo" />
+        <VisualElement
+          style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 4f) }}
+        >
+          <RouterNavLink path="/" label="Home" exact={true} />
+          <RouterNavLink path="/about" label="About" />
+          <RouterNavLink path="/users" label="Users" />
+          <RouterNavLink path="/settings/profile" label="Settings (Nested)" />
+          <RouterNavLink
+            path="/users/99"
+            label="Replace 99"
+            exact={true}
+            replace={true}
+          />
+        </VisualElement>
+        <VisualElement style={cardStyle}>
+          <RouterLocationBanner />
+          <RouterNavigatePanel />
+          <RouterQuickAccessPanel />
+        </VisualElement>
+        <VisualElement style={cardStyle}>
+          <RouterHistoryPanel />
+          <RouterNavigationGuardPanel key="navigation-guard" />
+        </VisualElement>
+        <VisualElement style={cardStyle}>
+          <Route
+            path="/"
+            exact={true}
+            element={V.Text("Landing route: use the navigation above to explore nested routing, params, and programmatic navigation.")}
+          />
+          <Route
+            path="/about"
+            element={V.Text("About route: this is a static screen rendered whenever the path is /about.")}
+          />
+          <Route
+            path="/users"
+            exact={true}
+            element={V.Text("Users route: pick a user ID from the quick-links or type one in the navigation panel.")}
+          />
+          <Route path="/users/:id">
+            <VisualElement
+              style={new Style { (StyleKeys.MarginTop, 6f), (StyleKeys.FlexDirection, "column") }}
+            >
+              <RouterUserDetails />
+              <Route
+                path="/users/:id/details"
+                element={V.Text("Nested /details route matched for this user.")}
+              />
+            </VisualElement>
+          </Route>
+          <Route path="/settings/*">
+            <RouterSettingsPanel />
+          </Route>
+          <Route
+            path="*"
+            element={V.Text("No matching route. Use the nav links above to continue.")}
+          />
+        </VisualElement>
+      </VisualElement>
+    </Router>
+  );
+}

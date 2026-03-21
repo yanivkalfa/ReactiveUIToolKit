@@ -51,6 +51,10 @@ namespace ReactiveUITK.Elements
                 {
                     button.text = txt;
                 }
+                if (properties.TryGetValue("enabled", out var enabledObj) && enabledObj is bool en)
+                {
+                    button.SetEnabled(en);
+                }
                 EnsureListViewFriendly(button);
             }
             PropsApplier.Apply(element, properties);
@@ -72,6 +76,14 @@ namespace ReactiveUITK.Elements
                 if (prevText != nextText)
                 {
                     button.text = nextText ?? string.Empty;
+                }
+                bool prevEnabled =
+                    previous.TryGetValue("enabled", out var pe) && pe is bool peb ? peb : true;
+                bool nextEnabled =
+                    next.TryGetValue("enabled", out var ne) && ne is bool neb ? neb : true;
+                if (prevEnabled != nextEnabled)
+                {
+                    button.SetEnabled(nextEnabled);
                 }
                 EnsureListViewFriendly(button);
             }
