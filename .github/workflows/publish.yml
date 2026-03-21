@@ -303,17 +303,30 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore NuGet packages
-        if: steps.check.outputs.skip == 'false'
-        shell: cmd
-        working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: msbuild UitkxVsix.csproj /t:Restore /p:Configuration=Release
-
       - name: Build VSIX
         if: steps.check.outputs.skip == 'false'
-        shell: cmd
+        shell: pwsh
         working-directory: ide-extensions~/visual-studio/UitkxVsix
-        run: msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false /verbosity:normal
+        run: |
+          # Restore first
+          dotnet restore UitkxVsix.csproj
+          
+          # Read the generated NuGet props to get the VSSDK path
+          $propsFile = "obj\UitkxVsix.csproj.nuget.g.props"
+          if (Test-Path $propsFile) {
+            [xml]$props = Get-Content $propsFile
+            $ns = @{ ms = "http://schemas.microsoft.com/developer/msbuild/2003" }
+            $vssdkPath = $props | Select-Xml -XPath "//ms:PkgMicrosoft_VSSDK_BuildTools" -Namespace $ns | ForEach-Object { $_.Node.InnerText }
+            Write-Host "VSSDK Path from props: $vssdkPath"
+          }
+          
+          # Build with msbuild, passing the VSSDK path explicitly if needed
+          if ($vssdkPath) {
+            msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false "/p:PkgMicrosoft_VSSDK_BuildTools=$vssdkPath"
+          } else {
+            Write-Host "::warning::Could not find VSSDK path, trying plain msbuild"
+            msbuild UitkxVsix.csproj /t:Build /p:Configuration=Release /p:DeployExtension=false
+          }
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'
