@@ -1,5 +1,6 @@
 export const EXAMPLE_UITKX = `@namespace MyGame.UI
-@using UnityEngine.UIElements
+@using UnityEngine
+@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component PlayerCard(PlayerInfo player) {
   var healthColor = player.Health > player.MaxHealth / 2
@@ -10,7 +11,7 @@ component PlayerCard(PlayerInfo player) {
     <VisualElement>
       <Label text={player.Name} />
       <Label text={FormatHealth(player.Health, player.MaxHealth)}
-             style:color={healthColor} />
+             style={new Style { (Color, healthColor) }} />
       <Label text={RankLabel(player.Rank)} />
     </VisualElement>
   );
@@ -34,15 +35,15 @@ export const EXAMPLE_DIRECTORY = `Assets/
       PlayerCard.utils.cs       ← optional: pure helper functions`
 
 export const EXAMPLE_STYLES = `// PlayerCard.styles.cs
-using UnityEngine.UIElements;
+using UnityEngine;
 
 namespace MyGame.UI
 {
     public partial class PlayerCard
     {
-        public static readonly StyleColor HealthGreen = new(new Color(0.2f, 0.8f, 0.3f));
-        public static readonly StyleColor DamageRed   = new(new Color(0.9f, 0.2f, 0.2f));
-        public static readonly StyleLength AvatarSize  = new(64);
+        public static readonly Color HealthGreen = new(0.2f, 0.8f, 0.3f);
+        public static readonly Color DamageRed   = new(0.9f, 0.2f, 0.2f);
+        public static readonly float AvatarSize  = 64f;
     }
 }`
 
