@@ -16,11 +16,13 @@ import {
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import Styles from '../../GettingStarted/GettingStartedPage.style'
 import {
+  EXAMPLE_UITKX,
+  EXAMPLE_GENERATED_CLASS,
+  EXAMPLE_DIRECTORY,
   EXAMPLE_STYLES,
   EXAMPLE_TYPES,
   EXAMPLE_UTILS,
-  EXAMPLE_UITKX,
-  EXAMPLE_DIRECTORY,
+  EXAMPLE_STANDALONE,
 } from './CompanionFilesPage.example'
 
 export const CompanionFilesPage: FC = () => (
@@ -41,12 +43,66 @@ export const CompanionFilesPage: FC = () => (
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
+      The UITKX component
+    </Typography>
+    <Typography variant="body1" paragraph>
+      Here is a component that uses styles, types, and utility functions defined in companion files:
+    </Typography>
+    <CodeBlock language="tsx" code={EXAMPLE_UITKX} />
+
+    <Typography variant="h5" component="h2" gutterBottom>
+      Generated namespace &amp; class name
+    </Typography>
+    <Typography variant="body1" paragraph>
+      The source generator creates a C# class from the <code>.uitkx</code> file. Two things
+      determine its identity:
+    </Typography>
+    <List>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              <strong>Namespace</strong> — comes from the <code>@namespace</code> directive at the
+              top of the <code>.uitkx</code> file. If omitted, the generator looks for a companion{' '}
+              <code>.cs</code> file with the same name (e.g. <code>PlayerCard.cs</code> next to{' '}
+              <code>PlayerCard.uitkx</code>) and uses its namespace declaration. If neither exists,
+              it falls back to <code>ReactiveUITK.FunctionStyle</code>. Declaring{' '}
+              <code>@namespace</code> explicitly is recommended.
+            </>
+          }
+        />
+      </ListItem>
+      <ListItem disablePadding>
+        <ListItemText
+          primary={
+            <>
+              <strong>Class name</strong> — comes from the <code>component</code> name (the
+              identifier after the <code>component</code> keyword).
+            </>
+          }
+        />
+      </ListItem>
+    </List>
+    <Typography variant="body1" paragraph>
+      For the example above, the generator produces:
+    </Typography>
+    <CodeBlock language="tsx" code={EXAMPLE_GENERATED_CLASS} />
+    <Typography variant="body1" paragraph>
+      Companion <code>.cs</code> files that need to reference or extend the generated class must use
+      the <strong>same namespace</strong> and <strong>same class name</strong>.
+    </Typography>
+
+    <Typography variant="h5" component="h2" gutterBottom>
       Directory layout
     </Typography>
     <Typography variant="body1" paragraph>
       Place companion files in the <strong>same directory</strong> as the <code>.uitkx</code> file:
     </Typography>
     <CodeBlock language="text" code={EXAMPLE_DIRECTORY} />
+    <Typography variant="body2" paragraph>
+      These names are conventions, not enforced rules. Any <code>.cs</code> file (except{' '}
+      <code>.g.cs</code>) in the same directory is automatically picked up during compilation.
+    </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
       Naming conventions
@@ -76,37 +132,38 @@ export const CompanionFilesPage: FC = () => (
             <TableCell>Pure helper / formatting functions</TableCell>
             <TableCell>No</TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell><code>MyComponent.extra.cs</code></TableCell>
+            <TableCell>Partial class extension (same namespace + class name)</TableCell>
+            <TableCell>No</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
-    <Typography variant="body2" paragraph>
-      These names are conventions, not enforced rules. Any <code>.cs</code> file (except{' '}
-      <code>.g.cs</code>) in the same directory is automatically picked up during compilation.
-    </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
       Example: style helpers
     </Typography>
-    <CodeBlock language="csharp" code={EXAMPLE_STYLES} />
+    <CodeBlock language="tsx" code={EXAMPLE_STYLES} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Example: type definitions
     </Typography>
-    <CodeBlock language="csharp" code={EXAMPLE_TYPES} />
+    <CodeBlock language="tsx" code={EXAMPLE_TYPES} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Example: utility functions
     </Typography>
-    <CodeBlock language="csharp" code={EXAMPLE_UTILS} />
+    <CodeBlock language="tsx" code={EXAMPLE_UTILS} />
 
     <Typography variant="h5" component="h2" gutterBottom>
-      Using them in UITKX
+      Standalone classes
     </Typography>
     <Typography variant="body1" paragraph>
-      Reference companion types and methods directly in your <code>.uitkx</code> — they compile
-      together:
+      Not everything has to go in the partial class. Standalone classes under the same namespace are
+      useful for types shared across multiple components:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_UITKX} />
+    <CodeBlock language="tsx" code={EXAMPLE_STANDALONE} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       HMR support
