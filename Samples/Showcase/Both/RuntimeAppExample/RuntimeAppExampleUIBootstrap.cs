@@ -32,7 +32,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            rootRenderer.Render(V.Host(hostProps, null, V.Func(ShowcaseDemoPage.Render)));
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(DiabloMenuDemo.Render)));
         }
     }
 }

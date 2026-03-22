@@ -17,9 +17,6 @@ component ShowcaseListTabsSection(
   var (showTabs, setShowTabs) = useState(true);
 
   var (listRows, setListRows) = useState(new List<ListViewRowState>());
-  var (mclvRows, setMclvRows) = useState(new List<MultiColumnListViewRowState>());
-  var (mclvSortDefs, setMclvSortDefs) = useState<List<SortedColumnDef>?>(null);
-  var (mclvLayout, setMclvLayout) = useState<ColumnLayoutState?>(null);
 
   // Propagate tab index to parent
   useEffect(() => {
@@ -78,75 +75,6 @@ component ShowcaseListTabsSection(
       next.RemoveAt(next.Count - 1);
       return next;
     });
-  }
-
-  // ── MultiColumnListView actions ─────────────────────────────────────────
-  void MclvAddItem() {
-    setMclvRows(prev => {
-      var next = new List<MultiColumnListViewRowState> {
-        new MultiColumnListViewRowState {
-          Id = Guid.NewGuid().ToString("N"),
-          Text = "NEW " + DateTime.Now.ToLongTimeString(),
-        },
-      };
-      if (prev != null)
-      {
-        for (int i = 0; i < prev.Count; i++)
-        {
-          next.Add(prev[i]);
-        }
-      }
-      return next;
-    });
-  }
-
-  void MclvSetTopItem() {
-    setMclvRows(prev => {
-      if (prev == null || prev.Count == 0)
-      {
-        return prev;
-      }
-      var source = prev[0];
-      if (source == null)
-      {
-        return prev;
-      }
-      var id = !string.IsNullOrEmpty(source.Id)
-      ? source.Id
-      : Guid.NewGuid().ToString("N");
-      var next = new List<MultiColumnListViewRowState>(prev);
-      next[0] = new MultiColumnListViewRowState {
-        Id = id,
-        Text = $"{id} {DateTime.Now:HH:mm:ss}",
-        ShouldOverrideElement = true,
-      };
-      return next;
-    });
-  }
-
-  void MclvDeleteLast() {
-    setMclvRows(prev => {
-      if (prev == null || prev.Count == 0)
-      {
-        return prev;
-      }
-      var next = new List<MultiColumnListViewRowState>(prev);
-      next.RemoveAt(next.Count - 1);
-      return next;
-    });
-  }
-
-  void MclvLayoutChanged(ColumnLayoutState layout) {
-    var clone = SharedDemoPageUtils.CloneLayout(layout);
-    if (SharedDemoPageUtils.LayoutEqual(clone, mclvLayout))
-    {
-      return;
-    }
-    setMclvLayout(_ => clone);
-  }
-
-  void MclvSortChanged(List<SortedColumnDef> defs) {
-    setMclvSortDefs(defs != null ? new List<SortedColumnDef>(defs) : null);
   }
 
   // ── TabView ─────────────────────────────────────────────────────────────

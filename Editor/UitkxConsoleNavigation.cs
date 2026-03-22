@@ -39,6 +39,7 @@ namespace ReactiveUITK.Editor
                 if (existing == null)
                 {
                     EditorSettings.projectGenerationUserExtensions = new[] { "uitkx" };
+                    RefreshCodeEditorSupportedExtensions();
                     return;
                 }
 
@@ -52,10 +53,106 @@ namespace ReactiveUITK.Editor
                 Array.Copy(existing, updated, existing.Length);
                 updated[existing.Length] = "uitkx";
                 EditorSettings.projectGenerationUserExtensions = updated;
+                RefreshCodeEditorSupportedExtensions();
             }
             catch (Exception ex)
             {
                 LogVerbose($"[UITKX Nav] EnsureProjectGenerationSupportsUitkx exception: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Forces the active IDE package (e.g. com.unity.ide.visualstudio) to
+        /// re-read <c>EditorSettings.projectGenerationUserExtensions</c> so its
+        /// internal <c>IsSupportedFile</c> whitelist includes <c>.uitkx</c>.
+        /// Without this, <c>IExternalCodeEditor.OpenProject</c> silently rejects
+        /// <c>.uitkx</c> paths because the extension set was cached at startup
+        /// before we added the entry.
+        /// </summary>
+        private static void RefreshCodeEditorSupportedExtensions()
+        {
+            try
+            {
+                var codeEditorType = Type.GetType("Unity.CodeEditor.CodeEditor, Unity.CodeEditor");
+                if (codeEditorType == null)
+                    return;
+
+                var editorProp = codeEditorType.GetProperty("Editor", BindingFlags.Static | BindingFlags.Public);
+                if (editorProp == null)
+                    return;
+
+                object editorInstance = editorProp.GetValue(null, null);
+                if (editorInstance == null)
+                    return;
+
+                var currentCodeEditorProp = editorInstance.GetType().GetProperty(
+                    "CurrentCodeEditor",
+                    BindingFlags.Instance | BindingFlags.Public
+                );
+                if (currentCodeEditorProp == null)
+                    return;
+
+                object currentCodeEditor = currentCodeEditorProp.GetValue(editorInstance, null);
+                if (currentCodeEditor == null)
+                    return;
+
+                // The VS package exposes IVisualStudioInstallation.ProjectGenerator
+                // which holds the ProjectGeneration with the cached extension sets.
+                // We need to reach into it and call SetupProjectSupportedExtensions().
+
+                // First try: VisualStudioEditor keeps a field or property for the installation
+                var codeEditorConcreteType = currentCodeEditor.GetType();
+
+                // Approach: call SyncIfNeeded or trigger SetupProjectSupportedExtensions
+                // via the TryGetVisualStudioInstallationForPath → ProjectGenerator chain.
+                var tryGetInstall = codeEditorConcreteType.GetMethod(
+                    "TryGetVisualStudioInstallationForPath",
+                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                );
+
+                if (tryGetInstall != null)
+                {
+                    // Signature: bool TryGetVisualStudioInstallationForPath(string, bool, out IVisualStudioInstallation)
+                    var editorPathProp = codeEditorType.GetProperty("CurrentEditorInstallation", BindingFlags.Static | BindingFlags.Public);
+                    string currentEditorPath = editorPathProp?.GetValue(null, null) as string ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(currentEditorPath))
+                    {
+                        var parameters = new object[] { currentEditorPath, true, null };
+                        object found = tryGetInstall.Invoke(currentCodeEditor, parameters);
+
+                        if (found is bool b && b && parameters[2] != null)
+                        {
+                            object installation = parameters[2];
+                            var projGenProp = installation.GetType().GetProperty(
+                                "ProjectGenerator",
+                                BindingFlags.Instance | BindingFlags.Public
+                            );
+
+                            if (projGenProp != null)
+                            {
+                                object generator = projGenProp.GetValue(installation, null);
+                                if (generator != null)
+                                {
+                                    var setupMethod = generator.GetType().GetMethod(
+                                        "SetupProjectSupportedExtensions",
+                                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+                                    );
+
+                                    if (setupMethod != null)
+                                    {
+                                        setupMethod.Invoke(generator, null);
+                                        LogVerbose("[UITKX Nav] Refreshed IDE package supported-extensions cache");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogVerbose($"[UITKX Nav] RefreshCodeEditorSupportedExtensions exception: {ex.Message}");
             }
         }
 
@@ -235,10 +332,26 @@ namespace ReactiveUITK.Editor
                     Arguments = $"\"{editorPath}\" {quotedSolution} \"{absolutePath}\" {line}",
                     UseShellExecute = false,
                     CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
                 };
 
-                Process.Start(psi);
-                return true;
+                var process = Process.Start(psi);
+                if (process == null)
+                    return false;
+
+                bool exited = process.WaitForExit(15_000);
+                if (!exited)
+                {
+                    LogVerbose("[UITKX Nav] COMIntegration.exe timed out after 15s");
+                    return false;
+                }
+
+                bool success = process.ExitCode == 0;
+                if (!success)
+                    LogVerbose($"[UITKX Nav] COMIntegration.exe exited with code {process.ExitCode}");
+
+                return success;
             }
             catch (Exception ex)
             {

@@ -232,9 +232,14 @@ Write-Host '======================================================' -ForegroundC
 if (-not $SkipServerBuild) {
     Write-Step 'Publishing LSP server (dotnet publish)'
     $serverOutDir = Join-Path $vsixProjDir 'server'
+
+    # Clean shared obj/ to prevent stale intermediates from a prior VS Code build
+    $lspObjDir = Join-Path $lspServerDir 'obj'
+    if (Test-Path $lspObjDir) { Remove-Item $lspObjDir -Recurse -Force }
+
     Push-Location $lspServerDir
     try {
-        $dotnetOut = & dotnet publish -c Release --self-contained false -o $serverOutDir --nologo 2>&1
+        $dotnetOut = & dotnet publish -c Release --runtime win-x64 --self-contained false -o $serverOutDir --nologo 2>&1
         if ($LASTEXITCODE -ne 0) {
             $dotnetOut | ForEach-Object { Write-Host "  $_" }
             Write-Error 'dotnet publish failed.'; exit 1

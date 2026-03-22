@@ -53,9 +53,9 @@ Hovering over `<Button>` shows `Text` from `ButtonProps` plus all 30+ inherited 
 
 ---
 
-## Runtime — Dead Code
+## ~~Runtime — Dead Code~~
 
-### TD-05: Dead `memoize` / `memoCompare` fields
+### ~~TD-05: Dead `memoize` / `memoCompare` fields~~ — ✅ COMPLETED
 **Priority: Low**
 
 **Update 2026-03-20:** Thorough investigation confirms these ARE dead code. `VNode.Memoize` and `VNode.TypedMemoCompare` are written in constructors and copy-constructors but **never read** by the reconciler. The actual bailout in `FiberFunctionComponent.cs` uses `IProps.Equals()` and `ReferenceEquals` — it never checks `Memoize` or `TypedMemoCompare`. `FiberNode` doesn't even store these properties.
@@ -135,7 +135,7 @@ The helper already exists and handles `"..."`, `@"..."`, `$"..."`, `"""..."""`, 
 
 **Fixes TD-07 and likely TD-10.**
 
-### TD-10: Four pre-existing formatter idempotency failures
+### ~~TD-10: Four pre-existing formatter idempotency failures~~ — ✅ COMPLETED
 **Priority: Medium** — **Likely caused by TD-09**
 
 **Failing files**:
@@ -148,9 +148,9 @@ The helper already exists and handles `"..."`, `@"..."`, `$"..."`, `"""..."""`, 
 
 ---
 
-## Environment — Noise
+## ~~Environment — Noise~~
 
-### TD-11: Burst AOT error: `Failed to resolve assembly: Assembly-CSharp-Editor`
+### ~~TD-11: Burst AOT error: `Failed to resolve assembly: Assembly-CSharp-Editor`~~ — ✅ COMPLETED
 **Priority: Low** — documentation only
 
 Burst logs `Mono.Cecil.AssemblyResolutionException` on every domain reload. ReactiveUITK has no `[BurstCompile]` methods — purely a false positive. Red console noise.
@@ -161,7 +161,7 @@ Burst logs `Mono.Cecil.AssemblyResolutionException` on every domain reload. Reac
 
 ## IDE Extensions — IntelliSense (carried from archived plans)
 
-### TD-12: `.Current` / `.Value` — no semantic colour on `useRef` variables
+### ~~TD-12: `.Current` / `.Value` — no semantic colour on `useRef` variables~~ — ✅ COMPLETED
 **Priority: Medium**
 **Carried from:** intellisense-bugs-v2.md (N-1)
 
@@ -174,7 +174,7 @@ Inside `RouterHooks.UseBlocker(…)`, the variable `allowNextRef` (declared by `
 2. Check generated virtual document — confirm `allowNextRef` has type `__UitkxRef__<bool>`
 3. If type is correct, likely a race condition — add a gate/await before completion request
 
-### TD-13: Zero IntelliSense integration test coverage
+### ~~TD-13: Zero IntelliSense integration test coverage~~ — ✅ COMPLETED
 **Priority: Medium**
 **Carried from:** intellisense-plan.md (T-10)
 

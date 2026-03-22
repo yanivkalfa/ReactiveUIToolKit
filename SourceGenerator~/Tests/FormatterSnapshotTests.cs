@@ -8683,8 +8683,8 @@ component Comp {
             "Samples",
             "UITKX",
             "Components",
-            "UitkxCounterFunc",
-            "UitkxCounterFunc.uitkx"
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
         );
         if (!File.Exists(filePath))
             return;
@@ -8845,8 +8845,8 @@ component Comp {
             "Samples",
             "UITKX",
             "Components",
-            "UitkxCounterFunc",
-            "UitkxCounterFunc.uitkx"
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
         );
         if (!File.Exists(file))
             return;
@@ -9114,16 +9114,26 @@ component Comp {
 
     private static System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic> RunAnalyzer(
         string source,
-        string filePath)
+        string filePath
+    )
     {
         var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
         var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(
-            source, filePath, diags);
+            source,
+            filePath,
+            diags
+        );
         var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(
-            source, filePath, directives, diags);
+            source,
+            filePath,
+            directives,
+            diags
+        );
         var parseResult = new ReactiveUITK.Language.Parser.ParseResult(
-            directives, nodes,
-            System.Collections.Immutable.ImmutableArray.CreateRange(diags));
+            directives,
+            nodes,
+            System.Collections.Immutable.ImmutableArray.CreateRange(diags)
+        );
         var analyzer = new ReactiveUITK.Language.Diagnostics.DiagnosticsAnalyzer();
         var t2 = analyzer.Analyze(parseResult, filePath);
         return t2.ToList();
