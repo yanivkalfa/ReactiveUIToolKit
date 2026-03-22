@@ -22,7 +22,7 @@ import {
   EXAMPLE_STYLES,
   EXAMPLE_TYPES,
   EXAMPLE_UTILS,
-  EXAMPLE_PARTIAL,
+  EXAMPLE_STANDALONE,
 } from './CompanionFilesPage.example'
 
 export const CompanionFilesPage: FC = () => (
@@ -63,7 +63,11 @@ export const CompanionFilesPage: FC = () => (
           primary={
             <>
               <strong>Namespace</strong> — comes from the <code>@namespace</code> directive at the
-              top of the <code>.uitkx</code> file.
+              top of the <code>.uitkx</code> file. If omitted, the generator looks for a companion{' '}
+              <code>.cs</code> file with the same name (e.g. <code>PlayerCard.cs</code> next to{' '}
+              <code>PlayerCard.uitkx</code>) and uses its namespace declaration. If neither exists,
+              it falls back to <code>ReactiveUITK.FunctionStyle</code>. Declaring{' '}
+              <code>@namespace</code> explicitly is recommended.
             </>
           }
         />
@@ -153,13 +157,13 @@ export const CompanionFilesPage: FC = () => (
     <CodeBlock language="tsx" code={EXAMPLE_UTILS} />
 
     <Typography variant="h5" component="h2" gutterBottom>
-      Extending the generated partial class
+      Standalone classes
     </Typography>
     <Typography variant="body1" paragraph>
-      Because the generated class is <code>partial</code>, you can extend it with additional fields
-      or methods. The namespace and class name <strong>must match</strong> the generated ones:
+      Not everything has to go in the partial class. Standalone classes under the same namespace are
+      useful for types shared across multiple components:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_PARTIAL} />
+    <CodeBlock language="tsx" code={EXAMPLE_STANDALONE} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       HMR support
