@@ -1,19 +1,17 @@
 export const EXAMPLE_UITKX = `@namespace MyGame.UI
 @using UnityEngine.UIElements
 
-component PlayerCard {
-  @props { PlayerInfo player }
-
+component PlayerCard(PlayerInfo player) {
   var healthColor = player.Health > player.MaxHealth / 2
-    ? PlayerCardStyles.HealthGreen
-    : PlayerCardStyles.DamageRed;
+    ? HealthGreen
+    : DamageRed;
 
   return (
     <VisualElement>
       <Label text={player.Name} />
-      <Label text={PlayerCardUtils.FormatHealth(player.Health, player.MaxHealth)}
+      <Label text={FormatHealth(player.Health, player.MaxHealth)}
              style:color={healthColor} />
-      <Label text={PlayerCardUtils.RankLabel(player.Rank)} />
+      <Label text={RankLabel(player.Rank)} />
     </VisualElement>
   );
 }`
@@ -40,7 +38,7 @@ using UnityEngine.UIElements;
 
 namespace MyGame.UI
 {
-    public static class PlayerCardStyles
+    public partial class PlayerCard
     {
         public static readonly StyleColor HealthGreen = new(new Color(0.2f, 0.8f, 0.3f));
         public static readonly StyleColor DamageRed   = new(new Color(0.9f, 0.2f, 0.2f));
@@ -51,21 +49,24 @@ namespace MyGame.UI
 export const EXAMPLE_TYPES = `// PlayerCard.types.cs
 namespace MyGame.UI
 {
-    public enum PlayerRank { Bronze, Silver, Gold, Diamond }
-
-    public readonly struct PlayerInfo
+    public partial class PlayerCard
     {
-        public string Name { get; init; }
-        public int Health { get; init; }
-        public int MaxHealth { get; init; }
-        public PlayerRank Rank { get; init; }
+        public enum PlayerRank { Bronze, Silver, Gold, Diamond }
+
+        public readonly struct PlayerInfo
+        {
+            public string Name { get; init; }
+            public int Health { get; init; }
+            public int MaxHealth { get; init; }
+            public PlayerRank Rank { get; init; }
+        }
     }
 }`
 
 export const EXAMPLE_UTILS = `// PlayerCard.utils.cs
 namespace MyGame.UI
 {
-    public static class PlayerCardUtils
+    public partial class PlayerCard
     {
         public static string FormatHealth(int current, int max)
             => $"{current} / {max} HP";
@@ -80,12 +81,12 @@ namespace MyGame.UI
     }
 }`
 
-export const EXAMPLE_PARTIAL = `// PlayerCard.extra.cs — extending the generated partial class
-namespace MyGame.UI                    // ← must match @namespace
+export const EXAMPLE_STANDALONE = `// Alternatively, standalone classes under the same namespace also work.
+// This is useful for types shared across multiple components.
+namespace MyGame.UI
 {
-    public partial class PlayerCard    // ← must match component name
+    public static class SharedColors
     {
-        // Add fields, methods, or interfaces to the generated class
-        private static readonly Color GoldColor = new(1f, 0.84f, 0f);
+        public static readonly Color Gold = new(1f, 0.84f, 0f);
     }
 }`
