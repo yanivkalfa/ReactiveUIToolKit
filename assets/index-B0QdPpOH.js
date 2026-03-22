@@ -5414,13 +5414,38 @@ public static class SafeAreaHooksDemoFunc
       />
     </VisualElement>
   );
-}`;const Dx=()=>(0,L.jsxs)(W,{sx:iy.root,children:[(0,L.jsx)(U,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Components in UITKX`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`In the UITKX track, components are authored as markup using intrinsic tags like`,` `,(0,L.jsx)(`code`,{children:`<VisualElement>`}),`, `,(0,L.jsx)(`code`,{children:`<Button>`}),`, `,(0,L.jsx)(`code`,{children:`<Text>`}),`, router tags, and your own custom components.`]}),(0,L.jsx)(U,{variant:`body1`,paragraph:!0,children:`The practical rule is simple: use intrinsic tags for built-in elements, and use PascalCase names for your own components. If you wrap a native element, consumers should use your custom component name, not the native one.`}),(0,L.jsx)(Z,{language:`tsx`,code:Ex}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Authoring guidelines`}),(0,L.jsxs)(G,{children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Prefer direct tag props over hand-building props objects when authoring UITKX.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Keep setup code small and close to the returned markup tree.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Use custom component names whenever a native tag name would collide.`})})]})]}),Ox=()=>(0,L.jsxs)(W,{sx:Rv.root,children:[(0,L.jsx)(U,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Companion Files`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`The source generator produces a `,(0,L.jsx)(`strong`,{children:`complete C# class`}),` from every`,` `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file — namespace, partial class, `,(0,L.jsx)(`code`,{children:`Render()`}),` method, and everything else. You do `,(0,L.jsx)(`strong`,{children:`not`}),` need to create any `,(0,L.jsx)(`code`,{children:`.cs`}),` file for a component to work.`]}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Companion files are `,(0,L.jsx)(`strong`,{children:`optional`}),` `,(0,L.jsx)(`code`,{children:`.cs`}),` files that live next to a`,` `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file. Use them when you want to share styles, type definitions, or utility functions with your component.`]}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Directory layout`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Place companion files in the `,(0,L.jsx)(`strong`,{children:`same directory`}),` as the `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file:`]}),(0,L.jsx)(Z,{language:`text`,code:`Assets/
+}`;const Dx=()=>(0,L.jsxs)(W,{sx:iy.root,children:[(0,L.jsx)(U,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Components in UITKX`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`In the UITKX track, components are authored as markup using intrinsic tags like`,` `,(0,L.jsx)(`code`,{children:`<VisualElement>`}),`, `,(0,L.jsx)(`code`,{children:`<Button>`}),`, `,(0,L.jsx)(`code`,{children:`<Text>`}),`, router tags, and your own custom components.`]}),(0,L.jsx)(U,{variant:`body1`,paragraph:!0,children:`The practical rule is simple: use intrinsic tags for built-in elements, and use PascalCase names for your own components. If you wrap a native element, consumers should use your custom component name, not the native one.`}),(0,L.jsx)(Z,{language:`tsx`,code:Ex}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Authoring guidelines`}),(0,L.jsxs)(G,{children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Prefer direct tag props over hand-building props objects when authoring UITKX.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Keep setup code small and close to the returned markup tree.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Use custom component names whenever a native tag name would collide.`})})]})]}),Ox=()=>(0,L.jsxs)(W,{sx:Rv.root,children:[(0,L.jsx)(U,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Companion Files`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`The source generator produces a `,(0,L.jsx)(`strong`,{children:`complete C# class`}),` from every`,` `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file — namespace, partial class, `,(0,L.jsx)(`code`,{children:`Render()`}),` method, and everything else. You do `,(0,L.jsx)(`strong`,{children:`not`}),` need to create any `,(0,L.jsx)(`code`,{children:`.cs`}),` file for a component to work.`]}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Companion files are `,(0,L.jsx)(`strong`,{children:`optional`}),` `,(0,L.jsx)(`code`,{children:`.cs`}),` files that live next to a`,` `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file. Use them when you want to share styles, type definitions, or utility functions with your component.`]}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`The UITKX component`}),(0,L.jsx)(U,{variant:`body1`,paragraph:!0,children:`Here is a component that uses styles, types, and utility functions defined in companion files:`}),(0,L.jsx)(Z,{language:`tsx`,code:`@namespace MyGame.UI
+@using UnityEngine.UIElements
+
+component PlayerCard {
+  @props { PlayerInfo player }
+
+  var healthColor = player.Health > player.MaxHealth / 2
+    ? PlayerCardStyles.HealthGreen
+    : PlayerCardStyles.DamageRed;
+
+  return (
+    <VisualElement>
+      <Label text={player.Name} />
+      <Label text={PlayerCardUtils.FormatHealth(player.Health, player.MaxHealth)}
+             style:color={healthColor} />
+      <Label text={PlayerCardUtils.RankLabel(player.Rank)} />
+    </VisualElement>
+  );
+}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Generated namespace & class name`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`The source generator creates a C# class from the `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file. Two things determine its identity:`]}),(0,L.jsxs)(G,{children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:(0,L.jsxs)(L.Fragment,{children:[(0,L.jsx)(`strong`,{children:`Namespace`}),` — comes from the `,(0,L.jsx)(`code`,{children:`@namespace`}),` directive at the top of the `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file.`]})})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:(0,L.jsxs)(L.Fragment,{children:[(0,L.jsx)(`strong`,{children:`Class name`}),` — comes from the `,(0,L.jsx)(`code`,{children:`component`}),` name (the identifier after the `,(0,L.jsx)(`code`,{children:`component`}),` keyword).`]})})})]}),(0,L.jsx)(U,{variant:`body1`,paragraph:!0,children:`For the example above, the generator produces:`}),(0,L.jsx)(Z,{language:`tsx`,code:`// Auto-generated by the source generator (simplified):
+namespace MyGame.UI                    // ← from @namespace
+{
+    public partial class PlayerCard    // ← from component name
+    {
+        public static VisualElement Render(PlayerInfo player) { ... }
+    }
+}`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Companion `,(0,L.jsx)(`code`,{children:`.cs`}),` files that need to reference or extend the generated class must use the `,(0,L.jsx)(`strong`,{children:`same namespace`}),` and `,(0,L.jsx)(`strong`,{children:`same class name`}),`.`]}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Directory layout`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Place companion files in the `,(0,L.jsx)(`strong`,{children:`same directory`}),` as the `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file:`]}),(0,L.jsx)(Z,{language:`text`,code:`Assets/
   UI/
     PlayerCard/
-      PlayerCard.uitkx          ← component markup
+      PlayerCard.uitkx          ← component template
       PlayerCard.styles.cs      ← optional: style constants & helpers
       PlayerCard.types.cs       ← optional: enums, structs, DTOs
-      PlayerCard.utils.cs       ← optional: pure helper functions`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Naming conventions`}),(0,L.jsx)(C_,{component:td,variant:`outlined`,sx:{mb:2},children:(0,L.jsxs)(c_,{size:`small`,children:[(0,L.jsx)(k_,{children:(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`strong`,{children:`File`})}),(0,L.jsx)(J,{children:(0,L.jsx)(`strong`,{children:`Purpose`})}),(0,L.jsx)(J,{children:(0,L.jsx)(`strong`,{children:`Required?`})})]})}),(0,L.jsxs)(h_,{children:[(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.styles.cs`})}),(0,L.jsx)(J,{children:`Style constants, helper methods, colours, sizes`}),(0,L.jsx)(J,{children:`No`})]}),(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.types.cs`})}),(0,L.jsx)(J,{children:`Enums, structs, DTOs used by the component`}),(0,L.jsx)(J,{children:`No`})]}),(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.utils.cs`})}),(0,L.jsx)(J,{children:`Pure helper / formatting functions`}),(0,L.jsx)(J,{children:`No`})]})]})]})}),(0,L.jsxs)(U,{variant:`body2`,paragraph:!0,children:[`These names are conventions, not enforced rules. Any `,(0,L.jsx)(`code`,{children:`.cs`}),` file (except`,` `,(0,L.jsx)(`code`,{children:`.g.cs`}),`) in the same directory is automatically picked up during compilation.`]}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Example: style helpers`}),(0,L.jsx)(Z,{language:`csharp`,code:`// PlayerCard.styles.cs — style helpers shared across the component
+      PlayerCard.utils.cs       ← optional: pure helper functions`}),(0,L.jsxs)(U,{variant:`body2`,paragraph:!0,children:[`These names are conventions, not enforced rules. Any `,(0,L.jsx)(`code`,{children:`.cs`}),` file (except`,` `,(0,L.jsx)(`code`,{children:`.g.cs`}),`) in the same directory is automatically picked up during compilation.`]}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Naming conventions`}),(0,L.jsx)(C_,{component:td,variant:`outlined`,sx:{mb:2},children:(0,L.jsxs)(c_,{size:`small`,children:[(0,L.jsx)(k_,{children:(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`strong`,{children:`File`})}),(0,L.jsx)(J,{children:(0,L.jsx)(`strong`,{children:`Purpose`})}),(0,L.jsx)(J,{children:(0,L.jsx)(`strong`,{children:`Required?`})})]})}),(0,L.jsxs)(h_,{children:[(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.styles.cs`})}),(0,L.jsx)(J,{children:`Style constants, helper methods, colours, sizes`}),(0,L.jsx)(J,{children:`No`})]}),(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.types.cs`})}),(0,L.jsx)(J,{children:`Enums, structs, DTOs used by the component`}),(0,L.jsx)(J,{children:`No`})]}),(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.utils.cs`})}),(0,L.jsx)(J,{children:`Pure helper / formatting functions`}),(0,L.jsx)(J,{children:`No`})]}),(0,L.jsxs)(Y,{children:[(0,L.jsx)(J,{children:(0,L.jsx)(`code`,{children:`MyComponent.extra.cs`})}),(0,L.jsx)(J,{children:`Partial class extension (same namespace + class name)`}),(0,L.jsx)(J,{children:`No`})]})]})]})}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Example: style helpers`}),(0,L.jsx)(Z,{language:`tsx`,code:`// PlayerCard.styles.cs
 using UnityEngine.UIElements;
 
 namespace MyGame.UI
@@ -5428,19 +5453,10 @@ namespace MyGame.UI
     public static class PlayerCardStyles
     {
         public static readonly StyleColor HealthGreen = new(new Color(0.2f, 0.8f, 0.3f));
-        public static readonly StyleColor DamageRed = new(new Color(0.9f, 0.2f, 0.2f));
-        public static readonly StyleLength AvatarSize = new(64);
-
-        public static void ApplyCardLayout(VisualElement el)
-        {
-            el.style.flexDirection = FlexDirection.Row;
-            el.style.paddingLeft = 8;
-            el.style.paddingRight = 8;
-            el.style.paddingTop = 4;
-            el.style.paddingBottom = 4;
-        }
+        public static readonly StyleColor DamageRed   = new(new Color(0.9f, 0.2f, 0.2f));
+        public static readonly StyleLength AvatarSize  = new(64);
     }
-}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Example: type definitions`}),(0,L.jsx)(Z,{language:`csharp`,code:`// PlayerCard.types.cs — shared type definitions
+}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Example: type definitions`}),(0,L.jsx)(Z,{language:`tsx`,code:`// PlayerCard.types.cs
 namespace MyGame.UI
 {
     public enum PlayerRank { Bronze, Silver, Gold, Diamond }
@@ -5452,7 +5468,7 @@ namespace MyGame.UI
         public int MaxHealth { get; init; }
         public PlayerRank Rank { get; init; }
     }
-}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Example: utility functions`}),(0,L.jsx)(Z,{language:`csharp`,code:`// PlayerCard.utils.cs — reusable helpers
+}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Example: utility functions`}),(0,L.jsx)(Z,{language:`tsx`,code:`// PlayerCard.utils.cs
 namespace MyGame.UI
 {
     public static class PlayerCardUtils
@@ -5468,24 +5484,14 @@ namespace MyGame.UI
             _                  => "· Bronze",
         };
     }
-}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Using them in UITKX`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Reference companion types and methods directly in your `,(0,L.jsx)(`code`,{children:`.uitkx`}),` — they compile together:`]}),(0,L.jsx)(Z,{language:`tsx`,code:`@namespace MyGame.UI
-@using UnityEngine.UIElements
-
-component PlayerCard {
-  @props { PlayerInfo player }
-
-  var healthColor = player.Health > player.MaxHealth / 2
-    ? PlayerCardStyles.HealthGreen
-    : PlayerCardStyles.DamageRed;
-
-  return (
-    <VisualElement>
-      <Text text={player.Name} />
-      <Text text={PlayerCardUtils.FormatHealth(player.Health, player.MaxHealth)}
-            style:color={healthColor} />
-      <Text text={PlayerCardUtils.RankLabel(player.Rank)} />
-    </VisualElement>
-  );
+}`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Extending the generated partial class`}),(0,L.jsxs)(U,{variant:`body1`,paragraph:!0,children:[`Because the generated class is `,(0,L.jsx)(`code`,{children:`partial`}),`, you can extend it with additional fields or methods. The namespace and class name `,(0,L.jsx)(`strong`,{children:`must match`}),` the generated ones:`]}),(0,L.jsx)(Z,{language:`tsx`,code:`// PlayerCard.extra.cs — extending the generated partial class
+namespace MyGame.UI                    // ← must match @namespace
+{
+    public partial class PlayerCard    // ← must match component name
+    {
+        // Add fields, methods, or interfaces to the generated class
+        private static readonly Color GoldColor = new(1f, 0.84f, 0f);
+    }
 }`}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`HMR support`}),(0,L.jsxs)(G,{children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Editing a companion .cs file automatically triggers HMR for the associated .uitkx.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Creating a new companion file is detected instantly — the file watcher picks up new files.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`All .cs files in the directory (except .g.cs) are included in compilation.`})})]}),(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`When not to use companion files`}),(0,L.jsxs)(G,{children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Simple components — if a component has no shared styles or types, it doesn't need any companion files.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:(0,L.jsxs)(L.Fragment,{children:[`Small helpers — for code that only the component uses, prefer`,` `,(0,L.jsx)(`code`,{children:`@code`}),` blocks inside the `,(0,L.jsx)(`code`,{children:`.uitkx`}),` file itself.`]})})})]})]}),kx=()=>(0,L.jsxs)(W,{sx:Wv.root,children:[(0,L.jsx)(U,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`Concepts & Environment`}),(0,L.jsx)(U,{variant:`body1`,paragraph:!0,children:`UITKX is the authoring layer. ReactiveUITK is the runtime layer underneath it. In practice, that means you think in terms of components, intrinsic tags, hooks, and markup structure, while the runtime handles reconciliation, scheduling, and adapter application.`}),(0,L.jsx)(U,{variant:`body1`,paragraph:!0,children:`The key mental model is: write UI as UITKX, keep your setup code local to the component, and let the generator and runtime bridge that into Unity UI Toolkit.`}),(0,L.jsxs)(W,{sx:Wv.section,children:[(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Core authoring rules`}),(0,L.jsxs)(G,{sx:Wv.list,children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Intrinsic UITKX/native tag names are reserved; custom components should use distinct names.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Function-style components are the default form: setup code first, then a single returned markup tree.`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`State setters are called directly like functions, for example setCount(count + 1).`})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Companion .cs files are optional — use them to share styles, types, or utilities. The source generator produces the full class from the .uitkx file alone.`})})]})]}),(0,L.jsxs)(W,{sx:Wv.section,children:[(0,L.jsx)(U,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Environment defines`}),(0,L.jsx)(U,{variant:`body2`,paragraph:!0,children:`Compile-time environment and tracing symbols still work the same way in UITKX projects, because the generated output runs on the same ReactiveUITK runtime.`}),(0,L.jsxs)(G,{sx:Wv.list,children:[(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:(0,L.jsxs)(L.Fragment,{children:[(0,L.jsx)(`code`,{children:`ENV_DEV`}),`, `,(0,L.jsx)(`code`,{children:`ENV_STAGING`}),`, `,(0,L.jsx)(`code`,{children:`ENV_PROD`}),` control environment labeling.`]})})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:(0,L.jsxs)(L.Fragment,{children:[(0,L.jsx)(`code`,{children:`RUITK_TRACE_VERBOSE`}),` and `,(0,L.jsx)(`code`,{children:`RUITK_TRACE_BASIC`}),` control runtime diagnostics.`]})})}),(0,L.jsx)(K,{disablePadding:!0,children:(0,L.jsx)(q,{primary:`Editor-only diagnostic helpers still compile behind the same development symbols.`})})]})]})]});var Ax={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2},table:{"& th":{fontWeight:600},"& td, & th":{px:1.5,py:.75,fontSize:`0.875rem`},"& code":{fontSize:`0.8125rem`,backgroundColor:`rgba(255,255,255,0.06)`,px:.5,borderRadius:.5}}},jx=`{
   // Path to a custom UitkxLanguageServer.dll (leave empty for bundled server)
   "uitkx.server.path": "",
