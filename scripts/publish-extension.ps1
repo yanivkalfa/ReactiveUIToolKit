@@ -167,6 +167,11 @@ $lspServerDir = (Resolve-Path $lspServerDir).Path
 
 if (-not $SkipServerBuild) {
     Write-Step 'Publishing LSP server (dotnet publish)'
+
+    # Clean shared obj/ to prevent stale intermediates from a prior VS 2022 build
+    $lspObjDir = Join-Path $lspServerDir 'obj'
+    if (Test-Path $lspObjDir) { Remove-Item $lspObjDir -Recurse -Force }
+
     Push-Location $lspServerDir
     try {
         $dotnetOut = & dotnet publish -c Release --self-contained false -o '../vscode/server' --nologo 2>&1

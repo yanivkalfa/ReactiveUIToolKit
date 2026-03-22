@@ -306,6 +306,7 @@ jobs:
         run: |
           dotnet publish ide-extensions~/lsp-server/UitkxLanguageServer.csproj `
             -c Release `
+            --runtime win-x64 `
             --self-contained false `
             -o ide-extensions~/visual-studio/UitkxVsix/server
 
