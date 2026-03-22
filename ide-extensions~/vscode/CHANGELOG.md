@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.285] - 2026-03-22
+- Fix: debounce IndexChanged → diagnostics revalidation (500ms coalescing). Previously, each individual .cs file change triggered a full re-publish of diagnostics for all open .uitkx files, causing 70+ notifications during Unity recompilation bursts. Now coalesced into a single revalidation per burst.
+
 ## [1.0.282] - 2026-03-20
 - Remove dead memoize/memoCompare API; convert SyntheticEventDemo to direct attributes; add docs pages (language reference, diagnostics, config, debugging, editor limitations)
 
