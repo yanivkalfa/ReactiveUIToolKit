@@ -1,5 +1,8 @@
 ﻿# Changelog
 
+## [1.0.286] - 2026-03-22
+- Fix: server log file contention when multiple LSP server processes run concurrently (during VS extension restart). ServerLog now uses FileShare.ReadWrite to avoid "file in use" errors that cascaded into RoslynHost and DLL watcher failures.
+
 ## [1.0.285] - 2026-03-22
 - Fix: debounce IndexChanged → diagnostics revalidation (500ms coalescing). Previously, each individual .cs file change triggered a full re-publish of diagnostics for all open .uitkx files, causing 70+ notifications during Unity recompilation bursts. Now coalesced into a single revalidation per burst.
 
