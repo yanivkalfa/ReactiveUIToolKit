@@ -1,7 +1,7 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
-component CounterFooter(string message = "Footer") {
+component UitkxTestSubFileDoNotTouch(string message = "Footer") {
   var footerStyle = new Style {
     (StyleKeys.PaddingTop, 8f),
     (StyleKeys.PaddingBottom, 8f),
