@@ -3,6 +3,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -60,6 +62,11 @@ public sealed class DiagnosticsPublisher
     private readonly ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>> _lastT3 =
         new ConcurrentDictionary<string, IReadOnlyList<ParseDiagnostic>>(StringComparer.Ordinal);
 
+    // Debounce timer for IndexChanged → RevalidateOpenDocuments.
+    // When many .cs files change in a burst (e.g. Unity recompilation),
+    // each fires IndexChanged individually; we coalesce into one revalidation.
+    private CancellationTokenSource? _revalidateCts;
+
     public DiagnosticsPublisher(
         ILanguageServerFacade server,
         UitkxSchema schema,
@@ -73,31 +80,42 @@ public sealed class DiagnosticsPublisher
         _documentStore = documentStore;
 
         // When the background workspace scan finishes, re-validate every open .uitkx
-        // document so that components indexed after initial open are no longer flagged
-        // as unknown elements.
-        // Re-validate all open .uitkx documents when the index changes.
-        // Shared handler used by both ScanCompleted (initial scan) and
-        // IndexChanged (single-file refresh from didChangeWatchedFiles).
-        void RevalidateOpenDocuments()
+        // document immediately so that components indexed after initial open are no
+        // longer flagged as unknown elements.
+        _index.ScanCompleted += RevalidateOpenDocuments;
+
+        // When individual files change (didChangeWatchedFiles), debounce the
+        // revalidation so a burst of .cs changes produces only one re-publish.
+        _index.IndexChanged += ScheduleDebouncedRevalidation;
+    }
+
+    private void RevalidateOpenDocuments()
+    {
+        foreach (var (uriString, text) in _documentStore.GetAll())
         {
-            foreach (var (uriString, text) in _documentStore.GetAll())
+            if (!uriString.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                continue;
+            try
             {
-                if (!uriString.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                try
-                {
-                    var docUri = DocumentUri.From(uriString);
-                    Publish(docUri, text, roslynHost: null);
-                }
-                catch (Exception ex)
-                {
-                    ServerLog.Log($"[Diagnostics] index re-publish error: {ex.Message}");
-                }
+                var docUri = DocumentUri.From(uriString);
+                Publish(docUri, text, roslynHost: null);
+            }
+            catch (Exception ex)
+            {
+                ServerLog.Log($"[Diagnostics] index re-publish error: {ex.Message}");
             }
         }
+    }
 
-        _index.ScanCompleted += RevalidateOpenDocuments;
-        _index.IndexChanged += RevalidateOpenDocuments;
+    private void ScheduleDebouncedRevalidation()
+    {
+        _revalidateCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _revalidateCts = cts;
+        _ = Task.Delay(500, cts.Token).ContinueWith(_ =>
+        {
+            RevalidateOpenDocuments();
+        }, cts.Token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
     }
 
     // â”€â”€ Tier 1 + 2: immediate synchronous push â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
