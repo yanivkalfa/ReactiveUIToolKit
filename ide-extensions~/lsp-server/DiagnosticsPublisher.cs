@@ -182,6 +182,12 @@ public sealed class DiagnosticsPublisher
         var knownAttributes = BuildKnownAttributes(projectElements);
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
 
+        // ── T2v version-compatibility diagnostics ────────────────────────────
+        // Check elements and style properties against the detected Unity version.
+        // Only produces diagnostics when schema entries carry sinceUnity annotations.
+        var versionDiags = CheckVersionCompatibility(
+            parsedNodes, roslynHost?.DetectedUnityVersion ?? UnityVersion.Unknown);
+
         // NOTE: T2 element/attribute checks for setup JSX are already covered
         // by the main Analyze path — CanonicalLowering hoists setup code into a
         // CodeBlockNode whose ReturnMarkups contain the JSX elements, and
@@ -215,7 +221,7 @@ public sealed class DiagnosticsPublisher
             });
         }
 
-        var t1t2 = filteredT1.Concat(t2Diags).ToList();
+        var t1t2 = filteredT1.Concat(t2Diags).Concat(versionDiags).ToList();
         if (!string.IsNullOrEmpty(localPath))
             _lastT1T2[localPath] = t1t2;
 
@@ -386,6 +392,71 @@ public sealed class DiagnosticsPublisher
         catch
         {
             return null;
+        }
+    }
+
+    // ── Version-compatibility diagnostics ──────────────────────────────────
+
+    /// <summary>
+    /// Walks the parsed element tree and emits <see cref="DiagnosticCodes.VersionMismatch"/>
+    /// warnings for any elements (or style properties) whose schema annotations
+    /// indicate they require a newer Unity version than the one detected in the project.
+    /// Returns an empty list when the user version is unknown or no annotations exist.
+    /// </summary>
+    private List<ParseDiagnostic> CheckVersionCompatibility(
+        ImmutableArray<AstNode> nodes, UnityVersion userVersion)
+    {
+        var diags = new List<ParseDiagnostic>();
+        if (!userVersion.IsKnown)
+            return diags;
+
+        foreach (var node in nodes)
+            WalkForVersionDiags(node, userVersion, diags);
+        return diags;
+    }
+
+    private void WalkForVersionDiags(AstNode node, UnityVersion userVersion, List<ParseDiagnostic> diags)
+    {
+        if (node is ElementNode el)
+        {
+            // Check element version requirement
+            var elMinVersion = _schema.GetElementMinVersion(el.TagName);
+            if (elMinVersion.IsKnown && userVersion < elMinVersion)
+            {
+                diags.Add(new ParseDiagnostic
+                {
+                    Code = DiagnosticCodes.VersionMismatch,
+                    Severity = ParseSeverity.Warning,
+                    Message = $"Element '<{el.TagName}>' requires {elMinVersion.ToDisplayString()}+, "
+                            + $"but this project targets {userVersion.ToDisplayString()}.",
+                    SourceLine = el.SourceLine,
+                    SourceColumn = el.SourceColumn + 1, // +1 to point past '<'
+                    EndLine = el.SourceLine,
+                    EndColumn = el.SourceColumn + 1 + el.TagName.Length,
+                });
+            }
+
+            // Check style attribute for version-gated properties
+            foreach (var attr in el.Attributes)
+            {
+                if (!attr.Name.Equals("style", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // The style attribute value may reference style properties that have
+                // version annotations. We check this at the style-key level via schema
+                // annotations when they exist. Individual style property version checks
+                // happen when someone adds sinceUnity entries to styleVersions in the
+                // schema. This is the hookpoint — no actual annotations to check yet.
+            }
+
+            // Recurse into children
+            foreach (var child in el.Children)
+                WalkForVersionDiags(child, userVersion, diags);
+        }
+        else if (node is CodeBlockNode cb)
+        {
+            foreach (var rm in cb.ReturnMarkups)
+                WalkForVersionDiags(rm.Element, userVersion, diags);
         }
     }
 
