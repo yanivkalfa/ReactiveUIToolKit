@@ -19,7 +19,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// all matching fibers across all active renderers.
         /// </summary>
         /// <returns>Number of fiber instances swapped.</returns>
-        public static int SwapAll(Assembly hmrAssembly, string componentName)
+        public static int SwapAll(Assembly hmrAssembly, string componentName, string uitkxFilePath = null)
         {
             // ── 1. Find the generated type via [UitkxElement] attribute ──────
             var newDelegate = ExtractRenderDelegate(hmrAssembly, componentName);
@@ -40,7 +40,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var fiberRenderer = renderer.FiberRendererInternal;
                 if (fiberRenderer?.Root?.Current == null)
                     continue;
-                total += WalkAndSwap(fiberRenderer.Root, componentName, newDelegate);
+                total += WalkAndSwap(fiberRenderer.Root, componentName, newDelegate, uitkxFilePath);
             }
 
             // ── 3. Walk runtime renderers ─────────────────────────────────
@@ -51,7 +51,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                     total += WalkAndSwap(
                         vhr.FiberRendererInternal.Root,
                         componentName,
-                        newDelegate
+                        newDelegate,
+                        uitkxFilePath
                     );
             }
 
@@ -114,11 +115,12 @@ namespace ReactiveUITK.EditorSupport.HMR
         private static int WalkAndSwap(
             FiberRoot root,
             string componentName,
-            Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> newDelegate
+            Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> newDelegate,
+            string uitkxFilePath
         )
         {
             int count = 0;
-            WalkFiber(root.Current, root.Reconciler, componentName, newDelegate, ref count);
+            WalkFiber(root.Current, root.Reconciler, componentName, newDelegate, uitkxFilePath, ref count);
             return count;
         }
 
@@ -127,13 +129,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             FiberReconciler reconciler,
             string componentName,
             Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> newDelegate,
+            string uitkxFilePath,
             ref int count
         )
         {
             if (fiber == null)
                 return;
 
-            if (fiber.Tag == FiberTag.FunctionComponent && IsMatch(fiber, componentName))
+            if (fiber.Tag == FiberTag.FunctionComponent && IsMatch(fiber, componentName, uitkxFilePath))
             {
                 // Swap the render delegate
                 fiber.TypedRender = newDelegate;
@@ -166,11 +169,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             // Recurse: first child, then sibling
-            WalkFiber(fiber.Child, reconciler, componentName, newDelegate, ref count);
-            WalkFiber(fiber.Sibling, reconciler, componentName, newDelegate, ref count);
+            WalkFiber(fiber.Child, reconciler, componentName, newDelegate, uitkxFilePath, ref count);
+            WalkFiber(fiber.Sibling, reconciler, componentName, newDelegate, uitkxFilePath, ref count);
         }
 
-        private static bool IsMatch(FiberNode fiber, string componentName)
+        private static bool IsMatch(FiberNode fiber, string componentName, string uitkxFilePath)
         {
             if (fiber.TypedRender == null)
                 return false;
@@ -185,7 +188,22 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             // Check [UitkxElement] attribute
             var attr = declaringType.GetCustomAttribute<UitkxElementAttribute>();
-            return attr?.ComponentName == componentName;
+            if (attr?.ComponentName == componentName)
+                return true;
+
+            // File-path fallback: after a rename, the class name has changed but
+            // the source file path in [UitkxSource] stays stable.  Use it to
+            // identify the component even when the name no longer matches.
+            if (uitkxFilePath != null)
+            {
+                var sourceAttr = declaringType.GetCustomAttribute<UitkxSourceAttribute>();
+                if (sourceAttr != null
+                    && string.Equals(sourceAttr.SourcePath, uitkxFilePath,
+                        StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
 
         private static void ResetComponentState(FiberNode fiber)

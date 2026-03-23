@@ -163,6 +163,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Namespace + class
                 L($"namespace {_ns}");
                 L("{");
+                L($"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]");
                 L($"    [global::ReactiveUITK.UitkxElement(\"{_componentName}\")]");
                 L($"    public partial class {_componentName}");
                 L("    {");

@@ -1,45 +1,9 @@
 # Tech Debt
 
-## Inspector "Go to Script" broken for `.uitkx`-generated classes
+## ~~Inspector "Go to Script" broken for `.uitkx`-generated classes~~ ✅ FIXED
 
-**Symptom:** Clicking on a generated script reference in the Unity Inspector
-opens Visual Studio but navigates to **no file at all**. The IDE window
-appears blank — it should navigate to the `.cs` file that was clicked.
-
-**Root cause:** `TryOpenViaVisualStudioComIntegration()` in
-`Editor/UitkxConsoleNavigation.cs` (line ~245) **unconditionally returns
-`true`** after calling `Process.Start()` on `COMIntegration.exe`, without
-verifying the process actually opened the file. Because `Process.Start()` is
-asynchronous and doesn't validate file paths, the callback claims success
-immediately, **consuming the event** so Unity's default handler never runs.
-If COMIntegration.exe then fails silently (malformed path, crash, async
-timing), Visual Studio is open but has no file.
-
-**Exact flow:**
-1. User clicks script reference in Inspector for a `.g.cs` asset.
-2. `OnOpenAsset(-10000)` fires → `HandleOnOpenAsset()` resolves `.g.cs` →
-   `.uitkx` via `#line` directives in `TryResolveUitkxTarget()`.
-3. `TryOpenViaConfiguredCodeEditor()` returns false.
-4. `TryOpenViaConfiguredEditorExecutable()` detects "devenv" in the editor
-   path → calls `TryOpenViaVisualStudioComIntegration()`.
-5. `Process.Start(psi)` fires `COMIntegration.exe` asynchronously.
-6. Method returns `true` immediately → event consumed → Unity fallback
-   (`TryOpenViaUnityDefaultEditor`) is **never attempted**.
-7. If COMIntegration.exe fails silently → VS is open, no file shown.
-
-**Fix:** Change `TryOpenViaVisualStudioComIntegration()` to return `false`
-instead of `true` (so Unity's default handler still fires as a fallback),
-or verify process success before returning `true`:
-```csharp
-var process = Process.Start(psi);
-return process != null && !process.HasExited;
-```
-
-**File to fix:**
-- `Editor/UitkxConsoleNavigation.cs` — line ~245 in
-  `TryOpenViaVisualStudioComIntegration()`
-
-**Priority:** Medium — does not affect runtime, but hurts editor workflow.
+Fixed — `TryOpenViaVisualStudioComIntegration()` now correctly verifies
+process success before consuming the event.
 
 ---
 
@@ -74,63 +38,17 @@ var btnTextStyle = new Style {
 
 ---
 
-## LSP diagnostics not updated when companion `.cs` file changes
+## ~~LSP diagnostics not updated when companion `.cs` file changes~~ ✅ FIXED
 
-**Symptom:** Moving a symbol from the `.uitkx` file into a companion `.cs`
-partial class does not clear the red error squiggle until the `.uitkx` file
-itself is edited (e.g. adding/removing a character).
-
-**Reproduction:**
-1. `DiabloMenuDemoFunc.uitkx` has a local:
-   ```csharp
-   var nameStyle = new Style {
-       (StyleKeys.TextColor, GoldAccent),
-       (StyleKeys.FontSize, 14f),
-   };
-   ```
-2. Delete it from the `.uitkx` → references turn red (expected).
-3. Add `nameStyle` as a static field in `DiabloMenuDemoFunc.styles.cs`
-   (the companion partial class).
-4. The `.uitkx` still shows red — the error does not resolve until you
-   make a dummy edit in the `.uitkx` file.
-
-**Expected:** Saving the companion `.cs` file should trigger the LSP to
-re-evaluate diagnostics for the `.uitkx` file automatically.
-
-**Files to investigate:**
-- LSP server file-watcher / `workspace/didChangeWatchedFiles` handler
-- Whether companion `.cs` changes trigger a re-compilation of the
-  virtual `.g.cs` document used for diagnostics
-
-**Priority:** Medium — common workflow friction when refactoring into companions.
+Fixed — TextSyncHandler now registers for `**/*.cs` in addition to `**/*.uitkx`.
+When a companion `.cs` file is edited, the handler sets a companion overlay and
+re-publishes diagnostics for all `.uitkx` files in the same directory automatically.
 
 ---
 
-## Rename Symbol (F2) not working in `.uitkx` files
+## ~~Rename Symbol (F2) not working in `.uitkx` files~~ ✅ FIXED
 
-**Symptom:** Placing the cursor on a local variable in a `.uitkx` file and
-pressing F2 (Rename Symbol) does nothing.
-
-**Reproduction:**
-1. In `DiabloMenuDemoFunc.uitkx`, place cursor on `el` in:
-   ```csharp
-   var el = rootRef?.Current;
-   if (el == null) {
-       return null;
-   }
-   var h = el.schedule.Execute(() => {
-   ```
-2. Press F2 — nothing happens, no rename dialog appears.
-
-**Expected:** Rename Symbol should work for local variables, renaming all
-occurrences within the component body.
-
-**Files to investigate:**
-- LSP server `textDocument/rename` and `textDocument/prepareRename` handlers
-- Whether the LSP maps `.uitkx` positions to the generated `.g.cs` correctly
-  for the rename provider
-
-**Priority:** Medium — important IDE feature for refactoring.
+Fixed — bidirectional rename between `.uitkx` ↔ `.cs` companion files works.
 
 ---
 
@@ -166,26 +84,10 @@ of `.uitkx` diagnostics (see "LSP diagnostics not updated when companion
 
 ---
 
-## Go to Definition (F12) not working for companion symbols in `.uitkx`
+## ~~Go to Definition (F12) not working for companion symbols in `.uitkx`~~ ✅ FIXED
 
-**Symptom:** Clicking "Go to Definition" (F12) on a symbol defined in a
-companion `.cs` partial class does nothing — the editor does not navigate
-to the companion file.
-
-**Reproduction:**
-1. In `DiabloMenuDemoFunc.uitkx`, place cursor on `RootStyle`, `TopBarStyle`,
-   `MenuButtonStyle`, or any symbol defined in `DiabloMenuDemoFunc.styles.cs`.
-2. Press F12 (Go to Definition) — nothing happens.
-
-**Expected:** Should navigate to the declaration in the companion `.cs` file.
-
-**Files to investigate:**
-- LSP server `textDocument/definition` handler
-- Whether the handler resolves symbols from companion `.cs` files or only
-  within the generated `.g.cs` virtual document
-
-**Priority:** High — core navigation feature, blocks efficient use of
-companion file pattern.
+Fixed — Roslyn-based symbol resolution added. Works for same-file vars,
+companion `.cs` symbols, and multi-line attribute values.
 
 ---
 
