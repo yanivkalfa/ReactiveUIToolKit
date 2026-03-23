@@ -1,3 +1,4 @@
+using System;
 using MediatR;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using UitkxLanguageServer.Roslyn;
@@ -25,8 +26,13 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         _roslynHost  = roslynHost;
     }
 
-    public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri) =>
-        new TextDocumentAttributes(uri, "uitkx");
+    public override TextDocumentAttributes GetTextDocumentAttributes(DocumentUri uri)
+    {
+        var path = uri.GetFileSystemPath();
+        if (path != null && path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            return new TextDocumentAttributes(uri, "csharp");
+        return new TextDocumentAttributes(uri, "uitkx");
+    }
 
     protected override TextDocumentSyncRegistrationOptions CreateRegistrationOptions(
         TextSynchronizationCapability capability,
@@ -35,7 +41,8 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         new TextDocumentSyncRegistrationOptions
         {
             DocumentSelector = new TextDocumentSelector(
-                new TextDocumentFilter { Pattern = "**/*.uitkx" }
+                new TextDocumentFilter { Pattern = "**/*.uitkx" },
+                new TextDocumentFilter { Pattern = "**/*.cs" }
             ),
             Change = TextDocumentSyncKind.Full,
             Save = new SaveOptions { IncludeText = false },
@@ -50,7 +57,12 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
             $"didOpen: {request.TextDocument.Uri}  lang={request.TextDocument.LanguageId}  len={request.TextDocument.Text?.Length}"
         );
         _store.Set(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty);
-        _diagnostics.Publish(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty, _roslynHost);
+
+        // Only trigger diagnostics/rebuild for .uitkx files.
+        var path = request.TextDocument.Uri.GetFileSystemPath();
+        if (path == null || !path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            _diagnostics.Publish(request.TextDocument.Uri, request.TextDocument.Text ?? string.Empty, _roslynHost);
+
         return Unit.Task;
     }
 
@@ -62,7 +74,25 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         var text = request.ContentChanges.LastOrDefault()?.Text ?? "";
         ServerLog.Log($"didChange: {request.TextDocument.Uri}  len={text.Length}");
         _store.Set(request.TextDocument.Uri, text);
-        _diagnostics.Publish(request.TextDocument.Uri, text, _roslynHost);
+
+        var path = request.TextDocument.Uri.GetFileSystemPath();
+        if (path != null && path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            // Companion .cs changed — store overlay and re-publish diagnostics
+            // for all .uitkx files in the same directory.
+            _roslynHost.SetCompanionOverlay(path, text);
+            foreach (var uitkxPath in _roslynHost.FindUitkxFilesForCompanion(path))
+            {
+                var uitkxUri = DocumentUri.FromFileSystemPath(uitkxPath);
+                if (_store.TryGet(uitkxUri, out var uitkxText) && uitkxText != null)
+                    _diagnostics.Publish(uitkxUri, uitkxText, _roslynHost);
+            }
+        }
+        else
+        {
+            _diagnostics.Publish(request.TextDocument.Uri, text, _roslynHost);
+        }
+
         return Unit.Task;
     }
 

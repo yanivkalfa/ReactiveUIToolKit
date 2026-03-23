@@ -405,6 +405,23 @@ namespace ReactiveUITK.Language.IntelliSense
                 // No open '<' found via text scan.
                 // If the AST found a multi-line open-tag attribute on this line, use it.
                 if (astTagName != null && astAttrName != null)
+                {
+                    // Detect whether the cursor is inside a {…} attribute value
+                    // on this line rather than on the attribute name itself.
+                    if (IsInsideBracedValue(line, col0))
+                    {
+                        string valPrefix = ExtractIdentifierBefore(line, col0);
+                        string valWord = valPrefix + ExtractIdentifierAfter(line, col0);
+                        return new CursorContext
+                        {
+                            Kind = CursorKind.AttributeValue,
+                            TagName = astTagName,
+                            AttributeName = astAttrName,
+                            Prefix = valPrefix,
+                            Word = valWord,
+                        };
+                    }
+
                     return new CursorContext
                     {
                         Kind = CursorKind.AttributeName,
@@ -413,6 +430,7 @@ namespace ReactiveUITK.Language.IntelliSense
                         Prefix = prefix,
                         Word = word,
                     };
+                }
                 // No tag context but there is a word under the cursor (e.g. inside @code
                 // raw C# text, or between elements) — return it so hover/nav can still work.
                 if (!string.IsNullOrEmpty(word))
@@ -614,6 +632,23 @@ namespace ReactiveUITK.Language.IntelliSense
                 }
             }
             return result;
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> if the cursor at <paramref name="col0"/> is inside
+        /// a <c>{…}</c> expression value on this line (e.g. <c>text={param}</c>
+        /// on a multi-line open-tag continuation line).
+        /// </summary>
+        private static bool IsInsideBracedValue(string line, int col0)
+        {
+            int depth = 0;
+            int limit = Math.Min(col0, line.Length);
+            for (int i = 0; i < limit; i++)
+            {
+                if (line[i] == '{') depth++;
+                else if (line[i] == '}') depth--;
+            }
+            return depth > 0;
         }
     }
 }
