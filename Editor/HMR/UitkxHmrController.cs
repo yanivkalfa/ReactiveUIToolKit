@@ -195,7 +195,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 var swapSw = Stopwatch.StartNew();
                 int swapped = UitkxHmrDelegateSwapper.SwapAll(
                     result.LoadedAssembly,
-                    result.ComponentName
+                    result.ComponentName,
+                    uitkxPath
                 );
                 swapSw.Stop();
                 result.SwapMs = swapSw.Elapsed.TotalMilliseconds;

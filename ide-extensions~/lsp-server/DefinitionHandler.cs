@@ -3,12 +3,15 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.CodeAnalysis;
 using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using ReactiveUITK.Language.IntelliSense;
 using ReactiveUITK.Language.Parser;
+using ReactiveUITK.Language.Roslyn;
+using UitkxLanguageServer.Roslyn;
 using LspRange = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
 namespace UitkxLanguageServer;
@@ -26,11 +29,13 @@ public sealed class DefinitionHandler : IDefinitionHandler
 {
     private readonly DocumentStore  _store;
     private readonly WorkspaceIndex _index;
+    private readonly RoslynHost     _roslynHost;
 
-    public DefinitionHandler(DocumentStore store, WorkspaceIndex index)
+    public DefinitionHandler(DocumentStore store, WorkspaceIndex index, RoslynHost roslynHost)
     {
         _store = store;
         _index = index;
+        _roslynHost = roslynHost;
     }
 
     public DefinitionRegistrationOptions GetRegistrationOptions(
@@ -68,6 +73,14 @@ public sealed class DefinitionHandler : IDefinitionHandler
             }
         }
 
+        var result = HandleCore(request, text, localPath, cancellationToken);
+        return Task.FromResult(result);
+    }
+
+    private LocationOrLocationLinks? HandleCore(
+        DefinitionParams request, string text, string localPath, CancellationToken ct)
+    {
+
         // Parse the document with the language-lib AST pipeline so go-to-definition
         // targets are derived from the real syntax tree instead of text scanning.
 
@@ -87,14 +100,14 @@ public sealed class DefinitionHandler : IDefinitionHandler
         string? tagContext = ctx.Kind == CursorKind.AttributeName ? ctx.TagName : null;
 
         if (string.IsNullOrEmpty(word))
-            return Task.FromResult<LocationOrLocationLinks?>(null);
+            return null;
 
         // ── Case 1: cursor is on an element tag name ─────────────────────────
         var elementInfo = _index.TryGetElementInfo(word);
         if (elementInfo is not null && File.Exists(elementInfo.FilePath))
         {
             ServerLog.Log($"definition: '{word}' → {elementInfo.FilePath}:{elementInfo.FileLine}");
-            return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(elementInfo.FilePath, elementInfo.FileLine));
+            return MakeLocation(elementInfo.FilePath, elementInfo.FileLine);
         }
 
         // ── Case 2: cursor is on an attribute name inside a known element tag ─
@@ -114,14 +127,14 @@ public sealed class DefinitionHandler : IDefinitionHandler
                     ServerLog.Log(
                         $"definition: prop '{word}' on '{tagContext}' → "
                         + $"{parentInfo.FilePath}:{prop.Line}");
-                    return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(parentInfo.FilePath, prop.Line));
+                    return MakeLocation(parentInfo.FilePath, prop.Line);
                 }
 
                 // Jump to the class declaration even if the exact prop wasn't parsed.
                 ServerLog.Log(
                     $"definition: attr '{word}' on '{tagContext}' → class at "
                     + $"{parentInfo.FilePath}:{parentInfo.FileLine}");
-                return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(parentInfo.FilePath, parentInfo.FileLine));
+                return MakeLocation(parentInfo.FilePath, parentInfo.FileLine);
             }
         }
 
@@ -132,7 +145,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
         if (codeVarLine > 0)
         {
             ServerLog.Log($"definition: '{word}' \u2192 @code var declaration at line {codeVarLine} col {codeVarCol}");
-            return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(localPath, codeVarLine, codeVarCol));
+            return MakeLocation(localPath, codeVarLine, codeVarCol);
         }
 
         if (directives.IsFunctionStyle)
@@ -151,12 +164,19 @@ public sealed class DefinitionHandler : IDefinitionHandler
             if (setupVarLine > 0)
             {
                 ServerLog.Log($"definition: '{word}' \u2192 function-style setup var at line {setupVarLine} col {setupVarCol}");
-                return Task.FromResult<LocationOrLocationLinks?>(MakeLocation(localPath, setupVarLine, setupVarCol));
+                return MakeLocation(localPath, setupVarLine, setupVarCol);
             }
         }
 
+        // ── Case 5: Roslyn symbol resolution ─────────────────────────────────
+        // Covers symbols defined in companion .cs files and declarations that
+        // the text-regex heuristic above cannot find.
+        var roslynResult = TryResolveViaRoslyn(localPath, text, parseResult, request.Position, word, ct);
+        if (roslynResult != null)
+            return roslynResult;
+
         ServerLog.Log($"definition: no target found for '{word}'");
-        return Task.FromResult<LocationOrLocationLinks?>(null);
+        return null;
     }
 
     /// <summary>
@@ -267,7 +287,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
     {
         var targetLine = Math.Max(0, oneBasedLine - 1);
         var targetCol  = Math.Max(0, zeroBasedCol);
-        var location   = new Location
+        var location   = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Location
         {
             Uri   = DocumentUri.FromFileSystemPath(filePath),
             Range = new LspRange(
@@ -288,5 +308,122 @@ public sealed class DefinitionHandler : IDefinitionHandler
             offset = nl < 0 ? text.Length : nl + 1;
         }
         return Math.Min(offset + column, text.Length);
+    }
+
+    // ── Roslyn-based symbol resolution ──────────────────────────────────────
+
+    /// <summary>
+    /// Maps the cursor position through the SourceMap into the Roslyn virtual
+    /// document, resolves the symbol, and returns the definition location.
+    /// Handles both same-file definitions (mapped back via SourceMap) and
+    /// companion .cs file definitions.
+    /// </summary>
+    private LocationOrLocationLinks? TryResolveViaRoslyn(
+        string localPath,
+        string text,
+        ParseResult parseResult,
+        Position position,
+        string word,
+        CancellationToken ct)
+    {
+        var vdoc = _roslynHost.GetVirtualDocument(localPath);
+        if (vdoc == null)
+            return null;
+
+        var offset = ToOffset(text, position);
+        var virtualResult = vdoc.Map.ToVirtualOffset(offset);
+        if (!virtualResult.HasValue)
+            return null;
+
+        var roslynDoc = _roslynHost.GetRoslynDocument(localPath);
+        if (roslynDoc == null)
+            return null;
+
+        ISymbol? symbol;
+        try
+        {
+#pragma warning disable VSTHRD002
+            var syntaxRoot = roslynDoc.GetSyntaxRootAsync(ct).GetAwaiter().GetResult();
+            var semanticModel = roslynDoc.GetSemanticModelAsync(ct).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+            if (syntaxRoot == null || semanticModel == null)
+                return null;
+
+            int pos = virtualResult.Value.VirtualOffset;
+            var token = syntaxRoot.FindToken(pos > 0 ? pos - 1 : 0);
+            if (token.Parent == null)
+                return null;
+
+            // Try declared symbol first (cursor on a declaration)
+            symbol = semanticModel.GetDeclaredSymbol(token.Parent, ct);
+            if (symbol == null)
+            {
+                var symbolInfo = semanticModel.GetSymbolInfo(token.Parent, ct);
+                symbol = symbolInfo.Symbol
+                    ?? (symbolInfo.CandidateSymbols.Length > 0 ? symbolInfo.CandidateSymbols[0] : null);
+            }
+        }
+        catch (Exception ex)
+        {
+            ServerLog.Log($"definition: Roslyn resolve error: {ex.Message}");
+            return null;
+        }
+
+        if (symbol == null)
+            return null;
+
+        // Find the definition location from the symbol's declaring syntax references.
+        foreach (var syntaxRef in symbol.DeclaringSyntaxReferences)
+        {
+            var defDoc = roslynDoc.Project.Solution.GetDocument(syntaxRef.SyntaxTree);
+            if (defDoc == null)
+                continue;
+
+            var span = syntaxRef.Span;
+
+            if (defDoc.Id == roslynDoc.Id)
+            {
+                // Definition is in the main virtual document → map back to .uitkx
+                var uitkxResult = vdoc.Map.ToUitkxOffset(span.Start);
+                if (uitkxResult.HasValue)
+                {
+                    ServerLog.Log($"definition: Roslyn '{word}' → {localPath} (via SourceMap)");
+                    return MakeLocationFromOffset(localPath, text, uitkxResult.Value.UitkxOffset);
+                }
+            }
+            else
+            {
+                // Definition is in a companion .cs document
+                var dir = Path.GetDirectoryName(localPath);
+                if (dir == null) continue;
+
+                var companionPath = Path.Combine(dir, defDoc.Name);
+                if (!File.Exists(companionPath)) continue;
+
+#pragma warning disable VSTHRD002
+                var defText = defDoc.GetTextAsync(ct).GetAwaiter().GetResult();
+#pragma warning restore VSTHRD002
+                var linePos = defText.Lines.GetLinePosition(span.Start);
+
+                ServerLog.Log(
+                    $"definition: Roslyn '{word}' → {companionPath}:{linePos.Line + 1}:{linePos.Character}");
+                return MakeLocation(companionPath, linePos.Line + 1, linePos.Character);
+            }
+        }
+
+        ServerLog.Log($"definition: Roslyn found '{symbol.Kind}:{symbol.Name}' but no source location");
+        return null;
+    }
+
+    private static LocationOrLocationLinks MakeLocationFromOffset(
+        string filePath, string text, int offset)
+    {
+        int line = 0, col = 0;
+        for (int i = 0; i < offset && i < text.Length; i++)
+        {
+            if (text[i] == '\n') { line++; col = 0; }
+            else if (text[i] != '\r') { col++; }
+        }
+        return MakeLocation(filePath, line + 1, col);
     }
 }

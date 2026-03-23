@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
+using ReactiveUITK;
 using ReactiveUITK.Core;
 
 namespace ReactiveUITK.Core.Fiber
@@ -283,12 +285,28 @@ namespace ReactiveUITK.Core.Fiber
                         if (
                             fiberType != null
                             && vnodeType != null
-                            && fiberType.Name == vnodeType.Name
                             && fiber.TypedRender.Method.Name
                                 == vnode.TypedFunctionRender.Method.Name
                         )
                         {
-                            return true;
+                            // Primary: class name match
+                            if (fiberType.Name == vnodeType.Name)
+                                return true;
+
+                            // Fallback: after a component rename, class names differ
+                            // but [UitkxSource] file paths remain stable.
+                            var fiberSource = fiberType.GetCustomAttribute<UitkxSourceAttribute>();
+                            var vnodeSource = vnodeType.GetCustomAttribute<UitkxSourceAttribute>();
+                            if (
+                                fiberSource != null
+                                && vnodeSource != null
+                                && string.Equals(
+                                    fiberSource.SourcePath,
+                                    vnodeSource.SourcePath,
+                                    System.StringComparison.OrdinalIgnoreCase
+                                )
+                            )
+                                return true;
                         }
                     }
 #endif

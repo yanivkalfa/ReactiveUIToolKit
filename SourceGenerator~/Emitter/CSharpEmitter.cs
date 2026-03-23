@@ -138,6 +138,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // ── Namespace + class ────────────────────────────────────────────
             L($"namespace {_directives.Namespace}");
             L("{");
+            L($"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]");
             L($"    [global::ReactiveUITK.UitkxElement(\"{_directives.ComponentName}\")]");
             L($"    public partial class {_directives.ComponentName}");
             L("    {");

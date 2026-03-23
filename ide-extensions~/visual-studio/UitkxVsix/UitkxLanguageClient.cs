@@ -62,6 +62,10 @@ public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage
 
     public async Task<Connection?> ActivateAsync(CancellationToken token)
     {
+        // Kill any previous server process from a prior activation cycle
+        // (VS may call ActivateAsync again after -32002 errors or a restart).
+        KillServerProcess();
+
         foreach (var (fileName, arguments, description) in FindServerCommands())
         {
             try
@@ -159,15 +163,21 @@ public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage
 
     public void Dispose()
     {
+        KillServerProcess();
+    }
+
+    private void KillServerProcess()
+    {
+        var proc = _serverProcess;
+        _serverProcess = null;
+        if (proc == null) return;
         try
         {
-            if (_serverProcess is { HasExited: false })
-                _serverProcess.Kill();
+            if (!proc.HasExited)
+                proc.Kill();
         }
-        catch
-        { /* best effort */
-        }
-        _serverProcess?.Dispose();
+        catch { /* best effort */ }
+        proc.Dispose();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
