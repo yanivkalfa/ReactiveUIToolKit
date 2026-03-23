@@ -78,7 +78,9 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
         method is "textDocument/definition"
             or "textDocument/formatting"
             or "textDocument/hover"
-            or "textDocument/completion";
+            or "textDocument/completion"
+            or "textDocument/rename"
+            or "textDocument/prepareRename";
 
     /// <summary>
     /// Extracts the URI from the request params, finds the matching VS buffer,

@@ -36,6 +36,7 @@ var server = await LanguageServer.From(options =>
         .WithHandler<FormattingHandler>()
         .WithHandler<SemanticTokensHandler>()
         .WithHandler<DefinitionHandler>()
+        .WithHandler<RenameHandler>()
         .WithHandler<WatchedFilesHandler>()
         .WithServices(services =>
         {
