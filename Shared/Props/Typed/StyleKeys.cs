@@ -74,5 +74,11 @@ namespace ReactiveUITK.Props.Typed
         public const string Rotate = "rotate";
         public const string Scale = "scale";
         public const string Translate = "translate";
+
+        public const string BackgroundRepeat = "backgroundRepeat";
+        public const string BackgroundPositionX = "backgroundPositionX";
+        public const string BackgroundPositionY = "backgroundPositionY";
+        public const string BackgroundSize = "backgroundSize";
+        public const string TransformOrigin = "transformOrigin";
     }
 }

@@ -283,3 +283,191 @@ Requires passing element→propsType mapping (from `uitkx-schema.json` and
 - `ide-extensions~/lsp-server/WorkspaceIndex.cs` — user component type source
 
 **Priority:** High — every attribute on every element is affected.
+
+---
+
+## Style properties not yet supported: transitions, cursor, filter
+
+**Symptom:** Setting `transitionProperty`, `transitionDuration`, `transitionDelay`,
+`transitionTimingFunction`, `cursor`, `transition`, or `filter` in a `Style`
+dictionary has no effect — PropsApplier silently ignores the value.
+
+**Root cause per property:**
+
+- **`transition`** — CSS shorthand only. No `IStyle.transition` property exists in
+  Unity 6.2; it decomposes into the four `transition*` sub-properties.
+- **`filter`** — No `IStyle.filter` property exists in Unity 6.2 (docs return 404).
+- **`transitionProperty`** (`StyleList<StylePropertyName>`),
+  **`transitionDuration`** (`StyleList<TimeValue>`),
+  **`transitionDelay`** (`StyleList<TimeValue>`),
+  **`transitionTimingFunction`** (`StyleList<EasingFunction>`) — All use `StyleList<T>`,
+  a list-based type. PropsApplier diffs values via `ReferenceEquals` then `.Equals()`;
+  `List<T>` lacks value equality, so transitions would re-apply every render,
+  potentially resetting in-flight animations. Needs a dedicated diffing strategy
+  or a helper struct (e.g. `Transition(property, duration, easing, delay)`) that
+  sets all four at once.
+- **`cursor`** (`StyleCursor` wrapping `Cursor` struct) — The `Cursor` struct only
+  takes a `Texture2D` + `Vector2` hotspot. Unity has no built-in cursor constants
+  (pointer, crosshair, etc.) like CSS, making it of limited practical value.
+
+**Possible fix for transitions:** Introduce a `Transition` helper struct:
+```csharp
+new Style {
+    Transitions = new[] {
+        new Transition("opacity", 0.3f, EasingMode.EaseInOut),
+        new Transition("width",   0.5f, EasingMode.Linear, delay: 0.1f),
+    }
+}
+```
+PropsApplier would compare via a custom equality check and set all four
+`IStyle.transition*` properties together.
+
+**Files:**
+- `Shared/Props/PropsApplier.cs` — stubs at lines ~508-517
+- `Shared/Props/Typed/Style.cs` — no typed properties for these yet
+
+**Priority:** Medium — transitions are useful for polish but not blocking.
+
+---
+
+## Unity version compatibility tracking and enforcement
+
+**Problem:** We declare "Unity 6.2+" support but do nothing to track or enforce
+API compatibility across Unity versions. Style properties, UIElements APIs, and
+struct types can change between Unity releases (e.g. a type may exist in 6.2 but
+be removed or renamed in 6.4, or new types may appear in 6.3+). Currently we
+have no way to know when Unity changes something that affects us.
+
+**Impact:** Users on different Unity versions may hit compile errors or runtime
+failures on APIs we assume exist. We also miss new APIs we could leverage.
+
+**Requirements:**
+
+1. **Automated changelog scanning** — A tool or script that:
+   - Pulls Unity UI Toolkit changelogs / API diffs between releases
+   - Filters for `UnityEngine.UIElements` namespace changes (new types, removed
+     types, changed signatures, deprecated APIs)
+   - Outputs a report of additions/removals/changes relevant to our library
+   - Runs on a schedule or when a new Unity version is released
+
+2. **Version-gated code** — A strategy for supporting multiple Unity versions:
+   - Option A: `#if UNITY_6_3_OR_NEWER` preprocessor directives in Shared/
+   - Option B: Runtime feature detection (check if type/method exists via reflection)
+   - Option C: Separate assembly definitions per Unity version range
+   - Option D: Minimum version floor (only support latest LTS + current)
+
+3. **Version matrix testing** — CI builds against multiple Unity versions to
+   catch regressions early.
+
+4. **Documentation** — Clearly mark which features require which Unity version
+   (e.g. "BackgroundSize requires Unity 6.2+", "filter requires Unity 6.X+").
+
+**Scope of affected code:**
+- `Shared/Props/PropsApplier.cs` — style setters that call IStyle members
+- `Shared/Props/Typed/Style.cs` — typed properties exposing Unity types
+- `Shared/Props/Typed/CssHelpers.cs` — shortcuts using Unity enums/structs
+- `SourceGenerator~/` — generated code references Unity types
+- `ide-extensions~/grammar/uitkx-schema.json` — schema lists valid style keys
+
+**Process (proposed):**
+1. Script scrapes Unity docs API diff pages (e.g. comparing 6000.2 vs 6000.3
+   IStyle property lists) — automated
+2. Script outputs "added", "removed", "changed" entries for UIElements namespace — automated
+3. Developer reviews output and decides what to add/remove/gate — manual
+4. Code changes + test on target versions — manual
+
+**Priority:** High — without this, we're flying blind on version compatibility.
+
+---
+
+## Centralized changelog for IDE extensions
+
+**Problem:** We ship multiple IDE extensions (VS Code, Visual Studio 2022,
+eventually Rider) that share the same language-lib and lsp-server core. Each
+extension currently has no formal changelog, and changes are scattered across
+git commits with no user-facing release notes.
+
+**Impact:** Users have no way to know what changed between extension updates.
+Extension marketplaces (VS Code Marketplace, VS Gallery) expect changelogs.
+Internal contributors don't have a single source of truth for what shipped when.
+
+**Requirements:**
+
+1. **Single source of truth** — One `CHANGELOG.md` (or structured format like
+   `changelogs/` directory with per-version files) that all extensions reference.
+
+2. **Per-component tagging** — Each changelog entry should tag which layer it
+   affects: `[language-lib]`, `[lsp-server]`, `[vscode]`, `[vs2022]`, `[rider]`,
+   `[grammar]`. Extensions filter entries relevant to them when generating their
+   marketplace changelog.
+
+3. **Automation options:**
+   - **Conventional commits** — enforce `feat(lsp):`, `fix(vscode):` prefixes,
+     then auto-generate changelog from git log
+   - **Keep a Changelog** format — manually curated but following a standard
+   - **Hybrid** — auto-generated draft from commits, manually curated before release
+
+4. **Extension-specific output** — Build scripts that extract relevant entries
+   for each extension's marketplace page:
+   - VS Code: `ide-extensions~/vscode/CHANGELOG.md`
+   - VS2022: `ide-extensions~/visual-studio/CHANGELOG.md`
+   - Rider: `ide-extensions~/rider/CHANGELOG.md`
+
+5. **Version synchronization** — All extensions sharing the same lsp-server
+   should publish the same LSP version number alongside their own extension
+   version.
+
+**Files to create/modify:**
+- `ide-extensions~/CHANGELOG.md` — centralized changelog (new)
+- `ide-extensions~/vscode/package.json` — reference changelog
+- `ide-extensions~/visual-studio/` — reference changelog
+- `scripts/` — changelog generation script (new)
+
+**Priority:** Medium — needed before public marketplace release.
+
+---
+
+## Documentation versioning strategy
+
+**Problem:** The documentation website (reactiveuitoolkit.info) has no versioning
+system. It shows a single version of the docs that corresponds to whatever was
+last deployed. When we release breaking changes or new features, users on older
+versions see docs that don't match their installed version.
+
+**Impact:**
+- Users on older package versions see API references for features they don't have
+- Users upgrading can't compare what changed between their version and latest
+- No way to link to docs for a specific version (e.g. "see v1.2 docs")
+- Migration guides have no anchored "from" version to reference
+
+**Requirements:**
+
+1. **Versioned doc snapshots** — Each release should produce a versioned copy of
+   the docs (e.g. `/v1.0/`, `/v1.1/`, or `/latest/`).
+
+2. **Version selector** — The website should have a dropdown or picker that lets
+   users switch between doc versions.
+
+3. **Approach options:**
+   - **Option A: Git-tag based** — Build docs from each release tag, deploy each
+     to a versioned path (e.g. GitHub Pages with `/v1.0.x/` directories).
+   - **Option B: Docusaurus/VitePress migration** — Switch to a framework with
+     built-in versioning (Docusaurus has native `docs:version` command).
+   - **Option C: Manual snapshots** — Copy the built `dist/` into a versioned
+     directory at deploy time. Simple but no diff/search across versions.
+   - **Option D: Version banner only** — Keep single-version docs but add a
+     prominent "This documents version X.Y" banner with a changelog link.
+
+4. **Auto-generated content** — The `vite.config.ts` already reads `Props/*.cs`
+   files at build time to generate props docs. This should also read the package
+   version and embed it in the site.
+
+5. **Changelog integration** — The docs site should display or link to the
+   centralized changelog (see "Centralized changelog" tech debt item above).
+
+**Files:**
+- `ReactiveUIToolKitDocs~/vite.config.ts` — version injection
+- `ReactiveUIToolKitDocs~/src/version.ts` — currently exists
+- Deploy pipeline (GitHub Actions / scripts) — versioned output
+
+**Priority:** Medium — important for production release but not blocking development.
