@@ -102,6 +102,48 @@ See [`Samples/README.md`](Samples/README.md) for a full breakdown of each sample
 
 ---
 
+## Typed Style System
+
+`Style` is a typed dictionary class with **set-only properties** that map to every
+Unity UI Toolkit inline style. Values are compile-time checked — passing a `float`
+where a `Color` is expected is a build error.
+
+```csharp
+using ReactiveUITK.Props.Typed;
+using static ReactiveUITK.Props.Typed.CssHelpers;
+
+var cardStyle = new Style {
+    Width = Pct(100),
+    Height = Px(200),
+    BackgroundColor = Rgba(0.1f, 0.1f, 0.15f, 0.9f),
+    FlexDirection = Column,
+    JustifyContent = SpaceBetween,
+    AlignItems = AlignCenter,
+    Padding = 16f,
+    BorderRadius = 8f,
+};
+```
+
+| Category | Type | Properties |
+|---|---|---|
+| Layout & spacing | `StyleLength` | Width, Height, Margin*, Padding*, FlexBasis, BorderRadius*, FontSize, LetterSpacing |
+| Flex & opacity | `StyleFloat` | FlexGrow, FlexShrink, Opacity, BorderWidth* |
+| Colors | `Color` | TextColor, BackgroundColor, BorderColor*, UnityTextOutlineColor (9 total) |
+| Enums | Unity enums | FlexDirection, JustifyContent, AlignItems, Position, Display, Visibility, etc. (15 total) |
+| Background | Structs | BackgroundRepeat, BackgroundPositionX/Y, BackgroundSize |
+| Transforms | `float` / struct | Rotate, Scale, Translate, TransformOrigin |
+| Assets | `Texture2D` / `Font` | BackgroundImage, FontFamily |
+
+**`CssHelpers`** (import via `using static`) provides shortcuts: `Pct()`, `Px()`,
+`Auto`, `None`, `Row`, `Column`, `JustifyCenter`, `AlignCenter`, `Hex("#FF0000")`,
+`Rgba(255, 0, 0)`, color presets (`White`, `Black`, `Red`, …), and all enum values.
+
+The old tuple syntax `(StyleKeys.Key, value)` remains available as an escape hatch.
+
+👉 Full guide: [Styling documentation](http://reactiveuitoolkit.info/styling)
+
+---
+
 ## Development Setup
 
 ### Prerequisites

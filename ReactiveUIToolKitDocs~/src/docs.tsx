@@ -19,6 +19,7 @@ import { UitkxRouterPage } from './pages/UITKX/Router/UitkxRouterPage'
 import { UitkxSignalsPage } from './pages/UITKX/Signals/UitkxSignalsPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FAQPage } from './pages/FAQ/FAQPage'
+import { StylingPage } from './pages/UITKX/Styling/StylingPage'
 
 export type DocTrack = 'uitkx' | 'csharp'
 
@@ -112,6 +113,23 @@ export const uitkxSections: DocSection[] = [
         searchContent: 'companion files optional .cs file styles types utils naming conventions directory layout source generator produces complete class no boilerplate needed MyComponent.styles.cs style constants helpers colours sizes MyComponent.types.cs enums structs DTOs MyComponent.utils.cs pure helper formatting functions hmr support editing companion triggers hmr creating new file detected instantly @code blocks when not to use simple components small helpers',
         track: 'uitkx',
         element: () => <CompanionFilesPage />,
+      },
+    ],
+  },
+  {
+    id: 'uitkx-styling',
+    title: 'Styling',
+    track: 'uitkx',
+    pages: [
+      {
+        id: 'uitkx-styling-page',
+        canonicalId: 'styling',
+        title: 'Styling',
+        path: '/styling',
+        keywords: ['uitkx', 'style', 'css', 'typed', 'CssHelpers', 'StyleKeys', 'layout', 'colors', 'flexbox'],
+        searchContent: 'styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px Auto None Initial length units color helpers Hex Rgba enum shortcuts FlexDirection Row Column JustifyContent JustifyCenter AlignItems AlignCenter Stretch SpaceBetween SpaceAround Position Absolute Relative Display Flex Visibility Hidden Overflow WhiteSpace TextOverflow TextAnchor FontStyle StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor TextColor BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BackgroundSize BackgroundPosition TransformOrigin Rotate Scale Translate dual API typed properties tuple syntax escape hatch StyleKeys backward compatible',
+        track: 'uitkx',
+        element: () => <StylingPage />,
       },
     ],
   },
