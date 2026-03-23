@@ -128,6 +128,15 @@ namespace UitkxLanguageServer.Roslyn
             FileState
         >(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Overlay of companion .cs text set after a rename so that the next
+        /// <see cref="UpdateWorkspace"/> call reads the post-rename content
+        /// instead of (potentially stale) disk content.
+        /// Keyed by full path (case-insensitive).
+        /// </summary>
+        private readonly ConcurrentDictionary<string, string> _companionOverlay =
+            new(StringComparer.OrdinalIgnoreCase);
+
         private readonly ReferenceAssemblyLocator _refLocator;
         private readonly VirtualDocumentGenerator _docGenerator = new VirtualDocumentGenerator();
         private readonly ILanguageServerFacade _server;
@@ -146,6 +155,9 @@ namespace UitkxLanguageServer.Roslyn
         }
 
         // ── Workspace root (set once on server start) ─────────────────────────
+
+        /// <summary>Returns the workspace root path, or <c>null</c> if not yet set.</summary>
+        public string? WorkspaceRoot => _workspaceRoot;
 
         /// <summary>
         /// Informs the host of the workspace root so it can discover Unity
@@ -300,6 +312,111 @@ namespace UitkxLanguageServer.Roslyn
                 return null;
 
             return state.Workspace.CurrentSolution.GetDocument(state.DocumentId);
+        }
+
+        /// <summary>
+        /// Searches all tracked .uitkx workspaces for a companion .cs document
+        /// whose file-name matches <paramref name="csFilePath"/>.
+        /// Returns the companion <see cref="Document"/>, the owning .uitkx path,
+        /// and the main virtual-document <see cref="DocumentId"/>, or <c>null</c>.
+        /// </summary>
+        public (Document CompanionDoc, string UitkxPath, DocumentId MainDocId, VirtualDocument? VDoc)?
+            FindCompanionDocument(string csFilePath)
+        {
+            var csFileName = System.IO.Path.GetFileName(csFilePath);
+            var csDir = System.IO.Path.GetDirectoryName(csFilePath);
+
+            foreach (var kv in _files)
+            {
+                var uitkxDir = System.IO.Path.GetDirectoryName(kv.Key);
+                if (!string.Equals(uitkxDir, csDir, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var state = kv.Value;
+                if (state.Workspace == null || state.DocumentId == null)
+                    continue;
+
+                var solution = state.Workspace.CurrentSolution;
+                foreach (var companionDocId in state.CompanionDocIds)
+                {
+                    var doc = solution.GetDocument(companionDocId);
+                    if (doc != null && string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase))
+                        return (doc, kv.Key, state.DocumentId, state.VirtualDoc);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Updates a companion document's text in the Roslyn workspace so that
+        /// subsequent symbol resolution uses the latest content (e.g. after
+        /// a rename applied edits to the .cs file from the .uitkx side).
+        /// Returns the refreshed <see cref="Document"/>, or <c>null</c>.
+        /// </summary>
+        public Document? RefreshCompanionDocument(string csFilePath, string currentText)
+        {
+            // Also update the overlay so a concurrent UpdateWorkspace doesn't
+            // overwrite with stale disk content.
+            _companionOverlay[csFilePath] = currentText;
+
+            var csFileName = System.IO.Path.GetFileName(csFilePath);
+            var csDir = System.IO.Path.GetDirectoryName(csFilePath);
+
+            foreach (var kv in _files)
+            {
+                var uitkxDir = System.IO.Path.GetDirectoryName(kv.Key);
+                if (!string.Equals(uitkxDir, csDir, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var state = kv.Value;
+                if (state.Workspace == null || state.DocumentId == null)
+                    continue;
+
+                foreach (var companionDocId in state.CompanionDocIds)
+                {
+                    var doc = state.Workspace.CurrentSolution.GetDocument(companionDocId);
+                    if (doc == null || !string.Equals(doc.Name, csFileName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    // Replace the document text in the workspace
+                    var newSourceText = Microsoft.CodeAnalysis.Text.SourceText.From(currentText);
+                    var newSolution = state.Workspace.CurrentSolution.WithDocumentText(companionDocId, newSourceText);
+                    state.Workspace.TryApplyChanges(newSolution);
+                    return state.Workspace.CurrentSolution.GetDocument(companionDocId);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Stores post-rename companion .cs text so the next workspace rebuild
+        /// uses this content instead of (potentially stale) disk content.
+        /// </summary>
+        public void SetCompanionOverlay(string csPath, string text)
+        {
+            _companionOverlay[csPath] = text;
+        }
+
+        /// <summary>
+        /// Returns all tracked .uitkx file paths in the same directory as
+        /// <paramref name="csFilePath"/>. Used to trigger diagnostic
+        /// re-evaluation when a companion .cs file changes.
+        /// </summary>
+        public IReadOnlyList<string> FindUitkxFilesForCompanion(string csFilePath)
+        {
+            var csDir = System.IO.Path.GetDirectoryName(csFilePath);
+            if (csDir == null) return Array.Empty<string>();
+
+            var result = new List<string>();
+            foreach (var kv in _files)
+            {
+                var uitkxDir = System.IO.Path.GetDirectoryName(kv.Key);
+                if (string.Equals(uitkxDir, csDir, StringComparison.OrdinalIgnoreCase))
+                    result.Add(kv.Key);
+            }
+            return result;
         }
 
         /// <summary>
@@ -502,7 +619,10 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     try
                     {
-                        var companionText = System.IO.File.ReadAllText(companionPath);
+                        // Prefer overlay (set after a rename) over disk to
+                        // avoid reading stale content from an unsaved file.
+                        if (!_companionOverlay.TryRemove(companionPath, out var companionText))
+                            companionText = System.IO.File.ReadAllText(companionPath);
                         var newDocId = DocumentId.CreateNewId(
                             state.ProjectId!,
                             debugName: companionPath
