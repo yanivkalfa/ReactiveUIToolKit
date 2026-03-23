@@ -17,10 +17,10 @@ component UitkxTestFileDoNotTouch(
 ) {
   var myRef = useRef(false);
   var val = myRef.Current;
-
-  return (
-    <Label text={myRef.Value.ToString()} />
-  );
+  {/*
+    return (
+      <Label text={myRef.Value.ToString()} />
+    ); */}
 
 
   var safeItems = Array.Empty<ListViewRowState>();

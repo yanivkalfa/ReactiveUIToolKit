@@ -221,3 +221,65 @@ UI Toolkit Debugger on/off for quick access during development.
 - HMR window — add a toggle button or keyboard shortcut
 
 **Priority:** Low — quality-of-life convenience.
+
+---
+
+## Remove classic mode from VirtualDocumentGenerator
+
+**Symptom:** VirtualDocumentGenerator has two code paths: "classic mode"
+(`EmitClassicBody` + `EmitExpressionWrapper`) and "function-style mode"
+(`EmitFunctionStyleBody` + `EmitExpressionStatement`). Classic mode emits
+each attribute expression as a separate `private object __wrapper()` method,
+which means local variables from `@code` blocks are not in scope. Function-style
+mode puts everything inside a single `__uitkx_render()` method where locals
+are visible.
+
+**Problem:** Maintaining two emission paths doubles the effort for any VDG
+change (e.g. typed props initializers). Classic mode is not actively used.
+
+**Action:** Audit whether any `.uitkx` files still rely on classic mode. If not,
+remove `EmitClassicBody`, `EmitExpressionWrapper`, and the classic/function-style
+branching logic. Keep only function-style mode.
+
+**Files:**
+- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs`
+
+**Priority:** Medium — reduces maintenance burden and unblocks future VDG improvements.
+
+---
+
+## LSP virtual document lacks prop type checking (systematic type erasure)
+
+**Symptom:** The LSP server does not surface type mismatches between attribute
+expressions and their target prop types. For example:
+- `<Label text={42f} />` — no error (text expects `string`)
+- `<StatusBar percent={"hello"} />` — no error (percent expects `float`)
+- `<Button enabled={42} />` — no error (enabled expects `bool`)
+
+Unity's build DOES catch these errors because the source generator emits
+strongly-typed code: `new LabelProps { Text = 42f }` → CS0029.
+
+**Root cause:** VirtualDocumentGenerator wraps every attribute expression in
+`object`-returning wrappers:
+```csharp
+// Classic:   private object __uitkx_attr_0_text() { return (42f); }
+// Function:  { object __uitkx_attr_0_text = (42f); }
+```
+Since everything returns/assigns `object`, Roslyn sees no type mismatch.
+
+**Fix:** Change VDG to emit props initializer assignments that mirror what
+CSharpEmitter generates:
+```csharp
+{ LabelProps __p = new LabelProps(); __p.Text = (42f); }  // → CS0029 ✅
+```
+
+Requires passing element→propsType mapping (from `uitkx-schema.json` and
+`WorkspaceIndex`) into VDG at generation time.
+
+**Files:**
+- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs` — emission
+- `ide-extensions~/lsp-server/DiagnosticsPublisher.cs` — pass schema/index data
+- `ide-extensions~/grammar/uitkx-schema.json` — built-in type mapping source
+- `ide-extensions~/lsp-server/WorkspaceIndex.cs` — user component type source
+
+**Priority:** High — every attribute on every element is affected.
