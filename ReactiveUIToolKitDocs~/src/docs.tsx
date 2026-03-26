@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react'
 import type { Page as LegacyPage, Section as LegacySection } from './pages'
 import { pages as legacySections } from './pages'
+import { PAGE_VERSIONS, isAvailableIn, compareVersions } from './versionManifest'
 import { KnownIssuesPage } from './pages/KnownIssues/KnownIssuesPage'
 import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
 import { UitkxAPIPage } from './pages/UITKX/API/UitkxAPIPage'
@@ -31,6 +32,7 @@ export type DocPage = {
   keywords?: string[]
   searchContent?: string
   group?: 'basic' | 'advanced'
+  sinceUnity?: string
   track: DocTrack
   element: () => ReactElement
 }
@@ -59,6 +61,7 @@ const withTrackPrefix = (track: DocTrack, sections: LegacySection[], prefix: str
       keywords: page.keywords,
       searchContent: page.searchContent,
       group: page.group,
+      sinceUnity: page.sinceUnity,
       track,
       element: page.element,
     })),
@@ -127,7 +130,7 @@ export const uitkxSections: DocSection[] = [
         title: 'Styling',
         path: '/styling',
         keywords: ['uitkx', 'style', 'css', 'typed', 'CssHelpers', 'StyleKeys', 'layout', 'colors', 'flexbox'],
-        searchContent: 'styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px Auto None Initial length units color helpers Hex Rgba enum shortcuts FlexDirection Row Column JustifyContent JustifyCenter AlignItems AlignCenter Stretch SpaceBetween SpaceAround Position Absolute Relative Display Flex Visibility Hidden Overflow WhiteSpace TextOverflow TextAnchor FontStyle StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor TextColor BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BackgroundSize BackgroundPosition TransformOrigin Rotate Scale Translate dual API typed properties tuple syntax escape hatch StyleKeys backward compatible',
+        searchContent: 'styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px Auto None Initial length units color helpers Hex Rgba enum shortcuts FlexDirection Row Column JustifyContent JustifyCenter AlignItems AlignCenter Stretch SpaceBetween SpaceAround Position Absolute Relative Display Flex Visibility Hidden Overflow WhiteSpace TextOverflow TextAnchor FontStyle StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor TextColor BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BackgroundSize BackgroundPosition TransformOrigin Rotate Scale Translate typed properties tuple syntax escape hatch StyleKeys backward compatible property reference',
         track: 'uitkx',
         element: () => <StylingPage />,
       },
@@ -161,6 +164,7 @@ export const uitkxSections: DocSection[] = [
       path: page.path,
       keywords: ['uitkx', ...(page.keywords ?? [])],
       group: page.group,
+      sinceUnity: page.sinceUnity,
       track: 'uitkx',
       element: () => (
         <UitkxComponentReferencePage
@@ -395,3 +399,38 @@ export const legacyRedirects = legacySections
     from: page.path,
     to: prefixPath('/csharp', page.path),
   }))
+
+// ---------------------------------------------------------------------------
+// Version-aware filtering
+// ---------------------------------------------------------------------------
+
+/** Check if a page is available for the given Unity version. */
+const isPageAvailable = (page: DocPage, selectedVersion: string): boolean => {
+  // Explicit sinceUnity on the page itself (set by automation for new-element pages)
+  if (page.sinceUnity) {
+    return compareVersions(page.sinceUnity, selectedVersion) <= 0
+  }
+  // Check the PAGE_VERSIONS manifest (keyed by canonicalId)
+  const pv = PAGE_VERSIONS[page.canonicalId]
+  return isAvailableIn(pv, selectedVersion)
+}
+
+/** Filter sections to only include pages available in the selected version. */
+export const getFilteredSectionsForTrack = (track: DocTrack, selectedVersion: string): DocSection[] =>
+  docsByTrack[track]
+    .map((section) => ({
+      ...section,
+      pages: section.pages.filter((page) => isPageAvailable(page, selectedVersion)),
+    }))
+    .filter((section) => section.pages.length > 0)
+
+/** Flat page list filtered by version — for search and sidebar. */
+export const getFilteredFlatForTrack = (track: DocTrack, selectedVersion: string): DocPage[] =>
+  getFilteredSectionsForTrack(track, selectedVersion).flatMap((section) => {
+    if (section.title === 'Components') {
+      const common = section.pages.filter((page) => page.group === 'basic')
+      const uncommon = section.pages.filter((page) => page.group === 'advanced' || !page.group)
+      return [...common, ...uncommon]
+    }
+    return section.pages
+  })

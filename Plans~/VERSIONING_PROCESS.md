@@ -174,7 +174,7 @@ Status: `✅` = supported, `⬜` = not yet implemented, `🚫` = not applicable,
 | alignContent | 6000.0 | ✅ | — | floor |
 | alignItems | 6000.0 | ✅ | — | floor |
 | alignSelf | 6000.0 | ✅ | — | floor |
-| aspectRatio | 6000.3 | ⬜ | `UNITY_6000_3_OR_NEWER` | New in 6.3. Assembly-verified. |
+| aspectRatio | 6000.3 | ✅ | `UNITY_6000_3_OR_NEWER` | Implemented. StyleRatio type. |
 | backgroundColor | 6000.0 | ✅ | — | floor |
 | backgroundImage | 6000.0 | ✅ | — | floor |
 | backgroundPositionX | 6000.0 | ✅ | — | floor |
@@ -197,7 +197,7 @@ Status: `✅` = supported, `⬜` = not yet implemented, `🚫` = not applicable,
 | color | 6000.0 | ✅ | — | floor |
 | cursor | 6000.0 | ⬜ | — | No-op stub (Cursor struct needs Texture2D) |
 | display | 6000.0 | ✅ | — | floor |
-| filter | 6000.3 | ⬜ | `UNITY_6000_3_OR_NEWER` | New in 6.3. Assembly-verified. TODO stub exists. |
+| filter | 6000.3 | ✅ | `UNITY_6000_3_OR_NEWER` | Implemented. StyleList<FilterFunction> type. CssHelpers added. |
 | flexBasis | 6000.0 | ✅ | — | floor |
 | flexDirection | 6000.0 | ✅ | — | floor |
 | flexGrow | 6000.0 | ✅ | — | floor |
@@ -240,7 +240,7 @@ Status: `✅` = supported, `⬜` = not yet implemented, `🚫` = not applicable,
 | unityFont | 6000.0 | ✅ | — | floor |
 | unityFontDefinition | 6000.0 | ✅ | — | floor |
 | unityFontStyleAndWeight | 6000.0 | ✅ | — | floor |
-| unityMaterial | 6000.3 | ⬜ | `UNITY_6000_3_OR_NEWER` | New in 6.3. Assembly-verified. UI Shader Graph. |
+| unityMaterial | 6000.3 | ✅ | `UNITY_6000_3_OR_NEWER` | Implemented. StyleMaterialDefinition type. |
 | unityOverflowClipBox | 6000.0 | ✅ | — | floor |
 | unityParagraphSpacing | 6000.0 | ✅ | — | floor |
 | unitySliceBottom | 6000.0 | ✅ | — | floor |
@@ -382,6 +382,7 @@ Status: `✅` = full support (Props + V.cs + Registry + Schema), `⬜` = not imp
 | 6000.2 | 2026-03-23 | Assembly diff | +1 IStyle (unityTextAutoSize); +6 enums (LibraryVisibility, PanelInputRedirection, Pivot, PivotReferenceSize, TextAutoSizeMode, WorldSpaceSizeMode); +5 structs | No new elements | Floor version — baseline |
 | 6000.3 | 2026-03-23 | Assembly diff | +3 IStyle (aspectRatio, filter, unityMaterial); +6 enums (AddressMode, DropdownMenuSizeMode, FilterFunctionType, FilterParameterType, GradientType, TextureSlotCount); +12 structs; UsageHints +2 members | No new elements | USS parser upgrade. Note: original docs-based audit claimed +6 IStyle — assembly shows only +3 new in 6.3. unityTextGenerator and unityEditorTextRenderingMode do not exist on IStyle. |
 | 6000.4 | 2026-03-23 | AI-assisted | No changes vs 6.3 | No new elements | No UI Toolkit breaking changes |
+| 6000.3 (impl) | 2026-03-24 | AI-assisted | Implemented: aspectRatio (StyleRatio), filter (StyleList\<FilterFunction\>), unityMaterial (StyleMaterialDefinition). 10 CssHelper filter functions. Schema + docs updated. | No new elements | — |
 
 ---
 
@@ -637,7 +638,7 @@ a structured diff of additions, removals, and changes.
 
 ## 8. Codebase Surface Inventory
 
-### 8.1 Per New IStyle Property — 6 files to touch
+### 8.1 Per New IStyle Property — 7 files to touch
 
 | # | File | Section | What to add |
 |---|------|---------|-------------|
@@ -647,8 +648,9 @@ a structured diff of additions, removals, and changes.
 | 4 | `Shared/Props/Typed/StyleKeys.cs` | Constants (line ~5) | public const string |
 | 5 | `Shared/Props/Typed/CssHelpers.cs` | Shortcuts (line ~16) | Static methods/properties |
 | 6 | `ide-extensions~/grammar/uitkx-schema.json` | styleKeyValues (line ~1685) | Enum values array |
+| 7 | `ReactiveUIToolKitDocs~/src/versionManifest.ts` | STYLE_PROPERTY_VERSIONS | `{name}: { sinceUnity: '{VERSION}' }` |
 
-### 8.2 Per New Element — 9+ files to touch
+### 8.2 Per New Element — 11+ files to touch
 
 | # | File | What to add |
 |---|------|-------------|
@@ -661,8 +663,25 @@ a structured diff of additions, removals, and changes.
 | 7 | `ide-extensions~/grammar/uitkx-schema.json` | Element definition |
 | 8 | `Version Coverage Matrix` | Elements table row |
 | 9 | (optional) `Shared/Props/Typed/BaseProps.cs` | Only if new universal attributes |
+| 10 | `ReactiveUIToolKitDocs~/src/versionManifest.ts` | ELEMENT_VERSIONS entry |
+| 11 | `ReactiveUIToolKitDocs~/src/components/UnityDocsSection/unityDocLinks.ts` | New entry |
 
-### 8.3 Current Counts (as of 2026-03-23)
+### 8.3 Documentation Website — Version Manifest
+
+The docs site version system is driven by `ReactiveUIToolKitDocs~/src/versionManifest.ts`.
+
+| # | File | What to update |
+|---|------|----------------|
+| 1 | `ReactiveUIToolKitDocs~/src/versionManifest.ts` | `SUPPORTED_VERSIONS`, `ELEMENT_VERSIONS`, `STYLE_PROPERTY_VERSIONS`, `CSS_HELPER_VERSIONS`, `PAGE_VERSIONS` |
+| 2 | `ReactiveUIToolKitDocs~/src/components/UnityDocsSection/unityDocLinks.ts` | New element entries |
+| 3 | `ReactiveUIToolKitDocs~/src/pages.tsx` | New component pages with `sinceUnity` |
+| 4 | `ReactiveUIToolKitDocs~/src/docs.tsx` | New section entries with `sinceUnity` (if needed) |
+
+Pages/components with `sinceUnity` set are automatically filtered out when the user
+selects a Unity version older than the feature's requirement. Search is scoped to
+the selected version automatically.
+
+### 8.4 Current Counts (as of 2026-03-23)
 
 | Surface | Count |
 |---------|-------|
@@ -702,33 +721,49 @@ They do NOT include implementing support for any specific Unity version.
 ### Phase 2: Schema Version Annotations
 
 ```
-[ ] 6.  Extend SchemaLoader.cs model types — add sinceUnity, deprecatedIn, removedIn
+[x] 6.  Extend SchemaLoader.cs model types — add sinceUnity, deprecatedIn, removedIn
 [ ] 7.  Add sinceUnity annotations to uitkx-schema.json for 6.3 additions
-[ ] 8.  Expose Unity version from ReferenceAssemblyLocator.cs
-[ ] 9.  Wire version into CompletionHandler for deprioritization
-[ ] 10. Wire version into DiagnosticsPublisher for warnings
-[ ] 11. Add LSP tests for version-aware completions
+[x] 8.  Expose Unity version from ReferenceAssemblyLocator.cs
+[x] 9.  Wire version into CompletionHandler for deprioritization
+[x] 10. Wire version into DiagnosticsPublisher for warnings
+[x] 11. Add LSP tests for version-aware completions
 ```
 
 ### Phase 3: Automated Diff Script
 
 ```
-[ ] 12. Create scripts/unity-api-diff/ tool
-[ ] 13. Implement IStyle property scraper
-[ ] 14. Implement diff engine
+[x] 12. Create automation~/unity-api-diff.ps1
+[x] 13. Implement assembly-based IStyle property comparison (Cecil)
+[x] 14. Implement diff engine (elements, enums, structs)
 [ ] 15. Implement gap analyzer (reads this matrix)
-[ ] 16. Test against known 6.2→6.3 diff (should find the 6 new properties)
+[x] 16. Test against known 6.2→6.3 diff (matched exactly: +3 IStyle, +6 enums, +12 structs)
+```
+
+### Phase 3.5: Documentation Website Versioning
+
+```
+[x] 17. Create versionManifest.ts — single source of truth for docs versioning
+[x] 18. Create VersionContext — React context + localStorage persistence
+[x] 19. Add version dropdown to TopBar
+[x] 20. Wire version filtering into Sidebar + SearchModal
+[x] 21. Add VersionBadge component for inline version chips
+[x] 22. Wire version into StylingPage (version-specific properties table)
+[x] 23. Make Unity doc links version-aware (unityDocLinks.ts refactored)
+[x] 24. Update AUTOMATION.md with docs versioning docs
+[x] 25. Update add-unity-version.prompt.md with Phase 4.5
+[x] 26. Verify docs build passes
 ```
 
 ### Phase 4: First Version Implementation (6.3 support)
 
 ```
-[ ] 17. Implement #if guards for all 6 new IStyle properties
-[ ] 18. Add CssHelpers for FilterFunction types
-[ ] 19. Update uitkx-schema.json with new styleKeyValues
-[ ] 20. Update Version Coverage Matrix status ⬜ → ✅
-[ ] 21. Test on Unity 6.2 (no-ops, no errors)
-[ ] 22. Test on Unity 6.3 (properties work)
+[ ] 27. Implement #if guards for all 3 new IStyle properties (assembly-verified)
+[ ] 28. Add CssHelpers for FilterFunction types
+[ ] 29. Update uitkx-schema.json with new styleKeyValues + sinceUnity
+[ ] 30. Uncomment versionManifest.ts entries for 6.3
+[ ] 31. Update Version Coverage Matrix status ⬜ → ✅
+[ ] 32. Test on Unity 6.2 (no-ops, no errors)
+[ ] 33. Test on Unity 6.3 (properties work)
 ```
 
 ---

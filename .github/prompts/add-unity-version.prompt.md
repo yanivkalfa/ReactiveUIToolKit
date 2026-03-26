@@ -116,6 +116,9 @@ For each change, determine the implementation path. Reference §2 and §4 of VER
 
 3. **StyleKeys.cs** (`Shared/Props/Typed/StyleKeys.cs`)
    - Add `public const string {PascalName} = "{camelKey}";`
+   - Wrap in `#if UNITY_{VERSION}_OR_NEWER` guard (same as PropsApplier)
+   - **Must stay in sync with `stylePropertyCatalog.ts`** — every catalog entry's
+     `name` field must have a matching `StyleKeys.{Name}` constant
 
 4. **CssHelpers.cs** (`Shared/Props/Typed/CssHelpers.cs`)
    - Add shortcut methods/properties if the type is enum-like or struct-based
@@ -162,6 +165,72 @@ Follow §4.5 checklist. Wrap in `#if !UNITY_{VERSION}_OR_NEWER` guards.
 
 ---
 
+## Phase 4.5: Documentation Website Updates
+
+Update the docs site so the website reflects the new version.
+Both the **UITKX track** and the **C# track** must be updated.
+
+### Important conventions
+
+- **Code block language:** Always use `language="tsx"` for `<CodeBlock>` components.
+  Never use `"csharp"` — the site highlighter does not support it and renders grey.
+- **Style properties:** Each new property needs a **rich documentation card** with type,
+  description, code example, and related CssHelpers — not just a name + badge row.
+- **New elements:** Each new element requires a **full dedicated page** with usage
+  examples, props table, and event list — not just a table entry.
+
+### Steps
+
+1. **versionManifest.ts** (`ReactiveUIToolKitDocs~/src/versionManifest.ts`)
+   - Add entry to `SUPPORTED_VERSIONS`: `{ version: '{VERSION}', label: '{MAJOR}.{MINOR}' }`
+   - Add entries to `STYLE_PROPERTY_VERSIONS` for each new IStyle property:
+     `{camelName}: { sinceUnity: '{VERSION}' }`
+   - Add **rich** entries to `STYLE_PROPERTY_DETAILS` for each new IStyle property:
+     `{camelName}: { sinceUnity: '{VERSION}', type: '...', description: '...', example: '...', relatedHelpers?: [...] }`
+   - Add entries to `ELEMENT_VERSIONS` for each new element:
+     `{ElementName}: { sinceUnity: '{VERSION}' }`
+   - Add entries to `CSS_HELPER_VERSIONS` for each new CssHelper
+
+2. **stylePropertyCatalog.ts** (`ReactiveUIToolKitDocs~/src/pages/UITKX/Styling/stylePropertyCatalog.ts`)
+   - This is the **data file** that drives the entire Styling reference page.
+   - Add a `PropertyCard` entry for each new IStyle property:
+     ```ts
+     { key: 'camelKey', name: 'PascalName', type: 'StyleType',
+       category: 'Filter & Effects', sinceUnity: '{VERSION}',
+       description: '...', typedExample: 'PascalName = ...',
+       untypedExample: '(StyleKeys.PascalName, ...)', helpers: ['...'] }
+     ```
+   - **`untypedExample` must use `StyleKeys.X` format** — not raw strings like `("key", val)`.
+     This matches how users actually write the tuple syntax.
+   - The page (`StylingPage.tsx`) auto-renders from this catalog — no TSX changes needed
+     for new properties.
+   - Category must be one of: `Layout`, `Positioning`, `Spacing`, `Flexbox`, `Border`,
+     `Text`, `Colors`, `Enum Styles`, `Background`, `Transforms`, `Assets`, `Filter & Effects`
+
+3. **StylingPage.tsx** — Only edit this file if:
+   - New CssHelper functions were added → update the CssHelpers reference table (inline MUI table)
+   - New enum values were added → update the Enum shortcuts table (inline MUI table)
+   - New type categories were added → update the Type reference table
+   - These tables are hardcoded JSX, not data-driven
+
+4. **New element doc pages** (if elements were added)
+   - For each new element:
+     - Create a **full component page** in `ReactiveUIToolKitDocs~/src/pages/Components/{Name}/`
+       with usage examples, props table, event list, and code samples using `language="tsx"`
+     - Add page entry in `pages.tsx` with `sinceUnity: '{VERSION}'`
+     - Add `unityDocLinks.ts` entry: `{Name}: { unityElement: '{Name}' }`
+   - Pages with `sinceUnity` are automatically hidden when user selects an older version
+
+5. **C# track pages** — Update the C# side of the docs (`pages.tsx` legacy sections)
+   to also reflect new features with appropriate version annotations and content
+
+6. **Verify docs build:**
+   ```powershell
+   cd ReactiveUIToolKitDocs~; npm run build
+   ```
+
+---
+
 ## Phase 5: Verification
 
 1. **Build the runtime package** — Verify no compile errors on the floor version (6.2)
@@ -195,5 +264,8 @@ Follow §4.5 checklist. Wrap in `#if !UNITY_{VERSION}_OR_NEWER` guards.
 - **`#if` guard format:** `UNITY_{MAJOR}_{MINOR}_OR_NEWER` — e.g. `UNITY_6000_3_OR_NEWER`
 - **No-op fallback:** When a property doesn't exist on older Unity, the setter should silently do nothing (no error)
 - **camelCase keys:** IStyle properties use camelCase (`aspectRatio`), our StyleKeys use PascalCase (`AspectRatio`)
+- **StyleKeys ↔ catalog sync:** Every entry in `stylePropertyCatalog.ts` must have a matching `StyleKeys.{Name}` constant in `StyleKeys.cs`. Non-floor keys need `#if` guards in both files.
+- **Untyped examples:** Always use `StyleKeys.X` format (`(StyleKeys.Width, 200f)`), never raw strings (`("width", 200f)`)
 - **Floor version:** 6.2 (6000.2) — everything at or below this needs no guard
 - **Schema sinceUnity format:** String like `"6000.3"` matching the `UnityVersion.TryParse` format
+- **Code block language:** Use `language="tsx"` for `<CodeBlock>` components. The CssHelpers/Enum reference tables are MUI `<Table>` components (not CodeBlocks)

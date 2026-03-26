@@ -130,5 +130,12 @@ namespace ReactiveUITK.Props.Typed
         public float         Rotate                { set => this["rotate"] = value; }
         public float         Scale                 { set => this["scale"] = value; }
         public Translate     Translate              { set => this["translate"] = value; }
+
+        // ── Unity 6.3+ ──────────────────────────────────────────────────
+#if UNITY_6000_3_OR_NEWER
+        public StyleRatio    AspectRatio            { set => this["aspectRatio"] = value; }
+        public StyleList<FilterFunction> Filter     { set => this["filter"] = value; }
+        public StyleMaterialDefinition UnityMaterial { set => this["unityMaterial"] = value; }
+#endif
     }
 }

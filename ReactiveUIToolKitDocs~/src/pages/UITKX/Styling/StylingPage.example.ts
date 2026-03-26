@@ -30,7 +30,7 @@ var panelStyle = new Style {
     MarginBottom = 10f,
 };`
 
-export const EXAMPLE_IMPORT = `@using ReactiveUITK.Props.Typed
+export const EXAMPLE_IMPORT = `@using ReactiveUITK.Props.Typed      // Style, StyleKeys
 @using UnityEngine
 @using UnityEngine.UIElements
 @using static ReactiveUITK.Props.Typed.CssHelpers`
@@ -111,14 +111,14 @@ var safe = new Style {
 
 // Tuple syntax — escape hatch for edge cases
 var escape = new Style {
-    ("width", 100f),
-    ("flexDirection", "row"),
+    (StyleKeys.Width, 100f),
+    (StyleKeys.FlexDirection, "row"),
 };
 
 // Mix both in one style (not recommended but works)
 var mixed = new Style {
     Width = 100f,
-    ("customProperty", someValue),
+    (StyleKeys.CustomProperty, someValue),
 };`
 
 export const EXAMPLE_ENUM_TABLE = `// Flexbox enums

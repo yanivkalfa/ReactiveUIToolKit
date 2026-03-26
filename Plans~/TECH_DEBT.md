@@ -445,3 +445,35 @@ versions see docs that don't match their installed version.
 - Deploy pipeline (GitHub Actions / scripts) — versioned output
 
 **Priority:** Medium — important for production release but not blocking development.
+
+---
+
+## Per-component / per-style Unity docs deep-links with version badge
+
+**Problem:** Component documentation pages and style property tables don't link
+to the corresponding Unity documentation page for that specific element or USS
+property, versioned to match the user's selected Unity version.
+
+**Desired behavior:**
+- Each component page (both C# and UITKX tracks) shows a version badge
+  (e.g. "Unity 6.2") next to the component name, linking to the Unity manual
+  page for that element at the correct docs version.
+- The style property type table on the Styling page shows per-property version
+  badges when a property was added after the floor version (e.g. `aspectRatio`
+  shows "6.3+" badge, linking to the Unity IStyle docs for 6.3).
+- Links use the version selected in the docs site version dropdown, so selecting
+  "6.3" points all Unity doc links to `docs.unity3d.com/6000.3/`.
+
+**Example:**
+```
+Button  [Unity 6.2] → https://docs.unity3d.com/6000.2/.../UIE-uxml-element-Button.html
+aspectRatio  [6.3+] → https://docs.unity3d.com/6000.3/.../UIElements.IStyle.html
+```
+
+**Files to modify:**
+- `ReactiveUIToolKitDocs~/src/versionManifest.ts` — version data already tracks this
+- `ReactiveUIToolKitDocs~/src/components/UnityDocsSection/UnityDocsSection.tsx` — use selected version
+- `ReactiveUIToolKitDocs~/src/pages/UITKX/Styling/StylingPage.tsx` — add per-property badges
+- Individual component pages — add inline version badge + link
+
+**Priority:** Low — nice-to-have polish, not blocking.

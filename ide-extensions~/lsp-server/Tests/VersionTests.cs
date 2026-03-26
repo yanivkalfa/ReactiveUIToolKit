@@ -187,10 +187,13 @@ public sealed class SchemaVersionTests
     }
 
     [Fact]
-    public void StyleVersions_EmptyByDefault()
+    public void StyleVersions_Contains6000_3_Entries()
     {
         var schema = CreateSchema();
-        Assert.Empty(schema.Root.StyleVersions);
+        Assert.Equal(3, schema.Root.StyleVersions.Count);
+        Assert.Equal("6000.3", schema.Root.StyleVersions["aspectRatio"].SinceUnity);
+        Assert.Equal("6000.3", schema.Root.StyleVersions["filter"].SinceUnity);
+        Assert.Equal("6000.3", schema.Root.StyleVersions["unityMaterial"].SinceUnity);
     }
 
     [Fact]
