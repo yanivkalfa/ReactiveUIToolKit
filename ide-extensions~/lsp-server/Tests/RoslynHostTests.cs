@@ -60,7 +60,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     public async Task EnsureReady_CreatesVirtualDocument()
     {
         // Use the same source pattern that works in SemanticModel_ResolvesBclType.
-        var source = "@namespace T\n@component C\n@code {\n  string msg = \"hello\";\n}\n<Label text={msg}/>";
+        var source = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
         var path = "c:/test/VirtualDocTest.uitkx";
         var parseResult = Parse(source, path);
         await _host.EnsureReadyAsync(path, source, parseResult, CancellationToken.None);
@@ -78,7 +78,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task EnsureReady_CreatesRoslynDocument()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"hi\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"hi\"/>\n  )\n}";
         await EnsureReady(source);
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
@@ -90,7 +90,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task SemanticModel_ResolvesBclType()
     {
-        var source = "@namespace T\n@component C\n@code {\n  string msg = \"hello\";\n}\n<Label text={msg}/>";
+        var source = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
         await EnsureReady(source);
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
@@ -126,7 +126,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task HoverTypeInfo_StringVariable()
     {
-        var source = "@namespace T\n@component C\n@code {\n  string greeting = \"hello\";\n}\n<Label text={greeting}/>";
+        var source = "component C {\n  string greeting = \"hello\";\n  return (\n    <Label text={greeting}/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -162,7 +162,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task VirtualDoc_ExpressionRegion_IsInCSharp()
     {
-        var source = "@namespace T\n@component C\n<Label text={myVar}/>";
+        var source = "component C {\n  return (\n    <Label text={myVar}/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -175,7 +175,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task VirtualDoc_MarkupRegion_IsNotCSharp()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"plain\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"plain\"/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -190,7 +190,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task EnsureReady_Idempotent_SameSource()
     {
-        var source = "@namespace T\n@component C\n<Label/>";
+        var source = "component C {\n  return (\n    <Label/>\n  )\n}";
         await EnsureReady(source);
         await EnsureReady(source); // should short-circuit
 

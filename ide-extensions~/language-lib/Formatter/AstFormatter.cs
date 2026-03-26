@@ -74,7 +74,6 @@ namespace ReactiveUITK.Language.Formatter
             }
             else
             {
-                FormatDirectives(directives);
                 FormatNodeList(nodes, topLevel: true);
             }
 
@@ -86,46 +85,6 @@ namespace ReactiveUITK.Language.Formatter
         // ═══════════════════════════════════════════════════════════════════════
         //  DIRECTIVES
         // ═══════════════════════════════════════════════════════════════════════
-
-        private void FormatDirectives(DirectiveSet d)
-        {
-            bool any = false;
-
-            if (d.Namespace != null)
-            {
-                Ln($"@namespace {d.Namespace}");
-                any = true;
-            }
-            foreach (var u in d.Usings)
-            {
-                Ln($"@using {u}");
-                any = true;
-            }
-            if (d.ComponentName != null)
-            {
-                Ln($"@component {d.ComponentName}");
-                any = true;
-            }
-            if (d.PropsTypeName != null)
-            {
-                Ln($"@props {d.PropsTypeName}");
-                any = true;
-            }
-            if (d.DefaultKey != null)
-            {
-                Ln($"@key \"{d.DefaultKey}\"");
-                any = true;
-            }
-            foreach (var inj in d.Injects)
-            {
-                Ln($"@inject {inj.Type} {inj.Name}");
-                any = true;
-            }
-
-            // Blank separator between the directive block and the markup.
-            if (any)
-                _sb.Append('\n');
-        }
 
         private void FormatFunctionStyleComponent(
             DirectiveSet directives,

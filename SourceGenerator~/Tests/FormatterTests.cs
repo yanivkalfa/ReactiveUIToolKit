@@ -5,23 +5,22 @@ namespace ReactiveUITK.SourceGenerator.Tests;
 
 public class FormatterTests
 {
-    private const string Header = "@namespace Test.NS\n@component MyComp\n";
-
     [Fact]
     public void Format_DoesNotAppendSemicolon_ToControlFlowHeader()
     {
         var formatter = new AstFormatter(FormatterOptions.Default);
         var source =
-            Header
-            + """
-                @code {
-                    if (mode == "normal")
-                    {
-                        setMode("active")
-                    }
+            """
+            component MyComp {
+                if (mode == "normal")
+                {
+                    setMode("active")
                 }
-                <box/>
-                """;
+                return (
+                    <box/>
+                );
+            }
+            """;
 
         var formatted = formatter.Format(source, "Test.uitkx");
 

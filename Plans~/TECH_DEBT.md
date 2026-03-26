@@ -151,27 +151,42 @@ that calls `EditorApplication.ExecuteMenuItem("Window/UI Toolkit/Debugger")`.
 
 ---
 
-## Remove classic mode from VirtualDocumentGenerator
+## ~~Remove classic mode from VirtualDocumentGenerator~~ ✅ DONE
 
-**Symptom:** VirtualDocumentGenerator has two code paths: "classic mode"
-(`EmitClassicBody` + `EmitExpressionWrapper`) and "function-style mode"
-(`EmitFunctionStyleBody` + `EmitExpressionStatement`). Classic mode emits
-each attribute expression as a separate `private object __wrapper()` method,
-which means local variables from `@code` blocks are not in scope. Function-style
-mode puts everything inside a single `__uitkx_render()` method where locals
-are visible.
+Completed — removed all classic-mode code paths across 11+ production files:
+`EmitClassicBody`, `EmitExpressionWrapper`, `EmitCodeBlock` (VDG),
+`FormatDirectives` (formatter), `CollectDirectiveTokens` (semantic tokens),
+`DirectiveItems`/`BuildDirectiveSnippet` (completions), classic parsing loop
+(DirectiveParser), UITKX0101/0102 diagnostics, and classic guards in the
+SourceGenerator emitter/pipeline. All tests converted to function-style
+(820 SG + 59 LSP passing).
 
-**Problem:** Maintaining two emission paths doubles the effort for any VDG
-change (e.g. typed props initializers). Classic mode is not actively used.
+---
 
-**Action:** Audit whether any `.uitkx` files still rely on classic mode. If not,
-remove `EmitClassicBody`, `EmitExpressionWrapper`, and the classic/function-style
-branching logic. Keep only function-style mode.
+## Rename Symbol (F2) renames same-named lambda params across unrelated lambdas
 
-**Files:**
-- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs`
+**Symptom:** In a pattern like:
 
-**Priority:** Medium — reduces maintenance burden and unblocks future VDG improvements.
+```uitkx
+setCount(v => v + 1);
+setCount(v => v + 1);
+setCount(v => v + 1);
+```
+
+Renaming one `v` with F2 renames all three, even though they are independent
+lambda parameters in separate closures.
+
+**Cause:** The virtual C# document places all lambdas inside the same
+`Render()` method body. Roslyn's rename engine sees three lambda parameters
+with the same name at the same scope level and renames them all together.
+This is standard Roslyn behavior — Blazor/Razor has the same limitation.
+
+**Workaround:** Use distinct parameter names (`prev => prev + 1`) or accept
+the batch rename.
+
+**Status:** Known limitation — not planned to fix. Scoping rename edits per-
+lambda in `RenameHandler` would risk breaking legitimate multi-line renames
+(e.g. a variable used across several lines).
 
 ---
 
