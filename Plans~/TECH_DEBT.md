@@ -7,34 +7,15 @@ process success before consuming the event.
 
 ---
 
-## Unused variables in `.uitkx` not highlighted by analyzer
+## ~~Unused variables in `.uitkx` not highlighted by analyzer~~ ✅ FIXED
 
-**Symptom:** Declaring an unused local variable in a `.uitkx` file (e.g.
-`var btnTextStyle = new Style { ... };` in `DiabloMenuDemoFunc.uitkx`) does
-not produce a red/grey "unused" diagnostic in the editor.
-
-**Expected:** The Roslyn analyzer or source generator should emit a warning
-(e.g. `CS0219` or a custom `UITKX` diagnostic) for unused locals, matching
-standard C# IDE behaviour.
-
-**Example:**
-```csharp
-// DiabloMenuDemoFunc.uitkx — this variable is never referenced
-var btnTextStyle = new Style {
-    (StyleKeys.TextColor, TextLight),
-    (StyleKeys.FontSize, 11f),
-};
-```
-
-**Files to investigate:**
-- `SourceGenerator~/` — check if generated `.g.cs` preserves local declarations
-  in a way that Roslyn can detect them as unused
-- `Analyzers/ReactiveUITK.Language.dll` — check if a custom analyzer suppresses
-  `CS0219` / `IDE0059` for `.uitkx`-originated code
-- LSP server (`ide-extensions~/lsp-server/`) — check if unused-variable
-  diagnostics are forwarded from the generated C# back to `.uitkx` source positions
-
-**Priority:** Low — cosmetic, but important for developer experience.
+Fixed — UITKX0112 diagnostic implemented using `SemanticModel.AnalyzeDataFlow()`
+on the virtual document's `__uitkx_render()` method. Catches all unused locals
+including object/collection initialisers (`new Style { … }`) that Roslyn's CS0219
+misses. CS0219 suppressed at compilation level; UITKX0112 is the single source of
+truth. Filters: scaffold variables (`__uitkx_*`), discard convention (`_` prefix),
+and only flags variables in `FunctionSetup`/`CodeBlock` source-map regions (avoids
+false positives on lambda params in expression checks).
 
 ---
 
@@ -248,41 +229,13 @@ branching logic. Keep only function-style mode.
 
 ---
 
-## LSP virtual document lacks prop type checking (systematic type erasure)
+## ~~LSP virtual document lacks prop type checking (systematic type erasure)~~ ✅ FIXED
 
-**Symptom:** The LSP server does not surface type mismatches between attribute
-expressions and their target prop types. For example:
-- `<Label text={42f} />` — no error (text expects `string`)
-- `<StatusBar percent={"hello"} />` — no error (percent expects `float`)
-- `<Button enabled={42} />` — no error (enabled expects `bool`)
-
-Unity's build DOES catch these errors because the source generator emits
-strongly-typed code: `new LabelProps { Text = 42f }` → CS0029.
-
-**Root cause:** VirtualDocumentGenerator wraps every attribute expression in
-`object`-returning wrappers:
-```csharp
-// Classic:   private object __uitkx_attr_0_text() { return (42f); }
-// Function:  { object __uitkx_attr_0_text = (42f); }
-```
-Since everything returns/assigns `object`, Roslyn sees no type mismatch.
-
-**Fix:** Change VDG to emit props initializer assignments that mirror what
-CSharpEmitter generates:
-```csharp
-{ LabelProps __p = new LabelProps(); __p.Text = (42f); }  // → CS0029 ✅
-```
-
-Requires passing element→propsType mapping (from `uitkx-schema.json` and
-`WorkspaceIndex`) into VDG at generation time.
-
-**Files:**
-- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs` — emission
-- `ide-extensions~/lsp-server/DiagnosticsPublisher.cs` — pass schema/index data
-- `ide-extensions~/grammar/uitkx-schema.json` — built-in type mapping source
-- `ide-extensions~/lsp-server/WorkspaceIndex.cs` — user component type source
-
-**Priority:** High — every attribute on every element is affected.
+Fixed — `EmitTypedPropsCheck` in VirtualDocumentGenerator emits typed assignment
+checks (`{ int? __uitkx_check = (expr); }`) for every attribute with a known type
+from `uitkx-schema.json` or `WorkspaceIndex` (user components). Covers built-in
+elements and user-defined components. The nullable `?` suffix prevents false errors
+on nullable C# properties (e.g. `int?` for `selectedIndex`).
 
 ---
 
@@ -330,7 +283,7 @@ PropsApplier would compare via a custom equality check and set all four
 
 ---
 
-## Unity version compatibility tracking and enforcement
+## ~~Unity version compatibility tracking and enforcement~~ ✅ IMPLEMENTED
 
 **Status:** ✅ Infrastructure implemented — see `Plans~/VERSIONING_PROCESS.md` for the
 full process, coverage matrices, and implementation checklists.
@@ -401,50 +354,11 @@ Internal contributors don't have a single source of truth for what shipped when.
 
 ---
 
-## Documentation versioning strategy
+## ~~Documentation versioning strategy~~ ✅ IMPLEMENTED
 
-**Problem:** The documentation website (reactiveuitoolkit.info) has no versioning
-system. It shows a single version of the docs that corresponds to whatever was
-last deployed. When we release breaking changes or new features, users on older
-versions see docs that don't match their installed version.
-
-**Impact:**
-- Users on older package versions see API references for features they don't have
-- Users upgrading can't compare what changed between their version and latest
-- No way to link to docs for a specific version (e.g. "see v1.2 docs")
-- Migration guides have no anchored "from" version to reference
-
-**Requirements:**
-
-1. **Versioned doc snapshots** — Each release should produce a versioned copy of
-   the docs (e.g. `/v1.0/`, `/v1.1/`, or `/latest/`).
-
-2. **Version selector** — The website should have a dropdown or picker that lets
-   users switch between doc versions.
-
-3. **Approach options:**
-   - **Option A: Git-tag based** — Build docs from each release tag, deploy each
-     to a versioned path (e.g. GitHub Pages with `/v1.0.x/` directories).
-   - **Option B: Docusaurus/VitePress migration** — Switch to a framework with
-     built-in versioning (Docusaurus has native `docs:version` command).
-   - **Option C: Manual snapshots** — Copy the built `dist/` into a versioned
-     directory at deploy time. Simple but no diff/search across versions.
-   - **Option D: Version banner only** — Keep single-version docs but add a
-     prominent "This documents version X.Y" banner with a changelog link.
-
-4. **Auto-generated content** — The `vite.config.ts` already reads `Props/*.cs`
-   files at build time to generate props docs. This should also read the package
-   version and embed it in the site.
-
-5. **Changelog integration** — The docs site should display or link to the
-   centralized changelog (see "Centralized changelog" tech debt item above).
-
-**Files:**
-- `ReactiveUIToolKitDocs~/vite.config.ts` — version injection
-- `ReactiveUIToolKitDocs~/src/version.ts` — currently exists
-- Deploy pipeline (GitHub Actions / scripts) — versioned output
-
-**Priority:** Medium — important for production release but not blocking development.
+Implemented — `versionManifest.ts` drives version-aware docs with a version
+selector dropdown, filtered sidebar, and `sinceUnity` annotations. Docs are
+built from `ReactiveUIToolKitDocs~/` with version data injected at build time.
 
 ---
 
