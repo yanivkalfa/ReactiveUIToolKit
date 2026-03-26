@@ -83,12 +83,12 @@ const getNotes = (title: string): string[] => {
     case 'IMGUIContainer':
       return [
         'IMGUIContainer remains callback-driven even in UITKX.',
-        'It is mainly useful for editor tooling or legacy IMGUI interop.',
+        'It is mainly useful for editor tooling or IMGUI interop.',
       ]
     case 'PropertyInspector':
       return [
         'PropertyInspector is especially useful in editor tooling and inspector-like UIs.',
-        'It is still backed by runtime props underneath, even when authored in UITKX.',
+        'It is backed by runtime props, so typed bindings work the same way as other components.',
       ]
     case 'ListView':
     case 'TreeView':

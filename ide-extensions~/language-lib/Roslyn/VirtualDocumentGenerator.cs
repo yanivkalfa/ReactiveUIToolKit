@@ -634,9 +634,12 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold("#pragma warning disable CS0246\n");
 
             // Scaffold: direct typed variable assignment up to the expression.
-            // e.g. { float __uitkx_check = (
+            // Props properties are nullable (int?, float?, bool? …) so the check
+            // must accept both T and T? to match what Unity's compiler sees when
+            // assigning into the object-initializer (e.g. new TabViewProps { SelectedIndex = expr }).
+            // For reference types under #nullable-enable, the extra ? is just an annotation.
             b.Scaffold(
-                $"{indent}{{ {propType} __uitkx_check = ("
+                $"{indent}{{ {propType}? __uitkx_check = ("
             );
 
             // Mapped region: the expression text itself (source-map preserved)

@@ -68,9 +68,7 @@ The docs site (`reactiveuitoolkit.info`) has a version-aware system driven by
 6. Add entries to `PAGE_VERSIONS` for any new doc pages
 7. If new elements were added, create a **full component page** with usage
    examples, props table, and `sinceUnity` set — not just a table entry
-8. Update the **C# track** pages as well (`pages.tsx` / legacy sections) —
-   the C# side of the docs is a separate track and also needs version content
-9. Verify: `cd ReactiveUIToolKitDocs~ && npm run build`
+8. Verify: `cd ReactiveUIToolKitDocs~ && npm run build`
 
 ### Conventions
 
