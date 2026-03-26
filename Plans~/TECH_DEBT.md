@@ -332,51 +332,25 @@ PropsApplier would compare via a custom equality check and set all four
 
 ## Unity version compatibility tracking and enforcement
 
-**Problem:** We declare "Unity 6.2+" support but do nothing to track or enforce
-API compatibility across Unity versions. Style properties, UIElements APIs, and
-struct types can change between Unity releases (e.g. a type may exist in 6.2 but
-be removed or renamed in 6.4, or new types may appear in 6.3+). Currently we
-have no way to know when Unity changes something that affects us.
+**Status:** ✅ Infrastructure implemented — see `Plans~/VERSIONING_PROCESS.md` for the
+full process, coverage matrices, and implementation checklists.
 
-**Impact:** Users on different Unity versions may hit compile errors or runtime
-failures on APIs we assume exist. We also miss new APIs we could leverage.
+**What was built (scaffolding):**
+- `UnityVersion` value type with parsing, comparison, and display (`lsp-server/UnityVersion.cs`)
+- Schema model extended with `sinceUnity`, `deprecatedIn`, `removedIn` fields on
+  `ElementInfo`, `AttributeInfo`, and a new `styleVersions` section with `VersionInfo`
+- `ReferenceAssemblyLocator` now detects and exposes `DetectedVersion` from `ProjectVersion.txt`
+- `CompletionHandler` annotates completion items requiring newer Unity (⚠️ prefix, sorted lower)
+- `DiagnosticsPublisher` emits `UITKX0200` warnings for elements requiring newer Unity
+- `DiagnosticCodes.VersionMismatch` = `"UITKX0200"` added to language-lib
+- Version-awareness tests in `Tests/VersionTests.cs`
+- Full version coverage matrix (IStyle properties + elements) in the process doc
 
-**Requirements:**
-
-1. **Automated changelog scanning** — A tool or script that:
-   - Pulls Unity UI Toolkit changelogs / API diffs between releases
-   - Filters for `UnityEngine.UIElements` namespace changes (new types, removed
-     types, changed signatures, deprecated APIs)
-   - Outputs a report of additions/removals/changes relevant to our library
-   - Runs on a schedule or when a new Unity version is released
-
-2. **Version-gated code** — A strategy for supporting multiple Unity versions:
-   - Option A: `#if UNITY_6_3_OR_NEWER` preprocessor directives in Shared/
-   - Option B: Runtime feature detection (check if type/method exists via reflection)
-   - Option C: Separate assembly definitions per Unity version range
-   - Option D: Minimum version floor (only support latest LTS + current)
-
-3. **Version matrix testing** — CI builds against multiple Unity versions to
-   catch regressions early.
-
-4. **Documentation** — Clearly mark which features require which Unity version
-   (e.g. "BackgroundSize requires Unity 6.2+", "filter requires Unity 6.X+").
-
-**Scope of affected code:**
-- `Shared/Props/PropsApplier.cs` — style setters that call IStyle members
-- `Shared/Props/Typed/Style.cs` — typed properties exposing Unity types
-- `Shared/Props/Typed/CssHelpers.cs` — shortcuts using Unity enums/structs
-- `SourceGenerator~/` — generated code references Unity types
-- `ide-extensions~/grammar/uitkx-schema.json` — schema lists valid style keys
-
-**Process (proposed):**
-1. Script scrapes Unity docs API diff pages (e.g. comparing 6000.2 vs 6000.3
-   IStyle property lists) — automated
-2. Script outputs "added", "removed", "changed" entries for UIElements namespace — automated
-3. Developer reviews output and decides what to add/remove/gate — manual
-4. Code changes + test on target versions — manual
-
-**Priority:** High — without this, we're flying blind on version compatibility.
+**What remains (per-version work):**
+- Add `sinceUnity` annotations to schema entries for 6.3+ features
+- Implement `#if UNITY_6000_3_OR_NEWER` guards in PropsApplier, Style, CssHelpers, StyleKeys
+- Build automated API diff script (`scripts/unity-api-diff/`)
+- CI version matrix testing
 
 ---
 
@@ -471,3 +445,35 @@ versions see docs that don't match their installed version.
 - Deploy pipeline (GitHub Actions / scripts) — versioned output
 
 **Priority:** Medium — important for production release but not blocking development.
+
+---
+
+## Per-component / per-style Unity docs deep-links with version badge
+
+**Problem:** Component documentation pages and style property tables don't link
+to the corresponding Unity documentation page for that specific element or USS
+property, versioned to match the user's selected Unity version.
+
+**Desired behavior:**
+- Each component page (both C# and UITKX tracks) shows a version badge
+  (e.g. "Unity 6.2") next to the component name, linking to the Unity manual
+  page for that element at the correct docs version.
+- The style property type table on the Styling page shows per-property version
+  badges when a property was added after the floor version (e.g. `aspectRatio`
+  shows "6.3+" badge, linking to the Unity IStyle docs for 6.3).
+- Links use the version selected in the docs site version dropdown, so selecting
+  "6.3" points all Unity doc links to `docs.unity3d.com/6000.3/`.
+
+**Example:**
+```
+Button  [Unity 6.2] → https://docs.unity3d.com/6000.2/.../UIE-uxml-element-Button.html
+aspectRatio  [6.3+] → https://docs.unity3d.com/6000.3/.../UIElements.IStyle.html
+```
+
+**Files to modify:**
+- `ReactiveUIToolKitDocs~/src/versionManifest.ts` — version data already tracks this
+- `ReactiveUIToolKitDocs~/src/components/UnityDocsSection/UnityDocsSection.tsx` — use selected version
+- `ReactiveUIToolKitDocs~/src/pages/UITKX/Styling/StylingPage.tsx` — add per-property badges
+- Individual component pages — add inline version badge + link
+
+**Priority:** Low — nice-to-have polish, not blocking.

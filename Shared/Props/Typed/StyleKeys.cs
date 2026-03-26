@@ -51,6 +51,7 @@ namespace ReactiveUITK.Props.Typed
         public const string WhiteSpace = "whiteSpace";
         public const string LetterSpacing = "letterSpacing";
         public const string TextOverflow = "textOverflow";
+        public const string UnityFontStyle = "unityFontStyle";
         public const string UnityTextOutlineColor = "unityTextOutlineColor";
         public const string UnityTextOutlineWidth = "unityTextOutlineWidth";
         public const string UnityTextOverflowPosition = "unityTextOverflowPosition";
@@ -80,5 +81,12 @@ namespace ReactiveUITK.Props.Typed
         public const string BackgroundPositionY = "backgroundPositionY";
         public const string BackgroundSize = "backgroundSize";
         public const string TransformOrigin = "transformOrigin";
+
+        // ── Unity 6.3+ ──────────────────────────────────────────────────
+#if UNITY_6000_3_OR_NEWER
+        public const string AspectRatio = "aspectRatio";
+        public const string Filter = "filter";
+        public const string UnityMaterial = "unityMaterial";
+#endif
     }
 }

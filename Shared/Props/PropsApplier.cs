@@ -541,10 +541,40 @@ namespace ReactiveUITK.Props
                 }
                 catch { }
             };
+            // ── Unity 6.3+ (UNITY_6000_3_OR_NEWER) ─────────────────────────
+#if UNITY_6000_3_OR_NEWER
+            styleSetters["aspectRatio"] = (e, v) =>
+            {
+                if (v is StyleRatio sr)
+                    e.style.aspectRatio = sr;
+                else if (v is Ratio r)
+                    e.style.aspectRatio = new StyleRatio(r);
+                else if (v is float f)
+                    e.style.aspectRatio = new StyleRatio(new Ratio(f));
+                else if (v is int i)
+                    e.style.aspectRatio = new StyleRatio(new Ratio(i));
+            };
+            styleSetters["filter"] = (e, v) =>
+            {
+                if (v is StyleList<FilterFunction> sl)
+                    e.style.filter = sl;
+                else if (v is System.Collections.Generic.List<FilterFunction> list)
+                    e.style.filter = new StyleList<FilterFunction>(list);
+            };
+            styleSetters["unityMaterial"] = (e, v) =>
+            {
+                if (v is StyleMaterialDefinition smd)
+                    e.style.unityMaterial = smd;
+                else if (v is MaterialDefinition md)
+                    e.style.unityMaterial = new StyleMaterialDefinition(md);
+            };
+#else
+            styleSetters["aspectRatio"] = (e, v) => { };
+            styleSetters["filter"] = (e, v) => { };
+            styleSetters["unityMaterial"] = (e, v) => { };
+#endif
             // TODO: cursor — StyleCursor wraps Cursor struct (Texture2D + hotspot). Unity has no built-in cursor constants.
             styleSetters["cursor"] = (e, v) => { };
-            // TODO: filter — no IStyle.filter property in Unity 6.2
-            styleSetters["filter"] = (e, v) => { };
             // TODO: transition — CSS shorthand, no IStyle.transition in Unity 6.2
             styleSetters["transition"] = (e, v) => { };
             // TODO: transition* — StyleList<T> types, diffing not supported yet (see TECH_DEBT.md)
@@ -827,6 +857,20 @@ namespace ReactiveUITK.Props
                 }
                 catch { }
             };
+#if UNITY_6000_3_OR_NEWER
+            styleResetters["aspectRatio"] = e =>
+            {
+                e.style.aspectRatio = StyleKeyword.Null;
+            };
+            styleResetters["filter"] = e =>
+            {
+                e.style.filter = StyleKeyword.Null;
+            };
+            styleResetters["unityMaterial"] = e =>
+            {
+                e.style.unityMaterial = StyleKeyword.Null;
+            };
+#endif
         }
 
         private static readonly Dictionary<string, string> s_canonicalizeCache = new(64);

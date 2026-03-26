@@ -76,6 +76,7 @@ export type Page = {
   keywords?: string[]
   searchContent?: string
   group?: 'basic' | 'advanced'
+  sinceUnity?: string
   element: () => ReactElement
 }
 

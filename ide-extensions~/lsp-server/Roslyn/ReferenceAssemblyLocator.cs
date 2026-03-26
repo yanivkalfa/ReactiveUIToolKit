@@ -45,8 +45,19 @@ namespace UitkxLanguageServer.Roslyn
         private readonly object   _lock   = new object();
         private string?           _cachedRoot;
         private MetadataReference[]? _cachedRefs;
+        private UnityVersion      _detectedVersion;
 
         // ── Public API ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The Unity Editor version detected from <c>ProjectSettings/ProjectVersion.txt</c>.
+        /// Returns <see cref="UnityVersion.Unknown"/> if the file was not found or could not be parsed.
+        /// Updated each time <see cref="GetReferences"/> resolves references.
+        /// </summary>
+        public UnityVersion DetectedVersion
+        {
+            get { lock (_lock) { return _detectedVersion; } }
+        }
 
         /// <summary>
         /// Returns the set of <see cref="MetadataReference"/> objects to pass to
@@ -70,6 +81,7 @@ namespace UitkxLanguageServer.Roslyn
 
                 _cachedRoot = workspaceRoot;
                 _cachedRefs = BuildReferences(workspaceRoot);
+                _detectedVersion = DetectUnityVersion(workspaceRoot);
                 return _cachedRefs;
             }
         }
@@ -84,6 +96,8 @@ namespace UitkxLanguageServer.Roslyn
             lock (_lock)
             {
                 _cachedRefs = null;
+                // _detectedVersion is intentionally NOT cleared — the Unity
+                // version doesn't change on recompilation, only the DLLs do.
             }
         }
 
@@ -323,6 +337,51 @@ namespace UitkxLanguageServer.Roslyn
             }
 
             return candidates.FirstOrDefault(Directory.Exists);
+        }
+
+        // ── Unity version detection ───────────────────────────────────────────
+
+        /// <summary>
+        /// Parses <c>ProjectSettings/ProjectVersion.txt</c> under the workspace to
+        /// determine which Unity Editor version the project targets.
+        /// Returns <see cref="UnityVersion.Unknown"/> if detection fails.
+        /// </summary>
+        public static UnityVersion DetectUnityVersion(string? workspaceRoot)
+        {
+            if (string.IsNullOrEmpty(workspaceRoot))
+                return UnityVersion.Unknown;
+
+            string? projectRoot = FindUnityProjectRoot(workspaceRoot);
+            string searchRoot = projectRoot ?? workspaceRoot;
+            string versionFile = Path.Combine(searchRoot, "ProjectSettings", "ProjectVersion.txt");
+
+            if (!File.Exists(versionFile))
+                return UnityVersion.Unknown;
+
+            try
+            {
+                foreach (var line in File.ReadLines(versionFile))
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.StartsWith("m_EditorVersion:", StringComparison.Ordinal))
+                    {
+                        string raw = trimmed.Substring("m_EditorVersion:".Length).Trim();
+                        if (UnityVersion.TryParse(raw, out var version))
+                        {
+                            ServerLog.Log(
+                                $"[ReferenceAssemblyLocator] Detected Unity version: {version} ({version.ToDisplayString()})");
+                            return version;
+                        }
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ServerLog.Log($"[ReferenceAssemblyLocator] Failed to read ProjectVersion.txt: {ex.Message}");
+            }
+
+            return UnityVersion.Unknown;
         }
     }
 }

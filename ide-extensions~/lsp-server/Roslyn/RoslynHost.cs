@@ -166,6 +166,12 @@ namespace UitkxLanguageServer.Roslyn
         public string? WorkspaceRoot => _workspaceRoot;
 
         /// <summary>
+        /// The Unity Editor version detected from the project's <c>ProjectVersion.txt</c>.
+        /// Returns <see cref="UnityVersion.Unknown"/> if not yet resolved or not a Unity project.
+        /// </summary>
+        public UnityVersion DetectedUnityVersion => _refLocator.DetectedVersion;
+
+        /// <summary>
         /// Informs the host of the workspace root so it can discover Unity
         /// assemblies and set up a DLL-change watcher.  Call this from
         /// <see cref="OmniSharp.Extensions.LanguageServer.Protocol.Server.IOnLanguageServerStarted.OnStarted"/>.

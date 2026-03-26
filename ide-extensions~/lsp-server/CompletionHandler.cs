@@ -774,23 +774,31 @@ public sealed class CompletionHandler : ICompletionHandler
             });
 
         // Schema built-ins not already covered by the workspace index
+        var userVersion = _roslynHost.DetectedUnityVersion;
         var schemaItems = _schema
             .Root.Elements.Where(kv =>
                 kv.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
                 && !knownElements.Contains(kv.Key)
             )
-            .Select(kv => new CompletionItem
+            .Select(kv =>
             {
-                Label = kv.Key,
-                Kind = CompletionItemKind.Class,
-                InsertText = BuildTagSnippet(kv.Key, kv.Value),
-                InsertTextFormat = InsertTextFormat.Snippet,
-                Detail = kv.Value.PropsType,
-                Documentation = new MarkupContent
+                var va = GetVersionAnnotation(kv.Value.SinceUnity, userVersion);
+                return new CompletionItem
                 {
-                    Kind = MarkupKind.Markdown,
-                    Value = kv.Value.Description,
-                },
+                    Label = va.HasValue ? $"{va.Value.LabelPrefix}{kv.Key}" : kv.Key,
+                    Kind = CompletionItemKind.Class,
+                    InsertText = BuildTagSnippet(kv.Key, kv.Value),
+                    InsertTextFormat = InsertTextFormat.Snippet,
+                    SortText = va.HasValue ? $"{va.Value.SortPrefix}{kv.Key}" : null,
+                    Detail = va.HasValue
+                        ? (kv.Value.PropsType ?? "") + va.Value.DetailSuffix
+                        : kv.Value.PropsType,
+                    Documentation = new MarkupContent
+                    {
+                        Kind = MarkupKind.Markdown,
+                        Value = kv.Value.Description,
+                    },
+                };
             });
 
         return dynamicItems.Concat(schemaItems);
@@ -1007,14 +1015,24 @@ public sealed class CompletionHandler : ICompletionHandler
         if (!_schema.Root.StyleKeyValues.TryGetValue(camelKey, out var values))
             return null;
 
+        var userVersion = _roslynHost.DetectedUnityVersion;
+        var versionInfo = _schema.GetStyleVersionInfo(camelKey);
+
         return values
             .Where(v => v.StartsWith(typedSoFar, StringComparison.OrdinalIgnoreCase))
-            .Select(v => new CompletionItem
+            .Select(v =>
             {
-                Label      = v,
-                Kind       = CompletionItemKind.Value,
-                Detail     = $"StyleKeys.{propName}",
-                InsertText = v,
+                var va = GetVersionAnnotation(versionInfo?.SinceUnity, userVersion);
+                return new CompletionItem
+                {
+                    Label      = va.HasValue ? $"{va.Value.LabelPrefix}{v}" : v,
+                    Kind       = CompletionItemKind.Value,
+                    SortText   = va.HasValue ? $"{va.Value.SortPrefix}{v}" : null,
+                    Detail     = va.HasValue
+                        ? $"StyleKeys.{propName}{va.Value.DetailSuffix}"
+                        : $"StyleKeys.{propName}",
+                    InsertText = v,
+                };
             });
     }
 
@@ -1029,5 +1047,40 @@ public sealed class CompletionHandler : ICompletionHandler
             offset = nl < 0 ? text.Length : nl + 1;
         }
         return Math.Min(offset + column, text.Length);
+    }
+
+    // ── Version-awareness helpers ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Given a schema entry's <c>sinceUnity</c> annotation and the user's detected
+    /// Unity version, returns version annotation info that callers should merge into
+    /// their <see cref="CompletionItem"/> during object initialisation.
+    /// Returns <c>null</c> when no annotation is needed (feature is available).
+    /// </summary>
+    private static VersionAnnotation? GetVersionAnnotation(
+        string? sinceUnity,
+        UnityVersion userVersion)
+    {
+        if (sinceUnity is null)
+            return null;
+        if (!UnityVersion.TryParse(sinceUnity, out var minVersion))
+            return null;
+        if (!userVersion.IsKnown || userVersion >= minVersion)
+            return null;
+
+        return new VersionAnnotation(minVersion);
+    }
+
+    /// <summary>Holds pre-computed display values for a version-annotated completion item.</summary>
+    private readonly record struct VersionAnnotation(UnityVersion MinVersion)
+    {
+        /// <summary>Label prefix, e.g. <c>"⚠️ "</c>.</summary>
+        public string LabelPrefix => "⚠️ ";
+
+        /// <summary>Sort text prefix to push these items to the bottom.</summary>
+        public string SortPrefix => "zz_";
+
+        /// <summary>Detail suffix, e.g. <c>"  • Requires Unity 6.3+"</c>.</summary>
+        public string DetailSuffix => $"  •  Requires {MinVersion.ToDisplayString()}+";
     }
 }
