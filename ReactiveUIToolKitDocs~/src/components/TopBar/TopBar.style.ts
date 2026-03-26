@@ -20,6 +20,8 @@ const inputFlex: SxProps = { flex: 1 }
 
 const right: SxProps = { ml: 1, display: 'flex', alignItems: 'center', gap: 1 }
 
-const Styles = { appBar, toolbar, left, logo, titleLink, title, center, searchPaper, inputFlex, right }
+const versionSelect: SxProps = { minWidth: 120, fontSize: '0.8125rem' }
+
+const Styles = { appBar, toolbar, left, logo, titleLink, title, center, searchPaper, inputFlex, right, versionSelect }
 
 export default Styles

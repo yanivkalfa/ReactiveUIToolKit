@@ -3,14 +3,16 @@ import { useLocation, Link as RouterLink } from 'react-router-dom'
 import { Box, List, ListItemButton, ListItemText, Collapse, Divider, Typography } from '@mui/material'
 import ExpandLess from '@mui/icons-material/ExpandLess'
 import ExpandMore from '@mui/icons-material/ExpandMore'
-import { useState } from 'react'
-import { getSectionsForTrack, getTrackFromPath } from '../../docs'
+import { useState, useMemo } from 'react'
+import { getFilteredSectionsForTrack, getTrackFromPath } from '../../docs'
+import { useSelectedVersion } from '../../contexts/VersionContext'
 import Styles from './Sidebar.style'
 
 export const Sidebar: FC = () => {
   const location = useLocation()
   const track = getTrackFromPath(location.pathname)
-  const sections = getSectionsForTrack(track)
+  const { selectedVersion } = useSelectedVersion()
+  const sections = useMemo(() => getFilteredSectionsForTrack(track, selectedVersion), [track, selectedVersion])
   const displaySections = sections.flatMap((sec) =>
     sec.title === 'Components' && sec.pages.some((p) => p.group)
       ? [

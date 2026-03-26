@@ -231,7 +231,8 @@ namespace ReactiveUITK.Language.Roslyn
         public VirtualDocument Generate(
             ParseResult parseResult,
             string source,
-            string uitkxFilePath
+            string uitkxFilePath,
+            IPropsTypeProvider? propsTypes = null
         )
         {
             var b = new VirtualDocBuilder();
@@ -294,9 +295,9 @@ namespace ReactiveUITK.Language.Roslyn
             );
 
             if (d.IsFunctionStyle)
-                EmitFunctionStyleBody(b, parseResult, source, escapedPath);
+                EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
             else
-                EmitClassicBody(b, parseResult, source, escapedPath);
+                EmitClassicBody(b, parseResult, source, escapedPath, propsTypes);
 
             // ── Close class + namespace ──────────────────────────────────────
             b.Scaffold("    }\n}\n");
@@ -310,7 +311,8 @@ namespace ReactiveUITK.Language.Roslyn
             VirtualDocBuilder b,
             ParseResult parseResult,
             string source,
-            string escapedPath
+            string escapedPath,
+            IPropsTypeProvider? propsTypes = null
         )
         {
             var d = parseResult.Directives;
@@ -357,7 +359,8 @@ namespace ReactiveUITK.Language.Roslyn
             VirtualDocBuilder b,
             ParseResult parseResult,
             string source,
-            string escapedPath
+            string escapedPath,
+            IPropsTypeProvider? propsTypes = null
         )
         {
             var d = parseResult.Directives;
@@ -497,7 +500,8 @@ namespace ReactiveUITK.Language.Roslyn
                 escapedPath,
                 indent: "            ",
                 ref __exprCtr,
-                ref __attrCtr
+                ref __attrCtr,
+                propsTypes
             );
             b.Scaffold("#pragma warning restore 0162\n");
 
@@ -592,6 +596,55 @@ namespace ReactiveUITK.Language.Roslyn
                 b.Scaffold("); }\n");
             }
 
+            b.Scaffold("#line hidden\n");
+        }
+
+        /// <summary>
+        /// Emits a typed property assignment that mirrors what the source generator
+        /// produces, so Roslyn can validate that the expression is assignable to
+        /// the property's declared type.
+        /// <para>
+        /// For <c>&lt;Label text={Something} /&gt;</c> with <c>propsType="LabelProps"</c>
+        /// and <c>propName="Text"</c>, this emits:
+        /// <code>
+        /// #line 5 "Component.uitkx"
+        ///     { string __uitkx_check = (Something); }
+        /// #line hidden
+        /// </code>
+        /// If <c>Something</c> is <c>float</c> and the expected type is
+        /// <c>string</c>, Roslyn emits CS0029 — exactly matching the Unity build
+        /// error.
+        /// </para>
+        /// <para>Uses a direct typed variable instead of a props-class assignment
+        /// so that function-style components (whose Props class is only generated
+        /// at Unity build time) are also type-checked.</para>
+        /// </summary>
+        private static void EmitTypedPropsCheck(
+            VirtualDocBuilder b,
+            CollectedExpression expr,
+            string escapedPath,
+            string indent,
+            string propType
+        )
+        {
+            b.Scaffold($"#line {expr.UitkxLine} \"{escapedPath}\"\n");
+
+            // Suppress CS0246 (type not found) as a safety net for types that
+            // may not be resolvable in the current Roslyn workspace.
+            b.Scaffold("#pragma warning disable CS0246\n");
+
+            // Scaffold: direct typed variable assignment up to the expression.
+            // e.g. { float __uitkx_check = (
+            b.Scaffold(
+                $"{indent}{{ {propType} __uitkx_check = ("
+            );
+
+            // Mapped region: the expression text itself (source-map preserved)
+            b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
+
+            // Scaffold: close assignment + block
+            b.Scaffold("); }\n");
+            b.Scaffold("#pragma warning restore CS0246\n");
             b.Scaffold("#line hidden\n");
         }
 
@@ -815,11 +868,12 @@ namespace ReactiveUITK.Language.Roslyn
             string escapedPath,
             string indent,
             ref int exprCtr,
-            ref int attrCtr
+            ref int attrCtr,
+            IPropsTypeProvider? propsTypes = null
         )
         {
             foreach (var node in nodes)
-                EmitNodeExpressionScoped(node, b, escapedPath, indent, ref exprCtr, ref attrCtr);
+                EmitNodeExpressionScoped(node, b, escapedPath, indent, ref exprCtr, ref attrCtr, propsTypes);
         }
 
         private static void EmitNodeExpressionScoped(
@@ -828,7 +882,8 @@ namespace ReactiveUITK.Language.Roslyn
             string escapedPath,
             string indent,
             ref int exprCtr,
-            ref int attrCtr
+            ref int attrCtr,
+            IPropsTypeProvider? propsTypes = null
         )
         {
             switch (node)
@@ -866,7 +921,22 @@ namespace ReactiveUITK.Language.Roslyn
                                 Label = $"attr_{attrCtr++}_{SanitizeLabel(attr.Name)}",
                                 Kind = SourceRegionKind.AttributeExpression,
                             };
-                            EmitExpressionStatement(b, expr, escapedPath, indent);
+
+                            // Try to emit a direct typed variable for type checking.
+                            // Falls back to the untyped object wrapper for:
+                            //   - unknown elements / unknown attributes (propType == null)
+                            //   - universal / event attributes (propType == null)
+                            //   - lambda expressions (need special handling)
+                            string? propType = propsTypes?.GetPropType(el.TagName, attr.Name);
+
+                            if (propType != null && !cev.Expression.Contains("=>"))
+                            {
+                                EmitTypedPropsCheck(b, expr, escapedPath, indent, propType);
+                            }
+                            else
+                            {
+                                EmitExpressionStatement(b, expr, escapedPath, indent);
+                            }
                         }
                         else if (attr.Value is JsxExpressionValue jsx && jsx.Element != null)
                         {
@@ -876,7 +946,8 @@ namespace ReactiveUITK.Language.Roslyn
                                 escapedPath,
                                 indent,
                                 ref exprCtr,
-                                ref attrCtr
+                                ref attrCtr,
+                                propsTypes
                             );
                         }
                     }
@@ -886,7 +957,8 @@ namespace ReactiveUITK.Language.Roslyn
                         escapedPath,
                         indent,
                         ref exprCtr,
-                        ref attrCtr
+                        ref attrCtr,
+                        propsTypes
                     );
                     break;
 
@@ -920,7 +992,8 @@ namespace ReactiveUITK.Language.Roslyn
                             escapedPath,
                             indent + "    ",
                             ref exprCtr,
-                            ref attrCtr
+                            ref attrCtr,
+                            propsTypes
                         );
                         b.Scaffold($"{indent}}}\n");
                         isFirstBranch = false;
@@ -947,7 +1020,8 @@ namespace ReactiveUITK.Language.Roslyn
                         escapedPath,
                         indent + "    ",
                         ref exprCtr,
-                        ref attrCtr
+                        ref attrCtr,
+                        propsTypes
                     );
                     b.Scaffold($"{indent}}}\n");
                     break;
@@ -971,7 +1045,8 @@ namespace ReactiveUITK.Language.Roslyn
                         escapedPath,
                         indent + "    ",
                         ref exprCtr,
-                        ref attrCtr
+                        ref attrCtr,
+                        propsTypes
                     );
                     b.Scaffold($"{indent}}}\n");
                     break;
@@ -995,7 +1070,8 @@ namespace ReactiveUITK.Language.Roslyn
                         escapedPath,
                         indent + "    ",
                         ref exprCtr,
-                        ref attrCtr
+                        ref attrCtr,
+                        propsTypes
                     );
                     b.Scaffold($"{indent}}}\n");
                     break;
@@ -1008,7 +1084,8 @@ namespace ReactiveUITK.Language.Roslyn
                             escapedPath,
                             indent,
                             ref exprCtr,
-                            ref attrCtr
+                            ref attrCtr,
+                            propsTypes
                         );
                     break;
 
@@ -1020,7 +1097,8 @@ namespace ReactiveUITK.Language.Roslyn
                             escapedPath,
                             indent,
                             ref exprCtr,
-                            ref attrCtr
+                            ref attrCtr,
+                            propsTypes
                         );
                     break;
             }

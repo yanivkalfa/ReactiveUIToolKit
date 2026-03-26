@@ -140,6 +140,7 @@ namespace UitkxLanguageServer.Roslyn
         private readonly ReferenceAssemblyLocator _refLocator;
         private readonly VirtualDocumentGenerator _docGenerator = new VirtualDocumentGenerator();
         private readonly ILanguageServerFacade _server;
+        private readonly IPropsTypeProvider _propsTypes;
 
         private string? _workspaceRoot;
 
@@ -148,16 +149,27 @@ namespace UitkxLanguageServer.Roslyn
 
         // ── Construction ──────────────────────────────────────────────────────
 
-        public RoslynHost(ILanguageServerFacade server)
+        public RoslynHost(
+            ILanguageServerFacade server,
+            UitkxSchema schema,
+            WorkspaceIndex workspaceIndex
+        )
         {
             _server = server;
             _refLocator = new ReferenceAssemblyLocator();
+            _propsTypes = new PropsTypeAdapter(schema, workspaceIndex);
         }
 
         // ── Workspace root (set once on server start) ─────────────────────────
 
         /// <summary>Returns the workspace root path, or <c>null</c> if not yet set.</summary>
         public string? WorkspaceRoot => _workspaceRoot;
+
+        /// <summary>
+        /// The Unity Editor version detected from the project's <c>ProjectVersion.txt</c>.
+        /// Returns <see cref="UnityVersion.Unknown"/> if not yet resolved or not a Unity project.
+        /// </summary>
+        public UnityVersion DetectedUnityVersion => _refLocator.DetectedVersion;
 
         /// <summary>
         /// Informs the host of the workspace root so it can discover Unity
@@ -463,7 +475,7 @@ namespace UitkxLanguageServer.Roslyn
                 )
                     return;
 
-                var virtualDoc = _docGenerator.Generate(parseResult, source, uitkxFilePath);
+                var virtualDoc = _docGenerator.Generate(parseResult, source, uitkxFilePath, _propsTypes);
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
                 state.VirtualDoc = virtualDoc;
                 state.LastBuiltSource = source;
@@ -508,7 +520,7 @@ namespace UitkxLanguageServer.Roslyn
                 var ct = cts.Token;
 
                 // 1. Generate virtual document
-                var virtualDoc = _docGenerator.Generate(parseResult, source, uitkxFilePath);
+                var virtualDoc = _docGenerator.Generate(parseResult, source, uitkxFilePath, _propsTypes);
 
                 // 2. Update (or create) the AdhocWorkspace for this file
                 UpdateWorkspace(state, uitkxFilePath, virtualDoc, ct);
