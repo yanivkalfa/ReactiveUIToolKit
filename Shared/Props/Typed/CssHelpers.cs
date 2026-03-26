@@ -119,6 +119,30 @@ namespace ReactiveUITK.Props.Typed
         /// <summary>Create a color from 0-1 float RGBA values.</summary>
         public static Color Rgba(float r, float g, float b, float a = 1f)
             => new Color(r, g, b, a);
+
+        // ── Filter functions (Unity 6.3+) ───────────────────────────────
+#if UNITY_6000_3_OR_NEWER
+        public static FilterFunction Blur(float radius)
+            => FilterFunction.Blur(new Length(radius, LengthUnit.Pixel));
+        public static FilterFunction Grayscale(float amount)
+            => FilterFunction.Grayscale(amount);
+        public static FilterFunction Saturate(float amount)
+            => FilterFunction.Saturate(amount);
+        public static FilterFunction Brightness(float amount)
+            => FilterFunction.Brightness(amount);
+        public static FilterFunction Contrast(float amount)
+            => FilterFunction.Contrast(amount);
+        public static FilterFunction HueRotate(float degrees)
+            => FilterFunction.HueRotate(degrees);
+        public static FilterFunction Invert(float amount)
+            => FilterFunction.Invert(amount);
+        public static FilterFunction Opacity(float amount)
+            => FilterFunction.Opacity(amount);
+        public static FilterFunction Sepia(float amount)
+            => FilterFunction.Sepia(amount);
+        public static FilterFunction DropShadow(float offsetX, float offsetY, float blurRadius, Color color)
+            => FilterFunction.DropShadow(offsetX, offsetY, blurRadius, color);
+#endif
     }
 }
 
