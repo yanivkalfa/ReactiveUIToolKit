@@ -5,8 +5,10 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Host.Mef;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
+using ReactiveUITK.Language.Diagnostics;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.Roslyn;
 using CSharpParseOptions = Microsoft.CodeAnalysis.CSharp.CSharpParseOptions;
@@ -80,12 +82,28 @@ namespace UitkxLanguageServer.Roslyn
                     // loaded alongside the virtual document shadow the same types in
                     // Assembly-CSharp.dll. This is intentional and harmless.
                     ["CS0436"] = ReportDiagnostic.Suppress, // source type shadows imported type (companion injection)
-                    // CS0219: unused local variable — promoted to Error so the user sees it
-                    // as a red squiggle immediately, matching standard C# IDE behaviour.
-                    ["CS0219"] = ReportDiagnostic.Error, // unused variable → error
+                    // CS0219: unused local variable — suppressed because UITKX0112
+                    // (data-flow–based unused-variable detection) covers the same
+                    // ground and also catches initialisers with side-effects that
+                    // CS0219 ignores (e.g. `new Style { … }`).
+                    ["CS0219"] = ReportDiagnostic.Suppress, // unused variable → handled by UITKX0112
                     // CS8321: unused local function — promoted to Error to match CS0219.
                     ["CS8321"] = ReportDiagnostic.Error, // unused local function → error
                 }
+            );
+
+        /// <summary>
+        /// Descriptor for UITKX0112 — variable declared but never read.
+        /// Created once and reused for every synthetic diagnostic instance.
+        /// </summary>
+        private static readonly DiagnosticDescriptor s_unusedVariableDescriptor =
+            new DiagnosticDescriptor(
+                id: DiagnosticCodes.UnusedVariable,
+                title: "Unused variable",
+                messageFormat: "The variable '{0}' is declared but never used",
+                category: "UITKX",
+                defaultSeverity: DiagnosticSeverity.Error,
+                isEnabledByDefault: true
             );
 
         // ── Inner types ───────────────────────────────────────────────────────
@@ -285,6 +303,82 @@ namespace UitkxLanguageServer.Roslyn
                     // Map back to uitkx coordinates via source-map or #line info
                     var mapped = TryMapDiagnostic(diag, map);
                     result.Add((diag, mapped));
+                }
+
+                // ── Data-flow analysis: unused-variable detection ─────────────
+                // Roslyn's CS0219 only fires for constant-value assignments.
+                // Variables initialised with `new Foo { … }` (object / collection
+                // initialisers) are invisible to CS0219 because the constructor
+                // and Add() calls count as potential side-effects.
+                //
+                // AnalyzeDataFlow on the __uitkx_render() method body captures
+                // *all* local reads/writes and lets us report the broader set as
+                // UITKX0112.  Scaffold locals (__uitkx_*) and variables whose
+                // declaration doesn't map back to .uitkx source are skipped.
+                try
+                {
+                    var root = semantic.SyntaxTree.GetRoot();
+                    MethodDeclarationSyntax? renderMethod = null;
+                    foreach (var node in root.DescendantNodes())
+                    {
+                        if (
+                            node is MethodDeclarationSyntax mds
+                            && mds.Identifier.Text == "__uitkx_render"
+                        )
+                        {
+                            renderMethod = mds;
+                            break;
+                        }
+                    }
+
+                    if (renderMethod?.Body != null)
+                    {
+                        var dataFlow = semantic.AnalyzeDataFlow(renderMethod.Body);
+                        if (dataFlow != null && dataFlow.Succeeded)
+                        {
+                            var readSet = new HashSet<ISymbol>(
+                                dataFlow.ReadInside,
+                                SymbolEqualityComparer.Default
+                            );
+
+                            foreach (var local in dataFlow.VariablesDeclared)
+                            {
+                                // Skip scaffold variables (all prefixed __uitkx_)
+                                if (local.Name.StartsWith("__uitkx_"))
+                                    continue;
+
+                                // Skip if the variable is read anywhere in the method
+                                if (readSet.Contains(local))
+                                    continue;
+
+                                // Get declaration location in the virtual document
+                                if (local.Locations.IsEmpty || !local.Locations[0].IsInSource)
+                                    continue;
+                                var loc = local.Locations[0];
+
+                                // Only report variables whose position maps back to
+                                // user-authored .uitkx source (filters out scaffold)
+                                var mapResult = map.ToUitkxOffset(loc.SourceSpan.Start);
+                                if (!mapResult.HasValue)
+                                    continue;
+
+                                var synthDiag = Diagnostic.Create(
+                                    s_unusedVariableDescriptor,
+                                    loc,
+                                    local.Name
+                                );
+                                result.Add((synthDiag, mapResult.Value.Entry));
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // Data-flow failure is non-fatal — regular diagnostics still
+                    // surface; just log and continue.
+                    ServerLog.Log(
+                        $"[RoslynHost] AnalyzeDataFlow error: {ex.Message}"
+                    );
                 }
 
                 return result;
