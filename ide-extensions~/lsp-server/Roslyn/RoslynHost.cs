@@ -347,6 +347,11 @@ namespace UitkxLanguageServer.Roslyn
                                 if (local.Name.StartsWith("__uitkx_"))
                                     continue;
 
+                                // Skip discard-convention names: _ or _prefixed
+                                // (standard C# convention for intentionally unused)
+                                if (local.Name.StartsWith("_"))
+                                    continue;
+
                                 // Skip if the variable is read anywhere in the method
                                 if (readSet.Contains(local))
                                     continue;
@@ -360,6 +365,17 @@ namespace UitkxLanguageServer.Roslyn
                                 // user-authored .uitkx source (filters out scaffold)
                                 var mapResult = map.ToUitkxOffset(loc.SourceSpan.Start);
                                 if (!mapResult.HasValue)
+                                    continue;
+
+                                // Only flag variables declared in setup code or
+                                // @code blocks — NOT lambda parameters inside
+                                // expression checks (AttributeExpression /
+                                // InlineExpression regions).
+                                var regionKind = mapResult.Value.Entry.Kind;
+                                if (
+                                    regionKind != SourceRegionKind.FunctionSetup
+                                    && regionKind != SourceRegionKind.CodeBlock
+                                )
                                     continue;
 
                                 var synthDiag = Diagnostic.Create(
