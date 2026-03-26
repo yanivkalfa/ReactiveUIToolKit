@@ -9,6 +9,7 @@ using ReactiveUITK.Language.Lowering;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.Roslyn;
+using UitkxLanguageServer;
 using UitkxLanguageServer.Roslyn;
 using Xunit;
 
@@ -29,7 +30,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
 
     public Task InitializeAsync()
     {
-        _host = new RoslynHost(null!);
+        _host = new RoslynHost(null!, new UitkxSchema(), new WorkspaceIndex());
         _host.SetWorkspaceRoot(null);
         return Task.CompletedTask;
     }

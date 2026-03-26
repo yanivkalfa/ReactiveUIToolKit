@@ -7,6 +7,7 @@
 @using ReactiveUITK.Router
 @using ReactiveUITK.Samples.UITKXShared
 @using static ReactiveUITK.Props.Typed.StyleKeys
+@using static ReactiveUITK.Props.Typed.CssHelpers
 
 component UitkxTestFileDoNotTouch(
   IReadOnlyList<ListViewRowState>? items = null, 
@@ -17,10 +18,10 @@ component UitkxTestFileDoNotTouch(
 ) {
   var myRef = useRef(false);
   var val = myRef.Current;
-
-  return (
-    <Label text={myRef.Value.ToString()} />
-  );
+  {/*
+    return (
+      <Label text={myRef.Value.ToString()} />
+    ); */}
 
 
   var safeItems = Array.Empty<ListViewRowState>();
@@ -370,18 +371,17 @@ component UitkxTestFileDoNotTouch(
   };
 
   var panelStyle = new Style {
-    (StyleKeys.Height, 80f),
-    (StyleKeys.BorderRadius, 6f),
-    (StyleKeys.BackgroundColor, new Color(0.2f, 0.2f, 0.25f, 0.9f)),
-    (StyleKeys.JustifyContent, "center"),
-    (StyleKeys.AlignItems, "center"),
-    (StyleKeys.MarginBottom, 10f),
+    Height = 80f,
+    BorderRadius = 6f,
+    BackgroundColor = Rgba(0.2f, 0.2f, 0.25f, 0.9f),
+    JustifyContent = JustifyCenter,
+    AlignItems = AlignCenter,
+    MarginBottom = 10f,
   };
 
-    // ── var: multi-line ternary ────────────────────────────────────────────────
   var syncColor = count >= 0
-    ? new Color(0.3f, 0.85f, 0.45f, 1f)
-    : new Color(0.95f, 0.65f, 0.1f, 1f);
+      ? Rgba(0.3f, 0.85f, 0.45f)
+      : Rgba(0.95f, 0.65f, 0.1f);
 
   var syncLabelStyle = new Style {
     (StyleKeys.MarginTop, 6f),

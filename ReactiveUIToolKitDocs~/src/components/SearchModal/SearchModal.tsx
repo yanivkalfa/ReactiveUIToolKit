@@ -4,7 +4,9 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, Paper, InputBase, List, ListItemButton, ListItemText, Typography, Box, IconButton } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
-import { getFlatForTrack, getTrackFromPath } from '../../docs'
+import { getFilteredFlatForTrack, getTrackFromPath } from '../../docs'
+import { useSelectedVersion } from '../../contexts/VersionContext'
+import { getStyleSearchTerms } from '../../versionManifest'
 import { getRenderedText } from '../../searchIndex'
 import Styles from './SearchModal.style'
 
@@ -14,7 +16,8 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
   const nav = useNavigate()
   const { pathname } = useLocation()
   const track = getTrackFromPath(pathname)
-  const flat = useMemo(() => getFlatForTrack(track), [track])
+  const { selectedVersion } = useSelectedVersion()
+  const flat = useMemo(() => getFilteredFlatForTrack(track, selectedVersion), [track, selectedVersion])
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -29,15 +32,17 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
     setSel(0)
     onClose()
   }
+  const styleTerms = useMemo(() => getStyleSearchTerms(selectedVersion), [selectedVersion])
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase()
     if (!needle) return [] as typeof flat
     const words = needle.split(/\s+/).filter(Boolean)
     return flat.filter((p) => {
-      const haystack = [p.title, (p.keywords || []).join(' '), p.searchContent || '', getRenderedText(p)].join(' ').toLowerCase()
+      const extra = p.canonicalId === 'styling' ? styleTerms : ''
+      const haystack = [p.title, (p.keywords || []).join(' '), p.searchContent || '', getRenderedText(p), extra].join(' ').toLowerCase()
       return words.every((w) => haystack.includes(w))
     })
-  }, [flat, q])
+  }, [flat, q, styleTerms])
   // reset selection when results change
   useEffect(() => setSel(0), [results])
   return (

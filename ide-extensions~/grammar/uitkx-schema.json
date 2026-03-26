@@ -1763,6 +1763,23 @@
       "start",
       "middle",
       "end"
+    ],
+    "filter": [
+      "blur()",
+      "brightness()",
+      "contrast()",
+      "drop-shadow()",
+      "grayscale()",
+      "hue-rotate()",
+      "invert()",
+      "opacity()",
+      "saturate()",
+      "sepia()"
     ]
+  },
+  "styleVersions": {
+    "aspectRatio": { "sinceUnity": "6000.3" },
+    "filter": { "sinceUnity": "6000.3" },
+    "unityMaterial": { "sinceUnity": "6000.3" }
   }
 }

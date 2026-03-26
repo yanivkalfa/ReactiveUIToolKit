@@ -4,8 +4,9 @@ namespace ReactiveUITK.Language.Diagnostics
     /// Diagnostic code constants used by the UITKX language library.
     ///
     /// ID ranges:
-    ///   UITKX0101–0108   T2 — Structural (directive + schema checks); language-lib
-    ///   UITKX0300–0305   T1 — Parser syntax errors; emitted by UitkxParser /
+    ///   UITKX0101–0112   T2 — Structural (directive + schema checks); language-lib
+    ///   UITKX0200–0200   T2v — Version compatibility; lsp-server
+    ///   UITKX0300–0306   T1 — Parser syntax errors; emitted by UitkxParser /
     ///                         DirectiveParser into ParseResult.Diagnostics
     /// </summary>
     public static class DiagnosticCodes
@@ -71,6 +72,17 @@ namespace ReactiveUITK.Language.Diagnostics
         /// Severity: Error.
         /// </summary>
         public const string UnusedParameter = "UITKX0111";
+
+        // ── T2v — Version compatibility diagnostics (lsp-server) ─────────────
+        // Produced by DiagnosticsPublisher, not DiagnosticsAnalyzer, because
+        // version detection requires access to Unity project metadata.
+
+        /// <summary>
+        /// An element or style property requires a newer Unity version than the
+        /// one detected in the project's <c>ProjectSettings/ProjectVersion.txt</c>.
+        /// Severity: Warning (the runtime no-op fallback still works).
+        /// </summary>
+        public const string VersionMismatch = "UITKX0200";
 
         // ── T1 — Parser codes (emitted by UitkxParser / DirectiveParser) ─────
         // Listed here for cross-reference only; not produced by DiagnosticsAnalyzer.

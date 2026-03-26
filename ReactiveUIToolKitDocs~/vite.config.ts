@@ -66,6 +66,7 @@ export default defineConfig({
   plugins: [react()],
   define: {
     __PACKAGE_VERSION__: JSON.stringify(unityPackageJson.version),
+    __UNITY_VERSION__: JSON.stringify(unityPackageJson.unity ?? '6000.2'),
     __PROPS_DOCS__: JSON.stringify(propsDocs),
   },
   css: {

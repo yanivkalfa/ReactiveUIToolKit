@@ -8,6 +8,7 @@ using ReactiveUITK.Language;
 using ReactiveUITK.Language.Lowering;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
+using UitkxLanguageServer;
 using UitkxLanguageServer.Roslyn;
 using Xunit;
 
@@ -26,7 +27,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     public Task InitializeAsync()
     {
         // ILanguageServerFacade is stored but never called in the hot paths.
-        _host = new RoslynHost(null!);
+        _host = new RoslynHost(null!, new UitkxSchema(), new WorkspaceIndex());
         _host.SetWorkspaceRoot(null); // BCL-only references
         _provider = new RoslynCompletionProvider(_host);
         return Task.CompletedTask;

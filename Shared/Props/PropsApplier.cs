@@ -77,7 +77,8 @@ namespace ReactiveUITK.Props
             };
             styleSetters["flexWrap"] = (e, v) =>
             {
-                e.style.flexWrap = v is string fw && fw == "wrap" ? Wrap.Wrap : Wrap.NoWrap;
+                if (v is Wrap w) e.style.flexWrap = w;
+                else e.style.flexWrap = v is string fw && fw == "wrap" ? Wrap.Wrap : Wrap.NoWrap;
             };
             styleSetters["flexBasis"] = (e, v) =>
             {
@@ -102,7 +103,8 @@ namespace ReactiveUITK.Props
 
             styleSetters["position"] = (e, v) =>
             {
-                e.style.position =
+                if (v is Position p) e.style.position = p;
+                else e.style.position =
                     v is string s && s == "absolute" ? Position.Absolute : Position.Relative;
             };
             styleSetters["left"] = (e, v) =>
@@ -124,17 +126,20 @@ namespace ReactiveUITK.Props
 
             styleSetters["display"] = (e, v) =>
             {
-                e.style.display =
+                if (v is DisplayStyle d) e.style.display = d;
+                else e.style.display =
                     v is string ds && ds == "none" ? DisplayStyle.None : DisplayStyle.Flex;
             };
             styleSetters["visibility"] = (e, v) =>
             {
-                e.style.visibility =
+                if (v is Visibility vis2) e.style.visibility = vis2;
+                else e.style.visibility =
                     v is string vis && vis == "hidden" ? Visibility.Hidden : Visibility.Visible;
             };
             styleSetters["overflow"] = (e, v) =>
             {
-                e.style.overflow =
+                if (v is Overflow ov2) e.style.overflow = ov2;
+                else e.style.overflow =
                     v is string ov && ov == "hidden" ? Overflow.Hidden : Overflow.Visible;
             };
             styleSetters["opacity"] = (e, v) =>
@@ -143,7 +148,8 @@ namespace ReactiveUITK.Props
             };
             styleSetters["whiteSpace"] = (e, v) =>
             {
-                e.style.whiteSpace =
+                if (v is WhiteSpace ws2) e.style.whiteSpace = ws2;
+                else e.style.whiteSpace =
                     v is string ws && ws == "nowrap" ? WhiteSpace.NoWrap : WhiteSpace.Normal;
             };
 
@@ -153,7 +159,8 @@ namespace ReactiveUITK.Props
             };
             styleSetters["textAlign"] = (e, v) =>
             {
-                if (v is string ta && ta == "center")
+                if (v is TextAnchor ta2) { e.style.unityTextAlign = ta2; }
+                else if (v is string ta && ta == "center")
                 {
                     e.style.unityTextAlign = TextAnchor.MiddleCenter;
                 }
@@ -171,7 +178,8 @@ namespace ReactiveUITK.Props
             };
             styleSetters["unityFontStyle"] = (e, v) =>
             {
-                if (v is string fs && fs == "bold")
+                if (v is FontStyle fs2) { e.style.unityFontStyleAndWeight = fs2; }
+                else if (v is string fs && fs == "bold")
                 {
                     e.style.unityFontStyleAndWeight = FontStyle.Bold;
                 }
@@ -198,15 +206,16 @@ namespace ReactiveUITK.Props
             };
             styleSetters["textOverflow"] = (e, v) =>
             {
-                if (v is string ovf)
+                try
                 {
-                    try
+                    if (v is TextOverflow to2) { e.style.textOverflow = to2; }
+                    else if (v is string ovf)
                     {
                         e.style.textOverflow =
                             ovf == "ellipsis" ? TextOverflow.Ellipsis : TextOverflow.Clip;
                     }
-                    catch { }
                 }
+                catch { }
             };
             styleSetters["unityTextOutlineColor"] = (e, v) =>
             {
@@ -226,7 +235,11 @@ namespace ReactiveUITK.Props
             };
             styleSetters["unityTextOverflowPosition"] = (e, v) =>
             {
-                if (v is string pos)
+                if (v is TextOverflowPosition tp)
+                {
+                    try { e.style.unityTextOverflowPosition = tp; } catch { }
+                }
+                else if (v is string pos)
                 {
                     try
                     {
@@ -426,7 +439,11 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    if (v is IEnumerable seq)
+                    if (v is Translate t)
+                    {
+                        e.style.translate = t;
+                    }
+                    else if (v is IEnumerable seq)
                     {
                         float tx = 0,
                             ty = 0;
@@ -479,25 +496,94 @@ namespace ReactiveUITK.Props
                     }
                 }
             };
-            styleSetters["cursor"] = (e, v) =>
+            styleSetters["backgroundRepeat"] = (e, v) =>
             {
                 try
                 {
-                    var uiCursor = new UnityEngine.UIElements.Cursor();
-                    e.style.cursor = new StyleCursor(uiCursor);
+                    if (v is BackgroundRepeat br)
+                        e.style.backgroundRepeat = br;
                 }
                 catch { }
             };
-            styleSetters["backgroundRepeat"] = (e, v) => { };
-            styleSetters["backgroundPosition"] = (e, v) => { };
-            styleSetters["backgroundSize"] = (e, v) => { };
+            styleSetters["backgroundPositionX"] = (e, v) =>
+            {
+                try
+                {
+                    if (v is BackgroundPosition bp)
+                        e.style.backgroundPositionX = bp;
+                }
+                catch { }
+            };
+            styleSetters["backgroundPositionY"] = (e, v) =>
+            {
+                try
+                {
+                    if (v is BackgroundPosition bp)
+                        e.style.backgroundPositionY = bp;
+                }
+                catch { }
+            };
+            styleSetters["backgroundSize"] = (e, v) =>
+            {
+                try
+                {
+                    if (v is BackgroundSize bs)
+                        e.style.backgroundSize = bs;
+                }
+                catch { }
+            };
+            styleSetters["transformOrigin"] = (e, v) =>
+            {
+                try
+                {
+                    if (v is TransformOrigin to)
+                        e.style.transformOrigin = to;
+                }
+                catch { }
+            };
+            // ── Unity 6.3+ (UNITY_6000_3_OR_NEWER) ─────────────────────────
+#if UNITY_6000_3_OR_NEWER
+            styleSetters["aspectRatio"] = (e, v) =>
+            {
+                if (v is StyleRatio sr)
+                    e.style.aspectRatio = sr;
+                else if (v is Ratio r)
+                    e.style.aspectRatio = new StyleRatio(r);
+                else if (v is float f)
+                    e.style.aspectRatio = new StyleRatio(new Ratio(f));
+                else if (v is int i)
+                    e.style.aspectRatio = new StyleRatio(new Ratio(i));
+            };
+            styleSetters["filter"] = (e, v) =>
+            {
+                if (v is StyleList<FilterFunction> sl)
+                    e.style.filter = sl;
+                else if (v is System.Collections.Generic.List<FilterFunction> list)
+                    e.style.filter = new StyleList<FilterFunction>(list);
+            };
+            styleSetters["unityMaterial"] = (e, v) =>
+            {
+                if (v is StyleMaterialDefinition smd)
+                    e.style.unityMaterial = smd;
+                else if (v is MaterialDefinition md)
+                    e.style.unityMaterial = new StyleMaterialDefinition(md);
+            };
+#else
+            styleSetters["aspectRatio"] = (e, v) => { };
             styleSetters["filter"] = (e, v) => { };
-            styleSetters["transformOrigin"] = (e, v) => { };
+            styleSetters["unityMaterial"] = (e, v) => { };
+#endif
+            // TODO: cursor — StyleCursor wraps Cursor struct (Texture2D + hotspot). Unity has no built-in cursor constants.
+            styleSetters["cursor"] = (e, v) => { };
+            // TODO: transition — CSS shorthand, no IStyle.transition in Unity 6.2
             styleSetters["transition"] = (e, v) => { };
+            // TODO: transition* — StyleList<T> types, diffing not supported yet (see TECH_DEBT.md)
             styleSetters["transitionDelay"] = (e, v) => { };
             styleSetters["transitionDuration"] = (e, v) => { };
             styleSetters["transitionProperty"] = (e, v) => { };
             styleSetters["transitionTimingFunction"] = (e, v) => { };
+            // backgroundPosition kept as no-op for backward compat (IStyle splits to backgroundPositionX/Y)
+            styleSetters["backgroundPosition"] = (e, v) => { };
 
             styleResetters["width"] = e =>
             {
@@ -771,6 +857,20 @@ namespace ReactiveUITK.Props
                 }
                 catch { }
             };
+#if UNITY_6000_3_OR_NEWER
+            styleResetters["aspectRatio"] = e =>
+            {
+                e.style.aspectRatio = StyleKeyword.Null;
+            };
+            styleResetters["filter"] = e =>
+            {
+                e.style.filter = StyleKeyword.Null;
+            };
+            styleResetters["unityMaterial"] = e =>
+            {
+                e.style.unityMaterial = StyleKeyword.Null;
+            };
+#endif
         }
 
         private static readonly Dictionary<string, string> s_canonicalizeCache = new(64);
@@ -2619,6 +2719,7 @@ namespace ReactiveUITK.Props
 
         private static FlexDirection ConvertToFlexDirection(object value)
         {
+            if (value is FlexDirection fd) return fd;
             if (value is string s)
             {
                 if (s == "row")
@@ -2637,6 +2738,7 @@ namespace ReactiveUITK.Props
 
         private static Justify ConvertToJustify(object value)
         {
+            if (value is Justify j) return j;
             if (value is string s)
             {
                 if (s == "center")
@@ -2670,6 +2772,7 @@ namespace ReactiveUITK.Props
 
         private static Align ConvertToAlign(object value)
         {
+            if (value is Align a) return a;
             if (value is string s)
             {
                 if (s == "center")

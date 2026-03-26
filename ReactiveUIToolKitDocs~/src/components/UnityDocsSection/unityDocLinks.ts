@@ -1,171 +1,74 @@
 export interface UnityDocLinkInfo {
-  href: string
+  /** Unity element name in the docs URL (e.g. 'BoundsField', 'InspectorElement'). */
+  unityElement: string
   label?: string
   note?: string
 }
 
+/** Build a Unity manual URL for a given element and docs version. */
+export const buildUnityDocUrl = (unityElement: string, version: string): string =>
+  `https://docs.unity3d.com/${version}/Documentation/Manual/UIE-uxml-element-${unityElement}.html`
+
 export const UNITY_DOC_LINKS: Record<string, UnityDocLinkInfo> = {
   BoundsField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-BoundsField.html',
+    unityElement: 'BoundsField',
   },
-  BoundsIntField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-BoundsIntField.html',
-  },
-  Box: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Box.html',
-  },
-  Button: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Button.html',
-  },
-  ColorField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ColorField.html',
-  },
-  DoubleField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-DoubleField.html',
-  },
-  DropdownField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-DropdownField.html',
-  },
-  EnumField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-EnumField.html',
-  },
-  EnumFlagsField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-EnumFlagsField.html',
-  },
-  FloatField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-FloatField.html',
-  },
-  Foldout: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Foldout.html',
-  },
-  GroupBox: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-GroupBox.html',
-  },
-  Hash128Field: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Hash128Field.html',
-  },
-  HelpBox: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-HelpBox.html',
-  },
-  IMGUIContainer: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-IMGUIContainer.html',
-  },
-  Image: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Image.html',
-  },
-  IntegerField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-IntegerField.html',
-  },
-  Label: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Label.html',
-  },
-  ListView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ListView.html',
-  },
-  LongField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-LongField.html',
-  },
-  MinMaxSlider: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-MinMaxSlider.html',
-  },
-  MultiColumnListView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-MultiColumnListView.html',
-  },
-  MultiColumnTreeView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-MultiColumnTreeView.html',
-  },
-  ObjectField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ObjectField.html',
-  },
-  ProgressBar: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ProgressBar.html',
-  },
+  BoundsIntField: { unityElement: 'BoundsIntField' },
+  Box: { unityElement: 'Box' },
+  Button: { unityElement: 'Button' },
+  ColorField: { unityElement: 'ColorField' },
+  DoubleField: { unityElement: 'DoubleField' },
+  DropdownField: { unityElement: 'DropdownField' },
+  EnumField: { unityElement: 'EnumField' },
+  EnumFlagsField: { unityElement: 'EnumFlagsField' },
+  FloatField: { unityElement: 'FloatField' },
+  Foldout: { unityElement: 'Foldout' },
+  GroupBox: { unityElement: 'GroupBox' },
+  Hash128Field: { unityElement: 'Hash128Field' },
+  HelpBox: { unityElement: 'HelpBox' },
+  IMGUIContainer: { unityElement: 'IMGUIContainer' },
+  Image: { unityElement: 'Image' },
+  IntegerField: { unityElement: 'IntegerField' },
+  Label: { unityElement: 'Label' },
+  ListView: { unityElement: 'ListView' },
+  LongField: { unityElement: 'LongField' },
+  MinMaxSlider: { unityElement: 'MinMaxSlider' },
+  MultiColumnListView: { unityElement: 'MultiColumnListView' },
+  MultiColumnTreeView: { unityElement: 'MultiColumnTreeView' },
+  ObjectField: { unityElement: 'ObjectField' },
+  ProgressBar: { unityElement: 'ProgressBar' },
   PropertyInspector: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-InspectorElement.html',
+    unityElement: 'InspectorElement',
     label: 'InspectorElement entry',
-    note: 'ReactiveUITK.PropertyInspector wraps Unity’s InspectorElement to embed serialized-object inspectors.',
+    note: 'ReactiveUITK.PropertyInspector wraps Unity\u2019s InspectorElement to embed serialized-object inspectors.',
   },
-  RadioButton: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-RadioButton.html',
-  },
-  RadioButtonGroup: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-RadioButtonGroup.html',
-  },
-  RectField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-RectField.html',
-  },
-  RectIntField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-RectIntField.html',
-  },
-  RepeatButton: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-RepeatButton.html',
-  },
-  ScrollView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ScrollView.html',
-  },
-  Scroller: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Scroller.html',
-  },
-  Slider: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Slider.html',
-  },
-  SliderInt: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-SliderInt.html',
-  },
-  Tab: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Tab.html',
-  },
-  TabView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-TabView.html',
-  },
-  TemplateContainer: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-TemplateContainer.html',
-  },
-  TextElement: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-TextElement.html',
-  },
-  TextField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-TextField.html',
-  },
-  Toggle: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Toggle.html',
-  },
-  ToggleButtonGroup: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-ToggleButtonGroup.html',
-  },
-  Toolbar: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Toolbar.html',
-  },
-  TreeView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-TreeView.html',
-  },
-  TwoPaneSplitView: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-TwoPaneSplitView.html',
-  },
-  UnsignedIntegerField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-UnsignedIntegerField.html',
-  },
-  UnsignedLongField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-UnsignedLongField.html',
-  },
-  Vector2Field: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Vector2Field.html',
-  },
-  Vector2IntField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Vector2IntField.html',
-  },
-  Vector3Field: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Vector3Field.html',
-  },
-  Vector3IntField: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Vector3IntField.html',
-  },
-  Vector4Field: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-Vector4Field.html',
-  },
-  VisualElement: {
-    href: 'https://docs.unity3d.com/6000.2/Documentation/Manual/UIE-uxml-element-VisualElement.html',
-  },
+  RadioButton: { unityElement: 'RadioButton' },
+  RadioButtonGroup: { unityElement: 'RadioButtonGroup' },
+  RectField: { unityElement: 'RectField' },
+  RectIntField: { unityElement: 'RectIntField' },
+  RepeatButton: { unityElement: 'RepeatButton' },
+  ScrollView: { unityElement: 'ScrollView' },
+  Scroller: { unityElement: 'Scroller' },
+  Slider: { unityElement: 'Slider' },
+  SliderInt: { unityElement: 'SliderInt' },
+  Tab: { unityElement: 'Tab' },
+  TabView: { unityElement: 'TabView' },
+  TemplateContainer: { unityElement: 'TemplateContainer' },
+  TextElement: { unityElement: 'TextElement' },
+  TextField: { unityElement: 'TextField' },
+  Toggle: { unityElement: 'Toggle' },
+  ToggleButtonGroup: { unityElement: 'ToggleButtonGroup' },
+  Toolbar: { unityElement: 'Toolbar' },
+  TreeView: { unityElement: 'TreeView' },
+  TwoPaneSplitView: { unityElement: 'TwoPaneSplitView' },
+  UnsignedIntegerField: { unityElement: 'UnsignedIntegerField' },
+  UnsignedLongField: { unityElement: 'UnsignedLongField' },
+  Vector2Field: { unityElement: 'Vector2Field' },
+  Vector2IntField: { unityElement: 'Vector2IntField' },
+  Vector3Field: { unityElement: 'Vector3Field' },
+  Vector3IntField: { unityElement: 'Vector3IntField' },
+  Vector4Field: { unityElement: 'Vector4Field' },
+  VisualElement: { unityElement: 'VisualElement' },
 }
 
 export type UnityComponentName = keyof typeof UNITY_DOC_LINKS

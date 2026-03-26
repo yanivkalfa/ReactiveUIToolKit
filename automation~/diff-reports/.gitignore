@@ -1,0 +1,4 @@
+# Diff reports are generated output — don't track in git.
+# Regenerate with: .\automation~\unity-api-diff.ps1 -From X -To Y -OutFile .\automation~\diff-reports\X-to-Y.json
+*
+!.gitignore
