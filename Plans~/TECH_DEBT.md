@@ -33,35 +33,12 @@ Fixed — bidirectional rename between `.uitkx` ↔ `.cs` companion files works.
 
 ---
 
-## Type mismatch in companion `.cs` not surfaced in `.uitkx`
+## ~~Type mismatch in companion `.cs` not surfaced in `.uitkx`~~ ✅ FIXED
 
-**Symptom:** A companion `.cs` file declares a field with the wrong type, but
-the `.uitkx` file that uses it does not show a red error squiggle.
-
-**Reproduction:**
-1. In `StatusBar.styles.cs`, declare:
-   ```csharp
-   public static readonly Color barWidth = 160f;   // ← wrong type, should be float
-   public static readonly Color barHeight = 10f;    // ← wrong type, should be float
-   ```
-2. In `StatusBar.uitkx`, reference them:
-   ```csharp
-   var fillStyle = new Style {
-       (StyleKeys.Width, barWidth * percent),   // Color * float — should be an error
-       (StyleKeys.Height, barHeight),
-       (StyleKeys.BackgroundColor, barColor),
-   };
-   ```
-3. No error is shown in the `.uitkx` file.
-
-**Expected:** The LSP should report a type mismatch (`CS0019` or similar)
-since `Color * float` is not valid for a width style value.
-
-**Likely related to:** The companion `.cs` change not triggering re-evaluation
-of `.uitkx` diagnostics (see "LSP diagnostics not updated when companion
-`.cs` file changes" above).
-
-**Priority:** High — silent type errors can cause runtime bugs.
+Fixed — typed `Style` properties (`Width = 100f`, `FlexDirection = Row`) provide
+compile-time type safety. Roslyn catches type mismatches through the strongly-typed
+property setters. The old tuple-based `(StyleKeys.X, value)` syntax boxes to `object`
+and can't be type-checked, but the typed form is now the recommended path.
 
 ---
 
@@ -69,26 +46,6 @@ of `.uitkx` diagnostics (see "LSP diagnostics not updated when companion
 
 Fixed — Roslyn-based symbol resolution added. Works for same-file vars,
 companion `.cs` symbols, and multi-line attribute values.
-
----
-
-## `.meta` files visible in VS Code editor
-
-**Symptom:** Unity `.meta` files appear in the VS Code file explorer and
-open tabs. They should be hidden.
-
-**Fix:** Add `*.meta` to `files.exclude` in workspace settings or the
-`.code-workspace` file:
-```json
-"files.exclude": {
-    "**/*.meta": true
-}
-```
-
-**File to update:**
-- `ReactiveUIToolKit.code-workspace` — add to `settings.files.exclude`
-
-**Priority:** Low — cosmetic annoyance.
 
 ---
 
@@ -187,21 +144,10 @@ actual device cutouts.
 
 ---
 
-## Add UI Toolkit Debugger shortcut to ReactiveUITK menu + HMR keybinding
+## ~~Add UI Toolkit Debugger shortcut to ReactiveUITK menu~~ ✅ FIXED
 
-**Feature:** Add a menu item under `ReactiveUITK/` that opens the Unity
-UI Toolkit Debugger (`Window > UI Toolkit > Debugger`). The Unity menu
-command is `Window/UI Toolkit/Debugger`.
-
-**Additionally:** Add a keybinding in the HMR window to toggle the
-UI Toolkit Debugger on/off for quick access during development.
-
-**Files to update:**
-- `Editor/FiberMenu.cs` — add `[MenuItem("ReactiveUITK/UI Toolkit Debugger")]`
-  that calls `EditorApplication.ExecuteMenuItem("Window/UI Toolkit/Debugger")`
-- HMR window — add a toggle button or keyboard shortcut
-
-**Priority:** Low — quality-of-life convenience.
+Fixed — `FiberMenu.cs` now has `[MenuItem("ReactiveUITK/UI Toolkit Debugger")]`
+that calls `EditorApplication.ExecuteMenuItem("Window/UI Toolkit/Debugger")`.
 
 ---
 
