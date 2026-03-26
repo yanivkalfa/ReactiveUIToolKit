@@ -168,7 +168,6 @@ Follow §4.5 checklist. Wrap in `#if !UNITY_{VERSION}_OR_NEWER` guards.
 ## Phase 4.5: Documentation Website Updates
 
 Update the docs site so the website reflects the new version.
-Both the **UITKX track** and the **C# track** must be updated.
 
 ### Important conventions
 
@@ -221,10 +220,7 @@ Both the **UITKX track** and the **C# track** must be updated.
      - Add `unityDocLinks.ts` entry: `{Name}: { unityElement: '{Name}' }`
    - Pages with `sinceUnity` are automatically hidden when user selects an older version
 
-5. **C# track pages** — Update the C# side of the docs (`pages.tsx` legacy sections)
-   to also reflect new features with appropriate version annotations and content
-
-6. **Verify docs build:**
+5. **Verify docs build:**
    ```powershell
    cd ReactiveUIToolKitDocs~; npm run build
    ```

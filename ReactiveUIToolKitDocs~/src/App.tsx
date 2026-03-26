@@ -1,8 +1,8 @@
 import type { FC } from 'react'
 import { useState } from 'react'
-import { Link as RouterLink, Navigate, Route, Routes } from 'react-router-dom'
+import { Link as RouterLink, Route, Routes } from 'react-router-dom'
 import { Box, CssBaseline, Link, ThemeProvider, Typography } from '@mui/material'
-import { allFlat, legacyRedirects } from './docs'
+import { allFlat } from './docs'
 import { TopBar } from './components/TopBar/TopBar'
 import { Sidebar } from './components/Sidebar/Sidebar'
 import { Pager } from './components/Pager/Pager'
@@ -25,10 +25,7 @@ export const App: FC = () => {
               {allFlat.map((p) => (
                 <Route key={p.id} path={p.path} element={<Box component="main" sx={Styles.main}>{p.element()}<Pager /></Box>} />
               ))}
-              {legacyRedirects.map((entry) => (
-                <Route key={`legacy-${entry.from}`} path={entry.from} element={<Navigate to={entry.to} replace />} />
-              ))}
-              <Route path="*" element={<><Typography variant="h5" gutterBottom>Not Found</Typography><Link component={RouterLink} to="/">Go to UITKX Introduction</Link></>} />
+              <Route path="*" element={<><Typography variant="h5" gutterBottom>Not Found</Typography><Link component={RouterLink} to="/">Go to Introduction</Link></>} />
             </Routes>
           </Box>
         </Box>

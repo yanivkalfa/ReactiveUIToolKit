@@ -10,10 +10,9 @@ export const UitkxDifferencesPage: FC = () => (
       Different from React
     </Typography>
     <Typography variant="body1" paragraph>
-      UITKX borrows React’s component-and-hooks mental model, but it runs on Unity UI Toolkit and a
-      C# runtime. The biggest difference is that your authored code is markup-first, while the
-      underlying runtime is still constrained by Unity’s VisualElement system, scheduling model,
-      and C# semantics.
+      ReactiveUIToolKit borrows React's component-and-hooks mental model, but it runs on Unity UI
+      Toolkit with a C# runtime. This section covers the places where your mental model should be
+      adjusted rather than re-explaining core concepts.
     </Typography>
 
     <Box sx={Styles.section}>
@@ -21,10 +20,18 @@ export const UitkxDifferencesPage: FC = () => (
         State updates
       </Typography>
       <Typography variant="body1" paragraph>
-        <code>useState</code> behaves like React’s <code>useState</code>. You call the setter
-        directly with either a value or an updater function, and UITKX lowers that into the runtime
-        hook implementation for you.
+        <code>useState</code> matches React's mental model: you get a value and a setter, and you
+        call the setter with either a value or an updater function (for example{' '}
+        <code>set(value)</code> or <code>{'set(prev => next)'}</code>).
       </Typography>
+      <List sx={Styles.list}>
+        <ListItem disablePadding>
+          <ListItemText primary={<>The setter is a delegate (<code>{'StateSetter<T>'}</code>), not an instance method, but you call it like a normal function.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>You can also use the optional extension helpers <code>StateSetterExtensions.Set(value)</code> / <code>{'StateSetterExtensions.Set(prev => next)'}</code> for a fluent style.</>} />
+        </ListItem>
+      </List>
       <CodeBlock language="tsx" code={UITKX_STATE_COUNTER_EXAMPLE} />
     </Box>
 
@@ -32,15 +39,17 @@ export const UitkxDifferencesPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Rendering model
       </Typography>
+      <Typography variant="body1" paragraph>
+        The Fiber reconciler currently runs in synchronous mode per Unity frame. There is no React
+        18-style concurrent rendering: no <code>startTransition</code>, no transition priorities,
+        and no cooperative time-slicing of large trees.
+      </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary="ReactiveUITK’s fiber can schedule work asynchronously when a scheduler is present, including sliced render work and deferred passive effects." />
+          <ListItemText primary="All updates scheduled in a frame are processed synchronously; there is no partial rendering or preemption between high- and low-priority updates." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="That does not mean UITKX promises a one-to-one clone of React’s full concurrent feature surface; the scheduler still operates inside Unity’s runtime constraints." />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary="The authored syntax is JSX-like, but it lowers into ReactiveUITK’s own runtime representation instead of a browser DOM model." />
+          <ListItemText primary="The scheduler can defer passive effects and slice render work when present, but it operates within Unity's runtime constraints — not as a full concurrent feature surface." />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary="Interop with Unity controls, styles, and events is a first-class constraint, so some APIs deliberately differ from browser React conventions." />
