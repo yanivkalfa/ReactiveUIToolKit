@@ -382,7 +382,7 @@ Status: `✅` = full support (Props + V.cs + Registry + Schema), `⬜` = not imp
 | 6000.2 | 2026-03-23 | Assembly diff | +1 IStyle (unityTextAutoSize); +6 enums (LibraryVisibility, PanelInputRedirection, Pivot, PivotReferenceSize, TextAutoSizeMode, WorldSpaceSizeMode); +5 structs | No new elements | Floor version — baseline |
 | 6000.3 | 2026-03-23 | Assembly diff | +3 IStyle (aspectRatio, filter, unityMaterial); +6 enums (AddressMode, DropdownMenuSizeMode, FilterFunctionType, FilterParameterType, GradientType, TextureSlotCount); +12 structs; UsageHints +2 members | No new elements | USS parser upgrade. Note: original docs-based audit claimed +6 IStyle — assembly shows only +3 new in 6.3. unityTextGenerator and unityEditorTextRenderingMode do not exist on IStyle. |
 | 6000.4 | 2026-03-23 | AI-assisted | No changes vs 6.3 | No new elements | No UI Toolkit breaking changes |
-| 6000.3 (impl) | 2026-03-24 | AI-assisted | Implemented: aspectRatio (StyleRatio), filter (StyleList\<FilterFunction\>), unityMaterial (StyleMaterialDefinition). 10 CssHelper filter functions. Schema + docs updated. | No new elements | — |
+| 6000.3 (impl) | 2026-03-24 | AI-assisted | Implemented: aspectRatio (StyleRatio), filter (StyleList\<FilterFunction\>), unityMaterial (StyleMaterialDefinition). 8 CssHelper filter functions (Blur, Grayscale, Contrast, HueRotate, Invert, Opacity, Sepia, Tint). Schema + docs updated. | No new elements | — |
 
 ---
 
@@ -406,7 +406,8 @@ When a new IStyle property (e.g. `backdropFilter`) is discovered:
        - Can be ungated (strings are harmless) or gated for consistency
 [ ] 5. CssHelpers.cs — Add shortcut methods/properties (if enum or struct)
        - Wrap in #if
-       - E.g. Blur(float), Grayscale(float), etc.
+       - E.g. Blur(float), Tint(Color), etc.
+       - Pattern: new FilterFunction(FilterFunctionType.X) + AddParameter(new FilterParameter(value))
 [ ] 6. uitkx-schema.json — Add entry to styleKeyValues (if enum-like)
        - Add "sinceUnity" annotation (when LSP version awareness is implemented)
 [ ] 7. Version Coverage Matrix — Update this file

@@ -942,4 +942,132 @@ public class EmitterTests
         Assert.False(result.HasDiagnostic("UITKX0020"), "Unexpected UITKX0020.");
         Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
     }
+
+    // ── Asset path resolution ─────────────────────────────────────────────────
+
+    [Fact]
+    public void Asset_RelativePath_Resolved()
+    {
+        var src = """
+            component Card {
+                return (
+                    <label text={Asset<Texture2D>("./avatar.png").name} />
+                );
+            }
+            """;
+
+        // Place the file inside an Assets/ sub-path so GetUitkxAssetDir finds it
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Card.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/avatar.png\""),
+            $"Expected resolved path 'Assets/UI/avatar.png'. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("./avatar.png"),
+            "Relative path should have been resolved"
+        );
+    }
+
+    [Fact]
+    public void Ast_RelativePath_Resolved()
+    {
+        var src = """
+            component Card {
+                return (
+                    <label text={Ast<Sprite>("../shared/icon.png").name} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Card.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/shared/icon.png\""),
+            $"Expected resolved path 'Assets/shared/icon.png'. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void Asset_AbsolutePath_Unchanged()
+    {
+        var src = """
+            component Card {
+                return (
+                    <label text={Asset<Font>("Assets/Fonts/custom.ttf").name} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/Fonts/custom.ttf\""),
+            $"Expected absolute path unchanged with extension. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void Asset_AbsoluteNoExtension_Unchanged()
+    {
+        var src = """
+            component Card {
+                return (
+                    <label text={Asset<Texture2D>("Assets/UI/avatar").name} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/avatar\""),
+            $"Expected path unchanged. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void Asset_InCodeBlock_PathResolved()
+    {
+        var src = """
+            component Card {
+                var tex = Asset<Texture2D>("./bg.png");
+                return (
+                    <label text={tex?.name ?? ""} />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Assets/UI/Card.uitkx");
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("\"Assets/UI/bg.png\""),
+            $"Expected resolved path in code block. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void AssetHelpers_UsingAutoInjected()
+    {
+        var src = """
+            component Card {
+                return (
+                    <label text="hello" />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("using static ReactiveUITK.AssetHelpers;"),
+            "Expected auto-injected AssetHelpers using"
+        );
+    }
 }
