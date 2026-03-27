@@ -1203,6 +1203,19 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "__ussKeys")
+            {
+                if (propertyValue is string[] keys)
+                {
+                    for (int i = 0; i < keys.Length; i++)
+                    {
+                        var sheet = UitkxAssetRegistry.Get<StyleSheet>(keys[i]);
+                        if (sheet != null && !element.styleSheets.Contains(sheet))
+                            element.styleSheets.Add(sheet);
+                    }
+                }
+                return;
+            }
             if (propertyName == "style" && propertyValue is IDictionary<string, object> styleMap)
             {
                 foreach (KeyValuePair<string, object> styleEntry in styleMap)
@@ -1262,6 +1275,16 @@ namespace ReactiveUITK.Props
                 foreach (var cls in tokens)
                 {
                     element.RemoveFromClassList(cls);
+                }
+                return;
+            }
+            if (propertyName == "__ussKeys" && oldValue is string[] oldKeys)
+            {
+                for (int i = 0; i < oldKeys.Length; i++)
+                {
+                    var sheet = UitkxAssetRegistry.Get<StyleSheet>(oldKeys[i]);
+                    if (sheet != null && element.styleSheets.Contains(sheet))
+                        element.styleSheets.Remove(sheet);
                 }
                 return;
             }

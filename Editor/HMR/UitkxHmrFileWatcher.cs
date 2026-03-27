@@ -19,8 +19,15 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// </summary>
         public event Action<string> OnUitkxChanged;
 
+        /// <summary>
+        /// Fires on the main thread after debounce when a .uss file is saved.
+        /// Parameter is the absolute path to the changed .uss file.
+        /// </summary>
+        public event Action<string> OnUssChanged;
+
         private FileSystemWatcher _watcher;
         private readonly Dictionary<string, int> _pendingChanges = new();
+        private readonly Dictionary<string, int> _pendingUssChanges = new();
         private readonly object _lock = new object();
         private bool _disposed;
 
@@ -67,7 +74,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             lock (_lock)
+            {
                 _pendingChanges.Clear();
+                _pendingUssChanges.Clear();
+            }
         }
 
         public void Dispose()
@@ -85,6 +95,16 @@ namespace ReactiveUITK.EditorSupport.HMR
             string ext = Path.GetExtension(e.FullPath);
             if (string.IsNullOrEmpty(ext))
                 return;
+
+            // .uss file change
+            if (ext.Equals(".uss", StringComparison.OrdinalIgnoreCase))
+            {
+                lock (_lock)
+                {
+                    _pendingUssChanges[e.FullPath] = Environment.TickCount;
+                }
+                return;
+            }
 
             string uitkxPath = null;
 
@@ -117,11 +137,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return;
 
             List<string> ready = null;
+            List<string> readyUss = null;
             int now = Environment.TickCount;
 
             lock (_lock)
             {
-                if (_pendingChanges.Count == 0)
+                if (_pendingChanges.Count == 0 && _pendingUssChanges.Count == 0)
                     return;
 
                 foreach (var kvp in _pendingChanges)
@@ -136,11 +157,28 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (ready != null)
                     foreach (var path in ready)
                         _pendingChanges.Remove(path);
+
+                foreach (var kvp in _pendingUssChanges)
+                {
+                    if (now - kvp.Value >= DebounceMs)
+                    {
+                        readyUss ??= new List<string>();
+                        readyUss.Add(kvp.Key);
+                    }
+                }
+
+                if (readyUss != null)
+                    foreach (var path in readyUss)
+                        _pendingUssChanges.Remove(path);
             }
 
             if (ready != null)
                 foreach (var path in ready)
                     OnUitkxChanged?.Invoke(path);
+
+            if (readyUss != null)
+                foreach (var path in readyUss)
+                    OnUssChanged?.Invoke(path);
         }
 
         // ── Companion file detection ──────────────────────────────────────────
