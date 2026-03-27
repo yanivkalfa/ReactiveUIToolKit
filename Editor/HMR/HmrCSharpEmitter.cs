@@ -698,8 +698,6 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 string code = GP<string>(cb, "Code") ?? "";
                 int codeLine = GP<int>(cb, "SourceLine");
-                if (!_isFunctionStyle)
-                    codeLine += 1;
                 L($"#line {codeLine} \"{_linePath}\"");
 
                 // Handle return markup in code blocks

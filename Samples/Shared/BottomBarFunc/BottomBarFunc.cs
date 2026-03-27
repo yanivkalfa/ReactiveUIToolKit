@@ -33,7 +33,7 @@ namespace ReactiveUITK.Samples.Shared
 
         private static readonly Style ButtonBaseStyle = new()
         {
-            (TextColor, UColor.white),
+            (StyleKeys.Color, UColor.white),
             (PaddingLeft, 10f),
             (PaddingRight, 10f),
             (PaddingTop, 6f),

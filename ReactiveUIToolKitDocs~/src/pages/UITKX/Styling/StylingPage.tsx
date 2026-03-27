@@ -220,7 +220,7 @@ export const StylingPage: FC = () => {
           <TableRow>
             <TableCell>Colors</TableCell>
             <TableCell><code>Color</code></TableCell>
-            <TableCell>TextColor, BackgroundColor, BorderColor (9 total)</TableCell>
+            <TableCell>Color, BackgroundColor, BorderColor (9 total)</TableCell>
           </TableRow>
           <TableRow>
             <TableCell>Enum styles</TableCell>

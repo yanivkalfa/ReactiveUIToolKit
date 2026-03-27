@@ -6,14 +6,12 @@ using ReactiveUITK.Language.Parser;
 namespace ReactiveUITK.Language.Lowering;
 
 /// <summary>
-/// Canonical lowering stage that normalizes authoring forms into one renderable
-/// AST shape consumed by downstream validators and emitters.
+/// Canonical lowering stage that normalizes function-style components into a
+/// renderable AST shape consumed by downstream validators and emitters.
 ///
-/// Current normalization:
-/// - Function-style source (<c>component Name { ... return (...) ... }</c>)
-///   is lowered to legacy-compatible roots by hoisting setup code as a synthetic
-///   <see cref="CodeBlockNode"/> before parsed markup roots.
-/// - Directive-header source is forwarded unchanged.
+/// Hoists setup code (the body before <c>return (...)</c>) as a synthetic
+/// <see cref="CodeBlockNode"/> prepended to the parsed markup roots.
+/// If there is no setup code the parsed roots are returned unchanged.
 /// </summary>
 public static class CanonicalLowering
 {
@@ -23,7 +21,7 @@ public static class CanonicalLowering
         string filePath
     )
     {
-        if (!directives.IsFunctionStyle || string.IsNullOrWhiteSpace(directives.FunctionSetupCode))
+        if (string.IsNullOrWhiteSpace(directives.FunctionSetupCode))
             return parsedRoots;
 
         string setupCode = directives.FunctionSetupCode ?? string.Empty;
