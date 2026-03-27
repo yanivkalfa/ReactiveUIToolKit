@@ -8,7 +8,7 @@
       - IStyle properties (name + type)
       - VisualElement subclasses
       - Enums in UnityEngine.UIElements namespace
-      - Structs in UnityEngine.UIElements namespace (with constructors, methods, properties)
+      - Structs in UnityEngine.UIElements namespace
 
     Output is structured JSON suitable for both human review and AI consumption.
 
@@ -219,47 +219,10 @@ $allTypes | Where-Object { $_.IsEnum } | ForEach-Object {
     $enums[$eName] = $members
 }
 
-# Structs — name + public API surface (constructors, methods, properties)
-$structs = [ordered]@{}
-$allTypes | Where-Object {
+# Structs
+$structs = @($allTypes | Where-Object {
     $_.IsValueType -and -not $_.IsEnum -and -not $_.Name.StartsWith("<")
-} | Sort-Object Name | ForEach-Object {
-    $sName = $_.Name
-
-    $ctors = @($_.Methods | Where-Object {
-        $_.IsConstructor -and $_.IsPublic -and $_.HasParameters
-    } | ForEach-Object {
-        $params = ($_.Parameters | ForEach-Object { "$(Format-TypeName $_.ParameterType) $($_.Name)" }) -join ", "
-        "ctor($params)"
-    })
-
-    $methods = @($_.Methods | Where-Object {
-        $_.IsPublic -and -not $_.IsConstructor -and
-        -not $_.IsGetter -and -not $_.IsSetter -and
-        -not $_.Name.StartsWith("op_") -and
-        -not ($_.Name -in @("Equals","GetHashCode","ToString","GetType"))
-    } | ForEach-Object {
-        $retType = Format-TypeName $_.ReturnType
-        $params = ($_.Parameters | ForEach-Object { "$(Format-TypeName $_.ParameterType) $($_.Name)" }) -join ", "
-        if ($_.IsStatic) { "static $retType $($_.Name)($params)" } else { "$retType $($_.Name)($params)" }
-    })
-
-    $props = @($_.Properties | Where-Object {
-        ($_.GetMethod -and $_.GetMethod.IsPublic) -or ($_.SetMethod -and $_.SetMethod.IsPublic)
-    } | ForEach-Object {
-        $pType = Format-TypeName $_.PropertyType
-        $acc = ""
-        if ($_.GetMethod -and $_.GetMethod.IsPublic) { $acc += "get; " }
-        if ($_.SetMethod -and $_.SetMethod.IsPublic) { $acc += "set; " }
-        "$pType $($_.Name) { $($acc.TrimEnd()) }"
-    })
-
-    $structs[$sName] = [ordered]@{
-        constructors = $ctors
-        methods      = $methods
-        properties   = $props
-    }
-}
+} | ForEach-Object { $_.Name } | Sort-Object)
 
 $reader.Dispose()
 
@@ -268,7 +231,7 @@ $reader.Dispose()
     Elements         = $elements
     Enums            = $enums
     Structs          = $structs
-} | ConvertTo-Json -Depth 6 -Compress
+} | ConvertTo-Json -Depth 5 -Compress
 '@ | Set-Content -Path $tempFile -Encoding UTF8
 
         $result = powershell -ExecutionPolicy Bypass -NoProfile -File $tempFile -DllPath $DllPath 2>&1
@@ -290,22 +253,12 @@ $reader.Dispose()
         if ($parsed.Enums) {
             $parsed.Enums.PSObject.Properties | ForEach-Object { $enumsHt[$_.Name] = @($_.Value) }
         }
-        $structsHt = @{}
-        if ($parsed.Structs) {
-            $parsed.Structs.PSObject.Properties | ForEach-Object {
-                $structsHt[$_.Name] = @{
-                    constructors = @($_.Value.constructors)
-                    methods      = @($_.Value.methods)
-                    properties   = @($_.Value.properties)
-                }
-            }
-        }
 
         return @{
             IStyleProperties = $istyleHt
             Elements         = @($parsed.Elements)
             Enums            = $enumsHt
-            Structs          = $structsHt
+            Structs          = @($parsed.Structs)
         }
     }
     finally {
@@ -388,47 +341,6 @@ function Compare-Enums($OldEnums, $NewEnums) {
     }
 }
 
-function Compare-Structs($OldStructs, $NewStructs) {
-    $oldNames = [string[]]($OldStructs.Keys | Sort-Object)
-    $newNames = [string[]]($NewStructs.Keys | Sort-Object)
-    $namesDiff = Compare-Lists $oldNames $newNames
-
-    # For new structs, include full API surface for review
-    $newStructDetails = [ordered]@{}
-    foreach ($name in $namesDiff.added) {
-        $newStructDetails[$name] = $NewStructs[$name]
-    }
-
-    # For existing structs, check if API changed
-    $memberChanges = [ordered]@{}
-    foreach ($name in $NewStructs.Keys | Sort-Object) {
-        if (-not $OldStructs.ContainsKey($name)) { continue }
-        $old = $OldStructs[$name]
-        $new = $NewStructs[$name]
-
-        $ctorDiff = Compare-Lists $old.constructors $new.constructors
-        $methodDiff = Compare-Lists $old.methods $new.methods
-        $propDiff = Compare-Lists $old.properties $new.properties
-
-        $hasChanges = ($ctorDiff.added.Count + $ctorDiff.removed.Count +
-                       $methodDiff.added.Count + $methodDiff.removed.Count +
-                       $propDiff.added.Count + $propDiff.removed.Count) -gt 0
-        if ($hasChanges) {
-            $memberChanges[$name] = [ordered]@{
-                constructors = $ctorDiff
-                methods      = $methodDiff
-                properties   = $propDiff
-            }
-        }
-    }
-
-    return [ordered]@{
-        types          = $namesDiff
-        newStructApi   = $newStructDetails
-        memberChanges  = $memberChanges
-    }
-}
-
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 Write-Host "`nUnity UIElements API Diff" -ForegroundColor Cyan
@@ -458,7 +370,7 @@ $report = [ordered]@{
     istyle   = Compare-Dictionaries $oldApi.IStyleProperties $newApi.IStyleProperties "IStyle"
     elements = Compare-Lists $oldApi.Elements $newApi.Elements
     enums    = Compare-Enums $oldApi.Enums $newApi.Enums
-    structs  = Compare-Structs $oldApi.Structs $newApi.Structs
+    structs  = Compare-Lists $oldApi.Structs $newApi.Structs
 }
 
 # ── Summary ──────────────────────────────────────────────────────────────────
@@ -469,7 +381,7 @@ Write-Host "`n─── Summary ───" -ForegroundColor Green
 Write-Host "  IStyle:    +$($report.istyle.added.Count) added, -$($report.istyle.removed.Count) removed, ~$($report.istyle.changed.Count) changed"
 Write-Host "  Elements:  +$($report.elements.added.Count) added, -$($report.elements.removed.Count) removed"
 Write-Host "  Enums:     +$($report.enums.types.added.Count) new types, $($report.enums.members.Count) types with member changes"
-Write-Host "  Structs:   +$($report.structs.types.added.Count) added, -$($report.structs.types.removed.Count) removed, $($report.structs.memberChanges.Count) with API changes"
+Write-Host "  Structs:   +$($report.structs.added.Count) added, -$($report.structs.removed.Count) removed"
 
 if ($OutFile) {
     $dir = Split-Path $OutFile
