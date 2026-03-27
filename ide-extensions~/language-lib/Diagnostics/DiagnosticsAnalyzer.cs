@@ -46,11 +46,16 @@ namespace ReactiveUITK.Language.Diagnostics
         /// Map of element name → set of valid attribute names for that element.
         /// Pass <c>null</c> to skip the unknown-attribute check.
         /// </param>
+        /// <param name="sourceText">
+        /// Raw source text of the .uitkx file. When non-null, used for asset-path
+        /// validation (<c>UITKX0120</c>).
+        /// </param>
         public IReadOnlyList<ParseDiagnostic> Analyze(
             ParseResult parseResult,
             string? filePath,
             HashSet<string>? projectElements = null,
-            IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes = null
+            IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes = null,
+            string? sourceText = null
         )
         {
             var diags = new List<ParseDiagnostic>();
@@ -144,6 +149,12 @@ namespace ReactiveUITK.Language.Diagnostics
             if (d.IsFunctionStyle && !d.FunctionParams.IsDefaultOrEmpty)
             {
                 CheckUnusedParameters(d, parseResult.RootNodes, diags);
+            }
+
+            // ── T2: UITKX0120 — Asset path not found ─────────────────────────
+            if (!string.IsNullOrEmpty(sourceText) && !string.IsNullOrEmpty(filePath))
+            {
+                CheckAssetPaths(sourceText, filePath, diags);
             }
 
             return diags;
@@ -1039,5 +1050,208 @@ namespace ReactiveUITK.Language.Diagnostics
                 EndLine = line,
                 EndColumn = endColumn > 0 ? endColumn : column,
             };
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  ASSET PATH VALIDATION
+        // ═══════════════════════════════════════════════════════════════════════
+
+        private static readonly Regex s_assetCallRe = new Regex(
+            @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
+            RegexOptions.Compiled);
+
+        private static readonly Regex s_ussDirectiveRe = new Regex(
+            @"@uss\s+""([^""]+)""",
+            RegexOptions.Compiled);
+
+        // ── Extension → valid requested types ─────────────────────────────────
+
+        private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes =
+            new Dictionary<string, HashSet<string>>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                // Image files (TextureImporter) → Texture2D or Sprite
+                { ".png",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".jpg",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".jpeg", new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".bmp",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".tga",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".psd",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".gif",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".tif",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".tiff", new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".exr",  new HashSet<string> { "Texture2D", "Sprite" } },
+                { ".hdr",  new HashSet<string> { "Texture2D", "Sprite" } },
+                // SVG → VectorImage
+                { ".svg",  new HashSet<string> { "VectorImage" } },
+                // Audio
+                { ".wav",  new HashSet<string> { "AudioClip" } },
+                { ".mp3",  new HashSet<string> { "AudioClip" } },
+                { ".ogg",  new HashSet<string> { "AudioClip" } },
+                { ".aiff", new HashSet<string> { "AudioClip" } },
+                { ".flac", new HashSet<string> { "AudioClip" } },
+                // Fonts
+                { ".ttf",  new HashSet<string> { "Font" } },
+                { ".otf",  new HashSet<string> { "Font" } },
+                // Unity native
+                { ".mat",  new HashSet<string> { "Material" } },
+                { ".uss",  new HashSet<string> { "StyleSheet" } },
+                { ".renderTexture", new HashSet<string> { "RenderTexture" } },
+            };
+
+        /// <summary>
+        /// UITKX0120 — Check that every <c>Asset&lt;T&gt;("path")</c>,
+        /// <c>Ast&lt;T&gt;("path")</c>, and <c>@uss "path"</c> references
+        /// a file that exists on disk.
+        /// </summary>
+        private static void CheckAssetPaths(
+            string sourceText,
+            string filePath,
+            List<ParseDiagnostic> diags)
+        {
+            string? uitkxDir = GetAssetDir(filePath);
+            if (uitkxDir == null) return;
+
+            string? projectRoot = GetProjectRoot(filePath);
+            if (projectRoot == null) return;
+
+            // @uss directives — path only, type is always StyleSheet
+            CheckAssetPathMatches(s_ussDirectiveRe, sourceText, uitkxDir, projectRoot, diags,
+                pathGroup: 1, typeGroup: -1, impliedType: "StyleSheet");
+
+            // Asset<T>/Ast<T> calls — type in group[1], path in group[2]
+            CheckAssetPathMatches(s_assetCallRe, sourceText, uitkxDir, projectRoot, diags,
+                pathGroup: 2, typeGroup: 1, impliedType: null);
+        }
+
+        private static void CheckAssetPathMatches(
+            Regex regex,
+            string sourceText,
+            string uitkxDir,
+            string projectRoot,
+            List<ParseDiagnostic> diags,
+            int pathGroup,
+            int typeGroup,
+            string? impliedType)
+        {
+            foreach (Match m in regex.Matches(sourceText))
+            {
+                string rawPath = m.Groups[pathGroup].Value;
+                string resolved = ResolveAssetPath(uitkxDir, rawPath);
+                string absolute = System.IO.Path.Combine(projectRoot, resolved.Replace('/', System.IO.Path.DirectorySeparatorChar));
+
+                var pathCapture = m.Groups[pathGroup];
+
+                // UITKX0120 — file existence check
+                if (!File.Exists(absolute))
+                {
+                    int line = 1, col = 0;
+                    for (int i = 0; i < pathCapture.Index && i < sourceText.Length; i++)
+                    {
+                        if (sourceText[i] == '\n') { line++; col = 0; }
+                        else col++;
+                    }
+
+                    diags.Add(new ParseDiagnostic
+                    {
+                        Code = DiagnosticCodes.AssetNotFound,
+                        Severity = ParseSeverity.Error,
+                        Message = $"Asset file not found: \"{rawPath}\" (resolved to \"{resolved}\").",
+                        SourceLine = line,
+                        SourceColumn = col,
+                        EndLine = line,
+                        EndColumn = col + pathCapture.Length,
+                    });
+                    continue; // no point checking type if file doesn't exist
+                }
+
+                // UITKX0121 — type mismatch check
+                string requestedType = typeGroup >= 0 ? m.Groups[typeGroup].Value : impliedType!;
+                string ext = System.IO.Path.GetExtension(rawPath);
+                if (!string.IsNullOrEmpty(ext)
+                    && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
+                    && !validTypes.Contains(requestedType))
+                {
+                    int line = 1, col = 0;
+                    // Squiggle the type name (or the path if no type group)
+                    var squiggle = typeGroup >= 0 ? m.Groups[typeGroup] : pathCapture;
+                    for (int i = 0; i < squiggle.Index && i < sourceText.Length; i++)
+                    {
+                        if (sourceText[i] == '\n') { line++; col = 0; }
+                        else col++;
+                    }
+
+                    string validList = string.Join(", ", validTypes);
+                    diags.Add(new ParseDiagnostic
+                    {
+                        Code = DiagnosticCodes.AssetTypeMismatch,
+                        Severity = ParseSeverity.Error,
+                        Message = $"Type '{requestedType}' is not compatible with '{ext}' files. Valid types: {validList}.",
+                        SourceLine = line,
+                        SourceColumn = col,
+                        EndLine = line,
+                        EndColumn = col + squiggle.Length,
+                    });
+                }
+            }
+        }
+
+        private static string ResolveAssetPath(string uitkxDir, string rawPath)
+        {
+            if (rawPath.StartsWith("Assets/", System.StringComparison.Ordinal) ||
+                rawPath.StartsWith("Packages/", System.StringComparison.Ordinal))
+                return rawPath;
+
+            string combined = uitkxDir + "/" + rawPath;
+            var parts = combined.Replace('\\', '/').Split('/');
+            var stack = new List<string>();
+            foreach (var p in parts)
+            {
+                if (p == "." || p == "") continue;
+                if (p == ".." && stack.Count > 0)
+                    stack.RemoveAt(stack.Count - 1);
+                else if (p != "..")
+                    stack.Add(p);
+            }
+            return string.Join("/", stack);
+        }
+
+        /// <summary>
+        /// Extracts the Unity project-relative directory from an absolute file path.
+        /// Returns null if the path doesn't contain an <c>Assets/</c> segment.
+        /// </summary>
+        private static string? GetAssetDir(string filePath)
+        {
+            string normalized = filePath.Replace('\\', '/');
+            int assetsIdx = normalized.IndexOf("/Assets/", System.StringComparison.OrdinalIgnoreCase);
+            if (assetsIdx < 0)
+            {
+                // Try path starting with "Assets/"
+                if (normalized.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    int lastSlash = normalized.LastIndexOf('/');
+                    return lastSlash > 0 ? normalized.Substring(0, lastSlash) : "Assets";
+                }
+                return null;
+            }
+
+            string assetPath = normalized.Substring(assetsIdx + 1);
+            int dirSlash = assetPath.LastIndexOf('/');
+            return dirSlash >= 0 ? assetPath.Substring(0, dirSlash) : "Assets";
+        }
+
+        /// <summary>
+        /// Extracts the Unity project root (the folder containing <c>Assets/</c>)
+        /// from an absolute file path.  Returns null when <c>Assets/</c> is not found.
+        /// </summary>
+        private static string? GetProjectRoot(string filePath)
+        {
+            string normalized = filePath.Replace('\\', '/');
+            int assetsIdx = normalized.IndexOf("/Assets/", System.StringComparison.OrdinalIgnoreCase);
+            if (assetsIdx >= 0)
+                return normalized.Substring(0, assetsIdx);
+            // Relative path starting with "Assets/" — project root is CWD
+            if (normalized.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
+                return ".";
+            return null;
+        }
     }
 }
