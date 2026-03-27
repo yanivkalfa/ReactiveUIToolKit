@@ -60,7 +60,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     public async Task EnsureReady_CreatesVirtualDocument()
     {
         // Use the same source pattern that works in SemanticModel_ResolvesBclType.
-        var source = "@namespace T\n@component C\n@code {\n  string msg = \"hello\";\n}\n<Label text={msg}/>";
+        var source = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
         var path = "c:/test/VirtualDocTest.uitkx";
         var parseResult = Parse(source, path);
         await _host.EnsureReadyAsync(path, source, parseResult, CancellationToken.None);
@@ -78,7 +78,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task EnsureReady_CreatesRoslynDocument()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"hi\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"hi\"/>\n  )\n}";
         await EnsureReady(source);
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
@@ -90,7 +90,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task SemanticModel_ResolvesBclType()
     {
-        var source = "@namespace T\n@component C\n@code {\n  string msg = \"hello\";\n}\n<Label text={msg}/>";
+        var source = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg}/>\n  )\n}";
         await EnsureReady(source);
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
@@ -126,7 +126,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task HoverTypeInfo_StringVariable()
     {
-        var source = "@namespace T\n@component C\n@code {\n  string greeting = \"hello\";\n}\n<Label text={greeting}/>";
+        var source = "component C {\n  string greeting = \"hello\";\n  return (\n    <Label text={greeting}/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -162,7 +162,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task VirtualDoc_ExpressionRegion_IsInCSharp()
     {
-        var source = "@namespace T\n@component C\n<Label text={myVar}/>";
+        var source = "component C {\n  return (\n    <Label text={myVar}/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -175,7 +175,7 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task VirtualDoc_MarkupRegion_IsNotCSharp()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"plain\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"plain\"/>\n  )\n}";
         await EnsureReady(source);
 
         var vdoc = _host.GetVirtualDocument("c:/test/Test.uitkx");
@@ -190,11 +190,59 @@ public sealed class RoslynHostTests : IAsyncLifetime
     [Fact]
     public async Task EnsureReady_Idempotent_SameSource()
     {
-        var source = "@namespace T\n@component C\n<Label/>";
+        var source = "component C {\n  return (\n    <Label/>\n  )\n}";
         await EnsureReady(source);
         await EnsureReady(source); // should short-circuit
 
         var doc = _host.GetRoslynDocument("c:/test/Test.uitkx");
         Assert.NotNull(doc);
+    }
+
+    // ── UITKX0112 data-flow analysis ──────────────────────────────────────
+
+    [Fact]
+    public async Task UITKX0112_UnusedVariable_Detected()
+    {
+        // `unused` is declared but never referenced in markup or other code.
+        var source = "component Test {\n  int unused = 42;\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.Contains(diags, d => d.Diagnostic.Id == "UITKX0112");
+    }
+
+    [Fact]
+    public async Task UITKX0112_UsedVariable_NoDiagnostic()
+    {
+        // `count` IS referenced in expression {count.ToString()}.
+        var source = "component Test {\n  int count = 42;\n  return (\n    <Label text={count.ToString()}/>\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.DoesNotContain(diags, d => d.Diagnostic.Id == "UITKX0112");
+    }
+
+    [Fact]
+    public async Task UITKX0112_LambdaParam_NoFalsePositive()
+    {
+        // Lambda discard param `_` must NOT be flagged as unused.
+        var source = "component Test {\n  var (count, setCount) = useState(0);\n  return (\n    <Button text=\"+1\" onClick={_ => setCount(count + 1)} />\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.DoesNotContain(diags, d =>
+            d.Diagnostic.Id == "UITKX0112"
+            && d.Diagnostic.GetMessage().Contains("'_'"));
+    }
+
+    [Fact]
+    public async Task UITKX0112_ForeachVariable_NoFalsePositive()
+    {
+        // Loop variable `item` is used in expression check — no false positive.
+        var source = "component Test {\n  var items = new string[] { \"a\", \"b\" };\n  return (\n    <VisualElement>\n      @foreach (var item in items) {\n        <Label text={item} />\n      }\n    </VisualElement>\n  );\n}";
+        await EnsureReady(source);
+
+        var diags = _host.GetLatestDiagnostics("c:/test/Test.uitkx");
+        Assert.DoesNotContain(diags, d => d.Diagnostic.Id == "UITKX0112");
     }
 }

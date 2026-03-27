@@ -1,10 +1,10 @@
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, Paper, InputBase, List, ListItemButton, ListItemText, Typography, Box, IconButton } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
 import CloseIcon from '@mui/icons-material/Close'
-import { getFilteredFlatForTrack, getTrackFromPath } from '../../docs'
+import { getFilteredFlat } from '../../docs'
 import { useSelectedVersion } from '../../contexts/VersionContext'
 import { getStyleSearchTerms } from '../../versionManifest'
 import { getRenderedText } from '../../searchIndex'
@@ -14,10 +14,8 @@ export type SearchModalProps = { open: boolean; onClose: () => void }
 
 export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
   const nav = useNavigate()
-  const { pathname } = useLocation()
-  const track = getTrackFromPath(pathname)
   const { selectedVersion } = useSelectedVersion()
-  const flat = useMemo(() => getFilteredFlatForTrack(track, selectedVersion), [track, selectedVersion])
+  const flat = useMemo(() => getFilteredFlat(selectedVersion), [selectedVersion])
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -43,7 +41,6 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
       return words.every((w) => haystack.includes(w))
     })
   }, [flat, q, styleTerms])
-  // reset selection when results change
   useEffect(() => setSel(0), [results])
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="md">
@@ -53,7 +50,7 @@ export const SearchModal: FC<SearchModalProps> = ({ open, onClose }) => {
             <SearchIcon />
             <InputBase
               inputRef={inputRef}
-              placeholder={`Search ${track === 'uitkx' ? 'UITKX' : 'C#'} docs…`}
+              placeholder="Search documentation"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {

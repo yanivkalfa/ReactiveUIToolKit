@@ -1,11 +1,4 @@
 import type { ReactElement } from 'react'
-import { IntroductionPage } from './pages/Introduction/IntroductionPage'
-import { GettingStartedPage } from './pages/GettingStarted/GettingStartedPage'
-import { RouterPage } from './pages/Router/RouterPage'
-import { SignalsPage } from './pages/Signals/SignalsPage'
-import { ConceptsPage } from './pages/Concepts/ConceptsPage'
-import { DifferencesPage } from './pages/Differences/DifferencesPage'
-import { APIPage } from './pages/API/APIPage'
 import { BoundsFieldPage } from './pages/Components/BoundsField/BoundsFieldPage'
 import { BoundsIntFieldPage } from './pages/Components/BoundsIntField/BoundsIntFieldPage'
 import { BoxPage } from './pages/Components/Box/BoxPage'
@@ -62,12 +55,7 @@ import { ScrollerPage } from './pages/Components/Scroller/ScrollerPage'
 import { TextElementPage } from './pages/Components/TextElement/TextElementPage'
 import { PropertyInspectorPage } from './pages/Components/PropertyInspector/PropertyInspectorPage'
 import { TwoPaneSplitViewPage } from './pages/Components/TwoPaneSplitView/TwoPaneSplitViewPage'
-import { KnownIssuesPage } from './pages/KnownIssues/KnownIssuesPage'
-import { RoadmapPage } from './pages/Roadmap/RoadmapPage'
-import { AnimationHooksPage } from './pages/SpecialHooks/AnimationHooksPage'
-import { RouterHooksPage } from './pages/SpecialHooks/RouterHooksPage'
-import { SignalsHooksPage } from './pages/SpecialHooks/SignalsHooksPage'
-import { SafeAreaHooksPage } from './pages/SpecialHooks/SafeAreaHooksPage'
+
 
 export type Page = {
   id: string
@@ -87,84 +75,6 @@ export type Section = {
 }
 
 export const pages: Section[] = [
-  {
-    id: 'intro',
-    title: 'Introduction',
-    pages: [
-      {
-        id: 'introduction',
-        title: 'Introduction',
-        path: '/',
-        keywords: ['overview', 'unity 6.2', 'reactive', 'ui toolkit'],
-        searchContent: 'reactiveuitoolkit react-like component model unity hooks state effects reconciliation v.func v.memo visualelement diffing scheduler rendering fiber dom-like',
-        element: () => <IntroductionPage />,
-      },
-    ],
-  },
-  {
-    id: 'getting-started',
-    title: 'Getting Started',
-    pages: [
-      {
-        id: 'install',
-        title: 'Install & Setup',
-        path: '/getting-started',
-        keywords: ['install', 'setup', 'unity package manager', 'dist'],
-        searchContent: 'install setup unity package manager git url create component mount rootrenderer uidocument rootvisualelement editorrootrendererutility partial class render method v.func v.memo',
-        element: () => <GettingStartedPage />,
-      },
-    ],
-  },
-  {
-    id: 'concepts',
-    title: 'Concepts & Environment',
-    pages: [
-      {
-        id: 'concepts-and-environment',
-        title: 'Concepts & Environment',
-        path: '/concepts',
-        keywords: ['concepts', 'environment', 'defines', 'trace', 'react differences'],
-        searchContent: 'concepts environment defines tracings symbols env_dev env_staging env_prod ruitk_trace_verbose ruitk_trace_basic runtime diagnostics intrinsic tags hooks markup reconciliation scheduling companion partial classes',
-        element: () => <ConceptsPage />,
-      },
-    ],
-  },
-  {
-    id: 'differences',
-    title: 'Different from React',
-    pages: [
-      {
-        id: 'different-from-react',
-        title: 'Different from React',
-        path: '/differences',
-        keywords: ['react', 'usestate', 'signals', 'differences'],
-        searchContent: 'different from react usestate setter value updater function fiber schedule asynchronously scheduler sliced render deferred passive effects concurrent jsx-like syntax visualelement interop unity controls styles events',
-        element: () => <DifferencesPage />,
-      },
-    ],
-  },
-  {
-    id: 'tooling',
-    title: 'Tooling',
-    pages: [
-      {
-        id: 'router',
-        title: 'Router',
-        path: '/tooling/router',
-        keywords: ['navigation', 'routes'],
-        searchContent: 'router routing route links routerhooks usenavigate usego useparams usequery uselocationinfo usenavigationstate useblocker declarative route composition navigation routernavlink',
-        element: () => <RouterPage />,
-      },
-      {
-        id: 'signals',
-        title: 'Signals',
-        path: '/tooling/signals',
-        keywords: ['state', 'observable'],
-        searchContent: 'signals shared-state primitive signal registry usesignal dispatch signalfactory.get signalsruntime.ensureinitialized signals.get counter increment',
-        element: () => <SignalsPage />,
-      },
-    ],
-  },
   {
     id: 'components',
     title: 'Components',
@@ -615,84 +525,6 @@ export const pages: Section[] = [
         keywords: ['split', 'editor'],
         group: 'advanced',
         element: () => <TwoPaneSplitViewPage />,
-      },
-    ],
-  },
-  {
-    id: 'special-hooks',
-    title: 'Special Hooks',
-    pages: [
-      {
-        id: 'special-hooks-animation',
-        title: 'Animation hooks',
-        path: '/special-hooks/animation',
-        keywords: ['hooks', 'animation', 'UseAnimate', 'UseTweenFloat'],
-        searchContent: 'animation hooks useanimate usetweenfloat animate tween float interpolation easing duration delay loop repeat playback',
-        element: () => <AnimationHooksPage />,
-      },
-      {
-        id: 'special-hooks-router',
-        title: 'Router hooks',
-        path: '/special-hooks/router',
-        keywords: ['hooks', 'router', 'RouterHooks'],
-        searchContent: 'router hooks routerhooks usenavigate useparams usequery uselocationinfo usenavigationstate useblocker usego usepath imperative navigation',
-        element: () => <RouterHooksPage />,
-      },
-      {
-        id: 'special-hooks-signals',
-        title: 'Signal hooks',
-        path: '/special-hooks/signals',
-        keywords: ['hooks', 'signals', 'UseSignal'],
-        searchContent: 'signal hooks usesignal dispatch signalfactory signalfactory.get signals.get shared-state reactive',
-        element: () => <SignalsHooksPage />,
-      },
-      {
-        id: 'special-hooks-safe-area',
-        title: 'Safe area hooks',
-        path: '/special-hooks/safe-area',
-        keywords: ['hooks', 'safe area', 'UseSafeArea', 'VisualElementSafe'],
-        searchContent: 'safe area hooks usesafearea visualelementsafe notch insets screen safe zone padding margins mobile',
-        element: () => <SafeAreaHooksPage />,
-      },
-    ],
-  },
-  {
-    id: 'api',
-    title: 'API',
-    pages: [
-      {
-        id: 'api-reference',
-        title: 'API Reference',
-        path: '/api',
-        keywords: ['api', 'namespace', 'props', 'hooks', 'router', 'signals'],
-        searchContent: 'api reference namespace props hooks usestate useeffect usememo useref usecallback usecontext router signals runtime types v vnode virtualnode rootrenderer editorrootrendererutility',
-        element: () => <APIPage />,
-      },
-    ],
-  },
-  {
-    id: 'known-issues',
-    title: 'Known Issues',
-    pages: [
-      {
-        id: 'known-issues-page',
-        title: 'Known Issues',
-        path: '/known-issues',
-        keywords: ['issues', 'limitations', 'known issues'],
-        element: () => <KnownIssuesPage />,
-      },
-    ],
-  },
-  {
-    id: 'roadmap',
-    title: 'Roadmap',
-    pages: [
-      {
-        id: 'roadmap-page',
-        title: 'Roadmap',
-        path: '/roadmap',
-        keywords: ['roadmap', 'future', 'plans'],
-        element: () => <RoadmapPage />,
       },
     ],
   },

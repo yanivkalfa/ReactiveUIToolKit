@@ -43,30 +43,7 @@ public sealed class DiagnosticsAnalyzerTests
     private static bool HasDiag(IReadOnlyList<ParseDiagnostic> diags, string code) =>
         diags.Any(d => d.Code == code);
 
-    // ── UITKX0101: Missing @namespace ──────────────────────────────────────
-
-    [Fact]
-    public void UITKX0101_MissingNamespace()
-    {
-        var diags = Analyze("@component C\n<Label/>");
-        Assert.True(HasDiag(diags, DiagnosticCodes.MissingNamespace));
-    }
-
-    [Fact]
-    public void UITKX0101_Present_NoWarning()
-    {
-        var diags = Analyze("@namespace T\n@component C\n<Label/>");
-        Assert.False(HasDiag(diags, DiagnosticCodes.MissingNamespace));
-    }
-
     // ── UITKX0102: Missing @component ──────────────────────────────────────
-
-    [Fact]
-    public void UITKX0102_MissingComponent()
-    {
-        var diags = Analyze("@namespace T\n<Label/>");
-        Assert.True(HasDiag(diags, DiagnosticCodes.MissingComponent));
-    }
 
     [Fact]
     public void UITKX0102_FunctionStyle_NoWarning()
@@ -80,14 +57,14 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0103_FilenameMismatch()
     {
-        var diags = Analyze("@namespace T\n@component WrongName\n<Label/>", path: "Correct.uitkx");
+        var diags = Analyze("component WrongName {\n  return (\n    <Label/>\n  );\n}", path: "Correct.uitkx");
         Assert.True(HasDiag(diags, DiagnosticCodes.FilenameMismatch));
     }
 
     [Fact]
     public void UITKX0103_FilenameMatches_NoWarning()
     {
-        var diags = Analyze("@namespace T\n@component Test\n<Label/>", path: "Test.uitkx");
+        var diags = Analyze("component Test {\n  return (\n    <Label/>\n  );\n}", path: "Test.uitkx");
         Assert.False(HasDiag(diags, DiagnosticCodes.FilenameMismatch));
     }
 
@@ -96,7 +73,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0104_DuplicateKey()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  <Label key=\"a\"/>\n  <Label key=\"a\"/>\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      <Label key=\"a\"/>\n      <Label key=\"a\"/>\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         Assert.True(HasDiag(diags, DiagnosticCodes.DuplicateKey));
     }
@@ -104,7 +81,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0104_UniqueKeys_NoWarning()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  <Label key=\"a\"/>\n  <Label key=\"b\"/>\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      <Label key=\"a\"/>\n      <Label key=\"b\"/>\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         Assert.False(HasDiag(diags, DiagnosticCodes.DuplicateKey));
     }
@@ -115,7 +92,7 @@ public sealed class DiagnosticsAnalyzerTests
     public void UITKX0105_UnknownElement_WhenIndexProvided()
     {
         var knownElems = new HashSet<string> { "Label", "Box" };
-        var source = "@namespace T\n@component C\n<UnknownWidget/>";
+        var source = "component C {\n  return (\n    <UnknownWidget/>\n  );\n}";
         var diags = Analyze(source, projectElements: knownElems);
         Assert.True(HasDiag(diags, DiagnosticCodes.UnknownElement));
     }
@@ -124,7 +101,7 @@ public sealed class DiagnosticsAnalyzerTests
     public void UITKX0105_KnownElement_NoWarning()
     {
         var knownElems = new HashSet<string> { "Label", "Box" };
-        var source = "@namespace T\n@component C\n<Label/>";
+        var source = "component C {\n  return (\n    <Label/>\n  );\n}";
         var diags = Analyze(source, projectElements: knownElems);
         Assert.False(HasDiag(diags, DiagnosticCodes.UnknownElement));
     }
@@ -132,7 +109,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0105_NullIndex_Skipped()
     {
-        var source = "@namespace T\n@component C\n<Anything/>";
+        var source = "component C {\n  return (\n    <Anything/>\n  );\n}";
         var diags = Analyze(source, projectElements: null);
         Assert.False(HasDiag(diags, DiagnosticCodes.UnknownElement));
     }
@@ -142,7 +119,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0106_MissingKeyInForeach()
     {
-        var source = "@namespace T\n@component C\n<Box>\n@foreach (var x in items) {\n  <Label/>\n}\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      @foreach (var x in items) {\n        <Label/>\n      }\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         Assert.True(HasDiag(diags, DiagnosticCodes.MissingKey));
     }
@@ -150,7 +127,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0106_HasKey_NoWarning()
     {
-        var source = "@namespace T\n@component C\n<Box>\n@foreach (var x in items) {\n  <Label key={x}/>\n}\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      @foreach (var x in items) {\n        <Label key={x}/>\n      }\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         Assert.False(HasDiag(diags, DiagnosticCodes.MissingKey));
     }
@@ -160,7 +137,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0107_UnreachableAfterReturn_InCodeBlock()
     {
-        var source = "@namespace T\n@component C\n@code {\n  return;\n  int x = 5;\n}\n<Label/>";
+        var source = "component C {\n  return;\n  int x = 5;\n  return (\n    <Label/>\n  );\n}";
         var diags = Analyze(source);
         Assert.True(HasDiag(diags, DiagnosticCodes.UnreachableAfterReturn));
     }
@@ -168,7 +145,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0107_NoReturn_NoWarning()
     {
-        var source = "@namespace T\n@component C\n@code {\n  int x = 5;\n}\n<Label/>";
+        var source = "component C {\n  int x = 5;\n  return (\n    <Label/>\n  );\n}";
         var diags = Analyze(source);
         Assert.False(HasDiag(diags, DiagnosticCodes.UnreachableAfterReturn));
     }
@@ -184,12 +161,12 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0107_SpansCorrectLine()
     {
-        var source = "@namespace T\n@component C\n@code {\n  return;\n  int dead = 0;\n}\n<Label/>";
+        var source = "component C {\n  return;\n  int dead = 0;\n  return (\n    <Label/>\n  );\n}";
         var diags = Analyze(source);
         var unreachable = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.UnreachableAfterReturn);
         Assert.NotNull(unreachable);
-        // The unreachable code starts at "int dead = 0;" which is line 5 (1-based)
-        Assert.True(unreachable.SourceLine >= 4, $"Expected unreachable line >= 4 but got {unreachable.SourceLine}");
+        // The unreachable code starts at "int dead = 0;" which is line 3 (1-based)
+        Assert.True(unreachable.SourceLine >= 2, $"Expected unreachable line >= 2 but got {unreachable.SourceLine}");
     }
 
     // ── UITKX0108: Multiple render roots ───────────────────────────────────
@@ -197,7 +174,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0108_MultipleRenderRoots()
     {
-        var source = "@namespace T\n@component C\n<Label/>\n<Box/>";
+        var source = "component C {\n  return (\n    <Label/>\n    <Box/>\n  );\n}";
         var diags = Analyze(source);
         Assert.True(HasDiag(diags, DiagnosticCodes.MultipleRenderRoots));
     }
@@ -205,7 +182,7 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void UITKX0108_SingleRoot_NoWarning()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  <Label/>\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      <Label/>\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         Assert.False(HasDiag(diags, DiagnosticCodes.MultipleRenderRoots));
     }
@@ -217,7 +194,7 @@ public sealed class DiagnosticsAnalyzerTests
     {
         // @break; is a UITKX-level control-flow node (requires semicolon).
         // Nodes after @break; in a loop body are unreachable.
-        var source = "@namespace T\n@component C\n<Box>\n@for (var i = 0; i < 10; i++) {\n  @break;\n  <Label key={i}/>\n}\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      @for (var i = 0; i < 10; i++) {\n        @break;\n        <Label key={i}/>\n      }\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         Assert.True(HasDiag(diags, DiagnosticCodes.UnreachableAfterBreakOrContinue));
     }
@@ -231,7 +208,7 @@ public sealed class DiagnosticsAnalyzerTests
         {
             ["Label"] = new HashSet<string> { "text", "style" }
         };
-        var source = "@namespace T\n@component C\n<Label bogus=\"hi\"/>";
+        var source = "component C {\n  return (\n    <Label bogus=\"hi\"/>\n  );\n}";
         var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
         Assert.True(HasDiag(diags, DiagnosticCodes.UnknownAttribute));
     }
@@ -243,7 +220,7 @@ public sealed class DiagnosticsAnalyzerTests
         {
             ["Label"] = new HashSet<string> { "text", "style" }
         };
-        var source = "@namespace T\n@component C\n<Label text=\"hi\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
         var diags = _analyzer.Analyze(Parse(source), "Test.uitkx", null, knownAttrs);
         Assert.False(HasDiag(diags, DiagnosticCodes.UnknownAttribute));
     }
@@ -271,19 +248,10 @@ public sealed class DiagnosticsAnalyzerTests
     [Fact]
     public void MissingKey_IsSeverityError()
     {
-        var source = "@namespace T\n@component C\n<Box>\n@foreach (var x in items) {\n  <Label/>\n}\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      @foreach (var x in items) {\n        <Label/>\n      }\n    </Box>\n  );\n}";
         var diags = Analyze(source);
         var mk = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.MissingKey);
         Assert.NotNull(mk);
         Assert.Equal(ParseSeverity.Error, mk.Severity);
-    }
-
-    [Fact]
-    public void MissingNamespace_IsSeverityError()
-    {
-        var diags = Analyze("@component C\n<Label/>");
-        var mn = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.MissingNamespace);
-        Assert.NotNull(mn);
-        Assert.Equal(ParseSeverity.Error, mn.Severity);
     }
 }

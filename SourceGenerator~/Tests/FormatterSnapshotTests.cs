@@ -308,15 +308,16 @@ public sealed class FormatterSnapshotTests
         //  to JSX node-list blank lines.)
         var source = N(
             """
-            @namespace NS
-            @component Foo
+            component Foo {
+              return (
+                <Box>
+                  <Label text="A" />
 
-            <Box>
-              <Label text="A" />
 
-
-              <Label text="B" />
-            </Box>
+                  <Label text="B" />
+                </Box>
+              );
+            }
             """
         );
 
@@ -452,11 +453,12 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @(count.ToString())
-            <Box />
+            component Foo {
+              return (
+                @(count.ToString())
+                <Box />
+              );
+            }
             """
         );
 
@@ -470,11 +472,12 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            {/*   some note   */}
-            <Box />
+            component Foo {
+              return (
+                {/* some note */}
+                <Box />
+              );
+            }
             """
         );
 
@@ -492,11 +495,12 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @if (show) {
-                <Label text="yes" />
+            component Foo {
+              return (
+                @if (show) {
+                    <Label text="yes" />
+                }
+              );
             }
             """
         );
@@ -504,8 +508,8 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@if (show) {", result);
-        Assert.Contains("\n  <Label text=\"yes\" />", result);
-        Assert.Contains("\n}", result);
+        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n    }", result);
     }
 
     [Fact]
@@ -513,13 +517,14 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @if (x) {
-                <Label text="yes" />
-            } @else {
-                <Label text="no" />
+            component Foo {
+              return (
+                @if (x) {
+                    <Label text="yes" />
+                } @else {
+                    <Label text="no" />
+                }
+              );
             }
             """
         );
@@ -528,8 +533,8 @@ public sealed class FormatterSnapshotTests
 
         // @else on same line as closing }.
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n  <Label text=\"yes\" />", result);
-        Assert.Contains("\n  <Label text=\"no\" />", result);
+        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n      <Label text=\"no\" />", result);
     }
 
     [Fact]
@@ -537,15 +542,16 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @if (a) {
-                <A />
-            } @elseif (b) {
-                <B />
-            } @else {
-                <C />
+            component Foo {
+              return (
+                @if (a) {
+                    <A />
+                } @elseif (b) {
+                    <B />
+                } @else {
+                    <C />
+                }
+              );
             }
             """
         );
@@ -565,11 +571,12 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var item in items) {
-                <Label text={item} key={item} />
+            component Foo {
+              return (
+                @foreach (var item in items) {
+                    <Label text={item} key={item} />
+                }
+              );
             }
             """
         );
@@ -577,8 +584,8 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@foreach (var item in items) {", result);
-        Assert.Contains("\n  <Label text={item} key={item} />", result);
-        Assert.Contains("\n}", result);
+        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n    }", result);
     }
 
     [Fact]
@@ -627,16 +634,17 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @switch (mode) {
-                @case "a":
-                    <LabelA />
-                @case "b":
-                    <LabelB />
-                @default:
-                    <LabelDefault />
+            component Foo {
+              return (
+                @switch (mode) {
+                    @case "a":
+                        <LabelA />
+                    @case "b":
+                        <LabelB />
+                    @default:
+                        <LabelDefault />
+                }
+              );
             }
             """
         );
@@ -644,12 +652,12 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@switch (mode) {", result);
-        Assert.Contains("\n  @case \"a\":", result);
-        Assert.Contains("\n    <LabelA />", result);
-        Assert.Contains("\n  @case \"b\":", result);
-        Assert.Contains("\n  @default:", result);
-        Assert.Contains("\n    <LabelDefault />", result);
-        Assert.Contains("\n}", result);
+        Assert.Contains("\n      @case \"a\":", result);
+        Assert.Contains("\n        <LabelA />", result);
+        Assert.Contains("\n      @case \"b\":", result);
+        Assert.Contains("\n      @default:", result);
+        Assert.Contains("\n        <LabelDefault />", result);
+        Assert.Contains("\n    }", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -706,52 +714,32 @@ public sealed class FormatterSnapshotTests
         Assert.DoesNotContain("component HelloWorld()", result);
     }
 
-    [Fact]
-    public void Signature_ClassStyle_DirectivesPreserved()
-    {
-        var source = N(
-            """
-            @namespace NS
-            @component MyClassComp
-            @props MyProps
 
-            <Box />
-            """
-        );
-
-        var result = Format(source);
-
-        Assert.Contains("@namespace NS", result);
-        Assert.Contains("@component MyClassComp", result);
-        Assert.Contains("@props MyProps", result);
-    }
 
     // ════════════════════════════════════════════════════════════════════════════
-    //  B.8  @code block (class-style)
+    //  B.8  Setup code before return
     // ════════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public void CodeBlock_EmittedWithCorrectBraces()
+    public void CodeBlock_SetupCode_EmittedBeforeReturn()
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @code {
-                var x = 1;
-                var y = 2;
+            component Foo {
+              var x = 1;
+              var y = 2;
+              return (
+                <Box />
+              );
             }
-            <Box />
             """
         );
 
         var result = Format(source);
 
-        Assert.Contains("@code {", result);
-        Assert.Contains("}", result);
         Assert.Contains("var x = 1", result);
         Assert.Contains("var y = 2", result);
+        Assert.Contains("<Box />", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -1746,53 +1734,6 @@ public sealed class FormatterSnapshotTests
     }
 
     // ════════════════════════════════════════════════════════════════════════════
-
-    [Fact]
-    public void ClassStyle_NamespaceUsingsOrderPreserved()
-    {
-        var source = N(
-            """
-            @namespace Foo.Bar
-            @using System
-            @using UnityEngine
-            @component MyComp
-
-            <Label text="x" />
-            """
-        );
-
-        var result = Format(source);
-
-        var nsIdx = result.IndexOf("@namespace");
-        var uIdx1 = result.IndexOf("@using System");
-        var uIdx2 = result.IndexOf("@using UnityEngine");
-        var compIdx = result.IndexOf("@component MyComp");
-        var labelIdx = result.IndexOf("<Label");
-
-        Assert.True(nsIdx < uIdx1, "@namespace must precede first @using");
-        Assert.True(uIdx1 < uIdx2, "usings must preserve declaration order");
-        Assert.True(uIdx2 < compIdx, "@using must precede @component");
-        Assert.True(compIdx < labelIdx, "@component must precede markup");
-    }
-
-    [Fact]
-    public void ClassStyle_BlankLineBetweenDirectivesAndMarkup()
-    {
-        var source = N(
-            """
-            @namespace NS
-            @component Foo
-            <Box />
-            """
-        );
-
-        var result = Format(source);
-
-        // There must be exactly one blank line between the directive block and markup.
-        Assert.Contains("@component Foo\n\n<Box />", result);
-    }
-
-    // ════════════════════════════════════════════════════════════════════════════
     //  B.14  Functional component — canonical output shape
     // ════════════════════════════════════════════════════════════════════════════
 
@@ -1840,14 +1781,15 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var x in items) {
-                @if (x == null) {
-                    @break;
+            component Foo {
+              return (
+                @foreach (var x in items) {
+                    @if (x == null) {
+                        @break;
+                    }
+                    <Label text={x} />
                 }
-                <Label text={x} />
+              );
             }
             """
         );
@@ -1862,14 +1804,15 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var x in items) {
-                @if (x == null) {
-                    @continue;
+            component Foo {
+              return (
+                @foreach (var x in items) {
+                    @if (x == null) {
+                        @continue;
+                    }
+                    <Label text={x} />
                 }
-                <Label text={x} />
+              );
             }
             """
         );
@@ -1930,36 +1873,19 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(first, second);
     }
 
-    [Fact]
-    public void DoubleFormat_ClassStyle_Stable()
-    {
-        var messy = N(
-            """
-            @namespace NS
-            @component MyComp
-            <Box>
-            <Label text="hello"/>
-            <Button text="go" onClick={_=>doIt()}/>
-            </Box>
-            """
-        );
 
-        var first = Format(messy);
-        var second = Format(first);
-
-        Assert.Equal(first, second);
-    }
 
     [Fact]
     public void DoubleFormat_WithForEach_Stable()
     {
         var messy = N(
             """
-            @namespace NS
-            @component List
-
-            @foreach(var item in items){
-            <Label text={item}/>
+            component List {
+              return (
+                @foreach(var item in items){
+                <Label text={item}/>
+                }
+              );
             }
             """
         );
@@ -4041,7 +3967,7 @@ public sealed class FormatterSnapshotTests
                         { "onWheel", (WheelEventHandler)(e => setCount(count - 1)) }
                     }}
                   >
-                    <Label text="Interact" style={new Style { (StyleKeys.TextColor, Color.white) }} />
+                    <Label text="Interact" style={new Style { (StyleKeys.Color, Color.white) }} />
                   </VisualElement>
                   <Suspense
                     isReady={IsLoading}
@@ -4971,23 +4897,7 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
-    [Fact]
-    public void G09_Directive_ClassStyle_ComponentDirectiveExtraSpaces_Normalised()
-    {
-        var source = N(
-            """
-            @namespace NS
-            @component   MyComp
-            @props   MyProps
 
-            <Box />
-            """
-        );
-        var result = Format(source);
-        Assert.Contains("@component MyComp", result);
-        Assert.Contains("@props MyProps", result);
-        Assert.Equal(result, Format(result));
-    }
 
     [Fact]
     public void G10_Directive_ExtraBlankLinesBetweenUsings_CappedToOne()
@@ -5247,16 +5157,17 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @if (show) {
-                        <Label text="yes" />
+            component Foo {
+              return (
+                @if (show) {
+                            <Label text="yes" />
+                }
+              );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n  <Label text=\"yes\" />", result);
+        Assert.Contains("\n      <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5265,16 +5176,17 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @if (show) {
-            <Label text="yes" />
+            component Foo {
+              return (
+                @if (show) {
+                <Label text="yes" />
+                }
+              );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n  <Label text=\"yes\" />", result);
+        Assert.Contains("\n      <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5283,16 +5195,17 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var item in items) {
-                        <Label text={item} key={item} />
+            component Foo {
+              return (
+                @foreach (var item in items) {
+                            <Label text={item} key={item} />
+                }
+              );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n  <Label text={item} key={item} />", result);
+        Assert.Contains("\n      <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5301,16 +5214,17 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var item in items) {
-            <Label text={item} key={item} />
+            component Foo {
+              return (
+                @foreach (var item in items) {
+                <Label text={item} key={item} />
+                }
+              );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n  <Label text={item} key={item} />", result);
+        Assert.Contains("\n      <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5319,20 +5233,21 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @switch (mode) {
-                @case "a":
-                                <LabelA />
-                @default:
-                                <LabelDefault />
+            component Foo {
+              return (
+                @switch (mode) {
+                    @case "a":
+                                    <LabelA />
+                    @default:
+                                    <LabelDefault />
+                }
+              );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n    <LabelA />", result);
-        Assert.Contains("\n    <LabelDefault />", result);
+        Assert.Contains("\n        <LabelA />", result);
+        Assert.Contains("\n        <LabelDefault />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5341,19 +5256,20 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var x in items) {
-                        @if (x != null) {
-                                    <Label text={x} />
-                        }
+            component Foo {
+              return (
+                @foreach (var x in items) {
+                            @if (x != null) {
+                                        <Label text={x} />
+                            }
+                }
+              );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n  @if (x != null) {", result);
-        Assert.Contains("\n    <Label text={x} />", result);
+        Assert.Contains("\n      @if (x != null) {", result);
+        Assert.Contains("\n        <Label text={x} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5362,11 +5278,12 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
+            component Foo {
+              return (
             	@(myNode)
-            <Box />
+                <Box />
+              );
+            }
             """
         );
         var result = Format(source);
@@ -5380,11 +5297,12 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            {/*    extra spaces    */}
-            <Box />
+            component Foo {
+              return (
+                {/* extra spaces */}
+                <Box />
+              );
+            }
             """
         );
         var result = Format(source);
@@ -5459,7 +5377,7 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void J01_Trailing_OnNamespaceLine_Stripped()
     {
-        var source = "@namespace NS   \n@component Foo\n<Box />";
+        var source = "component Foo {\n  return (\n    <Box />   \n  );\n}";
         var result = Format(source);
         foreach (var line in result.Split('\n'))
             Assert.False(
@@ -5573,12 +5491,13 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @if (show) {   
-              <Label text="yes" />   
-            }   
+            component Foo {
+              return (
+                @if (show) {   
+                  <Label text="yes" />   
+                }   
+              );
+            }
             """
         );
         var result = Format(source);
@@ -5595,12 +5514,13 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
             """
-            @namespace NS
-            @component Foo
-
-            @foreach (var item in items) {   
-              <Label text={item} />   
-            }   
+            component Foo {
+              return (
+                @foreach (var item in items) {   
+                  <Label text={item} />   
+                }   
+              );
+            }
             """
         );
         var result = Format(source);
@@ -5649,7 +5569,7 @@ public sealed class FormatterSnapshotTests
     [Fact]
     public void K01_CRLF_NamespaceLine_NormalisedToLf()
     {
-        var source = "@namespace NS\r\n@component Foo\r\n<Box />\r\n";
+        var source = "component Foo {\r\n  return (\r\n    <Box />\r\n  );\r\n}\r\n";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Equal(result, Format(result));
@@ -5688,7 +5608,7 @@ public sealed class FormatterSnapshotTests
     public void K05_CRLF_IfElseChain_AllLinesNormalised()
     {
         var source =
-            "@namespace NS\r\n@component Foo\r\n\r\n@if (a) {\r\n  <LabelA />\r\n} @else {\r\n  <LabelB />\r\n}\r\n";
+            "component Foo {\r\n  return (\r\n    @if (a) {\r\n      <LabelA />\r\n    } @else {\r\n      <LabelB />\r\n    }\r\n  );\r\n}\r\n";
         var result = Format(source);
         Assert.DoesNotContain("\r", result);
         Assert.Equal(result, Format(result));
@@ -5814,17 +5734,18 @@ public sealed class FormatterSnapshotTests
     {
         var source = N(
                 """
-                @namespace NS
-                @component Foo
-
-                @switch (mode) {
-                	@case "a":
-                			<LabelA />   
-                	@default:
-                			<LabelDefault />   
-                }
-                @foreach (var item in items) {
-                		<Label text = {item} key ={item}/>   
+                component Foo {
+                  return (
+                    @switch (mode) {
+                	    @case "a":
+                		  	<LabelA />   
+                	    @default:
+                		  	<LabelDefault />   
+                    }
+                    @foreach (var item in items) {
+                		    <Label text = {item} key ={item}/>   
+                    }
+                  );
                 }
                 """
             )

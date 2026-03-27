@@ -129,7 +129,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using UColor = UnityEngine.Color;");
             foreach (var u in _directives.Usings)
                 L($"using {u};");
-            // `using static StyleKeys` imports Color (string constant = TextColor).
+            // `using static StyleKeys` imports Color (string constant for CSS "color").
             // Files with `@using UnityEngine` also get UnityEngine.Color → CS0229.
             // An explicit alias always wins over both, so declare it last.
             L("using Color = UnityEngine.Color;");
@@ -243,11 +243,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private void EmitCodeBlockContent(CodeBlockNode cb)
         {
-            // For classic @code blocks, SourceLine is the line of `@code` itself —
-            // code content starts on the next line, so add +1.
-            // For function-style (via CanonicalLowering), SourceLine already points
-            // to the first line of actual code, so no adjustment is needed.
-            int codeLine = _directives.IsFunctionStyle ? cb.SourceLine : cb.SourceLine + 1;
+            int codeLine = cb.SourceLine;
             L($"#line {codeLine} \"{_linePath}\"");
             string codeText = cb.Code;
 

@@ -34,65 +34,15 @@ public class ParserTests
         return UitkxParser.Parse(source, "test.uitkx", directives, diags);
     }
 
-    private const string ValidHeader = "@namespace Test.NS\n@component MyComp\n";
+    /// Wraps markup in a minimal function-style component for test convenience.
+    private static string Wrap(string markup) =>
+        "component MyComp {\n  return (\n" + markup + "\n  );\n}";
+
+    /// Wraps code + markup in a function-style component (code runs before return).
+    private static string WrapWithCode(string code, string markup) =>
+        "component MyComp {\n  " + code + "\n  return (\n" + markup + "\n  );\n}";
 
     // ── Directive parsing ─────────────────────────────────────────────────────
-
-    [Fact]
-    public void Directives_ReadsNamespaceAndComponent()
-    {
-        var set = ParseDirectives(ValidHeader + "<box/>", out _);
-
-        Assert.Equal("Test.NS", set.Namespace);
-        Assert.Equal("MyComp", set.ComponentName);
-    }
-
-    [Fact]
-    public void Directives_ReadsUsings()
-    {
-        const string src = """
-            @namespace Test.NS
-            @component MyComp
-            @using System.Collections.Generic
-            @using UnityEngine
-            <box/>
-            """;
-
-        var set = ParseDirectives(src, out _);
-
-        Assert.Contains("System.Collections.Generic", set.Usings);
-        Assert.Contains("UnityEngine", set.Usings);
-    }
-
-    [Fact]
-    public void Directives_ReadsPropsType()
-    {
-        const string src = "@namespace Test.NS\n@component MyComp\n@props MyProps\n<box/>";
-        var set = ParseDirectives(src, out _);
-        Assert.Equal("MyProps", set.PropsTypeName);
-    }
-
-    [Fact]
-    public void Directives_MissingNamespace_EmitsUITKX0005()
-    {
-        ParseDirectives("@component MyComp\n<box/>", out var diags);
-        Assert.Contains(diags, d => d.Code == "UITKX0005");
-    }
-
-    [Fact]
-    public void Directives_MissingComponent_EmitsUITKX0005()
-    {
-        ParseDirectives("@namespace Test.NS\n<box/>", out var diags);
-        Assert.Contains(diags, d => d.Code == "UITKX0005");
-    }
-
-    [Fact]
-    public void Directives_WrongOrder_EmitsUITKX0012()
-    {
-        // @component declared before @namespace
-        ParseDirectives("@component MyComp\n@namespace Test.NS\n<box/>", out var diags);
-        Assert.Contains(diags, d => d.Code == "UITKX0012");
-    }
 
     [Fact]
     public void Directives_FunctionStyle_ParsesComponentAndReturnRange()
@@ -233,22 +183,6 @@ public class ParserTests
     }
 
     [Fact]
-    public void Directives_MixedHeaderAndFunctionStyle_EmitsUITKX2104()
-    {
-        const string src =
-            """
-            @namespace Test.NS
-            @component LegacyComp
-            component CounterPanel {
-                return (<Box />);
-            }
-            """;
-
-        ParseDirectives(src, out var diags);
-        Assert.Contains(diags, d => d.Code == "UITKX2104");
-    }
-
-    [Fact]
     public void Directives_FunctionStyle_WithTrailingDirective_EmitsUITKX2104()
     {
         const string src =
@@ -369,7 +303,7 @@ public class ParserTests
     [Fact]
     public void Markup_SelfClosingElement_ProducesElementNode()
     {
-        var nodes = ParseMarkup(ValidHeader + "<label/>", out _);
+        var nodes = ParseMarkup(Wrap("<label/>"), out _);
 
         var el = Assert.Single(nodes.OfType<ElementNode>());
         Assert.Equal("label", el.TagName);
@@ -398,7 +332,7 @@ public class ParserTests
     [Fact]
     public void Markup_NestedElement_ProducesChildren()
     {
-        var nodes = ParseMarkup(ValidHeader + "<box><label/></box>", out _);
+        var nodes = ParseMarkup(Wrap("<box><label/></box>"), out _);
 
         var root = Assert.Single(nodes.OfType<ElementNode>());
         Assert.Equal("box", root.TagName);
@@ -410,7 +344,7 @@ public class ParserTests
     [Fact]
     public void Markup_StringAttribute_ProducesStringLiteralValue()
     {
-        var nodes = ParseMarkup(ValidHeader + """<label text="Hello"/>""", out _);
+        var nodes = ParseMarkup(Wrap("""<label text="Hello"/>"""), out _);
 
         var el = Assert.Single(nodes.OfType<ElementNode>());
         var attr = Assert.Single(el.Attributes, a => a.Name == "text");
@@ -422,7 +356,7 @@ public class ParserTests
     [Fact]
     public void Markup_ExpressionAttribute_ProducesCSharpExpressionValue()
     {
-        var nodes = ParseMarkup(ValidHeader + "<label text={count}/>", out _);
+        var nodes = ParseMarkup(Wrap("<label text={count}/>"), out _);
 
         var el = Assert.Single(nodes.OfType<ElementNode>());
         var attr = Assert.Single(el.Attributes, a => a.Name == "text");
@@ -434,7 +368,7 @@ public class ParserTests
     [Fact]
     public void Markup_BooleanShorthandAttribute_ProducesBooleanShorthandValue()
     {
-        var nodes = ParseMarkup(ValidHeader + "<toggle disabled/>", out _);
+        var nodes = ParseMarkup(Wrap("<toggle disabled/>"), out _);
 
         var el = Assert.Single(nodes.OfType<ElementNode>());
         var attr = Assert.Single(el.Attributes, a => a.Name == "disabled");
@@ -446,7 +380,7 @@ public class ParserTests
     public void Markup_MultipleAttributes_AllParsed()
     {
         var nodes = ParseMarkup(
-            ValidHeader + """<button text="Click" onClick={handler}/>""",
+            Wrap("""<button text="Click" onClick={handler}/>"""),
             out _
         );
 
@@ -461,7 +395,7 @@ public class ParserTests
     [Fact]
     public void Markup_IfDirective_ProducesIfNode()
     {
-        const string src = ValidHeader + "@if (x > 0) { <label/> }";
+        var src = Wrap("@if (x > 0) { <label/> }");
         var nodes = ParseMarkup(src, out _);
 
         var ifNode = Assert.Single(nodes.OfType<IfNode>());
@@ -472,7 +406,7 @@ public class ParserTests
     [Fact]
     public void Markup_IfElse_ProducesTwoBranches()
     {
-        const string src = ValidHeader + "@if (flag) { <label/> } @else { <button/> }";
+        var src = Wrap("@if (flag) { <label/> } @else { <button/> }");
         var nodes = ParseMarkup(src, out _);
 
         var ifNode = Assert.Single(nodes.OfType<IfNode>());
@@ -483,7 +417,7 @@ public class ParserTests
     [Fact]
     public void Markup_ForeachDirective_ProducesForeachNode()
     {
-        const string src = ValidHeader + "@foreach (var item in items) { <label/> }";
+        var src = Wrap("@foreach (var item in items) { <label/> }");
         var nodes = ParseMarkup(src, out _);
 
         var forNode = Assert.Single(nodes.OfType<ForeachNode>());
@@ -494,14 +428,13 @@ public class ParserTests
     [Fact]
     public void Markup_SwitchDirective_ProducesSwitchNode()
     {
-        const string src =
-            ValidHeader
-            + """
-                @switch (mode) {
-                    @case 0: <label text="zero"/>
-                    @case 1: <label text="one"/>
-                }
-                """;
+        var src = Wrap(
+            """
+            @switch (mode) {
+                @case 0: <label text="zero"/>
+                @case 1: <label text="one"/>
+            }
+            """);
         var nodes = ParseMarkup(src, out _);
 
         var sw = Assert.Single(nodes.OfType<SwitchNode>());
@@ -512,14 +445,13 @@ public class ParserTests
     [Fact]
     public void Markup_ForDirective_ParsesBreakAndContinueNodes()
     {
-        const string src =
-            ValidHeader
-            + """
-                @for (var i = 0; i < 10; i++) {
-                    @continue;
-                    @break;
-                }
-                """;
+        var src = Wrap(
+            """
+            @for (var i = 0; i < 10; i++) {
+                @continue;
+                @break;
+            }
+            """);
 
         var nodes = ParseMarkup(src, out _);
         var forNode = Assert.Single(nodes.OfType<ForNode>());
@@ -531,7 +463,7 @@ public class ParserTests
     [Fact]
     public void Markup_BreakOutsideLoop_EmitsUnexpectedToken()
     {
-        const string src = ValidHeader + "@break;\n<label/>";
+        var src = Wrap("@break;\n<label/>");
         ParseMarkup(src, out var diags);
 
         Assert.Contains(diags, d => d.Code == "UITKX0300" && d.Message.Contains("@break"));
@@ -540,16 +472,15 @@ public class ParserTests
     [Fact]
     public void Markup_ContinueInsideLoopIf_ParsesNestedContinueNode()
     {
-        const string src =
-            ValidHeader
-            + """
-                @while (isRunning) {
-                    @if (skip) {
-                        @continue;
-                    }
-                    <label />
+        var src = Wrap(
+            """
+            @while (isRunning) {
+                @if (skip) {
+                    @continue;
                 }
-                """;
+                <label />
+            }
+            """);
 
         var nodes = ParseMarkup(src, out _);
         var whileNode = Assert.Single(nodes.OfType<WhileNode>());
@@ -561,7 +492,7 @@ public class ParserTests
     [Fact]
     public void Markup_CodeBlock_ProducesCodeBlockNode()
     {
-        const string src = ValidHeader + "@code { var x = 1; }\n<box/>";
+        var src = Wrap("@code { var x = 1; }\n<box/>");
         var nodes = ParseMarkup(src, out _);
 
         var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
@@ -571,17 +502,15 @@ public class ParserTests
     [Fact]
     public void Markup_CodeBlock_LineCommentedMarkup_IsIgnored()
     {
-        const string src =
-            ValidHeader
-            + """
-                @code {
-                    // var node = <Box>
-                    //   <Label text="hi"/>
-                    // </Box>;
-                    var x = 1;
-                }
-                <box/>
-                """;
+        var src = Wrap("""
+            @code {
+                // var node = <Box>
+                //   <Label text="hi"/>
+                // </Box>;
+                var x = 1;
+            }
+            <box/>
+            """);
 
         var nodes = ParseMarkup(src, out _);
         var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
@@ -592,19 +521,17 @@ public class ParserTests
     [Fact]
     public void Markup_CodeBlock_BlockCommentedMarkup_IsIgnored_ButLiveMarkupStillParsed()
     {
-        const string src =
-            ValidHeader
-            + """
-                @code {
-                    /*
-                    var node = <Box>
-                        <Label text="hi"/>
-                    </Box>;
-                    */
-                    var live = <Label text="ok"/>;
-                }
-                <box/>
-                """;
+        var src = Wrap("""
+            @code {
+                /*
+                var node = <Box>
+                    <Label text="hi"/>
+                </Box>;
+                */
+                var live = <Label text="ok"/>;
+            }
+            <box/>
+            """);
 
         var nodes = ParseMarkup(src, out _);
         var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
@@ -616,7 +543,7 @@ public class ParserTests
     [Fact]
     public void Markup_InlineExpression_ProducesExpressionNode()
     {
-        const string src = ValidHeader + "<box>@(someCall())</box>";
+        var src = Wrap("<box>@(someCall())</box>");
         var nodes = ParseMarkup(src, out _);
 
         var box = Assert.Single(nodes.OfType<ElementNode>());
@@ -629,8 +556,7 @@ public class ParserTests
     [Fact]
     public void Markup_SourceLineIsOneBasedAndApproximate()
     {
-        // The element is on line 3 (line 1 = @namespace, line 2 = @component)
-        const string src = "@namespace Test.NS\n@component MyComp\n<label/>";
+        var src = Wrap("<label/>");
         var nodes = ParseMarkup(src, out _);
 
         var el = Assert.Single(nodes.OfType<ElementNode>());

@@ -307,14 +307,14 @@ namespace ReactiveUITK.Bench
 
             var headerStyle = new Style
             {
-                (TextColor, new UColor(0.3f, 0.85f, 0.4f, 1f)),
+                (StyleKeys.Color, new UColor(0.3f, 0.85f, 0.4f, 1f)),
                 (FontSize, 20f),
                 (MarginBottom, 16f),
             };
 
             var subStyle = new Style
             {
-                (TextColor, new UColor(0.7f, 0.7f, 0.7f, 1f)),
+                (StyleKeys.Color, new UColor(0.7f, 0.7f, 0.7f, 1f)),
                 (FontSize, 12f),
                 (MarginBottom, 4f),
             };
@@ -356,7 +356,7 @@ namespace ReactiveUITK.Bench
                         Text = hintText,
                         Style = new Style
                         {
-                            (TextColor, new UColor(0.55f, 0.55f, 0.55f, 1f)),
+                            (StyleKeys.Color, new UColor(0.55f, 0.55f, 0.55f, 1f)),
                             (FontSize, 11f),
                             (MarginTop, 20f),
                         },

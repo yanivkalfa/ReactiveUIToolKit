@@ -8,13 +8,20 @@ export const UitkxConceptsPage: FC = () => (
       Concepts & Environment
     </Typography>
     <Typography variant="body1" paragraph>
-      UITKX is the authoring layer. ReactiveUITK is the runtime layer underneath it. In practice,
-      that means you think in terms of components, intrinsic tags, hooks, and markup structure, while
-      the runtime handles reconciliation, scheduling, and adapter application.
+      ReactiveUIToolKit brings a React-like component model to Unity UI Toolkit. You write
+      components, use hooks to manage state, and the reconciler diffs and updates the{' '}
+      <code>VisualElement</code> hierarchy for you.
     </Typography>
     <Typography variant="body1" paragraph>
-      The key mental model is: write UI as UITKX, keep your setup code local to the component, and
-      let the generator and runtime bridge that into Unity UI Toolkit.
+      Where Unity or UI Toolkit impose different constraints (layout system, event model, or platform
+      concerns), the library deliberately diverges from React to provide a more idiomatic Unity
+      experience. Routing, signals, and safe-area helpers are examples of features that don't exist
+      in core React but are important here.
+    </Typography>
+    <Typography variant="body1" paragraph>
+      The package ships with a demo set under <code>Assets/ReactiveUIToolKit/Samples</code> (editor
+      windows and runtime scenes). Import them into your project to see real-world usage of
+      components, hooks, routing, signals, and more.
     </Typography>
 
     <Box sx={Styles.section}>
@@ -39,21 +46,44 @@ export const UitkxConceptsPage: FC = () => (
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
-        Environment defines
+        Scripting define symbols (environment & tracing)
       </Typography>
       <Typography variant="body2" paragraph>
-        Compile-time environment and tracing symbols still work the same way in UITKX projects,
-        because the generated output runs on the same ReactiveUITK runtime.
+        Set these in <strong>Project Settings → Player → Scripting Define Symbols</strong>. They
+        control environment labels and diagnostics at compile time.
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ENV_DEV</code>, <code>ENV_STAGING</code>, <code>ENV_PROD</code> control environment labeling.</>} />
+          <ListItemText primary={<><code>ENV_DEV</code> — development environment. Enables dev-oriented defaults such as Basic trace level and compiles editor diagnostics helpers.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>RUITK_TRACE_VERBOSE</code> and <code>RUITK_TRACE_BASIC</code> control runtime diagnostics.</>} />
+          <ListItemText primary={<><code>ENV_STAGING</code> — staging environment label (no implicit tracing changes).</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="Editor-only diagnostic helpers still compile behind the same development symbols." />
+          <ListItemText primary={<><code>ENV_PROD</code> — production environment label. This is the implied default if no <code>ENV_*</code> symbol is defined.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>RUITK_TRACE_VERBOSE</code> — force reconciler trace level to <strong>Verbose</strong>.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>RUITK_TRACE_BASIC</code> — force reconciler trace level to <strong>Basic</strong>.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>RUITK_DIFF_TRACING</code> — force <code>DiagnosticsConfig.EnableDiffTracing</code> to <code>true</code> for detailed Fiber diff diagnostics.</>} />
+        </ListItem>
+      </List>
+      <Typography variant="body2" paragraph sx={Styles.section}>
+        <strong>Behavior summary</strong>
+      </Typography>
+      <List sx={Styles.list}>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Environment is resolved to <code>development</code>, <code>staging</code>, or <code>production</code> via the <code>ENV_*</code> defines and is exposed at runtime as <code>HostContext.Environment["env"]</code>.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<>Trace level resolution priority: <code>RUITK_TRACE_VERBOSE</code> &gt; <code>RUITK_TRACE_BASIC</code> &gt; <code>ENV_DEV</code> (Basic) &gt; none.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary="Editor-only diagnostic utilities compile only when ENV_DEV is defined." />
         </ListItem>
       </List>
     </Box>

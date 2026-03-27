@@ -122,21 +122,7 @@ namespace ReactiveUITK.Language.IntelliSense
             string word = prefix + ExtractIdentifierAfter(lineText, col0);
             int prefixStart = col0 - prefix.Length;
 
-            // ── 1. Directive block (lines before markup starts) ────────────────
-            if (!parseResult.Directives.IsFunctionStyle && line1 < parseResult.Directives.MarkupStartLine)
-            {
-                // Cursor must be right after '@' to be completing a directive name.
-                if (prefixStart > 0 && lineText[prefixStart - 1] == '@')
-                    return new CursorContext
-                    {
-                        Kind = CursorKind.DirectiveName,
-                        Prefix = prefix,
-                        Word = word,
-                    };
-                return CursorContext.Empty;
-            }
-
-            // ── 2. Control-flow '@' anywhere in the markup body ────────────────
+            // ── 1. Control-flow '@' anywhere in the markup body ────────────────
             if (prefixStart > 0 && lineText[prefixStart - 1] == '@')
                 return new CursorContext
                 {

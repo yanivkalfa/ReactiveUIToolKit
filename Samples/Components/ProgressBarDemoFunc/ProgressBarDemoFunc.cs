@@ -40,7 +40,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private static readonly Style ProgressTitleStyle = new()
         {
-            (TextColor, new Color(0.92f, 1f, 0.92f, 1f)),
+            (StyleKeys.Color, new Color(0.92f, 1f, 0.92f, 1f)),
             (FontSize, 13f),
         };
 

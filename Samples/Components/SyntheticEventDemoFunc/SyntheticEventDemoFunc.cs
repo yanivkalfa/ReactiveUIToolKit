@@ -67,7 +67,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                     new LabelProps
                     {
                         Text = "Interact here (pointer & wheel events)",
-                        Style = new Style { (StyleKeys.TextColor, Color.white) },
+                        Style = new Style { (StyleKeys.Color, Color.white) },
                     }
                 )
             );

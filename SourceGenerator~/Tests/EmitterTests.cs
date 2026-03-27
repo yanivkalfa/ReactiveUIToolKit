@@ -10,14 +10,20 @@ namespace ReactiveUITK.SourceGenerator.Tests;
 /// </summary>
 public class EmitterTests
 {
-    private const string Header = "@namespace Test.NS\n@component MyComp\n";
+    /// Wraps markup in a minimal function-style component for test convenience.
+    private static string Wrap(string markup) =>
+        "component MyComp {\n  return (\n" + markup + "\n  );\n}";
+
+    /// Wraps code + markup in a function-style component (code runs before return).
+    private static string WrapWithCode(string code, string markup) =>
+        "component MyComp {\n  " + code + "\n  return (\n" + markup + "\n  );\n}";
 
     // ── Element emission ──────────────────────────────────────────────────────
 
     [Fact]
     public void SimpleElement_GeneratesVCall()
     {
-        var result = GeneratorTestHelper.Run(Header + "<label/>");
+        var result = GeneratorTestHelper.Run(Wrap("<label/>"));
 
         Assert.True(result.SourceWasProduced);
         Assert.True(result.SourceContains("V.Label("), "Expected a V.Label( call");
@@ -26,7 +32,7 @@ public class EmitterTests
     [Fact]
     public void StringAttribute_AppearsInVCall()
     {
-        var result = GeneratorTestHelper.Run(Header + """<label text="Hello World"/>""");
+        var result = GeneratorTestHelper.Run(Wrap("""<label text="Hello World"/>"""));
 
         Assert.True(
             result.SourceContains("Hello World"),
@@ -37,7 +43,7 @@ public class EmitterTests
     [Fact]
     public void ExpressionAttribute_AppearsVerbatim()
     {
-        var result = GeneratorTestHelper.Run(Header + "<label text={count}/>");
+        var result = GeneratorTestHelper.Run(Wrap("<label text={count}/>"));
 
         Assert.True(
             result.SourceContains("count"),
@@ -48,7 +54,7 @@ public class EmitterTests
     [Fact]
     public void NestedElements_GeneratesNestedVCalls()
     {
-        var result = GeneratorTestHelper.Run(Header + "<box><label/></box>");
+        var result = GeneratorTestHelper.Run(Wrap("<box><label/></box>"));
 
         Assert.True(result.SourceContains("V.Box("), "Expected V.Box call");
         Assert.True(result.SourceContains("V.Label("), "Expected V.Label call inside box");
@@ -59,15 +65,15 @@ public class EmitterTests
     [Fact]
     public void Namespace_EmittedInGeneratedSource()
     {
-        var result = GeneratorTestHelper.Run(Header + "<box/>");
+        var result = GeneratorTestHelper.Run(Wrap("<box/>"));
 
-        Assert.True(result.SourceContains("namespace Test.NS"), "Expected namespace declaration");
+        Assert.True(result.SourceContains("namespace ReactiveUITK.FunctionStyle"), "Expected namespace declaration");
     }
 
     [Fact]
     public void ClassName_MatchesComponentDirective()
     {
-        var result = GeneratorTestHelper.Run(Header + "<box/>");
+        var result = GeneratorTestHelper.Run(Wrap("<box/>"));
 
         Assert.True(
             result.SourceContains("partial class MyComp"),
@@ -104,7 +110,7 @@ public class EmitterTests
     [Fact]
     public void CodeBlock_AppearsBeforeReturn()
     {
-        const string src = Header + "@code { var x = 42; }\n<box/>";
+        var src = WrapWithCode("var x = 42;", "<box/>");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -125,7 +131,7 @@ public class EmitterTests
     [Fact]
     public void IfDirective_GeneratesConditionalExpression()
     {
-        const string src = Header + "@if (flag) { <label/> }";
+        var src = Wrap("@if (flag) { <label/> }");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -142,7 +148,7 @@ public class EmitterTests
     [Fact]
     public void ForeachDirective_GeneratesSelectCall()
     {
-        const string src = Header + "@foreach (var item in items) { <label key={item.Id}/> }";
+        var src = Wrap("@foreach (var item in items) { <label key={item.Id}/> }");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -153,15 +159,13 @@ public class EmitterTests
     [Fact]
     public void ForDirective_WithLoopFlow_EmitsBreakAndContinueStatements()
     {
-        const string src =
-            Header
-            + """
+        var src = Wrap("""
                 @for (var i = 0; i < 10; i++) {
                     @if (i < 3) { @continue; }
                     <label text={i.ToString()} />
                     @if (i > 6) { @break; }
                 }
-                """;
+                """);
 
         var result = GeneratorTestHelper.Run(src);
 
@@ -174,14 +178,12 @@ public class EmitterTests
     [Fact]
     public void WhileDirective_WithLoopFlow_EmitsContinueStatement()
     {
-        const string src =
-            Header
-            + """
+        var src = Wrap("""
                 @while (running) {
                     @if (skip) { @continue; }
                     <label />
                 }
-                """;
+                """);
 
         var result = GeneratorTestHelper.Run(src);
 
@@ -193,14 +195,12 @@ public class EmitterTests
     [Fact]
     public void SwitchDirective_GeneratesSwitchExpression()
     {
-        const string src =
-            Header
-            + """
+        var src = Wrap("""
                 @switch (mode) {
                     @case 0: <label text="zero"/>
                     @case 1: <label text="one"/>
                 }
-                """;
+                """);
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -215,7 +215,7 @@ public class EmitterTests
     [Fact]
     public void ElseBranch_GeneratesNullFallback()
     {
-        const string src = Header + "@if (flag) { <label/> }";
+        var src = Wrap("@if (flag) { <label/> }");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -228,7 +228,7 @@ public class EmitterTests
     [Fact]
     public void KeyAttribute_PassedAsSecondArgument()
     {
-        var result = GeneratorTestHelper.Run(Header + """<label key="my-key" text="Hi"/>""");
+        var result = GeneratorTestHelper.Run(Wrap("""<label key="my-key" text="Hi"/>"""));
 
         Assert.True(result.SourceContains("my-key"), "key value should appear in generated source");
     }
@@ -238,7 +238,7 @@ public class EmitterTests
     [Fact]
     public void GeneratedSource_ContainsLineDirectives()
     {
-        var result = GeneratorTestHelper.Run(Header + "<label/>");
+        var result = GeneratorTestHelper.Run(Wrap("<label/>"));
 
         // #line directives must reference the original .uitkx file
         Assert.True(
@@ -265,7 +265,7 @@ public class EmitterTests
     {
         // The emitter should emit [global::ReactiveUITK.UitkxElement("MyComp")]
         // on the generated partial class so runtime tooling can discover it.
-        var result = GeneratorTestHelper.Run(Header + "<label/>");
+        var result = GeneratorTestHelper.Run(Wrap("<label/>"));
 
         Assert.True(result.SourceWasProduced);
         Assert.True(
@@ -279,16 +279,14 @@ public class EmitterTests
     {
         // Before the fix, JsxCommentNode emitted nothing but the comma logic still ran,
         // resulting in invalid C# like V.Box(V.Label(...), , V.Label(...))
-        const string src =
-            Header
-            + """
+        var src = Wrap("""
 <box>
     {/* this is a comment */}
     <label text="a"/>
     {/* another comment */}
     <label text="b"/>
 </box>
-""";
+""");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
@@ -306,15 +304,17 @@ public class EmitterTests
         // A JSX comment at the root level alongside a single element should not
         // force Fragment wrapping (which would cause a dangling empty argument).
         const string src =
-            Header
-            + """
-{/* root comment */}
-<box />
-""";
+            """
+            component MyComp {
+                return (
+                    {/* root comment */}
+                    <box />
+                );
+            }
+            """;
         var result = GeneratorTestHelper.Run(src);
 
-        Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(
+        Assert.True(result.SourceWasProduced, "Source should be produced");        Assert.True(
             result.SourceContains("V.Box("),
             "Box should be emitted\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)")
         );
@@ -325,9 +325,19 @@ public class EmitterTests
     [Fact]
     public void AssignMarkupInCodeBlock_GeneratesVCall()
     {
-        const string src =
-            Header
-            + "@code {\n    var (count, setCount) = useState(0);\n    var component = (\n        <box>\n            <label text=\"hi\"/>\n        </box>\n    );\n}\n<box>@(component)</box>";
+        const string src = """
+            component MyComp {
+                var (count, setCount) = useState(0);
+                var component = (
+                    <box>
+                        <label text="hi"/>
+                    </box>
+                );
+                return (
+                    <box>@(component)</box>
+                );
+            }
+            """;
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
@@ -342,21 +352,21 @@ public class EmitterTests
     public void AssignMarkupWithInterpolatedStrings_GeneratesVCall()
     {
         // Mirrors the real UitkxCounterFunc.uitkx pattern with interpolated strings and onClick lambdas
-        const string src =
-            Header
-            + """
-@code {
-    var (count, setCount) = useState(0);
-    var component = (
-        <box>
-            <button text="-5" onClick={() => setCount(count - 5)} />
-            <label text={$"{count}"} />
-            <button text="+5" onClick={() => setCount(count + 5)} />
-        </box>
-    );
-}
-<box>@(component)</box>
-""";
+        const string src = """
+            component MyComp {
+                var (count, setCount) = useState(0);
+                var component = (
+                    <box>
+                        <button text="-5" onClick={() => setCount(count - 5)} />
+                        <label text={$"{count}"} />
+                        <button text="+5" onClick={() => setCount(count + 5)} />
+                    </box>
+                );
+                return (
+                    <box>@(component)</box>
+                );
+            }
+            """;
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
@@ -370,9 +380,14 @@ public class EmitterTests
     [Fact]
     public void ReturnMarkupInCodeBlock_GeneratesVCall()
     {
-        const string src =
-            Header
-            + "@code {\n    private static VirtualNode Btn() {\n        return <label text=\"hi\" />;\n    }\n}";
+        const string src = """
+            component MyComp {
+                private static VirtualNode Btn() {
+                    return <label text="hi" />;
+                }
+                return (<Label />);
+            }
+            """;
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
@@ -385,9 +400,14 @@ public class EmitterTests
     [Fact]
     public void ReturnMarkupInCodeBlock_ExpressionAttribute_IsVerbatim()
     {
-        const string src =
-            Header
-            + "@code {\n    private static VirtualNode Btn(string msg) {\n        return <label text={msg} />;\n    }\n}";
+        const string src = """
+            component MyComp {
+                private static VirtualNode Btn(string msg) {
+                    return <label text={msg} />;
+                }
+                return (<Label />);
+            }
+            """;
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");

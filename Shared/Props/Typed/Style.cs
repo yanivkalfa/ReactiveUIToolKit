@@ -84,7 +84,7 @@ namespace ReactiveUITK.Props.Typed
         public StyleFloat UnityTextOutlineWidth   { set => this["unityTextOutlineWidth"] = value; }
 
         // ── Colors ───────────────────────────────────────────────────────
-        public Color TextColor                    { set => this["color"] = value; }
+        public Color Color                        { set => this["color"] = value; }
         public Color BackgroundColor              { set => this["backgroundColor"] = value; }
         public Color BackgroundImageTint          { set => this["backgroundImageTint"] = value; }
         public Color BorderColor                  { set => this["borderColor"] = value; }
