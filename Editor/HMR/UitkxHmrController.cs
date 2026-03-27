@@ -191,6 +191,9 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (result.Success)
             {
+                // Sync asset references into cache (lightweight — no SO write)
+                SyncAssetCacheForHmr(uitkxPath);
+
                 // Swap delegates (timed)
                 var swapSw = Stopwatch.StartNew();
                 int swapped = UitkxHmrDelegateSwapper.SwapAll(
@@ -368,6 +371,162 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _retryingPending = false;
             }
+        }
+
+        // ── Asset cache sync for HMR ──────────────────────────────────────────
+
+        private static readonly Regex s_assetCallRe = new Regex(
+            @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
+            RegexOptions.Compiled);
+
+        private static readonly Regex s_ussDirectiveRe = new Regex(
+            @"@uss\s+""([^""]+)""",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// Lightweight HMR-safe asset cache sync: reads the .uitkx file, extracts
+        /// asset references, resolves paths, and injects them directly into the
+        /// static cache without writing to the SO.
+        /// </summary>
+        private static void SyncAssetCacheForHmr(string uitkxPath)
+        {
+            try
+            {
+                if (!File.Exists(uitkxPath)) return;
+                string content = File.ReadAllText(uitkxPath);
+
+                string normalized = uitkxPath.Replace('\\', '/');
+                int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+                string assetDir;
+                if (assetsIdx >= 0)
+                {
+                    string assetPath = normalized.Substring(assetsIdx + 1);
+                    int lastSlash = assetPath.LastIndexOf('/');
+                    assetDir = lastSlash >= 0 ? assetPath.Substring(0, lastSlash) : "Assets";
+                }
+                else
+                {
+                    assetDir = Path.GetDirectoryName(uitkxPath)?.Replace('\\', '/') ?? "";
+                }
+
+                foreach (Match m in s_ussDirectiveRe.Matches(content))
+                    InjectIfResolved(assetDir, m.Groups[1].Value, "StyleSheet");
+
+                foreach (Match m in s_assetCallRe.Matches(content))
+                    InjectIfResolved(assetDir, m.Groups[2].Value, m.Groups[1].Value);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] Asset cache sync failed: {ex.Message}");
+            }
+        }
+
+        // ── Image extensions handled by TextureImporter ────────────────────────
+
+        private static readonly HashSet<string> s_imageExtensions = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".psd",
+            ".gif", ".tif", ".tiff", ".exr", ".hdr"
+        };
+
+        private static void InjectIfResolved(string uitkxDir, string rawPath, string requestedType)
+        {
+            string resolved;
+            if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+            {
+                string combined = uitkxDir + "/" + rawPath;
+                var parts = combined.Replace('\\', '/').Split('/');
+                var stack = new List<string>();
+                foreach (var p in parts)
+                {
+                    if (p == "." || p == "") continue;
+                    if (p == ".." && stack.Count > 0)
+                        stack.RemoveAt(stack.Count - 1);
+                    else if (p != "..")
+                        stack.Add(p);
+                }
+                resolved = string.Join("/", stack);
+            }
+            else
+            {
+                resolved = rawPath;
+            }
+
+            var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(resolved);
+
+            // If the asset isn't in the database but exists on disk, import it first.
+            // This handles files copied into the project during HMR (assemblies are
+            // locked so auto-refresh is suppressed).
+            if (asset == null)
+            {
+                string projectRoot = Application.dataPath;
+                if (projectRoot.EndsWith("/Assets") || projectRoot.EndsWith("\\Assets"))
+                    projectRoot = projectRoot.Substring(0, projectRoot.Length - 6);
+                string diskPath = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
+
+                if (File.Exists(diskPath))
+                {
+                    AssetDatabase.ImportAsset(resolved, ImportAssetOptions.ForceSynchronousImport);
+                    asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(resolved);
+                }
+            }
+
+            if (asset == null) return;
+
+            // ── Auto-configure importer when requested type doesn't match ─────
+            string ext = Path.GetExtension(resolved);
+
+            if (s_imageExtensions.Contains(ext))
+            {
+                asset = ConfigureTextureImport(resolved, asset, requestedType);
+            }
+
+            if (asset != null)
+                UitkxAssetRegistry.InjectCacheEntry(resolved, asset);
+        }
+
+        /// <summary>
+        /// Ensures a texture asset's importer matches the requested type.
+        /// If <paramref name="requestedType"/> is <c>Sprite</c> but the file is
+        /// imported as <c>Texture2D</c> (or vice-versa), reconfigures the
+        /// <see cref="TextureImporter"/> and reimports synchronously.
+        /// </summary>
+        private static UnityEngine.Object ConfigureTextureImport(
+            string assetPath,
+            UnityEngine.Object currentAsset,
+            string requestedType)
+        {
+            var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (importer == null) return currentAsset;
+
+            if (string.Equals(requestedType, "Sprite", StringComparison.Ordinal))
+            {
+                if (importer.textureType != TextureImporterType.Sprite)
+                {
+                    importer.textureType = TextureImporterType.Sprite;
+                    importer.spriteImportMode = SpriteImportMode.Single;
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                }
+                // Load the Sprite sub-asset (created by sprite import)
+                var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+                return sprite != null ? sprite : currentAsset;
+            }
+
+            if (string.Equals(requestedType, "Texture2D", StringComparison.Ordinal))
+            {
+                if (importer.textureType == TextureImporterType.Sprite)
+                {
+                    importer.textureType = TextureImporterType.Default;
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                    return AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath) ?? currentAsset;
+                }
+                // Already a Texture2D-compatible import
+                return currentAsset;
+            }
+
+            // Other requested types on image files — return as-is
+            return currentAsset;
         }
 
         // ── Auto-stop hooks ───────────────────────────────────────────────────

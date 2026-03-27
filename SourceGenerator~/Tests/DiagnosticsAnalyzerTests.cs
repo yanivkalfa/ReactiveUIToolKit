@@ -37,7 +37,7 @@ public sealed class DiagnosticsAnalyzerTests
         string path = "Test.uitkx",
         HashSet<string>? projectElements = null)
     {
-        return _analyzer.Analyze(Parse(source, path), path, projectElements);
+        return _analyzer.Analyze(Parse(source, path), path, projectElements, knownAttributes: null, sourceText: source);
     }
 
     private static bool HasDiag(IReadOnlyList<ParseDiagnostic> diags, string code) =>
@@ -253,5 +253,51 @@ public sealed class DiagnosticsAnalyzerTests
         var mk = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.MissingKey);
         Assert.NotNull(mk);
         Assert.Equal(ParseSeverity.Error, mk.Severity);
+    }
+
+    // ── UITKX0120: Asset not found ─────────────────────────────────────────
+
+    [Fact]
+    public void UITKX0120_AssetCall_MissingFile_ReportsError()
+    {
+        // Resolved path won't exist on disk → should trigger UITKX0120
+        var source = "component Card {\n  return (\n    <Label text={Asset<Texture2D>(\"./avatar.png\").name} />\n  );\n}";
+        var diags = Analyze(source, "Assets/UI/Card.uitkx");
+        Assert.True(HasDiag(diags, DiagnosticCodes.AssetNotFound),
+            $"Expected UITKX0120. Got: [{string.Join(", ", diags.Select(d => d.Code))}]");
+    }
+
+    [Fact]
+    public void UITKX0120_UssDirective_MissingFile_ReportsError()
+    {
+        var source = "@uss \"./Card.uss\"\ncomponent Card {\n  return (\n    <Label/>\n  );\n}";
+        var diags = Analyze(source, "Assets/UI/Card.uitkx");
+        Assert.True(HasDiag(diags, DiagnosticCodes.AssetNotFound));
+    }
+
+    [Fact]
+    public void UITKX0120_AstCall_MissingFile_ReportsError()
+    {
+        var source = "component Card {\n  return (\n    <Label text={Ast<Sprite>(\"./icon.png\").name} />\n  );\n}";
+        var diags = Analyze(source, "Assets/UI/Card.uitkx");
+        Assert.True(HasDiag(diags, DiagnosticCodes.AssetNotFound));
+    }
+
+    [Fact]
+    public void UITKX0120_DiagnosticIsSeverityError()
+    {
+        var source = "component Card {\n  return (\n    <Label text={Asset<Texture2D>(\"./missing.png\").name} />\n  );\n}";
+        var diags = Analyze(source, "Assets/UI/Card.uitkx");
+        var assetDiag = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.AssetNotFound);
+        Assert.NotNull(assetDiag);
+        Assert.Equal(ParseSeverity.Error, assetDiag.Severity);
+    }
+
+    [Fact]
+    public void UITKX0120_NoAssetCalls_NoDiagnostic()
+    {
+        var source = "component Card {\n  return (\n    <Label text=\"hello\" />\n  );\n}";
+        var diags = Analyze(source, "Assets/UI/Card.uitkx");
+        Assert.False(HasDiag(diags, DiagnosticCodes.AssetNotFound));
     }
 }

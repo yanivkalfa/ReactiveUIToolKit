@@ -233,6 +233,10 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Generate CHANGELOG.md from centralized changelog
+        if: steps.check.outputs.skip == 'false'
+        run: node scripts/changelog.mjs extract --ide vscode --out ide-extensions~/vscode/CHANGELOG.md
+
       - name: Install dependencies
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions~/vscode
@@ -309,6 +313,11 @@ jobs:
             --runtime win-x64 `
             --self-contained false `
             -o ide-extensions~/visual-studio/UitkxVsix/server
+
+      - name: Generate overview.md from centralized changelog
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        run: node scripts/changelog.mjs extract-overview --ide vs2022 --template ide-extensions~/visual-studio/UitkxVsix/overview-template.md --out ide-extensions~/visual-studio/UitkxVsix/overview.md
 
       - name: Build VSIX
         if: steps.check.outputs.skip == 'false'
