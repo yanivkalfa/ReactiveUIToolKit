@@ -268,7 +268,13 @@ full process, coverage matrices, and implementation checklists.
 
 ---
 
-## Centralized changelog for IDE extensions
+## ~~Centralized changelog for IDE extensions~~ ✅ IMPLEMENTED
+
+Implemented — `ide-extensions~/changelog.json` is the single source of truth.
+`scripts/changelog.mjs` provides `add`, `extract`, `extract-overview`, and
+`import` commands. CI pipeline (`publish.yml`) generates per-IDE changelogs
+before packaging. Per-IDE files (`CHANGELOG.md`, `overview.md`) are gitignored.
+AI instructions in `.github/instructions/changelog.instructions.md`.
 
 **Problem:** We ship multiple IDE extensions (VS Code, Visual Studio 2022,
 eventually Rider) that share the same language-lib and lsp-server core. Each
