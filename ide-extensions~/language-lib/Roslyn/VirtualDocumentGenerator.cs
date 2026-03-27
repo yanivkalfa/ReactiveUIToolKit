@@ -132,33 +132,7 @@ namespace ReactiveUITK.Language.Roslyn
     /// questions about the C# regions embedded inside the .uitkx file:
     /// diagnostics, completions, hover, and semantic token classification.</para>
     ///
-    /// <para><b>Virtual document structure — classic directive-based style:</b></para>
-    /// <code>
-    /// // &lt;auto-generated&gt;
-    /// #line hidden
-    /// #pragma warning disable ...
-    /// using System; using ReactiveUITK.Core; ... // standard + @usings
-    ///
-    /// namespace {Namespace} {
-    ///     partial class {Component}Func {
-    /// #line hidden
-    ///         private {PropsType} props = default!;
-    ///         private {InjectType} {injectName} = default!;
-    ///
-    ///         // One wrapper method per @(expr) / attr={expr}:
-    /// #line {uitkxLine} "{uitkxFilePath}"
-    ///         private object __uitkx_{label}() { return ({expression}); }
-    /// #line hidden
-    ///
-    ///         // @code block verbatim (class-body context):
-    /// #line {codeStartLine} "{uitkxFilePath}"
-    ///         {code body}
-    /// #line default
-    ///     }
-    /// }
-    /// </code>
-    ///
-    /// <para><b>Virtual document structure — function-style:</b>
+    /// <para><b>Virtual document structure:</b>
     /// All expressions plus the setup code are placed inside a
     /// <c>__uitkx_render()</c> method so local variables declared in setup code
     /// are visible to expressions that reference them.</para>
@@ -205,7 +179,7 @@ namespace ReactiveUITK.Language.Roslyn
         {
             "using static ReactiveUITK.Props.Typed.StyleKeys;",
             "using UColor = UnityEngine.Color;",
-            // `using static StyleKeys` imports a `Color` string constant (TextColor prop key).
+            // `using static StyleKeys` imports a `Color` string constant (CSS "color" key).
             // UnityEngine.UIElementsModule.dll also defines UnityEngine.Color → CS0104.
             // An explicit alias always wins over both, so declare it last.
             "using Color = UnityEngine.Color;",
@@ -294,63 +268,12 @@ namespace ReactiveUITK.Language.Roslyn
                     + "        }\n"
             );
 
-            if (d.IsFunctionStyle)
-                EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
-            else
-                EmitClassicBody(b, parseResult, source, escapedPath, propsTypes);
+            EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
 
             // ── Close class + namespace ──────────────────────────────────────
             b.Scaffold("    }\n}\n");
 
             return b.Build(uitkxFilePath);
-        }
-
-        // ── Classic directive-based component ─────────────────────────────────
-
-        private static void EmitClassicBody(
-            VirtualDocBuilder b,
-            ParseResult parseResult,
-            string source,
-            string escapedPath,
-            IPropsTypeProvider? propsTypes = null
-        )
-        {
-            var d = parseResult.Directives;
-
-            // Props field
-            string propsType = !string.IsNullOrEmpty(d.PropsTypeName) ? d.PropsTypeName! : "object";
-            // Props and inject field types come from user-authored code and may not be
-            // resolvable if the Unity assembly hasn't compiled yet. Suppress CS0246 here.
-            b.Scaffold("#pragma warning disable CS0246\n");
-            b.Scaffold($"        private {propsType} props = default!;\n");
-
-            // @inject fields
-            foreach (var (injectType, injectName) in d.Injects)
-                b.Scaffold($"        private {injectType} {injectName} = default!;\n");
-            b.Scaffold("#pragma warning restore CS0246\n");
-
-            b.Scaffold("\n");
-
-            // Collect all C# expressions in markup, numbered for unique method names
-            var expressions = new List<CollectedExpression>();
-            CollectExpressions(parseResult.RootNodes, expressions);
-
-            // Expression wrapper methods (instance — so props / inject fields are in scope)
-            if (expressions.Count > 0)
-            {
-                b.Scaffold(
-                    "        // ── C# expression type-checking wrappers ───────────────────────\n"
-                );
-                b.Scaffold(
-                    "        // These methods are NEVER called; they exist only for Roslyn.\n\n"
-                );
-
-                foreach (var expr in expressions)
-                    EmitExpressionWrapper(b, expr, escapedPath, indent: "        ");
-            }
-
-            // @code block (class-body context)
-            EmitCodeBlock(b, parseResult.RootNodes, source, escapedPath);
         }
 
         // ── Function-style component ──────────────────────────────────────────
@@ -514,32 +437,6 @@ namespace ReactiveUITK.Language.Roslyn
         // ── Expression wrappers / statements ─────────────────────────────────
 
         /// <summary>
-        /// Emits a private instance method wrapping a single expression.
-        /// Used in classic (class-body) context.
-        /// </summary>
-        private static void EmitExpressionWrapper(
-            VirtualDocBuilder b,
-            CollectedExpression expr,
-            string escapedPath,
-            string indent
-        )
-        {
-            // #line directive maps Roslyn errors back to the uitkx line
-            b.Scaffold($"#line {expr.UitkxLine} \"{escapedPath}\"\n");
-
-            // Scaffold: method signature up to the opening paren
-            string methodName = $"__uitkx_{expr.Label}";
-            b.Scaffold($"{indent}private object {methodName}() {{ return (");
-
-            // Mapped region: the expression text itself (1-to-1 source map)
-            b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
-
-            // Scaffold: close method
-            b.Scaffold("); }\n");
-            b.Scaffold("#line hidden\n\n");
-        }
-
-        /// <summary>
         /// Emits a block-statement expression check.
         /// Used inside a render method (function-style context).
         /// </summary>
@@ -634,9 +531,12 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold("#pragma warning disable CS0246\n");
 
             // Scaffold: direct typed variable assignment up to the expression.
-            // e.g. { float __uitkx_check = (
+            // Props properties are nullable (int?, float?, bool? …) so the check
+            // must accept both T and T? to match what Unity's compiler sees when
+            // assigning into the object-initializer (e.g. new TabViewProps { SelectedIndex = expr }).
+            // For reference types under #nullable-enable, the extra ? is just an annotation.
             b.Scaffold(
-                $"{indent}{{ {propType} __uitkx_check = ("
+                $"{indent}{{ {propType}? __uitkx_check = ("
             );
 
             // Mapped region: the expression text itself (source-map preserved)
@@ -646,87 +546,6 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold("); }\n");
             b.Scaffold("#pragma warning restore CS0246\n");
             b.Scaffold("#line hidden\n");
-        }
-
-        /// <summary>
-        /// Finds the one <see cref="CodeBlockNode"/> at the root level and emits its
-        /// content verbatim inside a <c>#line</c> pair so Roslyn maps errors correctly.
-        /// </summary>
-        private static void EmitCodeBlock(
-            VirtualDocBuilder b,
-            ImmutableArray<AstNode> rootNodes,
-            string source,
-            string escapedPath
-        )
-        {
-            foreach (var node in rootNodes)
-            {
-                if (node is not CodeBlockNode cb)
-                    continue;
-
-                if (string.IsNullOrEmpty(cb.Code))
-                    break;
-
-                b.Scaffold(
-                    "\n        // ── @code block (class-body context) ─────────────────────────\n"
-                );
-
-                // +1 because @code { lives on SourceLine, code content starts on the line after
-                int codeLine = cb.SourceLine + 1;
-                b.Scaffold($"#line {codeLine} \"{escapedPath}\"\n");
-
-                // The Code text is inserted verbatim; if CodeContentOffset is tracked
-                // use that for precise character mapping, otherwise fall back to a
-                // line-only approximation.
-                int uitkxStart =
-                    cb.CodeContentOffset > 0
-                        ? cb.CodeContentOffset
-                        : OffsetOfLine(source, codeLine);
-
-                string codeText = cb.Code;
-
-                // Splice ReturnMarkups: replace JSX spans with valid C#
-                // placeholders so Roslyn doesn't choke on raw markup in setup code.
-                if (!cb.ReturnMarkups.IsEmpty)
-                {
-                    var markups = cb.ReturnMarkups
-                        .OrderBy(m => m.StartOffsetInCodeBlock)
-                        .ToArray();
-                    var spliced = new System.Text.StringBuilder(codeText.Length);
-                    int prev = 0;
-
-                    foreach (var m in markups)
-                    {
-                        int start = Math.Max(0, Math.Min(m.StartOffsetInCodeBlock, codeText.Length));
-                        int end = Math.Max(0, Math.Min(m.EndOffsetInCodeBlock, codeText.Length));
-
-                        if (start > prev)
-                            spliced.Append(codeText, prev, start - prev);
-
-                        // Count newlines in the original span to preserve line mapping
-                        int newlines = 0;
-                        for (int k = start; k < end; k++)
-                            if (codeText[k] == '\n')
-                                newlines++;
-
-                        spliced.Append("default(object)");
-                        for (int k = 0; k < newlines; k++)
-                            spliced.Append('\n');
-
-                        prev = end;
-                    }
-
-                    if (prev < codeText.Length)
-                        spliced.Append(codeText, prev, codeText.Length - prev);
-
-                    codeText = spliced.ToString();
-                }
-
-                b.Mapped(codeText, uitkxStart, SourceRegionKind.CodeBlock, codeLine);
-                b.Scaffold("\n");
-                b.Scaffold("#line default\n");
-                break; // only one @code block per file
-            }
         }
 
         // ── AST expression collector ──────────────────────────────────────────

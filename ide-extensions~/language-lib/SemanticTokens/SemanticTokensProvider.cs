@@ -27,19 +27,6 @@ namespace ReactiveUITK.Language.SemanticTokens
     /// </summary>
     public sealed class SemanticTokensProvider
     {
-        // ── Top-level directive keywords ──────────────────────────────────────
-
-        private static readonly HashSet<string> s_topLevelKeywords = new HashSet<string>(
-            StringComparer.Ordinal
-        )
-        {
-            "namespace",
-            "component",
-            "using",
-            "props",
-            "key",
-        };
-
         private static readonly string[] s_noMods = Array.Empty<string>();
 
         // ── Public API ────────────────────────────────────────────────────────
@@ -69,10 +56,7 @@ namespace ReactiveUITK.Language.SemanticTokens
             int[] lineStarts = BuildLineStarts(source);
 
             // 1. Top-level declaration tokens
-            if (parseResult.Directives.IsFunctionStyle)
-                CollectFunctionStyleDeclarationTokens(source, lineStarts, tokens);
-            else
-                CollectDirectiveTokens(parseResult.Directives, source, lineStarts, tokens);
+            CollectFunctionStyleDeclarationTokens(source, lineStarts, tokens);
 
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
@@ -149,82 +133,7 @@ namespace ReactiveUITK.Language.SemanticTokens
             return merged.Values;
         }
 
-        // ── Directive block ───────────────────────────────────────────────────
-
-        private static void CollectDirectiveTokens(
-            DirectiveSet directives,
-            string source,
-            int[] lineStarts,
-            List<SemanticTokenData> tokens
-        )
-        {
-            // Lines 1..(MarkupStartLine-1) are directive lines (1-based).
-            int markupLine1 = directives.MarkupStartLine;
-
-            for (int line1 = 1; line1 < markupLine1; line1++)
-            {
-                int lineStart = lineStarts[line1 - 1];
-                int lineEnd = line1 < lineStarts.Length ? lineStarts[line1] : source.Length;
-                int len = lineEnd - lineStart;
-                if (len <= 0)
-                    continue;
-
-                // Build line text (stripped of trailing newline chars)
-                string lineText = source.Substring(lineStart, len).TrimEnd('\r', '\n');
-
-                // Find '@' on this line
-                int atCol = lineText.IndexOf('@');
-                if (atCol < 0)
-                    continue;
-
-                // Read identifier after '@'
-                int kwStart = atCol + 1;
-                int kwEnd = kwStart;
-                while (kwEnd < lineText.Length && char.IsLetter(lineText[kwEnd]))
-                    kwEnd++;
-
-                string keyword = lineText.Substring(kwStart, kwEnd - kwStart);
-                if (!s_topLevelKeywords.Contains(keyword))
-                    continue;
-
-                // Emit '@keyword' token
-                int fullKwLen = kwEnd - atCol; // includes the '@'
-                EmitToken(
-                    tokens,
-                    line1 - 1,
-                    atCol,
-                    fullKwLen,
-                    SemanticTokenTypes.Directive,
-                    s_noMods
-                );
-
-                // Find and emit directive value
-                int valStart = kwEnd;
-                while (
-                    valStart < lineText.Length
-                    && (lineText[valStart] == ' ' || lineText[valStart] == '\t')
-                )
-                    valStart++;
-
-                // Trim trailing whitespace
-                int valEnd = lineText.Length;
-                while (
-                    valEnd > valStart
-                    && (lineText[valEnd - 1] == ' ' || lineText[valEnd - 1] == '\t')
-                )
-                    valEnd--;
-
-                if (valEnd > valStart)
-                    EmitToken(
-                        tokens,
-                        line1 - 1,
-                        valStart,
-                        valEnd - valStart,
-                        SemanticTokenTypes.DirectiveName,
-                        s_noMods
-                    );
-            }
-        }
+        // ── Function-style declaration ───────────────────────────────────────
 
         private static void CollectFunctionStyleDeclarationTokens(
             string source,

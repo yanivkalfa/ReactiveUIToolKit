@@ -43,50 +43,12 @@ public sealed class SemanticTokenTests
             lines[t.Line].Substring(t.Column, t.Length) == text);
     }
 
-    // ── Directive-header tests ─────────────────────────────────────────────
-
-    [Fact]
-    public void DirectiveHeader_NamespaceKeyword_IsDirective()
-    {
-        var source = "@namespace My.App\n@component Foo\n<Label/>";
-        var tokens = GetTokens(source);
-        Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@namespace"),
-            "Expected @namespace to be a uitkxDirective token");
-    }
-
-    [Fact]
-    public void DirectiveHeader_NamespaceValue_IsDirectiveName()
-    {
-        var source = "@namespace My.App\n@component Foo\n<Label/>";
-        var tokens = GetTokens(source);
-        Assert.True(HasToken(tokens, source, SemanticTokenTypes.DirectiveName, "My.App"),
-            "Expected My.App to be a uitkxDirectiveName token");
-    }
-
-    [Fact]
-    public void DirectiveHeader_ComponentKeyword_IsDirective()
-    {
-        var source = "@namespace My.App\n@component Foo\n<Label/>";
-        var tokens = GetTokens(source);
-        Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@component"),
-            "Expected @component to be a uitkxDirective token");
-    }
-
-    [Fact]
-    public void DirectiveHeader_ComponentName_IsDirectiveName()
-    {
-        var source = "@namespace My.App\n@component Foo\n<Label/>";
-        var tokens = GetTokens(source);
-        Assert.True(HasToken(tokens, source, SemanticTokenTypes.DirectiveName, "Foo"),
-            "Expected Foo to be a uitkxDirectiveName token");
-    }
-
     // ── Element & attribute tests ──────────────────────────────────────────
 
     [Fact]
     public void ElementName_IsElement()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"hi\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Element, "Label"),
             "Expected Label to be a uitkxElement token");
@@ -95,7 +57,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void AttributeName_IsAttribute()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"hi\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Attribute, "text"),
             "Expected text to be a uitkxAttribute token");
@@ -104,7 +66,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void NestedElement_BothTagged()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  <Label text=\"hi\"/>\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      <Label text=\"hi\"/>\n    </Box>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Element, "Box"),
             "Expected Box to be a uitkxElement token");
@@ -117,7 +79,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void IfDirective_IsDirective()
     {
-        var source = "@namespace T\n@component C\n@if (true) {\n  <Label/>\n}";
+        var source = "component C {\n  return (\n    @if (true) {\n      <Label/>\n    }\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@if"),
             "Expected @if to be a uitkxDirective token");
@@ -126,7 +88,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void ElseDirective_IsDirective()
     {
-        var source = "@namespace T\n@component C\n@if (true) {\n  <Label/>\n} @else {\n  <Box/>\n}";
+        var source = "component C {\n  return (\n    @if (true) {\n      <Label/>\n    } @else {\n      <Box/>\n    }\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@else"),
             "Expected @else to be a uitkxDirective token");
@@ -135,7 +97,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void ForeachDirective_IsDirective()
     {
-        var source = "@namespace T\n@component C\n@foreach (var x in items) {\n  <Label key={x}/>\n}";
+        var source = "component C {\n  return (\n    @foreach (var x in items) {\n      <Label key={x}/>\n    }\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@foreach"),
             "Expected @foreach to be a uitkxDirective token");
@@ -144,7 +106,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void ForDirective_IsDirective()
     {
-        var source = "@namespace T\n@component C\n@for (int i = 0; i < 5; i++) {\n  <Label key={i}/>\n}";
+        var source = "component C {\n  return (\n    @for (int i = 0; i < 5; i++) {\n      <Label key={i}/>\n    }\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@for"),
             "Expected @for to be a uitkxDirective token");
@@ -153,7 +115,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void SwitchDirective_IsDirective()
     {
-        var source = "@namespace T\n@component C\n@switch (mode) {\n  @case \"a\":\n    <Label/>\n}";
+        var source = "component C {\n  return (\n    @switch (mode) {\n      @case \"a\":\n        <Label/>\n    }\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@switch"),
             "Expected @switch to be a uitkxDirective token");
@@ -184,7 +146,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void JsxComment_IsComment()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  {/* hello */}\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      {/* hello */}\n    </Box>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(tokens.Any(t => t.TokenType == SemanticTokenTypes.Comment),
             "Expected a comment token for {/* */}");
@@ -297,20 +259,9 @@ public sealed class SemanticTokenTests
     [Fact]
     public void PlainStringAttribute_NoExpressionToken()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"hello\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"hello\"/>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.False(tokens.Any(t => t.TokenType == SemanticTokenTypes.Expression),
             "Plain string attribute should not produce expression tokens");
-    }
-
-    // ── Using directive ────────────────────────────────────────────────────
-
-    [Fact]
-    public void UsingDirective_IsDirective()
-    {
-        var source = "@using System.Linq\n@namespace T\n@component C\n<Label/>";
-        var tokens = GetTokens(source);
-        Assert.True(HasToken(tokens, source, SemanticTokenTypes.Directive, "@using"),
-            "Expected @using to be a uitkxDirective token");
     }
 }

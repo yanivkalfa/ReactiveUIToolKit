@@ -16,7 +16,7 @@ component StatusBadge(string? label = null, Color statusColor = default) {
     <VisualElement style={badgeStyle}>
       <Label
         text={displayLabel}
-        style={new Style { (StyleKeys.TextColor, statusColor), (StyleKeys.UnityTextOutlineColor, new Color(0f, 0f, 0f, 0.4f)) }}
+        style={new Style { (StyleKeys.Color, statusColor), (StyleKeys.UnityTextOutlineColor, new Color(0f, 0f, 0f, 0.4f)) }}
       />
     </VisualElement>
   );

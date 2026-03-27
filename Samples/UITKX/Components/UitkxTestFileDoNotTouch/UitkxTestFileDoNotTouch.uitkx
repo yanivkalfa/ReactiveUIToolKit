@@ -559,7 +559,7 @@ component UitkxTestFileDoNotTouch(
       >
         <Label
           text="Interact here (pointer and wheel events)"
-          style={new Style { (StyleKeys.TextColor, Color.white) }}
+          style={new Style { (StyleKeys.Color, Color.white) }}
         />
       </VisualElement>
       <Suspense

@@ -14,9 +14,9 @@ export const UitkxGettingStartedPage: FC = () => (
       UITKX Getting Started
     </Typography>
     <Typography variant="body1" paragraph>
-      UITKX is the primary authoring model for ReactiveUIToolKit. You write function-style{' '}
-      <code>.uitkx</code> components and the source generator produces a complete C# class
-      automatically — no boilerplate needed.
+      You write function-style <code>.uitkx</code> components and the source generator produces a
+      complete C# class automatically — no boilerplate needed. Supported Unity versions:{' '}
+      <strong>Unity 6.2+</strong>.
     </Typography>
 
     <Typography variant="h5" component="h2" gutterBottom>
@@ -36,8 +36,7 @@ export const UitkxGettingStartedPage: FC = () => (
       1. Create a UITKX component
     </Typography>
     <Typography variant="body1" paragraph>
-      A function-style UITKX component contains setup code at the top and returns markup. This is
-      the default shape new users should learn.
+      A UITKX component contains setup code at the top and returns markup.
     </Typography>
     <CodeBlock language="tsx" code={UITKX_HELLO_WORLD_COMPONENT} />
     <Typography variant="body1" paragraph>
@@ -51,8 +50,8 @@ export const UitkxGettingStartedPage: FC = () => (
       2. Mount it
     </Typography>
     <Typography variant="body1" paragraph>
-      Runtime mounting uses <code>RootRenderer</code> and <code>V.Func(...)</code>, but the
-      authored UI stays in UITKX.
+      Mount the component at runtime with <code>RootRenderer</code> or in an editor window with{' '}
+      <code>EditorRootRendererUtility</code>.
     </Typography>
     <CodeBlock language="tsx" code={UITKX_HELLO_WORLD_BOOTSTRAP} />
 

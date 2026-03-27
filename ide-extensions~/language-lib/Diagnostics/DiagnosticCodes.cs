@@ -8,6 +8,7 @@ namespace ReactiveUITK.Language.Diagnostics
     ///   UITKX0200–0200   T2v — Version compatibility; lsp-server
     ///   UITKX0300–0306   T1 — Parser syntax errors; emitted by UitkxParser /
     ///                         DirectiveParser into ParseResult.Diagnostics
+    ///   UITKX0112         T3 — Roslyn data-flow; lsp-server (unused variable)
     /// </summary>
     public static class DiagnosticCodes
     {
@@ -72,6 +73,16 @@ namespace ReactiveUITK.Language.Diagnostics
         /// Severity: Error.
         /// </summary>
         public const string UnusedParameter = "UITKX0111";
+
+        /// <summary>
+        /// A local variable is declared (and possibly assigned) but never read
+        /// in the component's setup code or markup expressions.
+        /// Detected via <c>SemanticModel.AnalyzeDataFlow()</c> on the virtual
+        /// document's render method — catches cases that Roslyn's CS0219 misses
+        /// (e.g. <c>new Style { … }</c> initialisers with side-effect constructors).
+        /// Severity: Error.
+        /// </summary>
+        public const string UnusedVariable = "UITKX0112";
 
         // ── T2v — Version compatibility diagnostics (lsp-server) ─────────────
         // Produced by DiagnosticsPublisher, not DiagnosticsAnalyzer, because

@@ -240,11 +240,10 @@ namespace ReactiveUITK.SourceGenerator
             return false;
         }
 
-        // Matches the component-name declaration in a .uitkx file in both styles:
-        //   function style:  component FooBarFunc {
-        //   directive style: @component FooBarFunc
+        // Matches the component-name declaration in a .uitkx file:
+        //   component FooBarFunc {
         private static readonly Regex s_componentNameRe = new Regex(
-            @"(?:^component\s+|@component\s+)([A-Z][a-zA-Z0-9_]*)",
+            @"^component\s+([A-Z][a-zA-Z0-9_]*)",
             RegexOptions.Multiline | RegexOptions.Compiled
         );
 
@@ -291,9 +290,7 @@ namespace ReactiveUITK.SourceGenerator
                 return false;
             }
 
-            bool emitsGeneratedProps = ds.IsFunctionStyle
-                ? !ds.FunctionParams.IsDefaultOrEmpty
-                : HasFunctionStyleParams(source);
+            bool emitsGeneratedProps = !ds.FunctionParams.IsDefaultOrEmpty;
 
             peerInfo = new PeerComponentInfo(
                 name,

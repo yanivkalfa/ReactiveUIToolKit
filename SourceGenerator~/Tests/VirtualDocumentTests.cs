@@ -40,15 +40,15 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void BasicScaffolding_ContainsNamespace()
     {
-        var source = "@namespace My.App\n@component Foo\n<Label text=\"hi\"/>";
+        var source = "component Foo {\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
         var doc = Generate(source);
-        Assert.Contains("namespace My.App", doc.Text);
+        Assert.Contains("namespace ReactiveUITK.FunctionStyle", doc.Text);
     }
 
     [Fact]
     public void BasicScaffolding_ContainsClassName()
     {
-        var source = "@namespace My.App\n@component Foo\n<Label text=\"hi\"/>";
+        var source = "component Foo {\n  return (\n    <Label text=\"hi\"/>\n  );\n}";
         var doc = Generate(source);
         Assert.Contains("Foo", doc.Text);
     }
@@ -56,7 +56,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void BasicScaffolding_MapIsNotEmpty()
     {
-        var source = "@namespace My.App\n@component Foo\n<Label text={myVar}/>";
+        var source = "component Foo {\n  return (\n    <Label text={myVar}/>\n  );\n}";
         var doc = Generate(source);
         Assert.True(doc.Map.Entries.Length > 0,
             "Expected at least one mapped entry for an expression attribute");
@@ -67,7 +67,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void ExpressionAttribute_MappedInVirtualDoc()
     {
-        var source = "@namespace T\n@component C\n<Label text={myVar}/>";
+        var source = "component C {\n  return (\n    <Label text={myVar}/>\n  );\n}";
         var doc = Generate(source);
         Assert.Contains("myVar", doc.Text);
     }
@@ -75,17 +75,17 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void InlineExpression_MappedInVirtualDoc()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  @(someExpr)\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      @(someExpr)\n    </Box>\n  );\n}";
         var doc = Generate(source);
         Assert.Contains("someExpr", doc.Text);
     }
 
-    // ── @code block ────────────────────────────────────────────────────────
+    // ── Setup code in component body ───────────────────────────────────────
 
     [Fact]
     public void CodeBlock_VerbatimCopied()
     {
-        var source = "@namespace T\n@component C\n@code {\n  int counter = 42;\n}\n<Label/>";
+        var source = "component C {\n  int counter = 42;\n  return (\n    <Label/>\n  );\n}";
         var doc = Generate(source);
         Assert.Contains("counter = 42", doc.Text);
     }
@@ -105,7 +105,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void SourceMap_RoundTripsExpressionOffset()
     {
-        var source = "@namespace T\n@component C\n<Label text={myVar}/>";
+        var source = "component C {\n  return (\n    <Label text={myVar}/>\n  );\n}";
         var doc = Generate(source);
 
         // Find "myVar" in the uitkx source
@@ -130,10 +130,10 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void SourceMap_NonCSharpRegion_ReturnsNull()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"plain\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"plain\"/>\n  );\n}";
         var doc = Generate(source);
 
-        // "@namespace" is not C#; should not map
+        // "component" keyword is not C#; should not map
         var result = doc.Map.ToVirtualOffset(0);
         Assert.Null(result);
     }
@@ -141,7 +141,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void SourceMap_CodeBlockRegion_RoundTrips()
     {
-        var source = "@namespace T\n@component C\n@code {\n  int val = 99;\n}\n<Label/>";
+        var source = "component C {\n  int val = 99;\n  return (\n    <Label/>\n  );\n}";
         var doc = Generate(source);
 
         int uitkxIdx = source.IndexOf("val = 99");
@@ -149,7 +149,7 @@ public sealed class VirtualDocumentTests
 
         var toVirtual = doc.Map.ToVirtualOffset(uitkxIdx);
         Assert.NotNull(toVirtual);
-        Assert.Equal(SourceRegionKind.CodeBlock, toVirtual.Value.Entry.Kind);
+        Assert.Equal(SourceRegionKind.FunctionSetup, toVirtual.Value.Entry.Kind);
 
         var virtualSub = doc.Text.Substring(toVirtual.Value.VirtualOffset, 3);
         Assert.Equal("val", virtualSub);
@@ -174,7 +174,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void IsInCSharpRegion_TrueForExpression()
     {
-        var source = "@namespace T\n@component C\n<Label text={myExpr}/>";
+        var source = "component C {\n  return (\n    <Label text={myExpr}/>\n  );\n}";
         var doc = Generate(source);
 
         int idx = source.IndexOf("myExpr");
@@ -184,7 +184,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void IsInCSharpRegion_FalseForMarkup()
     {
-        var source = "@namespace T\n@component C\n<Label text=\"plain\"/>";
+        var source = "component C {\n  return (\n    <Label text=\"plain\"/>\n  );\n}";
         var doc = Generate(source);
 
         int idx = source.IndexOf("<Label");
@@ -196,7 +196,7 @@ public sealed class VirtualDocumentTests
     [Fact]
     public void MultipleExpressions_AllMapped()
     {
-        var source = "@namespace T\n@component C\n<Box>\n  <Label text={aaa}/>\n  <Label text={bbb}/>\n</Box>";
+        var source = "component C {\n  return (\n    <Box>\n      <Label text={aaa}/>\n      <Label text={bbb}/>\n    </Box>\n  );\n}";
         var doc = Generate(source);
 
         Assert.Contains("aaa", doc.Text);

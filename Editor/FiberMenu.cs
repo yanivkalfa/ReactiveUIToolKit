@@ -1,14 +1,16 @@
 namespace ReactiveUITK.EditorSupport
 {
     /// <summary>
-    /// Legacy Fiber editor menu hooks were removed.
-    /// This class remains as a placeholder to avoid compile issues
-    /// with any scripts that might reference it.
+    /// Top-level ReactiveUITK editor menu items.
     /// </summary>
     public static class FiberMenu
     {
 #if UNITY_EDITOR
-        // Intentionally left empty – no toggles or test runners.
+        [UnityEditor.MenuItem("ReactiveUITK/UI Toolkit Debugger", priority = 9000)]
+        private static void OpenUIToolkitDebugger()
+        {
+            UnityEditor.EditorApplication.ExecuteMenuItem("Window/UI Toolkit/Debugger");
+        }
 #endif
     }
 }

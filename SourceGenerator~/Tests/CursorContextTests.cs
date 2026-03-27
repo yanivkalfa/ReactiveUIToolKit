@@ -60,49 +60,26 @@ public sealed class CursorContextTests
         return AstCursorContext.Find(Parse(source), source, line1, col0);
     }
 
-    // ── Directive region ───────────────────────────────────────────────────
-
-    [Fact]
-    public void DirectiveName_AfterAtSign()
-    {
-        var ctx = FindAtPipe("@|namespace T\n@component C\n<Label/>");
-        Assert.Equal(CursorKind.DirectiveName, ctx.Kind);
-    }
-
-    [Fact]
-    public void DirectiveName_MidWord()
-    {
-        var ctx = FindAtPipe("@name|space T\n@component C\n<Label/>");
-        Assert.Equal(CursorKind.DirectiveName, ctx.Kind);
-    }
-
-    [Fact]
-    public void DirectiveName_AtComponent()
-    {
-        var ctx = FindAtPipe("@namespace T\n@comp|onent C\n<Label/>");
-        Assert.Equal(CursorKind.DirectiveName, ctx.Kind);
-    }
-
     // ── Tag names ──────────────────────────────────────────────────────────
 
     [Fact]
     public void TagName_AfterOpenAngle()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<|Label/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <|Label/>\n  );\n}");
         Assert.Equal(CursorKind.TagName, ctx.Kind);
     }
 
     [Fact]
     public void TagName_MidElement()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Lab|el/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Lab|el/>\n  );\n}");
         Assert.Equal(CursorKind.TagName, ctx.Kind);
     }
 
     [Fact]
     public void TagName_AtEnd()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Label| />");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Label| />\n  );\n}");
         Assert.Equal(CursorKind.TagName, ctx.Kind);
     }
 
@@ -111,21 +88,21 @@ public sealed class CursorContextTests
     [Fact]
     public void AttributeName_AfterSpace()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Label |text=\"hi\"/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Label |text=\"hi\"/>\n  );\n}");
         Assert.Equal(CursorKind.AttributeName, ctx.Kind);
     }
 
     [Fact]
     public void AttributeName_MidWord()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Label te|xt=\"hi\"/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Label te|xt=\"hi\"/>\n  );\n}");
         Assert.Equal(CursorKind.AttributeName, ctx.Kind);
     }
 
     [Fact]
     public void AttributeName_TagNamePreserved()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Label te|xt=\"hi\"/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Label te|xt=\"hi\"/>\n  );\n}");
         Assert.Equal("Label", ctx.TagName);
     }
 
@@ -134,14 +111,14 @@ public sealed class CursorContextTests
     [Fact]
     public void AttributeValue_InsideQuotes()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Label text=\"h|i\"/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Label text=\"h|i\"/>\n  );\n}");
         Assert.Equal(CursorKind.AttributeValue, ctx.Kind);
     }
 
     [Fact]
     public void AttributeValue_InsideBraces()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Label text={|val}/>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Label text={|val}/>\n  );\n}");
         Assert.Equal(CursorKind.AttributeValue, ctx.Kind);
     }
 
@@ -150,14 +127,14 @@ public sealed class CursorContextTests
     [Fact]
     public void ControlFlowName_AfterAtInMarkup()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Box>\n@|if (true) {\n  <Label/>\n}\n</Box>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Box>\n    @|if (true) {\n      <Label/>\n    }\n    </Box>\n  );\n}");
         Assert.Equal(CursorKind.ControlFlowName, ctx.Kind);
     }
 
     [Fact]
     public void ControlFlowName_MidKeyword()
     {
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Box>\n@fore|ach (var x in items) {\n  <Label key={x}/>\n}\n</Box>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Box>\n    @fore|ach (var x in items) {\n      <Label key={x}/>\n    }\n    </Box>\n  );\n}");
         Assert.Equal(CursorKind.ControlFlowName, ctx.Kind);
     }
 
@@ -167,19 +144,8 @@ public sealed class CursorContextTests
     public void CSharpExpression_InlineAtExpr()
     {
         // @(expr) in markup body — an inline C# expression
-        var ctx = FindAtPipe("@namespace T\n@component C\n<Box>\n  @(my|Var)\n</Box>");
+        var ctx = FindAtPipe("component C {\n  return (\n    <Box>\n      @(my|Var)\n    </Box>\n  );\n}");
         Assert.Equal(CursorKind.CSharpExpression, ctx.Kind);
-    }
-
-    // ── CSharp code block ──────────────────────────────────────────────────
-
-    [Fact]
-    public void AtCodeBlock_ReturnsNone_DirectiveStyle()
-    {
-        // NOTE: AstCursorContext only detects CSharpCodeBlock for function-style
-        // components. Directive-style @code blocks are classified at the LSP level.
-        var ctx = FindAtPipe("@namespace T\n@component C\n@code {\n  int x| = 5;\n}\n<Label/>");
-        Assert.Equal(CursorKind.None, ctx.Kind);
     }
 
     // ── Function-style component ───────────────────────────────────────────
@@ -196,14 +162,5 @@ public sealed class CursorContextTests
     {
         var ctx = FindAtPipe("component Foo {\n  return (\n    <Lab|el/>\n  );\n}");
         Assert.Equal(CursorKind.TagName, ctx.Kind);
-    }
-
-    // ── None ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void None_EmptyLine()
-    {
-        var ctx = FindAtPipe("@namespace T\n@component C\n|\n<Label/>");
-        Assert.Equal(CursorKind.None, ctx.Kind);
     }
 }

@@ -107,7 +107,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             Text = label,
                             Style = new Style
                             {
-                                (StyleKeys.TextColor, color),
+                                (StyleKeys.Color, color),
                                 (StyleKeys.UnityTextOutlineColor, new Color(0f, 0f, 0f, 0.4f)),
                             },
                         }

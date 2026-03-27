@@ -20,14 +20,11 @@ export const UitkxIntroductionPage: FC = () => (
       ReactiveUIToolKit
     </Typography>
     <Typography variant="body1" paragraph>
-      ReactiveUIToolKit is a React-like UI Toolkit runtime for Unity, and UITKX is its primary
-      authoring language. You write function-style components in <code>.uitkx</code>, use hooks for
-      state and effects, and let the toolkit reconcile the resulting tree onto Unity
-      <code>VisualElement</code>s.
-    </Typography>
-    <Typography variant="body1" paragraph>
-      The authored experience should feel markup-first. The underlying runtime is still C#, but the
-      normal way to build UI is UITKX, not hand-built <code>V.*</code> trees.
+      ReactiveUIToolKit is a React-like UI framework for Unity, and UITKX is its authoring language.
+      You write function-style components in <code>.uitkx</code> files, use hooks for state and
+      effects, and the toolkit reconciles the resulting tree onto Unity{' '}
+      <code>VisualElement</code>s. There is no JavaScript engine or bridge layer — everything runs
+      in C# on top of UI Toolkit.
     </Typography>
 
     <CodeBlock language="tsx" code={QUICK_SAMPLE} />

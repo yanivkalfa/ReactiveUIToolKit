@@ -174,7 +174,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                             new LabelProps
                             {
                                 Text = $"Index {i}",
-                                Style = new Style { (StyleKeys.TextColor, Color.cyan) },
+                                Style = new Style { (StyleKeys.Color, Color.cyan) },
                             }
                         )
                     )

@@ -58,8 +58,8 @@ namespace UitkxLanguageServer.Roslyn
             "CS0169", // The field '…' is never used
             "CS8625", // Cannot convert null literal to non-nullable reference type (scaffold default!)
             // CS0219 — variable assigned but never used.
-            // Previously suppressed to avoid cascade noise from broken parses; removed
-            // so that genuine unused-variable warnings surface to the editor.
+            // Suppressed at compilation level; replaced by UITKX0112 which uses
+            // AnalyzeDataFlow and also catches non-constant initialisers.
             // "CS0219",
             "CS8974", // Converting method group to non-delegate type 'object' (false-positive from virtual doc)
             // CS1660 no longer needed — useState setter is now modeled as __StateSetter__<T>(Func<T,T>)

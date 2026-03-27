@@ -10,6 +10,12 @@ const list: SxProps<Theme> = {
   pl: 2,
 }
 
-const Styles = { root, list }
+const section: SxProps<Theme> = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+}
+
+const Styles = { root, list, section }
 
 export default Styles

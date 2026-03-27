@@ -13,9 +13,7 @@ namespace ReactiveUITK.Language.Diagnostics
     ///
     /// Tier 2 checks:
     /// <list type="bullet">
-    ///   <item>UITKX0101 — Missing <c>@namespace</c> directive</item>
-    ///   <item>UITKX0102 — Missing <c>@component</c> directive</item>
-    ///   <item>UITKX0103 — <c>@component</c> name does not match filename</item>
+    ///   <item>UITKX0103 — <c>component</c> name does not match filename</item>
     ///   <item>UITKX0104 — Duplicate literal <c>key="…"</c> among siblings</item>
     ///   <item>UITKX0105 — Unknown PascalCase element (when index available)</item>
     ///   <item>UITKX0106 — Element inside <c>@foreach</c> body has no <c>key</c> (warning)</item>
@@ -58,32 +56,6 @@ namespace ReactiveUITK.Language.Diagnostics
             var diags = new List<ParseDiagnostic>();
             var d = parseResult.Directives;
 
-            // ── T2: UITKX0101 — Missing @namespace ───────────────────────────
-            if (!d.IsFunctionStyle && string.IsNullOrEmpty(d.Namespace))
-            {
-                diags.Add(
-                    MakeDiag(
-                        DiagnosticCodes.MissingNamespace,
-                        ParseSeverity.Error,
-                        "Missing required '@namespace' directive.",
-                        line: 1
-                    )
-                );
-            }
-
-            // ── T2: UITKX0102 — Missing @component ───────────────────────────
-            if (!d.IsFunctionStyle && string.IsNullOrEmpty(d.ComponentName))
-            {
-                diags.Add(
-                    MakeDiag(
-                        DiagnosticCodes.MissingComponent,
-                        ParseSeverity.Error,
-                        "Missing required '@component' directive.",
-                        line: 1
-                    )
-                );
-            }
-
             // ── T2: UITKX0103 — Filename / component-name mismatch ───────────
             if (!string.IsNullOrEmpty(filePath) && !string.IsNullOrEmpty(d.ComponentName))
             {
@@ -117,8 +89,7 @@ namespace ReactiveUITK.Language.Diagnostics
             CheckSingleRenderRoot(parseResult.RootNodes, diags);
 
             // ── T2: AST walks ─────────────────────────────────────────────────
-            WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags,
-                isFunctionStyle: d.IsFunctionStyle);
+            WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags);
 
             // ── T2: Function-style unreachable-after-return ───────────────────
             if (d.IsFunctionStyle)
@@ -293,8 +264,7 @@ namespace ReactiveUITK.Language.Diagnostics
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
             List<ParseDiagnostic> diags,
-            bool skipReturnCheck = false,
-            bool isFunctionStyle = false
+            bool skipReturnCheck = false
         )
         {
             // UITKX0104 — Duplicate literal key among siblings at this level.
@@ -304,8 +274,7 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 var node = nodes[idx];
                 WalkNode(node, insideForeach, projectElements, knownAttributes, diags,
-                    skipReturnCheck: skipReturnCheck && node is CodeBlockNode,
-                    isFunctionStyle: isFunctionStyle && node is CodeBlockNode);
+                    skipReturnCheck: skipReturnCheck && node is CodeBlockNode);
 
                 bool isScopeEnder = node is BreakNode || node is ContinueNode;
                 bool isReturnEnder = !isScopeEnder && !skipReturnCheck
@@ -416,8 +385,7 @@ namespace ReactiveUITK.Language.Diagnostics
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
             List<ParseDiagnostic> diags,
-            bool skipReturnCheck = false,
-            bool isFunctionStyle = false
+            bool skipReturnCheck = false
         )
         {
             switch (node)
@@ -450,7 +418,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     break;
 
                 case CodeBlockNode cb:
-                    CheckUnreachableAfterReturn(cb, diags, isFunctionStyle: isFunctionStyle);
+                    CheckUnreachableAfterReturn(cb, diags);
                     foreach (var rm in cb.ReturnMarkups)
                     {
                         CheckElement(rm.Element, insideForeach, projectElements, knownAttributes, diags);
@@ -650,8 +618,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
         private static void CheckUnreachableAfterReturn(
             CodeBlockNode cb,
-            List<ParseDiagnostic> diags,
-            bool isFunctionStyle = false
+            List<ParseDiagnostic> diags
         )
         {
             if (string.IsNullOrWhiteSpace(cb.Code))
@@ -660,10 +627,9 @@ namespace ReactiveUITK.Language.Diagnostics
             var lines = cb.Code.Replace("\r\n", "\n").Split('\n');
             int depth = 0;
 
-            // For normal @code blocks, SourceLine = the @code line; code
-            // starts one line below → +1.  For function-style, the synthetic
-            // @code wrapper puts code on the *same* line → no +1.
-            int lineBase = isFunctionStyle ? cb.SourceLine : cb.SourceLine + 1;
+            // For function-style (via CanonicalLowering), SourceLine already points
+            // to the first line of actual code, so no adjustment is needed.
+            int lineBase = cb.SourceLine;
 
             // ── Unified unreachable-zone tracker ──────────────────────────
             // Works at ALL brace depths.  When a return statement completes

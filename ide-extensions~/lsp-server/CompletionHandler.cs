@@ -21,13 +21,6 @@ public sealed class CompletionHandler : ICompletionHandler
     private readonly RoslynHost _roslynHost;
     private readonly RoslynCompletionProvider _roslynCompletion;
 
-    private static readonly HashSet<string> s_headerDirectives = new(
-        StringComparer.OrdinalIgnoreCase
-    )
-    {
-        "code",
-    };
-
     public CompletionHandler(
         UitkxSchema schema,
         DocumentStore store,
@@ -112,9 +105,6 @@ public sealed class CompletionHandler : ICompletionHandler
         int offset = ToOffset(text, request.Position);
         string? triggerChar = request.Context?.TriggerCharacter;
 
-        bool inDirectiveHeader =
-            !parseResult.Directives.IsFunctionStyle
-            && line1 <= parseResult.Directives.MarkupStartLine;
         // Preamble of a function-style file: lines before the component body opens.
         // FunctionSetupStartLine is the first line inside the { }, so anything before
         // it (including the `component Name {` declaration line) is preamble.
@@ -220,11 +210,9 @@ public sealed class CompletionHandler : ICompletionHandler
                 ctx.Prefix
             ),
             CursorKind.None when inFunctionStylePreamble => FunctionStylePreambleItems(ctx.Prefix),
-            CursorKind.DirectiveName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
             CursorKind.DirectiveName when inCodeBlockLine && !inEmbeddedMarkupInCode =>
                 Enumerable.Empty<CompletionItem>(),
             CursorKind.DirectiveName => ControlFlowItems(ctx.Prefix, text, request.Position),
-            CursorKind.ControlFlowName when inDirectiveHeader => DirectiveItems(ctx.Prefix),
             CursorKind.ControlFlowName when inCodeBlockLine && !inEmbeddedMarkupInCode =>
                 Enumerable.Empty<CompletionItem>(),
             CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
@@ -239,12 +227,9 @@ public sealed class CompletionHandler : ICompletionHandler
             _ => Enumerable.Empty<CompletionItem>(),
         };
 
-        var list = items.ToList();
-        if (!inDirectiveHeader)
-            list = list.Where(i =>
-                    !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase)
-                )
-                .ToList();
+        var list = items
+            .Where(i => !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase))
+            .ToList();
         Log($"completion: kind={ctx.Kind} prefix='{ctx.Prefix}' → {list.Count} items");
         return new CompletionList(list);
     }
@@ -291,26 +276,6 @@ public sealed class CompletionHandler : ICompletionHandler
                 Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = c.doc },
             });
     }
-
-    private IEnumerable<CompletionItem> DirectiveItems(string prefix) =>
-        _schema
-            .Root.Directives.Where(d =>
-                s_headerDirectives.Contains(d.Name ?? string.Empty)
-                && (d.Name ?? string.Empty).StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-            )
-            .Select(d => new CompletionItem
-            {
-                Label = "@" + d.Name,
-                Kind = CompletionItemKind.Keyword,
-                InsertText = BuildDirectiveSnippet(d.Name),
-                InsertTextFormat = InsertTextFormat.Snippet,
-                Detail = "UITKX directive",
-                Documentation = new MarkupContent
-                {
-                    Kind = MarkupKind.Markdown,
-                    Value = d.Description,
-                },
-            });
 
     private IEnumerable<CompletionItem> ControlFlowItems(
         string prefix,
@@ -937,18 +902,6 @@ public sealed class CompletionHandler : ICompletionHandler
 
     private static string BuildTagSnippet(string tagName, UitkxSchema.ElementInfo info) =>
         info.AcceptsChildren ? $"{tagName}>$0</{tagName}>" : $"{tagName} $1 />";
-
-    private static string BuildDirectiveSnippet(string name) =>
-        name switch
-        {
-            "namespace" => "@namespace $1",
-            "component" => "@component $1",
-            "using" => "@using $1",
-            "props" => "@props $1",
-            "key" => "@key $1",
-            "code" => "@code\n{\n\t$0\n}",
-            _ => "@" + name + " $1",
-        };
 
     private static string BuildControlFlowSnippet(string name) =>
         name switch

@@ -51,7 +51,7 @@ component SyntheticEventDemoFunc {
       >
         <Label
           text="Interact here (pointer & wheel events)"
-          style={new Style { (StyleKeys.TextColor, Color.white) }}
+          style={new Style { (StyleKeys.Color, Color.white) }}
         />
       </VisualElement>
       <Label

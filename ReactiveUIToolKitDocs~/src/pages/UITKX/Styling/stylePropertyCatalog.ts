@@ -582,12 +582,12 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
   // â”€â”€ Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   {
     key: 'color',
-    name: 'TextColor',
+    name: 'Color',
     type: 'Color',
     category: 'Colors',
     description: 'Sets the text color.',
-    typedExample: 'TextColor = White',
-    untypedExample: '(StyleKeys.TextColor, Color.white)',
+    typedExample: 'Color = White',
+    untypedExample: '(StyleKeys.Color, Color.white)',
     helpers: ['Hex()', 'Rgba()', 'White', 'Black', 'Red', 'Transparent'],
   },
   {

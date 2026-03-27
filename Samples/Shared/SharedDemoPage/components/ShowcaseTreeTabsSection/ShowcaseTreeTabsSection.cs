@@ -448,7 +448,7 @@ namespace ReactiveUITK.Samples.Shared
                         Style = new Style
                         {
                             (FontSize, 16f),
-                            (TextColor, new Color(0.1f, 0.1f, 0.1f, 1f)),
+                            (StyleKeys.Color, new Color(0.1f, 0.1f, 0.1f, 1f)),
                         },
                     }
                 ),

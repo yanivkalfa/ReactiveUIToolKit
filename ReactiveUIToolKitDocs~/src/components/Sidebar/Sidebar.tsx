@@ -4,15 +4,14 @@ import { Box, List, ListItemButton, ListItemText, Collapse, Divider, Typography 
 import ExpandLess from '@mui/icons-material/ExpandLess'
 import ExpandMore from '@mui/icons-material/ExpandMore'
 import { useState, useMemo } from 'react'
-import { getFilteredSectionsForTrack, getTrackFromPath } from '../../docs'
+import { getFilteredSections } from '../../docs'
 import { useSelectedVersion } from '../../contexts/VersionContext'
 import Styles from './Sidebar.style'
 
 export const Sidebar: FC = () => {
   const location = useLocation()
-  const track = getTrackFromPath(location.pathname)
   const { selectedVersion } = useSelectedVersion()
-  const sections = useMemo(() => getFilteredSectionsForTrack(track, selectedVersion), [track, selectedVersion])
+  const sections = useMemo(() => getFilteredSections(selectedVersion), [selectedVersion])
   const displaySections = sections.flatMap((sec) =>
     sec.title === 'Components' && sec.pages.some((p) => p.group)
       ? [
@@ -42,7 +41,7 @@ export const Sidebar: FC = () => {
     <Box sx={Styles.root}>
       <Box sx={{ px: 2, py: 1.5 }}>
         <Typography variant="overline" color="text.secondary">
-          {track === 'uitkx' ? 'UITKX Docs' : 'C# Docs'}
+          Docs
         </Typography>
       </Box>
       <List disablePadding>

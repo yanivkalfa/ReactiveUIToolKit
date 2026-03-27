@@ -10,55 +10,25 @@ namespace ReactiveUITK.SourceGenerator.Tests;
 /// </summary>
 public class DiagnosticTests
 {
-    // A minimal valid header used when we want the pipeline to reach Stage 3+
-    private const string Header = "@namespace Test.NS\n@component MyComp\n";
+    /// Wraps markup in a minimal function-style component for test convenience.
+    private static string Wrap(string markup) =>
+        "component MyComp {\n  return (\n" + markup + "\n  );\n}";
 
-    // ── Directive validation (UITKX0005, UITKX0012) ──────────────────────────
-
-    [Fact]
-    public void UITKX0005_MissingNamespace()
-    {
-        var result = GeneratorTestHelper.Run("@component MyComp\n<box/>");
-        Assert.True(
-            result.HasDiagnostic("UITKX0005"),
-            "Expected UITKX0005 when @namespace is absent"
-        );
-    }
-
-    [Fact]
-    public void UITKX0005_MissingComponent()
-    {
-        var result = GeneratorTestHelper.Run("@namespace Test.NS\n<box/>");
-        Assert.True(
-            result.HasDiagnostic("UITKX0005"),
-            "Expected UITKX0005 when @component is absent"
-        );
-    }
-
-    [Fact]
-    public void UITKX0012_DirectiveOrder()
-    {
-        // @component declared before @namespace
-        var result = GeneratorTestHelper.Run("@component MyComp\n@namespace Test.NS\n<box/>");
-        Assert.True(
-            result.HasDiagnostic("UITKX0012"),
-            "Expected UITKX0012 for wrong directive order"
-        );
-    }
+    /// Wraps code + markup in a function-style component (code runs before return).
+    private static string WrapWithCode(string code, string markup) =>
+        "component MyComp {\n  " + code + "\n  return (\n" + markup + "\n  );\n}";
 
     // ── Rules of Hooks violations ─────────────────────────────────────────────
 
     [Fact]
     public void UITKX0013_HookInConditional()
     {
-        const string src =
-            Header
-            + """
-                @if (true) {
-                    @(Hooks.UseState(0))
-                }
-                <box/>
-                """;
+        var src = Wrap("""
+            @if (true) {
+                @(Hooks.UseState(0))
+            }
+            <box/>
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0013"),
@@ -69,14 +39,12 @@ public class DiagnosticTests
     [Fact]
     public void UITKX0014_HookInLoop()
     {
-        const string src =
-            Header
-            + """
-                @foreach (var i in items) {
-                    @(Hooks.UseState(i))
-                }
-                <box/>
-                """;
+        var src = Wrap("""
+            @foreach (var i in items) {
+                @(Hooks.UseState(i))
+            }
+            <box/>
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0014"),
@@ -87,14 +55,12 @@ public class DiagnosticTests
     [Fact]
     public void UITKX0015_HookInSwitch()
     {
-        const string src =
-            Header
-            + """
-                @switch (mode) {
-                    @case 0: @(Hooks.UseState(42))
-                }
-                <box/>
-                """;
+        var src = Wrap("""
+            @switch (mode) {
+                @case 0: @(Hooks.UseState(42))
+            }
+            <box/>
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0015"),
@@ -106,7 +72,7 @@ public class DiagnosticTests
     public void UITKX0016_HookInAttribute()
     {
         // Hook call inside an event-handler attribute expression
-        const string src = Header + "<button onClick={() => Hooks.UseState(0)}/>";
+        var src = Wrap("""<button onClick={() => Hooks.UseState(0)}/>""");
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0016"),
@@ -119,7 +85,7 @@ public class DiagnosticTests
     [Fact]
     public void UITKX0017_MultipleRootElements()
     {
-        const string src = Header + "<box/>\n<label text=\"oops\"/>";
+        var src = Wrap("<box/>\n<label text=\"oops\"/>");
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0017"),
@@ -131,14 +97,7 @@ public class DiagnosticTests
     public void UITKX0018_UseEffectMissingDeps()
     {
         // UseEffect with only a callback argument — no dependency array
-        const string src =
-            Header
-            + """
-                @code {
-                    Hooks.UseEffect(() => { });
-                }
-                <box/>
-                """;
+        var src = WrapWithCode("Hooks.UseEffect(() => { });", "<box/>");
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0018"),
@@ -150,14 +109,7 @@ public class DiagnosticTests
     public void UITKX0018_NotFiredWhenDepsProvided()
     {
         // UseEffect with two arguments — should NOT fire
-        const string src =
-            Header
-            + """
-                @code {
-                    Hooks.UseEffect(() => { }, new object[] { count });
-                }
-                <box/>
-                """;
+        var src = WrapWithCode("Hooks.UseEffect(() => { }, new object[] { count });", "<box/>");
         var result = GeneratorTestHelper.Run(src);
         Assert.False(
             result.HasDiagnostic("UITKX0018"),
@@ -169,13 +121,11 @@ public class DiagnosticTests
     public void UITKX0019_IndexAsKey()
     {
         // Loop iterator variable used directly as key
-        const string src =
-            Header
-            + """
-                @foreach (var i in items) {
-                    <label key={i} text={i.ToString()}/>
-                }
-                """;
+        var src = Wrap("""
+            @foreach (var i in items) {
+                <label key={i} text={i.ToString()}/>
+            }
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0019"),
@@ -187,13 +137,11 @@ public class DiagnosticTests
     public void UITKX0019_NotFiredForStableKey()
     {
         // key uses a property of the loop item — should NOT fire
-        const string src =
-            Header
-            + """
-                @foreach (var item in items) {
-                    <label key={item.Id} text={item.Name}/>
-                }
-                """;
+        var src = Wrap("""
+            @foreach (var item in items) {
+                <label key={item.Id} text={item.Name}/>
+            }
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.False(
             result.HasDiagnostic("UITKX0019"),
@@ -207,13 +155,11 @@ public class DiagnosticTests
     public void UITKX0009_ForeachMissingKey()
     {
         // Element inside @foreach has no key attribute
-        const string src =
-            Header
-            + """
-                @foreach (var item in items) {
-                    <label text={item}/>
-                }
-                """;
+        var src = Wrap("""
+            @foreach (var item in items) {
+                <label text={item}/>
+            }
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0009"),
@@ -224,14 +170,12 @@ public class DiagnosticTests
     [Fact]
     public void UITKX0010_DuplicateSiblingKey()
     {
-        const string src =
-            Header
-            + """
-                <box>
-                    <label key="same" text="A"/>
-                    <label key="same" text="B"/>
-                </box>
-                """;
+        var src = Wrap("""
+            <box>
+                <label key="same" text="A"/>
+                <label key="same" text="B"/>
+            </box>
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.True(
             result.HasDiagnostic("UITKX0010"),
@@ -242,14 +186,12 @@ public class DiagnosticTests
     [Fact]
     public void UITKX0010_NotFiredForUniqueKeys()
     {
-        const string src =
-            Header
-            + """
-                <box>
-                    <label key="a" text="A"/>
-                    <label key="b" text="B"/>
-                </box>
-                """;
+        var src = Wrap("""
+            <box>
+                <label key="a" text="A"/>
+                <label key="b" text="B"/>
+            </box>
+            """);
         var result = GeneratorTestHelper.Run(src);
         Assert.False(
             result.HasDiagnostic("UITKX0010"),
@@ -262,19 +204,14 @@ public class DiagnosticTests
     [Fact]
     public void CleanFile_ProducesNoDiagnostics()
     {
-        const string src = """
-            @namespace Test.NS
-            @component MyComp
-
-            @code {
-                Hooks.UseEffect(() => { }, new object[] { });
-            }
-
+        var src = WrapWithCode(
+            "Hooks.UseEffect(() => { }, new object[] { });",
+            """
             <box>
                 <label text="Hello"/>
                 <button text="Click" onClick={handler}/>
             </box>
-            """;
+            """);
         var result = GeneratorTestHelper.Run(src);
         // No semantic-error diagnostics — only possibly UITKX0001/0008 warnings for
         // unknown tags (no V.* type in our stub), which is acceptable.
@@ -282,9 +219,7 @@ public class DiagnosticTests
             result.Diagnostics,
             d =>
                 d.Id
-                    is "UITKX0005"
-                        or "UITKX0012"
-                        or "UITKX0013"
+                    is "UITKX0013"
                         or "UITKX0014"
                         or "UITKX0015"
                         or "UITKX0016"

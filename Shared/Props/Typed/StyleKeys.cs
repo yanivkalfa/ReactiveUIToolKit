@@ -42,9 +42,7 @@ namespace ReactiveUITK.Props.Typed
         public const string FontFamily = "fontFamily";
         public const string TextAlign = "textAlign";
 
-        public const string TextColor = "color";
-
-        public const string Color = TextColor;
+        public const string Color = "color";
         public const string BackgroundColor = "backgroundColor";
         public const string BackgroundImage = "backgroundImage";
         public const string BackgroundImageTint = "backgroundImageTint";

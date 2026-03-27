@@ -19,7 +19,7 @@ public static class ToggleButtonGroupExamples
   private static readonly Style StatusStyle = new()
   {
     (StyleKeys.FontSize, 13f),
-    (StyleKeys.TextColor, new Color(0.85f, 0.95f, 1f, 1f)),
+    (StyleKeys.Color, new Color(0.85f, 0.95f, 1f, 1f)),
   };
 
   private static readonly string[] Options = new[] { "Alpha", "Beta", "Gamma" };

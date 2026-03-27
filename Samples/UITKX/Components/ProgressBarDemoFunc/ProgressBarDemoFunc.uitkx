@@ -35,7 +35,7 @@ component ProgressBarDemoFunc {
   };
 
   var titleStyle = new Style {
-    (StyleKeys.TextColor, new Color(0.92f, 1f, 0.92f, 1f)),
+    (StyleKeys.Color, new Color(0.92f, 1f, 0.92f, 1f)),
     (StyleKeys.FontSize, 13f),
   };
 

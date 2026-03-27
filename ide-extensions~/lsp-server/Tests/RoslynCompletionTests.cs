@@ -69,7 +69,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     [Fact]
     public async Task ExpressionAttribute_DotCompletion_ReturnsMethods()
     {
-        var raw = "@namespace T\n@component C\n@code {\n  string msg = \"hello\";\n}\n<Label text={msg.|}/>";
+        var raw = "component C {\n  string msg = \"hello\";\n  return (\n    <Label text={msg.|}/>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset, trigger: '.');
         Assert.True(items.Count > 0, "Expected dot-completion to return items");
@@ -79,7 +79,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     [Fact]
     public async Task ExpressionAttribute_DotCompletion_HasToString()
     {
-        var raw = "@namespace T\n@component C\n@code {\n  int count = 42;\n}\n<Label text={count.|}/>";
+        var raw = "component C {\n  int count = 42;\n  return (\n    <Label text={count.|}/>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset, trigger: '.');
         Assert.Contains(items, i => i.Label == "ToString");
@@ -91,7 +91,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     public async Task CodeBlock_DotCompletion_StringMethods()
     {
         // Simpler code-block test: string variable dot-completion
-        var raw = "@namespace T\n@component C\n@code {\n  string s = \"hello\";\n  var x = s.|;\n}\n<Label/>";
+        var raw = "component C {\n  string s = \"hello\";\n  var x = s.|;\n  return (\n    <Label/>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset, trigger: '.');
         Assert.True(items.Count > 0, "Expected code-block dot-completion items");
@@ -116,7 +116,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     public async Task MarkupRegion_NoCompletions()
     {
         // Cursor is inside markup text, not a C# expression — should return empty.
-        var raw = "@namespace T\n@component C\n<Label text=\"hel|lo\"/>";
+        var raw = "component C {\n  return (\n    <Label text=\"hel|lo\"/>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset);
         Assert.Empty(items);
@@ -128,7 +128,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     public async Task CodeBlock_IntDotCompletion()
     {
         // Completions after int variable in a code block, verifying non-dot context also works
-        var raw = "@namespace T\n@component C\n@code {\n  int count = 0;\n  var s = count.|;\n}\n<Label/>";
+        var raw = "component C {\n  int count = 0;\n  var s = count.|;\n  return (\n    <Label/>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset, trigger: '.');
         Assert.True(items.Count > 0, "Expected dot completions on int in code block");
@@ -140,7 +140,7 @@ public sealed class RoslynCompletionTests : IAsyncLifetime
     [Fact]
     public async Task InlineExpression_DotCompletion()
     {
-        var raw = "@namespace T\n@component C\n@code {\n  string greeting = \"hi\";\n}\n<Box>\n  @(greeting.|)\n</Box>";
+        var raw = "component C {\n  string greeting = \"hi\";\n  return (\n    <Box>\n      @(greeting.|)\n    </Box>\n  )\n}";
         var (source, offset) = ExtractCursor(raw);
         var items = await GetCompletions(source, offset, trigger: '.');
         Assert.True(items.Count > 0, "Expected inline expression dot-completions");

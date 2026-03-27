@@ -90,9 +90,8 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     // Matches function-style component declarations inside a .uitkx file:
     //   component FooBar {
-    //   @component FooBar
     private static readonly Regex s_uitkxComponentPattern = new(
-        @"^(?:@component|component)\s+([A-Z][A-Za-z0-9_]*)",
+        @"^component\s+([A-Z][A-Za-z0-9_]*)",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -100,7 +99,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     // Group "name" = component name.  Group "params" = raw param list if present.
     //   component ShowcaseTopBar(string inputText = "", Action? onSetText = null)
     private static readonly Regex s_uitkxDeclPattern = new(
-        @"^(?:@component|component)\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
+        @"^component\s+(?<name>[A-Z][A-Za-z0-9_]*)(?:\s*\((?<params>[^)]*)\))?",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.Multiline
     );
 
@@ -311,8 +310,8 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 $"WorkspaceIndex: indexed {count} Props file(s) → {_elements.Count} element name(s)."
             );
 
-            // Also scan .uitkx files to discover function-style component names
-            // (e.g. `component FooBar { … }` or `@component FooBar`).
+            // Also scan .uitkx files to discover component names
+            // (e.g. `component FooBar { … }`).
             int uitkxCount = 0;
             foreach (
                 var file in Directory.EnumerateFiles(
@@ -354,8 +353,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
 
     /// <summary>
     /// Extracts component names declared in a <c>.uitkx</c> file and adds them to the index.
-    /// Handles both the function-style syntax (<c>component FooBar { … }</c>) and the
-    /// classic directive syntax (<c>@component FooBar</c>).
+    /// Handles the function-style syntax (<c>component FooBar { … }</c>).
     /// When a parameter list is present (<c>component FooBar(type name = default, …)</c>)
     /// the parameters are also stored as props so that UITKX0109 (unknown attribute) does
     /// not fire for valid attributes on those components.

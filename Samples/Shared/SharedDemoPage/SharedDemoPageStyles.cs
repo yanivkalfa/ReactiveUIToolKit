@@ -23,7 +23,7 @@ namespace ReactiveUITK.Samples.Shared
         public static readonly Style LeftBoxStyle = new()
         {
             (BackgroundColor, new UColor(0.2f, 0.4f, 0.9f, 1f)),
-            (TextColor, UColor.white),
+            (StyleKeys.Color, UColor.white),
             (PaddingLeft, 10f),
             (PaddingRight, 10f),
             (PaddingTop, 6f),
@@ -35,7 +35,7 @@ namespace ReactiveUITK.Samples.Shared
         public static readonly Style RightBoxStyle = new()
         {
             (BackgroundColor, new UColor(0.9f, 0.3f, 0.2f, 1f)),
-            (TextColor, UColor.white),
+            (StyleKeys.Color, UColor.white),
             (PaddingLeft, 10f),
             (PaddingRight, 10f),
             (PaddingTop, 6f),
@@ -55,7 +55,7 @@ namespace ReactiveUITK.Samples.Shared
             (PaddingBottom, 4f),
             (BorderRadius, 4f),
             (BorderWidth, 1f),
-            (TextColor, UColor.black),
+            (StyleKeys.Color, UColor.black),
             (BorderColor, new UColor(0.8f, 0.8f, 0.8f, 1f)),
             (BackgroundColor, new UColor(1f, 1f, 1f, 1f)),
         };

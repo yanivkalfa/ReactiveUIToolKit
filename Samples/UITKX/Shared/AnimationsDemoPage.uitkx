@@ -42,7 +42,7 @@ component AnimationsDemoPage {
         >
           <Label
             text="Flashing Box"
-            style={new Style { (TextColor, UColor.white) }}
+            style={new Style { (StyleKeys.Color, UColor.white) }}
           />
         </Box>
       </Animate>
