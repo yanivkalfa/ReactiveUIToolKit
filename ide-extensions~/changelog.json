@@ -3,6 +3,39 @@
     {
       "date": "2026-03-27",
       "versions": {
+        "vscode": "1.0.295",
+        "vs2022": "1.0.72"
+      },
+      "shared": [
+        "Feature: @uss directive with formatter, syntax highlighting, and UITKX0022/0023 SG diagnostics",
+        "Feature: HMR support for @uss — .uss file changes trigger hot-reload of dependent components"
+      ]
+    },
+    {
+      "date": "2026-03-28",
+      "versions": {
+        "vscode": "1.0.294",
+        "vs2022": "1.0.71"
+      },
+      "shared": [
+        "Feature: UITKX0121 — LSP error when Asset<T> type is incompatible with file extension",
+        "Feature: Extension-to-type validation map covering 20+ file types (images, audio, fonts, materials, USS)"
+      ]
+    },
+    {
+      "date": "2026-03-27",
+      "versions": {
+        "vscode": "1.0.293",
+        "vs2022": "1.0.70"
+      },
+      "shared": [
+        "Feature: UITKX0120 — LSP error squiggle when Asset/Ast path references a file that does not exist",
+        "Feature: Asset<T>/Ast<T> stub support in LSP virtual document for IntelliSense"
+      ]
+    },
+    {
+      "date": "2026-03-27",
+      "versions": {
         "vscode": "1.0.292",
         "vs2022": "1.0.69"
       },
