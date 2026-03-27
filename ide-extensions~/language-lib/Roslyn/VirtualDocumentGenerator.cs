@@ -345,8 +345,6 @@ namespace ReactiveUITK.Language.Roslyn
                     + "        private void useLayoutEffect(\n"
                     + "            global::System.Func<global::System.Action> effectFactory,\n"
                     + "            params object[] deps) { }\n"
-                    + "        private T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
-                    + "        private T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
                     + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
             );
 

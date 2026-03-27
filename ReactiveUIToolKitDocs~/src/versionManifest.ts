@@ -77,12 +77,14 @@ export const CSS_HELPER_VERSIONS: Record<string, FeatureVersion> = {
   // Filter function helpers (Unity 6.3+):
   Blur: { sinceUnity: '6000.3' },
   Grayscale: { sinceUnity: '6000.3' },
+  Saturate: { sinceUnity: '6000.3' },
+  Brightness: { sinceUnity: '6000.3' },
   Contrast: { sinceUnity: '6000.3' },
   HueRotate: { sinceUnity: '6000.3' },
   Invert: { sinceUnity: '6000.3' },
   Opacity: { sinceUnity: '6000.3' },
   Sepia: { sinceUnity: '6000.3' },
-  Tint: { sinceUnity: '6000.3' },
+  DropShadow: { sinceUnity: '6000.3' },
 }
 
 /**
@@ -169,8 +171,8 @@ export const STYLE_PROPERTY_DETAILS: Record<string, StylePropertyDetail> = {
       '}',
     ].join('\n'),
     relatedHelpers: [
-      'Blur', 'Grayscale', 'Contrast', 'HueRotate',
-      'Invert', 'Opacity', 'Sepia', 'Tint',
+      'Blur', 'Grayscale', 'Saturate', 'Brightness', 'Contrast',
+      'HueRotate', 'Invert', 'Opacity', 'Sepia', 'DropShadow',
     ],
   },
   unityMaterial: {

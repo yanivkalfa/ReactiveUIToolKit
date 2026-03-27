@@ -53,10 +53,6 @@ namespace ReactiveUITK.Editor
 
             // Defer the write to avoid executing inside the import callback.
             EditorApplication.delayCall += WriteTriggerFile;
-
-            // Sync asset registry entries for changed .uitkx files.
-            var imported = importedAssets;
-            EditorApplication.delayCall += () => UitkxAssetRegistrySync.SyncChangedFiles(imported);
         }
 
         private static void WriteTriggerFile()
