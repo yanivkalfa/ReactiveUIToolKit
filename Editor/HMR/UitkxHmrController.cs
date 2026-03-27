@@ -191,6 +191,9 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (result.Success)
             {
+                // Sync asset references into cache (lightweight — no SO write)
+                SyncAssetCacheForHmr(uitkxPath);
+
                 // Swap delegates (timed)
                 var swapSw = Stopwatch.StartNew();
                 int swapped = UitkxHmrDelegateSwapper.SwapAll(
@@ -368,6 +371,103 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 _retryingPending = false;
             }
+        }
+
+        // ── Asset cache sync for HMR ──────────────────────────────────────────
+
+        private static readonly Regex s_assetCallRe = new Regex(
+            @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
+            RegexOptions.Compiled);
+
+        private static readonly Regex s_ussDirectiveRe = new Regex(
+            @"@uss\s+""([^""]+)""",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// Lightweight HMR-safe asset cache sync: reads the .uitkx file, extracts
+        /// asset references, resolves paths, and injects them directly into the
+        /// static cache without writing to the SO.
+        /// </summary>
+        private static void SyncAssetCacheForHmr(string uitkxPath)
+        {
+            try
+            {
+                if (!File.Exists(uitkxPath)) return;
+                string content = File.ReadAllText(uitkxPath);
+
+                string normalized = uitkxPath.Replace('\\', '/');
+                int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+                string assetDir;
+                if (assetsIdx >= 0)
+                {
+                    string assetPath = normalized.Substring(assetsIdx + 1);
+                    int lastSlash = assetPath.LastIndexOf('/');
+                    assetDir = lastSlash >= 0 ? assetPath.Substring(0, lastSlash) : "Assets";
+                }
+                else
+                {
+                    assetDir = Path.GetDirectoryName(uitkxPath)?.Replace('\\', '/') ?? "";
+                }
+
+                foreach (Match m in s_ussDirectiveRe.Matches(content))
+                    InjectIfResolved(assetDir, m.Groups[1].Value);
+
+                foreach (Match m in s_assetCallRe.Matches(content))
+                    InjectIfResolved(assetDir, m.Groups[2].Value);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[HMR] Asset cache sync failed: {ex.Message}");
+            }
+        }
+
+        private static void InjectIfResolved(string uitkxDir, string rawPath)
+        {
+            string resolved;
+            if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+            {
+                string combined = uitkxDir + "/" + rawPath;
+                var parts = combined.Replace('\\', '/').Split('/');
+                var stack = new List<string>();
+                foreach (var p in parts)
+                {
+                    if (p == "." || p == "") continue;
+                    if (p == ".." && stack.Count > 0)
+                        stack.RemoveAt(stack.Count - 1);
+                    else if (p != "..")
+                        stack.Add(p);
+                }
+                resolved = string.Join("/", stack);
+            }
+            else
+            {
+                resolved = rawPath;
+            }
+
+            var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(resolved);
+
+            // If the asset isn't in the database but exists on disk, import it first.
+            // This handles files copied into the project during HMR (assemblies are
+            // locked so auto-refresh is suppressed).
+            if (asset == null)
+            {
+                // Derive full disk path from the resolved Unity-relative path.
+                // AssetDatabase paths are relative to the project root, which is
+                // Application.dataPath minus the trailing "Assets" segment.
+                string projectRoot = Application.dataPath;
+                if (projectRoot.EndsWith("/Assets") || projectRoot.EndsWith("\\Assets"))
+                    projectRoot = projectRoot.Substring(0, projectRoot.Length - 6);
+                string diskPath = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
+
+                if (File.Exists(diskPath))
+                {
+                    AssetDatabase.ImportAsset(resolved, ImportAssetOptions.ForceSynchronousImport);
+                    asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(resolved);
+                }
+            }
+
+            if (asset != null)
+                UitkxAssetRegistry.InjectCacheEntry(resolved, asset);
         }
 
         // ── Auto-stop hooks ───────────────────────────────────────────────────

@@ -79,7 +79,38 @@ Slider (`input`, `track`). Button is simply missing this.
 
 ---
 
-## No declarative USS stylesheet loading from `.uitkx`
+## Find All References (textDocument/references) not implemented
+
+**Symptom:** Shift+F12 / "Find All References" does nothing in `.uitkx` files.
+The LSP server declares no `referencesProvider` capability.
+
+**Context:** Go to Definition and Rename Symbol both work and share the same
+Roslyn-based symbol resolution pipeline (per-file AdhocWorkspace, SourceMap
+coordinate mapping, cross-workspace symbol matching via `SymbolSignature`).
+Find All References would reuse the same infrastructure.
+
+**Implementation approach:**
+1. `ReferencesHandler.cs` — resolve symbol at cursor via `AstCursorContext`,
+   then call `SymbolFinder.FindReferencesAsync()` on each per-file workspace.
+   Map results back to `.uitkx` coordinates via SourceMap.
+2. `CapabilityPatchStream.cs` — add `referencesProvider: true`.
+3. `Program.cs` — register the handler.
+
+**Template:** `RenameHandler.cs` already iterates all workspaces matching by
+`SymbolSignature` — the same loop applies but returns locations instead of edits.
+
+**Priority:** Medium — important IDE feature, straightforward given existing infra.
+
+---
+
+## No declarative USS stylesheet loading from `.uitkx` — 🟡 DESIGNED
+
+**Design complete** — see `Plans~/USS_LOADING_PLAN.md` for full implementation plan.
+
+**Chosen approach:** Option B — Per-Component with static cache. `@uss` directive parsed
+by DirectiveParser, source generator emits `__uitkx_ussKeys` static array, PropsApplier
+applies sheets to detached elements before panel attachment (zero re-resolution cost,
+same as UXML CloneTree). Registry ScriptableObject holds references, no file duplication.
 
 **Symptom:** There is no way to load a `.uss` file from within a `.uitkx`
 component or from the UITKX framework. Users must manually load USS in their
@@ -89,12 +120,6 @@ bootstrap code via `rootVisualElement.styleSheets.Add(...)`.
 `AddToClassList`/`RemoveFromClassList`), so USS class selectors do match on
 UITKX-rendered elements. But without a way to load the stylesheet, `className`
 is effectively useless for USS-based styling.
-
-**Possible solutions:**
-- An `@uss` directive in `.uitkx` files (e.g. `@uss "./MyComponent.uss"`)
-- A `styleSheet` prop on root elements / `VisualElementSafe`
-- Auto-discovery of co-located `.uss` files (e.g. `PlayerCard.uss` next to
-  `PlayerCard.uitkx`)
 
 **Priority:** Medium — unlocks USS pseudo-state styling (`:hover`, `:active`,
 `:focus`) which inline styles cannot achieve.
