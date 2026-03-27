@@ -126,6 +126,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using ReactiveUITK.Core.Animation;");
             L("using ReactiveUITK.Props.Typed;");
             L("using static ReactiveUITK.Props.Typed.StyleKeys;");
+            L("using static ReactiveUITK.AssetHelpers;");
             L("using UColor = UnityEngine.Color;");
             foreach (var u in _directives.Usings)
                 L($"using {u};");
@@ -291,6 +292,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // Apply React-style hook shorthand: useState( → Hooks.UseState( etc.
             codeText = ApplyHookAliases(codeText);
 
+            // Resolve relative asset paths: Asset<T>("./x.png") → Asset<T>("Assets/Dir/x")
+            if (codeText.Contains("Asset<") || codeText.Contains("Ast<"))
+                codeText = ResolveAssetPaths(codeText);
+
             foreach (var line in codeText.Split('\n'))
             {
                 var trimmed = line.TrimEnd('\r');
@@ -367,6 +372,38 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 @"\b(set[A-Z][a-zA-Z0-9_]*)\(\s*(?=[a-zA-Z_][a-zA-Z0-9_]*\s*=>|\([^)]*\)\s*=>)",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
+
+        // Matches Asset<T>("path") or Ast<T>("path") — type in group[1], path in group[2].
+        private static readonly System.Text.RegularExpressions.Regex s_assetCallRe =
+            new System.Text.RegularExpressions.Regex(
+                @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
+                System.Text.RegularExpressions.RegexOptions.Compiled
+            );
+
+        private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { ".png",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".jpg",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".jpeg",          new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".bmp",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".tga",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".psd",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".gif",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".tif",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".tiff",          new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".exr",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".hdr",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".svg",           new HashSet<string> { "VectorImage" } },
+            { ".wav",           new HashSet<string> { "AudioClip" } },
+            { ".mp3",           new HashSet<string> { "AudioClip" } },
+            { ".ogg",           new HashSet<string> { "AudioClip" } },
+            { ".aiff",          new HashSet<string> { "AudioClip" } },
+            { ".ttf",           new HashSet<string> { "Font" } },
+            { ".otf",           new HashSet<string> { "Font" } },
+            { ".mat",           new HashSet<string> { "Material" } },
+            { ".uss",           new HashSet<string> { "StyleSheet" } },
+            { ".renderTexture", new HashSet<string> { "RenderTexture" } },
+        };
 
         // ── __C helper method ─────────────────────────────────────────────────
 
@@ -1356,7 +1393,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 StringLiteralValue slv => $"\"{EscStr(slv.Value)}\"",
                 // Apply setter-lambda sugar: setFoo(v => v+1) → setFoo.Set(v => v+1)
-                CSharpExpressionValue cev => s_setterLambdaRe.Replace(cev.Expression, "$1.Set("),
+                CSharpExpressionValue cev => TransformExpression(cev.Expression),
                 JsxExpressionValue jsx => EmitJsxToString(jsx.Element),
                 BooleanShorthandValue => "true",
                 _ => "null",
@@ -1422,6 +1459,114 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
 
             return fullPath.Replace('\\', '/').Replace("\"", "\\\"");
+        }
+
+        // ── Asset path resolution ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Applies setter-lambda sugar and resolves relative asset paths.
+        /// </summary>
+        private string TransformExpression(string expr)
+        {
+            string result = s_setterLambdaRe.Replace(expr, "$1.Set(");
+            if (result.Contains("Asset<") || result.Contains("Ast<"))
+                result = ResolveAssetPaths(result);
+            return result;
+        }
+
+        private string ResolveAssetPaths(string expression)
+        {
+            return s_assetCallRe.Replace(expression, match =>
+            {
+                string requestedType = match.Groups[1].Value;
+                string rawPath = match.Groups[2].Value;
+                string resolved;
+                if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+                    resolved = ResolveRelativePath(rawPath);
+                else
+                    resolved = rawPath;
+
+                // Validate file existence at compile time
+                string projectRoot = GetProjectRoot();
+                if (projectRoot != null)
+                {
+                    string absolute = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
+                    if (!File.Exists(absolute))
+                    {
+                        var loc = Location.Create(_filePath, default, default);
+                        _diagnostics.Add(Diagnostic.Create(
+                            UitkxDiagnostics.AssetFileNotFound, loc, resolved));
+                    }
+                    else
+                    {
+                        // Type-mismatch check
+                        string ext = Path.GetExtension(rawPath);
+                        if (!string.IsNullOrEmpty(ext)
+                            && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
+                            && !validTypes.Contains(requestedType))
+                        {
+                            var loc = Location.Create(_filePath, default, default);
+                            _diagnostics.Add(Diagnostic.Create(
+                                UitkxDiagnostics.AssetTypeMismatch, loc,
+                                requestedType, ext, string.Join(", ", validTypes)));
+                        }
+                    }
+                }
+
+                // Only rewrite relative paths
+                if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+                    return match.Value.Replace($"\"{rawPath}\"", $"\"{resolved}\"");
+                return match.Value;
+            });
+        }
+
+        private string ResolveRelativePath(string relativePath)
+        {
+            string uitkxDir = GetUitkxAssetDir();
+            string combined = uitkxDir + "/" + relativePath;
+            var parts = combined.Replace('\\', '/').Split('/');
+            var stack = new List<string>();
+            foreach (var p in parts)
+            {
+                if (p == "." || p == "") continue;
+                if (p == ".." && stack.Count > 0)
+                    stack.RemoveAt(stack.Count - 1);
+                else if (p != "..")
+                    stack.Add(p);
+            }
+            return string.Join("/", stack);
+        }
+
+        /// <summary>
+        /// Extracts the Unity asset directory (e.g. <c>Assets/UI</c>) from the
+        /// absolute path of the <c>.uitkx</c> file being compiled.
+        /// </summary>
+        private string GetUitkxAssetDir()
+        {
+            string normalized = _filePath.Replace('\\', '/');
+            int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+            if (assetsIdx >= 0)
+            {
+                string assetPath = normalized.Substring(assetsIdx + 1); // "Assets/UI/File.uitkx"
+                int lastSlash = assetPath.LastIndexOf('/');
+                return lastSlash >= 0 ? assetPath.Substring(0, lastSlash) : "Assets";
+            }
+            // Fallback for non-Unity paths (test environments)
+            string dir = Path.GetDirectoryName(_filePath)?.Replace('\\', '/') ?? "";
+            return dir;
+        }
+
+        /// <summary>
+        /// Extracts the Unity project root (parent of <c>Assets/</c>) from <see cref="_filePath"/>.
+        /// Returns null when the path doesn't contain an <c>Assets/</c> segment.
+        /// </summary>
+        private string GetProjectRoot()
+        {
+            string normalized = _filePath.Replace('\\', '/');
+            int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
+            if (assetsIdx >= 0)
+                return normalized.Substring(0, assetsIdx);
+            return null;
         }
 
         // ── StringBuilder helpers ─────────────────────────────────────────────
