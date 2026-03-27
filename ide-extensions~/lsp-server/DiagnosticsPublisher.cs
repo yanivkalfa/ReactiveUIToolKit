@@ -180,7 +180,7 @@ public sealed class DiagnosticsPublisher
         // components not yet reached by the async scan are never falsely flagged.
         var projectElements = BuildProjectElements(directives.ComponentName);
         var knownAttributes = BuildKnownAttributes(projectElements);
-        var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes);
+        var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes, text);
 
         // ── T2v version-compatibility diagnostics ────────────────────────────
         // Check elements and style properties against the detected Unity version.
