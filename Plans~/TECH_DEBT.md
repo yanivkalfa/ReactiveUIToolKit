@@ -321,6 +321,26 @@ Internal contributors don't have a single source of truth for what shipped when.
 
 ---
 
+## Package-level CHANGELOG.md
+
+The Unity package (`package.json`) has no changelog. We have a centralized
+changelog for IDE extensions (`ide-extensions~/changelog.json`) but nothing
+tracking changes to the runtime/editor package itself — new style properties,
+bug fixes, source generator changes, etc.
+
+**Impact:** Users upgrading the package have no summary of what changed between
+versions. Unity Package Manager shows a changelog tab that is currently empty.
+
+**Requirements:**
+
+1. A `CHANGELOG.md` at the package root following [Keep a Changelog](https://keepachangelog.com/) format.
+2. Manually curated — no need for structured JSON or extraction tooling.
+3. Entries grouped by version with `Added`, `Changed`, `Fixed`, `Removed` sections as needed.
+
+**Priority:** Medium — should be in place before public release.
+
+---
+
 ## ~~Documentation versioning strategy~~ ✅ IMPLEMENTED
 
 Implemented — `versionManifest.ts` drives version-aware docs with a version
