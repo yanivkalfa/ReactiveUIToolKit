@@ -154,7 +154,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("using ReactiveUITK.Core.Animation;");
                 L("using ReactiveUITK.Props.Typed;");
                 L("using static ReactiveUITK.Props.Typed.StyleKeys;");
-                L("using static ReactiveUITK.AssetHelpers;");
                 L("using UColor = UnityEngine.Color;");
                 foreach (var u in _usings)
                     L($"using {u};");
@@ -714,11 +713,6 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 // Apply hook substitutions (mirrors CSharpEmitter.ApplyHookAliases)
                 code = ApplyHookAliases(code);
-
-                // Resolve relative asset paths (mirrors CSharpEmitter.ResolveAssetPaths)
-                if (code.Contains("Asset<") || code.Contains("Ast<"))
-                    code = ResolveAssetPaths(code, _filePath);
-
                 _sb.AppendLine(code);
             }
 
@@ -857,13 +851,13 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             // ── Attribute helpers ─────────────────────────────────────────
 
-            private string ExtractKey(IList attrs)
+            private static string ExtractKey(IList attrs)
             {
                 string keyExpr = GetAttrExpr(attrs, "key");
                 return keyExpr ?? "null";
             }
 
-            private string GetAttrExpr(IList attrs, string name)
+            private static string GetAttrExpr(IList attrs, string name)
             {
                 foreach (var attr in attrs)
                 {
@@ -874,7 +868,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return null;
             }
 
-            private string AttrToExpr(object attr)
+            private static string AttrToExpr(object attr)
             {
                 var val = UitkxHmrCompiler.GetProp(attr, "Value");
                 if (val == null)
@@ -892,11 +886,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     case "CSharpExpressionValue":
                         // Apply setter-lambda sugar (matches real emitter's AttrVal)
                         string expr = GP<string>(val, "Expression") ?? "null";
-                        expr = s_setterLambdaRe.Replace(expr, "$1.Set(");
-                        // Resolve relative asset paths
-                        if (expr.Contains("Asset<") || expr.Contains("Ast<"))
-                            expr = ResolveAssetPaths(expr, _filePath);
-                        return expr;
+                        return s_setterLambdaRe.Replace(expr, "$1.Set(");
                     case "BooleanShorthandValue":
                         return "true";
                     case "JsxExpressionValue":
@@ -1001,11 +991,6 @@ namespace ReactiveUITK.EditorSupport.HMR
             @"\b(set[A-Z][a-zA-Z0-9_]*)\(\s*(?=[a-zA-Z_][a-zA-Z0-9_]*\s*=>|\([^)]*\)\s*=>)",
             RegexOptions.Compiled);
 
-        // Matches Asset<T>("path") or Ast<T>("path") with any string-literal path.
-        private static readonly Regex s_assetCallRe = new Regex(
-            @"(?:Asset|Ast)\s*<\s*\w+\s*>\s*\(\s*""([^""]+)""\s*\)",
-            RegexOptions.Compiled);
-
         private static string ApplyHookAliases(string code)
         {
             // Setter lambda sugar: setFoo(v => v+1) → setFoo.Set(v => v+1)
@@ -1029,51 +1014,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                 code = code.Replace(from, to);
 
             return code;
-        }
-
-        // ── Asset path resolution (mirrors CSharpEmitter) ─────────────────────
-
-        private static string ResolveAssetPaths(string expression, string filePath)
-        {
-            return s_assetCallRe.Replace(expression, match =>
-            {
-                string rawPath = match.Groups[1].Value;
-                if (!rawPath.StartsWith("./") && !rawPath.StartsWith("../"))
-                    return match.Value;
-                string resolved = ResolveRelativePath(rawPath, filePath);
-                return match.Value.Replace($"\"{rawPath}\"", $"\"{resolved}\"");
-            });
-        }
-
-        private static string ResolveRelativePath(string relativePath, string filePath)
-        {
-            string uitkxDir = GetUitkxAssetDir(filePath);
-            string combined = uitkxDir + "/" + relativePath;
-            var parts = combined.Replace('\\', '/').Split('/');
-            var stack = new List<string>();
-            foreach (var p in parts)
-            {
-                if (p == "." || p == "") continue;
-                if (p == ".." && stack.Count > 0)
-                    stack.RemoveAt(stack.Count - 1);
-                else if (p != "..")
-                    stack.Add(p);
-            }
-            return string.Join("/", stack);
-        }
-
-        private static string GetUitkxAssetDir(string filePath)
-        {
-            string normalized = filePath.Replace('\\', '/');
-            int assetsIdx = normalized.IndexOf("/Assets/", StringComparison.OrdinalIgnoreCase);
-            if (assetsIdx >= 0)
-            {
-                string assetPath = normalized.Substring(assetsIdx + 1);
-                int lastSlash = assetPath.LastIndexOf('/');
-                return lastSlash >= 0 ? assetPath.Substring(0, lastSlash) : "Assets";
-            }
-            string dir = Path.GetDirectoryName(filePath)?.Replace('\\', '/') ?? "";
-            return dir;
         }
 
         private enum TagKind

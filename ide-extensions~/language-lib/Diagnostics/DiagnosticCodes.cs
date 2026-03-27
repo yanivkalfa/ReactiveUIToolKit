@@ -5,7 +5,6 @@ namespace ReactiveUITK.Language.Diagnostics
     ///
     /// ID ranges:
     ///   UITKX0101–0112   T2 — Structural (directive + schema checks); language-lib
-    ///   UITKX0120         T2 — Asset path validation; language-lib
     ///   UITKX0200–0200   T2v — Version compatibility; lsp-server
     ///   UITKX0300–0306   T1 — Parser syntax errors; emitted by UitkxParser /
     ///                         DirectiveParser into ParseResult.Diagnostics
@@ -84,20 +83,6 @@ namespace ReactiveUITK.Language.Diagnostics
         /// Severity: Error.
         /// </summary>
         public const string UnusedVariable = "UITKX0112";
-
-        /// <summary>
-        /// An <c>Asset&lt;T&gt;("path")</c>, <c>Ast&lt;T&gt;("path")</c>, or
-        /// <c>@uss "path"</c> references a file that does not exist on disk.
-        /// Severity: Error.
-        /// </summary>
-        public const string AssetNotFound = "UITKX0120";
-
-        /// <summary>
-        /// The requested type <c>T</c> in <c>Asset&lt;T&gt;("path")</c> is not
-        /// compatible with the file extension (e.g. <c>Asset&lt;AudioClip&gt;("icon.png")</c>).
-        /// Severity: Warning.
-        /// </summary>
-        public const string AssetTypeMismatch = "UITKX0121";
 
         // ── T2v — Version compatibility diagnostics (lsp-server) ─────────────
         // Produced by DiagnosticsPublisher, not DiagnosticsAnalyzer, because

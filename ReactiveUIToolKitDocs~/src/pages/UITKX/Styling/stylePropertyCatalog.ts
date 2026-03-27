@@ -788,7 +788,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Applies graphical filter effects (blur, grayscale, etc.). Multiple filters can be chained.',
     typedExample: 'Filter = new StyleList<FilterFunction>(\n    new List<FilterFunction> { Blur(4), Grayscale(0.5f) })',
     untypedExample: '(StyleKeys.Filter, new StyleList<FilterFunction>(...))',
-    helpers: ['Blur()', 'Grayscale()', 'Contrast()', 'HueRotate()', 'Invert()', 'Opacity()', 'Sepia()', 'Tint()'],
+    helpers: ['Blur()', 'Grayscale()', 'Saturate()', 'Brightness()', 'Contrast()', 'HueRotate()', 'Invert()', 'Opacity()', 'Sepia()', 'DropShadow()'],
   },
   {
     key: 'unityMaterial',

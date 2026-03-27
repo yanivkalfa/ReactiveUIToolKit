@@ -122,36 +122,26 @@ namespace ReactiveUITK.Props.Typed
 
         // ── Filter functions (Unity 6.3+) ───────────────────────────────
 #if UNITY_6000_3_OR_NEWER
-        static FilterFunction MakeFilter(FilterFunctionType type, float value)
-        {
-            var ff = new FilterFunction(type);
-            ff.AddParameter(new FilterParameter(value));
-            return ff;
-        }
-
-        static FilterFunction MakeFilter(FilterFunctionType type, Color color)
-        {
-            var ff = new FilterFunction(type);
-            ff.AddParameter(new FilterParameter(color));
-            return ff;
-        }
-
-        public static FilterFunction Blur(float radiusPx)
-            => MakeFilter(FilterFunctionType.Blur, radiusPx);
+        public static FilterFunction Blur(float radius)
+            => FilterFunction.Blur(new Length(radius, LengthUnit.Pixel));
         public static FilterFunction Grayscale(float amount)
-            => MakeFilter(FilterFunctionType.Grayscale, amount);
+            => FilterFunction.Grayscale(amount);
+        public static FilterFunction Saturate(float amount)
+            => FilterFunction.Saturate(amount);
+        public static FilterFunction Brightness(float amount)
+            => FilterFunction.Brightness(amount);
         public static FilterFunction Contrast(float amount)
-            => MakeFilter(FilterFunctionType.Contrast, amount);
+            => FilterFunction.Contrast(amount);
         public static FilterFunction HueRotate(float degrees)
-            => MakeFilter(FilterFunctionType.HueRotate, degrees);
+            => FilterFunction.HueRotate(degrees);
         public static FilterFunction Invert(float amount)
-            => MakeFilter(FilterFunctionType.Invert, amount);
+            => FilterFunction.Invert(amount);
         public static FilterFunction Opacity(float amount)
-            => MakeFilter(FilterFunctionType.Opacity, amount);
+            => FilterFunction.Opacity(amount);
         public static FilterFunction Sepia(float amount)
-            => MakeFilter(FilterFunctionType.Sepia, amount);
-        public static FilterFunction Tint(Color color)
-            => MakeFilter(FilterFunctionType.Tint, color);
+            => FilterFunction.Sepia(amount);
+        public static FilterFunction DropShadow(float offsetX, float offsetY, float blurRadius, Color color)
+            => FilterFunction.DropShadow(offsetX, offsetY, blurRadius, color);
 #endif
     }
 }
