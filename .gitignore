@@ -44,11 +44,6 @@ ide-extensions~/visual-studio/UitkxVsix/_inspect_*/
 # VS Code extension build artifacts
 ide-extensions~/vscode/server/
 ide-extensions~/vscode/node_modules/
-ide-extensions~/vscode/CHANGELOG.md
-
-# VS2022 marketplace overview (generated from centralized changelog)
-ide-extensions~/visual-studio/UitkxVsix/overview.md
-ide-extensions~/visual-studio/CHANGELOG.md
 
 # LSP server build artifacts
 ide-extensions~/lsp-server/bin/
