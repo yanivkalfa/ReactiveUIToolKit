@@ -110,6 +110,15 @@ namespace ReactiveUITK.Language.Formatter
                 hasPreamble = true;
             }
 
+            if (!directives.UssFiles.IsDefaultOrEmpty)
+            {
+                foreach (var uss in directives.UssFiles)
+                {
+                    Ln($"@uss \"{uss}\"");
+                    hasPreamble = true;
+                }
+            }
+
             if (hasPreamble)
                 _sb.Append('\n');
 
