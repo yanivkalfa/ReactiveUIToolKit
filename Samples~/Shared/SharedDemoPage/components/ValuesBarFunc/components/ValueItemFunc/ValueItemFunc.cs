@@ -36,14 +36,14 @@ namespace ReactiveUITK.Samples.Shared
         {
             Style = new Style
             {
-                (TextColor, new UColor(0.35f, 0.35f, 0.35f, 1f)),
+                (StyleKeys.Color, new UColor(0.35f, 0.35f, 0.35f, 1f)),
                 ("unityFontStyle", "bold"),
             },
         };
 
         private static readonly LabelProps ValuePreset = new()
         {
-            Style = new Style { (TextColor, new UColor(0.1f, 0.1f, 0.1f, 1f)), (MarginLeft, 4f) },
+            Style = new Style { (StyleKeys.Color, new UColor(0.1f, 0.1f, 0.1f, 1f)), (MarginLeft, 4f) },
         };
 
         public static VirtualNode Render(IProps rawProps, IReadOnlyList<VirtualNode> children)

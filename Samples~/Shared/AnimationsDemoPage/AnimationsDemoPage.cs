@@ -159,7 +159,7 @@ namespace ReactiveUITK.Samples.Shared
                             new LabelProps
                             {
                                 Text = "Flashing Box",
-                                Style = new Style { (TextColor, UColor.white) },
+                                Style = new Style { (StyleKeys.Color, UColor.white) },
                             }
                         )
                     )

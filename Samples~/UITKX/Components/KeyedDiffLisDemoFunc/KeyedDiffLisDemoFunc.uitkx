@@ -132,7 +132,7 @@ component KeyedDiffLisDemoFunc {
           <Label text={$"Key: {item}"} />
           <Label
             text={$"Index {items.IndexOf(item)}"}
-            style={new Style { (StyleKeys.TextColor, Color.cyan) }}
+            style={new Style { (StyleKeys.Color, Color.cyan) }}
           />
         </VisualElement>
       }

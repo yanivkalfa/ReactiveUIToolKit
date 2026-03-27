@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ReactiveUITK.SourceGenerator")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+44c92ca165294779c4ba328e058f9fd105d28498")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+587c19b4aea5d7f78b00088b5887fa1a09581df0")]
 [assembly: System.Reflection.AssemblyProductAttribute("ReactiveUITK.SourceGenerator")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ReactiveUITK.SourceGenerator")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

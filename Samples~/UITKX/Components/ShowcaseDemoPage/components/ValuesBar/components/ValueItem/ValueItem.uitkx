@@ -22,12 +22,12 @@ component ValueItem(string typeText = "", string typeValue = "") {
   };
 
   var labelStyle = new Style {
-    (TextColor, new Color(0.35f, 0.35f, 0.35f, 1f)),
+    (StyleKeys.Color, new Color(0.35f, 0.35f, 0.35f, 1f)),
     ("unityFontStyle", "bold"),
   };
 
   var valueStyle = new Style {
-    (TextColor, new Color(0.1f, 0.1f, 0.1f, 1f)),
+    (StyleKeys.Color, new Color(0.1f, 0.1f, 0.1f, 1f)),
     (MarginLeft, 4f),
   };
 
