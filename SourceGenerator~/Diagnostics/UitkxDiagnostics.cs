@@ -21,6 +21,7 @@ namespace ReactiveUITK.SourceGenerator
     ///   UITKX0020       ref={} on user component with no Ref<T> param
     ///   UITKX0021       ref={} on user component with multiple Ref<T> params (ambiguous)
     ///   UITKX0022       Asset/Ast path references a file that does not exist
+    ///   UITKX0023       Asset/Ast type parameter incompatible with file extension
     ///   UITKX0300–0305  Parse errors
     /// </summary>
     internal static class UitkxDiagnostics
@@ -332,6 +333,21 @@ namespace ReactiveUITK.SourceGenerator
                 defaultSeverity: DiagnosticSeverity.Error,
                 isEnabledByDefault: true,
                 description: "The referenced asset path does not exist on disk. Check the path for typos or ensure the file has been imported into the project."
+            );
+
+        /// <summary>
+        /// UITKX0023 — The requested <c>Asset&lt;T&gt;</c> type is not compatible
+        /// with the file extension of the referenced asset.
+        /// </summary>
+        public static readonly DiagnosticDescriptor AssetTypeMismatch =
+            new DiagnosticDescriptor(
+                id: "UITKX0023",
+                title: "Asset type mismatch",
+                messageFormat: "Type '{0}' is not compatible with '{1}' files. Valid types: {2}",
+                category: Category,
+                defaultSeverity: DiagnosticSeverity.Error,
+                isEnabledByDefault: true,
+                description: "The generic type argument does not match the file extension. For example, a .png should be loaded as Texture2D or Sprite, not AudioClip."
             );
     }
 }
