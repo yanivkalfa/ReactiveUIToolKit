@@ -58,7 +58,7 @@ export const EXAMPLE_POSITIONING = `var overlayStyle = new Style {
 };`
 
 export const EXAMPLE_COLORS = `var headerStyle = new Style {
-    TextColor = White,
+    Color = White,
     BackgroundColor = Hex("#1a1a2e"),
     BorderColor = Rgba(255, 200, 0),
     UnityTextOutlineColor = Black,
@@ -101,7 +101,7 @@ export const EXAMPLE_CONDITIONAL = `var buttonStyle = new Style {
 };`
 
 export const EXAMPLE_INLINE = `<Label text="Hello"
-       style={new Style { TextColor = Green, FontSize = 18f }} />`
+       style={new Style { Color = Green, FontSize = 18f }} />`
 
 export const EXAMPLE_BOTH_APIs = `// Typed properties — type-safe, IDE completion
 var safe = new Style {

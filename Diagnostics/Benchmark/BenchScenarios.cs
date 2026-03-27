@@ -24,7 +24,7 @@ namespace ReactiveUITK.Bench
                 (MinHeight, 50f),
             };
 
-            var labelStyle = new Style { (TextColor, UColor.white) };
+            var labelStyle = new Style { (StyleKeys.Color, UColor.white) };
 
             return V.VisualElement(
                 new VisualElementProps { Style = style },
@@ -61,7 +61,7 @@ namespace ReactiveUITK.Bench
 
         public static Action Smoke()
         {
-            var headerStyle = new Style { (TextColor, UColor.white) };
+            var headerStyle = new Style { (StyleKeys.Color, UColor.white) };
             var vnode = V.VisualElement(
                 new VisualElementProps { Style = Column() },
                 null,
@@ -114,7 +114,7 @@ namespace ReactiveUITK.Bench
 
         public static Action StaticScreen()
         {
-            var headerStyle = new Style { (TextColor, UColor.white) };
+            var headerStyle = new Style { (StyleKeys.Color, UColor.white) };
             var vnode = V.VisualElement(
                 new VisualElementProps { Style = Column() },
                 null,
@@ -257,7 +257,7 @@ namespace ReactiveUITK.Bench
                             new LabelProps
                             {
                                 Text = $"Frame {frame}: all good",
-                                Style = new Style { (TextColor, UColor.green) },
+                                Style = new Style { (StyleKeys.Color, UColor.green) },
                             }
                         );
                     },
@@ -269,7 +269,7 @@ namespace ReactiveUITK.Bench
                     new LabelProps
                     {
                         Text = "Fallback active",
-                        Style = new Style { (TextColor, UColor.red) },
+                        Style = new Style { (StyleKeys.Color, UColor.red) },
                     }
                 );
 
@@ -291,7 +291,7 @@ namespace ReactiveUITK.Bench
                     new LabelProps
                     {
                         Text = shouldThrow ? "Phase: throwing" : "Phase: stable",
-                        Style = new Style { (TextColor, shouldThrow ? UColor.red : UColor.white) },
+                        Style = new Style { (StyleKeys.Color, shouldThrow ? UColor.red : UColor.white) },
                     }
                 );
 
@@ -349,7 +349,7 @@ namespace ReactiveUITK.Bench
                             Text = $"Interaction cycle {phase}",
                             Style = new Style
                             {
-                                (TextColor, new UColor(0.4f, 0.4f, 0.4f, 1f)),
+                                (StyleKeys.Color, new UColor(0.4f, 0.4f, 0.4f, 1f)),
                                 (FontSize, 10f),
                                 (Height, 14f),
                             },

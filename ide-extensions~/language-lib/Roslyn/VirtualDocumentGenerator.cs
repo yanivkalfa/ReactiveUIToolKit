@@ -179,7 +179,7 @@ namespace ReactiveUITK.Language.Roslyn
         {
             "using static ReactiveUITK.Props.Typed.StyleKeys;",
             "using UColor = UnityEngine.Color;",
-            // `using static StyleKeys` imports a `Color` string constant (TextColor prop key).
+            // `using static StyleKeys` imports a `Color` string constant (CSS "color" key).
             // UnityEngine.UIElementsModule.dll also defines UnityEngine.Color → CS0104.
             // An explicit alias always wins over both, so declare it last.
             "using Color = UnityEngine.Color;",

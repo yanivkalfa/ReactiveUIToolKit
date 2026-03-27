@@ -3967,7 +3967,7 @@ public sealed class FormatterSnapshotTests
                         { "onWheel", (WheelEventHandler)(e => setCount(count - 1)) }
                     }}
                   >
-                    <Label text="Interact" style={new Style { (StyleKeys.TextColor, Color.white) }} />
+                    <Label text="Interact" style={new Style { (StyleKeys.Color, Color.white) }} />
                   </VisualElement>
                   <Suspense
                     isReady={IsLoading}

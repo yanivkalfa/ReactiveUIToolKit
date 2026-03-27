@@ -129,7 +129,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using UColor = UnityEngine.Color;");
             foreach (var u in _directives.Usings)
                 L($"using {u};");
-            // `using static StyleKeys` imports Color (string constant = TextColor).
+            // `using static StyleKeys` imports Color (string constant for CSS "color").
             // Files with `@using UnityEngine` also get UnityEngine.Color → CS0229.
             // An explicit alias always wins over both, so declare it last.
             L("using Color = UnityEngine.Color;");

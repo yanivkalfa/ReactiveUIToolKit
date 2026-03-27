@@ -128,7 +128,7 @@ var cardStyle = new Style {
 |---|---|---|
 | Layout & spacing | `StyleLength` | Width, Height, Margin*, Padding*, FlexBasis, BorderRadius*, FontSize, LetterSpacing |
 | Flex & opacity | `StyleFloat` | FlexGrow, FlexShrink, Opacity, BorderWidth* |
-| Colors | `Color` | TextColor, BackgroundColor, BorderColor*, UnityTextOutlineColor (9 total) |
+| Colors | `Color` | Color, BackgroundColor, BorderColor*, UnityTextOutlineColor (9 total) |
 | Enums | Unity enums | FlexDirection, JustifyContent, AlignItems, Position, Display, Visibility, etc. (15 total) |
 | Background | Structs | BackgroundRepeat, BackgroundPositionX/Y, BackgroundSize |
 | Transforms | `float` / struct | Rotate, Scale, Translate, TransformOrigin |
