@@ -410,10 +410,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
 
                 foreach (Match m in s_ussDirectiveRe.Matches(content))
-                    InjectIfResolved(assetDir, m.Groups[1].Value);
+                    InjectIfResolved(assetDir, m.Groups[1].Value, "StyleSheet");
 
                 foreach (Match m in s_assetCallRe.Matches(content))
-                    InjectIfResolved(assetDir, m.Groups[2].Value);
+                    InjectIfResolved(assetDir, m.Groups[2].Value, m.Groups[1].Value);
             }
             catch (Exception ex)
             {
@@ -421,7 +421,16 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
         }
 
-        private static void InjectIfResolved(string uitkxDir, string rawPath)
+        // ── Image extensions handled by TextureImporter ────────────────────────
+
+        private static readonly HashSet<string> s_imageExtensions = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".psd",
+            ".gif", ".tif", ".tiff", ".exr", ".hdr"
+        };
+
+        private static void InjectIfResolved(string uitkxDir, string rawPath, string requestedType)
         {
             string resolved;
             if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
@@ -451,9 +460,6 @@ namespace ReactiveUITK.EditorSupport.HMR
             // locked so auto-refresh is suppressed).
             if (asset == null)
             {
-                // Derive full disk path from the resolved Unity-relative path.
-                // AssetDatabase paths are relative to the project root, which is
-                // Application.dataPath minus the trailing "Assets" segment.
                 string projectRoot = Application.dataPath;
                 if (projectRoot.EndsWith("/Assets") || projectRoot.EndsWith("\\Assets"))
                     projectRoot = projectRoot.Substring(0, projectRoot.Length - 6);
@@ -466,8 +472,61 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
 
+            if (asset == null) return;
+
+            // ── Auto-configure importer when requested type doesn't match ─────
+            string ext = Path.GetExtension(resolved);
+
+            if (s_imageExtensions.Contains(ext))
+            {
+                asset = ConfigureTextureImport(resolved, asset, requestedType);
+            }
+
             if (asset != null)
                 UitkxAssetRegistry.InjectCacheEntry(resolved, asset);
+        }
+
+        /// <summary>
+        /// Ensures a texture asset's importer matches the requested type.
+        /// If <paramref name="requestedType"/> is <c>Sprite</c> but the file is
+        /// imported as <c>Texture2D</c> (or vice-versa), reconfigures the
+        /// <see cref="TextureImporter"/> and reimports synchronously.
+        /// </summary>
+        private static UnityEngine.Object ConfigureTextureImport(
+            string assetPath,
+            UnityEngine.Object currentAsset,
+            string requestedType)
+        {
+            var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+            if (importer == null) return currentAsset;
+
+            if (string.Equals(requestedType, "Sprite", StringComparison.Ordinal))
+            {
+                if (importer.textureType != TextureImporterType.Sprite)
+                {
+                    importer.textureType = TextureImporterType.Sprite;
+                    importer.spriteImportMode = SpriteImportMode.Single;
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                }
+                // Load the Sprite sub-asset (created by sprite import)
+                var sprite = AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+                return sprite != null ? sprite : currentAsset;
+            }
+
+            if (string.Equals(requestedType, "Texture2D", StringComparison.Ordinal))
+            {
+                if (importer.textureType == TextureImporterType.Sprite)
+                {
+                    importer.textureType = TextureImporterType.Default;
+                    AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                    return AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath) ?? currentAsset;
+                }
+                // Already a Texture2D-compatible import
+                return currentAsset;
+            }
+
+            // Other requested types on image files — return as-is
+            return currentAsset;
         }
 
         // ── Auto-stop hooks ───────────────────────────────────────────────────

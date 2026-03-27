@@ -403,3 +403,43 @@ aspectRatio  [6.3+] → https://docs.unity3d.com/6000.3/.../UIElements.IStyle.ht
 - Individual component pages — add inline version badge + link
 
 **Priority:** Low — nice-to-have polish, not blocking.
+
+---
+
+## Autocomplete overwrites existing attribute value binding
+
+**Symptom:** When editing an attribute value like `sprite={bg}` — double-clicking
+`sprite` to select it, then typing to trigger autocomplete — selecting a completion
+item (e.g. `texture`) produces broken output:
+
+```uitkx
+<!-- Before: cursor inside attribute name -->
+<Image sprite={bg} />
+
+<!-- After selecting "texture" from autocomplete -->
+<Image texture={}={bg} />
+```
+
+The completion inserts `texture={}` as a full attribute snippet instead of replacing
+only the attribute name. The existing `={bg}` binding is left in place, producing
+invalid syntax with two `=` signs.
+
+**Expected:** Autocomplete should replace only the attribute name, preserving the
+existing `={value}` binding:
+
+```uitkx
+<!-- Expected result -->
+<Image texture={bg} />
+```
+
+**Root cause (likely):** The completion item's `textEdit` range covers only the
+selected word, and the `insertText`/`insertTextFormat` includes `=$1{}` or `={}`.
+When there's already an `={...}` after the attribute name, the completion should
+detect the existing binding and only replace the name portion.
+
+**Files to investigate:**
+- `ide-extensions~/lsp-server/CompletionHandler.cs` — attribute name completions
+  should check if the cursor is followed by `={` and adjust the insert text
+- `ide-extensions~/language-lib/` — completion item building
+
+**Priority:** Medium — disrupts typing flow and requires manual cleanup.
