@@ -92,6 +92,13 @@ namespace ReactiveUITK.Language.Diagnostics
         /// </summary>
         public const string AssetNotFound = "UITKX0120";
 
+        /// <summary>
+        /// The requested type <c>T</c> in <c>Asset&lt;T&gt;("path")</c> is not
+        /// compatible with the file extension (e.g. <c>Asset&lt;AudioClip&gt;("icon.png")</c>).
+        /// Severity: Warning.
+        /// </summary>
+        public const string AssetTypeMismatch = "UITKX0121";
+
         // ── T2v — Version compatibility diagnostics (lsp-server) ─────────────
         // Produced by DiagnosticsPublisher, not DiagnosticsAnalyzer, because
         // version detection requires access to Unity project metadata.

@@ -373,12 +373,37 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
-        // Matches Asset<T>("path") or Ast<T>("path") with any string-literal path.
+        // Matches Asset<T>("path") or Ast<T>("path") — type in group[1], path in group[2].
         private static readonly System.Text.RegularExpressions.Regex s_assetCallRe =
             new System.Text.RegularExpressions.Regex(
-                @"(?:Asset|Ast)\s*<\s*\w+\s*>\s*\(\s*""([^""]+)""\s*\)",
+                @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
+
+        private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { ".png",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".jpg",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".jpeg",          new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".bmp",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".tga",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".psd",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".gif",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".tif",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".tiff",          new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".exr",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".hdr",           new HashSet<string> { "Texture2D", "Sprite" } },
+            { ".svg",           new HashSet<string> { "VectorImage" } },
+            { ".wav",           new HashSet<string> { "AudioClip" } },
+            { ".mp3",           new HashSet<string> { "AudioClip" } },
+            { ".ogg",           new HashSet<string> { "AudioClip" } },
+            { ".aiff",          new HashSet<string> { "AudioClip" } },
+            { ".ttf",           new HashSet<string> { "Font" } },
+            { ".otf",           new HashSet<string> { "Font" } },
+            { ".mat",           new HashSet<string> { "Material" } },
+            { ".uss",           new HashSet<string> { "StyleSheet" } },
+            { ".renderTexture", new HashSet<string> { "RenderTexture" } },
+        };
 
         // ── __C helper method ─────────────────────────────────────────────────
 
@@ -1453,7 +1478,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         {
             return s_assetCallRe.Replace(expression, match =>
             {
-                string rawPath = match.Groups[1].Value;
+                string requestedType = match.Groups[1].Value;
+                string rawPath = match.Groups[2].Value;
                 string resolved;
                 if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
                     resolved = ResolveRelativePath(rawPath);
@@ -1470,6 +1496,20 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         var loc = Location.Create(_filePath, default, default);
                         _diagnostics.Add(Diagnostic.Create(
                             UitkxDiagnostics.AssetFileNotFound, loc, resolved));
+                    }
+                    else
+                    {
+                        // Type-mismatch check
+                        string ext = Path.GetExtension(rawPath);
+                        if (!string.IsNullOrEmpty(ext)
+                            && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
+                            && !validTypes.Contains(requestedType))
+                        {
+                            var loc = Location.Create(_filePath, default, default);
+                            _diagnostics.Add(Diagnostic.Create(
+                                UitkxDiagnostics.AssetTypeMismatch, loc,
+                                requestedType, ext, string.Join(", ", validTypes)));
+                        }
                     }
                 }
 

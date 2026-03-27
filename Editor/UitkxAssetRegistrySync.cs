@@ -76,10 +76,9 @@ namespace ReactiveUITK.Editor
                 string uitkxDir = Path.GetDirectoryName(assetPath)?.Replace('\\', '/');
                 var refs = ExtractAssetReferences(content, uitkxDir);
 
-                foreach (var (key, resolvedAssetPath) in refs)
+                foreach (var (key, resolvedAssetPath, typeName) in refs)
                 {
-                    var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(
-                        resolvedAssetPath);
+                    var asset = LoadAssetTyped(resolvedAssetPath, typeName);
                     if (asset != null)
                     {
                         registry.Set(key, asset);
@@ -132,10 +131,9 @@ namespace ReactiveUITK.Editor
                 string uitkxDir = Path.GetDirectoryName(assetPath)?.Replace('\\', '/');
                 var refs = ExtractAssetReferences(content, uitkxDir);
 
-                foreach (var (key, resolvedAssetPath) in refs)
+                foreach (var (key, resolvedAssetPath, typeName) in refs)
                 {
-                    var asset = AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(
-                        resolvedAssetPath);
+                    var asset = LoadAssetTyped(resolvedAssetPath, typeName);
                     if (asset != null)
                         allEntries[key] = asset;
                 }
@@ -160,28 +158,79 @@ namespace ReactiveUITK.Editor
             AssetDatabase.SaveAssetIfDirty(registry);
         }
 
+        // ── Image extensions handled by TextureImporter ───────────
+
+        private static readonly HashSet<string> s_imageExtensions = new HashSet<string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".psd",
+            ".gif", ".tif", ".tiff", ".exr", ".hdr"
+        };
+
         // ── Path parsing ─────────────────────────────────────────────
 
-        private static List<(string key, string assetPath)> ExtractAssetReferences(
+        private static List<(string key, string assetPath, string typeName)> ExtractAssetReferences(
             string content, string uitkxDir)
         {
-            var result = new List<(string, string)>();
+            var result = new List<(string, string, string)>();
 
             foreach (Match m in s_ussDirectiveRe.Matches(content))
             {
                 string rawPath = m.Groups[1].Value;
                 string resolved = ResolvePath(uitkxDir, rawPath);
-                result.Add((resolved, resolved));
+                result.Add((resolved, resolved, "StyleSheet"));
             }
 
             foreach (Match m in s_assetCallRe.Matches(content))
             {
+                string typeName = m.Groups[1].Value;
                 string rawPath = m.Groups[2].Value;
                 string resolved = ResolvePath(uitkxDir, rawPath);
-                result.Add((resolved, resolved));
+                result.Add((resolved, resolved, typeName));
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Loads an asset with type-aware importer configuration.
+        /// For image files, auto-configures the <see cref="TextureImporter"/>
+        /// based on the requested type (Sprite vs Texture2D).
+        /// </summary>
+        private static UnityEngine.Object LoadAssetTyped(string assetPath, string typeName)
+        {
+            string ext = Path.GetExtension(assetPath);
+
+            // Image files need importer configuration based on requested type
+            if (s_imageExtensions.Contains(ext))
+            {
+                var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+                if (importer != null)
+                {
+                    if (string.Equals(typeName, "Sprite", StringComparison.Ordinal))
+                    {
+                        if (importer.textureType != TextureImporterType.Sprite)
+                        {
+                            importer.textureType = TextureImporterType.Sprite;
+                            importer.spriteImportMode = SpriteImportMode.Single;
+                            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                        }
+                        return AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
+                    }
+
+                    if (string.Equals(typeName, "Texture2D", StringComparison.Ordinal))
+                    {
+                        if (importer.textureType == TextureImporterType.Sprite)
+                        {
+                            importer.textureType = TextureImporterType.Default;
+                            AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceSynchronousImport);
+                        }
+                        return AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
+                    }
+                }
+            }
+
+            return AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath);
         }
 
         private static string ResolvePath(string uitkxDir, string rawPath)
