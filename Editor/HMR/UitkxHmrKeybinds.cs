@@ -62,7 +62,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    var controller = new UitkxHmrController();
+                    // Reuse existing instance to keep the compiler alive
+                    var controller = UitkxHmrController.Instance ?? new UitkxHmrController();
                     if (!controller.Start(out string error))
                         Debug.LogWarning($"[HMR] Failed to start: {error}");
                     else

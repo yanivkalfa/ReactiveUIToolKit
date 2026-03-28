@@ -65,6 +65,32 @@ namespace ReactiveUITK.EditorSupport.HMR
         // Cached: MethodInfo for CSharpCompilation.Emit(Stream)
         private MethodInfo _emitToStream;
 
+        // Cached: incremental compilation API handles
+        private MethodInfo _compilationRemoveSyntaxTrees;
+        private MethodInfo _compilationAddSyntaxTrees;
+        private MethodInfo _compilationAddReferences;
+        private MethodInfo _compilationWithAssemblyName;
+
+        // ── Incremental compilation cache ─────────────────────────────────
+        // Cached Compilation per component for incremental reuse
+        private readonly Dictionary<string, object> _cachedCompilations = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        // Cached SyntaxTree[] per component (to know what to remove)
+        private readonly Dictionary<string, object[]> _cachedSyntaxTrees = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
+        // Track genuinely-new component count to detect cross-ref changes
+        private int _lastGenuineComponentCount;
+
+        // ── Cross-ref MetadataReference cache ─────────────────────────────
+        // Cached MetadataReference per cross-component DLL path
+        private readonly Dictionary<string, object> _crossRefCache = new(
+            StringComparer.OrdinalIgnoreCase
+        );
+
         // Map of loaded Roslyn dependency DLLs for AssemblyResolve
         private readonly Dictionary<string, Assembly> _roslynDeps = new(
             StringComparer.OrdinalIgnoreCase
@@ -109,6 +135,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                 BuildReferenceList();
                 _tempDir = Path.Combine(Path.GetTempPath(), "UitkxHmr");
                 Directory.CreateDirectory(_tempDir);
+
+                // Clean up stale DLLs from previous sessions (may have been
+                // locked by LoadFrom and couldn't be deleted on Dispose)
+                CleanStaleTempFiles();
 
                 // Try to load Roslyn for in-process compilation (non-fatal)
                 TryLoadRoslyn();
@@ -227,23 +257,65 @@ namespace ReactiveUITK.EditorSupport.HMR
             return result;
         }
 
-        public void Dispose()
+        /// <summary>
+        /// Clears per-session caches without releasing the expensive Roslyn handles
+        /// and MetadataReferences. Call this between HMR start/stop cycles.
+        /// </summary>
+        public void Reset()
         {
-            _languageAsm = null;
-            if (_roslynLoaded)
-                AppDomain.CurrentDomain.AssemblyResolve -= RoslynAssemblyResolve;
-            // Clean up temp directory
+            _cachedCompilations.Clear();
+            _cachedSyntaxTrees.Clear();
+            _crossRefCache.Clear();
+            _hmrAssemblyPaths.Clear();
+            _genuinelyNewComponents.Clear();
+            _lastGenuineComponentCount = 0;
+            _swapCounter = 0;
+
+            // Clean up temp DLLs from this session
             if (_tempDir != null && Directory.Exists(_tempDir))
             {
                 try
                 {
-                    Directory.Delete(_tempDir, true);
+                    foreach (var file in Directory.GetFiles(_tempDir))
+                    {
+                        try { File.Delete(file); }
+                        catch { /* locked by LoadFrom — will be cleaned next time */ }
+                    }
                 }
                 catch { }
             }
         }
 
+        public void Dispose()
+        {
+            Reset();
+
+            _languageAsm = null;
+            if (_roslynLoaded)
+                AppDomain.CurrentDomain.AssemblyResolve -= RoslynAssemblyResolve;
+
+            // Try to remove the temp directory itself (succeeds only if empty)
+            if (_tempDir != null && Directory.Exists(_tempDir))
+            {
+                try { Directory.Delete(_tempDir, false); }
+                catch { }
+            }
+        }
+
         // ── Initialization helpers ────────────────────────────────────────────
+
+        private void CleanStaleTempFiles()
+        {
+            try
+            {
+                foreach (var file in Directory.GetFiles(_tempDir))
+                {
+                    try { File.Delete(file); }
+                    catch { /* still locked — leave for next time */ }
+                }
+            }
+            catch { }
+        }
 
         private void LoadLanguageDll()
         {
@@ -581,6 +653,31 @@ namespace ReactiveUITK.EditorSupport.HMR
                     && m.GetParameters().Length > 0
                     && m.GetParameters()[0].ParameterType == typeof(Stream)
                 );
+
+            // Incremental compilation handles:
+            // Compilation.RemoveSyntaxTrees(params SyntaxTree[])
+            _compilationRemoveSyntaxTrees = baseCompilationType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == "RemoveSyntaxTrees" && m.GetParameters().Length == 1);
+
+            // Compilation.AddSyntaxTrees(params SyntaxTree[])
+            _compilationAddSyntaxTrees = baseCompilationType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == "AddSyntaxTrees" && m.GetParameters().Length == 1);
+
+            // Compilation.AddReferences(params MetadataReference[])
+            _compilationAddReferences = baseCompilationType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(m => m.Name == "AddReferences" && m.GetParameters().Length == 1);
+
+            // Compilation.WithAssemblyName(string)
+            _compilationWithAssemblyName = compilationType
+                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .FirstOrDefault(m =>
+                    m.Name == "WithAssemblyName"
+                    && m.GetParameters().Length == 1
+                    && m.GetParameters()[0].ParameterType == typeof(string)
+                );
         }
 
         /// <summary>
@@ -693,51 +790,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                     treesList.Add(tree);
                 }
 
-                // Build references: base refs + cross-component HMR refs (new components only)
-                var allRefs = new List<object>(_metadataReferences);
-                foreach (var kvp in _hmrAssemblyPaths)
-                {
-                    if (kvp.Key.Equals(componentName, StringComparison.OrdinalIgnoreCase))
-                        continue;
-                    // Only add cross-refs for genuinely new components;
-                    // existing ones are already in _metadataReferences and would cause CS0433
-                    if (!_genuinelyNewComponents.Contains(kvp.Key))
-                        continue;
-                    if (File.Exists(kvp.Value))
-                    {
-                        try
-                        {
-                            allRefs.Add(InvokeWithDefaults(_createFromFile, null, kvp.Value));
-                        }
-                        catch { }
-                    }
-                }
+                var newTrees = treesList.ToArray();
 
-                // Create typed arrays via reflection (Roslyn expects IEnumerable<SyntaxTree> / IEnumerable<MetadataReference>)
-                var syntaxTreeBaseType = _roslynCommonAsm.GetType(
-                    "Microsoft.CodeAnalysis.SyntaxTree"
-                );
-                var treesArray = Array.CreateInstance(syntaxTreeBaseType, treesList.Count);
-                for (int i = 0; i < treesList.Count; i++)
-                    treesArray.SetValue(treesList[i], i);
-
-                var metaRefType = _roslynCommonAsm.GetType(
-                    "Microsoft.CodeAnalysis.MetadataReference"
-                );
-                var refsArray = Array.CreateInstance(metaRefType, allRefs.Count);
-                for (int i = 0; i < allRefs.Count; i++)
-                    refsArray.SetValue(allRefs[i], i);
+                // Build cross-component references using cache
+                var crossRefs = BuildCrossRefs(componentName);
 
                 string asmName = $"hmr_{componentName}_{_swapCounter}";
 
-                // CSharpCompilation.Create(assemblyName, syntaxTrees, references, options)
-                var compilation = _compilationCreate.Invoke(
-                    null,
-                    new object[] { asmName, treesArray, refsArray, _compilationOptions }
+                // ── Try incremental compilation first ─────────────────────────
+                object compilation = TryBuildIncremental(componentName, newTrees, crossRefs, asmName);
+
+                // ── Fallback: fresh Compilation.Create ────────────────────────
+                if (compilation == null)
+                    compilation = BuildFreshCompilation(newTrees, crossRefs, asmName);
+
+                // Emit to MemoryStream and write DLL to disk
+                string outputDll = Path.Combine(
+                    _tempDir,
+                    $"hmr_{componentName}_{_swapCounter}.dll"
                 );
 
-                // Emit to MemoryStream
-                byte[] dllBytes;
                 using (var ms = new MemoryStream())
                 {
                     var emitResult = InvokeWithDefaults(_emitToStream, compilation, ms);
@@ -750,60 +822,92 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     if (!success)
                     {
-                        // Extract diagnostics
-                        var diagnostics = (IEnumerable)
-                            emitResult
-                                .GetType()
-                                .GetProperty(
-                                    "Diagnostics",
-                                    BindingFlags.Public | BindingFlags.Instance
-                                )
-                                .GetValue(emitResult);
-
-                        var errors = new List<string>();
-                        foreach (var diag in diagnostics)
+                        // If we used incremental and it failed, retry with a fresh build
+                        if (_cachedCompilations.ContainsKey(componentName))
                         {
-                            var severity = diag.GetType()
-                                .GetProperty(
-                                    "Severity",
-                                    BindingFlags.Public | BindingFlags.Instance
-                                )
-                                .GetValue(diag);
-                            // DiagnosticSeverity.Error = 3
-                            if (Convert.ToInt32(severity) == 3)
-                                errors.Add("  " + diag.ToString());
+                            _cachedCompilations.Remove(componentName);
+                            _cachedSyntaxTrees.Remove(componentName);
+                            compilation = BuildFreshCompilation(newTrees, crossRefs, asmName);
+
+                            ms.SetLength(0);
+                            emitResult = InvokeWithDefaults(_emitToStream, compilation, ms);
+                            success = (bool)
+                                emitResult
+                                    .GetType()
+                                    .GetProperty("Success", BindingFlags.Public | BindingFlags.Instance)
+                                    .GetValue(emitResult);
                         }
 
-                        error =
-                            errors.Count > 0
-                                ? $"[HMR] Compilation failed for {componentName}:\n{string.Join("\n", errors)}"
-                                : $"[HMR] Compilation failed for {componentName}: unknown error";
-                        return null;
+                        if (!success)
+                        {
+                            // Extract diagnostics
+                            var diagnostics = (IEnumerable)
+                                emitResult
+                                    .GetType()
+                                    .GetProperty(
+                                        "Diagnostics",
+                                        BindingFlags.Public | BindingFlags.Instance
+                                    )
+                                    .GetValue(emitResult);
+
+                            var errors = new List<string>();
+                            foreach (var diag in diagnostics)
+                            {
+                                var severity = diag.GetType()
+                                    .GetProperty(
+                                        "Severity",
+                                        BindingFlags.Public | BindingFlags.Instance
+                                    )
+                                    .GetValue(diag);
+                                // DiagnosticSeverity.Error = 3
+                                if (Convert.ToInt32(severity) == 3)
+                                    errors.Add("  " + diag.ToString());
+                            }
+
+                            error =
+                                errors.Count > 0
+                                    ? $"[HMR] Compilation failed for {componentName}:\n{string.Join("\n", errors)}"
+                                    : $"[HMR] Compilation failed for {componentName}: unknown error";
+                            return null;
+                        }
                     }
 
-                    dllBytes = ms.ToArray();
+                    // Write directly from MemoryStream to disk (avoids byte[] copy)
+                    using (var fs = new FileStream(outputDll, FileMode.Create, FileAccess.Write))
+                    {
+                        ms.Position = 0;
+                        ms.CopyTo(fs);
+                    }
                 }
 
-                // Write DLL to disk for cross-component references
-                string outputDll = Path.Combine(
-                    _tempDir,
-                    $"hmr_{componentName}_{_swapCounter}.dll"
-                );
-                File.WriteAllBytes(outputDll, dllBytes);
+                // Cache the successful compilation and trees for incremental reuse
+                _cachedCompilations[componentName] = compilation;
+                _cachedSyntaxTrees[componentName] = newTrees;
+                _lastGenuineComponentCount = _genuinelyNewComponents.Count;
 
                 // Register on disk for cross-component references; replace previous version
+                string oldDll = null;
                 if (
-                    _hmrAssemblyPaths.TryGetValue(componentName, out string oldDll)
+                    _hmrAssemblyPaths.TryGetValue(componentName, out oldDll)
                     && oldDll != outputDll
                 )
-                    try
-                    {
-                        File.Delete(oldDll);
-                    }
-                    catch { }
+                {
+                    // Invalidate cached cross-ref for the old DLL
+                    _crossRefCache.Remove(componentName);
+                    try { File.Delete(oldDll); }
+                    catch { /* may be locked by LoadFrom — cleaned on next session */ }
+                }
                 _hmrAssemblyPaths[componentName] = outputDll;
 
-                return Assembly.Load(dllBytes);
+                // Use LoadFrom (memory-mapped) instead of Load(byte[]) to avoid
+                // copying the PE image into the managed heap
+                var loadedAsm = Assembly.LoadFrom(outputDll);
+
+                // Force GC to reclaim dead SyntaxTrees, EmitResult, MemoryStream etc.
+                // before Mono's lazy GC decides to expand the heap
+                GC.Collect(2, GCCollectionMode.Optimized);
+
+                return loadedAsm;
             }
             catch (TargetInvocationException tie)
             {
@@ -816,6 +920,141 @@ namespace ReactiveUITK.EditorSupport.HMR
                 error = $"[HMR] In-process Roslyn error: {ex.Message}";
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Build cross-component MetadataReferences using cache.
+        /// Only creates new references when the underlying DLL path changes.
+        /// </summary>
+        private List<object> BuildCrossRefs(string componentName)
+        {
+            var crossRefs = new List<object>();
+            foreach (var kvp in _hmrAssemblyPaths)
+            {
+                if (kvp.Key.Equals(componentName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!_genuinelyNewComponents.Contains(kvp.Key))
+                    continue;
+                if (!File.Exists(kvp.Value))
+                    continue;
+
+                // Check cache: keyed by component name, invalidated when DLL path changes
+                if (_crossRefCache.TryGetValue(kvp.Key, out var cached))
+                {
+                    crossRefs.Add(cached);
+                }
+                else
+                {
+                    try
+                    {
+                        var metaRef = InvokeWithDefaults(_createFromFile, null, kvp.Value);
+                        _crossRefCache[kvp.Key] = metaRef;
+                        crossRefs.Add(metaRef);
+                    }
+                    catch { }
+                }
+            }
+            return crossRefs;
+        }
+
+        /// <summary>
+        /// Try to reuse a cached Compilation for this component by swapping
+        /// SyntaxTrees and updating references incrementally.
+        /// Returns null if incremental is not possible.
+        /// </summary>
+        private object TryBuildIncremental(
+            string componentName,
+            object[] newTrees,
+            List<object> crossRefs,
+            string asmName)
+        {
+            // Incremental API handles must all be available
+            if (_compilationRemoveSyntaxTrees == null
+                || _compilationAddSyntaxTrees == null
+                || _compilationWithAssemblyName == null)
+                return null;
+
+            // Must have a cached compilation for this component
+            if (!_cachedCompilations.TryGetValue(componentName, out var cached))
+                return null;
+
+            // If new cross-refs appeared since last compile, invalidate all caches
+            // because every compilation needs the new reference
+            if (_genuinelyNewComponents.Count != _lastGenuineComponentCount)
+            {
+                _cachedCompilations.Clear();
+                _cachedSyntaxTrees.Clear();
+                return null;
+            }
+
+            try
+            {
+                // Remove old syntax trees
+                if (_cachedSyntaxTrees.TryGetValue(componentName, out var oldTrees) && oldTrees.Length > 0)
+                {
+                    var syntaxTreeBaseType = _roslynCommonAsm.GetType(
+                        "Microsoft.CodeAnalysis.SyntaxTree"
+                    );
+                    var oldArray = Array.CreateInstance(syntaxTreeBaseType, oldTrees.Length);
+                    for (int i = 0; i < oldTrees.Length; i++)
+                        oldArray.SetValue(oldTrees[i], i);
+                    cached = _compilationRemoveSyntaxTrees.Invoke(cached, new object[] { oldArray });
+                }
+
+                // Add new syntax trees
+                {
+                    var syntaxTreeBaseType = _roslynCommonAsm.GetType(
+                        "Microsoft.CodeAnalysis.SyntaxTree"
+                    );
+                    var newArray = Array.CreateInstance(syntaxTreeBaseType, newTrees.Length);
+                    for (int i = 0; i < newTrees.Length; i++)
+                        newArray.SetValue(newTrees[i], i);
+                    cached = _compilationAddSyntaxTrees.Invoke(cached, new object[] { newArray });
+                }
+
+                // Update assembly name
+                cached = _compilationWithAssemblyName.Invoke(cached, new object[] { asmName });
+
+                return cached;
+            }
+            catch
+            {
+                // Incremental failed — caller will use fresh Create
+                _cachedCompilations.Remove(componentName);
+                _cachedSyntaxTrees.Remove(componentName);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Build a fresh CSharpCompilation from scratch (original behavior).
+        /// </summary>
+        private object BuildFreshCompilation(
+            object[] newTrees,
+            List<object> crossRefs,
+            string asmName)
+        {
+            var allRefs = new List<object>(_metadataReferences);
+            allRefs.AddRange(crossRefs);
+
+            var syntaxTreeBaseType = _roslynCommonAsm.GetType(
+                "Microsoft.CodeAnalysis.SyntaxTree"
+            );
+            var treesArray = Array.CreateInstance(syntaxTreeBaseType, newTrees.Length);
+            for (int i = 0; i < newTrees.Length; i++)
+                treesArray.SetValue(newTrees[i], i);
+
+            var metaRefType = _roslynCommonAsm.GetType(
+                "Microsoft.CodeAnalysis.MetadataReference"
+            );
+            var refsArray = Array.CreateInstance(metaRefType, allRefs.Count);
+            for (int i = 0; i < allRefs.Count; i++)
+                refsArray.SetValue(allRefs[i], i);
+
+            return _compilationCreate.Invoke(
+                null,
+                new object[] { asmName, treesArray, refsArray, _compilationOptions }
+            );
         }
 
         private Assembly ExternalCompile(string[] sources, string componentName, out string error)
@@ -908,16 +1147,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _hmrAssemblyPaths.TryGetValue(componentName, out string oldDll)
                 && oldDll != outputDll
             )
-                try
-                {
-                    File.Delete(oldDll);
-                }
-                catch { }
+            {
+                _crossRefCache.Remove(componentName);
+                try { File.Delete(oldDll); }
+                catch { /* may be locked by LoadFrom */ }
+            }
             _hmrAssemblyPaths[componentName] = outputDll;
 
-            // Load from bytes (avoids file lock on the reference DLL)
-            byte[] dllBytes = File.ReadAllBytes(outputDll);
-            return Assembly.Load(dllBytes);
+            // Use LoadFrom (memory-mapped) instead of Load(byte[])
+            var loadedAsm = Assembly.LoadFrom(outputDll);
+
+            // Force GC to reclaim dead allocations before Mono expands the heap
+            GC.Collect(2, GCCollectionMode.Optimized);
+
+            return loadedAsm;
         }
 
         // ── Utility ───────────────────────────────────────────────────────────
