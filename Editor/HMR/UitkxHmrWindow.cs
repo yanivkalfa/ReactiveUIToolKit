@@ -13,6 +13,16 @@ namespace ReactiveUITK.EditorSupport.HMR
         private Vector2 _errorScroll;
         private int _recording; // 0=none, 1=toggle, 2=window
 
+        // Track last-known state to avoid unnecessary Repaint() calls
+        private int _lastSwapCount;
+        private int _lastErrorCount;
+        private bool _lastActive;
+
+        // Memory tracking
+        private long _windowBaselineMemory;
+        private double _nextMemoryRefreshTime;
+        private const double MemoryRefreshInterval = 2.0; // seconds
+
         [MenuItem("ReactiveUITK/HMR Mode", priority = 200)]
         public static void ShowWindow()
         {
@@ -29,11 +39,21 @@ namespace ReactiveUITK.EditorSupport.HMR
         private void OnEnable()
         {
             _controller = UitkxHmrController.Instance;
+            _windowBaselineMemory = UitkxHmrController.CurrentMemoryBytes;
+            EditorApplication.update += PeriodicMemoryRefresh;
         }
 
         private void OnDisable()
         {
-            // Don't stop HMR when the window is closed — controller lives independently
+            EditorApplication.update -= PeriodicMemoryRefresh;
+        }
+
+        private void PeriodicMemoryRefresh()
+        {
+            if (EditorApplication.timeSinceStartup < _nextMemoryRefreshTime)
+                return;
+            _nextMemoryRefreshTime = EditorApplication.timeSinceStartup + MemoryRefreshInterval;
+            Repaint();
         }
 
         private void OnDestroy()
@@ -68,7 +88,6 @@ namespace ReactiveUITK.EditorSupport.HMR
                     )
                     {
                         _controller.Stop();
-                        _controller = null;
                     }
                     GUI.backgroundColor = Color.white;
                 }
@@ -83,7 +102,10 @@ namespace ReactiveUITK.EditorSupport.HMR
                         )
                     )
                     {
-                        _controller = new UitkxHmrController();
+                        // Reuse existing controller to keep the compiler alive
+                        // across start/stop cycles (avoids 150-200MB Roslyn re-init)
+                        if (_controller == null)
+                            _controller = new UitkxHmrController();
                         if (!_controller.Start(out string error))
                         {
                             EditorUtility.DisplayDialog(
@@ -91,6 +113,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                                 "Failed to start HMR:\n\n" + error,
                                 "OK"
                             );
+                            _controller.Dispose();
                             _controller = null;
                         }
                     }
@@ -149,6 +172,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                         };
                         EditorGUILayout.LabelField(_controller.LastTimingBreakdown, miniStyle);
                     }
+                }
+
+                EditorGUILayout.Space(4);
+                DrawSeparator();
+                EditorGUILayout.Space(4);
+            }
+
+            // ── Memory ───────────────────────────────────────────────────────
+            {
+                long currentMem = UitkxHmrController.CurrentMemoryBytes;
+                float currentMB = currentMem / (1024f * 1024f);
+                float windowDeltaMB = (currentMem - _windowBaselineMemory) / (1024f * 1024f);
+
+                EditorGUILayout.LabelField("RAM", $"{currentMB:F0} MB  ({(windowDeltaMB >= 0 ? "+" : "")}{windowDeltaMB:F1} since open)");
+                if (_controller != null && _controller.Active)
+                {
+                    float sessionDelta = _controller.SessionMemoryDeltaMB;
+                    EditorGUILayout.LabelField("Session Δ", $"{(sessionDelta >= 0 ? "+" : "")}{sessionDelta:F1} MB");
                 }
 
                 EditorGUILayout.Space(4);
@@ -217,9 +258,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                 EditorGUILayout.EndScrollView();
             }
 
-            // Force repaint while active (for live status updates)
+            // Repaint only when HMR state changes (not every frame)
             if (isActive)
+            {
+                int swaps = _controller?.SwapCount ?? 0;
+                int errors = _controller?.ErrorCount ?? 0;
+                if (swaps != _lastSwapCount || errors != _lastErrorCount || isActive != _lastActive)
+                {
+                    _lastSwapCount = swaps;
+                    _lastErrorCount = errors;
+                    _lastActive = isActive;
+                    Repaint();
+                }
+            }
+            else if (isActive != _lastActive)
+            {
+                _lastActive = isActive;
                 Repaint();
+            }
         }
 
         private static void DrawSeparator()

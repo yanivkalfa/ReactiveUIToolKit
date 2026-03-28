@@ -103,26 +103,12 @@ Find All References would reuse the same infrastructure.
 
 ---
 
-## No declarative USS stylesheet loading from `.uitkx` — 🟡 DESIGNED
+## ~~No declarative USS stylesheet loading from `.uitkx`~~ ✅ DONE
 
-**Design complete** — see `Plans~/USS_LOADING_PLAN.md` for full implementation plan.
-
-**Chosen approach:** Option B — Per-Component with static cache. `@uss` directive parsed
-by DirectiveParser, source generator emits `__uitkx_ussKeys` static array, PropsApplier
-applies sheets to detached elements before panel attachment (zero re-resolution cost,
-same as UXML CloneTree). Registry ScriptableObject holds references, no file duplication.
-
-**Symptom:** There is no way to load a `.uss` file from within a `.uitkx`
-component or from the UITKX framework. Users must manually load USS in their
-bootstrap code via `rootVisualElement.styleSheets.Add(...)`.
-
-**Context:** `className` is fully wired in the library (`PropsApplier` calls
-`AddToClassList`/`RemoveFromClassList`), so USS class selectors do match on
-UITKX-rendered elements. But without a way to load the stylesheet, `className`
-is effectively useless for USS-based styling.
-
-**Priority:** Medium — unlocks USS pseudo-state styling (`:hover`, `:active`,
-`:focus`) which inline styles cannot achieve.
+Implemented — `@uss` directive fully working. DirectiveParser parses `@uss "./path.uss"`,
+source generator emits `__uitkx_ussKeys` static array, PropsApplier applies sheets
+to elements. HMR file watcher monitors `.uss` changes and triggers recompilation
+of dependent `.uitkx` components via reverse dependency map.
 
 ---
 
@@ -346,23 +332,9 @@ Internal contributors don't have a single source of truth for what shipped when.
 
 ---
 
-## Package-level CHANGELOG.md
+## ~~Package-level CHANGELOG.md~~ ✅ DONE
 
-The Unity package (`package.json`) has no changelog. We have a centralized
-changelog for IDE extensions (`ide-extensions~/changelog.json`) but nothing
-tracking changes to the runtime/editor package itself — new style properties,
-bug fixes, source generator changes, etc.
-
-**Impact:** Users upgrading the package have no summary of what changed between
-versions. Unity Package Manager shows a changelog tab that is currently empty.
-
-**Requirements:**
-
-1. A `CHANGELOG.md` at the package root following [Keep a Changelog](https://keepachangelog.com/) format.
-2. Manually curated — no need for structured JSON or extraction tooling.
-3. Entries grouped by version with `Added`, `Changed`, `Fixed`, `Removed` sections as needed.
-
-**Priority:** Medium — should be in place before public release.
+Implemented — `CHANGELOG.md` exists at the package root.
 
 ---
 
@@ -453,3 +425,11 @@ detect the existing binding and only replace the name portion.
 - `ide-extensions~/lsp-server/CompletionHandler.cs` — attribute name completions
   should check if the cursor is followed by `={` and adjust the insert text
 - `ide-extensions~/language-lib/` — completion item building
+
+---
+
+## ~~HMR Window: memory usage tracking~~ ✅ DONE
+
+Implemented — HMR window shows live RAM (working set via Win32 P/Invoke), delta
+since window open, and delta since HMR session start. Refreshes every 2 seconds
+via `EditorApplication.update` timer. Non-Windows falls back to Unity Profiler APIs.

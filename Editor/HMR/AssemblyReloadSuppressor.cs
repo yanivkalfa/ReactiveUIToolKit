@@ -29,10 +29,12 @@ namespace ReactiveUITK.EditorSupport.HMR
             _active = false;
             AssetDatabase.AllowAutoRefresh();
             EditorApplication.UnlockReloadAssemblies();
-            // Defer the refresh so the unlock fully propagates first
+            // Defer the refresh so the unlock fully propagates first.
+            // Use default ImportAssetOptions (not ForceUpdate) to avoid
+            // triggering unnecessary reimports that bloat memory.
             EditorApplication.delayCall += () =>
             {
-                AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+                AssetDatabase.Refresh();
             };
         }
 
