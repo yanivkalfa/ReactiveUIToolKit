@@ -79,27 +79,14 @@ Slider (`input`, `track`). Button is simply missing this.
 
 ---
 
-## Find All References (textDocument/references) not implemented
+## ~~Find All References (textDocument/references) not implemented~~ ✅ FIXED
 
-**Symptom:** Shift+F12 / "Find All References" does nothing in `.uitkx` files.
-The LSP server declares no `referencesProvider` capability.
-
-**Context:** Go to Definition and Rename Symbol both work and share the same
-Roslyn-based symbol resolution pipeline (per-file AdhocWorkspace, SourceMap
-coordinate mapping, cross-workspace symbol matching via `SymbolSignature`).
-Find All References would reuse the same infrastructure.
-
-**Implementation approach:**
-1. `ReferencesHandler.cs` — resolve symbol at cursor via `AstCursorContext`,
-   then call `SymbolFinder.FindReferencesAsync()` on each per-file workspace.
-   Map results back to `.uitkx` coordinates via SourceMap.
-2. `CapabilityPatchStream.cs` — add `referencesProvider: true`.
-3. `Program.cs` — register the handler.
-
-**Template:** `RenameHandler.cs` already iterates all workspaces matching by
-`SymbolSignature` — the same loop applies but returns locations instead of edits.
-
-**Priority:** Medium — important IDE feature, straightforward given existing infra.
+Fixed — `ReferencesHandler.cs` resolves symbol at cursor via `AstCursorContext`,
+then calls `SymbolFinder.FindReferencesAsync()` across all per-file workspaces.
+Results mapped back to `.uitkx` coordinates via SourceMap. Component names use
+workspace-wide regex scan. Shared helpers extracted to `LspHelpers.cs`.
+Works in both VS Code (Shift+F12) and VS2022 (native LSP routing via
+`CodeRemoteContentTypeName` base definition).
 
 ---
 

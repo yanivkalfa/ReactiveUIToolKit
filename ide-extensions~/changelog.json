@@ -3,6 +3,16 @@
     {
       "date": "2026-03-28",
       "versions": {
+        "vs2022": "1.0.75"
+      },
+      "vs2022": [
+        "Feature: native LSP routing via CodeRemoteContentTypeName — removes 3 custom GoToDefinition handler files",
+        "Feature: Find All References (Shift+F12) now works natively through VS2022 LSP framework"
+      ]
+    },
+    {
+      "date": "2026-03-28",
+      "versions": {
         "vscode": "1.0.298"
       },
       "shared": [
