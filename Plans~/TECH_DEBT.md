@@ -402,3 +402,62 @@ detect the existing binding and only replace the name portion.
 Implemented — HMR window shows live RAM (working set via Win32 P/Invoke), delta
 since window open, and delta since HMR session start. Refreshes every 2 seconds
 via `EditorApplication.update` timer. Non-Windows falls back to Unity Profiler APIs.
+
+---
+
+## Tag completion inserts full closing tag for new elements
+
+**Symptom:** When typing a new tag from scratch (e.g. `<VisualEle`) and
+selecting a completion item, the result is `<VisualElement></VisualElement>`
+with the cursor between the tags. The completion inserts a full open+close
+pair instead of just finishing the tag name.
+
+**Expected:** Completion should finish just the tag name: `<VisualEle` →
+`<VisualElement ` (with a trailing space for attributes). The user will
+add attributes and close the tag themselves, or rely on auto-close on `>`.
+
+**Note:** This is different from the already-fixed "editing an existing tag
+name" issue (`HasExistingTagBody`). That fix detects when the cursor is
+*inside* an existing open tag. This issue is about *new* tags where there
+is no existing body — the snippet `Name>$0</Name>` fires correctly per
+the current logic, but the desired UX is to not insert the closing tag
+at all.
+
+**Files to investigate:**
+- `ide-extensions~/lsp-server/CompletionHandler.cs` — `TagItems()` method,
+  the `acceptsChildren` branch that builds `$"{name}>$0</{name}>"` and the
+  schema `BuildTagSnippet()`. Both need a mode that only completes the name.
+- Consider: should the extension auto-insert closing tag on `>` keystroke
+  instead? (like VS Code's built-in HTML behavior)
+
+**Priority:** Medium — disrupts typing flow, forces manual deletion of
+unwanted closing tag.
+
+---
+
+## Formatter collapses empty elements to self-closing
+
+**Symptom:** Writing `<Box></Box>` (an empty container intended to have
+children added later) gets collapsed to `<Box />` on format. This changes
+the meaning — a self-closing tag implies no children, and the user may
+intend to add children later.
+
+**Expected:** `<Box></Box>` should be preserved as-is after formatting.
+Only tags that were originally written as self-closing (`<Box />`) should
+remain self-closing.
+
+**Note:** This does NOT affect elements with children — `<Box><Label/></Box>`
+correctly formats to:
+```uitkx
+<Box>
+    <Label />
+</Box>
+```
+
+**Files to investigate:**
+- `ide-extensions~/language-lib/Formatter/AstFormatter.cs` — look for the
+  logic that decides whether an element emits `<Name>...</Name>` vs `<Name />`.
+  It likely checks `element.Children.Count == 0` and collapses to self-closing.
+  Needs to also check whether the original source was self-closing or not.
+
+**Priority:** Medium — silently changes markup intent on save.
