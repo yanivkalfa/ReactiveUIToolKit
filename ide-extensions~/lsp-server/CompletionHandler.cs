@@ -735,7 +735,7 @@ public sealed class CompletionHandler : ICompletionHandler
                     Kind = CompletionItemKind.Class,
                     InsertText = existingTag
                         ? name
-                        : acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
+                        : acceptsChildren ? $"{name} " : $"{name} $1 />",
                     InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                     Detail = detail,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = docMd },
@@ -911,7 +911,7 @@ public sealed class CompletionHandler : ICompletionHandler
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string BuildTagSnippet(string tagName, UitkxSchema.ElementInfo info) =>
-        info.AcceptsChildren ? $"{tagName}>$0</{tagName}>" : $"{tagName} $1 />";
+        info.AcceptsChildren ? $"{tagName} " : $"{tagName} $1 />";
 
     private static string BuildControlFlowSnippet(string name) =>
         name switch

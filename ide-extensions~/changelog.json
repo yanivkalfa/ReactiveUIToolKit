@@ -3,6 +3,17 @@
     {
       "date": "2026-03-28",
       "versions": {
+        "vscode": "1.0.299",
+        "vs2022": "1.0.76"
+      },
+      "shared": [
+        "Fix: formatter no longer collapses empty open+close tags to self-closing (<Box></Box> is preserved)",
+        "Fix: tag completion no longer inserts closing tag for elements that accept children"
+      ]
+    },
+    {
+      "date": "2026-03-28",
+      "versions": {
         "vs2022": "1.0.75"
       },
       "vs2022": [

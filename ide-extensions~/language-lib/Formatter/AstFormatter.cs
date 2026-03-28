@@ -343,7 +343,7 @@ namespace ReactiveUITK.Language.Formatter
 
         private void FormatElement(ElementNode el)
         {
-            bool selfClose = el.Children.IsEmpty;
+            bool selfClose = el.Children.IsEmpty && el.CloseTagLine == 0;
             string selfCloseSeq = _opts.InsertSpaceBeforeSelfClose ? " />" : "/>";
             var attrStrings = BuildAttrStrings(el.Attributes);
 
