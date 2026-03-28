@@ -6,6 +6,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.2.38] - 2026-03-28
+
+### Improved
+- **Documentation site** — Asset\<T\> page: replaced plain-text sections (Texture Import, Diagnostics, Supported Types, Registry) with rich MUI tables, colored Chips, and Alerts
+- **Documentation site** — Diagnostics page: all diagnostic codes and severities rendered as colored MUI Chips (red=Error, orange=Warning, blue=Hint)
+- **Documentation site** — Fixed Image (`texture=`) and HelpBox (`messageType=`) prop names in component examples
+- **Documentation site** — Component props displayed as table with collapsible BaseProps accordion
+- **Documentation site** — Added Asset\<T\> docs page with 8 sections (basic usage, relative paths, shorthand, inline, @uss, auto-import, diagnostics, supported types, registry)
+- **Documentation site** — Added @uss section to Styling guide (basic usage, .uss file, multiple sheets, combining USS+Style, HMR info)
+
 ## [0.2.37] - 2026-03-28
 
 ### Added

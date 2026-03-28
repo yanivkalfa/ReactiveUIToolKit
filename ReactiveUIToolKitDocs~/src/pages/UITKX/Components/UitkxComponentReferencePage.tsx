@@ -1,7 +1,24 @@
 import type { FC } from 'react'
-import { Box, List, ListItem, ListItemText, Typography } from '@mui/material'
+import { useState as useReactState } from 'react'
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Box,
+  List,
+  ListItem,
+  ListItemText,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Typography,
+} from '@mui/material'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
-import { getPropsDoc } from '../../../propsDocs'
+import { getPropsTable, type PropEntry } from '../../../propsDocs'
 import Styles from '../../Components/Button/ButtonPage.style'
 
 export type UitkxComponentReferencePageProps = {
@@ -467,7 +484,7 @@ const getExample = (title: string) => {
   return (
     <HelpBox
       text="Remember to save before entering play mode."
-      helpBoxMessageType="warning"
+      messageType="warning"
     />
   );
 }`
@@ -483,7 +500,7 @@ const getExample = (title: string) => {
     case 'Image':
       return `component ImageExample(Texture2D texture) {
   return (
-    <Image image={texture} />
+    <Image texture={texture} />
   );
 }`
     case 'VisualElement':
@@ -674,11 +691,49 @@ const getExample = (title: string) => {
   }
 }
 
+const toCamelCase = (name: string) => name.charAt(0).toLowerCase() + name.slice(1)
+
+const PropsTable: FC<{ entries: PropEntry[]; caption?: string }> = ({
+  entries,
+  caption,
+}) => (
+  <TableContainer>
+    {caption && (
+      <Typography variant="subtitle2" sx={{ mb: 1, opacity: 0.7 }}>
+        {caption}
+      </Typography>
+    )}
+    <Table size="small">
+      <TableHead>
+        <TableRow>
+          <TableCell sx={{ fontWeight: 700 }}>Prop</TableCell>
+          <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
+        {entries.map((e) => (
+          <TableRow key={e.name}>
+            <TableCell>
+              <code>{toCamelCase(e.name)}</code>
+            </TableCell>
+            <TableCell>
+              <code>{e.type}</code>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </TableContainer>
+)
+
 export const UitkxComponentReferencePage: FC<UitkxComponentReferencePageProps> = ({
   title,
 }) => {
-  const propsDoc = getPropsDoc(getPropsDocName(title))
+  const allProps = getPropsTable(getPropsDocName(title))
+  const componentProps = allProps.filter((p) => !p.inherited)
+  const inheritedProps = allProps.filter((p) => p.inherited)
   const notes = getNotes(title)
+  const [baseOpen, setBaseOpen] = useReactState(false)
 
   return (
     <Box sx={Styles.root}>
@@ -709,18 +764,39 @@ export const UitkxComponentReferencePage: FC<UitkxComponentReferencePageProps> =
         </List>
       </Box>
 
-      {propsDoc ? (
+      {allProps.length > 0 && (
         <Box sx={Styles.section}>
           <Typography variant="h5" component="h2" gutterBottom>
-            Underlying Props
+            Props
           </Typography>
-          <Typography variant="body1" paragraph>
-            UITKX authors normally use the tag directly, but the runtime still exposes the
-            underlying props contract shown below.
+          <Typography variant="body2" paragraph sx={{ opacity: 0.7 }}>
+            Attribute names in UITKX use camelCase (e.g. <code>lowValue</code>,{' '}
+            <code>onChange</code>).
           </Typography>
-          <CodeBlock language="tsx" code={propsDoc} />
+
+          {componentProps.length > 0 && (
+            <PropsTable entries={componentProps} />
+          )}
+
+          {inheritedProps.length > 0 && (
+            <Accordion
+              expanded={baseOpen}
+              onChange={() => setBaseOpen(!baseOpen)}
+              disableGutters
+              sx={{ mt: 2, boxShadow: 'none', '&:before': { display: 'none' } }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle2">
+                  Common props (inherited from BaseProps)
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <PropsTable entries={inheritedProps} />
+              </AccordionDetails>
+            </Accordion>
+          )}
         </Box>
-      ) : null}
+      )}
     </Box>
   )
 }
