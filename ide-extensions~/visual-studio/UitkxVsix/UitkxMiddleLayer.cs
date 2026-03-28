@@ -80,7 +80,8 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
             or "textDocument/hover"
             or "textDocument/completion"
             or "textDocument/rename"
-            or "textDocument/prepareRename";
+            or "textDocument/prepareRename"
+            or "textDocument/references";
 
     /// <summary>
     /// Extracts the URI from the request params, finds the matching VS buffer,

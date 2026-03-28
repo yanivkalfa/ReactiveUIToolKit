@@ -31,6 +31,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── State ─────────────────────────────────────────────────────────────
         private bool _active;
+        private bool _previousRunInBackground;
         private int _swapCount;
         private int _errorCount;
         private string _lastComponentName;
@@ -171,6 +172,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Set HMR state flag (read by Fiber reconciler for CanReuseFiber)
             HmrState.IsActive = true;
 
+            // Keep Unity's update loop running when the editor loses focus so
+            // FileSystemWatcher events are pumped to the main thread immediately.
+            _previousRunInBackground = UnityEngine.Application.runInBackground;
+            UnityEngine.Application.runInBackground = true;
+
             _active = true;
             _swapCount = 0;
             _errorCount = 0;
@@ -192,6 +198,9 @@ namespace ReactiveUITK.EditorSupport.HMR
             _active = false;
 
             HmrState.IsActive = false;
+
+            // Restore original runInBackground setting
+            UnityEngine.Application.runInBackground = _previousRunInBackground;
 
             // Unhook events
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;

@@ -246,6 +246,11 @@ export const StylingPage: FC = () => {
             <TableCell><code>Texture2D</code> / <code>Font</code></TableCell>
             <TableCell>BackgroundImage, FontFamily</TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell>Transitions</TableCell>
+            <TableCell><code>StyleList&lt;T&gt;</code></TableCell>
+            <TableCell>TransitionProperty, TransitionDuration, TransitionDelay, TransitionTimingFunction</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>

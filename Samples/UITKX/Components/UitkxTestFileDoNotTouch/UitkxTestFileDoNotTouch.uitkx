@@ -568,6 +568,9 @@ component UitkxTestFileDoNotTouch(
       >
         <Label text={$"Trigger value: {trigger}"} />
       </Suspense>
+      <UitkxTestSubFileDoNotTouch
+        message="UitkxCounterFunc — Go-to-definition test"
+      />
       <Button
         text={mounted ? "Unmount Portal" : "Mount Portal"}
         onClick={_ => setMounted(!mounted)}
@@ -575,6 +578,9 @@ component UitkxTestFileDoNotTouch(
       />
       @(portalNode)
       @(inlineNode)
+      <UitkxTestSubFileDoNotTouch
+        message="UitkxCounterFunc — Go-to-definition test"
+      />
       {/* ── visualElementSafe: safe-area-aware wrapper ── */}
       <visualElementSafe style={badgeStyle}>
         <Label text="Inside a visualElementSafe (safe-area padding applied)" />

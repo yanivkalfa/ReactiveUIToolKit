@@ -1,5 +1,9 @@
 ﻿# Changelog
 
+## [1.0.298] - 2026-03-28
+- Feature: Find All References (Shift+F12) for C# symbols and component tag names across .uitkx files
+- Feature: F12 / Ctrl+Click on component declaration shows references (JSX-style)
+
 ## [1.0.286] - 2026-03-22
 - Fix: server log file contention when multiple LSP server processes run concurrently (during VS extension restart). ServerLog now uses FileShare.ReadWrite to avoid "file in use" errors that cascaded into RoslynHost and DLL watcher failures.
 

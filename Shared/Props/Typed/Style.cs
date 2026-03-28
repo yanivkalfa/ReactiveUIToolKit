@@ -137,5 +137,11 @@ namespace ReactiveUITK.Props.Typed
         public StyleList<FilterFunction> Filter     { set => this["filter"] = value; }
         public StyleMaterialDefinition UnityMaterial { set => this["unityMaterial"] = value; }
 #endif
+
+        // ── Transitions ──────────────────────────────────────────────────
+        public StyleList<TimeValue> TransitionDelay              { set => this["transitionDelay"] = value; }
+        public StyleList<TimeValue> TransitionDuration           { set => this["transitionDuration"] = value; }
+        public StyleList<StylePropertyName> TransitionProperty   { set => this["transitionProperty"] = value; }
+        public StyleList<EasingFunction> TransitionTimingFunction { set => this["transitionTimingFunction"] = value; }
     }
 }

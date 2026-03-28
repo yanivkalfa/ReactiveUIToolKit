@@ -216,14 +216,14 @@ public sealed class CompletionHandler : ICompletionHandler
             CursorKind.ControlFlowName when inCodeBlockLine && !inEmbeddedMarkupInCode =>
                 Enumerable.Empty<CompletionItem>(),
             CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
-            CursorKind.TagName => TagItems(ctx.Prefix),
+            CursorKind.TagName => TagItems(ctx.Prefix, text, offset),
             CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix, HasExistingBinding(text, offset)),
             CursorKind.AttributeValue => AttributeValueItems(
                 ctx.TagName ?? "",
                 ctx.AttributeName ?? "",
                 ctx.Prefix
             ),
-            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems(""),
+            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems("", text, offset),
             _ => Enumerable.Empty<CompletionItem>(),
         };
 
@@ -710,8 +710,10 @@ public sealed class CompletionHandler : ICompletionHandler
         return (line, start);
     }
 
-    private IEnumerable<CompletionItem> TagItems(string prefix)
+    private IEnumerable<CompletionItem> TagItems(string prefix, string text, int offset)
     {
+        bool existingTag = HasExistingTagBody(text, offset);
+
         // Dynamic elements from workspace (one item per known element)
         var knownElements = _index.KnownElements;
 
@@ -731,8 +733,10 @@ public sealed class CompletionHandler : ICompletionHandler
                 {
                     Label = name,
                     Kind = CompletionItemKind.Class,
-                    InsertText = acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
-                    InsertTextFormat = InsertTextFormat.Snippet,
+                    InsertText = existingTag
+                        ? name
+                        : acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
+                    InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                     Detail = detail,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = docMd },
                 };
@@ -752,8 +756,10 @@ public sealed class CompletionHandler : ICompletionHandler
                 {
                     Label = va.HasValue ? $"{va.Value.LabelPrefix}{kv.Key}" : kv.Key,
                     Kind = CompletionItemKind.Class,
-                    InsertText = BuildTagSnippet(kv.Key, kv.Value),
-                    InsertTextFormat = InsertTextFormat.Snippet,
+                    InsertText = existingTag
+                        ? kv.Key
+                        : BuildTagSnippet(kv.Key, kv.Value),
+                    InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                     SortText = va.HasValue ? $"{va.Value.SortPrefix}{kv.Key}" : null,
                     Detail = va.HasValue
                         ? (kv.Value.PropsType ?? "") + va.Value.DetailSuffix
@@ -1025,6 +1031,31 @@ public sealed class CompletionHandler : ICompletionHandler
             i++;
 
         return i < text.Length && text[i] == '=';
+    }
+
+    /// <summary>
+    /// Returns true when the cursor is inside an existing open tag — i.e. after
+    /// the tag name there are attributes, '>', or '/>' already present.
+    /// When true, tag completion should replace only the name, not insert a
+    /// closing tag snippet.
+    /// </summary>
+    private static bool HasExistingTagBody(string text, int offset)
+    {
+        int i = offset;
+
+        // Skip remaining identifier chars (rest of old tag name after cursor).
+        while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_'))
+            i++;
+
+        // Skip optional whitespace.
+        while (i < text.Length && (text[i] == ' ' || text[i] == '\t'))
+            i++;
+
+        // If next non-whitespace is an attribute start, '>', or '/>' we're inside an existing tag.
+        if (i >= text.Length)
+            return false;
+        char c = text[i];
+        return c == '>' || c == '/' || char.IsLetter(c);
     }
 
     // ── Version-awareness helpers ─────────────────────────────────────────────
