@@ -31,6 +31,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── State ─────────────────────────────────────────────────────────────
         private bool _active;
+        private bool _previousRunInBackground;
         private int _swapCount;
         private int _errorCount;
         private string _lastComponentName;
@@ -64,7 +65,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             set => EditorPrefs.SetBool("UITKX_HMR_ShowNotify", value);
         }
 
-        // ── Public properties ─────────────────────────────────────────────────
+        // ── Memory tracking ─────────────────────────────────────────────────
+        private long _sessionBaselineMemory;
+
+        // ── Public properties ─────────────────────────────────────────────
         public bool Active => _active;
         public int SwapCount => _swapCount;
         public int ErrorCount => _errorCount;
@@ -72,6 +76,53 @@ namespace ReactiveUITK.EditorSupport.HMR
         public float LastSwapMs => _lastSwapMs;
         public string LastTimingBreakdown => _lastTimingBreakdown;
         public IReadOnlyList<string> RecentErrors => _recentErrors;
+
+        /// <summary>Current process working set in bytes (close to Task Manager).</summary>
+#if UNITY_EDITOR_WIN
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        private static extern System.IntPtr GetCurrentProcess();
+
+        [System.Runtime.InteropServices.DllImport("psapi.dll", SetLastError = true)]
+        private static extern bool GetProcessMemoryInfo(
+            System.IntPtr hProcess, out PROCESS_MEMORY_COUNTERS counters, uint size);
+
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct PROCESS_MEMORY_COUNTERS
+        {
+            public uint cb;
+            public uint PageFaultCount;
+            public System.UIntPtr PeakWorkingSetSize;
+            public System.UIntPtr WorkingSetSize;
+            public System.UIntPtr QuotaPeakPagedPoolUsage;
+            public System.UIntPtr QuotaPagedPoolUsage;
+            public System.UIntPtr QuotaPeakNonPagedPoolUsage;
+            public System.UIntPtr QuotaNonPagedPoolUsage;
+            public System.UIntPtr PagefileUsage;
+            public System.UIntPtr PeakPagefileUsage;
+        }
+
+        public static long CurrentMemoryBytes
+        {
+            get
+            {
+                var counters = new PROCESS_MEMORY_COUNTERS();
+                counters.cb = (uint)System.Runtime.InteropServices.Marshal.SizeOf(counters);
+                if (GetProcessMemoryInfo(GetCurrentProcess(), out counters, counters.cb))
+                    return (long)(ulong)counters.WorkingSetSize;
+                return 0;
+            }
+        }
+#else
+        public static long CurrentMemoryBytes =>
+            UnityEngine.Profiling.Profiler.GetTotalAllocatedMemoryLong()
+            + UnityEngine.Profiling.Profiler.GetMonoUsedSizeLong();
+#endif
+
+        /// <summary>Delta from HMR session start, in MB.</summary>
+        public float SessionMemoryDeltaMB => _active
+            ? (CurrentMemoryBytes - _sessionBaselineMemory) / (1024f * 1024f)
+            : 0f;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -83,13 +134,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return true;
             }
 
-            // Initialize compiler
-            _compiler = new UitkxHmrCompiler();
-            if (!_compiler.TryInitialize(out error))
+            // Reuse the compiler across start/stop cycles to avoid re-creating
+            // the expensive Roslyn MetadataReferences (~150-200MB) each time.
+            if (_compiler == null)
             {
-                _compiler.Dispose();
-                _compiler = null;
-                return false;
+                _compiler = new UitkxHmrCompiler();
+                if (!_compiler.TryInitialize(out error))
+                {
+                    _compiler.Dispose();
+                    _compiler = null;
+                    return false;
+                }
+            }
+            else
+            {
+                // Clear per-session caches from the previous HMR session
+                _compiler.Reset();
             }
 
             // Lock assembly reloads
@@ -101,8 +161,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             _watcher.OnUssChanged += OnUssFileChanged;
             _watcher.Start(assetsPath);
 
-            // Build initial USS dependency map
-            BuildUssDependencyMap(assetsPath);
+            // Build initial USS dependency map (only on first start;
+            // subsequent starts reuse the map since .uitkx files haven't changed)
+            if (_ussDependents.Count == 0)
+                BuildUssDependencyMap(assetsPath);
 
             // Hook lifecycle events
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
@@ -110,11 +172,17 @@ namespace ReactiveUITK.EditorSupport.HMR
             // Set HMR state flag (read by Fiber reconciler for CanReuseFiber)
             HmrState.IsActive = true;
 
+            // Keep Unity's update loop running when the editor loses focus so
+            // FileSystemWatcher events are pumped to the main thread immediately.
+            _previousRunInBackground = UnityEngine.Application.runInBackground;
+            UnityEngine.Application.runInBackground = true;
+
             _active = true;
             _swapCount = 0;
             _errorCount = 0;
             _recentErrors.Clear();
             _pendingRetryPaths.Clear();
+            _sessionBaselineMemory = CurrentMemoryBytes;
 
             s_instance = this;
             error = null;
@@ -131,6 +199,9 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             HmrState.IsActive = false;
 
+            // Restore original runInBackground setting
+            UnityEngine.Application.runInBackground = _previousRunInBackground;
+
             // Unhook events
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
 
@@ -140,17 +211,18 @@ namespace ReactiveUITK.EditorSupport.HMR
             _watcher.Stop();
 
             _pendingRetryPaths.Clear();
-            _ussDependents.Clear();
+            // Keep _ussDependents across start/stop cycles — it's rebuilt
+            // incrementally and re-scanning all .uitkx files is expensive.
 
             // Unlock assembly reloads (triggers pending compilation)
             _suppressor.Unlock();
 
-            // Cleanup compiler
-            _compiler?.Dispose();
-            _compiler = null;
+            // Reset session caches but keep the compiler alive
+            // (Roslyn MetadataReferences are expensive to rebuild)
+            _compiler?.Reset();
 
-            if (s_instance == this)
-                s_instance = null;
+            // Keep s_instance alive — the controller persists across
+            // start/stop cycles to reuse the compiler.
 
             Debug.Log(
                 $"[HMR] Stopped — {_swapCount} swap(s), {_errorCount} error(s). "
@@ -158,7 +230,16 @@ namespace ReactiveUITK.EditorSupport.HMR
             );
         }
 
-        public void Dispose() => Stop();
+        public void Dispose()
+        {
+            Stop();
+            _compiler?.Dispose();
+            _compiler = null;
+            _ussDependents.Clear();
+
+            if (s_instance == this)
+                s_instance = null;
+        }
 
         // ── File change handler ───────────────────────────────────────────────
 
@@ -182,15 +263,23 @@ namespace ReactiveUITK.EditorSupport.HMR
             string componentDir = Path.GetDirectoryName(uitkxPath);
             string componentBase = Path.GetFileNameWithoutExtension(uitkxPath);
 
-            // Find companion .cs files
+            // Find companion .cs files scoped to this component only.
+            // Only include files named <ComponentBase>.cs, <ComponentBase>.styles.cs, etc.
+            // to avoid pulling in another component's companions from the same directory.
             string[] companionFiles = null;
             if (componentDir != null)
             {
                 try
                 {
+                    string prefix = componentBase + ".";
                     companionFiles = Directory
                         .GetFiles(componentDir, "*.cs")
-                        .Where(f => !f.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase))
+                        .Where(f =>
+                        {
+                            var fileName = Path.GetFileName(f);
+                            return !f.EndsWith(".g.cs", StringComparison.OrdinalIgnoreCase)
+                                && fileName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+                        })
                         .ToArray();
                 }
                 catch

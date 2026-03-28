@@ -79,50 +79,23 @@ Slider (`input`, `track`). Button is simply missing this.
 
 ---
 
-## Find All References (textDocument/references) not implemented
+## ~~Find All References (textDocument/references) not implemented~~ ✅ FIXED
 
-**Symptom:** Shift+F12 / "Find All References" does nothing in `.uitkx` files.
-The LSP server declares no `referencesProvider` capability.
-
-**Context:** Go to Definition and Rename Symbol both work and share the same
-Roslyn-based symbol resolution pipeline (per-file AdhocWorkspace, SourceMap
-coordinate mapping, cross-workspace symbol matching via `SymbolSignature`).
-Find All References would reuse the same infrastructure.
-
-**Implementation approach:**
-1. `ReferencesHandler.cs` — resolve symbol at cursor via `AstCursorContext`,
-   then call `SymbolFinder.FindReferencesAsync()` on each per-file workspace.
-   Map results back to `.uitkx` coordinates via SourceMap.
-2. `CapabilityPatchStream.cs` — add `referencesProvider: true`.
-3. `Program.cs` — register the handler.
-
-**Template:** `RenameHandler.cs` already iterates all workspaces matching by
-`SymbolSignature` — the same loop applies but returns locations instead of edits.
-
-**Priority:** Medium — important IDE feature, straightforward given existing infra.
+Fixed — `ReferencesHandler.cs` resolves symbol at cursor via `AstCursorContext`,
+then calls `SymbolFinder.FindReferencesAsync()` across all per-file workspaces.
+Results mapped back to `.uitkx` coordinates via SourceMap. Component names use
+workspace-wide regex scan. Shared helpers extracted to `LspHelpers.cs`.
+Works in both VS Code (Shift+F12) and VS2022 (native LSP routing via
+`CodeRemoteContentTypeName` base definition).
 
 ---
 
-## No declarative USS stylesheet loading from `.uitkx` — 🟡 DESIGNED
+## ~~No declarative USS stylesheet loading from `.uitkx`~~ ✅ DONE
 
-**Design complete** — see `Plans~/USS_LOADING_PLAN.md` for full implementation plan.
-
-**Chosen approach:** Option B — Per-Component with static cache. `@uss` directive parsed
-by DirectiveParser, source generator emits `__uitkx_ussKeys` static array, PropsApplier
-applies sheets to detached elements before panel attachment (zero re-resolution cost,
-same as UXML CloneTree). Registry ScriptableObject holds references, no file duplication.
-
-**Symptom:** There is no way to load a `.uss` file from within a `.uitkx`
-component or from the UITKX framework. Users must manually load USS in their
-bootstrap code via `rootVisualElement.styleSheets.Add(...)`.
-
-**Context:** `className` is fully wired in the library (`PropsApplier` calls
-`AddToClassList`/`RemoveFromClassList`), so USS class selectors do match on
-UITKX-rendered elements. But without a way to load the stylesheet, `className`
-is effectively useless for USS-based styling.
-
-**Priority:** Medium — unlocks USS pseudo-state styling (`:hover`, `:active`,
-`:focus`) which inline styles cannot achieve.
+Implemented — `@uss` directive fully working. DirectiveParser parses `@uss "./path.uss"`,
+source generator emits `__uitkx_ussKeys` static array, PropsApplier applies sheets
+to elements. HMR file watcher monitors `.uss` changes and triggers recompilation
+of dependent `.uitkx` components via reverse dependency map.
 
 ---
 
@@ -225,47 +198,16 @@ on nullable C# properties (e.g. `int?` for `selectedIndex`).
 
 ---
 
-## Style properties not yet supported: transitions, cursor, filter
+## ~~Style properties not yet supported: transitions, cursor, filter~~ ✅ MOSTLY DONE
 
-**Symptom:** Setting `transitionProperty`, `transitionDuration`, `transitionDelay`,
-`transitionTimingFunction`, `cursor`, `transition`, or `filter` in a `Style`
-dictionary has no effect — PropsApplier silently ignores the value.
-
-**Root cause per property:**
-
-- **`transition`** — CSS shorthand only. No `IStyle.transition` property exists in
-  Unity 6.2; it decomposes into the four `transition*` sub-properties.
-- **`filter`** — No `IStyle.filter` property exists in Unity 6.2 (docs return 404).
-- **`transitionProperty`** (`StyleList<StylePropertyName>`),
-  **`transitionDuration`** (`StyleList<TimeValue>`),
-  **`transitionDelay`** (`StyleList<TimeValue>`),
-  **`transitionTimingFunction`** (`StyleList<EasingFunction>`) — All use `StyleList<T>`,
-  a list-based type. PropsApplier diffs values via `ReferenceEquals` then `.Equals()`;
-  `List<T>` lacks value equality, so transitions would re-apply every render,
-  potentially resetting in-flight animations. Needs a dedicated diffing strategy
-  or a helper struct (e.g. `Transition(property, duration, easing, delay)`) that
-  sets all four at once.
-- **`cursor`** (`StyleCursor` wrapping `Cursor` struct) — The `Cursor` struct only
-  takes a `Texture2D` + `Vector2` hotspot. Unity has no built-in cursor constants
-  (pointer, crosshair, etc.) like CSS, making it of limited practical value.
-
-**Possible fix for transitions:** Introduce a `Transition` helper struct:
-```csharp
-new Style {
-    Transitions = new[] {
-        new Transition("opacity", 0.3f, EasingMode.EaseInOut),
-        new Transition("width",   0.5f, EasingMode.Linear, delay: 0.1f),
-    }
-}
-```
-PropsApplier would compare via a custom equality check and set all four
-`IStyle.transition*` properties together.
-
-**Files:**
-- `Shared/Props/PropsApplier.cs` — stubs at lines ~508-517
-- `Shared/Props/Typed/Style.cs` — no typed properties for these yet
-
-**Priority:** Medium — transitions are useful for polish but not blocking.
+- **`filter`** — ✅ Implemented (Unity 6.3+, `StyleList<FilterFunction>`)
+- **`transitionProperty`**, **`transitionDuration`**, **`transitionDelay`**,
+  **`transitionTimingFunction`** — ✅ Implemented. Setters accept both `StyleList<T>`
+  and `List<T>` (auto-wrapped). Typed properties in `Style.cs`, keys in `StyleKeys.cs`,
+  resetters in PropsApplier. Same diffing pattern as filter.
+- **`transition`** — CSS shorthand only, no `IStyle.transition` in Unity. No-op stub kept.
+- **`cursor`** — Not implemented. Unity's `Cursor` struct only takes `Texture2D` +
+  hotspot with no built-in cursor constants. Low practical value.
 
 ---
 
@@ -346,23 +288,9 @@ Internal contributors don't have a single source of truth for what shipped when.
 
 ---
 
-## Package-level CHANGELOG.md
+## ~~Package-level CHANGELOG.md~~ ✅ DONE
 
-The Unity package (`package.json`) has no changelog. We have a centralized
-changelog for IDE extensions (`ide-extensions~/changelog.json`) but nothing
-tracking changes to the runtime/editor package itself — new style properties,
-bug fixes, source generator changes, etc.
-
-**Impact:** Users upgrading the package have no summary of what changed between
-versions. Unity Package Manager shows a changelog tab that is currently empty.
-
-**Requirements:**
-
-1. A `CHANGELOG.md` at the package root following [Keep a Changelog](https://keepachangelog.com/) format.
-2. Manually curated — no need for structured JSON or extraction tooling.
-3. Entries grouped by version with `Added`, `Changed`, `Fixed`, `Removed` sections as needed.
-
-**Priority:** Medium — should be in place before public release.
+Implemented — `CHANGELOG.md` exists at the package root.
 
 ---
 
@@ -453,3 +381,70 @@ detect the existing binding and only replace the name portion.
 - `ide-extensions~/lsp-server/CompletionHandler.cs` — attribute name completions
   should check if the cursor is followed by `={` and adjust the insert text
 - `ide-extensions~/language-lib/` — completion item building
+
+---
+
+## ~~HMR Window: memory usage tracking~~ ✅ DONE
+
+Implemented — HMR window shows live RAM (working set via Win32 P/Invoke), delta
+since window open, and delta since HMR session start. Refreshes every 2 seconds
+via `EditorApplication.update` timer. Non-Windows falls back to Unity Profiler APIs.
+
+---
+
+## Tag completion inserts full closing tag for new elements
+
+**Symptom:** When typing a new tag from scratch (e.g. `<VisualEle`) and
+selecting a completion item, the result is `<VisualElement></VisualElement>`
+with the cursor between the tags. The completion inserts a full open+close
+pair instead of just finishing the tag name.
+
+**Expected:** Completion should finish just the tag name: `<VisualEle` →
+`<VisualElement ` (with a trailing space for attributes). The user will
+add attributes and close the tag themselves, or rely on auto-close on `>`.
+
+**Note:** This is different from the already-fixed "editing an existing tag
+name" issue (`HasExistingTagBody`). That fix detects when the cursor is
+*inside* an existing open tag. This issue is about *new* tags where there
+is no existing body — the snippet `Name>$0</Name>` fires correctly per
+the current logic, but the desired UX is to not insert the closing tag
+at all.
+
+**Files to investigate:**
+- `ide-extensions~/lsp-server/CompletionHandler.cs` — `TagItems()` method,
+  the `acceptsChildren` branch that builds `$"{name}>$0</{name}>"` and the
+  schema `BuildTagSnippet()`. Both need a mode that only completes the name.
+- Consider: should the extension auto-insert closing tag on `>` keystroke
+  instead? (like VS Code's built-in HTML behavior)
+
+**Priority:** Medium — disrupts typing flow, forces manual deletion of
+unwanted closing tag.
+
+---
+
+## Formatter collapses empty elements to self-closing
+
+**Symptom:** Writing `<Box></Box>` (an empty container intended to have
+children added later) gets collapsed to `<Box />` on format. This changes
+the meaning — a self-closing tag implies no children, and the user may
+intend to add children later.
+
+**Expected:** `<Box></Box>` should be preserved as-is after formatting.
+Only tags that were originally written as self-closing (`<Box />`) should
+remain self-closing.
+
+**Note:** This does NOT affect elements with children — `<Box><Label/></Box>`
+correctly formats to:
+```uitkx
+<Box>
+    <Label />
+</Box>
+```
+
+**Files to investigate:**
+- `ide-extensions~/language-lib/Formatter/AstFormatter.cs` — look for the
+  logic that decides whether an element emits `<Name>...</Name>` vs `<Name />`.
+  It likely checks `element.Children.Count == 0` and collapses to self-closing.
+  Needs to also check whether the original source was self-closing or not.
+
+**Priority:** Medium — silently changes markup intent on save.
