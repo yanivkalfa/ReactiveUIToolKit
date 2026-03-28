@@ -86,5 +86,11 @@ namespace ReactiveUITK.Props.Typed
         public const string Filter = "filter";
         public const string UnityMaterial = "unityMaterial";
 #endif
+
+        // ── Transitions ──────────────────────────────────────────────────
+        public const string TransitionDelay = "transitionDelay";
+        public const string TransitionDuration = "transitionDuration";
+        public const string TransitionProperty = "transitionProperty";
+        public const string TransitionTimingFunction = "transitionTimingFunction";
     }
 }

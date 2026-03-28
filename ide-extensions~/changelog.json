@@ -3,6 +3,16 @@
     {
       "date": "2026-03-28",
       "versions": {
+        "vscode": "1.0.297",
+        "vs2022": "1.0.74"
+      },
+      "shared": [
+        " Fix: tag completion no longer inserts closing tag snippet when editing an existing tag name"
+      ]
+    },
+    {
+      "date": "2026-03-28",
+      "versions": {
         "vscode": "1.0.296",
         "vs2022": "1.0.73"
       },

@@ -211,47 +211,16 @@ on nullable C# properties (e.g. `int?` for `selectedIndex`).
 
 ---
 
-## Style properties not yet supported: transitions, cursor, filter
+## ~~Style properties not yet supported: transitions, cursor, filter~~ ✅ MOSTLY DONE
 
-**Symptom:** Setting `transitionProperty`, `transitionDuration`, `transitionDelay`,
-`transitionTimingFunction`, `cursor`, `transition`, or `filter` in a `Style`
-dictionary has no effect — PropsApplier silently ignores the value.
-
-**Root cause per property:**
-
-- **`transition`** — CSS shorthand only. No `IStyle.transition` property exists in
-  Unity 6.2; it decomposes into the four `transition*` sub-properties.
-- **`filter`** — No `IStyle.filter` property exists in Unity 6.2 (docs return 404).
-- **`transitionProperty`** (`StyleList<StylePropertyName>`),
-  **`transitionDuration`** (`StyleList<TimeValue>`),
-  **`transitionDelay`** (`StyleList<TimeValue>`),
-  **`transitionTimingFunction`** (`StyleList<EasingFunction>`) — All use `StyleList<T>`,
-  a list-based type. PropsApplier diffs values via `ReferenceEquals` then `.Equals()`;
-  `List<T>` lacks value equality, so transitions would re-apply every render,
-  potentially resetting in-flight animations. Needs a dedicated diffing strategy
-  or a helper struct (e.g. `Transition(property, duration, easing, delay)`) that
-  sets all four at once.
-- **`cursor`** (`StyleCursor` wrapping `Cursor` struct) — The `Cursor` struct only
-  takes a `Texture2D` + `Vector2` hotspot. Unity has no built-in cursor constants
-  (pointer, crosshair, etc.) like CSS, making it of limited practical value.
-
-**Possible fix for transitions:** Introduce a `Transition` helper struct:
-```csharp
-new Style {
-    Transitions = new[] {
-        new Transition("opacity", 0.3f, EasingMode.EaseInOut),
-        new Transition("width",   0.5f, EasingMode.Linear, delay: 0.1f),
-    }
-}
-```
-PropsApplier would compare via a custom equality check and set all four
-`IStyle.transition*` properties together.
-
-**Files:**
-- `Shared/Props/PropsApplier.cs` — stubs at lines ~508-517
-- `Shared/Props/Typed/Style.cs` — no typed properties for these yet
-
-**Priority:** Medium — transitions are useful for polish but not blocking.
+- **`filter`** — ✅ Implemented (Unity 6.3+, `StyleList<FilterFunction>`)
+- **`transitionProperty`**, **`transitionDuration`**, **`transitionDelay`**,
+  **`transitionTimingFunction`** — ✅ Implemented. Setters accept both `StyleList<T>`
+  and `List<T>` (auto-wrapped). Typed properties in `Style.cs`, keys in `StyleKeys.cs`,
+  resetters in PropsApplier. Same diffing pattern as filter.
+- **`transition`** — CSS shorthand only, no `IStyle.transition` in Unity. No-op stub kept.
+- **`cursor`** — Not implemented. Unity's `Cursor` struct only takes `Texture2D` +
+  hotspot with no built-in cursor constants. Low practical value.
 
 ---
 
