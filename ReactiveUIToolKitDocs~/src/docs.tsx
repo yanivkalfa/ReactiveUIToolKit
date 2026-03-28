@@ -21,6 +21,7 @@ import { UitkxSignalsPage } from './pages/UITKX/Signals/UitkxSignalsPage'
 import { HmrPage } from './pages/Tooling/HMR/HmrPage'
 import { FAQPage } from './pages/FAQ/FAQPage'
 import { StylingPage } from './pages/UITKX/Styling/StylingPage'
+import { AssetsPage } from './pages/UITKX/Assets/AssetsPage'
 
 export type DocPage = {
   id: string
@@ -100,6 +101,21 @@ export const sections: DocSection[] = [
         keywords: ['style', 'css', 'typed', 'CssHelpers', 'StyleKeys', 'layout', 'colors', 'flexbox'],
         searchContent: 'styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px Auto None Initial length units color helpers Hex Rgba enum shortcuts FlexDirection Row Column JustifyContent JustifyCenter AlignItems AlignCenter Stretch SpaceBetween SpaceAround Position Absolute Relative Display Flex Visibility Hidden Overflow WhiteSpace TextOverflow TextAnchor FontStyle StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor Color BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BackgroundSize BackgroundPosition TransformOrigin Rotate Scale Translate typed properties tuple syntax escape hatch StyleKeys backward compatible property reference',
         element: () => <StylingPage />,
+      },
+    ],
+  },
+  {
+    id: 'assets',
+    title: 'Assets & Stylesheets',
+    pages: [
+      {
+        id: 'assets-page',
+        canonicalId: 'assets',
+        title: 'Assets & Stylesheets',
+        path: '/assets',
+        keywords: ['asset', 'texture', 'sprite', 'uss', 'stylesheet', 'image', 'audio', 'font', 'material'],
+        searchContent: 'asset loading Asset<T> Ast<T> shorthand texture sprite audioclip font material stylesheet uss @uss directive relative path resolve compile time diagnostics UITKX0022 UITKX0023 UITKX0120 UITKX0121 file not found type mismatch auto-import texture importer asset registry scriptableobject editor sync hmr hot-reload supported file types png jpg wav mp3 ttf otf mat prefab',
+        element: () => <AssetsPage />,
       },
     ],
   },

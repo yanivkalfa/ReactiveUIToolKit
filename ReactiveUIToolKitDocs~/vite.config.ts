@@ -46,6 +46,21 @@ const stripDictionaryMethods = (source: string): string => {
 
 let propsDocs: Record<string, string> = {}
 
+type PropEntry = { name: string; type: string; inherited: boolean }
+let propsTable: Record<string, PropEntry[]> = {}
+
+// Parse BaseProps property names so we can mark inherited props
+const basePropsPath = path.join(typedPropsDir, 'BaseProps.cs')
+const basePropsNames = new Set<string>()
+try {
+  const baseRaw = fs.readFileSync(basePropsPath, 'utf-8').replace(/^\uFEFF/, '')
+  const propRe = /public\s+(\S+(?:<[^>]+>)?(?:\?)?)\s+(\w+)\s*\{\s*get\s*;\s*set\s*;\s*\}/g
+  let m
+  while ((m = propRe.exec(baseRaw)) !== null) {
+    basePropsNames.add(m[2])
+  }
+} catch { /* ok */ }
+
 try {
   const entries = fs
     .readdirSync(typedPropsDir, { withFileTypes: true })
@@ -56,9 +71,19 @@ try {
     const raw = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '')
     const key = path.basename(entry.name, '.cs')
     propsDocs[key] = stripDictionaryMethods(raw)
+
+    // Extract structured props for table display
+    const props: PropEntry[] = []
+    const propRe = /public\s+(\S+(?:<[^>]+>)?(?:\?)?)\s+(\w+)\s*\{\s*get\s*;\s*set\s*;\s*\}/g
+    let m
+    while ((m = propRe.exec(raw)) !== null) {
+      props.push({ name: m[2], type: m[1], inherited: basePropsNames.has(m[2]) })
+    }
+    if (props.length > 0) propsTable[key] = props
   }
 } catch {
   propsDocs = {}
+  propsTable = {}
 }
 
 // https://vite.dev/config/
@@ -68,6 +93,7 @@ export default defineConfig({
     __PACKAGE_VERSION__: JSON.stringify(unityPackageJson.version),
     __UNITY_VERSION__: JSON.stringify(unityPackageJson.unity ?? '6000.2'),
     __PROPS_DOCS__: JSON.stringify(propsDocs),
+    __PROPS_TABLE__: JSON.stringify(propsTable),
   },
   css: {
     postcss: './postcss.config.cjs',

@@ -31,6 +31,10 @@ import {
   EXAMPLE_BOTH_APIs,
   EXAMPLE_CONDITIONAL,
   EXAMPLE_INLINE,
+  EXAMPLE_USS_BASIC,
+  EXAMPLE_USS_FILE,
+  EXAMPLE_USS_MULTIPLE,
+  EXAMPLE_USS_COMBINED,
 } from './StylingPage.example'
 
 /** Build a version badge label like "6.3+" or "6.2" for floor. */
@@ -344,6 +348,55 @@ export const StylingPage: FC = () => {
       </Table>
     </TableContainer>
 
+    {/* ── USS Stylesheets ───────────────────────────────────── */}
+    <Typography variant="h5" component="h2" sx={{ mt: 6 }} gutterBottom id="uss-stylesheets">
+      USS Stylesheets
+    </Typography>
+    <Typography variant="body1" paragraph>
+      For static, class-based styling you can use standard Unity Style Sheets (.uss files)
+      via the <code>@uss</code> directive. This is the same USS format Unity UI Toolkit
+      uses — type selectors, class selectors, pseudo-classes, and all standard USS properties.
+    </Typography>
+
+    <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
+      Basic usage
+    </Typography>
+    <Typography variant="body1" paragraph>
+      Add <code>@uss "path"</code> to the preamble (before the <code>component</code> keyword).
+      Relative paths are resolved from the <code>.uitkx</code> file's location.
+    </Typography>
+    <CodeBlock language="tsx" code={EXAMPLE_USS_BASIC} />
+
+    <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
+      Example .uss file
+    </Typography>
+    <CodeBlock language="css" code={EXAMPLE_USS_FILE} />
+
+    <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
+      Multiple stylesheets
+    </Typography>
+    <Typography variant="body1" paragraph>
+      You can import multiple <code>@uss</code> files — they are applied in order,
+      so later sheets can override earlier ones.
+    </Typography>
+    <CodeBlock language="tsx" code={EXAMPLE_USS_MULTIPLE} />
+
+    <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
+      Combining USS + typed Style
+    </Typography>
+    <Typography variant="body1" paragraph>
+      USS is great for static layout and theming. The typed <code>Style</code> class
+      is great for dynamic, state-driven values. Use both together —
+      USS handles the baseline, <code>Style</code> handles the runtime overrides.
+    </Typography>
+    <CodeBlock language="tsx" code={EXAMPLE_USS_COMBINED} />
+
+    <Alert severity="info" sx={{ mt: 2 }}>
+      <strong>HMR support:</strong> Saving a <code>.uss</code> file triggers
+      hot-reload of all components that reference it via <code>@uss</code> —
+      no domain reload needed.
+    </Alert>
+
     {/* ── Table of contents ─────────────────────────────────── */}
     <Paper variant="outlined" sx={{ p: 2, mt: 6 }}>
       <Typography variant="h6" gutterBottom>
@@ -354,6 +407,7 @@ export const StylingPage: FC = () => {
         <li><Link href="#type-reference">Type reference</Link></li>
         <li><Link href="#csshelpers-reference">CssHelpers reference</Link></li>
         <li><Link href="#enum-shortcuts">Enum shortcuts</Link></li>
+        <li><Link href="#uss-stylesheets">USS Stylesheets</Link></li>
       </Box>
     </Paper>
   </Box>

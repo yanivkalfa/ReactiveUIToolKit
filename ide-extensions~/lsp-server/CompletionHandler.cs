@@ -217,7 +217,7 @@ public sealed class CompletionHandler : ICompletionHandler
                 Enumerable.Empty<CompletionItem>(),
             CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
             CursorKind.TagName => TagItems(ctx.Prefix),
-            CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix),
+            CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix, HasExistingBinding(text, offset)),
             CursorKind.AttributeValue => AttributeValueItems(
                 ctx.TagName ?? "",
                 ctx.AttributeName ?? "",
@@ -769,7 +769,7 @@ public sealed class CompletionHandler : ICompletionHandler
         return dynamicItems.Concat(schemaItems);
     }
 
-    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix)
+    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix, bool hasExistingBinding)
     {
         var workspaceProps = _index.GetProps(tagName);
         var coveredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -786,16 +786,20 @@ public sealed class CompletionHandler : ICompletionHandler
             .Select(p =>
             {
                 var canonicalName = CanonicalSchemaAttributeName(tagName, p.Name);
-                // Prefer {=} binding for non-string props; string=" " for string
                 var isString = p.Type.Equals("string", StringComparison.OrdinalIgnoreCase);
-                var insert = isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
+                // When an existing ={value} binding follows the cursor, insert
+                // only the attribute name — the binding is already there.
+                var insert = hasExistingBinding
+                    ? canonicalName
+                    : isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
+                var format = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet;
                 var doc = string.IsNullOrEmpty(p.XmlDoc) ? $"**{p.Type}** `{p.Name}`" : p.XmlDoc;
                 return new CompletionItem
                 {
                     Label = canonicalName,
                     Kind = CompletionItemKind.Property,
                     InsertText = insert,
-                    InsertTextFormat = InsertTextFormat.Snippet,
+                    InsertTextFormat = format,
                     Detail = p.Type,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = doc },
                 };
@@ -814,8 +818,8 @@ public sealed class CompletionHandler : ICompletionHandler
             {
                 Label = a.Name,
                 Kind = CompletionItemKind.Property,
-                InsertText = a.Name + "=\"$1\"",
-                InsertTextFormat = InsertTextFormat.Snippet,
+                InsertText = hasExistingBinding ? a.Name : a.Name + "=\"$1\"",
+                InsertTextFormat = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                 Detail = a.Type,
                 Documentation = new MarkupContent
                 {
@@ -1000,6 +1004,27 @@ public sealed class CompletionHandler : ICompletionHandler
             offset = nl < 0 ? text.Length : nl + 1;
         }
         return Math.Min(offset + column, text.Length);
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the text after the cursor already contains an
+    /// <c>=</c> binding (e.g. <c>={bg}</c> or <c>="hello"</c>).  Skips past
+    /// any remaining identifier chars (rest of the attribute name being replaced)
+    /// and optional whitespace before checking for <c>=</c>.
+    /// </summary>
+    private static bool HasExistingBinding(string text, int offset)
+    {
+        int i = offset;
+
+        // Skip remaining identifier chars (the rest of the word after cursor).
+        while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_'))
+            i++;
+
+        // Skip optional whitespace.
+        while (i < text.Length && (text[i] == ' ' || text[i] == '\t'))
+            i++;
+
+        return i < text.Length && text[i] == '=';
     }
 
     // ── Version-awareness helpers ─────────────────────────────────────────────

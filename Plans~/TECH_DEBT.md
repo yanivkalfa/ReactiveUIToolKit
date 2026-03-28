@@ -406,7 +406,19 @@ aspectRatio  [6.3+] → https://docs.unity3d.com/6000.3/.../UIElements.IStyle.ht
 
 ---
 
-## Autocomplete overwrites existing attribute value binding
+## ~~Autocomplete overwrites existing attribute value binding~~ ✅ FIXED
+
+Fixed — `AttributeItems` now receives a `hasExistingBinding` flag computed by
+`HasExistingBinding()`, which scans past the remaining identifier chars and
+whitespace after the cursor. When `=` is found, completion items emit only the
+attribute name (plain text) instead of `name={$1}` / `name="$1"` snippets.
+The existing `={value}` binding is preserved by the LSP client.
+
+Fixed — `AttributeItems` now receives a `hasExistingBinding` flag computed by
+`HasExistingBinding()`, which scans past the remaining identifier chars and
+whitespace after the cursor. When `=` is found, completion items emit only the
+attribute name (plain text) instead of `name={$1}` / `name="$1"` snippets.
+The existing `={value}` binding is preserved by the LSP client.
 
 **Symptom:** When editing an attribute value like `sprite={bg}` — double-clicking
 `sprite` to select it, then typing to trigger autocomplete — selecting a completion
@@ -441,5 +453,3 @@ detect the existing binding and only replace the name portion.
 - `ide-extensions~/lsp-server/CompletionHandler.cs` — attribute name completions
   should check if the cursor is followed by `={` and adjust the insert text
 - `ide-extensions~/language-lib/` — completion item building
-
-**Priority:** Medium — disrupts typing flow and requires manual cleanup.
