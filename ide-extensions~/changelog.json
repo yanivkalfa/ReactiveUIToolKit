@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-03-28",
+      "versions": {
+        "vscode": "1.0.296",
+        "vs2022": "1.0.73"
+      },
+      "shared": [
+        "Fix: autocomplete no longer inserts duplicate ={} when attribute already has a value binding"
+      ]
+    },
+    {
       "date": "2026-03-27",
       "versions": {
         "vscode": "1.0.295",
