@@ -99,25 +99,12 @@ of dependent `.uitkx` components via reverse dependency map.
 
 ---
 
-## Autocomplete inserts closing tag and breaks JSX syntax
+## ~~Autocomplete inserts closing tag and breaks JSX syntax~~ ✅ FIXED
 
-**Symptom:** When typing `<VisualElement` and then pressing `s` to filter
-to `VisualElementSafe`, selecting the completion inserts
-`<VisualElementSafe></VisualElementSafe>` — adding an unwanted closing tag
-that breaks the existing JSX structure.
-
-**Expected:** Autocomplete should replace only the tag name, not insert a
-full open+close tag pair. If the cursor is already inside an opening tag
-(e.g. `<VisualElement| style={...}>`), completion should only replace the
-element name.
-
-**Files to investigate:**
-- VS Code extension completion provider (`ide-extensions~/vscode/`)
-- LSP server `textDocument/completion` handler — check `insertTextFormat`
-  and `textEdit` range to ensure it replaces only the tag name, not the
-  surrounding structure
-
-**Priority:** Medium — disrupts typing flow and requires manual cleanup.
+Fixed — `HasExistingTagBody` detects when the cursor is inside an existing tag
+and returns plain tag name only. Combined with the tag completion fix (no closing
+tag snippet for elements accepting children), both new and existing tag scenarios
+are handled correctly.
 
 ---
 
@@ -302,7 +289,14 @@ built from `ReactiveUIToolKitDocs~/` with version data injected at build time.
 
 ---
 
-## Per-component / per-style Unity docs deep-links with version badge
+## ~~Per-component / per-style Unity docs deep-links with version badge~~ ✅ DONE
+
+Implemented — `UitkxComponentReferencePage` now shows an inline "Unity docs"
+link next to the component title, pointing to the versioned Unity manual page
+(e.g. `docs.unity3d.com/6000.2/.../UIE-uxml-element-Box.html`). The link
+uses the docs site version dropdown selection via `useSelectedVersion()`.
+The mapping lives in `unityDocLinks.ts` (51 components). Components with no
+Unity equivalent (Animate, ErrorBoundary, VisualElementSafe) show no link.
 
 **Problem:** Component documentation pages and style property tables don't link
 to the corresponding Unity documentation page for that specific element or USS

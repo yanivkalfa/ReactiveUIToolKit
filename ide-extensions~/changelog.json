@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "date": "2026-03-29",
+      "versions": {
+        "vscode": "1.0.300",
+        "vs2022": "1.0.77"
+      },
+      "shared": [
+        "Fix: formatter no longer expands empty open+close elements to multi-line",
+        "Feature: LSP attribute-level version filtering in completions and UITKX0200 diagnostics",
+        "Docs: component reference pages now show inline Unity docs link next to title"
+      ]
+    },
+    {
       "date": "2026-03-28",
       "versions": {
         "vscode": "1.0.299",

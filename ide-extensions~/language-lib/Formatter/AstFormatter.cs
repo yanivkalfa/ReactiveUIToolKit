@@ -376,10 +376,19 @@ namespace ReactiveUITK.Language.Formatter
             // ── Children + closing tag ─────────────────────────────────────────
             if (!selfClose)
             {
-                _indent++;
-                FormatNodeList(el.Children, topLevel: false);
-                _indent--;
-                Ln($"</{el.TagName}>");
+                if (el.Children.IsEmpty)
+                {
+                    // Empty element with explicit close tag: keep on same line
+                    _sb.Remove(_sb.Length - 1, 1); // strip trailing \n
+                    _sb.Append($"</{el.TagName}>\n");
+                }
+                else
+                {
+                    _indent++;
+                    FormatNodeList(el.Children, topLevel: false);
+                    _indent--;
+                    Ln($"</{el.TagName}>");
+                }
             }
         }
 
