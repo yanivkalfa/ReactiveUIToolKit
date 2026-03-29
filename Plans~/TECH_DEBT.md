@@ -99,25 +99,12 @@ of dependent `.uitkx` components via reverse dependency map.
 
 ---
 
-## Autocomplete inserts closing tag and breaks JSX syntax
+## ~~Autocomplete inserts closing tag and breaks JSX syntax~~ ✅ FIXED
 
-**Symptom:** When typing `<VisualElement` and then pressing `s` to filter
-to `VisualElementSafe`, selecting the completion inserts
-`<VisualElementSafe></VisualElementSafe>` — adding an unwanted closing tag
-that breaks the existing JSX structure.
-
-**Expected:** Autocomplete should replace only the tag name, not insert a
-full open+close tag pair. If the cursor is already inside an opening tag
-(e.g. `<VisualElement| style={...}>`), completion should only replace the
-element name.
-
-**Files to investigate:**
-- VS Code extension completion provider (`ide-extensions~/vscode/`)
-- LSP server `textDocument/completion` handler — check `insertTextFormat`
-  and `textEdit` range to ensure it replaces only the tag name, not the
-  surrounding structure
-
-**Priority:** Medium — disrupts typing flow and requires manual cleanup.
+Fixed — `HasExistingTagBody` detects when the cursor is inside an existing tag
+and returns plain tag name only. Combined with the tag completion fix (no closing
+tag snippet for elements accepting children), both new and existing tag scenarios
+are handled correctly.
 
 ---
 
@@ -302,7 +289,14 @@ built from `ReactiveUIToolKitDocs~/` with version data injected at build time.
 
 ---
 
-## Per-component / per-style Unity docs deep-links with version badge
+## ~~Per-component / per-style Unity docs deep-links with version badge~~ ✅ DONE
+
+Implemented — `UitkxComponentReferencePage` now shows an inline "Unity docs"
+link next to the component title, pointing to the versioned Unity manual page
+(e.g. `docs.unity3d.com/6000.2/.../UIE-uxml-element-Box.html`). The link
+uses the docs site version dropdown selection via `useSelectedVersion()`.
+The mapping lives in `unityDocLinks.ts` (51 components). Components with no
+Unity equivalent (Animate, ErrorBoundary, VisualElementSafe) show no link.
 
 **Problem:** Component documentation pages and style property tables don't link
 to the corresponding Unity documentation page for that specific element or USS
@@ -392,59 +386,18 @@ via `EditorApplication.update` timer. Non-Windows falls back to Unity Profiler A
 
 ---
 
-## Tag completion inserts full closing tag for new elements
+## ~~Tag completion inserts full closing tag for new elements~~ ✅ FIXED
 
-**Symptom:** When typing a new tag from scratch (e.g. `<VisualEle`) and
-selecting a completion item, the result is `<VisualElement></VisualElement>`
-with the cursor between the tags. The completion inserts a full open+close
-pair instead of just finishing the tag name.
-
-**Expected:** Completion should finish just the tag name: `<VisualEle` →
-`<VisualElement ` (with a trailing space for attributes). The user will
-add attributes and close the tag themselves, or rely on auto-close on `>`.
-
-**Note:** This is different from the already-fixed "editing an existing tag
-name" issue (`HasExistingTagBody`). That fix detects when the cursor is
-*inside* an existing open tag. This issue is about *new* tags where there
-is no existing body — the snippet `Name>$0</Name>` fires correctly per
-the current logic, but the desired UX is to not insert the closing tag
-at all.
-
-**Files to investigate:**
-- `ide-extensions~/lsp-server/CompletionHandler.cs` — `TagItems()` method,
-  the `acceptsChildren` branch that builds `$"{name}>$0</{name}>"` and the
-  schema `BuildTagSnippet()`. Both need a mode that only completes the name.
-- Consider: should the extension auto-insert closing tag on `>` keystroke
-  instead? (like VS Code's built-in HTML behavior)
-
-**Priority:** Medium — disrupts typing flow, forces manual deletion of
-unwanted closing tag.
+Fixed — `TagItems()` and `BuildTagSnippet()` in CompletionHandler now insert
+only the tag name with a trailing space for elements that accept children,
+instead of the full `Name>$0</Name>` snippet. Self-closing elements still
+insert `Name $1 />`.
 
 ---
 
-## Formatter collapses empty elements to self-closing
+## ~~Formatter collapses empty elements to self-closing~~ ✅ FIXED
 
-**Symptom:** Writing `<Box></Box>` (an empty container intended to have
-children added later) gets collapsed to `<Box />` on format. This changes
-the meaning — a self-closing tag implies no children, and the user may
-intend to add children later.
-
-**Expected:** `<Box></Box>` should be preserved as-is after formatting.
-Only tags that were originally written as self-closing (`<Box />`) should
-remain self-closing.
-
-**Note:** This does NOT affect elements with children — `<Box><Label/></Box>`
-correctly formats to:
-```uitkx
-<Box>
-    <Label />
-</Box>
-```
-
-**Files to investigate:**
-- `ide-extensions~/language-lib/Formatter/AstFormatter.cs` — look for the
-  logic that decides whether an element emits `<Name>...</Name>` vs `<Name />`.
-  It likely checks `element.Children.Count == 0` and collapses to self-closing.
-  Needs to also check whether the original source was self-closing or not.
-
-**Priority:** Medium — silently changes markup intent on save.
+Fixed — `FormatElement()` in AstFormatter now checks `el.CloseTagLine == 0`
+in addition to `el.Children.IsEmpty` when deciding self-close. Elements written
+as `<Box></Box>` (CloseTagLine > 0) are preserved; only truly self-closing
+`<Box />` (CloseTagLine == 0) stays collapsed.

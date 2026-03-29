@@ -19,6 +19,8 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import { CodeBlock } from '../../../components/CodeBlock/CodeBlock'
 import { getPropsTable, type PropEntry } from '../../../propsDocs'
+import { UNITY_DOC_LINKS, buildUnityDocUrl } from '../../../components/UnityDocsSection/unityDocLinks'
+import { useSelectedVersion } from '../../../contexts/VersionContext'
 import Styles from '../../Components/Button/ButtonPage.style'
 
 export type UitkxComponentReferencePageProps = {
@@ -734,12 +736,28 @@ export const UitkxComponentReferencePage: FC<UitkxComponentReferencePageProps> =
   const inheritedProps = allProps.filter((p) => p.inherited)
   const notes = getNotes(title)
   const [baseOpen, setBaseOpen] = useReactState(false)
+  const { selectedVersion } = useSelectedVersion()
+  const unityInfo = UNITY_DOC_LINKS[title]
 
   return (
     <Box sx={Styles.root}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        {title}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1.5 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          {title}
+        </Typography>
+        {unityInfo && (
+          <Typography
+            component="a"
+            href={buildUnityDocUrl(unityInfo.unityElement, selectedVersion)}
+            target="_blank"
+            rel="noreferrer"
+            variant="body2"
+            sx={{ color: 'primary.main', textDecoration: 'none', whiteSpace: 'nowrap', '&:hover': { textDecoration: 'underline' } }}
+          >
+            Unity docs &darr;
+          </Typography>
+        )}
+      </Box>
       <Typography variant="body1" paragraph>
         {getIntro(title)}
       </Typography>

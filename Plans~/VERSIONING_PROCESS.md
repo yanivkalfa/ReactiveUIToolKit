@@ -500,41 +500,27 @@ When Unity removes an API we currently use:
 
 ## 5. Schema Version-Awareness — LSP Integration
 
-### 5.1 Current State
+### 5.1 Current State — ✅ Implemented
 - LSP reads `ProjectSettings/ProjectVersion.txt` via `ReferenceAssemblyLocator`
-- Parses `m_EditorVersion: 6000.3.0f1` to find Unity install path
-- Version string is extracted but **not exposed or used for filtering**
-- Schema has no version annotations
+- Parses `m_EditorVersion: 6000.3.0f1` → `UnityVersion` struct (major.minor comparison)
+- `DetectedVersion` exposed as public property, consumed by `CompletionHandler` and `DiagnosticsPublisher`
+- Schema model extended: `ElementInfo`, `AttributeInfo`, and `VersionInfo` records carry
+  optional `SinceUnity`, `DeprecatedIn`, `RemovedIn` fields
+- `styleVersions` section in `uitkx-schema.json` has 3 entries (aspectRatio, filter, unityMaterial)
 
-### 5.2 Target State
-- Schema entries carry optional `sinceUnity` / `deprecatedIn` / `removedIn` fields
-- `ReferenceAssemblyLocator` exposes detected version as a public property
-- CompletionHandler filters/deprioritizes items above user's version
-- DiagnosticsPublisher warns when using features requiring newer Unity
+### 5.2 What's Wired
+- **CompletionHandler**: Tags and attributes with `sinceUnity > userVersion` get ⚠️ prefix,
+  "zz_" sort suffix (pushed to bottom), and " • Requires Unity X.Y+" detail text.
+  Attributes with `removedIn <= userVersion` are filtered out entirely.
+- **DiagnosticsPublisher**: `UITKX0200` warnings emitted for elements and attributes
+  requiring a newer Unity version or removed in the detected version.
+- **Schema helpers**: `IsElementAvailable()`, `IsStyleAvailable()`, `GetStyleVersionInfo()`,
+  `GetElementMinVersion()`, `GetStyleMinVersion()` in `SchemaLoader.cs`.
 
-### 5.3 Implementation Tasks
-
-```
-[ ] A. Extend schema model (SchemaLoader.cs)
-       - Add optional fields to ElementInfo: sinceUnity, deprecatedIn, removedIn
-       - Add optional fields to StyleKeyValues entries (requires value→object change)
-       - Add optional sinceUnity to AttributeInfo
-[ ] B. Expose detected Unity version (ReferenceAssemblyLocator.cs)
-       - Make version string a public property
-       - Parse into comparable numeric form (e.g. 6000.3 → 60003)
-       - Make accessible from CompletionHandler and DiagnosticsPublisher
-[ ] C. Filter completions (CompletionHandler.cs)
-       - If sinceUnity > detectedVersion: add ⚠️ prefix to label
-       - Sort these items lower in the list
-       - Add detail text: "Requires Unity {version}+"
-[ ] D. Warn in diagnostics (DiagnosticsPublisher.cs)
-       - New diagnostic: UITKX_VERSION — "'{name}' requires Unity {version}+"
-       - Severity: Warning (not error — the no-op fallback still works)
-[ ] E. Add version annotations to uitkx-schema.json
-       - All current entries: no annotation (means "since floor")
-       - New entries: add sinceUnity
-       - Deprecated entries: add deprecatedIn + replacedBy
-```
+### 5.3 Remaining Per-Version Work
+- Add `sinceUnity` annotations to `uitkx-schema.json` for 6.3+ element/attribute additions
+- Run `apply-diff-to-schema.mjs` to auto-populate annotations from diff reports
+- Style property diagnostics (version checks on style keys in DiagnosticsPublisher)
 
 ---
 
