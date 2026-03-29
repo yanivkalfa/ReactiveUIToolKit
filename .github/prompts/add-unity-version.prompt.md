@@ -158,10 +158,16 @@ Follow §4.5 checklist. Wrap in `#if !UNITY_{VERSION}_OR_NEWER` guards.
 
 ## Phase 4: Schema & LSP Updates
 
-1. **uitkx-schema.json** — Ensure all new entries have `"sinceUnity": "{VERSION}"` annotations
-2. **SchemaLoader.cs** — No changes needed (version fields already supported)
-3. **CompletionHandler** — Will auto-deprioritize items above user's version (already wired)
-4. **DiagnosticsPublisher** — Will auto-warn on version mismatches (already wired)
+1. **Apply diff to schema** (optional automation):
+   ```bash
+   node automation~/apply-diff-to-schema.mjs automation~/diff-reports/{PREV}-to-{NEW}.json {NEW_VERSION}
+   ```
+   This auto-patches `uitkx-schema.json` with `sinceUnity` / `removedIn` annotations for
+   elements, attributes, and style properties found in the diff.
+2. **uitkx-schema.json** — Verify all new entries have `"sinceUnity": "{VERSION}"` annotations
+3. **SchemaLoader.cs** — No changes needed (version fields already supported)
+4. **CompletionHandler** — Will auto-deprioritize items above user's version (already wired)
+5. **DiagnosticsPublisher** — Will auto-warn on version mismatches (already wired)
 
 ---
 

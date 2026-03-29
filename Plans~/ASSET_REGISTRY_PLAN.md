@@ -9,7 +9,7 @@
 | Deliverable | Scope | Status |
 |-------------|-------|--------|
 | **1 — Asset Registry** (this plan) | `UitkxAssetRegistry` SO + `Asset<T>()` / `Ast<T>()` + Editor sync + Source gen path resolution + HMR cache injection + LSP UITKX0120 diagnostic | ✅ Complete |
-| **2 — USS Loading** (USS_LOADING_PLAN.md) | `@uss` directive parsing + `__ussKeys` emission + PropsApplier detached-element attachment | 🟡 Designed |
+| **2 — USS Loading** (USS_LOADING_PLAN.md) | `@uss` directive parsing + `__ussKeys` emission + PropsApplier detached-element attachment | ✅ Complete (polish remaining) |
 
 ---
 

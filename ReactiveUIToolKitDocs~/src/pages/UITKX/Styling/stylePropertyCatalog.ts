@@ -44,6 +44,7 @@ export type PropertyCategory =
   | 'Transforms'
   | 'Assets'
   | 'Filter & Effects'
+  | 'Transitions'
 
 // ---------------------------------------------------------------------------
 // The catalog
@@ -800,6 +801,44 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     typedExample: 'UnityMaterial = new StyleMaterialDefinition(\n    new MaterialDefinition(myMaterial))',
     untypedExample: '(StyleKeys.UnityMaterial, new StyleMaterialDefinition(...))',
   },
+
+  // ── Transitions ─────────────────────────────────────────────────────
+  {
+    key: 'transitionProperty',
+    name: 'TransitionProperty',
+    type: 'StyleList<StylePropertyName>',
+    category: 'Transitions',
+    description: 'Specifies which style properties to animate when their values change.',
+    typedExample: 'TransitionProperty = new List<StylePropertyName>\n    { new("opacity"), new("width") }',
+    untypedExample: '(StyleKeys.TransitionProperty, new List<StylePropertyName> { new("opacity") })',
+  },
+  {
+    key: 'transitionDuration',
+    name: 'TransitionDuration',
+    type: 'StyleList<TimeValue>',
+    category: 'Transitions',
+    description: 'How long each transition takes to complete.',
+    typedExample: 'TransitionDuration = new List<TimeValue>\n    { new(0.3f, TimeUnit.Second) }',
+    untypedExample: '(StyleKeys.TransitionDuration, new List<TimeValue> { new(0.3f, TimeUnit.Second) })',
+  },
+  {
+    key: 'transitionDelay',
+    name: 'TransitionDelay',
+    type: 'StyleList<TimeValue>',
+    category: 'Transitions',
+    description: 'How long to wait before starting each transition.',
+    typedExample: 'TransitionDelay = new List<TimeValue>\n    { new(0f, TimeUnit.Second) }',
+    untypedExample: '(StyleKeys.TransitionDelay, new List<TimeValue> { new(0f, TimeUnit.Second) })',
+  },
+  {
+    key: 'transitionTimingFunction',
+    name: 'TransitionTimingFunction',
+    type: 'StyleList<EasingFunction>',
+    category: 'Transitions',
+    description: 'The easing curve for each transition (e.g. ease-in, ease-out, linear).',
+    typedExample: 'TransitionTimingFunction = new List<EasingFunction>\n    { new(EasingMode.EaseInOut) }',
+    untypedExample: '(StyleKeys.TransitionTimingFunction, new List<EasingFunction> { new(EasingMode.EaseInOut) })',
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -819,4 +858,5 @@ export const CATEGORY_ORDER: PropertyCategory[] = [
   'Transforms',
   'Assets',
   'Filter & Effects',
+  'Transitions',
 ]

@@ -1,6 +1,6 @@
 # USS Stylesheet Loading — Implementation Plan
 
-**Status:** 🟡 Designed — **Deliverable 2** (blocked on Deliverable 1: Asset Registry)  
+**Status:** ✅ Complete (core functionality) — polish items remain (LSP path completion, sample component)  
 **Priority:** Medium (unlocks USS pseudo-state styling: `:hover`, `:active`, `:focus`)  
 **Chosen approach:** Option B — Per-Component with static cache + detached-element attachment  
 **Depends on:** `ASSET_REGISTRY_PLAN.md` — the registry SO and `Asset<T>()` / `Ast<T>()` helper
@@ -10,8 +10,8 @@ are the foundation. USS loading uses `UitkxAssetRegistry.Get<StyleSheet>(key)` a
 
 | Deliverable | Scope | Status |
 |-------------|-------|--------|
-| **1 — Asset Registry** (ASSET_REGISTRY_PLAN.md) | `UitkxAssetRegistry` SO + `Asset<T>()` / `Ast<T>()` + Editor sync + Source gen path resolution | 🟢 In progress |
-| **2 — USS Loading** (this plan) | `@uss` directive parsing + `__ussKeys` emission + PropsApplier detached-element attachment | 🟡 Blocked on D1 |
+| **1 — Asset Registry** (ASSET_REGISTRY_PLAN.md) | `UitkxAssetRegistry` SO + `Asset<T>()` / `Ast<T>()` + Editor sync + Source gen path resolution | ✅ Complete |
+| **2 — USS Loading** (this plan) | `@uss` directive parsing + `__ussKeys` emission + PropsApplier detached-element attachment | ✅ Complete (polish remaining) |
 
 ---
 
@@ -264,42 +264,42 @@ On `.uitkx` save, the watcher already triggers recompilation. Extend it to:
 
 ### Phase 1 — Runtime Foundation
 ```
-[ ] 1. Runtime/Core/UitkxStyleSheetRegistry.cs — ScriptableObject + static cache
-[ ] 2. PropsApplier.cs — Handle __ussKeys prop (add sheets from cache)
-[ ] 3. PropsApplier.cs — Handle __ussKeys in ApplyDiff (add new, remove old)
+[x] 1. Shared/Core/UitkxAssetRegistry.cs — ScriptableObject + static cache (Get<T>, Contains, LoadCache, InjectCacheEntry)
+[x] 2. PropsApplier.cs — Handle __ussKeys prop (add sheets from cache via UitkxAssetRegistry.Get<StyleSheet>)
+[x] 3. PropsApplier.cs — Handle __ussKeys in ApplyDiff / RemoveProp (element.styleSheets.Remove)
 ```
 
 ### Phase 2 — Editor Tooling
 ```
-[ ] 4. Editor/UitkxChangeWatcher.cs — Parse @uss directives on .uitkx save
-[ ] 5. Editor/UitkxChangeWatcher.cs — Resolve USS paths, update registry SO
-[ ] 6. Editor/UitkxChangeWatcher.cs — Full rescan on domain reload (rebuild registry)
-[ ] 7. Resources/__uitkx_registry.asset — Auto-created by watcher
+[x] 4. Editor/UitkxAssetRegistrySync.cs — Parse @uss directives on .uitkx save (regex: @uss\s+"([^"]+)")
+[x] 5. Editor/UitkxAssetRegistrySync.cs — Resolve USS paths, update registry SO (ResolvePath → LoadAssetTyped → registry.Set)
+[x] 6. Editor/UitkxAssetRegistrySync.cs — Full rescan on domain reload via [InitializeOnLoad] → FullRescan() → ReplaceAll()
+[x] 7. Resources/__uitkx_registry.asset — Auto-created by GetOrCreateRegistry()
 ```
 
 ### Phase 3 — Directive Parsing (Language-Lib + Source Generator)
 ```
-[ ] 8. language-lib/Parser/DirectiveParser.cs — Parse @uss "path" lines
-[ ] 9. language-lib/Parser/ParseResult.cs — Add UssSheets to DirectiveSet
-[ ] 10. SourceGenerator~/Emitter/CSharpEmitter.cs — Emit __uitkx_ussKeys array
-[ ] 11. SourceGenerator~/Emitter/CSharpEmitter.cs — Inject __ussKeys into root element props
+[x] 8. language-lib/Parser/DirectiveParser.cs — TryReadFunctionStyleUss() parses @uss "path" lines
+[x] 9. language-lib/Parser/ParseResult.cs — ImmutableArray<string> UssFiles in DirectiveSet
+[x] 10. SourceGenerator~/Emitter/CSharpEmitter.cs — Emits static __uitkx_ussKeys array + UITKX0022/0023 diagnostics
+[x] 11. SourceGenerator~/Emitter/CSharpEmitter.cs — Injects __ussKeys into root element props dict
 ```
 
 ### Phase 4 — IDE Support
 ```
-[ ] 12. uitkx-schema.json — Document @uss directive
-[ ] 13. LSP CompletionHandler — Path completion after @uss "
-[ ] 14. LSP DiagnosticsPublisher — Warning if referenced .uss doesn't exist
-[ ] 15. LSP SemanticTokens — Highlight @uss directive
+[ ] 12. uitkx-schema.json — Document @uss directive (not in schema; @uss is a preamble directive)
+[ ] 13. LSP CompletionHandler — Path completion after @uss " (not implemented; users type manually)
+[ ] 14. LSP DiagnosticsPublisher — Real-time warning for missing .uss (compensated by SG UITKX0022 at compile time)
+[x] 15. grammar/uitkx.tmLanguage.json — Highlight @uss directive (uss-directive pattern: keyword + string path)
 ```
 
 ### Phase 5 — Polish
 ```
 [ ] 16. .gitignore — Add Resources/__uitkx_registry.asset policy note
-[ ] 17. Documentation — Add USS loading page to docs site
-[ ] 18. Sample — Add USS example to Samples/
-[ ] 19. Tests — Source generator tests for @uss emission
-[ ] 20. Tests — LSP tests for @uss diagnostics and completion
+[x] 17. Documentation — Assets page (@uss section) + Styling page (USS Stylesheets section) on docs site
+[ ] 18. Sample — Add USS example to Samples/ (no @uss sample components exist yet)
+[x] 19. Tests — Source generator tests: UITKX0120 UssDirective_MissingFile, AssetCall_MissingFile, etc.
+[ ] 20. Tests — LSP tests for @uss diagnostics and completion (no @uss-specific LSP tests)
 ```
 
 ---

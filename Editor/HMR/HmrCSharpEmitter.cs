@@ -100,8 +100,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             private readonly string _propsTypeName;
             private readonly bool _isFunctionStyle;
             private readonly IList _usings;
+            private readonly IList _ussFiles;
             private readonly IList _functionParams;
             private readonly IList _injects;
+            private bool _isRootElement = true;
 
             public EmitCtx(object directives, string filePath)
             {
@@ -114,6 +116,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _propsTypeName = GP<string>(directives, "PropsTypeName");
                 _isFunctionStyle = GP<bool>(directives, "IsFunctionStyle");
                 _usings = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(directives, "Usings"));
+                _ussFiles = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(directives, "UssFiles"));
                 _functionParams = UitkxHmrCompiler.GetItems(
                     UitkxHmrCompiler.GetProp(directives, "FunctionParams")
                 );
@@ -188,6 +191,25 @@ namespace ReactiveUITK.EditorSupport.HMR
                             ?? "_inject";
                         L($"        public static {injType} {injName};");
                     }
+                    L("");
+                }
+
+                // @uss stylesheet keys
+                if (_ussFiles.Count > 0)
+                {
+                    _sb.Append("        internal static readonly string[] __uitkx_ussKeys = new string[] { ");
+                    for (int i = 0; i < _ussFiles.Count; i++)
+                    {
+                        if (i > 0) _sb.Append(", ");
+                        string rawPath = _ussFiles[i]?.ToString() ?? "";
+                        string resolved;
+                        if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+                            resolved = ResolveRelativePath(rawPath, _filePath);
+                        else
+                            resolved = rawPath;
+                        _sb.Append($"\"{resolved}\"");
+                    }
+                    L(" };");
                     L("");
                 }
 
@@ -313,6 +335,9 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             private void EmitElement(object el)
             {
+                bool injectUss = _isRootElement && _ussFiles.Count > 0;
+                _isRootElement = false;
+
                 string tagName = GP<string>(el, "TagName") ?? "";
                 var attrs = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(el, "Attributes"));
                 var children = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(el, "Children"));
@@ -337,13 +362,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                             EmitBuiltinText(attrs, keyExpr);
                             break;
                         case TagKind.Typed:
-                            EmitTyped(res, attrs, keyExpr, children);
+                            EmitTyped(res, attrs, keyExpr, children, injectUss);
                             break;
                         case TagKind.TypedC:
-                            EmitTyped(res, attrs, keyExpr, children);
+                            EmitTyped(res, attrs, keyExpr, children, injectUss);
                             break;
                         case TagKind.Dict:
-                            EmitDict(res, attrs, keyExpr, children);
+                            EmitDict(res, attrs, keyExpr, children, injectUss);
                             break;
                         case TagKind.Suspense:
                             EmitSuspense(attrs, keyExpr, children);
@@ -402,7 +427,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Text({textVal}, key: {keyExpr})");
             }
 
-            private void EmitTyped(TagRes res, IList attrs, string keyExpr, IList children)
+            private void EmitTyped(TagRes res, IList attrs, string keyExpr, IList children, bool injectUssKeys = false)
             {
                 var filteredAttrs = FilterAttrs(attrs, "key");
 
@@ -418,6 +443,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                     _sb.Append($"{propName} = {val}");
                     first = false;
                 }
+                if (injectUssKeys)
+                {
+                    if (!first) _sb.Append(", ");
+                    _sb.Append("ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }");
+                }
                 _sb.Append($" }}, key: {keyExpr}");
 
                 if (res.Kind == TagKind.TypedC && children.Count > 0)
@@ -429,12 +459,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append(")");
             }
 
-            private void EmitDict(TagRes res, IList attrs, string keyExpr, IList children)
+            private void EmitDict(TagRes res, IList attrs, string keyExpr, IList children, bool injectUssKeys = false)
             {
                 var filteredAttrs = FilterAttrs(attrs, "key");
 
+                bool hasNonKeyAttrs = injectUssKeys;
+                if (!hasNonKeyAttrs)
+                {
+                    foreach (var a in filteredAttrs)
+                    {
+                        hasNonKeyAttrs = true;
+                        break;
+                    }
+                }
+
                 _sb.Append($"V.{res.MethodName}(");
-                if (filteredAttrs.Count > 0)
+                if (hasNonKeyAttrs)
                 {
                     _sb.Append("new Dictionary<string,object> { ");
                     bool first = true;
@@ -446,6 +486,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                             _sb.Append(", ");
                         _sb.Append($"[\"{name}\"] = {val}");
                         first = false;
+                    }
+                    if (injectUssKeys)
+                    {
+                        if (!first) _sb.Append(", ");
+                        _sb.Append("[\"__ussKeys\"] = __uitkx_ussKeys");
                     }
                     _sb.Append(" }");
                 }

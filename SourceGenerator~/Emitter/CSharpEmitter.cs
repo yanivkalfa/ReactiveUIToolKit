@@ -65,6 +65,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private readonly PropsResolver _resolver;
         private readonly IList<Diagnostic> _diagnostics;
         private readonly StringBuilder _sb = new StringBuilder(4096);
+        private bool _isRootElement = true; // tracks whether the next element is the root
 
         // Indent constants
         private const string I2 = "        "; // 8sp — class member level
@@ -154,6 +155,53 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 L($"{I2}// @inject — set these fields before calling Render.");
                 foreach (var inj in _directives.Injects)
                     L($"{I2}public static {inj.Type} {inj.Name};");
+                L("");
+            }
+
+            // ── @uss stylesheet keys ──────────────────────────────────────────
+            if (!_directives.UssFiles.IsDefaultOrEmpty)
+            {
+                string projectRoot = GetProjectRoot();
+
+                _sb.Append($"{I2}internal static readonly string[] __uitkx_ussKeys = new string[] {{ ");
+                for (int idx = 0; idx < _directives.UssFiles.Length; idx++)
+                {
+                    if (idx > 0) _sb.Append(", ");
+                    string rawPath = _directives.UssFiles[idx];
+                    string resolved;
+                    if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+                        resolved = ResolveRelativePath(rawPath);
+                    else
+                        resolved = rawPath;
+                    _sb.Append($"\"{resolved}\"");
+
+                    // Validate file existence at compile time (UITKX0022)
+                    if (projectRoot != null)
+                    {
+                        string absolute = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
+                        if (!File.Exists(absolute))
+                        {
+                            var loc = Location.Create(_filePath, default, default);
+                            _diagnostics.Add(Diagnostic.Create(
+                                UitkxDiagnostics.AssetFileNotFound, loc, resolved));
+                        }
+                        else
+                        {
+                            // Type-mismatch check — @uss must reference a .uss file
+                            string ext = Path.GetExtension(rawPath);
+                            if (!string.IsNullOrEmpty(ext)
+                                && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
+                                && !validTypes.Contains("StyleSheet"))
+                            {
+                                var loc = Location.Create(_filePath, default, default);
+                                _diagnostics.Add(Diagnostic.Create(
+                                    UitkxDiagnostics.AssetTypeMismatch, loc,
+                                    "StyleSheet", ext, string.Join(", ", validTypes)));
+                            }
+                        }
+                    }
+                }
+                _sb.AppendLine(" };");
                 L("");
             }
 
@@ -479,6 +527,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitElementNode(ElementNode el)
         {
+            bool injectUss = _isRootElement && !_directives.UssFiles.IsDefaultOrEmpty;
+            _isRootElement = false;
+
             // Search the current namespace first, then explicit @using namespaces.
             // This matches C# lookup rules better and avoids cross-namespace peer
             // components falling back to stale metadata matches.
@@ -500,11 +551,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     break;
 
                 case TagResolutionKind.BuiltinTyped:
-                    EmitBuiltinTyped(res, el.Attributes, keyExpr, el.Children);
+                    EmitBuiltinTyped(res, el.Attributes, keyExpr, el.Children, injectUss);
                     break;
 
                 case TagResolutionKind.BuiltinDictionary:
-                    EmitBuiltinDict(res, el.Attributes, keyExpr, el.Children);
+                    EmitBuiltinDict(res, el.Attributes, keyExpr, el.Children, injectUss);
                     break;
 
                 case TagResolutionKind.BuiltinText:
@@ -553,7 +604,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             TagResolution res,
             ImmutableArray<AttributeNode> attrs,
             string keyExpr,
-            ImmutableArray<AstNode> children
+            ImmutableArray<AstNode> children,
+            bool injectUssKeys = false
         )
         {
             // UITKX0002 — validate attribute names against known Props properties
@@ -600,6 +652,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.Append($" {ToPropName(attr.Name)} = {AttrVal(attr.Value)}");
             }
 
+            if (injectUssKeys)
+            {
+                if (!first)
+                    _sb.Append(", ");
+                _sb.Append(" ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }");
+            }
+
             _sb.Append(" }, key: ");
             _sb.Append(keyExpr);
 
@@ -617,10 +676,11 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             TagResolution res,
             ImmutableArray<AttributeNode> attrs,
             string keyExpr,
-            ImmutableArray<AstNode> children
+            ImmutableArray<AstNode> children,
+            bool injectUssKeys = false
         )
         {
-            bool hasNonKeyAttrs = false;
+            bool hasNonKeyAttrs = injectUssKeys;
             foreach (var a in attrs)
             {
                 if (!IsKey(a.Name))
@@ -643,6 +703,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         _sb.Append(", ");
                     first = false;
                     _sb.Append($" {{ \"{attr.Name}\", {AttrVal(attr.Value)} }}");
+                }
+                if (injectUssKeys)
+                {
+                    if (!first)
+                        _sb.Append(", ");
+                    _sb.Append(" { \"__ussKeys\", __uitkx_ussKeys }");
                 }
                 _sb.Append(" }");
             }

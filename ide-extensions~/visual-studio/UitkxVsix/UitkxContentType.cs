@@ -1,4 +1,5 @@
 using System.ComponentModel.Composition;
+using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Utilities;
 
 namespace UitkxVsix;
@@ -7,20 +8,18 @@ namespace UitkxVsix;
 
 /// <summary>Defines the "uitkx" content type.</summary>
 /// <remarks>
-/// BaseDefinition is "text" so our custom IClassifier provides all coloring.
-/// Do NOT use CodeRemoteContentDefinition.CodeRemoteContentTypeName — it
-/// activates VS2022's built-in LSP classification which overrides IClassifier.
-/// Go-to-definition works via our IOleCommandTarget (UitkxGotoDefCommandFilter)
-/// which calls the LSP server directly through InternalRpc, bypassing VS2022's
-/// built-in LSP routing. Hover, completion, and formatting are similarly
-/// handled through the ILanguageClient middleware.
+/// BaseDefinition is <c>CodeRemoteContentTypeName</c> so VS2022 natively routes
+/// LSP features (F12, Shift+F12, hover, completion, etc.) through the
+/// <see cref="ILanguageClient"/> framework and middleware.
+/// LSP semantic-token registration is stripped by <c>CapabilityPatchStream</c>
+/// to preserve our custom <c>IClassifier</c> coloring.
 /// </remarks>
 internal static class UitkxContentType
 {
 #pragma warning disable CS0649
     [Export]
     [Name("uitkx")]
-    [BaseDefinition("text")]
+    [BaseDefinition(CodeRemoteContentDefinition.CodeRemoteContentTypeName)]
     internal static ContentTypeDefinition? UitkxContentTypeDef;
 
     [Export, FileExtension(".uitkx"), ContentType("uitkx")]

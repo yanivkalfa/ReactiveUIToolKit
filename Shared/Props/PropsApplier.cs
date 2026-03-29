@@ -575,13 +575,36 @@ namespace ReactiveUITK.Props
 #endif
             // TODO: cursor — StyleCursor wraps Cursor struct (Texture2D + hotspot). Unity has no built-in cursor constants.
             styleSetters["cursor"] = (e, v) => { };
-            // TODO: transition — CSS shorthand, no IStyle.transition in Unity 6.2
+            // transition — CSS shorthand only, no IStyle.transition in Unity
             styleSetters["transition"] = (e, v) => { };
-            // TODO: transition* — StyleList<T> types, diffing not supported yet (see TECH_DEBT.md)
-            styleSetters["transitionDelay"] = (e, v) => { };
-            styleSetters["transitionDuration"] = (e, v) => { };
-            styleSetters["transitionProperty"] = (e, v) => { };
-            styleSetters["transitionTimingFunction"] = (e, v) => { };
+            styleSetters["transitionDelay"] = (e, v) =>
+            {
+                if (v is StyleList<TimeValue> sl)
+                    e.style.transitionDelay = sl;
+                else if (v is System.Collections.Generic.List<TimeValue> list)
+                    e.style.transitionDelay = new StyleList<TimeValue>(list);
+            };
+            styleSetters["transitionDuration"] = (e, v) =>
+            {
+                if (v is StyleList<TimeValue> sl)
+                    e.style.transitionDuration = sl;
+                else if (v is System.Collections.Generic.List<TimeValue> list)
+                    e.style.transitionDuration = new StyleList<TimeValue>(list);
+            };
+            styleSetters["transitionProperty"] = (e, v) =>
+            {
+                if (v is StyleList<StylePropertyName> sl)
+                    e.style.transitionProperty = sl;
+                else if (v is System.Collections.Generic.List<StylePropertyName> list)
+                    e.style.transitionProperty = new StyleList<StylePropertyName>(list);
+            };
+            styleSetters["transitionTimingFunction"] = (e, v) =>
+            {
+                if (v is StyleList<EasingFunction> sl)
+                    e.style.transitionTimingFunction = sl;
+                else if (v is System.Collections.Generic.List<EasingFunction> list)
+                    e.style.transitionTimingFunction = new StyleList<EasingFunction>(list);
+            };
             // backgroundPosition kept as no-op for backward compat (IStyle splits to backgroundPositionX/Y)
             styleSetters["backgroundPosition"] = (e, v) => { };
 
@@ -871,6 +894,22 @@ namespace ReactiveUITK.Props
                 e.style.unityMaterial = StyleKeyword.Null;
             };
 #endif
+            styleResetters["transitionDelay"] = e =>
+            {
+                e.style.transitionDelay = StyleKeyword.Null;
+            };
+            styleResetters["transitionDuration"] = e =>
+            {
+                e.style.transitionDuration = StyleKeyword.Null;
+            };
+            styleResetters["transitionProperty"] = e =>
+            {
+                e.style.transitionProperty = StyleKeyword.Null;
+            };
+            styleResetters["transitionTimingFunction"] = e =>
+            {
+                e.style.transitionTimingFunction = StyleKeyword.Null;
+            };
         }
 
         private static readonly Dictionary<string, string> s_canonicalizeCache = new(64);
@@ -1203,6 +1242,19 @@ namespace ReactiveUITK.Props
                 }
                 return;
             }
+            if (propertyName == "__ussKeys")
+            {
+                if (propertyValue is string[] keys)
+                {
+                    for (int i = 0; i < keys.Length; i++)
+                    {
+                        var sheet = UitkxAssetRegistry.Get<StyleSheet>(keys[i]);
+                        if (sheet != null && !element.styleSheets.Contains(sheet))
+                            element.styleSheets.Add(sheet);
+                    }
+                }
+                return;
+            }
             if (propertyName == "style" && propertyValue is IDictionary<string, object> styleMap)
             {
                 foreach (KeyValuePair<string, object> styleEntry in styleMap)
@@ -1262,6 +1314,16 @@ namespace ReactiveUITK.Props
                 foreach (var cls in tokens)
                 {
                     element.RemoveFromClassList(cls);
+                }
+                return;
+            }
+            if (propertyName == "__ussKeys" && oldValue is string[] oldKeys)
+            {
+                for (int i = 0; i < oldKeys.Length; i++)
+                {
+                    var sheet = UitkxAssetRegistry.Get<StyleSheet>(oldKeys[i]);
+                    if (sheet != null && element.styleSheets.Contains(sheet))
+                        element.styleSheets.Remove(sheet);
                 }
                 return;
             }

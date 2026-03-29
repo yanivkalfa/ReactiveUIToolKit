@@ -37,6 +37,7 @@ The prompt is at `.github/prompts/add-unity-version.prompt.md`.
 |------|------|----------|
 | `.github/prompts/add-unity-version.prompt.md` | Copilot prompt — full runbook | AI |
 | `automation~/unity-api-diff.ps1` | Assembly diff script (PowerShell) | Both |
+| `automation~/apply-diff-to-schema.mjs` | Patch schema with version annotations from diff | Both |
 | `automation~/diff-reports/` | Generated JSON reports (gitignored) | Both |
 | `automation~/README.md` | Detailed usage docs | Both |
 | `Plans~/VERSIONING_PROCESS.md` | Full reference: sources, checklists, matrix | Human |

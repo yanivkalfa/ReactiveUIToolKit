@@ -13,6 +13,7 @@ component UitkxTestSubFileDoNotTouch(string message = "Footer") {
   return (
     <VisualElement style={footerStyle}>
       <Label text={message} />
+      <Box></Box>
     </VisualElement>
   );
 }

@@ -156,3 +156,54 @@ White, Black, Red, Green, Blue, Yellow, Cyan, Magenta, Grey, Transparent
 Hex("#FF0000")          → Color from hex string
 Rgba(255, 0, 0)         → Color from 0-255 byte values
 Rgba(1f, 0f, 0f, 0.5f)  → Color from 0-1 float values`
+
+export const EXAMPLE_USS_BASIC = `@uss "./Card.uss"
+
+component Card {
+  return (
+    <VisualElement>
+      <Label text="Styled with USS" className="card-title" />
+    </VisualElement>
+  );
+}`
+
+export const EXAMPLE_USS_FILE = `/* Card.uss — standard Unity Style Sheet */
+VisualElement {
+    padding: 12px;
+    background-color: rgba(30, 30, 35, 0.95);
+    border-radius: 8px;
+}
+
+.card-title {
+    font-size: 18px;
+    color: white;
+    -unity-font-style: bold;
+}`
+
+export const EXAMPLE_USS_MULTIPLE = `@uss "./base.uss"
+@uss "./theme-dark.uss"
+
+component ThemedPanel {
+  return (
+    <VisualElement className="panel">
+      <Label text="Multiple stylesheets applied in order" />
+    </VisualElement>
+  );
+}`
+
+export const EXAMPLE_USS_COMBINED = `@uss "./Card.uss"
+@using static ReactiveUITK.Props.Typed.CssHelpers
+
+component Card {
+  // USS handles static layout, typed Style handles dynamic values
+  var highlight = new Style {
+      BorderColor = isSelected ? Hex("#00AAFF") : Transparent,
+      BorderWidth = 2f,
+  };
+
+  return (
+    <VisualElement className="card" style={highlight}>
+      <Label text="Best of both worlds" />
+    </VisualElement>
+  );
+}`

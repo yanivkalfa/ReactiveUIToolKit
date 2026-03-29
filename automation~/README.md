@@ -10,6 +10,7 @@ The `~` suffix means Unity ignores this folder (same convention as `ide-extensio
 | Path | Purpose |
 |------|---------|
 | `unity-api-diff.ps1` | Compare UIElements API between two Unity versions via assembly reflection |
+| `apply-diff-to-schema.mjs` | Patch `uitkx-schema.json` with version annotations from a diff report |
 | `diff-reports/` | Output folder for diff reports (gitignored JSON files) |
 
 ## Quick Start
@@ -28,6 +29,18 @@ The `~` suffix means Unity ignores this folder (same convention as `ide-extensio
 # Save output to diff-reports/
 .\automation~\unity-api-diff.ps1 -From 6000.2 -To 6000.3 -OutFile .\automation~\diff-reports\6000.2-to-6000.3.json
 ```
+
+### Apply diff annotations to the schema
+
+After generating a diff report, patch `uitkx-schema.json` with `sinceUnity` / `removedIn`
+annotations automatically:
+
+```bash
+node automation~/apply-diff-to-schema.mjs automation~/diff-reports/6000.2-to-6000.3.json 6000.3
+```
+
+This sets `sinceUnity` on added elements, `removedIn` on removed elements, and updates
+the `styleVersions` section for added/removed IStyle properties.
 
 ### Use the AI prompt to add version support
 

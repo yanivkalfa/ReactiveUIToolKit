@@ -16,6 +16,9 @@
       "include": "#comment"
     },
     {
+      "include": "#uss-directive"
+    },
+    {
       "include": "#directive-declaration"
     },
     {
@@ -87,6 +90,22 @@
       "endCaptures": {
         "0": {
           "name": "punctuation.definition.comment.uitkx"
+        }
+      }
+    },
+    "uss-directive": {
+      "comment": "Handles @uss \"path\" — keyword + string-colored path",
+      "name": "meta.directive.uss.uitkx",
+      "match": "^(@)(uss)\\s+(\"[^\"]*\"|'[^']*')",
+      "captures": {
+        "1": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "2": {
+          "name": "keyword.other.directive.uitkx"
+        },
+        "3": {
+          "name": "string.quoted.double.uitkx"
         }
       }
     },
