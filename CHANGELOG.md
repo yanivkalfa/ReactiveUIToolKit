@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.2.45] - 2026-03-29
+
+### Improved
+- **Plan status audit** — updated USS_LOADING_PLAN (15% → 95% complete), ASSET_REGISTRY_PLAN (D2 status), and V1 Road Map (checked 6 items previously marked incomplete that are covered by existing docs site pages)
+
 ## [0.2.44] - 2026-03-29
 
 ### Fixed

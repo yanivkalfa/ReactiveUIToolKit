@@ -38,7 +38,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 ### Diagnostics Quality
 - [x] Confirm Tier-1/Tier-2 diagnostics are complete for V1 scope. <!-- 21+ codes: UITKX0101-0111 structural, UITKX0300-0306 parser, UITKX0001-0021 generator -->
 - [x] Ensure every diagnostic has actionable message text. <!-- all have title, parameterized format, and description -->
-- [ ] Ensure severity levels and codes are documented. <!-- documentation gap: no user-facing diagnostics catalog page yet -->
+- [x] Ensure severity levels and codes are documented. <!-- UitkxDiagnosticsPage.tsx: UITKX0001–0021 (SG), UITKX0101–0111 (LSP), UITKX0300–0306 (parser) with severity, title, and how-to-fix -->
 - [x] Ensure diagnostics are stable under incomplete typing/editing. <!-- parser recovery tested + confirmed stable through daily development usage -->
 
 ### Performance Baselines
@@ -99,15 +99,15 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 
 ### Core Documentation
 - [x] Publish quick start (install, first component, run, troubleshoot). <!-- UitkxGettingStartedPage.tsx -->
-- [ ] Publish language reference for directives, markup, control flow. <!-- partially covered across multiple pages, no single reference -->
-- [ ] Publish configuration reference (`uitkx.config.json`).
-- [ ] Publish diagnostics catalog (code, message, resolution guidance).
+- [x] Publish language reference for directives, markup, control flow. <!-- UitkxReferencePage.tsx: @namespace, @component, @using, @props, @key, @inject, @code, @uss, @if/@else, @foreach, @switch/@case, expressions, JSX comments -->
+- [x] Publish configuration reference (`uitkx.config.json`). <!-- UitkxConfigPage.tsx: server path, dotnet path, trace settings, editor defaults, formatter settings -->
+- [x] Publish diagnostics catalog (code, message, resolution guidance). <!-- UitkxDiagnosticsPage.tsx: UITKX0001–0306 with code, severity, title, and how-to-fix -->
 
 ### How-To Guides
 - [x] Guide: add UITKX to existing Unity project. <!-- Getting Started page covers Package Manager URL + initial setup -->
 - [ ] Guide: component composition patterns.
 - [ ] Guide: props/state-style patterns in UITKX.
-- [ ] Guide: debugging generated output and mapped errors.
+- [x] Guide: debugging generated output and mapped errors. <!-- UitkxDebuggingPage.tsx: inspecting .uitkx.g.cs, #line directives, LSP server logs, trace settings, common issues -->
 
 ### Operational Docs
 - [x] Internal release runbook (build/package/publish/install verification). <!-- ide-extensions~/docs/ has publish guides for VS Code, VS2022, Rider -->
@@ -167,7 +167,7 @@ This roadmap is the high-level execution checklist for shipping UITKX as a produ
 ### Community Readiness
 - [ ] Prepare announcement content (what it is, why it matters, limitations).
 - [ ] Publish migration messaging for existing users.
-- [ ] Publish FAQ for common setup and diagnostic issues.
+- [x] Publish FAQ for common setup and diagnostic issues. <!-- FAQPage.tsx: Unity version support, interop, runtime overhead, production builds, supported editors, hook rules, domain reload, HMR -->
 - [ ] Define official support channels and expected response times.
 
 ### Feedback Loop

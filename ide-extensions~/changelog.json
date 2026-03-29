@@ -3,6 +3,16 @@
     {
       "date": "2026-03-29",
       "versions": {
+        "vscode": "1.0.301",
+        "vs2022": "1.0.78"
+      },
+      "shared": [
+        "Fix: updated plan documents to reflect actual implementation status"
+      ]
+    },
+    {
+      "date": "2026-03-29",
+      "versions": {
         "vscode": "1.0.300",
         "vs2022": "1.0.77"
       },
