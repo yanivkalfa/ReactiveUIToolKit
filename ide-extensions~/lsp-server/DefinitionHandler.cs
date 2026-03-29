@@ -106,6 +106,25 @@ public sealed class DefinitionHandler : IDefinitionHandler
         var elementInfo = _index.TryGetElementInfo(word);
         if (elementInfo is not null && File.Exists(elementInfo.FilePath))
         {
+            // When the definition is on the same line in the same file (i.e. the
+            // user clicked the component's own declaration), return the exact
+            // cursor position.  VS Code detects "definition == current location"
+            // and automatically shows Find All References instead — matching the
+            // JSX/TSX behaviour.
+            bool isSameLocation =
+                string.Equals(
+                    Path.GetFullPath(elementInfo.FilePath),
+                    Path.GetFullPath(localPath),
+                    StringComparison.OrdinalIgnoreCase)
+                && elementInfo.FileLine == line1;
+
+            if (isSameLocation)
+            {
+                ServerLog.Log(
+                    $"definition: '{word}' is own declaration – returning cursor pos for references fallback");
+                return MakeLocation(localPath, line1, col0);
+            }
+
             ServerLog.Log($"definition: '{word}' → {elementInfo.FilePath}:{elementInfo.FileLine}");
             return MakeLocation(elementInfo.FilePath, elementInfo.FileLine);
         }
@@ -298,17 +317,7 @@ public sealed class DefinitionHandler : IDefinitionHandler
     }
 
     private static int ToOffset(string text, Position position)
-    {
-        var line   = (int)position.Line;
-        var column = (int)position.Character;
-        var offset = 0;
-        for (var i = 0; i < line && offset < text.Length; i++)
-        {
-            var nl = text.IndexOf('\n', offset);
-            offset = nl < 0 ? text.Length : nl + 1;
-        }
-        return Math.Min(offset + column, text.Length);
-    }
+        => LspHelpers.ToOffset(text, position);
 
     // ── Roslyn-based symbol resolution ──────────────────────────────────────
 

@@ -40,6 +40,8 @@ namespace ReactiveUITK.Language.Parser
         string? DefaultKey,
         /// <summary>All <c>@using</c> namespace values, in declaration order.</summary>
         ImmutableArray<string> Usings,
+        /// <summary>All <c>@uss "path"</c> stylesheet paths, in declaration order.</summary>
+        ImmutableArray<string> UssFiles,
         /// <summary>
         /// All <c>@inject Type Name</c> declarations, in declaration order.
         /// Each entry carries the fully-qualified type string and the field name.

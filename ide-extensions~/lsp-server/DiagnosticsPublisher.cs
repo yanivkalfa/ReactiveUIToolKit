@@ -436,17 +436,42 @@ public sealed class DiagnosticsPublisher
                 });
             }
 
-            // Check style attribute for version-gated properties
+            // Check attribute version requirements
             foreach (var attr in el.Attributes)
             {
-                if (!attr.Name.Equals("style", StringComparison.OrdinalIgnoreCase))
-                    continue;
-
-                // The style attribute value may reference style properties that have
-                // version annotations. We check this at the style-key level via schema
-                // annotations when they exist. Individual style property version checks
-                // happen when someone adds sinceUnity entries to styleVersions in the
-                // schema. This is the hookpoint — no actual annotations to check yet.
+                var schemaAttr = _schema.GetAttributesForElement(el.TagName)
+                    .FirstOrDefault(a => a.Name.Equals(attr.Name, StringComparison.OrdinalIgnoreCase));
+                if (schemaAttr?.SinceUnity is not null
+                    && UnityVersion.TryParse(schemaAttr.SinceUnity, out var attrMinVersion)
+                    && userVersion < attrMinVersion)
+                {
+                    diags.Add(new ParseDiagnostic
+                    {
+                        Code = DiagnosticCodes.VersionMismatch,
+                        Severity = ParseSeverity.Warning,
+                        Message = $"Attribute '{attr.Name}' on '<{el.TagName}>' requires {attrMinVersion.ToDisplayString()}+, "
+                                + $"but this project targets {userVersion.ToDisplayString()}.",
+                        SourceLine = attr.SourceLine,
+                        SourceColumn = attr.SourceColumn,
+                        EndLine = attr.SourceLine,
+                        EndColumn = attr.NameEndColumn > 0 ? attr.NameEndColumn : attr.SourceColumn + attr.Name.Length,
+                    });
+                }
+                if (schemaAttr?.RemovedIn is not null
+                    && UnityVersion.TryParse(schemaAttr.RemovedIn, out var removedVersion)
+                    && userVersion >= removedVersion)
+                {
+                    diags.Add(new ParseDiagnostic
+                    {
+                        Code = DiagnosticCodes.VersionMismatch,
+                        Severity = ParseSeverity.Warning,
+                        Message = $"Attribute '{attr.Name}' on '<{el.TagName}>' was removed in {removedVersion.ToDisplayString()}.",
+                        SourceLine = attr.SourceLine,
+                        SourceColumn = attr.SourceColumn,
+                        EndLine = attr.SourceLine,
+                        EndColumn = attr.NameEndColumn > 0 ? attr.NameEndColumn : attr.SourceColumn + attr.Name.Length,
+                    });
+                }
             }
 
             // Recurse into children

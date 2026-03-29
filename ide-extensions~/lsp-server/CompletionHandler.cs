@@ -216,14 +216,14 @@ public sealed class CompletionHandler : ICompletionHandler
             CursorKind.ControlFlowName when inCodeBlockLine && !inEmbeddedMarkupInCode =>
                 Enumerable.Empty<CompletionItem>(),
             CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
-            CursorKind.TagName => TagItems(ctx.Prefix),
-            CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix),
+            CursorKind.TagName => TagItems(ctx.Prefix, text, offset),
+            CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix, HasExistingBinding(text, offset)),
             CursorKind.AttributeValue => AttributeValueItems(
                 ctx.TagName ?? "",
                 ctx.AttributeName ?? "",
                 ctx.Prefix
             ),
-            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems(""),
+            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems("", text, offset),
             _ => Enumerable.Empty<CompletionItem>(),
         };
 
@@ -710,8 +710,10 @@ public sealed class CompletionHandler : ICompletionHandler
         return (line, start);
     }
 
-    private IEnumerable<CompletionItem> TagItems(string prefix)
+    private IEnumerable<CompletionItem> TagItems(string prefix, string text, int offset)
     {
+        bool existingTag = HasExistingTagBody(text, offset);
+
         // Dynamic elements from workspace (one item per known element)
         var knownElements = _index.KnownElements;
 
@@ -731,8 +733,10 @@ public sealed class CompletionHandler : ICompletionHandler
                 {
                     Label = name,
                     Kind = CompletionItemKind.Class,
-                    InsertText = acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
-                    InsertTextFormat = InsertTextFormat.Snippet,
+                    InsertText = existingTag
+                        ? name
+                        : acceptsChildren ? $"{name} " : $"{name} $1 />",
+                    InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                     Detail = detail,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = docMd },
                 };
@@ -752,8 +756,10 @@ public sealed class CompletionHandler : ICompletionHandler
                 {
                     Label = va.HasValue ? $"{va.Value.LabelPrefix}{kv.Key}" : kv.Key,
                     Kind = CompletionItemKind.Class,
-                    InsertText = BuildTagSnippet(kv.Key, kv.Value),
-                    InsertTextFormat = InsertTextFormat.Snippet,
+                    InsertText = existingTag
+                        ? kv.Key
+                        : BuildTagSnippet(kv.Key, kv.Value),
+                    InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                     SortText = va.HasValue ? $"{va.Value.SortPrefix}{kv.Key}" : null,
                     Detail = va.HasValue
                         ? (kv.Value.PropsType ?? "") + va.Value.DetailSuffix
@@ -769,7 +775,7 @@ public sealed class CompletionHandler : ICompletionHandler
         return dynamicItems.Concat(schemaItems);
     }
 
-    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix)
+    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix, bool hasExistingBinding)
     {
         var workspaceProps = _index.GetProps(tagName);
         var coveredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -786,42 +792,55 @@ public sealed class CompletionHandler : ICompletionHandler
             .Select(p =>
             {
                 var canonicalName = CanonicalSchemaAttributeName(tagName, p.Name);
-                // Prefer {=} binding for non-string props; string=" " for string
                 var isString = p.Type.Equals("string", StringComparison.OrdinalIgnoreCase);
-                var insert = isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
+                // When an existing ={value} binding follows the cursor, insert
+                // only the attribute name — the binding is already there.
+                var insert = hasExistingBinding
+                    ? canonicalName
+                    : isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
+                var format = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet;
                 var doc = string.IsNullOrEmpty(p.XmlDoc) ? $"**{p.Type}** `{p.Name}`" : p.XmlDoc;
                 return new CompletionItem
                 {
                     Label = canonicalName,
                     Kind = CompletionItemKind.Property,
                     InsertText = insert,
-                    InsertTextFormat = InsertTextFormat.Snippet,
+                    InsertTextFormat = format,
                     Detail = p.Type,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = doc },
                 };
             });
 
         // Schema attrs for built-in elements + universal attrs not already covered
+        var userVersion = _roslynHost.DetectedUnityVersion;
         var schemaItems = _schema
             .GetAttributesForElement(tagName)
             .Where(a =>
                 !coveredNames.Contains(a.Name)
                 && a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                && !IsRemovedForVersion(a, userVersion)
             )
             .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Select(a => new CompletionItem
+            .Select(a =>
             {
-                Label = a.Name,
-                Kind = CompletionItemKind.Property,
-                InsertText = a.Name + "=\"$1\"",
-                InsertTextFormat = InsertTextFormat.Snippet,
-                Detail = a.Type,
-                Documentation = new MarkupContent
+                var va = GetVersionAnnotation(a.SinceUnity, userVersion);
+                return new CompletionItem
                 {
-                    Kind = MarkupKind.Markdown,
-                    Value = a.Description,
-                },
+                    Label = va.HasValue ? $"{va.Value.LabelPrefix}{a.Name}" : a.Name,
+                    Kind = CompletionItemKind.Property,
+                    InsertText = hasExistingBinding ? a.Name : a.Name + "=\"$1\"",
+                    InsertTextFormat = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
+                    SortText = va.HasValue ? $"{va.Value.SortPrefix}{a.Name}" : null,
+                    Detail = va.HasValue
+                        ? (a.Type ?? "") + va.Value.DetailSuffix
+                        : a.Type,
+                    Documentation = new MarkupContent
+                    {
+                        Kind = MarkupKind.Markdown,
+                        Value = a.Description,
+                    },
+                };
             });
 
         return dynItems.Concat(schemaItems);
@@ -901,7 +920,7 @@ public sealed class CompletionHandler : ICompletionHandler
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string BuildTagSnippet(string tagName, UitkxSchema.ElementInfo info) =>
-        info.AcceptsChildren ? $"{tagName}>$0</{tagName}>" : $"{tagName} $1 />";
+        info.AcceptsChildren ? $"{tagName} " : $"{tagName} $1 />";
 
     private static string BuildControlFlowSnippet(string name) =>
         name switch
@@ -1002,6 +1021,52 @@ public sealed class CompletionHandler : ICompletionHandler
         return Math.Min(offset + column, text.Length);
     }
 
+    /// <summary>
+    /// Returns <c>true</c> when the text after the cursor already contains an
+    /// <c>=</c> binding (e.g. <c>={bg}</c> or <c>="hello"</c>).  Skips past
+    /// any remaining identifier chars (rest of the attribute name being replaced)
+    /// and optional whitespace before checking for <c>=</c>.
+    /// </summary>
+    private static bool HasExistingBinding(string text, int offset)
+    {
+        int i = offset;
+
+        // Skip remaining identifier chars (the rest of the word after cursor).
+        while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_'))
+            i++;
+
+        // Skip optional whitespace.
+        while (i < text.Length && (text[i] == ' ' || text[i] == '\t'))
+            i++;
+
+        return i < text.Length && text[i] == '=';
+    }
+
+    /// <summary>
+    /// Returns true when the cursor is inside an existing open tag — i.e. after
+    /// the tag name there are attributes, '>', or '/>' already present.
+    /// When true, tag completion should replace only the name, not insert a
+    /// closing tag snippet.
+    /// </summary>
+    private static bool HasExistingTagBody(string text, int offset)
+    {
+        int i = offset;
+
+        // Skip remaining identifier chars (rest of old tag name after cursor).
+        while (i < text.Length && (char.IsLetterOrDigit(text[i]) || text[i] == '_'))
+            i++;
+
+        // Skip optional whitespace.
+        while (i < text.Length && (text[i] == ' ' || text[i] == '\t'))
+            i++;
+
+        // If next non-whitespace is an attribute start, '>', or '/>' we're inside an existing tag.
+        if (i >= text.Length)
+            return false;
+        char c = text[i];
+        return c == '>' || c == '/' || char.IsLetter(c);
+    }
+
     // ── Version-awareness helpers ─────────────────────────────────────────────
 
     /// <summary>
@@ -1035,5 +1100,17 @@ public sealed class CompletionHandler : ICompletionHandler
 
         /// <summary>Detail suffix, e.g. <c>"  • Requires Unity 6.3+"</c>.</summary>
         public string DetailSuffix => $"  •  Requires {MinVersion.ToDisplayString()}+";
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the attribute has a <c>removedIn</c> annotation
+    /// and the user's Unity version is at or past that version.
+    /// </summary>
+    private static bool IsRemovedForVersion(UitkxSchema.AttributeInfo attr, UnityVersion userVersion)
+    {
+        if (attr.RemovedIn is null || !userVersion.IsKnown)
+            return false;
+        return UnityVersion.TryParse(attr.RemovedIn, out var removedVersion)
+            && userVersion >= removedVersion;
     }
 }

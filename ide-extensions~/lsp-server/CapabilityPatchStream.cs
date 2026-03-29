@@ -156,6 +156,7 @@ internal sealed class CapabilityPatchStream : Stream
             + "\"signatureHelpProvider\":{\"triggerCharacters\":[\"(\",\",\"]},"
             + "\"documentFormattingProvider\":true,"
             + "\"renameProvider\":{\"prepareProvider\":true},"
+            + "\"referencesProvider\":true,"
             + "\"textDocumentSync\":{\"openClose\":true,\"change\":2},";
 
         // Insert providers right after "capabilities":{

@@ -439,13 +439,29 @@ public sealed class FormatterSnapshotTests
     }
 
     [Fact]
-    public void JSX_EmptyElement_SelfCloses()
+    public void JSX_EmptyElement_PreservesOpenCloseForm()
     {
-        // An element with no children should be self-closed by the formatter.
+        // An element written as <Panel></Panel> should preserve the open+close form,
+        // not collapse to <Panel />. The formatter puts the closing tag on its own line.
         var source = "component Foo { return (<Panel></Panel>); }";
         var result = Format(source);
-        // The formatter collapses childless open+close tags to a self-close.
+        Assert.Contains("<Panel>", result);
+        Assert.Contains("</Panel>", result);
+        Assert.DoesNotContain("<Panel />", result);
+        // Double-format stability.
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void JSX_SelfClosingElement_StaysSelfClosing()
+    {
+        // An element written as <Panel /> should stay self-closing.
+        var source = "component Foo { return (<Panel />); }";
+        var result = Format(source);
         Assert.Contains("<Panel />", result);
+        Assert.DoesNotContain("</Panel>", result);
+        // Double-format stability.
+        Assert.Equal(result, Format(result));
     }
 
     [Fact]

@@ -37,6 +37,7 @@ namespace ReactiveUITK.Language.Parser
             "namespace",
             "component",
             "using",
+            "uss",
             "props",
             "key",
             "inject",
@@ -89,6 +90,7 @@ namespace ReactiveUITK.Language.Parser
                     PropsTypeName: null,
                     DefaultKey: null,
                     Usings: ImmutableArray<string>.Empty,
+                    UssFiles: ImmutableArray<string>.Empty,
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: fsLine,
                     MarkupStartIndex: source.Length,
@@ -116,6 +118,7 @@ namespace ReactiveUITK.Language.Parser
                 PropsTypeName: null,
                 DefaultKey: null,
                 Usings: ImmutableArray<string>.Empty,
+                UssFiles: ImmutableArray<string>.Empty,
                 Injects: ImmutableArray<(string Type, string Name)>.Empty,
                 MarkupStartLine: 1,
                 MarkupStartIndex: 0,
@@ -146,15 +149,22 @@ namespace ReactiveUITK.Language.Parser
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
 
-            // Parse optional leading `using X.Y.Z;` lines AND an optional
-            // `@namespace X.Y` directive before the component keyword, in any order.
+            // Parse optional leading `using X.Y.Z;` lines, `@uss "path"` lines,
+            // AND an optional `@namespace X.Y` directive before the component keyword,
+            // in any order.
             var usings = new List<string>();
+            var ussFiles = new List<string>();
             string? inlineNamespace = null;
             bool parsedPreambleLine;
             do
             {
                 parsedPreambleLine = false;
                 if (TryReadFunctionStyleUsing(source, ref i, ref line, usings))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    parsedPreambleLine = true;
+                }
+                if (TryReadFunctionStyleUss(source, ref i, ref line, ussFiles))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                     parsedPreambleLine = true;
@@ -230,6 +240,7 @@ namespace ReactiveUITK.Language.Parser
                     PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
                     Usings: usings.ToImmutableArray(),
+                    UssFiles: ussFiles.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
@@ -262,6 +273,7 @@ namespace ReactiveUITK.Language.Parser
                     PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
                     Usings: usings.ToImmutableArray(),
+                    UssFiles: ussFiles.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
@@ -318,6 +330,7 @@ namespace ReactiveUITK.Language.Parser
                     PropsTypeName: functionPropsTypeName,
                     DefaultKey: null,
                     Usings: usings.ToImmutableArray(),
+                    UssFiles: ussFiles.ToImmutableArray(),
                     Injects: ImmutableArray<(string Type, string Name)>.Empty,
                     MarkupStartLine: componentLine,
                     MarkupStartIndex: source.Length,
@@ -384,6 +397,7 @@ namespace ReactiveUITK.Language.Parser
                 PropsTypeName: functionPropsTypeName,
                 DefaultKey: null,
                 Usings: usings.ToImmutableArray(),
+                UssFiles: ussFiles.ToImmutableArray(),
                 Injects: ImmutableArray<(string Type, string Name)>.Empty,
                 MarkupStartLine: markupLine,
                 MarkupStartIndex: markupStart,
@@ -675,13 +689,18 @@ namespace ReactiveUITK.Language.Parser
             int i = start;
             int line = 1;
             SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
-            // Skip any leading `using X.Y.Z;` and `@namespace X.Y` lines, in any order.
+            // Skip any leading `using X.Y.Z;`, `@uss "path"`, and `@namespace X.Y` lines, in any order.
             var dummy = new List<string>();
             bool skippedSomething;
             do
             {
                 skippedSomething = false;
                 if (TryReadFunctionStyleUsing(source, ref i, ref line, dummy))
+                {
+                    SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                    skippedSomething = true;
+                }
+                if (TryReadFunctionStyleUss(source, ref i, ref line, dummy))
                 {
                     SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
                     skippedSomething = true;
@@ -815,6 +834,77 @@ namespace ReactiveUITK.Language.Parser
 
             if (!string.IsNullOrWhiteSpace(namespaceName))
                 usings.Add(namespaceName);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to read an <c>@uss "path"</c> directive.
+        /// On failure restores <paramref name="i"/> and returns false.
+        /// </summary>
+        private static bool TryReadFunctionStyleUss(
+            string source,
+            ref int i,
+            ref int line,
+            List<string> ussFiles
+        )
+        {
+            int savedI = i;
+            int savedLine = line;
+
+            while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
+                i++;
+
+            // @uss is always directive-form (requires '@')
+            if (i >= source.Length || source[i] != '@')
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+            i++;
+
+            if (!TryReadKeyword(source, ref i, "uss"))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            SkipSpaces(source, ref i);
+
+            // Expect a quoted path: "..." or '...'
+            if (i >= source.Length || (source[i] != '"' && source[i] != '\''))
+            {
+                i = savedI;
+                line = savedLine;
+                return false;
+            }
+
+            char quote = source[i];
+            i++; // skip opening quote
+            int pathStart = i;
+            while (i < source.Length && source[i] != quote && !IsNewline(source[i]))
+                i++;
+
+            string path = source.Substring(pathStart, i - pathStart).Trim();
+
+            // Consume closing quote
+            if (i < source.Length && source[i] == quote)
+                i++;
+
+            // Consume optional ';'
+            if (i < source.Length && source[i] == ';')
+                i++;
+
+            // Skip rest of line and the newline.
+            while (i < source.Length && !IsNewline(source[i]))
+                i++;
+            if (i < source.Length && IsNewline(source[i]))
+                ConsumeNewline(source, ref i, ref line);
+
+            if (!string.IsNullOrWhiteSpace(path))
+                ussFiles.Add(path);
 
             return true;
         }

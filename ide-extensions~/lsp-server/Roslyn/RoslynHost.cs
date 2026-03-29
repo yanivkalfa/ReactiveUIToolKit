@@ -183,6 +183,9 @@ namespace UitkxLanguageServer.Roslyn
         /// <summary>Returns the workspace root path, or <c>null</c> if not yet set.</summary>
         public string? WorkspaceRoot => _workspaceRoot;
 
+        /// <summary>Returns paths of all .uitkx files that have a tracked Roslyn workspace.</summary>
+        public IReadOnlyCollection<string> GetAllTrackedPaths() => _files.Keys.ToArray();
+
         /// <summary>
         /// The Unity Editor version detected from the project's <c>ProjectVersion.txt</c>.
         /// Returns <see cref="UnityVersion.Unknown"/> if not yet resolved or not a Unity project.

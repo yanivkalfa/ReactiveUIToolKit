@@ -110,6 +110,15 @@ namespace ReactiveUITK.Language.Formatter
                 hasPreamble = true;
             }
 
+            if (!directives.UssFiles.IsDefaultOrEmpty)
+            {
+                foreach (var uss in directives.UssFiles)
+                {
+                    Ln($"@uss \"{uss}\"");
+                    hasPreamble = true;
+                }
+            }
+
             if (hasPreamble)
                 _sb.Append('\n');
 
@@ -334,7 +343,7 @@ namespace ReactiveUITK.Language.Formatter
 
         private void FormatElement(ElementNode el)
         {
-            bool selfClose = el.Children.IsEmpty;
+            bool selfClose = el.Children.IsEmpty && el.CloseTagLine == 0;
             string selfCloseSeq = _opts.InsertSpaceBeforeSelfClose ? " />" : "/>";
             var attrStrings = BuildAttrStrings(el.Attributes);
 
@@ -367,10 +376,19 @@ namespace ReactiveUITK.Language.Formatter
             // ── Children + closing tag ─────────────────────────────────────────
             if (!selfClose)
             {
-                _indent++;
-                FormatNodeList(el.Children, topLevel: false);
-                _indent--;
-                Ln($"</{el.TagName}>");
+                if (el.Children.IsEmpty)
+                {
+                    // Empty element with explicit close tag: keep on same line
+                    _sb.Remove(_sb.Length - 1, 1); // strip trailing \n
+                    _sb.Append($"</{el.TagName}>\n");
+                }
+                else
+                {
+                    _indent++;
+                    FormatNodeList(el.Children, topLevel: false);
+                    _indent--;
+                    Ln($"</{el.TagName}>");
+                }
             }
         }
 
