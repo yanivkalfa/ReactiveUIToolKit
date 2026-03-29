@@ -184,11 +184,3 @@ cd ReactiveUIToolKitDocs~ && npm run dev
 dotnet test SourceGenerator~/Tests
 ```
 
----
-
-## Migrating existing components
-
-See the **[Migration Guide](ReactiveUIToolKitDocs~/MIGRATION_GUIDE.md)** for a
-step-by-step walkthrough, directive reference, typed-props integration pattern,
-and common pitfalls.
-

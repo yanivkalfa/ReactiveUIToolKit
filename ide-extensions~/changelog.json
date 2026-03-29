@@ -1,6 +1,39 @@
 {
   "entries": [
     {
+      "date": "2026-03-29",
+      "versions": {
+        "vscode": "1.0.301",
+        "vs2022": "1.0.78"
+      },
+      "shared": [
+        "Fix: updated plan documents to reflect actual implementation status"
+      ]
+    },
+    {
+      "date": "2026-03-29",
+      "versions": {
+        "vscode": "1.0.300",
+        "vs2022": "1.0.77"
+      },
+      "shared": [
+        "Fix: formatter no longer expands empty open+close elements to multi-line",
+        "Feature: LSP attribute-level version filtering in completions and UITKX0200 diagnostics",
+        "Docs: component reference pages now show inline Unity docs link next to title"
+      ]
+    },
+    {
+      "date": "2026-03-28",
+      "versions": {
+        "vscode": "1.0.299",
+        "vs2022": "1.0.76"
+      },
+      "shared": [
+        "Fix: formatter no longer collapses empty open+close tags to self-closing (<Box></Box> is preserved)",
+        "Fix: tag completion no longer inserts closing tag for elements that accept children"
+      ]
+    },
+    {
       "date": "2026-03-28",
       "versions": {
         "vs2022": "1.0.75"

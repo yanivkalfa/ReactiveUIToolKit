@@ -735,7 +735,7 @@ public sealed class CompletionHandler : ICompletionHandler
                     Kind = CompletionItemKind.Class,
                     InsertText = existingTag
                         ? name
-                        : acceptsChildren ? $"{name}>$0</{name}>" : $"{name} $1 />",
+                        : acceptsChildren ? $"{name} " : $"{name} $1 />",
                     InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
                     Detail = detail,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = docMd },
@@ -812,26 +812,35 @@ public sealed class CompletionHandler : ICompletionHandler
             });
 
         // Schema attrs for built-in elements + universal attrs not already covered
+        var userVersion = _roslynHost.DetectedUnityVersion;
         var schemaItems = _schema
             .GetAttributesForElement(tagName)
             .Where(a =>
                 !coveredNames.Contains(a.Name)
                 && a.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                && !IsRemovedForVersion(a, userVersion)
             )
             .GroupBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
             .Select(g => g.First())
-            .Select(a => new CompletionItem
+            .Select(a =>
             {
-                Label = a.Name,
-                Kind = CompletionItemKind.Property,
-                InsertText = hasExistingBinding ? a.Name : a.Name + "=\"$1\"",
-                InsertTextFormat = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
-                Detail = a.Type,
-                Documentation = new MarkupContent
+                var va = GetVersionAnnotation(a.SinceUnity, userVersion);
+                return new CompletionItem
                 {
-                    Kind = MarkupKind.Markdown,
-                    Value = a.Description,
-                },
+                    Label = va.HasValue ? $"{va.Value.LabelPrefix}{a.Name}" : a.Name,
+                    Kind = CompletionItemKind.Property,
+                    InsertText = hasExistingBinding ? a.Name : a.Name + "=\"$1\"",
+                    InsertTextFormat = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
+                    SortText = va.HasValue ? $"{va.Value.SortPrefix}{a.Name}" : null,
+                    Detail = va.HasValue
+                        ? (a.Type ?? "") + va.Value.DetailSuffix
+                        : a.Type,
+                    Documentation = new MarkupContent
+                    {
+                        Kind = MarkupKind.Markdown,
+                        Value = a.Description,
+                    },
+                };
             });
 
         return dynItems.Concat(schemaItems);
@@ -911,7 +920,7 @@ public sealed class CompletionHandler : ICompletionHandler
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static string BuildTagSnippet(string tagName, UitkxSchema.ElementInfo info) =>
-        info.AcceptsChildren ? $"{tagName}>$0</{tagName}>" : $"{tagName} $1 />";
+        info.AcceptsChildren ? $"{tagName} " : $"{tagName} $1 />";
 
     private static string BuildControlFlowSnippet(string name) =>
         name switch
@@ -1091,5 +1100,17 @@ public sealed class CompletionHandler : ICompletionHandler
 
         /// <summary>Detail suffix, e.g. <c>"  • Requires Unity 6.3+"</c>.</summary>
         public string DetailSuffix => $"  •  Requires {MinVersion.ToDisplayString()}+";
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the attribute has a <c>removedIn</c> annotation
+    /// and the user's Unity version is at or past that version.
+    /// </summary>
+    private static bool IsRemovedForVersion(UitkxSchema.AttributeInfo attr, UnityVersion userVersion)
+    {
+        if (attr.RemovedIn is null || !userVersion.IsKnown)
+            return false;
+        return UnityVersion.TryParse(attr.RemovedIn, out var removedVersion)
+            && userVersion >= removedVersion;
     }
 }
