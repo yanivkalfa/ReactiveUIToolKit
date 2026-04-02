@@ -1,7 +1,6 @@
 @namespace ReactiveUITK.Samples.UITKXComponents
 @using System
 @using UnityEngine
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ValueItem(string typeText = "", string typeValue = "") {
   var containerStyle = new Style {

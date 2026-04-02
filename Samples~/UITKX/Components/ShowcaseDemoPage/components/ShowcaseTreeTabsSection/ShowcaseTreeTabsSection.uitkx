@@ -5,7 +5,6 @@
 @using ReactiveUITK.Samples.UITKXShared
 @using UnityEngine
 @using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ShowcaseTreeTabsSection(
   Action<int>? onTreeCountChanged = null, 

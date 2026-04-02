@@ -163,9 +163,6 @@ namespace ReactiveUITK.Language.Roslyn
             "System.Collections.Generic",
             "System.Linq",
             "UnityEngine",
-            // UnityEngine.UIElements intentionally omitted: it exports a FlexDirection enum
-            // that conflicts with the FlexDirection string constant from
-            // `using static ReactiveUITK.Props.Typed.StyleKeys` (CS0104).
             "ReactiveUITK.Core",
             "ReactiveUITK.Core.Animation",
             "ReactiveUITK.Props.Typed",
@@ -178,11 +175,26 @@ namespace ReactiveUITK.Language.Roslyn
         private static readonly string[] s_extraUsingLines =
         {
             "using static ReactiveUITK.Props.Typed.StyleKeys;",
+            "using static ReactiveUITK.Props.Typed.CssHelpers;",
             "using UColor = UnityEngine.Color;",
-            // `using static StyleKeys` imports a `Color` string constant (CSS "color" key).
-            // UnityEngine.UIElementsModule.dll also defines UnityEngine.Color → CS0104.
-            // An explicit alias always wins over both, so declare it last.
+            // `using static StyleKeys` imports string constants (e.g. FlexDirection = "flexDirection")
+            // that collide with identically-named enums/structs from UnityEngine.UIElements.
+            // We cannot import UIElements wholesale, but CssHelpers returns types from it
+            // (EasingFunction, BackgroundRepeat, etc.) so users need those type names.
+            // Targeted aliases import only the non-conflicting types users would reference.
             "using Color = UnityEngine.Color;",
+            "using EasingFunction = UnityEngine.UIElements.EasingFunction;",
+            "using EasingMode = UnityEngine.UIElements.EasingMode;",
+            "using BackgroundRepeat = UnityEngine.UIElements.BackgroundRepeat;",
+            "using BackgroundPosition = UnityEngine.UIElements.BackgroundPosition;",
+            "using BackgroundSize = UnityEngine.UIElements.BackgroundSize;",
+            "using TransformOrigin = UnityEngine.UIElements.TransformOrigin;",
+            "using BackgroundPositionKeyword = UnityEngine.UIElements.BackgroundPositionKeyword;",
+            "using BackgroundSizeType = UnityEngine.UIElements.BackgroundSizeType;",
+            "using Repeat = UnityEngine.UIElements.Repeat;",
+            "using Length = UnityEngine.UIElements.Length;",
+            "using StyleKeyword = UnityEngine.UIElements.StyleKeyword;",
+            "using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;",
         };
 
         // ── Public API ────────────────────────────────────────────────────────

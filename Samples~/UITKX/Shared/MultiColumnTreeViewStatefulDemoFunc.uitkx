@@ -4,7 +4,6 @@
 @using ReactiveUITK.Core
 @using ReactiveUITK.Props.Typed
 @using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component MultiColumnTreeViewStatefulDemoFunc(
   IReadOnlyList<MultiColumnTreeViewRowState>? rows = null, 
@@ -177,10 +176,10 @@ component MultiColumnTreeViewStatefulDemoFunc(
       </VisualElement>
       <MultiColumnTreeView
         rootItems={rootItems}
-        selection={SelectionType.None}
+        selection={SelectNone}
         fixedItemHeight={20f}
         columns={columns}
-        sortingMode={ColumnSortingMode.Custom}
+        sortingMode={SortCustom}
         sortedColumns={sortDefs}
         columnSortingChanged={onSortChanged ?? (_ => {})}
         columnWidths={columnWidths}
