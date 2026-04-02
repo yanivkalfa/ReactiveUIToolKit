@@ -6,8 +6,6 @@
 @using ReactiveUITK.Signals
 @using ReactiveUITK.Router
 @using ReactiveUITK.Samples.UITKXShared
-@using static ReactiveUITK.Props.Typed.StyleKeys
-@using static ReactiveUITK.Props.Typed.CssHelpers
 
 component UitkxTestFileDoNotTouch(
   IReadOnlyList<ListViewRowState>? items = null, 

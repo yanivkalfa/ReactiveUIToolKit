@@ -109,15 +109,15 @@ Unity UI Toolkit inline style. Values are compile-time checked — passing a `fl
 where a `Color` is expected is a build error.
 
 ```csharp
-using ReactiveUITK.Props.Typed;
-using static ReactiveUITK.Props.Typed.CssHelpers;
+// In .uitkx files, CssHelpers is auto-imported — no using needed.
+// In .cs files, add: using static ReactiveUITK.Props.Typed.CssHelpers;
 
 var cardStyle = new Style {
     Width = Pct(100),
     Height = Px(200),
     BackgroundColor = Rgba(0.1f, 0.1f, 0.15f, 0.9f),
-    FlexDirection = Column,
-    JustifyContent = SpaceBetween,
+    FlexDirection = FlexColumn,
+    JustifyContent = JustifySpaceBetween,
     AlignItems = AlignCenter,
     Padding = 16f,
     BorderRadius = 8f,
@@ -134,9 +134,11 @@ var cardStyle = new Style {
 | Transforms | `float` / struct | Rotate, Scale, Translate, TransformOrigin |
 | Assets | `Texture2D` / `Font` | BackgroundImage, FontFamily |
 
-**`CssHelpers`** (import via `using static`) provides shortcuts: `Pct()`, `Px()`,
-`Auto`, `None`, `Row`, `Column`, `JustifyCenter`, `AlignCenter`, `Hex("#FF0000")`,
-`Rgba(255, 0, 0)`, color presets (`White`, `Black`, `Red`, …), and all enum values.
+**`CssHelpers`** (auto-imported in `.uitkx` files) provides shortcuts: `Pct()`, `Px()`,
+`StyleAuto`, `StyleNone`, `FlexRow`, `FlexColumn`, `JustifyCenter`, `AlignCenter`, `Hex("#FF0000")`,
+`Rgba(255, 0, 0)`, color presets (`ColorWhite`, `ColorBlack`, `ColorRed`, …), compound struct
+factories (`BgRepeatNone`, `BgSizeCover`, `Origin()`, `Xlate()`, `EaseInOut`, …),
+and all enum values including element props (`SelectNone`, `SortCustom`, `PickIgnore`, etc.).
 
 The old tuple syntax `(StyleKeys.Key, value)` remains available as an escape hatch.
 

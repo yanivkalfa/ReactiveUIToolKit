@@ -99,7 +99,7 @@ export const UitkxReferencePage: FC = () => (
           <TableRow>
             <TableCell><code>@using</code></TableCell>
             <TableCell><code>@using System.Collections.Generic</code></TableCell>
-            <TableCell>Adds a using directive to the generated file</TableCell>
+            <TableCell>Adds a using directive to the generated file. Note: <code>StyleKeys</code> and <code>CssHelpers</code> are auto-imported.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>@props</code></TableCell>

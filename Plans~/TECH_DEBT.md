@@ -171,33 +171,12 @@ the batch rename.
 
 ---
 
-## `CssHelpers` static imports ambiguous with `UnityEngine.UIElements` enums
+## ~~`CssHelpers` static imports ambiguous with `UnityEngine.UIElements` enums~~ ✅ Resolved
 
-**Symptom:** Adding `@using UnityEngine.UIElements` to a `.uitkx` file causes
-ambiguity errors like:
-
-```
-Ambiguity between 'Column' and 'CssHelpers.Column'
-```
-
-`CssHelpers` exposes shortcuts (`Column`, `Row`, `Wrap`, etc.) via
-`using static CssHelpers`. When `UnityEngine.UIElements` is also imported,
-its enum members (`FlexDirection.Column`, etc.) clash at the same scope level.
-
-**Workaround:** Don't add `@using UnityEngine.UIElements` — the generated code
-already imports it. If needed, qualify: `CssHelpers.Column` instead of `Column`.
-
-**Possible fix:** The source generator could auto-inject `@using UnityEngine.UIElements`
-so users never need to add it. Or CssHelpers shortcuts could be renamed to avoid
-collision (e.g. `FlexColumn`, `FlexRow`) — but that's a breaking change.
-
-**Priority:** Medium — confusing for new users who naturally add UIElements import.
-
-**Status:** Known limitation — not planned to fix. Scoping rename edits per-
-lambda in `RenameHandler` would risk breaking legitimate multi-line renames
-(e.g. a variable used across several lines).
-
----
+**Resolved in v0.2.46.** `CssHelpers` is now auto-imported in `.uitkx` files
+(alongside `StyleKeys`). All UIElements enum values used in typed props have
+CssHelpers shortcuts, eliminating the need for `@using UnityEngine.UIElements`
+for enum values. Samples updated to use shortcuts (`SelectNone`, `SortCustom`, etc.).\n\nSee `Plans~/CSSHELPERS_FULL_COVERAGE_PLAN.md` for the complete implementation.\n\n---
 
 ## ~~LSP virtual document lacks prop type checking (systematic type erasure)~~ ✅ FIXED
 

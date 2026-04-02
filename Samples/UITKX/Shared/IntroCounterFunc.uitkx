@@ -1,6 +1,5 @@
 @namespace ReactiveUITK.Samples.UITKXShared
 @using ReactiveUITK.Props.Typed
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component IntroCounterFunc {
   var (count, setCount) = useState(0);

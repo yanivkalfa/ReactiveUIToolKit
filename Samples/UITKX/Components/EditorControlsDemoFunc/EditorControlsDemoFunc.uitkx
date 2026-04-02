@@ -1,6 +1,5 @@
 ﻿@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component EditorControlsDemoFunc {
   return (

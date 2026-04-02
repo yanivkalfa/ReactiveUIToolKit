@@ -2,7 +2,6 @@
 @using System
 @using System.Collections.Generic
 @using UnityEngine
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ValuesBar(IEnumerable<KeyValuePair<string, string>>? items = null) {
   var safeItems = items ?? Array.Empty<KeyValuePair<string, string>>();
