@@ -157,6 +157,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("using ReactiveUITK.Core.Animation;");
                 L("using ReactiveUITK.Props.Typed;");
                 L("using static ReactiveUITK.Props.Typed.StyleKeys;");
+                L("using static ReactiveUITK.Props.Typed.CssHelpers;");
                 L("using static ReactiveUITK.AssetHelpers;");
                 L("using UColor = UnityEngine.Color;");
                 foreach (var u in _usings)

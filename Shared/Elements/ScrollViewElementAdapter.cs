@@ -70,6 +70,7 @@ namespace ReactiveUITK.Elements
                     {
                         "vertical" => ScrollViewMode.Vertical,
                         "horizontal" => ScrollViewMode.Horizontal,
+                        "verticalandhorizontal" or "both" => ScrollViewMode.VerticalAndHorizontal,
                         _ => ScrollViewMode.Vertical,
                     };
                 }

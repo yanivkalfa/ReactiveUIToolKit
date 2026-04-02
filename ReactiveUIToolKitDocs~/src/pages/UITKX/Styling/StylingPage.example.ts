@@ -18,9 +18,7 @@ var panelStyle = new Style {
     MarginBottom = 10f,
 };`
 
-export const EXAMPLE_CSS_HELPERS = `// Even more concise with CssHelpers
-using static ReactiveUITK.Props.Typed.CssHelpers;
-
+export const EXAMPLE_CSS_HELPERS = `// CssHelpers shortcuts are auto-imported in .uitkx files
 var panelStyle = new Style {
     Height = 80f,
     BorderRadius = Px(6),
@@ -30,18 +28,17 @@ var panelStyle = new Style {
     MarginBottom = 10f,
 };`
 
-export const EXAMPLE_IMPORT = `@using ReactiveUITK.Props.Typed      // Style, StyleKeys
-@using UnityEngine
-@using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.CssHelpers`
+export const EXAMPLE_IMPORT = `@using ReactiveUITK.Props.Typed      // Style (only needed in .cs files)
+@using UnityEngine                    // Color, Vector2, etc.
+// StyleKeys + CssHelpers are auto-imported — no @using needed`
 
 export const EXAMPLE_LAYOUT = `var cardStyle = new Style {
     Width = Pct(100),
     Height = Px(200),
     MinWidth = 120f,
     MaxHeight = Pct(50),
-    FlexDirection = Column,
-    JustifyContent = SpaceBetween,
+    FlexDirection = FlexColumn,
+    JustifyContent = JustifySpaceBetween,
     AlignItems = AlignCenter,
     FlexGrow = 1f,
     FlexWrap = WrapOn,
@@ -50,7 +47,7 @@ export const EXAMPLE_LAYOUT = `var cardStyle = new Style {
 };`
 
 export const EXAMPLE_POSITIONING = `var overlayStyle = new Style {
-    Position = Absolute,
+    Position = PosAbsolute,
     Left = 0f,
     Top = 0f,
     Right = 0f,
@@ -58,10 +55,10 @@ export const EXAMPLE_POSITIONING = `var overlayStyle = new Style {
 };`
 
 export const EXAMPLE_COLORS = `var headerStyle = new Style {
-    Color = White,
+    Color = ColorWhite,
     BackgroundColor = Hex("#1a1a2e"),
     BorderColor = Rgba(255, 200, 0),
-    UnityTextOutlineColor = Black,
+    UnityTextOutlineColor = ColorBlack,
 };`
 
 export const EXAMPLE_BORDERS = `var cardStyle = new Style {
@@ -75,22 +72,22 @@ export const EXAMPLE_BORDERS = `var cardStyle = new Style {
 export const EXAMPLE_TEXT = `var titleStyle = new Style {
     FontSize = 24f,
     LetterSpacing = 1.5f,
-    TextAlign = MiddleCenter,
-    UnityFontStyle = Bold,
-    TextOverflow = Ellipsis,
-    WhiteSpace = Nowrap,
+    TextAlign = TextMiddleCenter,
+    UnityFontStyle = FontBold,
+    TextOverflow = TextEllipsis,
+    WhiteSpace = WsNowrap,
 };`
 
 export const EXAMPLE_BACKGROUND = `var bgStyle = new Style {
-    BackgroundRepeat = new BackgroundRepeat(Repeat.NoRepeat, Repeat.NoRepeat),
-    BackgroundSize = new BackgroundSize(BackgroundSizeType.Cover),
-    TransformOrigin = new TransformOrigin(Length.Percent(50), Length.Percent(50), 0),
+    BackgroundRepeat = BgRepeatNone,
+    BackgroundSize = BgSizeCover,
+    TransformOrigin = OriginCenter,
 };`
 
 export const EXAMPLE_TRANSFORMS = `var animatedStyle = new Style {
     Rotate = 45f,
     Scale = 1.2f,
-    Translate = new Translate(Px(10), Px(-5), 0),
+    Translate = Xlate(Px(10), Px(-5)),
 };`
 
 export const EXAMPLE_CONDITIONAL = `var buttonStyle = new Style {
@@ -101,12 +98,12 @@ export const EXAMPLE_CONDITIONAL = `var buttonStyle = new Style {
 };`
 
 export const EXAMPLE_INLINE = `<Label text="Hello"
-       style={new Style { Color = Green, FontSize = 18f }} />`
+       style={new Style { Color = ColorGreen, FontSize = 18f }} />`
 
 export const EXAMPLE_BOTH_APIs = `// Typed properties — type-safe, IDE completion
 var safe = new Style {
     Width = 100f,
-    FlexDirection = Row,
+    FlexDirection = FlexRow,
 };
 
 // Tuple syntax — escape hatch for edge cases
@@ -122,37 +119,38 @@ var mixed = new Style {
 };`
 
 export const EXAMPLE_ENUM_TABLE = `// Flexbox enums
-FlexDirection:  Row, Column, RowReverse, ColumnReverse
-Justify:        JustifyStart, JustifyEnd, JustifyCenter, SpaceBetween, SpaceAround
-Align:          AlignStart, AlignEnd, AlignCenter, Stretch, AlignAuto
-Wrap:           WrapOn, NoWrap, WrapRev
+FlexDirection:  FlexRow, FlexColumn, FlexRowReverse, FlexColumnReverse
+Justify:        JustifyStart, JustifyEnd, JustifyCenter, JustifySpaceBetween, JustifySpaceAround, JustifySpaceEvenly
+Align:          AlignStart, AlignEnd, AlignCenter, AlignStretch, AlignAuto
+Wrap:           WrapOn, WrapOff, WrapReverse
 
 // Layout enums
-Position:       Relative, Absolute
-DisplayStyle:   Flex, DisplayNone
-Visibility:     Visible, Hidden
+Position:       PosRelative, PosAbsolute
+DisplayStyle:   DisplayFlex, DisplayNone
+Visibility:     VisVisible, VisHidden
 Overflow:       OverflowVisible, OverflowHidden
-WhiteSpace:     Normal, Nowrap
+WhiteSpace:     WsNormal, WsNowrap, WsPre, WsPreWrap
 
 // Text enums
-TextOverflow:   Clip, Ellipsis
-TextAnchor:     UpperLeft, UpperCenter, UpperRight,
-                MiddleLeft, MiddleCenter, MiddleRight,
-                LowerLeft, LowerCenter, LowerRight
-FontStyle:      FontNormal, Bold, Italic, BoldItalic
-TextOverflowPosition: OverflowStart, OverflowMiddle, OverflowEnd`
+TextOverflow:   TextClip, TextEllipsis
+TextAnchor:     TextUpperLeft, TextUpperCenter, TextUpperRight,
+                TextMiddleLeft, TextMiddleCenter, TextMiddleRight,
+                TextLowerLeft, TextLowerCenter, TextLowerRight
+FontStyle:      FontNormal, FontBold, FontItalic, FontBoldItalic
+TextOverflowPosition: TextOverflowStart, TextOverflowMiddle, TextOverflowEnd
+TextAutoSizeMode: AutoSizeNone, AutoSizeBestFit`
 
 export const EXAMPLE_LENGTH_HELPERS = `// Length helpers
 Pct(50)     → 50% (Length.Percent)
 Px(100)     → 100px (Length.Pixel)
 
 // Style keywords  
-Auto        → StyleKeyword.Auto
-None        → StyleKeyword.None
-Initial     → StyleKeyword.Initial
+StyleAuto        → StyleKeyword.Auto
+StyleNone        → StyleKeyword.None
+StyleInitial     → StyleKeyword.Initial
 
 // Color helpers
-White, Black, Red, Green, Blue, Yellow, Cyan, Magenta, Grey, Transparent
+ColorWhite, ColorBlack, ColorRed, ColorGreen, ColorBlue, ColorYellow, ColorCyan, ColorMagenta, ColorGrey, ColorTransparent
 Hex("#FF0000")          → Color from hex string
 Rgba(255, 0, 0)         → Color from 0-255 byte values
 Rgba(1f, 0f, 0f, 0.5f)  → Color from 0-1 float values`
@@ -197,7 +195,7 @@ export const EXAMPLE_USS_COMBINED = `@uss "./Card.uss"
 component Card {
   // USS handles static layout, typed Style handles dynamic values
   var highlight = new Style {
-      BorderColor = isSelected ? Hex("#00AAFF") : Transparent,
+      BorderColor = isSelected ? Hex("#00AAFF") : ColorTransparent,
       BorderWidth = 2f,
   };
 

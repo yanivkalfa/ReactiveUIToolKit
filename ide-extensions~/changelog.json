@@ -1,6 +1,29 @@
 {
   "entries": [
     {
+      "date": "2026-04-02",
+      "versions": {
+        "vscode": "1.0.302",
+        "vs2022": "1.0.79"
+      },
+      "shared": [
+        "Breaking: CssHelpers renamed all shortcuts with consistent prefixes for autocomplete discoverability",
+        "Feature: compound struct factory helpers in CssHelpers (BgRepeat, BgPos, BgSize, Origin, Xlate, Easing + 24 easing presets)",
+        "Feature: TextAutoSizeMode support across all layers (StyleKeys, Style, CssHelpers, PropsApplier, schema, LSP)",
+        "Feature: LSP style value completions for backgroundRepeat, backgroundPosition, backgroundSize, transitionTimingFunction"
+      ]
+    },
+    {
+      "date": "2026-04-01",
+      "versions": {
+        "vscode": "1.0.301",
+        "vs2022": "1.0.78"
+      },
+      "shared": [
+        "Feature: LSP enum value completions for CssHelpers shortcuts (PickingMode, SelectionType, ScrollerVisibility, LanguageDirection, SliderDirection, ScrollViewMode, ScaleMode, TwoPaneSplitViewOrientation, ColumnSortingMode)"
+      ]
+    },
+    {
       "date": "2026-03-29",
       "versions": {
         "vscode": "1.0.301",

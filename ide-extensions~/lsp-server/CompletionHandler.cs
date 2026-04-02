@@ -914,7 +914,139 @@ public sealed class CompletionHandler : ICompletionHandler
             return new[] { ValueItem("{ }", attr.Type, "{ $0 }", true) };
         }
 
+        // ── Enum-typed attribute shortcuts (CssHelpers) ──────────────────
+        var enumItems = GetEnumShortcutItems(tagName, attributeName, type, prefix);
+        if (enumItems != null)
+            return enumItems;
+
         return Enumerable.Empty<CompletionItem>();
+    }
+
+    /// <summary>
+    /// Maps enum-typed and string-enum attributes to their CssHelpers shortcut names.
+    /// Returns null when the attribute has no known shortcuts.
+    /// </summary>
+    private IEnumerable<CompletionItem>? GetEnumShortcutItems(
+        string tagName,
+        string attributeName,
+        string typeLC,
+        string prefix
+    )
+    {
+        var shortcuts = ResolveEnumShortcuts(tagName, attributeName, typeLC);
+        if (shortcuts == null)
+            return null;
+
+        return shortcuts
+            .Where(s => s.Label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(s => new CompletionItem
+            {
+                Label = s.Label,
+                Kind = CompletionItemKind.EnumMember,
+                InsertText = s.Label,
+                InsertTextFormat = InsertTextFormat.PlainText,
+                Detail = s.Detail,
+                Documentation = new MarkupContent
+                {
+                    Kind = MarkupKind.Markdown,
+                    Value = s.Doc,
+                },
+            });
+    }
+
+    private record struct EnumShortcut(string Label, string Detail, string Doc);
+
+    private static EnumShortcut[]? ResolveEnumShortcuts(
+        string tagName,
+        string attributeName,
+        string typeLC
+    )
+    {
+        // Typed enum attributes (schema type is the enum name)
+        switch (typeLC)
+        {
+            case "pickingmode":
+                return new[]
+                {
+                    new EnumShortcut("PickPosition", "PickingMode", "`PickingMode.Position`"),
+                    new EnumShortcut("PickIgnore", "PickingMode", "`PickingMode.Ignore`"),
+                };
+            case "selectiontype":
+                return new[]
+                {
+                    new EnumShortcut("SelectNone", "SelectionType", "`SelectionType.None`"),
+                    new EnumShortcut("SelectSingle", "SelectionType", "`SelectionType.Single`"),
+                    new EnumShortcut("SelectMultiple", "SelectionType", "`SelectionType.Multiple`"),
+                };
+            case "scrollervisibility":
+                return new[]
+                {
+                    new EnumShortcut("ScrollerAuto", "ScrollerVisibility", "`ScrollerVisibility.Auto`"),
+                    new EnumShortcut("ScrollerVisible", "ScrollerVisibility", "`ScrollerVisibility.AlwaysVisible`"),
+                    new EnumShortcut("ScrollerHidden", "ScrollerVisibility", "`ScrollerVisibility.Hidden`"),
+                };
+            case "languagedirection":
+                return new[]
+                {
+                    new EnumShortcut("DirInherit", "LanguageDirection", "`LanguageDirection.Inherit`"),
+                    new EnumShortcut("DirLTR", "LanguageDirection", "`LanguageDirection.LTR`"),
+                    new EnumShortcut("DirRTL", "LanguageDirection", "`LanguageDirection.RTL`"),
+                };
+        }
+
+        // String-based attributes — use (tagName, attributeName) for disambiguation
+        var attrLC = attributeName.ToLowerInvariant();
+        var tagLC = tagName.ToLowerInvariant();
+
+        if (attrLC == "direction" && (tagLC is "slider" or "sliderint" or "minmaxslider"))
+        {
+            return new[]
+            {
+                new EnumShortcut("SliderHorizontal", "string", "Slider `SliderDirection.Horizontal`"),
+                new EnumShortcut("SliderVertical", "string", "Slider `SliderDirection.Vertical`"),
+            };
+        }
+
+        if (attrLC == "mode" && tagLC == "scrollview")
+        {
+            return new[]
+            {
+                new EnumShortcut("ScrollVertical", "string", "`ScrollViewMode.Vertical`"),
+                new EnumShortcut("ScrollHorizontal", "string", "`ScrollViewMode.Horizontal`"),
+                new EnumShortcut("ScrollBoth", "string", "`ScrollViewMode.VerticalAndHorizontal`"),
+            };
+        }
+
+        if (attrLC == "scalemode" && tagLC == "image")
+        {
+            return new[]
+            {
+                new EnumShortcut("ScaleStretch", "string", "`ScaleMode.StretchToFill`"),
+                new EnumShortcut("ScaleFit", "string", "`ScaleMode.ScaleToFit`"),
+                new EnumShortcut("ScaleCrop", "string", "`ScaleMode.ScaleAndCrop`"),
+            };
+        }
+
+        if (attrLC == "orientation" && tagLC == "twopanesplitview")
+        {
+            return new[]
+            {
+                new EnumShortcut("OrientHorizontal", "string", "`TwoPaneSplitViewOrientation.Horizontal`"),
+                new EnumShortcut("OrientVertical", "string", "`TwoPaneSplitViewOrientation.Vertical`"),
+            };
+        }
+
+        if (attrLC == "sortingmode" && tagLC is "multicolumnlistview" or "multicolumntreeview")
+        {
+            return new[]
+            {
+                new EnumShortcut("SortNone", "string", "`ColumnSortingMode.None`"),
+                new EnumShortcut("SortDefault", "string", "`ColumnSortingMode.Default`"),
+                new EnumShortcut("SortCustom", "string", "`ColumnSortingMode.Custom`"),
+            };
+        }
+
+        return null;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

@@ -169,11 +169,14 @@ This is standard Roslyn behavior — Blazor/Razor has the same limitation.
 **Workaround:** Use distinct parameter names (`prev => prev + 1`) or accept
 the batch rename.
 
-**Status:** Known limitation — not planned to fix. Scoping rename edits per-
-lambda in `RenameHandler` would risk breaking legitimate multi-line renames
-(e.g. a variable used across several lines).
-
 ---
+
+## ~~`CssHelpers` static imports ambiguous with `UnityEngine.UIElements` enums~~ ✅ Resolved
+
+**Resolved in v0.2.46.** `CssHelpers` is now auto-imported in `.uitkx` files
+(alongside `StyleKeys`). All UIElements enum values used in typed props have
+CssHelpers shortcuts, eliminating the need for `@using UnityEngine.UIElements`
+for enum values. Samples updated to use shortcuts (`SelectNone`, `SortCustom`, etc.).\n\nSee `Plans~/CSSHELPERS_FULL_COVERAGE_PLAN.md` for the complete implementation.\n\n---
 
 ## ~~LSP virtual document lacks prop type checking (systematic type erasure)~~ ✅ FIXED
 

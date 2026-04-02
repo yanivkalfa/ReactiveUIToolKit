@@ -126,6 +126,9 @@ namespace ReactiveUITK.Props.Typed
         // ── Enum – text overflow position ───────────────────────────────
         public TextOverflowPosition UnityTextOverflowPosition { set => this["unityTextOverflowPosition"] = value; }
 
+        // ── Enum – text auto size ───────────────────────────────────────
+        public TextAutoSizeMode UnityTextAutoSize { set => this["unityTextAutoSize"] = value; }
+
         // ── Transforms ───────────────────────────────────────────────
         public float         Rotate                { set => this["rotate"] = value; }
         public float         Scale                 { set => this["scale"] = value; }

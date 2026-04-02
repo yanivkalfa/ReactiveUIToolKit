@@ -47,7 +47,10 @@ export const UitkxAPIPage: FC = () => (
           <ListItemText primary={<><code>ReactiveUITK.Props.Typed.Style</code> — strongly typed wrapper around a style dictionary used by many props.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Props.Typed.StyleKeys</code> — constants used as keys inside <code>Style</code> (<code>StyleKeys.MarginTop</code>, <code>StyleKeys.FlexDirection</code>, etc.).</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Props.Typed.StyleKeys</code> — constants used as keys inside <code>Style</code> (<code>StyleKeys.MarginTop</code>, <code>StyleKeys.FlexDirection</code>, etc.). Auto-imported in <code>.uitkx</code> files.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>ReactiveUITK.Props.Typed.CssHelpers</code> — shortcut values for enum props and style values: <code>Row</code>, <code>Column</code>, <code>Pct()</code>, <code>Px()</code>, <code>SelectNone</code>, <code>SortCustom</code>, etc. Auto-imported in <code>.uitkx</code> files.</>} />
         </ListItem>
       </List>
     </Box>

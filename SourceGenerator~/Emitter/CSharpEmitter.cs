@@ -127,14 +127,28 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using ReactiveUITK.Core.Animation;");
             L("using ReactiveUITK.Props.Typed;");
             L("using static ReactiveUITK.Props.Typed.StyleKeys;");
+            L("using static ReactiveUITK.Props.Typed.CssHelpers;");
             L("using static ReactiveUITK.AssetHelpers;");
             L("using UColor = UnityEngine.Color;");
             foreach (var u in _directives.Usings)
                 L($"using {u};");
-            // `using static StyleKeys` imports Color (string constant for CSS "color").
-            // Files with `@using UnityEngine` also get UnityEngine.Color → CS0229.
-            // An explicit alias always wins over both, so declare it last.
+            // `using static StyleKeys` imports string constants (e.g. FlexDirection = "flexDirection")
+            // that collide with identically-named enums/structs from UnityEngine.UIElements.
+            // We cannot import UIElements wholesale. Instead, targeted aliases import only
+            // the non-conflicting types that CssHelpers returns and users may reference.
             L("using Color = UnityEngine.Color;");
+            L("using EasingFunction = UnityEngine.UIElements.EasingFunction;");
+            L("using EasingMode = UnityEngine.UIElements.EasingMode;");
+            L("using BackgroundRepeat = UnityEngine.UIElements.BackgroundRepeat;");
+            L("using BackgroundPosition = UnityEngine.UIElements.BackgroundPosition;");
+            L("using BackgroundSize = UnityEngine.UIElements.BackgroundSize;");
+            L("using TransformOrigin = UnityEngine.UIElements.TransformOrigin;");
+            L("using BackgroundPositionKeyword = UnityEngine.UIElements.BackgroundPositionKeyword;");
+            L("using BackgroundSizeType = UnityEngine.UIElements.BackgroundSizeType;");
+            L("using Repeat = UnityEngine.UIElements.Repeat;");
+            L("using Length = UnityEngine.UIElements.Length;");
+            L("using StyleKeyword = UnityEngine.UIElements.StyleKeyword;");
+            L("using TextAutoSizeMode = UnityEngine.UIElements.TextAutoSizeMode;");
             L("");
 
             // ── Namespace + class ────────────────────────────────────────────

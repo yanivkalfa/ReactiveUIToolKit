@@ -3,8 +3,6 @@
 @using System.Collections.Generic
 @using ReactiveUITK.Core
 @using ReactiveUITK.Props.Typed
-@using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component MultiColumnListViewStatefulDemoFunc(
   IReadOnlyList<MultiColumnListViewRowState>? items = null, 
@@ -126,10 +124,10 @@ component MultiColumnListViewStatefulDemoFunc(
       </VisualElement>
       <MultiColumnListView
         items={displayed}
-        selection={SelectionType.None}
+        selection={SelectNone}
         fixedItemHeight={20f}
         columns={columns}
-        sortingMode={ColumnSortingMode.Custom}
+        sortingMode={SortCustom}
         sortedColumns={sortDefs}
         columnSortingChanged={onSortChanged ?? (_ => {})}
         columnWidths={columnWidths}

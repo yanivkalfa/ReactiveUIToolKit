@@ -1070,4 +1070,24 @@ public class EmitterTests
             "Expected auto-injected AssetHelpers using"
         );
     }
+
+    [Fact]
+    public void CssHelpers_UsingAutoInjected()
+    {
+        var src = """
+            component Card {
+                return (
+                    <label text="hello" />
+                );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.True(
+            result.SourceContains("using static ReactiveUITK.Props.Typed.CssHelpers;"),
+            "Expected auto-injected CssHelpers using"
+        );
+    }
 }
