@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using ReactiveUITK.Language.Nodes;
+using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
 {
@@ -20,11 +21,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         public static void Validate(
             ImmutableArray<AstNode> rootNodes,
             string filePath,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            DirectiveSet directives = default
         )
         {
             CheckMultipleRoots(rootNodes, filePath, diagnostics);
-            CheckUseEffectInCodeBlocks(rootNodes, filePath, diagnostics);
+            CheckUseEffectInSetupCode(directives, filePath, diagnostics);
             WalkForeachForIndexKey(rootNodes, filePath, diagnostics);
         }
 
@@ -36,7 +38,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             IList<Diagnostic> diagnostics
         )
         {
-            // Count top-level element nodes (CodeBlockNode is not a render output)
+            // Count top-level element nodes
             var elementRoots = rootNodes.OfType<ElementNode>().ToArray();
             if (elementRoots.Length <= 1)
                 return;
@@ -53,14 +55,21 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         // ── UITKX0018 — UseEffect missing dependency array ───────────────────
 
-        private static void CheckUseEffectInCodeBlocks(
-            ImmutableArray<AstNode> rootNodes,
+        private static void CheckUseEffectInSetupCode(
+            DirectiveSet directives,
             string filePath,
             IList<Diagnostic> diagnostics
         )
         {
-            foreach (var node in rootNodes.OfType<CodeBlockNode>())
-                ScanUseEffectMissingDeps(node.Code, node.SourceLine, filePath, diagnostics);
+            if (!string.IsNullOrWhiteSpace(directives.FunctionSetupCode))
+            {
+                int setupLine = directives.FunctionSetupStartLine > 0
+                    ? directives.FunctionSetupStartLine
+                    : directives.ComponentDeclarationLine > 0
+                        ? directives.ComponentDeclarationLine
+                        : 1;
+                ScanUseEffectMissingDeps(directives.FunctionSetupCode, setupLine, filePath, diagnostics);
+            }
         }
 
         private static void ScanUseEffectMissingDeps(

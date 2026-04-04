@@ -15,14 +15,13 @@ namespace ReactiveUITK.Language.Parser
     /// Supported grammar:
     /// <code>
     ///   Content      = (Element | IfBlock | ForeachBlock | SwitchBlock |
-    ///                   CodeBlock | InlineExpr | Text | HtmlComment)*
+    ///                   InlineExpr | Text | HtmlComment)*
     ///   Element      = lt TagName Attribute* ('/>' | '>' Content lt '/' TagName '>')
     ///   Attribute    = Name '=' ('"' Value '"' | '{' CSharpExpr '}') | Name
     ///   IfBlock      = '@if' Paren BraceContent ('@else' ('if' Paren)? BraceContent)*
     ///   BraceContent = '{' Content '}'
     ///   ForeachBlock = '@foreach' '(' Decl 'in' Expr ')' BraceContent
     ///   SwitchBlock  = '@switch' Paren '{' ('@case' Expr ':' | '@default' ':') Content* '}'
-    ///   CodeBlock    = '@code' '{' CSharpCode '}'
     ///   InlineExpr   = '@(' CSharpExpr ')'
     /// </code>
     ///
@@ -33,7 +32,7 @@ namespace ReactiveUITK.Language.Parser
     {
         private readonly string _source;
         private readonly string _filePath;
-        private readonly int _stopPosExclusive;
+        private int _stopPosExclusive;
 
         // Non-readonly so LookAheadIsElse-based @else processing can re-create the
         // scanner after controlled lookahead (though current impl avoids it).
@@ -81,8 +80,113 @@ namespace ReactiveUITK.Language.Parser
             );
 
             return parser
-                .ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false, loopDepth: 0)
+                .ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false)
                 .ToImmutableArray();
+        }
+
+        // ── Control block body parsing ───────────────────────────────────────
+
+        /// <summary>
+        /// Parsed result of a control block body that may contain
+        /// <c>setup-code; return (...markup...);</c>.
+        /// </summary>
+        private readonly struct ControlBlockBody
+        {
+            public readonly List<AstNode> Nodes;
+            public readonly string? SetupCode;
+            public readonly int SetupCodeOffset;
+            public readonly int SetupCodeLine;
+
+            public ControlBlockBody(List<AstNode> nodes, string? setupCode, int setupCodeOffset, int setupCodeLine)
+            {
+                Nodes = nodes;
+                SetupCode = setupCode;
+                SetupCodeOffset = setupCodeOffset;
+                SetupCodeLine = setupCodeLine;
+            }
+        }
+
+        /// <summary>
+        /// Parses a control block body: the text between <c>{</c> (already consumed)
+        /// and its matching <c>}</c>.  Looks for <c>return (...)</c> to split
+        /// setup code from markup.  If no <c>return</c> is found, emits a diagnostic
+        /// and falls back to parsing the body as pure markup (error recovery).
+        /// </summary>
+        private ControlBlockBody ParseControlBlockBody(
+            int openBracePos,
+            bool stopAtCase,
+            string blockName
+        )
+        {
+            int bodyStart = _scanner.Pos;
+
+            // Find the matching '}' using the raw source string.
+            int closeBrace = ReturnFinder.FindMatchingBrace(_source, openBracePos, _source.Length);
+            if (closeBrace < 0)
+            {
+                // Unbalanced — fallback to old behaviour
+                var fallback = ParseContent(null, stopAtBrace: true, stopAtCase: stopAtCase);
+                _scanner.TryConsume('}');
+                return new ControlBlockBody(fallback, null, 0, 0);
+            }
+
+            int bodyEnd = closeBrace; // exclusive: position of '}'
+
+            // Try to find return (...); at depth 0 within the body.
+            if (ReturnFinder.TryFindTopLevelReturn(
+                    _source, bodyStart, bodyEnd,
+                    out int returnStart,
+                    out int returnOpenParen,
+                    out int returnCloseParen,
+                    out int returnStmtEnd,
+                    useLastReturn: false))
+            {
+                // Extract setup code (everything before 'return')
+                string? setupCode = null;
+                int setupCodeOffset = 0;
+                int setupCodeLine = 0;
+                string rawSetup = _source.Substring(bodyStart, returnStart - bodyStart).Trim();
+                if (rawSetup.Length > 0)
+                {
+                    setupCode = rawSetup;
+                    // Find the first non-whitespace character for accurate offset
+                    int firstNonWs = bodyStart;
+                    while (firstNonWs < returnStart && char.IsWhiteSpace(_source[firstNonWs]))
+                        firstNonWs++;
+                    setupCodeOffset = firstNonWs;
+                    setupCodeLine = ReturnFinder.LineAtPos(_source, firstNonWs);
+                }
+
+                // Position scanner inside the return parens and parse markup
+                _scanner.AdvanceTo(returnOpenParen + 1); // past '('
+
+                int savedStop = _stopPosExclusive;
+                _stopPosExclusive = returnCloseParen;
+                var body = ParseContent(null, stopAtBrace: false, stopAtCase: false);
+                _stopPosExclusive = savedStop;
+
+                // Advance scanner past ');' and '}'
+                _scanner.AdvanceTo(closeBrace);
+                _scanner.TryConsume('}');
+
+                return new ControlBlockBody(body, setupCode, setupCodeOffset, setupCodeLine);
+            }
+            else
+            {
+                // No return() found — emit diagnostic and fall back to parsing as markup
+                _diagnostics.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX0024",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = ReturnFinder.LineAtPos(_source, bodyStart),
+                    Message = $"Control block body ({blockName}) must contain 'return (...);'.",
+                });
+
+                // Error recovery: parse body as pure markup, same as before
+                var fallback = ParseContent(null, stopAtBrace: true, stopAtCase: stopAtCase);
+                _scanner.TryConsume('}');
+                return new ControlBlockBody(fallback, null, 0, 0);
+            }
         }
 
         // ── Content loop ──────────────────────────────────────────────────────
@@ -96,8 +200,7 @@ namespace ReactiveUITK.Language.Parser
         private List<AstNode> ParseContent(
             string? stopTag,
             bool stopAtBrace,
-            bool stopAtCase,
-            int loopDepth
+            bool stopAtCase
         )
         {
             var nodes = new List<AstNode>();
@@ -180,7 +283,7 @@ namespace ReactiveUITK.Language.Parser
                 // ── Opening element <Tag ────────────────────────────────────
                 if (c == '<' && PeekChar(1) != '/')
                 {
-                    var elem = ParseElement(loopDepth);
+                    var elem = ParseElement();
                     if (elem != null)
                         nodes.Add(elem);
                     continue;
@@ -213,82 +316,59 @@ namespace ReactiveUITK.Language.Parser
                     switch (keyword)
                     {
                         case "if":
-                            var ifNode = ParseIf(atLine, atCol, loopDepth);
+                            var ifNode = ParseIf(atLine, atCol);
                             if (ifNode != null)
                                 nodes.Add(ifNode);
                             break;
                         case "foreach":
-                            var feNode = ParseForeach(atLine, atCol, loopDepth);
+                            var feNode = ParseForeach(atLine, atCol);
                             if (feNode != null)
                                 nodes.Add(feNode);
                             break;
                         case "for":
-                            var forNode = ParseFor(atLine, atCol, loopDepth);
+                            var forNode = ParseFor(atLine, atCol);
                             if (forNode != null)
                                 nodes.Add(forNode);
                             break;
                         case "while":
-                            var whileNode = ParseWhile(atLine, atCol, loopDepth);
+                            var whileNode = ParseWhile(atLine, atCol);
                             if (whileNode != null)
                                 nodes.Add(whileNode);
                             break;
                         case "switch":
-                            var swNode = ParseSwitch(atLine, atCol, loopDepth);
+                            var swNode = ParseSwitch(atLine, atCol);
                             if (swNode != null)
                                 nodes.Add(swNode);
                             break;
                         case "break":
-                            if (loopDepth > 0)
-                            {
-                                ConsumeOptionalDirectiveTerminator();
-                                nodes.Add(
-                                    new BreakNode(atLine, _filePath)
-                                    {
-                                        SourceColumn = atCol,
-                                        EndColumn = atCol + 6, // @break
-                                    }
-                                );
-                            }
-                            else
-                            {
-                                _diagnostics.Add(
-                                    ErrUnexpectedToken(
-                                        "@break",
-                                        atLine,
-                                        "@for or @while loop block"
-                                    )
-                                );
-                                SkipToEndOfLine();
-                            }
+                            _diagnostics.Add(
+                                ErrUnexpectedToken(
+                                    "@break",
+                                    atLine,
+                                    "@for or @while loop block"
+                                )
+                            );
+                            SkipToEndOfLine();
                             break;
                         case "continue":
-                            if (loopDepth > 0)
-                            {
-                                ConsumeOptionalDirectiveTerminator();
-                                nodes.Add(
-                                    new ContinueNode(atLine, _filePath)
-                                    {
-                                        SourceColumn = atCol,
-                                        EndColumn = atCol + 9, // @continue
-                                    }
-                                );
-                            }
-                            else
-                            {
-                                _diagnostics.Add(
-                                    ErrUnexpectedToken(
-                                        "@continue",
-                                        atLine,
-                                        "@for or @while loop block"
-                                    )
-                                );
-                                SkipToEndOfLine();
-                            }
+                            _diagnostics.Add(
+                                ErrUnexpectedToken(
+                                    "@continue",
+                                    atLine,
+                                    "@for or @while loop block"
+                                )
+                            );
+                            SkipToEndOfLine();
                             break;
                         case "code":
-                            var cbNode = ParseCodeBlock(atLine);
-                            if (cbNode != null)
-                                nodes.Add(cbNode);
+                            _diagnostics.Add(
+                                ErrUnexpectedToken(
+                                    "@code",
+                                    atLine,
+                                    "use setup code before return() instead"
+                                )
+                            );
+                            SkipToEndOfLine();
                             break;
                         case "else":
                             _diagnostics.Add(
@@ -339,7 +419,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── Element ───────────────────────────────────────────────────────────
 
-        private ElementNode? ParseElement(int loopDepth)
+        private ElementNode? ParseElement()
         {
             int openLine = _scanner.Line;
             int openCol = ColAtPos(_scanner.Pos); // 0-based column of the '<'
@@ -352,8 +432,7 @@ namespace ReactiveUITK.Language.Parser
                 var fragmentChildren = ParseContent(
                     stopTag: string.Empty,
                     stopAtBrace: false,
-                    stopAtCase: false,
-                    loopDepth: loopDepth
+                    stopAtCase: false
                 );
 
                 // Consume </>
@@ -417,8 +496,7 @@ namespace ReactiveUITK.Language.Parser
             var children = ParseContent(
                 stopTag: tagName,
                 stopAtBrace: false,
-                stopAtCase: false,
-                loopDepth: loopDepth
+                stopAtCase: false
             );
 
             int closeTagLine = 0;
@@ -519,7 +597,7 @@ namespace ReactiveUITK.Language.Parser
                         {
                             _scanner.Advance(); // consume '{'
                             _scanner.SkipWhitespaceAndNewlines();
-                            var element = ParseElement(loopDepth: 0);
+                            var element = ParseElement();
                             _scanner.SkipWhitespaceAndNewlines();
                             if (!_scanner.TryConsume('}'))
                                 _diagnostics.Add(
@@ -579,7 +657,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @if ───────────────────────────────────────────────────────────────
 
-        private IfNode? ParseIf(int startLine, int startCol, int loopDepth)
+        private IfNode? ParseIf(int startLine, int startCol)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -599,19 +677,17 @@ namespace ReactiveUITK.Language.Parser
             }
 
             int firstLine = _scanner.Line;
+            int firstBrace = _scanner.Pos;
             _scanner.Advance(); // consume '{'
-            var firstBody = ParseContent(
-                null,
-                stopAtBrace: true,
-                stopAtCase: false,
-                loopDepth: loopDepth
-            );
-            _scanner.TryConsume('}');
+            var firstResult = ParseControlBlockBody(firstBrace, stopAtCase: false, "@if");
             var branches = new List<IfBranch>
             {
-                new IfBranch(cond, firstBody.ToImmutableArray(), firstLine)
+                new IfBranch(cond, firstResult.Nodes.ToImmutableArray(), firstLine)
                 {
                     ConditionOffset = condOffset,
+                    SetupCode = firstResult.SetupCode,
+                    SetupCodeOffset = firstResult.SetupCodeOffset,
+                    SetupCodeLine = firstResult.SetupCodeLine,
                 },
             };
 
@@ -646,18 +722,16 @@ namespace ReactiveUITK.Language.Parser
                         break;
                     }
 
+                    int elseIfBrace = _scanner.Pos;
                     _scanner.Advance(); // consume '{'
-                    var elseIfBody = ParseContent(
-                        null,
-                        stopAtBrace: true,
-                        stopAtCase: false,
-                        loopDepth: loopDepth
-                    );
-                    _scanner.TryConsume('}');
+                    var elseIfResult = ParseControlBlockBody(elseIfBrace, stopAtCase: false, "@else if");
                     branches.Add(
-                        new IfBranch(elseCond, elseIfBody.ToImmutableArray(), elseLine)
+                        new IfBranch(elseCond, elseIfResult.Nodes.ToImmutableArray(), elseLine)
                         {
                             ConditionOffset = elseCondOffset,
+                            SetupCode = elseIfResult.SetupCode,
+                            SetupCodeOffset = elseIfResult.SetupCodeOffset,
+                            SetupCodeLine = elseIfResult.SetupCodeLine,
                         }
                     );
                 }
@@ -668,15 +742,15 @@ namespace ReactiveUITK.Language.Parser
                         EmitExpected("'{' after @else", elseLine);
                         break;
                     }
+                    int elseBrace = _scanner.Pos;
                     _scanner.Advance(); // consume '{'
-                    var elseBody = ParseContent(
-                        null,
-                        stopAtBrace: true,
-                        stopAtCase: false,
-                        loopDepth: loopDepth
-                    );
-                    _scanner.TryConsume('}');
-                    branches.Add(new IfBranch(null, elseBody.ToImmutableArray(), elseLine));
+                    var elseResult = ParseControlBlockBody(elseBrace, stopAtCase: false, "@else");
+                    branches.Add(new IfBranch(null, elseResult.Nodes.ToImmutableArray(), elseLine)
+                    {
+                        SetupCode = elseResult.SetupCode,
+                        SetupCodeOffset = elseResult.SetupCodeOffset,
+                        SetupCodeLine = elseResult.SetupCodeLine,
+                    });
                     break; // @else terminates the chain
                 }
             }
@@ -690,7 +764,7 @@ namespace ReactiveUITK.Language.Parser
 
         // ── @for ──────────────────────────────────────────────────────────────
 
-        private ForNode? ParseFor(int startLine, int startCol, int loopDepth)
+        private ForNode? ParseFor(int startLine, int startCol)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -709,26 +783,24 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
+            int openBrace = _scanner.Pos;
             _scanner.Advance(); // consume '{'
-            var body = ParseContent(
-                null,
-                stopAtBrace: true,
-                stopAtCase: false,
-                loopDepth: loopDepth + 1
-            );
-            _scanner.TryConsume('}');
+            var result = ParseControlBlockBody(openBrace, stopAtCase: false, "@for");
 
-            return new ForNode(forExpr, body.ToImmutableArray(), startLine, _filePath)
+            return new ForNode(forExpr, result.Nodes.ToImmutableArray(), startLine, _filePath)
             {
                 SourceColumn = startCol,
                 EndColumn = startCol + 4, // @for
                 ForExpressionOffset = forExprOffset,
+                SetupCode = result.SetupCode,
+                SetupCodeOffset = result.SetupCodeOffset,
+                SetupCodeLine = result.SetupCodeLine,
             };
         }
 
         // ── @while ────────────────────────────────────────────────────────────
 
-        private WhileNode? ParseWhile(int startLine, int startCol, int loopDepth)
+        private WhileNode? ParseWhile(int startLine, int startCol)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -747,26 +819,24 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
+            int openBrace = _scanner.Pos;
             _scanner.Advance(); // consume '{'
-            var body = ParseContent(
-                null,
-                stopAtBrace: true,
-                stopAtCase: false,
-                loopDepth: loopDepth + 1
-            );
-            _scanner.TryConsume('}');
+            var result = ParseControlBlockBody(openBrace, stopAtCase: false, "@while");
 
-            return new WhileNode(condition, body.ToImmutableArray(), startLine, _filePath)
+            return new WhileNode(condition, result.Nodes.ToImmutableArray(), startLine, _filePath)
             {
                 SourceColumn = startCol,
                 EndColumn = startCol + 6, // @while
                 ConditionOffset = conditionOffset,
+                SetupCode = result.SetupCode,
+                SetupCodeOffset = result.SetupCodeOffset,
+                SetupCodeLine = result.SetupCodeLine,
             };
         }
 
         // ── @foreach ──────────────────────────────────────────────────────────
 
-        private ForeachNode? ParseForeach(int startLine, int startCol, int loopDepth)
+        private ForeachNode? ParseForeach(int startLine, int startCol)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -795,19 +865,14 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
+            int openBrace = _scanner.Pos;
             _scanner.Advance(); // consume '{'
-            var body = ParseContent(
-                null,
-                stopAtBrace: true,
-                stopAtCase: false,
-                loopDepth: loopDepth
-            );
-            _scanner.TryConsume('}');
+            var result = ParseControlBlockBody(openBrace, stopAtCase: false, "@foreach");
 
             return new ForeachNode(
                 iteratorDecl,
                 collectionExpr,
-                body.ToImmutableArray(),
+                result.Nodes.ToImmutableArray(),
                 startLine,
                 _filePath
             )
@@ -816,12 +881,15 @@ namespace ReactiveUITK.Language.Parser
                 EndColumn = startCol + 8, // @foreach
                 ForeachExpression = foreachExpr,
                 ForeachExpressionOffset = foreachExprOffset,
+                SetupCode = result.SetupCode,
+                SetupCodeOffset = result.SetupCodeOffset,
+                SetupCodeLine = result.SetupCodeLine,
             };
         }
 
         // ── @switch ───────────────────────────────────────────────────────────
 
-        private SwitchNode? ParseSwitch(int startLine, int startCol, int loopDepth)
+        private SwitchNode? ParseSwitch(int startLine, int startCol)
         {
             _scanner.SkipInlineWhitespace();
 
@@ -840,7 +908,11 @@ namespace ReactiveUITK.Language.Parser
                 return null;
             }
 
+            int switchOpenBrace = _scanner.Pos;
             _scanner.Advance(); // consume '{'
+
+            // Find the matching '}' for the entire switch block
+            int switchCloseBrace = ReturnFinder.FindMatchingBrace(_source, switchOpenBrace, _source.Length);
 
             var cases = new List<SwitchCase>();
 
@@ -861,40 +933,100 @@ namespace ReactiveUITK.Language.Parser
                 _scanner.Advance(); // consume '@'
                 string keyword = _scanner.ReadIdentifier();
 
-                if (keyword == "case")
+                if (keyword == "case" || keyword == "default")
                 {
-                    _scanner.SkipInlineWhitespace();
-                    // Read case value up to ':'
-                    int vStart = _scanner.Pos;
-                    while (
-                        !_scanner.IsEof
-                        && _scanner.Current != ':'
-                        && _scanner.Current != '\r'
-                        && _scanner.Current != '\n'
-                    )
-                        _scanner.Advance();
-                    string caseVal = _source.Substring(vStart, _scanner.Pos - vStart).Trim();
+                    string? caseVal = null;
+                    if (keyword == "case")
+                    {
+                        _scanner.SkipInlineWhitespace();
+                        int vStart = _scanner.Pos;
+                        while (
+                            !_scanner.IsEof
+                            && _scanner.Current != ':'
+                            && _scanner.Current != '\r'
+                            && _scanner.Current != '\n'
+                        )
+                            _scanner.Advance();
+                        caseVal = _source.Substring(vStart, _scanner.Pos - vStart).Trim();
+                    }
                     _scanner.TryConsume(':');
-                    var caseBody = ParseContent(
-                        null,
-                        stopAtBrace: true,
-                        stopAtCase: true,
-                        loopDepth: loopDepth
-                    );
-                    TryConsumeSwitchBreak();
-                    cases.Add(new SwitchCase(caseVal, caseBody.ToImmutableArray(), caseLine));
-                }
-                else if (keyword == "default")
-                {
-                    _scanner.TryConsume(':');
-                    var defaultBody = ParseContent(
-                        null,
-                        stopAtBrace: true,
-                        stopAtCase: true,
-                        loopDepth: loopDepth
-                    );
-                    TryConsumeSwitchBreak();
-                    cases.Add(new SwitchCase(null, defaultBody.ToImmutableArray(), caseLine));
+
+                    int caseBodyStart = _scanner.Pos;
+
+                    // Find the end of this case body — the next @case/@default at depth 0
+                    // or the switch closing brace.
+                    int caseBodyEnd = switchCloseBrace >= 0 ? switchCloseBrace : _source.Length;
+                    int searchPos = caseBodyStart;
+                    int braceDepth = 0;
+                    while (searchPos < caseBodyEnd)
+                    {
+                        if (ReturnFinder.TrySkipNonCodeSpan(_source, ref searchPos, caseBodyEnd))
+                            continue;
+                        char ch = _source[searchPos];
+                        if (ch == '{') { braceDepth++; searchPos++; continue; }
+                        if (ch == '}') { if (braceDepth > 0) { braceDepth--; searchPos++; continue; } break; }
+                        if (braceDepth == 0 && ch == '@')
+                        {
+                            // Check for @case or @default or @break
+                            int peek = searchPos + 1;
+                            while (peek < caseBodyEnd && char.IsLetter(_source[peek])) peek++;
+                            string kw = _source.Substring(searchPos + 1, peek - searchPos - 1);
+                            if (kw == "case" || kw == "default") break;
+                            if (kw == "break") break; // @break is a case terminator
+                        }
+                        searchPos++;
+                    }
+
+                    // Now try to find return() in [caseBodyStart, searchPos)
+                    if (ReturnFinder.TryFindTopLevelReturn(
+                            _source, caseBodyStart, searchPos,
+                            out int retStart, out int retOpen, out int retClose, out int retEnd,
+                            useLastReturn: false))
+                    {
+                        string? setupCode = null;
+                        int setupCodeOffset = 0;
+                        int setupCodeLine = 0;
+                        string rawSetup = _source.Substring(caseBodyStart, retStart - caseBodyStart).Trim();
+                        if (rawSetup.Length > 0)
+                        {
+                            setupCode = rawSetup;
+                            int firstNonWs = caseBodyStart;
+                            while (firstNonWs < retStart && char.IsWhiteSpace(_source[firstNonWs]))
+                                firstNonWs++;
+                            setupCodeOffset = firstNonWs;
+                            setupCodeLine = ReturnFinder.LineAtPos(_source, firstNonWs);
+                        }
+
+                        _scanner.AdvanceTo(retOpen + 1);
+                        int savedStop = _stopPosExclusive;
+                        _stopPosExclusive = retClose;
+                        var caseBody = ParseContent(null, stopAtBrace: false, stopAtCase: false);
+                        _stopPosExclusive = savedStop;
+
+                        _scanner.AdvanceTo(retEnd); // past ");
+                        TryConsumeSwitchBreak();
+                        cases.Add(new SwitchCase(caseVal, caseBody.ToImmutableArray(), caseLine)
+                        {
+                            SetupCode = setupCode,
+                            SetupCodeOffset = setupCodeOffset,
+                            SetupCodeLine = setupCodeLine,
+                        });
+                    }
+                    else
+                    {
+                        _diagnostics.Add(new ParseDiagnostic
+                        {
+                            Code = "UITKX0024",
+                            Severity = ParseSeverity.Error,
+                            SourceLine = ReturnFinder.LineAtPos(_source, caseBodyStart),
+                            Message = $"Switch case body must contain 'return (...);'.",
+                        });
+
+                        // Error recovery: parse as pure markup
+                        var fallbackBody = ParseContent(null, stopAtBrace: true, stopAtCase: true);
+                        TryConsumeSwitchBreak();
+                        cases.Add(new SwitchCase(caseVal, fallbackBody.ToImmutableArray(), caseLine));
+                    }
                 }
                 else
                 {
@@ -920,489 +1052,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ── @code ─────────────────────────────────────────────────────────────
-
-        private CodeBlockNode? ParseCodeBlock(int startLine)
-        {
-            _scanner.SkipWhitespaceAndNewlines();
-
-            if (!PeekAt('{'))
-            {
-                EmitExpected("'{' after @code", startLine);
-                return null;
-            }
-
-            // Use ExpressionExtractor so nested braces in C# are handled correctly
-            int bracePos = _scanner.Pos;
-            int codeBodyStart = bracePos + 1;
-            var (code, afterClose) = ExpressionExtractor.FromBrace(_source, bracePos);
-            int codeBodyEnd = afterClose > 0 ? afterClose - 1 : bracePos + 1;
-            AdvanceScannerTo(afterClose);
-
-            // Compute how many leading chars were trimmed so offsets map correctly
-            int rawLen = codeBodyEnd - codeBodyStart;
-            string rawBody = rawLen > 0 ? _source.Substring(codeBodyStart, rawLen) : string.Empty;
-            int leadingChars = rawBody.Length - rawBody.TrimStart().Length;
-
-            var returnMarkups = ScanForReturnMarkup(
-                codeBodyStart,
-                codeBodyEnd,
-                leadingChars,
-                startLine
-            );
-
-            return new CodeBlockNode(code, startLine, _filePath)
-            {
-                ReturnMarkups = returnMarkups,
-                CodeContentOffset = codeBodyStart + leadingChars,
-                CodeContentLength = code.Length,
-            };
-        }
-
-        /// <summary>
-        /// Scans the code body for embedded markup expressions in four forms:
-        /// <list type="bullet">
-        ///   <item><c>return &lt;Tag .../&gt;</c> — explicit return of a VirtualNode.</item>
-        ///   <item><c>= &lt;Tag .../&gt;</c> — assignment of a VirtualNode to a variable
-        ///     (e.g. <c>var x = &lt;Label text="hi"/&gt;;</c>).</item>
-        ///   <item><c>=&gt; &lt;Tag .../&gt;</c> — lambda arrow with inline markup.</item>
-        ///   <item><c>? &lt;Tag .../&gt;</c> / <c>: &lt;Tag .../&gt;</c> — ternary branches
-        ///     (e.g. <c>cond ? (&lt;Portal&gt;...&lt;/Portal&gt;) : null</c>).</item>
-        /// </list>
-        /// Each found element is parsed into a <see cref="ReturnMarkupNode"/> using a
-        /// temporary sub-parser so the current parser state is not disturbed.
-        /// </summary>
-        private ImmutableArray<ReturnMarkupNode> ScanForReturnMarkup(
-            int codeBodyStart,
-            int codeBodyEnd,
-            int leadingChars,
-            int blockStartLine
-        )
-        {
-            var result = ImmutableArray.CreateBuilder<ReturnMarkupNode>();
-            int i = codeBodyStart;
-
-            while (i < codeBodyEnd)
-            {
-                if (TrySkipNonCodeSpan(ref i, codeBodyEnd))
-                    continue;
-
-                int markupAt = -1; // index in _source where '<Tag' starts, or -1
-                int parenStart = -1; // index in _source of an enclosing '(', if present
-
-                // ── Pattern A: return <Tag  (also tolerates return (<Tag>) ) ───
-                if (i < codeBodyEnd - 6 && _source[i] == 'r')
-                {
-                    const string kw = "return";
-                    bool kwMatch = true;
-                    for (int k = 0; k < kw.Length && kwMatch; k++)
-                        if (i + k >= _source.Length || _source[i + k] != kw[k])
-                            kwMatch = false;
-
-                    if (kwMatch)
-                    {
-                        bool boundBefore =
-                            i == 0
-                            || !(char.IsLetterOrDigit(_source[i - 1]) || _source[i - 1] == '_');
-                        int afterKw = i + kw.Length;
-                        bool boundAfter =
-                            afterKw >= _source.Length
-                            || !(char.IsLetterOrDigit(_source[afterKw]) || _source[afterKw] == '_');
-
-                        if (boundBefore && boundAfter)
-                        {
-                            int j = afterKw;
-                            while (
-                                j < codeBodyEnd
-                                && (
-                                    _source[j] == ' '
-                                    || _source[j] == '\t'
-                                    || _source[j] == '\r'
-                                    || _source[j] == '\n'
-                                )
-                            )
-                                j++;
-
-                            // Tolerate return (<Tag>)
-                            if (j < codeBodyEnd && _source[j] == '(')
-                            {
-                                parenStart = j;
-                                j++;
-                                while (
-                                    j < codeBodyEnd
-                                    && (
-                                        _source[j] == ' '
-                                        || _source[j] == '\t'
-                                        || _source[j] == '\r'
-                                        || _source[j] == '\n'
-                                    )
-                                )
-                                    j++;
-                            }
-
-                            if (
-                                j < codeBodyEnd
-                                && _source[j] == '<'
-                                && j + 1 < codeBodyEnd
-                                && char.IsLetter(_source[j + 1])
-                            )
-                                markupAt = j;
-                            else
-                                parenStart = -1; // paren was not followed by JSX — reset
-                        }
-                    }
-                }
-
-                // ── Pattern B: = <Tag  (single-equals assignment) ──────────────
-                // Excluded: ==, =>, !=, <=, >=
-                if (markupAt < 0 && _source[i] == '=')
-                {
-                    bool isAssign = true;
-                    // Exclude == and =>
-                    if (i + 1 < _source.Length && (_source[i + 1] == '=' || _source[i + 1] == '>'))
-                        isAssign = false;
-                    // Exclude !=, <=, >=
-                    if (
-                        isAssign
-                        && i > 0
-                        && (_source[i - 1] == '!' || _source[i - 1] == '<' || _source[i - 1] == '>')
-                    )
-                        isAssign = false;
-
-                    if (isAssign)
-                    {
-                        int j = i + 1;
-                        while (
-                            j < codeBodyEnd
-                            && (
-                                _source[j] == ' '
-                                || _source[j] == '\t'
-                                || _source[j] == '\r'
-                                || _source[j] == '\n'
-                            )
-                        )
-                            j++;
-
-                        // Tolerate an optional '(' directly before the '<'
-                        // e.g.  = (<Box> or = (\n<Box>
-                        if (j < codeBodyEnd && _source[j] == '(')
-                        {
-                            parenStart = j;
-                            j++;
-                            while (
-                                j < codeBodyEnd
-                                && (
-                                    _source[j] == ' '
-                                    || _source[j] == '\t'
-                                    || _source[j] == '\r'
-                                    || _source[j] == '\n'
-                                )
-                            )
-                                j++;
-                        }
-
-                        if (
-                            j < codeBodyEnd
-                            && _source[j] == '<'
-                            && j + 1 < codeBodyEnd
-                            && char.IsLetter(_source[j + 1])
-                        )
-                            markupAt = j;
-                        else
-                            parenStart = -1; // paren not followed by JSX — reset
-                    }
-                }
-
-                // ── Pattern C: => <Tag  (lambda arrow with inline markup) ──────
-                if (
-                    markupAt < 0
-                    && _source[i] == '='
-                    && i + 1 < _source.Length
-                    && _source[i + 1] == '>'
-                )
-                {
-                    int j = i + 2; // skip =>
-                    while (
-                        j < codeBodyEnd
-                        && (
-                            _source[j] == ' '
-                            || _source[j] == '\t'
-                            || _source[j] == '\r'
-                            || _source[j] == '\n'
-                        )
-                    )
-                        j++;
-
-                    // Tolerate optional '(' before '<'
-                    if (j < codeBodyEnd && _source[j] == '(')
-                    {
-                        parenStart = j;
-                        j++;
-                        while (
-                            j < codeBodyEnd
-                            && (
-                                _source[j] == ' '
-                                || _source[j] == '\t'
-                                || _source[j] == '\r'
-                                || _source[j] == '\n'
-                            )
-                        )
-                            j++;
-                    }
-
-                    if (
-                        j < codeBodyEnd
-                        && _source[j] == '<'
-                        && j + 1 < codeBodyEnd
-                        && char.IsLetter(_source[j + 1])
-                    )
-                        markupAt = j;
-                    else
-                        parenStart = -1;
-                }
-
-                // ── Pattern D: ? <Tag  or  : <Tag  (ternary branches) ──────────
-                // Handles:  cond ? ( <Tag .../> ) : ( <Tag .../> )
-                //           cond ? <Tag .../> : <Tag .../>
-                // Excluded: ?. (null-conditional), ?? (null-coalescing), :: (scope)
-                if (markupAt < 0 && (_source[i] == '?' || _source[i] == ':'))
-                {
-                    char ch = _source[i];
-                    bool valid = true;
-                    if (
-                        ch == '?'
-                        && i + 1 < _source.Length
-                        && (_source[i + 1] == '.' || _source[i + 1] == '?')
-                    )
-                        valid = false;
-                    if (ch == ':' && i + 1 < _source.Length && _source[i + 1] == ':')
-                        valid = false;
-
-                    if (valid)
-                    {
-                        int j = i + 1;
-                        while (
-                            j < codeBodyEnd
-                            && (
-                                _source[j] == ' '
-                                || _source[j] == '\t'
-                                || _source[j] == '\r'
-                                || _source[j] == '\n'
-                            )
-                        )
-                            j++;
-
-                        // Tolerate optional '(' before '<'
-                        if (j < codeBodyEnd && _source[j] == '(')
-                        {
-                            parenStart = j;
-                            j++;
-                            while (
-                                j < codeBodyEnd
-                                && (
-                                    _source[j] == ' '
-                                    || _source[j] == '\t'
-                                    || _source[j] == '\r'
-                                    || _source[j] == '\n'
-                                )
-                            )
-                                j++;
-                        }
-
-                        if (
-                            j < codeBodyEnd
-                            && _source[j] == '<'
-                            && j + 1 < codeBodyEnd
-                            && char.IsLetter(_source[j + 1])
-                        )
-                            markupAt = j;
-                        else
-                            parenStart = -1;
-                    }
-                }
-
-                // ── Parse element if either pattern matched ─────────────────────
-                if (markupAt >= 0)
-                {
-                    int elementStartInSource = markupAt;
-                    int elementLine = LineAtPos(elementStartInSource);
-                    var (element, endPos) = ParseSingleElement(
-                        _source,
-                        _filePath,
-                        elementStartInSource,
-                        elementLine,
-                        _diagnostics
-                    );
-
-                    if (element != null)
-                    {
-                        // When a '(' wraps the element, expand the span to cover
-                        // '(' … ')' so CSharpEmitter replaces the whole paren group.
-                        int spanStart = parenStart >= 0 ? parenStart : elementStartInSource;
-                        int spanEnd = endPos;
-                        if (parenStart >= 0)
-                        {
-                            int k = endPos;
-                            while (
-                                k < codeBodyEnd
-                                && (
-                                    _source[k] == ' '
-                                    || _source[k] == '\t'
-                                    || _source[k] == '\r'
-                                    || _source[k] == '\n'
-                                )
-                            )
-                                k++;
-                            if (k < codeBodyEnd && _source[k] == ')')
-                                spanEnd = k + 1;
-                        }
-
-                        int startOffset = spanStart - codeBodyStart - leadingChars;
-                        int endOffset = spanEnd - codeBodyStart - leadingChars;
-                        int elementCol = ColAtPos(elementStartInSource);
-                        result.Add(
-                            new ReturnMarkupNode(
-                                element with
-                                {
-                                    SourceColumn = elementCol,
-                                },
-                                startOffset,
-                                endOffset,
-                                elementLine,
-                                _filePath
-                            )
-                        );
-                        i = spanEnd; // advance past entire span (including ')')
-                        continue;
-                    }
-                }
-
-                i++;
-            }
-
-            return result.ToImmutable();
-        }
-
-        private bool TrySkipNonCodeSpan(ref int i, int codeBodyEnd)
-        {
-            if (i >= codeBodyEnd)
-                return false;
-
-            if (_source[i] == '/' && i + 1 < codeBodyEnd)
-            {
-                if (_source[i + 1] == '/')
-                {
-                    i += 2;
-                    while (i < codeBodyEnd && _source[i] != '\n')
-                        i++;
-                    return true;
-                }
-
-                if (_source[i + 1] == '*')
-                {
-                    i += 2;
-                    while (i + 1 < codeBodyEnd && !(_source[i] == '*' && _source[i + 1] == '/'))
-                        i++;
-                    i = i + 1 < codeBodyEnd ? i + 2 : codeBodyEnd;
-                    return true;
-                }
-            }
-
-            if (_source[i] == '\'')
-            {
-                int j = i + 1;
-                while (j < codeBodyEnd)
-                {
-                    if (_source[j] == '\\')
-                    {
-                        j += 2;
-                        continue;
-                    }
-
-                    if (_source[j] == '\'')
-                    {
-                        j++;
-                        break;
-                    }
-
-                    j++;
-                }
-
-                i = j;
-                return true;
-            }
-
-            int quotePos = -1;
-            bool isVerbatim = false;
-
-            if (_source[i] == '"')
-            {
-                quotePos = i;
-            }
-            else if (
-                (_source[i] == '$' || _source[i] == '@')
-                && i + 1 < codeBodyEnd
-                && _source[i + 1] == '"'
-            )
-            {
-                quotePos = i + 1;
-                isVerbatim = _source[i] == '@';
-            }
-            else if (
-                (_source[i] == '$' || _source[i] == '@')
-                && i + 2 < codeBodyEnd
-                && (_source[i + 1] == '$' || _source[i + 1] == '@')
-                && _source[i + 2] == '"'
-            )
-            {
-                quotePos = i + 2;
-                isVerbatim = _source[i] == '@' || _source[i + 1] == '@';
-            }
-
-            if (quotePos >= 0)
-            {
-                int j = quotePos + 1;
-                while (j < codeBodyEnd)
-                {
-                    if (isVerbatim)
-                    {
-                        if (_source[j] == '"')
-                        {
-                            if (j + 1 < codeBodyEnd && _source[j + 1] == '"')
-                            {
-                                j += 2;
-                                continue;
-                            }
-
-                            j++;
-                            break;
-                        }
-
-                        j++;
-                        continue;
-                    }
-
-                    if (_source[j] == '\\')
-                    {
-                        j += 2;
-                        continue;
-                    }
-
-                    if (_source[j] == '"')
-                    {
-                        j++;
-                        break;
-                    }
-
-                    j++;
-                }
-
-                i = j;
-                return true;
-            }
-
-            return false;
-        }
+        // ── Single element parsing (used by VDG and semantic tokens) ──────
 
         /// <summary>
         /// Parses a single element from an arbitrary position in <paramref name="source"/>
@@ -1424,7 +1074,7 @@ namespace ReactiveUITK.Language.Parser
                 stopPosExclusive: -1,
                 diagnostics
             );
-            var element = parser.ParseElement(loopDepth: 0);
+            var element = parser.ParseElement();
             return (element, parser._scanner.Pos);
         }
 

@@ -25,7 +25,9 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @if (true) {
-                @(Hooks.UseState(0))
+                return (
+                    @(Hooks.UseState(0))
+                );
             }
             <box/>
             """);
@@ -41,7 +43,9 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @foreach (var i in items) {
-                @(Hooks.UseState(i))
+                return (
+                    @(Hooks.UseState(i))
+                );
             }
             <box/>
             """);
@@ -57,7 +61,7 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @switch (mode) {
-                @case 0: @(Hooks.UseState(42))
+                @case 0: return (@(Hooks.UseState(42)));
             }
             <box/>
             """);
@@ -123,7 +127,9 @@ public class DiagnosticTests
         // Loop iterator variable used directly as key
         var src = Wrap("""
             @foreach (var i in items) {
-                <label key={i} text={i.ToString()}/>
+                return (
+                    <label key={i} text={i.ToString()}/>
+                );
             }
             """);
         var result = GeneratorTestHelper.Run(src);
@@ -139,7 +145,9 @@ public class DiagnosticTests
         // key uses a property of the loop item — should NOT fire
         var src = Wrap("""
             @foreach (var item in items) {
-                <label key={item.Id} text={item.Name}/>
+                return (
+                    <label key={item.Id} text={item.Name}/>
+                );
             }
             """);
         var result = GeneratorTestHelper.Run(src);
@@ -157,7 +165,9 @@ public class DiagnosticTests
         // Element inside @foreach has no key attribute
         var src = Wrap("""
             @foreach (var item in items) {
-                <label text={item}/>
+                return (
+                    <label text={item}/>
+                );
             }
             """);
         var result = GeneratorTestHelper.Run(src);

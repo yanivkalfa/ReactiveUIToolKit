@@ -13,8 +13,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     ///   UITKX0014 — Hook called inside @foreach loop
     ///   UITKX0015 — Hook called inside @switch case
     ///
-    /// Detection is text-based: any <see cref="ExpressionNode"/> or
-    /// <see cref="CodeBlockNode"/> whose content contains a call matching
+    /// Detection is text-based: any <see cref="ExpressionNode"/> whose
+    /// content contains a call matching
     /// <c>Hooks.Use*</c> or <c>UseState(</c> / <c>UseEffect(</c> etc. is flagged.
     ///
     /// This catches the most common violation patterns without needing a full
@@ -95,13 +95,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         );
                     break;
 
-                case CodeBlockNode cb:
-                    // @code blocks embedded inside markup (rare — normally hoisted)
-                    if (ctx != HookContext.TopLevel)
-                        CheckExpressionForHooks(cb.Code, cb.SourceLine, ctx, filePath, diagnostics);
-                    break;
-
-                // TextNode, CodeBlockNode at top level — nothing to check
+                // TextNode — nothing to check
             }
         }
 

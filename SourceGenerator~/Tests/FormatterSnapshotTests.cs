@@ -524,7 +524,7 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@if (show) {", result);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
         Assert.Contains("\n    }", result);
     }
 
@@ -549,8 +549,8 @@ public sealed class FormatterSnapshotTests
 
         // @else on same line as closing }.
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
-        Assert.Contains("\n      <Label text=\"no\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"no\" />", result);
     }
 
     [Fact]
@@ -600,7 +600,7 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@foreach (var item in items) {", result);
-        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n        <Label text={item} key={item} />", result);
         Assert.Contains("\n    }", result);
     }
 
@@ -620,11 +620,15 @@ public sealed class FormatterSnapshotTests
               return (
                 <Box>
                   @foreach (var g in groups) {
+                    return (
                     <Group>
                       @foreach (var row in g.Rows) {
+                        return (
                         <Row text={row.Name} />
+                        );
                       }
                     </Group>
+                    );
                   }
                 </Box>
               );
@@ -636,9 +640,9 @@ public sealed class FormatterSnapshotTests
 
         // Children of <Box> (the return root) start at 6-space.
         Assert.Contains("\n      @foreach (var g in groups) {", result);
-        Assert.Contains("\n        <Group>", result);
-        Assert.Contains("\n          @foreach (var row in g.Rows) {", result);
-        Assert.Contains("\n            <Row", result);
+        Assert.Contains("\n          <Group>", result);
+        Assert.Contains("\n            @foreach (var row in g.Rows) {", result);
+        Assert.Contains("\n                <Row", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -654,11 +658,11 @@ public sealed class FormatterSnapshotTests
               return (
                 @switch (mode) {
                     @case "a":
-                        <LabelA />
+                        return (<LabelA />);
                     @case "b":
-                        <LabelB />
+                        return (<LabelB />);
                     @default:
-                        <LabelDefault />
+                        return (<LabelDefault />);
                 }
               );
             }
@@ -669,10 +673,10 @@ public sealed class FormatterSnapshotTests
 
         Assert.Contains("@switch (mode) {", result);
         Assert.Contains("\n      @case \"a\":", result);
-        Assert.Contains("\n        <LabelA />", result);
+        Assert.Contains("\n          <LabelA />", result);
         Assert.Contains("\n      @case \"b\":", result);
         Assert.Contains("\n      @default:", result);
-        Assert.Contains("\n        <LabelDefault />", result);
+        Assert.Contains("\n          <LabelDefault />", result);
         Assert.Contains("\n    }", result);
     }
 
@@ -729,8 +733,6 @@ public sealed class FormatterSnapshotTests
         Assert.StartsWith("component HelloWorld {", result);
         Assert.DoesNotContain("component HelloWorld()", result);
     }
-
-
 
     // ════════════════════════════════════════════════════════════════════════════
     //  B.8  Setup code before return
@@ -1889,8 +1891,6 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(first, second);
     }
 
-
-
     [Fact]
     public void DoubleFormat_WithForEach_Stable()
     {
@@ -3039,11 +3039,11 @@ public sealed class FormatterSnapshotTests
                 <Box>
                   @switch (mode) {
                       @case "a":
-                          <LabelA />
+                          return (<LabelA />);
                       @case "b":
-                          <LabelB />
+                          return (<LabelB />);
                       @default:
-                          <LabelDefault />
+                          return (<LabelDefault />);
                   }
                 </Box>
               );
@@ -3056,10 +3056,10 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("@switch (mode) {", result);
         // @switch pushes indent → @case is two levels deeper than @switch itself.
         Assert.Contains("\n        @case \"a\":", result);
-        Assert.Contains("\n          <LabelA />", result);
+        Assert.Contains("\n            <LabelA />", result);
         Assert.Contains("\n        @case \"b\":", result);
         Assert.Contains("\n        @default:", result);
-        Assert.Contains("\n          <LabelDefault />", result);
+        Assert.Contains("\n            <LabelDefault />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3073,10 +3073,12 @@ public sealed class FormatterSnapshotTests
                 <Box>
                   @switch (mode) {
                     @case "normal":
+                      return (
                       <Label text="Normal mode" />
                       <Button text="Click" onClick={_ => doIt()} />
+                      );
                     @default:
-                      <Label text="Other" />
+                      return (<Label text="Other" />);
                   }
                 </Box>
               );
@@ -3088,8 +3090,8 @@ public sealed class FormatterSnapshotTests
 
         Assert.Contains("\n        @case \"normal\":", result);
         // Both children of the case at same indent level (one deeper than @case)
-        Assert.Contains("\n          <Label text=\"Normal mode\" />", result);
-        Assert.Contains("\n          <Button text=\"Click\"", result);
+        Assert.Contains("\n            <Label text=\"Normal mode\" />", result);
+        Assert.Contains("\n            <Button text=\"Click\"", result);
         Assert.Contains("\n        @default:", result);
         Assert.Equal(result, Format(result));
     }
@@ -3105,13 +3107,13 @@ public sealed class FormatterSnapshotTests
               return (
                 <Box>
                   @if (count < -5) {
-                    <Label text="Very negative" />
+                    return (<Label text="Very negative" />);
                   } @else if (count < 0) {
-                    <Label text="Negative" />
+                    return (<Label text="Negative" />);
                   } @else if (count == 0) {
-                    <Label text="Zero" />
+                    return (<Label text="Zero" />);
                   } @else {
-                    <Label text="Positive" />
+                    return (<Label text="Positive" />);
                   }
                 </Box>
               );
@@ -3125,8 +3127,8 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("} @else if (count < 0) {", result);
         Assert.Contains("} @else if (count == 0) {", result);
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n        <Label text=\"Very negative\" />", result);
-        Assert.Contains("\n        <Label text=\"Zero\" />", result);
+        Assert.Contains("\n          <Label text=\"Very negative\" />", result);
+        Assert.Contains("\n          <Label text=\"Zero\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3139,16 +3141,20 @@ public sealed class FormatterSnapshotTests
               return (
                 <Box>
                   @if (count <= 0) {
-                    <Label text="None" />
+                    return (<Label text="None" />);
                   } @else {
+                    return (
                     @for (int i = 0; i < count; i++) {
+                      return (
                       @if (i % 2 == 0) {
-                        <Label text={$"Even {i}"} />
+                        return (<Label text={$"Even {i}"} />);
                       } @else {
-                        <Label text={$"Odd {i}"} />
+                        return (<Label text={$"Odd {i}"} />);
                       }
+                      );
                     }
                     <Label text={$"Total: {count}"} />
+                    );
                   }
                 </Box>
               );
@@ -3159,12 +3165,12 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n        @for (int i = 0;", result);
-        Assert.Contains("\n          @if (i % 2 == 0) {", result);
-        Assert.Contains("\n            <Label text={$\"Even {i}\"", result);
-        Assert.Contains("\n          } @else {", result);
-        Assert.Contains("\n            <Label text={$\"Odd {i}\"", result);
-        Assert.Contains("\n        <Label text={$\"Total:", result);
+        Assert.Contains("\n          @for (int i = 0;", result);
+        Assert.Contains("\n              @if (i % 2 == 0) {", result);
+        Assert.Contains("\n                  <Label text={$\"Even {i}\"", result);
+        Assert.Contains("\n              } @else {", result);
+        Assert.Contains("\n                  <Label text={$\"Odd {i}\"", result);
+        Assert.Contains("\n          <Label text={$\"Total:", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3191,9 +3197,9 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("\n        <Label text=\"Very neg\" />", result);
-        Assert.Contains("\n        <Label text=\"Neg\" />", result);
-        Assert.Contains("\n        <Label text=\"Ok\" />", result);
+        Assert.Contains("\n          <Label text=\"Very neg\" />", result);
+        Assert.Contains("\n          <Label text=\"Neg\" />", result);
+        Assert.Contains("\n          <Label text=\"Ok\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3923,29 +3929,35 @@ public sealed class FormatterSnapshotTests
                 <ScrollView>
                   @switch (mode) {
                     @case "normal":
+                      return (
                       <Label text="Normal" />
                       <Button text="-5" onClick={_ => setCount(count - 5)} />
+                      );
                     @default:
-                      <Label text={$"Mode: {mode}"} />
+                      return (<Label text={$"Mode: {mode}"} />);
                   }
                   @if (count < -5) {
-                    <Label text="Very neg!" />
+                    return (<Label text="Very neg!" />);
                   } @else if (count < 0) {
-                    <Label text="Neg" />
+                    return (<Label text="Neg" />);
                   } @else if (count == 0) {
-                    <Label text="Zero" />
+                    return (<Label text="Zero" />);
                   } @else {
+                    return (
                     @for (int i = 0; i < count; i++) {
+                      return (
                       @if (i % 2 == 0) {
-                        <Label text={$"Even {i}"} />
+                        return (<Label text={$"Even {i}"} />);
                       } @else {
-                        <Label text={$"Odd {i}"} />
+                        return (<Label text={$"Odd {i}"} />);
                       }
+                      );
                     }
                     <Label text={$"Total: {count}"} />
+                    );
                   }
                   @foreach (var entry in log) {
-                    <Label key={entry} text={entry} />
+                    return (<Label key={entry} text={entry} />);
                   }
                   <VisualElement>
                     <Button
@@ -3961,7 +3973,7 @@ public sealed class FormatterSnapshotTests
                   </VisualElement>
                   <ToggleButtonGroup value={selected}>
                     @foreach (var opt in opts) {
-                      <Button key={opt} text={opt} onClick={_ => setSelected(0)} />
+                      return (<Button key={opt} text={opt} onClick={_ => setSelected(0)} />);
                     }
                   </ToggleButtonGroup>
                   <Label
@@ -4004,12 +4016,12 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(first, second);
         // Spot checks:
         Assert.Contains("\n        @case \"normal\":", first);
-        Assert.Contains("\n          <Label text=\"Normal\" />", first);
-        Assert.Contains("\n          <Button text=\"-5\"", first);
+        Assert.Contains("\n            <Label text=\"Normal\" />", first);
+        Assert.Contains("\n            <Button text=\"-5\"", first);
         Assert.Contains("} @else if (count < 0) {", first);
         Assert.Contains("} @else {", first);
-        Assert.Contains("\n        @for (int i = 0;", first);
-        Assert.Contains("\n          @if (i % 2 == 0) {", first);
+        Assert.Contains("\n          @for (int i = 0;", first);
+        Assert.Contains("\n              @if (i % 2 == 0) {", first);
         Assert.Contains("key={entry}", first);
         Assert.Contains(
             "(StyleKeys.MinWidth, 30f), (\"unityTextAlign\", \"middle-center\")",
@@ -4913,8 +4925,6 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
-
-
     [Fact]
     public void G10_Directive_ExtraBlankLinesBetweenUsings_CappedToOne()
     {
@@ -5176,14 +5186,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @if (show) {
+                  return (
                             <Label text="yes" />
+                  );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5195,14 +5207,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @if (show) {
+                return (
                 <Label text="yes" />
+                );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5214,14 +5228,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var item in items) {
+                  return (
                             <Label text={item} key={item} />
+                  );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n        <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5233,14 +5249,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var item in items) {
+                return (
                 <Label text={item} key={item} />
+                );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n        <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5253,17 +5271,17 @@ public sealed class FormatterSnapshotTests
               return (
                 @switch (mode) {
                     @case "a":
-                                    <LabelA />
+                                    return (<LabelA />);
                     @default:
-                                    <LabelDefault />
+                                    return (<LabelDefault />);
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n        <LabelA />", result);
-        Assert.Contains("\n        <LabelDefault />", result);
+        Assert.Contains("\n          <LabelA />", result);
+        Assert.Contains("\n          <LabelDefault />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5275,17 +5293,21 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var x in items) {
+                  return (
                             @if (x != null) {
+                              return (
                                         <Label text={x} />
+                              );
                             }
+                  );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      @if (x != null) {", result);
-        Assert.Contains("\n        <Label text={x} />", result);
+        Assert.Contains("\n        @if (x != null) {", result);
+        Assert.Contains("\n            <Label text={x} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5510,7 +5532,9 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @if (show) {   
+                  return (
                   <Label text="yes" />   
+                  );
                 }   
               );
             }
@@ -5533,7 +5557,9 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var item in items) {   
+                  return (
                   <Label text={item} />   
+                  );
                 }   
               );
             }

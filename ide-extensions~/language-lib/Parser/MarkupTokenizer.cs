@@ -352,7 +352,7 @@ namespace ReactiveUITK.Language.Parser
         /// Advances the position to <paramref name="targetPos"/>, counting
         /// newlines along the way so <see cref="Line"/> stays accurate.
         /// </summary>
-        private void AdvanceTo(int targetPos)
+        public void AdvanceTo(int targetPos)
         {
             while (_pos < targetPos && _pos < _source.Length)
                 Advance();

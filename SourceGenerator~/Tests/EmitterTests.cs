@@ -14,10 +14,6 @@ public class EmitterTests
     private static string Wrap(string markup) =>
         "component MyComp {\n  return (\n" + markup + "\n  );\n}";
 
-    /// Wraps code + markup in a function-style component (code runs before return).
-    private static string WrapWithCode(string code, string markup) =>
-        "component MyComp {\n  " + code + "\n  return (\n" + markup + "\n  );\n}";
-
     // ── Element emission ──────────────────────────────────────────────────────
 
     [Fact]
@@ -67,7 +63,10 @@ public class EmitterTests
     {
         var result = GeneratorTestHelper.Run(Wrap("<box/>"));
 
-        Assert.True(result.SourceContains("namespace ReactiveUITK.FunctionStyle"), "Expected namespace declaration");
+        Assert.True(
+            result.SourceContains("namespace ReactiveUITK.FunctionStyle"),
+            "Expected namespace declaration"
+        );
     }
 
     [Fact]
@@ -84,8 +83,7 @@ public class EmitterTests
     [Fact]
     public void FunctionStyleComponent_GeneratesClassAndMarkup()
     {
-        const string src =
-            """
+        const string src = """
             component CounterPanel {
                 var (count, setCount) = useState(0);
                 return (
@@ -105,33 +103,12 @@ public class EmitterTests
         Assert.True(result.SourceContains("Hooks.UseState(") || result.SourceContains("useState("));
     }
 
-    // ── @code hoisting ───────────────────────────────────────────────────────
-
-    [Fact]
-    public void CodeBlock_AppearsBeforeReturn()
-    {
-        var src = WrapWithCode("var x = 42;", "<box/>");
-        var result = GeneratorTestHelper.Run(src);
-
-        Assert.True(result.SourceWasProduced);
-        var generated = result.GeneratedSource!;
-
-        int codePos = generated.IndexOf("var x = 42;", System.StringComparison.Ordinal);
-        // Single-root: return <element>; — search for the V. call return in Render
-        // (avoids matching the 'return' inside the __C helper generated above Render)
-        int returnPos = generated.IndexOf("return V.", System.StringComparison.Ordinal);
-
-        Assert.True(codePos >= 0, "@code content not found in generated source");
-        Assert.True(returnPos >= 0, "return statement not found in generated source");
-        Assert.True(codePos < returnPos, "@code block must appear before the return statement");
-    }
-
     // ── Control flow ─────────────────────────────────────────────────────────
 
     [Fact]
     public void IfDirective_GeneratesConditionalExpression()
     {
-        var src = Wrap("@if (flag) { <label/> }");
+        var src = Wrap("@if (flag) { return (<label/>); }");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -148,7 +125,7 @@ public class EmitterTests
     [Fact]
     public void ForeachDirective_GeneratesSelectCall()
     {
-        var src = Wrap("@foreach (var item in items) { <label key={item.Id}/> }");
+        var src = Wrap("@foreach (var item in items) { return (<label key={item.Id}/>); }");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -159,13 +136,17 @@ public class EmitterTests
     [Fact]
     public void ForDirective_WithLoopFlow_EmitsBreakAndContinueStatements()
     {
-        var src = Wrap("""
-                @for (var i = 0; i < 10; i++) {
-                    @if (i < 3) { @continue; }
+        var src = Wrap(
+            """
+            @for (var i = 0; i < 10; i++) {
+                if (i < 3) { continue; }
+                if (i > 6) { break; }
+                return (
                     <label text={i.ToString()} />
-                    @if (i > 6) { @break; }
-                }
-                """);
+                );
+            }
+            """
+        );
 
         var result = GeneratorTestHelper.Run(src);
 
@@ -178,12 +159,16 @@ public class EmitterTests
     [Fact]
     public void WhileDirective_WithLoopFlow_EmitsContinueStatement()
     {
-        var src = Wrap("""
-                @while (running) {
-                    @if (skip) { @continue; }
+        var src = Wrap(
+            """
+            @while (running) {
+                if (skip) { continue; }
+                return (
                     <label />
-                }
-                """);
+                );
+            }
+            """
+        );
 
         var result = GeneratorTestHelper.Run(src);
 
@@ -195,12 +180,14 @@ public class EmitterTests
     [Fact]
     public void SwitchDirective_GeneratesSwitchExpression()
     {
-        var src = Wrap("""
-                @switch (mode) {
-                    @case 0: <label text="zero"/>
-                    @case 1: <label text="one"/>
-                }
-                """);
+        var src = Wrap(
+            """
+            @switch (mode) {
+                @case 0: return (<label text="zero"/>);
+                @case 1: return (<label text="one"/>);
+            }
+            """
+        );
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
@@ -215,12 +202,12 @@ public class EmitterTests
     [Fact]
     public void ElseBranch_GeneratesNullFallback()
     {
-        var src = Wrap("@if (flag) { <label/> }");
+        var src = Wrap("@if (flag) { return (<label/>); }");
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
         // @if without @else should produce `: null` in the ternary
-        Assert.True(result.SourceContains(": null"), "Missing @else should generate : null");
+        Assert.True(result.SourceContains(": null") || result.SourceContains("(VirtualNode)null"), "Missing @else should generate null fallback");
     }
 
     // ── Key attribute ─────────────────────────────────────────────────────────
@@ -279,14 +266,16 @@ public class EmitterTests
     {
         // Before the fix, JsxCommentNode emitted nothing but the comma logic still ran,
         // resulting in invalid C# like V.Box(V.Label(...), , V.Label(...))
-        var src = Wrap("""
+        var src = Wrap(
+            """
 <box>
     {/* this is a comment */}
     <label text="a"/>
     {/* another comment */}
     <label text="b"/>
 </box>
-""");
+"""
+        );
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced, "Source should be produced");
@@ -303,8 +292,7 @@ public class EmitterTests
     {
         // A JSX comment at the root level alongside a single element should not
         // force Fragment wrapping (which would cause a dangling empty argument).
-        const string src =
-            """
+        const string src = """
             component MyComp {
                 return (
                     {/* root comment */}
@@ -314,37 +302,10 @@ public class EmitterTests
             """;
         var result = GeneratorTestHelper.Run(src);
 
-        Assert.True(result.SourceWasProduced, "Source should be produced");        Assert.True(
-            result.SourceContains("V.Box("),
-            "Box should be emitted\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)")
-        );
-    }
-
-    // ── Embedded markup in @code ─────────────────────────────────────────────
-
-    [Fact]
-    public void AssignMarkupInCodeBlock_GeneratesVCall()
-    {
-        const string src = """
-            component MyComp {
-                var (count, setCount) = useState(0);
-                var component = (
-                    <box>
-                        <label text="hi"/>
-                    </box>
-                );
-                return (
-                    <box>@(component)</box>
-                );
-            }
-            """;
-        var result = GeneratorTestHelper.Run(src);
-
         Assert.True(result.SourceWasProduced, "Source should be produced");
         Assert.True(
             result.SourceContains("V.Box("),
-            "Assigned <box> should produce V.Box( call.\n--- GENERATED ---\n"
-                + (result.GeneratedSource ?? "(null)")
+            "Box should be emitted\n--- GENERATED ---\n" + (result.GeneratedSource ?? "(null)")
         );
     }
 
@@ -378,50 +339,9 @@ public class EmitterTests
     }
 
     [Fact]
-    public void ReturnMarkupInCodeBlock_GeneratesVCall()
-    {
-        const string src = """
-            component MyComp {
-                private static VirtualNode Btn() {
-                    return <label text="hi" />;
-                }
-                return (<Label />);
-            }
-            """;
-        var result = GeneratorTestHelper.Run(src);
-
-        Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(
-            result.SourceContains("V.Label("),
-            "Embedded <label> should produce V.Label( call"
-        );
-    }
-
-    [Fact]
-    public void ReturnMarkupInCodeBlock_ExpressionAttribute_IsVerbatim()
-    {
-        const string src = """
-            component MyComp {
-                private static VirtualNode Btn(string msg) {
-                    return <label text={msg} />;
-                }
-                return (<Label />);
-            }
-            """;
-        var result = GeneratorTestHelper.Run(src);
-
-        Assert.True(result.SourceWasProduced, "Source should be produced");
-        Assert.True(
-            result.SourceContains("msg"),
-            "Expression attribute should appear verbatim in generated source"
-        );
-    }
-
-    [Fact]
     public void FunctionStyleComponent_LeadingUsings_EmittedInGeneratedSource()
     {
-        const string src =
-            """
+        const string src = """
             using MyGame.Models;
             using System.Collections.Generic;
             component PlayerHUD {
@@ -433,14 +353,16 @@ public class EmitterTests
 
         Assert.True(result.SourceWasProduced);
         Assert.True(result.SourceContains("using MyGame.Models;"), "Expected using MyGame.Models;");
-        Assert.True(result.SourceContains("using System.Collections.Generic;"), "Expected using System.Collections.Generic;");
+        Assert.True(
+            result.SourceContains("using System.Collections.Generic;"),
+            "Expected using System.Collections.Generic;"
+        );
     }
 
     [Fact]
     public void HookAlias_NestedGenericTypeArg_IsExpanded()
     {
-        const string src =
-            """
+        const string src = """
             component Foo {
                 var ctx = useContext<Dictionary<string, int>>("myKey");
                 return (<Box />);
@@ -461,8 +383,7 @@ public class EmitterTests
     [Fact]
     public void ErrorBoundary_GeneratesVErrorBoundaryCall()
     {
-        const string src =
-            """
+        const string src = """
             component MyComp {
                 return (
                     <ErrorBoundary>
@@ -488,8 +409,7 @@ public class EmitterTests
     [Fact]
     public void ErrorBoundary_WithFallbackProp_GeneratesCorrectProps()
     {
-        const string src =
-            """
+        const string src = """
             component MyComp {
                 var fallback = (<Label text="error!" />);
                 return (
@@ -503,16 +423,24 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
 
         Assert.True(result.SourceWasProduced);
-        Assert.True(result.SourceContains("V.ErrorBoundary("), $"Expected V.ErrorBoundary( call. Got:\n{result.GeneratedSource}");
-        Assert.True(result.SourceContains("Fallback = fallback"), "Expected Fallback prop assignment");
-        Assert.True(result.SourceContains("ResetKey = \"v1\""), "Expected ResetKey prop assignment");
+        Assert.True(
+            result.SourceContains("V.ErrorBoundary("),
+            $"Expected V.ErrorBoundary( call. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Fallback = fallback"),
+            "Expected Fallback prop assignment"
+        );
+        Assert.True(
+            result.SourceContains("ResetKey = \"v1\""),
+            "Expected ResetKey prop assignment"
+        );
     }
 
     [Fact]
     public void Suspense_WithIsReadyAndFallback_GeneratesVSuspenseCall()
     {
-        const string src =
-            """
+        const string src = """
             component MyComp {
                 bool IsReady() => true;
                 var fallback = (<Label text="loading..." />);
@@ -527,16 +455,24 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
 
         Assert.True(result.SourceWasProduced);
-        Assert.True(result.SourceContains("V.Suspense("), $"Expected V.Suspense( call. Got:\n{result.GeneratedSource}");
-        Assert.True(result.SourceContains("IsReady"), "Expected IsReady expression in V.Suspense call");
-        Assert.True(result.SourceContains("fallback"), "Expected fallback expression in V.Suspense call");
+        Assert.True(
+            result.SourceContains("V.Suspense("),
+            $"Expected V.Suspense( call. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("IsReady"),
+            "Expected IsReady expression in V.Suspense call"
+        );
+        Assert.True(
+            result.SourceContains("fallback"),
+            "Expected fallback expression in V.Suspense call"
+        );
     }
 
     [Fact]
     public void Portal_WithTargetAndChildren_GeneratesVPortalCall()
     {
-        const string src =
-            """
+        const string src = """
             component MyComp {
                 var target = useContext<UnityEngine.UIElements.VisualElement>("slot");
                 return (
@@ -550,7 +486,10 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src, "MyComp.uitkx");
 
         Assert.True(result.SourceWasProduced);
-        Assert.True(result.SourceContains("V.Portal("), $"Expected V.Portal( call. Got:\n{result.GeneratedSource}");
+        Assert.True(
+            result.SourceContains("V.Portal("),
+            $"Expected V.Portal( call. Got:\n{result.GeneratedSource}"
+        );
         Assert.True(result.SourceContains("target"), "Expected target expression in V.Portal call");
     }
 
@@ -560,16 +499,14 @@ public class EmitterTests
     public void PeerComponent_WithProps_EmitsTypedVFuncAndPassesAttributes()
     {
         // ChildComp.uitkx — sub-component with a bool prop
-        const string childSrc =
-            """
+        const string childSrc = """
             component ChildComp(bool active = false) {
                 return (<Label text="child" />);
             }
             """;
 
         // ParentComp.uitkx — references ChildComp; its props type is peer-generated
-        const string parentSrc =
-            """
+        const string parentSrc = """
             component ParentComp {
                 var flag = true;
                 return (
@@ -579,19 +516,20 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("ChildComp.uitkx", childSrc),
-                ("ParentComp.uitkx", parentSrc),
-            },
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
             primaryFileName: "ParentComp.uitkx"
         );
 
-        Assert.True(result.SourceWasProduced, $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
         // Props are generated as nested types (ChildComp.ChildCompProps), so the
         // qualified form must be used to avoid CS0246 at the call site.
         Assert.True(
-            result.SourceContains("V.Func<global::ReactiveUITK.FunctionStyle.ChildComp.ChildCompProps>"),
+            result.SourceContains(
+                "V.Func<global::ReactiveUITK.FunctionStyle.ChildComp.ChildCompProps>"
+            ),
             $"Expected typed V.Func<global::ReactiveUITK.FunctionStyle.ChildComp.ChildCompProps> call. Got:\n{result.GeneratedSource}"
         );
         // The 'active' attribute must be passed through as 'Active = flag'
@@ -608,8 +546,7 @@ public class EmitterTests
     {
         // A C# static class that follows the legacy ValuesBarFunc pattern:
         // nested Props class rather than the {TypeName}Props sibling convention.
-        const string extraCSharp =
-            """
+        const string extraCSharp = """
             using ReactiveUITK.Core;
             using System.Collections.Generic;
 
@@ -628,8 +565,7 @@ public class EmitterTests
             }
             """;
 
-        const string uitkx =
-            """
+        const string uitkx = """
             @namespace MyApp.UI
             @using MyApp
 
@@ -641,7 +577,10 @@ public class EmitterTests
 
         var result = GeneratorTestHelper.RunWithExtraCSharp(uitkx, extraCSharp, "MyPage.uitkx");
 
-        Assert.True(result.SourceWasProduced, $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}");
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics)}"
+        );
 
         // Must use the typed V.Func<ValuesBarFunc.Props> overload, not the no-props fallback
         Assert.True(
@@ -662,8 +601,7 @@ public class EmitterTests
     public void UserComponent_SingleRefParam_RefAttrRoutedToMutableRefProp()
     {
         // ChildComp.uitkx — declares a single Hooks.MutableRef parameter.
-        const string childSrc =
-            """
+        const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef = null
             ) {
@@ -672,8 +610,7 @@ public class EmitterTests
             """;
 
         // ParentComp.uitkx — uses ref={myRef} shorthand on ChildComp.
-        const string parentSrc =
-            """
+        const string parentSrc = """
             component ParentComp {
                 return (
                     <ChildComp ref={myRef} />
@@ -682,11 +619,7 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("ChildComp.uitkx",  childSrc),
-                ("ParentComp.uitkx", parentSrc),
-            },
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
             primaryFileName: "ParentComp.uitkx"
         );
 
@@ -716,15 +649,13 @@ public class EmitterTests
     public void UserComponent_NoRefParam_RefAttrEmitsDiagnosticUITKX0020()
     {
         // ChildComp.uitkx — no MutableRef parameter; ref={} cannot be routed.
-        const string childSrc =
-            """
+        const string childSrc = """
             component ChildComp(string? label = null) {
                 return (<Label text="child" />);
             }
             """;
 
-        const string parentSrc =
-            """
+        const string parentSrc = """
             component ParentComp {
                 return (
                     <ChildComp ref={myRef} />
@@ -733,18 +664,14 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("ChildComp.uitkx",  childSrc),
-                ("ParentComp.uitkx", parentSrc),
-            },
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
             primaryFileName: "ParentComp.uitkx"
         );
 
         Assert.True(
             result.HasDiagnostic("UITKX0020"),
             $"Expected UITKX0020 when ref={{}} is used on a component with no MutableRef param. "
-            + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id))}"
+                + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id))}"
         );
     }
 
@@ -752,8 +679,7 @@ public class EmitterTests
     public void UserComponent_MultipleRefParams_RefAttrEmitsDiagnosticUITKX0021()
     {
         // ChildComp.uitkx — two MutableRef parameters; ref={} is ambiguous.
-        const string childSrc =
-            """
+        const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef  = null,
                 Hooks.MutableRef<object>? secondRef = null
@@ -762,8 +688,7 @@ public class EmitterTests
             }
             """;
 
-        const string parentSrc =
-            """
+        const string parentSrc = """
             component ParentComp {
                 return (
                     <ChildComp ref={myRef} />
@@ -772,18 +697,14 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("ChildComp.uitkx",  childSrc),
-                ("ParentComp.uitkx", parentSrc),
-            },
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
             primaryFileName: "ParentComp.uitkx"
         );
 
         Assert.True(
             result.HasDiagnostic("UITKX0021"),
             $"Expected UITKX0021 when ref={{}} is used on a component with multiple MutableRef params. "
-            + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id))}"
+                + $"Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.Id))}"
         );
     }
 
@@ -791,8 +712,7 @@ public class EmitterTests
     public void UserComponent_RefAttrAndOtherProps_CombineCorrectly()
     {
         // ChildComp.uitkx — has a regular string prop + one MutableRef prop.
-        const string childSrc =
-            """
+        const string childSrc = """
             component ChildComp(
                 string? label = null,
                 Hooks.MutableRef<object>? inputRef = null
@@ -802,8 +722,7 @@ public class EmitterTests
             """;
 
         // ParentComp.uitkx — passes both a regular attribute and ref={}.
-        const string parentSrc =
-            """
+        const string parentSrc = """
             component ParentComp {
                 return (
                     <ChildComp label="hello" ref={myRef} />
@@ -812,11 +731,7 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("ChildComp.uitkx",  childSrc),
-                ("ParentComp.uitkx", parentSrc),
-            },
+            new[] { ("ChildComp.uitkx", childSrc), ("ParentComp.uitkx", parentSrc) },
             primaryFileName: "ParentComp.uitkx"
         );
 
@@ -845,8 +760,7 @@ public class EmitterTests
     [Fact]
     public void CrossNamespacePeerComponent_WithProps_EmitsFullyQualifiedPeerReferences()
     {
-        const string childSrc =
-            """
+        const string childSrc = """
             @namespace MyApp.Components.Buttons
 
             component JSOAppButton(bool disabled = false) {
@@ -854,8 +768,7 @@ public class EmitterTests
             }
             """;
 
-        const string parentSrc =
-            """
+        const string parentSrc = """
             @namespace MyApp.Components.Sidebar
             using MyApp.Components.Buttons;
 
@@ -868,11 +781,7 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("JSOAppButton.uitkx", childSrc),
-                ("Sidebar.uitkx", parentSrc),
-            },
+            new[] { ("JSOAppButton.uitkx", childSrc), ("Sidebar.uitkx", parentSrc) },
             primaryFileName: "Sidebar.uitkx"
         );
 
@@ -899,8 +808,7 @@ public class EmitterTests
     [Fact]
     public void CrossNamespacePeerComponent_RefRouting_UsesQualifiedPeerIdentity()
     {
-        const string childSrc =
-            """
+        const string childSrc = """
             @namespace MyApp.Components.Buttons
 
             component JSOAppButton(
@@ -910,8 +818,7 @@ public class EmitterTests
             }
             """;
 
-        const string parentSrc =
-            """
+        const string parentSrc = """
             @namespace MyApp.Components.Sidebar
             using MyApp.Components.Buttons;
 
@@ -923,11 +830,7 @@ public class EmitterTests
             """;
 
         var result = GeneratorTestHelper.RunMultiple(
-            new[]
-            {
-                ("JSOAppButton.uitkx", childSrc),
-                ("Sidebar.uitkx", parentSrc),
-            },
+            new[] { ("JSOAppButton.uitkx", childSrc), ("Sidebar.uitkx", parentSrc) },
             primaryFileName: "Sidebar.uitkx"
         );
 

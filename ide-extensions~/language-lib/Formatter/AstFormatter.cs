@@ -309,15 +309,6 @@ namespace ReactiveUITK.Language.Formatter
                 case SwitchNode sw:
                     FormatSwitch(sw);
                     break;
-                case BreakNode:
-                    Ln("@break;");
-                    break;
-                case ContinueNode:
-                    Ln("@continue;");
-                    break;
-                case CodeBlockNode cb:
-                    FormatCodeBlock(cb);
-                    break;
 
                 case TextNode tn:
                 {
@@ -524,7 +515,7 @@ namespace ReactiveUITK.Language.Formatter
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        //  @code BLOCK
+        //  C# SETUP CODE EMISSION
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -1327,166 +1318,6 @@ namespace ReactiveUITK.Language.Formatter
                 _sb.Append($"<{el.TagName} {string.Join(" ", attrStrings)}{closing}");
         }
 
-        private void FormatCodeBlock(CodeBlockNode cb)
-        {
-            Ln("@code {");
-            _indent++;
-            string tabExp = new string(' ', _opts.IndentSize);
-
-            if (cb.ReturnMarkups.IsEmpty)
-            {
-                // No embedded JSX — the entire body is pure C#.
-                // Offer it to the pluggable Roslyn formatter first; fall back to
-                // the simple indentation-only formatter on failure or no delegate.
-                string codeToFormat = cb.Code ?? string.Empty;
-                if (_csharpFormatter != null)
-                {
-                    try
-                    {
-                        string? formatted = _csharpFormatter.Format(codeToFormat, _opts.IndentSize);
-                        if (!string.IsNullOrEmpty(formatted))
-                            codeToFormat = formatted;
-                    }
-                    catch
-                    {
-                        // Ignore delegate errors and proceed with built-in formatting.
-                    }
-                }
-
-                EmitCSharpLines(
-                    codeToFormat,
-                    tabExp,
-                    firstLineStripped: true,
-                    suppressLastNewline: false
-                );
-            }
-            else
-            {
-                int pos = 0;
-                bool firstSegment = true;
-
-                foreach (var rm in cb.ReturnMarkups) // sorted by StartOffsetInCodeBlock
-                {
-                    int jsxStart = rm.StartOffsetInCodeBlock;
-
-                    // ── C# segment before this JSX element ──────────────────────────
-                    if (jsxStart > pos)
-                    {
-                        string seg = cb.Code.Substring(pos, jsxStart - pos);
-
-                        if (firstSegment)
-                        {
-                            // The very first segment: ExpressionExtractor stripped
-                            // leading whitespace from line[0].
-                            EmitCSharpLines(
-                                seg,
-                                tabExp,
-                                firstLineStripped: true,
-                                suppressLastNewline: true
-                            );
-                            firstSegment = false;
-                        }
-                        else
-                        {
-                            // Subsequent segment: the first char(s) up to the first \n
-                            // are the inline suffix of the previous JSX tag (e.g. ";").
-                            // Append them directly (no indent prefix) then process rest.
-                            int nlPos = seg.IndexOf('\n');
-                            if (nlPos < 0)
-                            {
-                                // Entirely on one line (e.g. "; ") — append inline.
-                                _sb.Append(seg.TrimEnd());
-                            }
-                            else
-                            {
-                                _sb.Append(seg.Substring(0, nlPos)); // e.g. ";"
-                                _sb.Append('\n');
-                                string rest = seg.Substring(nlPos + 1);
-                                if (!string.IsNullOrWhiteSpace(rest))
-                                    EmitCSharpLines(
-                                        rest,
-                                        tabExp,
-                                        firstLineStripped: false,
-                                        suppressLastNewline: true
-                                    );
-                            }
-                        }
-                    }
-                    else
-                    {
-                        firstSegment = false;
-                    }
-
-                    // ── JSX element ───────────────────────────────────────
-                    // Always separate '=' from '<' with a space. No () wrapping —
-                    // the CSharpEmitter requires the bare  = <Tag ...>  form.
-                    if (rm.Element.Children.IsEmpty)
-                    {
-                        // Self-closing: space + inline tag, no parens.
-                        _sb.Append(' ');
-                        AppendElementInline(rm.Element, selfClose: true);
-                    }
-                    else
-                    {
-                        // Multi-line: wrap in ().
-                        // Result: = (\n    <Tag>\n        children\n    </Tag>\n)
-                        // The C# tail (e.g. ";") is appended inline after ')' by the
-                        // tail-handling code below, giving the idiomatic "    );" line.
-                        _sb.Append(" (\n");
-                        _indent++;
-                        _sb.Append(IndentStr());
-                        AppendElementInline(rm.Element, selfClose: false);
-                        _sb.Append('\n');
-                        _indent++;
-                        FormatNodeList(rm.Element.Children, topLevel: false);
-                        _indent--;
-                        _sb.Append(IndentStr() + $"</{rm.Element.TagName}>\n");
-                        _indent--;
-                        _sb.Append(IndentStr() + ')');
-                    }
-
-                    pos = rm.EndOffsetInCodeBlock;
-                }
-
-                // ── Remaining C# text after all JSX regions ─────────────────────
-                if (pos < cb.Code.Length)
-                {
-                    string tail = cb.Code.Substring(pos);
-                    int nlPos = tail.IndexOf('\n');
-                    if (nlPos < 0)
-                    {
-                        // Just a one-line suffix like ";"
-                        string oneLineTail = tail.TrimEnd();
-
-                        _sb.Append(oneLineTail);
-                        _sb.Append('\n');
-                    }
-                    else
-                    {
-                        string firstTailLine = tail.Substring(0, nlPos).TrimEnd();
-                        string rest = tail.Substring(nlPos + 1);
-
-                        _sb.Append(firstTailLine); // inline suffix, e.g. ";" or ");"
-                        _sb.Append('\n');
-
-                        if (!string.IsNullOrWhiteSpace(rest))
-                            EmitCSharpLines(
-                                rest,
-                                tabExp,
-                                firstLineStripped: false,
-                                suppressLastNewline: false
-                            );
-                    }
-                }
-            }
-
-            if (_sb.Length > 0 && _sb[_sb.Length - 1] != '\n')
-                _sb.Append('\n');
-
-            _indent--;
-            Ln("}");
-        }
-
         // ═══════════════════════════════════════════════════════════════════════
         //  CONTROL FLOW
         // ═══════════════════════════════════════════════════════════════════════
@@ -1516,7 +1347,13 @@ namespace ReactiveUITK.Language.Formatter
                 }
 
                 _indent++;
+                if (branch.SetupCode != null)
+                    EmitSetupCodeLines(branch.SetupCode);
+                Ln("return (");
+                _indent++;
                 FormatNodeList(branch.Body, topLevel: false);
+                _indent--;
+                Ln(");");
                 _indent--;
                 Ln("}");
             }
@@ -1526,7 +1363,13 @@ namespace ReactiveUITK.Language.Formatter
         {
             Ln($"@foreach ({node.IteratorDeclaration} in {node.CollectionExpression}) {{");
             _indent++;
+            if (node.SetupCode != null)
+                EmitSetupCodeLines(node.SetupCode);
+            Ln("return (");
+            _indent++;
             FormatNodeList(node.Body, topLevel: false);
+            _indent--;
+            Ln(");");
             _indent--;
             Ln("}");
         }
@@ -1535,7 +1378,13 @@ namespace ReactiveUITK.Language.Formatter
         {
             Ln($"@for ({node.ForExpression}) {{");
             _indent++;
+            if (node.SetupCode != null)
+                EmitSetupCodeLines(node.SetupCode);
+            Ln("return (");
+            _indent++;
             FormatNodeList(node.Body, topLevel: false);
+            _indent--;
+            Ln(");");
             _indent--;
             Ln("}");
         }
@@ -1544,7 +1393,13 @@ namespace ReactiveUITK.Language.Formatter
         {
             Ln($"@while ({node.Condition}) {{");
             _indent++;
+            if (node.SetupCode != null)
+                EmitSetupCodeLines(node.SetupCode);
+            Ln("return (");
+            _indent++;
             FormatNodeList(node.Body, topLevel: false);
+            _indent--;
+            Ln(");");
             _indent--;
             Ln("}");
         }
@@ -1564,7 +1419,13 @@ namespace ReactiveUITK.Language.Formatter
 
                 // Body is indented under the case label
                 _indent++;
+                if (sc.SetupCode != null)
+                    EmitSetupCodeLines(sc.SetupCode);
+                Ln("return (");
+                _indent++;
                 FormatNodeList(sc.Body, topLevel: false);
+                _indent--;
+                Ln(");");
                 _indent--;
             }
 
@@ -1575,6 +1436,16 @@ namespace ReactiveUITK.Language.Formatter
         // ═══════════════════════════════════════════════════════════════════════
         //  OUTPUT HELPERS
         // ═══════════════════════════════════════════════════════════════════════
+
+        private void EmitSetupCodeLines(string setupCode)
+        {
+            foreach (var line in setupCode.Split('\n'))
+            {
+                var trimmed = line.TrimEnd('\r');
+                if (trimmed.Length > 0)
+                    Ln(trimmed);
+            }
+        }
 
         /// <summary>
         /// Append an indented line (or block of lines) terminating with a single LF.

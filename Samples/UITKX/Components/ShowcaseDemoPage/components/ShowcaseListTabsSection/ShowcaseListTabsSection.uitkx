@@ -128,7 +128,9 @@ component ShowcaseListTabsSection(
         />
       </VisualElement>
       @if (!showTabs) {
-        <Text text="List tabs hidden" />
+        return (
+          <Text text="List tabs hidden" />
+        );
       }
     </VisualElement>
   );

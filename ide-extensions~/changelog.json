@@ -1,6 +1,19 @@
 {
   "entries": [
     {
+      "date": "2026-04-04",
+      "versions": {
+        "vscode": "1.0.303",
+        "vs2022": "1.0.80"
+      },
+      "shared": [
+        "Feature: control block bodies — @if, @for, @foreach, @while, @switch cases now support setup code before return() (var declarations, lambdas, local computation)",
+        "Feature: switch fallthrough — adjacent @case labels with no body share the same branch",
+        "Fix: ResolveAssetPaths now applied inside all control block bodies (SG + HMR emitters)",
+        "Fix: removed dead @code, @break, @continue grammar rules and schema entries"
+      ]
+    },
+    {
       "date": "2026-04-02",
       "versions": {
         "vscode": "1.0.302",

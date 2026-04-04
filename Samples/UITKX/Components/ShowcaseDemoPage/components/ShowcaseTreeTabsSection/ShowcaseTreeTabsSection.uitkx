@@ -374,7 +374,9 @@ component ShowcaseTreeTabsSection(
         />
       </VisualElement>
       @if (!showTabs) {
-        <Text text="Tree tabs hidden" />
+        return (
+          <Text text="Tree tabs hidden" />
+        );
       }
     </VisualElement>
   );
