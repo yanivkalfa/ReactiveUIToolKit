@@ -218,6 +218,10 @@
     {
       "name": "key",
       "description": "Sets a static key on the component root element."
+    },
+    {
+      "name": "uss",
+      "description": "Attaches a USS stylesheet to the component root element. Path is relative to the .uitkx file."
     }
   ],
   "controlFlow": [

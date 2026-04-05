@@ -3,7 +3,6 @@
 @using System.Collections.Generic
 @using ReactiveUITK.Core
 @using UnityEngine
-@using UnityEngine.UIElements
 
 component ShowcaseExtrasPanel(
   bool isOptionEnabled = false, 

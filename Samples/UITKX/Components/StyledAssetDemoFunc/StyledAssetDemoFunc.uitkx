@@ -1,0 +1,21 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@uss "./StyledAssetDemoFunc.uss"
+
+component StyledAssetDemoFunc {
+  var (count, setCount) = useState(0);
+
+  return (
+    <VisualElement className="styled-card">
+      <Label className="styled-card__title" text="Styled Asset Demo" />
+      <Label
+        className="styled-card__body"
+        text="This component loads styles via @uss and demonstrates className-based styling."
+      />
+      <VisualElement className="styled-card__counter">
+        <Button text="-" onClick={_ => setCount(count - 1)} />
+        <Label className="styled-card__counter-label" text={$"{count}"} />
+        <Button text="+" onClick={_ => setCount(count + 1)} />
+      </VisualElement>
+    </VisualElement>
+  );
+}
