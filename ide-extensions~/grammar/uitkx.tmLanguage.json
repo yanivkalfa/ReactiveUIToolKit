@@ -37,12 +37,6 @@
       "include": "#control-flow-keyword"
     },
     {
-      "include": "#code-block"
-    },
-    {
-      "include": "#code-block-newline-brace"
-    },
-    {
       "include": "#inline-expression"
     },
     {
@@ -176,7 +170,7 @@
     "control-flow-keyword": {
       "comment": "Handles standalone control-flow directives without parenthesized expressions",
       "name": "meta.control.uitkx",
-      "match": "(@)(else|default|break|continue)\\b",
+      "match": "(@)(else|default)\\b",
       "captures": {
         "1": {
           "name": "keyword.control.uitkx"
@@ -216,53 +210,6 @@
           "name": "keyword.operator.uitkx"
         }
       }
-    },
-    "code-block": {
-      "comment": "Handles @code { ... } with brace on the same line",
-      "begin": "(@code)\\s*(\\{)",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.other.directive.uitkx"
-        },
-        "2": {
-          "name": "punctuation.section.block.begin.uitkx"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.section.block.end.uitkx"
-        }
-      },
-      "patterns": [
-        {
-          "include": "#code-block-body"
-        }
-      ]
-    },
-    "code-block-newline-brace": {
-      "comment": "Handles @code on its own line followed by { ... } on the next line",
-      "begin": "(@code)\\s*$",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.other.directive.uitkx"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.section.block.end.uitkx"
-        }
-      },
-      "patterns": [
-        {
-          "match": "\\{",
-          "name": "punctuation.section.block.begin.uitkx"
-        },
-        {
-          "include": "#code-block-body"
-        }
-      ]
     },
     "inline-expression": {
       "comment": "Handles @(expr) inline C# expressions",
@@ -359,9 +306,6 @@
           "include": "#tag-close"
         },
         {
-          "include": "#code-block"
-        },
-        {
           "include": "#tag-attributes"
         }
       ]
@@ -416,9 +360,6 @@
         },
         {
           "include": "#tag-close"
-        },
-        {
-          "include": "#code-block"
         },
         {
           "include": "#tag-attributes"
@@ -645,10 +586,13 @@
       "end": "\\*/"
     },
     "code-block-body": {
-      "comment": "Content inside @code { } or control-flow bodies — full expression tokenization PLUS embedded markup highlighting",
+      "comment": "Content inside control-flow bodies — full expression tokenization PLUS embedded markup highlighting",
       "patterns": [
         {
           "include": "#function-style-setup-keyword"
+        },
+        {
+          "include": "#function-style-return-keyword"
         },
         {
           "include": "#jsx-comment"

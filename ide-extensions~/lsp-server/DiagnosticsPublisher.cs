@@ -188,11 +188,6 @@ public sealed class DiagnosticsPublisher
         var versionDiags = CheckVersionCompatibility(
             parsedNodes, roslynHost?.DetectedUnityVersion ?? UnityVersion.Unknown);
 
-        // NOTE: T2 element/attribute checks for setup JSX are already covered
-        // by the main Analyze path — CanonicalLowering hoists setup code into a
-        // CodeBlockNode whose ReturnMarkups contain the JSX elements, and
-        // WalkNode walks into those ReturnMarkups.  Running AnalyzeNodes on the
-        // separately-parsed setupJsxNodes would produce duplicate diagnostics.
 
         // â”€â”€ Combine T1 + T2 and push immediately â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // Suppress T1 parser diagnostics that fall inside unreachable regions
@@ -477,11 +472,6 @@ public sealed class DiagnosticsPublisher
             // Recurse into children
             foreach (var child in el.Children)
                 WalkForVersionDiags(child, userVersion, diags);
-        }
-        else if (node is CodeBlockNode cb)
-        {
-            foreach (var rm in cb.ReturnMarkups)
-                WalkForVersionDiags(rm.Element, userVersion, diags);
         }
     }
 

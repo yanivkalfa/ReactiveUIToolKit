@@ -350,10 +350,6 @@ namespace ReactiveUITK.Language.IntelliSense
                     foreach (var c in sw.Cases)
                         WalkBody(c.Body, line1, ref tagName, ref attrName);
                     break;
-                case CodeBlockNode cb:
-                    foreach (var rm in cb.ReturnMarkups)
-                        WalkNode(rm.Element, line1, ref tagName, ref attrName);
-                    break;
             }
         }
 

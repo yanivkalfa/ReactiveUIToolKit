@@ -33,7 +33,9 @@ component ValuesBar(IEnumerable<KeyValuePair<string, string>>? items = null) {
     <VisualElement style={barContainerStyle}>
       <ScrollView mode="vertical" contentContainer={scrollContentProps}>
         @foreach (var kv in safeItems) {
-          <ValueItem key={kv.Key} typeText={kv.Key} typeValue={kv.Value} />
+          return (
+            <ValueItem key={kv.Key} typeText={kv.Key} typeValue={kv.Value} />
+          );
         }
       </ScrollView>
     </VisualElement>

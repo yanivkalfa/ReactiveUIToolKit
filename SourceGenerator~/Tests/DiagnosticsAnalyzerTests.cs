@@ -135,14 +135,6 @@ public sealed class DiagnosticsAnalyzerTests
     // ── UITKX0107: Unreachable after return ────────────────────────────────
 
     [Fact]
-    public void UITKX0107_UnreachableAfterReturn_InCodeBlock()
-    {
-        var source = "component C {\n  return;\n  int x = 5;\n  return (\n    <Label/>\n  );\n}";
-        var diags = Analyze(source);
-        Assert.True(HasDiag(diags, DiagnosticCodes.UnreachableAfterReturn));
-    }
-
-    [Fact]
     public void UITKX0107_NoReturn_NoWarning()
     {
         var source = "component C {\n  int x = 5;\n  return (\n    <Label/>\n  );\n}";
@@ -156,17 +148,6 @@ public sealed class DiagnosticsAnalyzerTests
         var source = "component Foo {\n  return (\n    <Label/>\n  );\n  int dead = 0;\n}";
         var diags = Analyze(source);
         Assert.True(HasDiag(diags, DiagnosticCodes.UnreachableAfterReturn));
-    }
-
-    [Fact]
-    public void UITKX0107_SpansCorrectLine()
-    {
-        var source = "component C {\n  return;\n  int dead = 0;\n  return (\n    <Label/>\n  );\n}";
-        var diags = Analyze(source);
-        var unreachable = diags.FirstOrDefault(d => d.Code == DiagnosticCodes.UnreachableAfterReturn);
-        Assert.NotNull(unreachable);
-        // The unreachable code starts at "int dead = 0;" which is line 3 (1-based)
-        Assert.True(unreachable.SourceLine >= 2, $"Expected unreachable line >= 2 but got {unreachable.SourceLine}");
     }
 
     // ── UITKX0108: Multiple render roots ───────────────────────────────────
@@ -188,16 +169,6 @@ public sealed class DiagnosticsAnalyzerTests
     }
 
     // ── UITKX0110: Unreachable after break/continue ────────────────────────
-
-    [Fact]
-    public void UITKX0110_UnreachableAfterBreak()
-    {
-        // @break; is a UITKX-level control-flow node (requires semicolon).
-        // Nodes after @break; in a loop body are unreachable.
-        var source = "component C {\n  return (\n    <Box>\n      @for (var i = 0; i < 10; i++) {\n        @break;\n        <Label key={i}/>\n      }\n    </Box>\n  );\n}";
-        var diags = Analyze(source);
-        Assert.True(HasDiag(diags, DiagnosticCodes.UnreachableAfterBreakOrContinue));
-    }
 
     // ── UITKX0109: Unknown attribute ───────────────────────────────────────
 

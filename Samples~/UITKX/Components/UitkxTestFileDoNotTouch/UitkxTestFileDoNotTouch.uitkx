@@ -400,13 +400,17 @@ component UitkxTestFileDoNotTouch(
   var inlineNode = (
     <Portal target={portalTarget}>
       @if (mounted) {
-        <Button
-          text="Portal Button (click me)"
-          onClick={_ => AppendLog("Portal button clicked")}
-          style={new Style { (StyleKeys.MarginTop, 6f) }}
-        />
+        return (
+          <Button
+            text="Portal Button (click me)"
+            onClick={_ => AppendLog("Portal button clicked")}
+            style={new Style { (StyleKeys.MarginTop, 6f) }}
+          />
+        );
       } @else {
-        <Label text="Portal unmounted." />
+        return (
+          <Label text="Portal unmounted." />
+        );
       }
     </Portal>
   );
@@ -416,13 +420,17 @@ component UitkxTestFileDoNotTouch(
     ? (
       <Portal target={portalTarget}>
         @if (mounted) {
-          <Button
-            text="Portal Button (click me)"
-            onClick={_ => AppendLog("Portal button clicked")}
-            style={new Style { (StyleKeys.MarginTop, 6f) }}
-          />
+          return (
+            <Button
+              text="Portal Button (click me)"
+              onClick={_ => AppendLog("Portal button clicked")}
+              style={new Style { (StyleKeys.MarginTop, 6f) }}
+            />
+          );
         } @else {
-          <Label text="Portal unmounted." />
+          return (
+            <Label text="Portal unmounted." />
+          );
         }
       </Portal>
     )
@@ -444,34 +452,57 @@ component UitkxTestFileDoNotTouch(
       />
       @switch (mode) {
         @case "squared":
-          <Label text={$"Mode: Squared — Count²: {count * count}"} />
+          return (
+            <Label text={$"Mode: Squared — Count²: {count * count}"} />
+          );
         @case "doubled":
-          <Label text={$"Mode: Doubled — ×2: {doubleCount}"} />
+          return (
+            <Label text={$"Mode: Doubled — ×2: {doubleCount}"} />
+          );
         @case "normal":
-          <Label text={$"Mode: Normal — Count: {count}"} />
-          <Button text="-5" onClick={_ => setCount(count - 5)} />
+          return (
+            <Label text={$"Mode: Normal — Count: {count}"} />
+            <Button text="-5" onClick={_ => setCount(count - 5)} />
+          );
         @default:
-          <Label text={$"Mode: Unknown ({mode})"} />
+          return (
+            <Label text={$"Mode: Unknown ({mode})"} />
+          );
       }
       @if (count < -5) {
-        <Label text="Count cannot be less than -5!" />
+        return (
+          <Label text="Count cannot be less than -5!" />
+        );
       } @else if (count < 0) {
-        <Label text="Count is negative!" />
+        return (
+          <Label text="Count is negative!" />
+        );
       } @else if (count == 0) {
-        <Label text="Count is zero" />
+        return (
+          <Label text="Count is zero" />
+        );
       } @else {
-        @for (int i = 0; i < count; i++) {
-          @continue;
-          @if (i % 2 == 0) {
-            <Label text={$"Even row {i}"} />
-          } @else {
-            <Label text={$"Odd row {i}"} />
+        return (
+          @for (int i = 0; i < count; i++) {
+            return (
+              @if (i % 2 == 0) {
+                return (
+                  <Label text={$"Even row {i}"} />
+                );
+              } @else {
+                return (
+                  <Label text={$"Odd row {i}"} />
+                );
+              }
+            );
           }
-        }
-        <Label text={$"Total rows: {count}"} />
+          <Label text={$"Total rows: {count}"} />
+        );
       }
       @foreach (var entry in log) {
-        <Label key={entry} text={entry} />
+        return (
+          <Label key={entry} text={entry} />
+        );
       }
       <VisualElement style={badgeStyle}>
         <Label text={$"Count: {count} Render#: {renderCount}"} />
@@ -528,11 +559,13 @@ component UitkxTestFileDoNotTouch(
       </VisualElement>
       <ToggleButtonGroup value={selected}>
         @foreach (var opt in options) {
-          <Button
-            key={opt}
-            text={opt}
-            onClick={_ => setSelected(options.IndexOf(opt))}
-          />
+          return (
+            <Button
+              key={opt}
+              text={opt}
+              onClick={_ => setSelected(options.IndexOf(opt))}
+            />
+          );
         }
       </ToggleButtonGroup>
       <Label

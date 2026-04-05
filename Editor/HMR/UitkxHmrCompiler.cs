@@ -207,7 +207,21 @@ namespace ReactiveUITK.EditorSupport.HMR
                     null,
                     new object[] { directives, astNodes, uitkxPath }
                 );
-                string csharp = HmrCSharpEmitter.Emit(directives, lowered, uitkxPath);
+
+                // Build a delegate that can parse standalone JSX fragments.
+                // Used by the emitter to splice embedded JSX in setup code.
+                HmrCSharpEmitter.MarkupParseFunc parseMarkup = (jsxText, path, startLine) =>
+                {
+                    string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
+                    var miniDiags = CreateDiagnosticList();
+                    var miniDir = _directiveParse.Invoke(
+                        null, new object[] { synthetic, path, miniDiags, false });
+                    var nodes = _uitkxParse.Invoke(
+                        null, new object[] { synthetic, path, miniDir, miniDiags });
+                    return GetItems(nodes);
+                };
+
+                string csharp = HmrCSharpEmitter.Emit(directives, lowered, uitkxPath, parseMarkup);
                 stepSw.Stop();
                 result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
 

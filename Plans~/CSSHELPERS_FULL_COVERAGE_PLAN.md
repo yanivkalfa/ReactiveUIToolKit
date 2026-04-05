@@ -26,15 +26,15 @@ users never need that import.
 - [x] LanguageDirection: `DirInherit`, `DirLTR`, `DirRTL`
 
 ### Not yet covered
-- [ ] SliderDirection (string-typed prop: `Direction`)
-- [ ] ScrollViewMode (string-typed prop: `Mode`)
-- [ ] ScaleMode (string-typed prop in ImageProps)
-- [ ] TwoPaneSplitViewOrientation (Editor-only, string-typed prop)
-- [ ] ColumnSortingMode (reflection-based `object`-typed prop — adapter accepts strings via `Enum.Parse`)
+- [x] SliderDirection (string-typed prop: `Direction`)
+- [x] ScrollViewMode (string-typed prop: `Mode`)
+- [x] ScaleMode (string-typed prop in ImageProps)
+- [x] TwoPaneSplitViewOrientation (Editor-only, string-typed prop)
+- [x] ColumnSortingMode (reflection-based `object`-typed prop — adapter accepts strings via `Enum.Parse`)
 
 ### Auto-imports
 - `using static StyleKeys` — already auto-imported by source generator
-- `using static CssHelpers` — **not** auto-imported (users must add manually)
+- `using static CssHelpers` — auto-imported by source generator + HMR emitter
 
 ---
 
@@ -87,11 +87,11 @@ case-insensitively. CssHelpers provides string constants so users write
 
 **Checklist:**
 ```
-[ ] Add string-based shortcuts for SliderDirection, ScrollViewMode, ScaleMode
-[ ] Add string-based shortcuts for TwoPaneSplitViewOrientation
-[ ] Add string-based shortcuts for ColumnSortingMode
-[ ] Verify no naming conflicts with existing CssHelpers/StyleKeys members
-[ ] Run tests (832 SG tests)
+[x] Add string-based shortcuts for SliderDirection, ScrollViewMode, ScaleMode
+[x] Add string-based shortcuts for TwoPaneSplitViewOrientation
+[x] Add string-based shortcuts for ColumnSortingMode
+[x] Verify no naming conflicts with existing CssHelpers/StyleKeys members
+[x] Run tests (832 SG tests)
 ```
 
 ---
@@ -115,10 +115,10 @@ using block, alongside the existing `using static StyleKeys;`.
 
 **Checklist:**
 ```
-[ ] Add auto-import line in CSharpEmitter.cs
-[ ] Run tests (832 SG tests — snapshot tests will need updating if the auto-import
+[x] Add auto-import line in CSharpEmitter.cs
+[x] Run tests (832 SG tests — snapshot tests will need updating if the auto-import
     line appears in generated output)
-[ ] Verify HMR compilation still works (HmrCSharpEmitter may need the same change)
+[x] Verify HMR compilation still works (HmrCSharpEmitter may need the same change)
 ```
 
 ---
@@ -156,10 +156,10 @@ if needed by the cursor context).
 
 **Checklist:**
 ```
-[ ] Add enum-to-shortcuts mapping dictionary in CompletionHandler
-[ ] Add branch in AttributeValueItems() for enum completion
-[ ] Test with manual LSP interaction (VS Code)
-[ ] Add LSP tests for enum completions
+[x] Add enum-to-shortcuts mapping dictionary in CompletionHandler
+[x] Add branch in AttributeValueItems() for enum completion
+[x] Test with manual LSP interaction (VS Code)
+[x] Add LSP tests for enum completions
 ```
 
 ---
@@ -179,12 +179,12 @@ Replace `SelectionType.None` with `SelectNone`, `ColumnSortingMode.Custom` with
 
 **Checklist:**
 ```
-[ ] Update TreeViewStatefulDemoFunc.uitkx
-[ ] Update ListViewStatefulDemoFunc.uitkx
-[ ] Update MultiColumnListViewStatefulDemoFunc.uitkx
-[ ] Update MultiColumnTreeViewStatefulDemoFunc.uitkx
-[ ] Scan for other .uitkx files with @using UnityEngine.UIElements
-[ ] Run tests
+[x] Update TreeViewStatefulDemoFunc.uitkx
+[x] Update ListViewStatefulDemoFunc.uitkx
+[x] Update MultiColumnListViewStatefulDemoFunc.uitkx
+[x] Update MultiColumnTreeViewStatefulDemoFunc.uitkx
+[x] Scan for other .uitkx files with @using UnityEngine.UIElements — 7 removed; 6 files retain it (they reference UIElements types like VisualElement/TextField in C# code)
+[x] Run tests
 ```
 
 ---
@@ -220,16 +220,16 @@ Update **every** doc that mentions CssHelpers, `@using`, StyleKeys, or enum valu
 
 **Checklist:**
 ```
-[ ] StylingPage.tsx — remove manual import from Setup, update CssHelpers reference
-[ ] StylingPage.example.ts — update import examples
-[ ] UitkxReferencePage.tsx — add auto-import note to @using directive table
-[ ] UitkxAPIPage.tsx — add CssHelpers alongside StyleKeys
-[ ] UitkxGettingStartedPage.tsx — mention auto-imported directives
-[ ] FAQPage.tsx — add ambiguity warning, clarify auto-imports
-[ ] README.md — update Typed Style System code example
-[ ] ide-extensions~/vscode/CHANGELOG.md — add entry
-[ ] CHANGELOG.md — add entry
-[ ] Plans~/TECH_DEBT.md — mark resolved
+[x] StylingPage.tsx — remove manual import from Setup, update CssHelpers reference
+[x] StylingPage.example.ts — update import examples
+[x] UitkxReferencePage.tsx — add auto-import note to @using directive table
+[x] UitkxAPIPage.tsx — add CssHelpers alongside StyleKeys
+[x] UitkxGettingStartedPage.tsx — mention auto-imported directives
+[x] FAQPage.tsx — add ambiguity warning, clarify auto-imports
+[x] README.md — update Typed Style System code example
+[x] ide-extensions~/vscode/CHANGELOG.md — add entry
+[x] CHANGELOG.md — add entry
+[x] Plans~/TECH_DEBT.md — mark resolved
 ```
 
 ---

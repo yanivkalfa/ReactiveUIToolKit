@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using ReactiveUITK.Language;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
@@ -93,15 +94,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         internal string BuildSource(ImmutableArray<AstNode> rootNodes)
         {
-            // Separate @code blocks from markup
-            var codeBlocks = ImmutableArray.CreateBuilder<CodeBlockNode>();
+            // Separate markup from non-rendering nodes
             var markupNodes = ImmutableArray.CreateBuilder<AstNode>();
 
             foreach (var n in rootNodes)
             {
-                if (n is CodeBlockNode cb)
-                    codeBlocks.Add(cb);
-                else if (n is JsxCommentNode) { } // JSX comments are markup-only; skip in emitted C#
+                if (n is JsxCommentNode) { } // JSX comments are markup-only; skip in emitted C#
                 else
                     markupNodes.Add(n);
             }
@@ -143,7 +141,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("using BackgroundPosition = UnityEngine.UIElements.BackgroundPosition;");
             L("using BackgroundSize = UnityEngine.UIElements.BackgroundSize;");
             L("using TransformOrigin = UnityEngine.UIElements.TransformOrigin;");
-            L("using BackgroundPositionKeyword = UnityEngine.UIElements.BackgroundPositionKeyword;");
+            L(
+                "using BackgroundPositionKeyword = UnityEngine.UIElements.BackgroundPositionKeyword;"
+            );
             L("using BackgroundSizeType = UnityEngine.UIElements.BackgroundSizeType;");
             L("using Repeat = UnityEngine.UIElements.Repeat;");
             L("using Length = UnityEngine.UIElements.Length;");
@@ -177,10 +177,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 string projectRoot = GetProjectRoot();
 
-                _sb.Append($"{I2}internal static readonly string[] __uitkx_ussKeys = new string[] {{ ");
+                _sb.Append(
+                    $"{I2}internal static readonly string[] __uitkx_ussKeys = new string[] {{ "
+                );
                 for (int idx = 0; idx < _directives.UssFiles.Length; idx++)
                 {
-                    if (idx > 0) _sb.Append(", ");
+                    if (idx > 0)
+                        _sb.Append(", ");
                     string rawPath = _directives.UssFiles[idx];
                     string resolved;
                     if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
@@ -192,25 +195,37 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     // Validate file existence at compile time (UITKX0022)
                     if (projectRoot != null)
                     {
-                        string absolute = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
+                        string absolute = Path.Combine(
+                            projectRoot,
+                            resolved.Replace('/', Path.DirectorySeparatorChar)
+                        );
                         if (!File.Exists(absolute))
                         {
                             var loc = Location.Create(_filePath, default, default);
-                            _diagnostics.Add(Diagnostic.Create(
-                                UitkxDiagnostics.AssetFileNotFound, loc, resolved));
+                            _diagnostics.Add(
+                                Diagnostic.Create(UitkxDiagnostics.AssetFileNotFound, loc, resolved)
+                            );
                         }
                         else
                         {
                             // Type-mismatch check — @uss must reference a .uss file
                             string ext = Path.GetExtension(rawPath);
-                            if (!string.IsNullOrEmpty(ext)
+                            if (
+                                !string.IsNullOrEmpty(ext)
                                 && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
-                                && !validTypes.Contains("StyleSheet"))
+                                && !validTypes.Contains("StyleSheet")
+                            )
                             {
                                 var loc = Location.Create(_filePath, default, default);
-                                _diagnostics.Add(Diagnostic.Create(
-                                    UitkxDiagnostics.AssetTypeMismatch, loc,
-                                    "StyleSheet", ext, string.Join(", ", validTypes)));
+                                _diagnostics.Add(
+                                    Diagnostic.Create(
+                                        UitkxDiagnostics.AssetTypeMismatch,
+                                        loc,
+                                        "StyleSheet",
+                                        ext,
+                                        string.Join(", ", validTypes)
+                                    )
+                                );
                             }
                         }
                     }
@@ -247,10 +262,25 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 L("");
             }
 
-            // @code block content (inside Render method, before return)
-            var codeArr = codeBlocks.ToImmutable();
-            foreach (var cb in codeArr)
-                EmitCodeBlockContent(cb);
+            // ── Function-style setup code ─────────────────────────────────────
+            if (
+                _directives.IsFunctionStyle
+                && !string.IsNullOrWhiteSpace(_directives.FunctionSetupCode)
+            )
+            {
+                int setupLine = _directives.FunctionSetupStartLine > 0
+                    ? _directives.FunctionSetupStartLine
+                    : _directives.ComponentDeclarationLine > 0
+                        ? _directives.ComponentDeclarationLine
+                        : _directives.MarkupStartLine;
+                L($"#line {setupLine} \"{_linePath}\"");
+                string setupCode = SpliceSetupCodeMarkup(_directives.FunctionSetupCode);
+                setupCode = ApplyHookAliases(setupCode);
+                setupCode = ResolveAssetPaths(setupCode);
+                _sb.Append(setupCode);
+                if (!setupCode.EndsWith("\n"))
+                    _sb.AppendLine();
+            }
 
             // ── Return expression ─────────────────────────────────────────────
             var markup = markupNodes.ToImmutable();
@@ -296,76 +326,6 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             L("}"); // close namespace
 
             return _sb.ToString();
-        }
-
-        // ── @code block emission ──────────────────────────────────────────────
-
-        /// <summary>
-        /// Emits one <c>@code { }</c> block, splicing any embedded
-        /// <c>return &lt;Tag .../&gt;</c> markup into their C# call equivalents.
-        /// </summary>
-        private void EmitCodeBlockContent(CodeBlockNode cb)
-        {
-            int codeLine = cb.SourceLine;
-            L($"#line {codeLine} \"{_linePath}\"");
-            string codeText = cb.Code;
-
-            if (!cb.ReturnMarkups.IsEmpty)
-            {
-                // Splice C# call expressions in place of each <Tag .../> markup
-                var markups = cb.ReturnMarkups.OrderBy(m => m.StartOffsetInCodeBlock).ToArray();
-                var spliced = new StringBuilder();
-                int prev = 0;
-
-                foreach (var m in markups)
-                {
-                    int start = m.StartOffsetInCodeBlock;
-                    int end = m.EndOffsetInCodeBlock;
-
-                    // Guard against out-of-range offsets
-                    if (start < 0)
-                        start = 0;
-                    if (end < 0)
-                        end = 0;
-                    if (start > codeText.Length)
-                        start = codeText.Length;
-                    if (end > codeText.Length)
-                        end = codeText.Length;
-
-                    if (start > prev)
-                        spliced.Append(codeText, prev, start - prev);
-
-                    // Capture element C# emission without touching the main builder
-                    int savedLen = _sb.Length;
-                    EmitNode(m.Element);
-                    string elemCs = _sb.ToString(savedLen, _sb.Length - savedLen);
-                    _sb.Length = savedLen;
-
-                    spliced.Append(elemCs.Trim());
-                    prev = end;
-                }
-
-                if (prev < codeText.Length)
-                    spliced.Append(codeText, prev, codeText.Length - prev);
-
-                codeText = spliced.ToString();
-            }
-
-            // Apply React-style hook shorthand: useState( → Hooks.UseState( etc.
-            codeText = ApplyHookAliases(codeText);
-
-            // Resolve relative asset paths: Asset<T>("./x.png") → Asset<T>("Assets/Dir/x")
-            if (codeText.Contains("Asset<") || codeText.Contains("Ast<"))
-                codeText = ResolveAssetPaths(codeText);
-
-            foreach (var line in codeText.Split('\n'))
-            {
-                var trimmed = line.TrimEnd('\r');
-                if (!string.IsNullOrEmpty(trimmed))
-                    L($"{I3}{trimmed.TrimStart()}");
-                else
-                    L(""); // preserve blank lines for #line accuracy
-            }
         }
 
         // ── Hook alias substitution ───────────────────────────────────────────
@@ -442,29 +402,94 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
-        private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes = new(StringComparer.OrdinalIgnoreCase)
+        private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes = new(
+            StringComparer.OrdinalIgnoreCase
+        )
         {
-            { ".png",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".jpg",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".jpeg",          new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".bmp",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".tga",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".psd",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".gif",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".tif",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".tiff",          new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".exr",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".hdr",           new HashSet<string> { "Texture2D", "Sprite" } },
-            { ".svg",           new HashSet<string> { "VectorImage" } },
-            { ".wav",           new HashSet<string> { "AudioClip" } },
-            { ".mp3",           new HashSet<string> { "AudioClip" } },
-            { ".ogg",           new HashSet<string> { "AudioClip" } },
-            { ".aiff",          new HashSet<string> { "AudioClip" } },
-            { ".ttf",           new HashSet<string> { "Font" } },
-            { ".otf",           new HashSet<string> { "Font" } },
-            { ".mat",           new HashSet<string> { "Material" } },
-            { ".uss",           new HashSet<string> { "StyleSheet" } },
-            { ".renderTexture", new HashSet<string> { "RenderTexture" } },
+            {
+                ".png",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".jpg",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".jpeg",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".bmp",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".tga",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".psd",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".gif",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".tif",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".tiff",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".exr",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".hdr",
+                new HashSet<string> { "Texture2D", "Sprite" }
+            },
+            {
+                ".svg",
+                new HashSet<string> { "VectorImage" }
+            },
+            {
+                ".wav",
+                new HashSet<string> { "AudioClip" }
+            },
+            {
+                ".mp3",
+                new HashSet<string> { "AudioClip" }
+            },
+            {
+                ".ogg",
+                new HashSet<string> { "AudioClip" }
+            },
+            {
+                ".aiff",
+                new HashSet<string> { "AudioClip" }
+            },
+            {
+                ".ttf",
+                new HashSet<string> { "Font" }
+            },
+            {
+                ".otf",
+                new HashSet<string> { "Font" }
+            },
+            {
+                ".mat",
+                new HashSet<string> { "Material" }
+            },
+            {
+                ".uss",
+                new HashSet<string> { "StyleSheet" }
+            },
+            {
+                ".renderTexture",
+                new HashSet<string> { "RenderTexture" }
+            },
         };
 
         // ── __C helper method ─────────────────────────────────────────────────
@@ -519,14 +544,6 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     break;
                 case SwitchNode s:
                     EmitSwitchNode(s);
-                    break;
-                case BreakNode:
-                case ContinueNode:
-                    _sb.Append($"({QVNode})null /* loop-flow statement */");
-                    break;
-                case CodeBlockNode:
-                    // @code blocks are hoisted before return; skip inline
-                    _sb.Append($"({QVNode})null");
                     break;
                 case JsxCommentNode:
                     // JSX comments emit nothing to C#
@@ -670,7 +687,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 if (!first)
                     _sb.Append(", ");
-                _sb.Append(" ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }");
+                _sb.Append(
+                    " ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                );
             }
 
             _sb.Append(" }, key: ");
@@ -1025,29 +1044,55 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 return;
             }
 
-            // Stable-type strategy:
-            // 1. The outer Fragment ensures the TYPE at THIS node's position in the parent
-            //    children array is always Fragment (never label, never box).
-            // 2. Each branch is ALSO wrapped in a Fragment (via EmitBodyAsFragment) so the
-            //    ternary value that sits at position-0 of the outer Fragment is ALWAYS a
-            //    Fragment regardless of which branch fires.
-            //
-            // Without (2), switching from a single-node branch (Label) to a multi-node
-            // branch (Fragment) still changes the type at that inner position. The reconciler
-            // would delete the old fiber and call CommitPlacement on the new one, which
-            // only ever calls AppendChild — placing the new children at the END of the
-            // host parent instead of at the correct index.
+            // If any branch has setup code, use statement-mode IIFE
+            bool hasSetupCode = false;
+            foreach (var br in ifn.Branches)
+                if (br.SetupCode != null) { hasSetupCode = true; break; }
+
+            if (hasSetupCode)
+            {
+                _sb.Append($"((System.Func<{QVNode}>)(() => {{ ");
+                for (int i = 0; i < ifn.Branches.Length; i++)
+                {
+                    var branch = ifn.Branches[i];
+                    if (branch.Condition == null)
+                    {
+                        _sb.Append("else { ");
+                    }
+                    else if (i == 0)
+                    {
+                        _sb.Append($"if ({branch.Condition}) {{ ");
+                    }
+                    else
+                    {
+                        _sb.Append($"else if ({branch.Condition}) {{ ");
+                    }
+
+                    if (branch.SetupCode != null)
+                    {
+                        var code = ApplyHookAliases(branch.SetupCode);
+                        code = ResolveAssetPaths(code);
+                        _sb.Append(code);
+                        _sb.Append(" ");
+                    }
+                    _sb.Append("return ");
+                    EmitBodyAsFragment(branch.Body);
+                    _sb.Append("; } ");
+                }
+                _sb.Append($"return ({QVNode})null; }}))()");
+                return;
+            }
+
+            // No setup code — use ternary expression (existing path)
+            // Stable-type strategy: outer + inner Fragment wrapping
             _sb.Append("V.Fragment(key: null, __C(");
 
-            // Build ternary chain:
-            // (cond1) ? V.Fragment(...body1) : (cond2) ? V.Fragment(...body2) : V.Fragment()
             for (int i = 0; i < ifn.Branches.Length; i++)
             {
                 var branch = ifn.Branches[i];
 
                 if (branch.Condition == null)
                 {
-                    // @else — terminal branch, always a Fragment
                     EmitBodyAsFragment(branch.Body);
                     _sb.Append("))");
                     return;
@@ -1057,8 +1102,6 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 EmitBodyAsFragment(branch.Body);
                 _sb.Append(" : ");
 
-                // Last branch with no @else — emit an empty Fragment (not null) so the
-                // type at position-0 of the outer Fragment is always Fragment.
                 if (i == ifn.Branches.Length - 1)
                     _sb.Append("V.Fragment(key: null)");
             }
@@ -1067,39 +1110,38 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitForNode(ForNode fn)
         {
-            // Emit as IIFE building a list — keeps `i` properly in scope
+            // Always use statement mode — setup code + body expression
             _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
             _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
             _sb.Append($"for ({fn.ForExpression}) {{ ");
-            if (ContainsLoopFlow(fn.Body))
+            if (fn.SetupCode != null)
             {
-                EmitLoopBodyStatements(fn.Body);
+                var code = ApplyHookAliases(fn.SetupCode);
+                code = ResolveAssetPaths(code);
+                _sb.Append(code);
+                _sb.Append(" ");
             }
-            else
-            {
-                _sb.Append("__r.Add(");
-                EmitBodyExpr(fn.Body);
-                _sb.Append("); ");
-            }
+            _sb.Append("__r.Add(");
+            EmitBodyExpr(fn.Body);
+            _sb.Append("); ");
             _sb.Append("} return __r.ToArray(); }))()");
         }
 
         private void EmitWhileNode(WhileNode wn)
         {
-            // Emit as IIFE building a list
             _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
             _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
             _sb.Append($"while ({wn.Condition}) {{ ");
-            if (ContainsLoopFlow(wn.Body))
+            if (wn.SetupCode != null)
             {
-                EmitLoopBodyStatements(wn.Body);
+                var code = ApplyHookAliases(wn.SetupCode);
+                code = ResolveAssetPaths(code);
+                _sb.Append(code);
+                _sb.Append(" ");
             }
-            else
-            {
-                _sb.Append("__r.Add(");
-                EmitBodyExpr(wn.Body);
-                _sb.Append("); ");
-            }
+            _sb.Append("__r.Add(");
+            EmitBodyExpr(wn.Body);
+            _sb.Append("); ");
             _sb.Append("} return __r.ToArray(); }))()");
         }
 
@@ -1123,158 +1165,141 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 }
             }
 
-            string varName = ExtractVarName(forn.IteratorDeclaration);
-            _sb.Append($"({forn.CollectionExpression}).Select(({varName}) => ");
-
-            if (forn.Body.IsEmpty)
-                _sb.Append($"({QVNode})null");
-            else if (forn.Body.Length == 1)
-                EmitNode(forn.Body[0]);
+            if (forn.SetupCode != null)
+            {
+                // Setup code present — use IIFE with statement mode
+                string varName = ExtractVarName(forn.IteratorDeclaration);
+                _sb.Append($"((System.Func<{QVNode}[]>)(() => {{ ");
+                _sb.Append($"var __r = new System.Collections.Generic.List<{QVNode}>(); ");
+                _sb.Append($"foreach ({forn.IteratorDeclaration} in {forn.CollectionExpression}) {{ ");
+                var foreachCode = ApplyHookAliases(forn.SetupCode);
+                foreachCode = ResolveAssetPaths(foreachCode);
+                _sb.Append(foreachCode);
+                _sb.Append(" __r.Add(");
+                EmitBodyExpr(forn.Body);
+                _sb.Append("); } return __r.ToArray(); }))()");
+            }
             else
             {
-                _sb.Append("V.Fragment(key: null, __C(");
-                EmitChildArgs(forn.Body);
-                _sb.Append("))");
-            }
+                // No setup code — use LINQ Select (existing path)
+                string varName = ExtractVarName(forn.IteratorDeclaration);
+                _sb.Append($"({forn.CollectionExpression}).Select(({varName}) => ");
 
-            _sb.Append(").ToArray()");
+                if (forn.Body.IsEmpty)
+                    _sb.Append($"({QVNode})null");
+                else if (forn.Body.Length == 1)
+                    EmitNode(forn.Body[0]);
+                else
+                {
+                    _sb.Append("V.Fragment(key: null, __C(");
+                    EmitChildArgs(forn.Body);
+                    _sb.Append("))");
+                }
+
+                _sb.Append(").ToArray()");
+            }
         }
 
         private void EmitSwitchNode(SwitchNode sw)
         {
-            // Same stable-type strategy as EmitIfNode:
-            // outer Fragment keeps parent position stable; each arm is also always a Fragment
-            // so the switch expression result type never changes.
+            // If any case has setup code, use statement-mode IIFE with switch statement
+            bool hasSetupCode = false;
+            foreach (var c in sw.Cases)
+                if (c.SetupCode != null) { hasSetupCode = true; break; }
+
+            // Pre-compute body fragment strings for fallthrough merging
+            var bodyFrags = new string[sw.Cases.Length];
+            for (int i = 0; i < sw.Cases.Length; i++)
+            {
+                int mark = _sb.Length;
+                EmitBodyAsFragment(sw.Cases[i].Body);
+                bodyFrags[i] = _sb.ToString(mark, _sb.Length - mark);
+                _sb.Length = mark;
+            }
+
+            if (hasSetupCode)
+            {
+                _sb.Append($"((System.Func<{QVNode}>)(() => {{ ");
+                _sb.Append($"switch ({sw.SwitchExpression}) {{ ");
+                int i = 0;
+                while (i < sw.Cases.Length)
+                {
+                    var c = sw.Cases[i];
+                    // Merge consecutive no-setup, non-default cases with identical bodies
+                    int groupEnd = i + 1;
+                    if (c.SetupCode == null && c.ValueExpression != null)
+                    {
+                        while (groupEnd < sw.Cases.Length
+                            && sw.Cases[groupEnd].SetupCode == null
+                            && sw.Cases[groupEnd].ValueExpression != null
+                            && bodyFrags[groupEnd] == bodyFrags[i])
+                            groupEnd++;
+                    }
+                    for (int j = i; j < groupEnd; j++)
+                        _sb.Append(sw.Cases[j].ValueExpression == null ? "default: " : $"case {sw.Cases[j].ValueExpression}: ");
+                    if (c.SetupCode != null)
+                    {
+                        var code = ApplyHookAliases(c.SetupCode);
+                        code = ResolveAssetPaths(code);
+                        _sb.Append(code);
+                        _sb.Append(" ");
+                    }
+                    _sb.Append("return ");
+                    _sb.Append(bodyFrags[i]);
+                    _sb.Append("; ");
+                    i = groupEnd;
+                }
+                _sb.Append($"}} return ({QVNode})null; }}))()");
+                return;
+            }
+
+            // No setup code — use switch expression with fallthrough via 'or' patterns
             _sb.Append("V.Fragment(key: null, __C(");
             _sb.Append($"({sw.SwitchExpression}) switch {{");
 
-            foreach (var c in sw.Cases)
+            int ci = 0;
+            while (ci < sw.Cases.Length)
             {
-                _sb.Append(c.ValueExpression == null ? " _ => " : $" {c.ValueExpression} => ");
+                var c = sw.Cases[ci];
+                // Merge consecutive non-default cases with identical bodies
+                int groupEnd = ci + 1;
+                if (c.ValueExpression != null)
+                {
+                    while (groupEnd < sw.Cases.Length
+                        && sw.Cases[groupEnd].ValueExpression != null
+                        && bodyFrags[groupEnd] == bodyFrags[ci])
+                        groupEnd++;
+                }
 
-                EmitBodyAsFragment(c.Body);
+                if (c.ValueExpression == null)
+                {
+                    _sb.Append(" _ => ");
+                }
+                else if (groupEnd - ci > 1)
+                {
+                    _sb.Append(" ");
+                    for (int j = ci; j < groupEnd; j++)
+                    {
+                        if (j > ci) _sb.Append(" or ");
+                        _sb.Append(sw.Cases[j].ValueExpression);
+                    }
+                    _sb.Append(" => ");
+                }
+                else
+                {
+                    _sb.Append($" {c.ValueExpression} => ");
+                }
+
+                _sb.Append(bodyFrags[ci]);
                 _sb.Append(",");
+                ci = groupEnd;
             }
 
-            // Ensure there is always a default to keep C# exhaustiveness happy.
-            // Use an empty Fragment (not null) so the switch result is always Fragment.
             if (sw.Cases.Length > 0 && sw.Cases[sw.Cases.Length - 1].ValueExpression != null)
                 _sb.Append(" _ => V.Fragment(key: null),");
 
             _sb.Append(" }");
             _sb.Append("))");
-        }
-
-        private void EmitLoopBodyStatements(ImmutableArray<AstNode> body)
-        {
-            foreach (var node in body)
-                EmitLoopBodyStatement(node);
-        }
-
-        private void EmitLoopBodyStatement(AstNode node)
-        {
-            switch (node)
-            {
-                case JsxCommentNode:
-                    return;
-
-                case BreakNode:
-                    _sb.Append("break; ");
-                    return;
-
-                case ContinueNode:
-                    _sb.Append("continue; ");
-                    return;
-
-                case IfNode ifNode when ContainsLoopFlow(ifNode):
-                    EmitLoopIfStatement(ifNode);
-                    return;
-
-                case ForNode:
-                case WhileNode:
-                case ForeachNode:
-                    _sb.Append("__r.AddRange(");
-                    EmitNode(node);
-                    _sb.Append("); ");
-                    return;
-
-                default:
-                    _sb.Append("__r.Add(");
-                    EmitNode(node);
-                    _sb.Append("); ");
-                    return;
-            }
-        }
-
-        private void EmitLoopIfStatement(IfNode ifn)
-        {
-            if (ifn.Branches.IsEmpty)
-                return;
-
-            for (int i = 0; i < ifn.Branches.Length; i++)
-            {
-                var branch = ifn.Branches[i];
-                if (i == 0)
-                {
-                    _sb.Append($"if ({branch.Condition}) {{ ");
-                }
-                else if (branch.Condition != null)
-                {
-                    _sb.Append($"else if ({branch.Condition}) {{ ");
-                }
-                else
-                {
-                    _sb.Append("else { ");
-                }
-
-                EmitLoopBodyStatements(branch.Body);
-                _sb.Append("} ");
-            }
-        }
-
-        private static bool ContainsLoopFlow(ImmutableArray<AstNode> nodes)
-        {
-            foreach (var node in nodes)
-                if (ContainsLoopFlow(node))
-                    return true;
-            return false;
-        }
-
-        private static bool ContainsLoopFlow(AstNode node)
-        {
-            switch (node)
-            {
-                case BreakNode:
-                case ContinueNode:
-                    return true;
-
-                case IfNode ifn:
-                    foreach (var branch in ifn.Branches)
-                        if (ContainsLoopFlow(branch.Body))
-                            return true;
-                    return false;
-
-                case ElementNode el:
-                    return ContainsLoopFlow(el.Children);
-
-                case ForeachNode fe:
-                    return ContainsLoopFlow(fe.Body);
-
-                case ForNode fn:
-                    return ContainsLoopFlow(fn.Body);
-
-                case WhileNode wn:
-                    return ContainsLoopFlow(wn.Body);
-
-                case SwitchNode sw:
-                    foreach (var c in sw.Cases)
-                        if (ContainsLoopFlow(c.Body))
-                            return true;
-                    return false;
-
-                default:
-                    return false;
-            }
         }
 
         // ── Leaf nodes ────────────────────────────────────────────────────────
@@ -1494,6 +1519,116 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return result;
         }
 
+        // ── Setup-code JSX splice ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Replaces embedded JSX markup spans inside <paramref name="setupCode"/>
+        /// with their emitted C# VirtualNode call equivalents.
+        /// Returns the setup code unchanged when there are no markup ranges.
+        /// </summary>
+        private string SpliceSetupCodeMarkup(string setupCode)
+        {
+            var markupRanges = _directives.SetupCodeMarkupRanges;
+            var bareRanges = _directives.SetupCodeBareJsxRanges;
+
+            bool hasMarkup = !markupRanges.IsDefaultOrEmpty;
+            bool hasBare = !bareRanges.IsDefaultOrEmpty;
+            if (!hasMarkup && !hasBare)
+                return setupCode;
+
+            // Merge both range lists and sort by absolute start position.
+            var allRanges = new List<(int Start, int End, int Line)>();
+            if (hasMarkup)
+                foreach (var r in markupRanges) allRanges.Add(r);
+            if (hasBare)
+                foreach (var r in bareRanges) allRanges.Add(r);
+            allRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+            int fseOffset = _directives.FunctionSetupStartOffset;
+            int gapOffset = _directives.FunctionSetupGapOffset;
+            int gapLength = _directives.FunctionSetupGapLength;
+
+            var spliced = new StringBuilder(setupCode.Length);
+            int prev = 0;
+
+            foreach (var (absStart, absEnd, line) in allRanges)
+            {
+                // Convert absolute source positions to setupCode-relative offsets.
+                int relStart = AbsToSetupOffset(absStart, fseOffset, gapOffset, gapLength);
+                int relEnd = AbsToSetupOffset(absEnd, fseOffset, gapOffset, gapLength);
+
+                // Guard against out-of-range offsets.
+                if (relStart < 0) relStart = 0;
+                if (relEnd < 0) relEnd = 0;
+                if (relStart > setupCode.Length) relStart = setupCode.Length;
+                if (relEnd > setupCode.Length) relEnd = setupCode.Length;
+                if (relEnd <= relStart) continue;
+
+                // Append C# text before this JSX span.
+                if (relStart > prev)
+                    spliced.Append(setupCode, prev, relStart - prev);
+
+                // Extract JSX fragment and parse it.
+                string jsxText = setupCode.Substring(relStart, relEnd - relStart);
+                var miniDirectives = new DirectiveSet(
+                    Namespace: null,
+                    ComponentName: null,
+                    PropsTypeName: null,
+                    DefaultKey: null,
+                    Usings: _directives.Usings,
+                    UssFiles: ImmutableArray<string>.Empty,
+                    Injects: ImmutableArray<(string, string)>.Empty,
+                    MarkupStartLine: line,
+                    MarkupStartIndex: 0,
+                    MarkupEndIndex: jsxText.Length
+                );
+                var miniDiags = new List<ParseDiagnostic>();
+                var nodes = UitkxParser.Parse(jsxText, _filePath, miniDirectives, miniDiags);
+
+                if (nodes.Length > 0)
+                {
+                    // Emit the parsed node(s) into a temporary buffer.
+                    int savedLen = _sb.Length;
+                    if (nodes.Length == 1)
+                        EmitNode(nodes[0]);
+                    else
+                    {
+                        _sb.Append($"V.Fragment(key: null, __C(");
+                        for (int i = 0; i < nodes.Length; i++)
+                        {
+                            if (i > 0) _sb.Append(", ");
+                            EmitNode(nodes[i]);
+                        }
+                        _sb.Append("))");
+                    }
+                    string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
+                    _sb.Length = savedLen;
+                    spliced.Append(emittedCs.Trim());
+                }
+                else
+                {
+                    // Parse failed — keep the original text (will cause a compile error
+                    // from the C# compiler, which is better than silently dropping it).
+                    spliced.Append(jsxText);
+                }
+
+                prev = relEnd;
+            }
+
+            if (prev < setupCode.Length)
+                spliced.Append(setupCode, prev, setupCode.Length - prev);
+
+            return spliced.ToString();
+        }
+
+        private static int AbsToSetupOffset(int absPos, int fseOffset, int gapOffset, int gapLength)
+        {
+            int relOffset = absPos - fseOffset;
+            if (gapOffset >= 0 && relOffset >= gapOffset)
+                relOffset -= gapLength;
+            return relOffset;
+        }
+
         private static bool IsKey(string name) =>
             string.Equals(name, "key", StringComparison.OrdinalIgnoreCase);
 
@@ -1556,48 +1691,63 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private string ResolveAssetPaths(string expression)
         {
-            return s_assetCallRe.Replace(expression, match =>
-            {
-                string requestedType = match.Groups[1].Value;
-                string rawPath = match.Groups[2].Value;
-                string resolved;
-                if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
-                    resolved = ResolveRelativePath(rawPath);
-                else
-                    resolved = rawPath;
-
-                // Validate file existence at compile time
-                string projectRoot = GetProjectRoot();
-                if (projectRoot != null)
+            return s_assetCallRe.Replace(
+                expression,
+                match =>
                 {
-                    string absolute = Path.Combine(projectRoot, resolved.Replace('/', Path.DirectorySeparatorChar));
-                    if (!File.Exists(absolute))
-                    {
-                        var loc = Location.Create(_filePath, default, default);
-                        _diagnostics.Add(Diagnostic.Create(
-                            UitkxDiagnostics.AssetFileNotFound, loc, resolved));
-                    }
+                    string requestedType = match.Groups[1].Value;
+                    string rawPath = match.Groups[2].Value;
+                    string resolved;
+                    if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+                        resolved = ResolveRelativePath(rawPath);
                     else
+                        resolved = rawPath;
+
+                    // Validate file existence at compile time
+                    string projectRoot = GetProjectRoot();
+                    if (projectRoot != null)
                     {
-                        // Type-mismatch check
-                        string ext = Path.GetExtension(rawPath);
-                        if (!string.IsNullOrEmpty(ext)
-                            && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
-                            && !validTypes.Contains(requestedType))
+                        string absolute = Path.Combine(
+                            projectRoot,
+                            resolved.Replace('/', Path.DirectorySeparatorChar)
+                        );
+                        if (!File.Exists(absolute))
                         {
                             var loc = Location.Create(_filePath, default, default);
-                            _diagnostics.Add(Diagnostic.Create(
-                                UitkxDiagnostics.AssetTypeMismatch, loc,
-                                requestedType, ext, string.Join(", ", validTypes)));
+                            _diagnostics.Add(
+                                Diagnostic.Create(UitkxDiagnostics.AssetFileNotFound, loc, resolved)
+                            );
+                        }
+                        else
+                        {
+                            // Type-mismatch check
+                            string ext = Path.GetExtension(rawPath);
+                            if (
+                                !string.IsNullOrEmpty(ext)
+                                && s_extensionValidTypes.TryGetValue(ext, out var validTypes)
+                                && !validTypes.Contains(requestedType)
+                            )
+                            {
+                                var loc = Location.Create(_filePath, default, default);
+                                _diagnostics.Add(
+                                    Diagnostic.Create(
+                                        UitkxDiagnostics.AssetTypeMismatch,
+                                        loc,
+                                        requestedType,
+                                        ext,
+                                        string.Join(", ", validTypes)
+                                    )
+                                );
+                            }
                         }
                     }
-                }
 
-                // Only rewrite relative paths
-                if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
-                    return match.Value.Replace($"\"{rawPath}\"", $"\"{resolved}\"");
-                return match.Value;
-            });
+                    // Only rewrite relative paths
+                    if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
+                        return match.Value.Replace($"\"{rawPath}\"", $"\"{resolved}\"");
+                    return match.Value;
+                }
+            );
         }
 
         private string ResolveRelativePath(string relativePath)
@@ -1608,7 +1758,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             var stack = new List<string>();
             foreach (var p in parts)
             {
-                if (p == "." || p == "") continue;
+                if (p == "." || p == "")
+                    continue;
                 if (p == ".." && stack.Count > 0)
                     stack.RemoveAt(stack.Count - 1);
                 else if (p != "..")

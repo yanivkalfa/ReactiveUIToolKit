@@ -3,7 +3,6 @@
 @using System.Collections.Generic
 @using ReactiveUITK.Core
 @using UnityEngine
-@using UnityEngine.UIElements
 
 component ShowcaseNewComponentsPanel(
   bool foldoutOpen = true, 

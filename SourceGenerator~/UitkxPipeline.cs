@@ -162,7 +162,7 @@ namespace ReactiveUITK.SourceGenerator
             HooksValidator.Validate(rootNodes, filePath, diagnostics);
 
             // ── Stage 3c: Structural validation ───────────────────────────────
-            StructureValidator.Validate(rootNodes, filePath, diagnostics);
+            StructureValidator.Validate(rootNodes, filePath, diagnostics, directives);
 
             ct.ThrowIfCancellationRequested();
 

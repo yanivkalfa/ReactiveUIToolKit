@@ -60,49 +60,6 @@ namespace ReactiveUITK.Language.Nodes
     public sealed record JsxCommentNode(string Content, int SourceLine, string SourceFile)
         : AstNode(SourceLine, SourceFile);
 
-    /// <summary>
-    /// The <c>@code { ... }</c> block at the bottom of a .uitkx file.
-    /// Its content is inserted verbatim inside the generated partial class.
-    /// </summary>
-    public sealed record CodeBlockNode(string Code, int SourceLine, string SourceFile)
-        : AstNode(SourceLine, SourceFile)
-    {
-        /// <summary>
-        /// Any <c>return &lt;Tag .../&gt;</c> markup expressions found inside this
-        /// code block.  Sorted by <see cref="ReturnMarkupNode.StartOffsetInCodeBlock"/>.
-        /// </summary>
-        public ImmutableArray<ReturnMarkupNode> ReturnMarkups { get; init; } =
-            ImmutableArray<ReturnMarkupNode>.Empty;
-
-        /// <summary>
-        /// Absolute character offset in the .uitkx source where the trimmed
-        /// <see cref="Code"/> content begins (i.e. after the opening <c>{</c> and
-        /// any leading whitespace). 0 when not tracked.
-        /// </summary>
-        public int CodeContentOffset { get; init; } = 0;
-
-        /// <summary>
-        /// Length of the trimmed <see cref="Code"/> content in the source.
-        /// 0 when not tracked.
-        /// </summary>
-        public int CodeContentLength { get; init; } = 0;
-    }
-
-    /// <summary>
-    /// An element embedded in a <c>@code { }</c> block as
-    /// <c>return &lt;Tag .../&gt;</c>.  The parser replaces the raw markup text
-    /// with this node so the emitter can synthesise the correct C# call.
-    /// </summary>
-    public sealed record ReturnMarkupNode(
-        ElementNode Element,
-        /// <summary>Offset of <c>'&lt;'</c> within the trimmed <see cref="CodeBlockNode.Code"/> string.</summary>
-        int StartOffsetInCodeBlock,
-        /// <summary>Exclusive end offset after the closing <c>/&gt;</c> or <c>&lt;/Tag&gt;</c> in the trimmed code string.</summary>
-        int EndOffsetInCodeBlock,
-        int SourceLine,
-        string SourceFile
-    ) : AstNode(SourceLine, SourceFile);
-
     // ── Attribute value discriminated-union ──────────────────────────────────
 
     /// <summary>Base record for the three possible forms of an attribute value.</summary>
@@ -185,6 +142,15 @@ namespace ReactiveUITK.Language.Nodes
         /// expression begins (after the opening <c>(</c>). 0 when not tracked (e.g. <c>@else</c>).
         /// </summary>
         public int ConditionOffset { get; init; } = 0;
+
+        /// <summary>Raw C# code before <c>return (...)</c>, or null if body is pure markup.</summary>
+        public string? SetupCode { get; init; }
+
+        /// <summary>Absolute character offset where <see cref="SetupCode"/> begins in the source.</summary>
+        public int SetupCodeOffset { get; init; }
+
+        /// <summary>1-based line number where <see cref="SetupCode"/> begins.</summary>
+        public int SetupCodeLine { get; init; }
     }
 
     /// <summary>
@@ -222,6 +188,15 @@ namespace ReactiveUITK.Language.Nodes
         /// begins (after the opening <c>(</c>). 0 when not tracked.
         /// </summary>
         public int ForeachExpressionOffset { get; init; } = 0;
+
+        /// <summary>Raw C# code before <c>return (...)</c>, or null if body is pure markup.</summary>
+        public string? SetupCode { get; init; }
+
+        /// <summary>Absolute character offset where <see cref="SetupCode"/> begins in the source.</summary>
+        public int SetupCodeOffset { get; init; }
+
+        /// <summary>1-based line number where <see cref="SetupCode"/> begins.</summary>
+        public int SetupCodeLine { get; init; }
     }
 
     /// <summary>
@@ -240,6 +215,15 @@ namespace ReactiveUITK.Language.Nodes
         /// begins (after the opening <c>(</c>). 0 when not tracked.
         /// </summary>
         public int ForExpressionOffset { get; init; } = 0;
+
+        /// <summary>Raw C# code before <c>return (...)</c>, or null if body is pure markup.</summary>
+        public string? SetupCode { get; init; }
+
+        /// <summary>Absolute character offset where <see cref="SetupCode"/> begins in the source.</summary>
+        public int SetupCodeOffset { get; init; }
+
+        /// <summary>1-based line number where <see cref="SetupCode"/> begins.</summary>
+        public int SetupCodeLine { get; init; }
     }
 
     /// <summary>
@@ -257,21 +241,16 @@ namespace ReactiveUITK.Language.Nodes
         /// begins (after the opening <c>(</c>). 0 when not tracked.
         /// </summary>
         public int ConditionOffset { get; init; } = 0;
+
+        /// <summary>Raw C# code before <c>return (...)</c>, or null if body is pure markup.</summary>
+        public string? SetupCode { get; init; }
+
+        /// <summary>Absolute character offset where <see cref="SetupCode"/> begins in the source.</summary>
+        public int SetupCodeOffset { get; init; }
+
+        /// <summary>1-based line number where <see cref="SetupCode"/> begins.</summary>
+        public int SetupCodeLine { get; init; }
     }
-
-    /// <summary>
-    /// A loop-flow <c>@break;</c> statement.
-    /// Valid only inside <c>@for</c> / <c>@while</c> bodies.
-    /// </summary>
-    public sealed record BreakNode(int SourceLine, string SourceFile)
-        : AstNode(SourceLine, SourceFile);
-
-    /// <summary>
-    /// A loop-flow <c>@continue;</c> statement.
-    /// Valid only inside <c>@for</c> / <c>@while</c> bodies.
-    /// </summary>
-    public sealed record ContinueNode(int SourceLine, string SourceFile)
-        : AstNode(SourceLine, SourceFile);
 
     /// <summary>One <c>@case</c> or <c>@default</c> branch inside a switch block.</summary>
     public sealed record SwitchCase(
@@ -279,7 +258,17 @@ namespace ReactiveUITK.Language.Nodes
         string? ValueExpression,
         ImmutableArray<AstNode> Body,
         int SourceLine
-    );
+    )
+    {
+        /// <summary>Raw C# code before <c>return (...)</c>, or null if body is pure markup.</summary>
+        public string? SetupCode { get; init; }
+
+        /// <summary>Absolute character offset where <see cref="SetupCode"/> begins in the source.</summary>
+        public int SetupCodeOffset { get; init; }
+
+        /// <summary>1-based line number where <see cref="SetupCode"/> begins.</summary>
+        public int SetupCodeLine { get; init; }
+    };
 
     /// <summary>An <c>@switch (expr) { @case ... }</c> block.</summary>
     public sealed record SwitchNode(

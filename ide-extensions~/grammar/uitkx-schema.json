@@ -220,8 +220,8 @@
       "description": "Sets a static key on the component root element."
     },
     {
-      "name": "code",
-      "description": "Embedded C# code block before the return statement."
+      "name": "uss",
+      "description": "Attaches a USS stylesheet to the component root element. Path is relative to the .uitkx file."
     }
   ],
   "controlFlow": [
@@ -250,24 +250,12 @@
       "description": "Default arm inside @switch."
     },
     {
-      "name": "code",
-      "description": "Embedded C# code block before the return statement."
-    },
-    {
       "name": "for",
       "description": "C-style for loop — generates a standard for loop."
     },
     {
       "name": "while",
       "description": "While loop — generates a while loop."
-    },
-    {
-      "name": "break",
-      "description": "Loop-flow statement valid inside @for/@while bodies."
-    },
-    {
-      "name": "continue",
-      "description": "Loop-flow statement valid inside @for/@while bodies."
     }
   ],
   "elements": {
@@ -1828,8 +1816,14 @@
     ]
   },
   "styleVersions": {
-    "aspectRatio": { "sinceUnity": "6000.3" },
-    "filter": { "sinceUnity": "6000.3" },
-    "unityMaterial": { "sinceUnity": "6000.3" }
+    "aspectRatio": {
+      "sinceUnity": "6000.3"
+    },
+    "filter": {
+      "sinceUnity": "6000.3"
+    },
+    "unityMaterial": {
+      "sinceUnity": "6000.3"
+    }
   }
 }
