@@ -19,13 +19,13 @@ export const ProgressBarPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ProgressBarProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ProgressBarProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={PROGRESS_BAR_BASIC} />
+      <CodeBlock language="jsx" code={PROGRESS_BAR_BASIC} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>

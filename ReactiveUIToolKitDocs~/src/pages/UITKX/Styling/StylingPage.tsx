@@ -71,7 +71,7 @@ const PropertyCardView: FC<{ card: PropertyCard }> = ({ card }) => {
         <Typography variant="body2" sx={{ mb: 1 }}>
           Type: <code>{card.type}</code>
         </Typography>
-        <CodeBlock language="tsx" code={`// Typed\nnew Style { ${card.typedExample} }\n\n// Untyped\nnew Style { ${card.untypedExample} }`} />
+        <CodeBlock language="jsx" code={`// Typed\nnew Style { ${card.typedExample} }\n\n// Untyped\nnew Style { ${card.untypedExample} }`} />
         {card.helpers && card.helpers.length > 0 && (
           <Typography variant="body2" sx={{ mt: 1 }}>
             CssHelpers:{' '}
@@ -129,7 +129,7 @@ export const StylingPage: FC = () => {
       <code>StyleKeys</code> and <code>CssHelpers</code> are auto-imported in{' '}
       <code>.uitkx</code> files. For companion <code>.cs</code> files, add:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_IMPORT} />
+    <CodeBlock language="jsx" code={EXAMPLE_IMPORT} />
 
     {/* ── Two approaches ────────────────────────────────────── */}
     <Typography variant="h5" component="h2" gutterBottom>
@@ -138,7 +138,7 @@ export const StylingPage: FC = () => {
     <Typography variant="body1" paragraph>
       Every property can be set in two ways. Both are valid and can be mixed in the same style object:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_BOTH_APIs} />
+    <CodeBlock language="jsx" code={EXAMPLE_BOTH_APIs} />
 
     {/* ── Jump links ────────────────────────────────────────── */}
     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2, mt: 4 }}>
@@ -188,12 +188,12 @@ export const StylingPage: FC = () => {
     <Typography variant="body1" paragraph>
       <code>Style</code> is a plain C# object — use ternaries, if/else, or any expression:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_CONDITIONAL} />
+    <CodeBlock language="jsx" code={EXAMPLE_CONDITIONAL} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Inline styles
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_INLINE} />
+    <CodeBlock language="jsx" code={EXAMPLE_INLINE} />
 
     {/* ── Type reference ────────────────────────────────────── */}
     <Typography id="type-reference" variant="h4" component="h2" gutterBottom sx={{ mt: 4 }}>
@@ -419,7 +419,7 @@ export const StylingPage: FC = () => {
       Add <code>@uss "path"</code> to the preamble (before the <code>component</code> keyword).
       Relative paths are resolved from the <code>.uitkx</code> file's location.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_USS_BASIC} />
+    <CodeBlock language="jsx" code={EXAMPLE_USS_BASIC} />
 
     <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
       Example .uss file
@@ -433,7 +433,7 @@ export const StylingPage: FC = () => {
       You can import multiple <code>@uss</code> files — they are applied in order,
       so later sheets can override earlier ones.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_USS_MULTIPLE} />
+    <CodeBlock language="jsx" code={EXAMPLE_USS_MULTIPLE} />
 
     <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
       Combining USS + typed Style
@@ -443,12 +443,24 @@ export const StylingPage: FC = () => {
       is great for dynamic, state-driven values. Use both together —
       USS handles the baseline, <code>Style</code> handles the runtime overrides.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_USS_COMBINED} />
+    <CodeBlock language="jsx" code={EXAMPLE_USS_COMBINED} />
 
     <Alert severity="info" sx={{ mt: 2 }}>
       <strong>HMR support:</strong> Saving a <code>.uss</code> file triggers
       hot-reload of all components that reference it via <code>@uss</code> —
       no domain reload needed.
+    </Alert>
+
+    <Alert severity="info" sx={{ mt: 2 }}>
+      <strong>Specificity:</strong> Inline <code>style={'{...}'}</code> always wins over USS
+      rules — matching standard CSS behavior. Use USS for static layout and theming, and
+      inline <code>Style</code> for dynamic, state-driven overrides.
+    </Alert>
+
+    <Alert severity="info" sx={{ mt: 2 }}>
+      <strong>Multiple classes:</strong> <code>className</code> accepts space-separated class names
+      (e.g. <code>className=&quot;card dark-theme&quot;</code>). Each name is added
+      via <code>AddToClassList</code>.
     </Alert>
 
     {/* ── Table of contents ─────────────────────────────────── */}

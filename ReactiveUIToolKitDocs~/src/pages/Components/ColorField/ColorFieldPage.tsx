@@ -19,13 +19,13 @@ export const ColorFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ColorFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ColorFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={COLOR_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={COLOR_FIELD_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

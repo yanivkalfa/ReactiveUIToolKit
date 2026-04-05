@@ -21,7 +21,7 @@ export const UitkxAPIPage: FC = () => (
           <ListItemText primary={<><code>ReactiveUITK.Core.V</code> — static factory for building <code>VirtualNode</code> trees (<code>V.VisualElement</code>, <code>V.Button</code>, <code>V.Label</code>, <code>V.Router</code>, etc.).</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Core.Hooks</code> — hook functions: <code>UseState</code>, <code>UseReducer</code>, <code>UseEffect</code>, <code>UseMemo</code>, <code>UseSignal</code>, and context helpers.</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Core.Hooks</code> — hook functions: <code>UseState</code>, <code>UseReducer</code>, <code>UseEffect</code>, <code>UseLayoutEffect</code>, <code>UseMemo</code>, <code>UseCallback</code>, <code>UseRef</code>, <code>UseContext</code>, <code>ProvideContext</code>, <code>UseDeferredValue</code>, <code>UseImperativeHandle</code>, <code>UseStableFunc</code>, <code>UseStableAction</code>, <code>UseStableCallback</code>, <code>UseSignal</code>, <code>UseAnimate</code>, <code>UseTweenFloat</code>, <code>UseSafeArea</code>. Static configuration: <code>Hooks.EnableHookValidation</code>, <code>Hooks.EnableStrictDiagnostics</code>, <code>Hooks.EnableHookAutoRealign</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<><code>ReactiveUITK.Core.StateSetterExtensions</code> — fluent helpers for state setters (<code>set.Set(value)</code> / <code>{'set.Set(prev => next)'}</code>).</>} />
@@ -50,7 +50,7 @@ export const UitkxAPIPage: FC = () => (
           <ListItemText primary={<><code>ReactiveUITK.Props.Typed.StyleKeys</code> — constants used as keys inside <code>Style</code> (<code>StyleKeys.MarginTop</code>, <code>StyleKeys.FlexDirection</code>, etc.). Auto-imported in <code>.uitkx</code> files.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Props.Typed.CssHelpers</code> — shortcut values for enum props and style values: <code>Row</code>, <code>Column</code>, <code>Pct()</code>, <code>Px()</code>, <code>SelectNone</code>, <code>SortCustom</code>, etc. Auto-imported in <code>.uitkx</code> files.</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Props.Typed.CssHelpers</code> — shortcut values for enum props and style values: <code>FlexRow</code>, <code>FlexColumn</code>, <code>Pct()</code>, <code>Px()</code>, <code>SelectNone</code>, <code>SortCustom</code>, etc. Auto-imported in <code>.uitkx</code> files.</>} />
         </ListItem>
       </List>
     </Box>
@@ -78,7 +78,7 @@ export const UitkxAPIPage: FC = () => (
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<><code>ReactiveUITK.Signals.Signals</code> — entry point: <code>{'Signals.Get<T>(key, initialValue)'}</code> and <code>{'Signals.TryGet<T>(key, out signal)'}</code>.</>} />
+          <ListItemText primary={<><code>ReactiveUITK.Signals.SignalFactory</code> — entry point: <code>{'SignalFactory.Get<T>(key, initialValue)'}</code> and <code>{'SignalFactory.TryGet<T>(key, out signal)'}</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<><code>{'ReactiveUITK.Signals.Signal<T>'}</code> — concrete signal type with <code>Value</code>, <code>Subscribe(...)</code>, <code>Set(value)</code>, and <code>Dispatch(update)</code>.</>} />

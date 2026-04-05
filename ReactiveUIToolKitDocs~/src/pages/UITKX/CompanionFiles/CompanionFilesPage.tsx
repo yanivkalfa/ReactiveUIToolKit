@@ -48,7 +48,7 @@ export const CompanionFilesPage: FC = () => (
     <Typography variant="body1" paragraph>
       Here is a component that uses styles, types, and utility functions defined in companion files:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_UITKX} />
+    <CodeBlock language="jsx" code={EXAMPLE_UITKX} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Generated namespace &amp; class name
@@ -86,7 +86,7 @@ export const CompanionFilesPage: FC = () => (
     <Typography variant="body1" paragraph>
       For the example above, the generator produces:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_GENERATED_CLASS} />
+    <CodeBlock language="jsx" code={EXAMPLE_GENERATED_CLASS} />
     <Typography variant="body1" paragraph>
       Companion <code>.cs</code> files that need to reference or extend the generated class must use
       the <strong>same namespace</strong> and <strong>same class name</strong>.
@@ -98,7 +98,7 @@ export const CompanionFilesPage: FC = () => (
     <Typography variant="body1" paragraph>
       Place companion files in the <strong>same directory</strong> as the <code>.uitkx</code> file:
     </Typography>
-    <CodeBlock language="text" code={EXAMPLE_DIRECTORY} />
+    <CodeBlock language="jsx" code={EXAMPLE_DIRECTORY} />
     <Typography variant="body2" paragraph>
       These names are conventions, not enforced rules. Any <code>.cs</code> file (except{' '}
       <code>.g.cs</code>) in the same directory is automatically picked up during compilation.
@@ -144,17 +144,17 @@ export const CompanionFilesPage: FC = () => (
     <Typography variant="h5" component="h2" gutterBottom>
       Example: style helpers
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_STYLES} />
+    <CodeBlock language="jsx" code={EXAMPLE_STYLES} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Example: type definitions
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_TYPES} />
+    <CodeBlock language="jsx" code={EXAMPLE_TYPES} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Example: utility functions
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_UTILS} />
+    <CodeBlock language="jsx" code={EXAMPLE_UTILS} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Standalone classes
@@ -163,7 +163,7 @@ export const CompanionFilesPage: FC = () => (
       Not everything has to go in the partial class. Standalone classes under the same namespace are
       useful for types shared across multiple components:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_STANDALONE} />
+    <CodeBlock language="jsx" code={EXAMPLE_STANDALONE} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       HMR support
@@ -191,8 +191,8 @@ export const CompanionFilesPage: FC = () => (
         <ListItemText
           primary={
             <>
-              Small helpers — for code that only the component uses, prefer{' '}
-              <code>@code</code> blocks inside the <code>.uitkx</code> file itself.
+              Small helpers — for code that only the component uses, prefer
+              setup code before <code>return()</code> inside the <code>.uitkx</code> file itself.
             </>
           }
         />

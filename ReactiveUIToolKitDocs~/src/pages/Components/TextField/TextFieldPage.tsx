@@ -20,13 +20,13 @@ export const TextFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('TextFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('TextFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TEXT_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={TEXT_FIELD_BASIC} />
     </Box>
     <UnityDocsSection componentName="TextField" />
   </Box>

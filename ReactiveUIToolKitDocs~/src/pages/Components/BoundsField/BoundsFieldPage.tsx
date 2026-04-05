@@ -21,7 +21,7 @@ export const BoundsFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('BoundsFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('BoundsFieldProps')} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -32,7 +32,7 @@ export const BoundsFieldPage: FC = () => (
         Pass a <code>BoundsFieldProps</code> instance to <code>V.BoundsField</code>. The{' '}
         <code>Value</code> property controls the current bounds.
       </Typography>
-      <CodeBlock language="tsx" code={BOUNDS_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={BOUNDS_FIELD_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

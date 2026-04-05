@@ -20,13 +20,13 @@ export const ListViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ListViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ListViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={LIST_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={LIST_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="ListView" />
   </Box>

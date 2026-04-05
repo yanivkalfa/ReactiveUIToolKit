@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component RenderDepthGuardDemoFunc {
@@ -47,21 +47,27 @@ component RenderDepthGuardDemoFunc {
         />
       </VisualElement>
       @if (triggered) {
-        <VisualElement style={warnStyle}>
-          <Text
-            text="⚠ Deep tree triggered — check Console for '[Fiber] Maximum render depth exceeded' error."
-          />
-        </VisualElement>
+        return (
+          <VisualElement style={warnStyle}>
+            <Text
+              text="⚠ Deep tree triggered — check Console for '[Fiber] Maximum render depth exceeded' error."
+            />
+          </VisualElement>
+        );
       }
       @if (depth > 0) {
-        <VisualElement style={new Style { (StyleKeys.MarginTop, 8f) }}>
-          <Text text={$"Tree root (requested depth: {depth}):"} />
-          <DeepNode remaining={depth} maxDisplay={depth} />
-        </VisualElement>
+        return (
+          <VisualElement style={new Style { (StyleKeys.MarginTop, 8f) }}>
+            <Text text={$"Tree root (requested depth: {depth}):"} />
+            <DeepNode remaining={depth} maxDisplay={depth} />
+          </VisualElement>
+        );
       } @else {
-        <VisualElement style={infoStyle}>
-          <Text text="No tree rendered yet — click a button above." />
-        </VisualElement>
+        return (
+          <VisualElement style={infoStyle}>
+            <Text text="No tree rendered yet — click a button above." />
+          </VisualElement>
+        );
       }
     </VisualElement>
   );

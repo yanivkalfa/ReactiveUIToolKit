@@ -19,14 +19,14 @@ export const VisualElementPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Signature
       </Typography>
-      <CodeBlock language="tsx" code={VISUAL_ELEMENT_SIGNATURE} />
+      <CodeBlock language="jsx" code={VISUAL_ELEMENT_SIGNATURE} />
     </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic container
       </Typography>
-      <CodeBlock language="tsx" code={VISUAL_ELEMENT_BASIC} />
+      <CodeBlock language="jsx" code={VISUAL_ELEMENT_BASIC} />
     </Box>
     <UnityDocsSection componentName="VisualElement" />
   </Box>

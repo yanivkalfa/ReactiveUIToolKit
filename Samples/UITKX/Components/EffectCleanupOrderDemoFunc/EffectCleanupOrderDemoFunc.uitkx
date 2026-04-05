@@ -63,15 +63,21 @@ component EffectCleanupOrderDemoFunc {
       />
       <VisualElement style={logBoxStyle}>
         @if (displayLog.Count == 0) {
-          <Text text="Log is empty — click 'Next Generation' to start." />
+          return (
+            <Text text="Log is empty — click 'Next Generation' to start." />
+          );
         } @else {
-          @foreach (var entry in displayLog) {
-            <Label
-              text={entry}
-              key={entry}
-              style={new Style { (StyleKeys.Color, entry.Contains("cleanup") ? new Color(0.9f, 0.55f, 0.2f, 1f) : new Color(0.3f, 0.85f, 0.45f, 1f)), (StyleKeys.FontSize, 11f) }}
-            />
-          }
+          return (
+            @foreach (var entry in displayLog) {
+              return (
+                <Label
+                  text={entry}
+                  key={entry}
+                  style={new Style { (StyleKeys.Color, entry.Contains("cleanup") ? new Color(0.9f, 0.55f, 0.2f, 1f) : new Color(0.3f, 0.85f, 0.45f, 1f)), (StyleKeys.FontSize, 11f) }}
+                />
+              );
+            }
+          );
         }
       </VisualElement>
     </VisualElement>

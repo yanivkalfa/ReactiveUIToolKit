@@ -25,7 +25,9 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @if (true) {
-                @(Hooks.UseState(0))
+                return (
+                    @(Hooks.UseState(0))
+                );
             }
             <box/>
             """);
@@ -41,7 +43,9 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @foreach (var i in items) {
-                @(Hooks.UseState(i))
+                return (
+                    @(Hooks.UseState(i))
+                );
             }
             <box/>
             """);
@@ -57,7 +61,7 @@ public class DiagnosticTests
     {
         var src = Wrap("""
             @switch (mode) {
-                @case 0: @(Hooks.UseState(42))
+                @case 0: return (@(Hooks.UseState(42)));
             }
             <box/>
             """);
@@ -77,6 +81,104 @@ public class DiagnosticTests
         Assert.True(
             result.HasDiagnostic("UITKX0016"),
             "Expected UITKX0016 for hook inside attribute expression"
+        );
+    }
+
+    // ── Hooks in SetupCode (control-block body preamble) ─────────────────────
+
+    [Fact]
+    public void UITKX0013_HookInIfSetupCode()
+    {
+        var src = Wrap("""
+            @if (true) {
+                var s = Hooks.UseState(0);
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0013"),
+            "Expected UITKX0013 for hook in @if branch SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0014_HookInForeachSetupCode()
+    {
+        var src = Wrap("""
+            @foreach (var item in items) {
+                var s = Hooks.UseState(0);
+                return (
+                    <label key={item} text={item}/>
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0014"),
+            "Expected UITKX0014 for hook in @foreach SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0014_HookInForSetupCode()
+    {
+        var src = Wrap("""
+            @for (var i = 0; i < 10; i++) {
+                var s = Hooks.UseState(0);
+                return (
+                    <box key={i.ToString()}/>
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0014"),
+            "Expected UITKX0014 for hook in @for SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0014_HookInWhileSetupCode()
+    {
+        var src = Wrap("""
+            @while (true) {
+                var s = Hooks.UseState(0);
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0014"),
+            "Expected UITKX0014 for hook in @while SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0015_HookInSwitchCaseSetupCode()
+    {
+        var src = Wrap("""
+            @switch (mode) {
+                @case 0:
+                    var s = Hooks.UseState(42);
+                    return (
+                        <box />
+                    );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0015"),
+            "Expected UITKX0015 for hook in @switch case SetupCode"
         );
     }
 
@@ -118,12 +220,71 @@ public class DiagnosticTests
     }
 
     [Fact]
+    public void UITKX0018_UseEffectMissingDepsInIfSetupCode()
+    {
+        var src = Wrap("""
+            @if (true) {
+                Hooks.UseEffect(() => { });
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0018"),
+            "Expected UITKX0018 for UseEffect missing deps in @if SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0018_UseEffectMissingDepsInForeachSetupCode()
+    {
+        var src = Wrap("""
+            @foreach (var item in items) {
+                Hooks.UseEffect(() => { });
+                return (
+                    <label key={item} text={item}/>
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0018"),
+            "Expected UITKX0018 for UseEffect missing deps in @foreach SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0018_UseEffectWithDepsInSetupCode_NotFired()
+    {
+        var src = Wrap("""
+            @if (true) {
+                Hooks.UseEffect(() => { }, new object[] { });
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.False(
+            result.HasDiagnostic("UITKX0018"),
+            "UITKX0018 should not fire when deps are provided in SetupCode"
+        );
+    }
+
+    [Fact]
     public void UITKX0019_IndexAsKey()
     {
         // Loop iterator variable used directly as key
         var src = Wrap("""
             @foreach (var i in items) {
-                <label key={i} text={i.ToString()}/>
+                return (
+                    <label key={i} text={i.ToString()}/>
+                );
             }
             """);
         var result = GeneratorTestHelper.Run(src);
@@ -139,7 +300,9 @@ public class DiagnosticTests
         // key uses a property of the loop item — should NOT fire
         var src = Wrap("""
             @foreach (var item in items) {
-                <label key={item.Id} text={item.Name}/>
+                return (
+                    <label key={item.Id} text={item.Name}/>
+                );
             }
             """);
         var result = GeneratorTestHelper.Run(src);
@@ -157,7 +320,9 @@ public class DiagnosticTests
         // Element inside @foreach has no key attribute
         var src = Wrap("""
             @foreach (var item in items) {
-                <label text={item}/>
+                return (
+                    <label text={item}/>
+                );
             }
             """);
         var result = GeneratorTestHelper.Run(src);

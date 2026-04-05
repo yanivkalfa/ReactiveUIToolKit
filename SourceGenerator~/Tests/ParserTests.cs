@@ -443,101 +443,12 @@ public class ParserTests
     }
 
     [Fact]
-    public void Markup_ForDirective_ParsesBreakAndContinueNodes()
-    {
-        var src = Wrap(
-            """
-            @for (var i = 0; i < 10; i++) {
-                @continue;
-                @break;
-            }
-            """);
-
-        var nodes = ParseMarkup(src, out _);
-        var forNode = Assert.Single(nodes.OfType<ForNode>());
-
-        Assert.Contains(forNode.Body, n => n is ContinueNode);
-        Assert.Contains(forNode.Body, n => n is BreakNode);
-    }
-
-    [Fact]
     public void Markup_BreakOutsideLoop_EmitsUnexpectedToken()
     {
         var src = Wrap("@break;\n<label/>");
         ParseMarkup(src, out var diags);
 
         Assert.Contains(diags, d => d.Code == "UITKX0300" && d.Message.Contains("@break"));
-    }
-
-    [Fact]
-    public void Markup_ContinueInsideLoopIf_ParsesNestedContinueNode()
-    {
-        var src = Wrap(
-            """
-            @while (isRunning) {
-                @if (skip) {
-                    @continue;
-                }
-                <label />
-            }
-            """);
-
-        var nodes = ParseMarkup(src, out _);
-        var whileNode = Assert.Single(nodes.OfType<WhileNode>());
-        var ifNode = Assert.Single(whileNode.Body.OfType<IfNode>());
-
-        Assert.Contains(ifNode.Branches[0].Body, n => n is ContinueNode);
-    }
-
-    [Fact]
-    public void Markup_CodeBlock_ProducesCodeBlockNode()
-    {
-        var src = Wrap("@code { var x = 1; }\n<box/>");
-        var nodes = ParseMarkup(src, out _);
-
-        var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
-        Assert.Contains("var x = 1;", cb.Code);
-    }
-
-    [Fact]
-    public void Markup_CodeBlock_LineCommentedMarkup_IsIgnored()
-    {
-        var src = Wrap("""
-            @code {
-                // var node = <Box>
-                //   <Label text="hi"/>
-                // </Box>;
-                var x = 1;
-            }
-            <box/>
-            """);
-
-        var nodes = ParseMarkup(src, out _);
-        var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
-
-        Assert.Empty(cb.ReturnMarkups);
-    }
-
-    [Fact]
-    public void Markup_CodeBlock_BlockCommentedMarkup_IsIgnored_ButLiveMarkupStillParsed()
-    {
-        var src = Wrap("""
-            @code {
-                /*
-                var node = <Box>
-                    <Label text="hi"/>
-                </Box>;
-                */
-                var live = <Label text="ok"/>;
-            }
-            <box/>
-            """);
-
-        var nodes = ParseMarkup(src, out _);
-        var cb = Assert.Single(nodes.OfType<CodeBlockNode>());
-
-        var only = Assert.Single(cb.ReturnMarkups);
-        Assert.Equal("Label", only.Element.TagName);
     }
 
     [Fact]

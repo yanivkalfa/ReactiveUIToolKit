@@ -108,11 +108,13 @@ component HookStateQueueDemoFunc {
           style={new Style { (StyleKeys.FlexDirection, "column") }}
         >
           @foreach (var entry in logEntries) {
-            <Label
-              text={entry}
-              key={entry}
-              style={new Style { (StyleKeys.MarginBottom, 2f) }}
-            />
+            return (
+              <Label
+                text={entry}
+                key={entry}
+                style={new Style { (StyleKeys.MarginBottom, 2f) }}
+              />
+            );
           }
         </VisualElement>
       </VisualElement>

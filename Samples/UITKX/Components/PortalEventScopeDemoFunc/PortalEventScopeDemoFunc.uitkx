@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 @using UnityEngine.UIElements
 @using System
@@ -22,13 +22,17 @@ component PortalEventScopeDemoFunc {
     ? (
       <Portal target={portalTarget}>
         @if (mounted) {
-          <Button
-            text="Portal Button (click me)"
-            onClick={_ => AppendLog("Portal button clicked")}
-            style={new Style { (StyleKeys.MarginTop, 6f) }}
-          />
+          return (
+            <Button
+              text="Portal Button (click me)"
+              onClick={_ => AppendLog("Portal button clicked")}
+              style={new Style { (StyleKeys.MarginTop, 6f) }}
+            />
+          );
         } @else {
-          <Label text="Portal unmounted." />
+          return (
+            <Label text="Portal unmounted." />
+          );
         }
       </Portal>
     )

@@ -13,7 +13,7 @@ type Props = {
   language?: Language
 }
 
-export const CodeBlock: FC<Props> = ({ code, codeRuntime, codeEditor, language = 'tsx' }) => {
+export const CodeBlock: FC<Props> = ({ code, codeRuntime, codeEditor, language = 'jsx' }) => {
   const [copied, setCopied] = useState(false)
   const onCopy = useCallback(() => {
     const text = (codeRuntime ?? codeEditor ?? code ?? '').trim()

@@ -20,7 +20,7 @@ export const GroupBoxPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('GroupBoxProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('GroupBoxProps')} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -31,7 +31,7 @@ export const GroupBoxPage: FC = () => (
         Provide <code>Text</code> for the group title, a <code>Style</code> for layout, and add
         children that will appear inside the group.
       </Typography>
-      <CodeBlock language="tsx" code={GROUP_BOX_BASIC} />
+      <CodeBlock language="jsx" code={GROUP_BOX_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

@@ -1,17 +1,16 @@
 using System.Collections.Immutable;
-using System.Linq;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.Language.Lowering;
 
 /// <summary>
-/// Canonical lowering stage that normalizes function-style components into a
-/// renderable AST shape consumed by downstream validators and emitters.
+/// Canonical lowering stage that normalizes function-style components.
 ///
-/// Hoists setup code (the body before <c>return (...)</c>) as a synthetic
-/// <see cref="CodeBlockNode"/> prepended to the parsed markup roots.
-/// If there is no setup code the parsed roots are returned unchanged.
+/// Previously hoisted <c>FunctionSetupCode</c> into a synthetic
+/// <c>CodeBlockNode</c>. Now that setup code is emitted directly by the
+/// emitters from <see cref="DirectiveSet.FunctionSetupCode"/>, this pass
+/// simply returns the parsed roots unchanged.
 /// </summary>
 public static class CanonicalLowering
 {
@@ -21,43 +20,6 @@ public static class CanonicalLowering
         string filePath
     )
     {
-        if (string.IsNullOrWhiteSpace(directives.FunctionSetupCode))
-            return parsedRoots;
-
-        string setupCode = directives.FunctionSetupCode ?? string.Empty;
-        int setupLine = directives.FunctionSetupStartLine > 0
-            ? directives.FunctionSetupStartLine
-            : directives.ComponentDeclarationLine > 0
-                ? directives.ComponentDeclarationLine
-                : directives.MarkupStartLine;
-
-        var lowered = ImmutableArray.CreateBuilder<AstNode>(parsedRoots.Length + 1);
-        lowered.Add(ParseFunctionSetupAsCodeBlock(setupCode, setupLine, filePath));
-        lowered.AddRange(parsedRoots);
-        return lowered.ToImmutable();
-    }
-
-    private static CodeBlockNode ParseFunctionSetupAsCodeBlock(
-        string setupCode,
-        int setupLine,
-        string filePath
-    )
-    {
-        var leadingLines = setupLine > 1 ? new string('\n', setupLine - 1) : string.Empty;
-        string syntheticSource = leadingLines + "@code {" + setupCode + "\n}";
-
-        var parseDiags = new System.Collections.Generic.List<ParseDiagnostic>();
-        var directives = DirectiveParser.Parse(syntheticSource, filePath, parseDiags);
-        var nodes = UitkxParser.Parse(syntheticSource, filePath, directives, parseDiags);
-
-        var parsedCode = nodes.OfType<CodeBlockNode>().FirstOrDefault();
-        if (parsedCode is null)
-            return new CodeBlockNode(setupCode, setupLine, filePath);
-
-        return parsedCode with
-        {
-            SourceLine = setupLine,
-            SourceFile = filePath,
-        };
+        return parsedRoots;
     }
 }

@@ -34,20 +34,20 @@ component Counter(string label = "Count") {
 
 const CONTROL_FLOW_EXAMPLE = `<VisualElement>
   @if (isLoggedIn) {
-    <Label text="Welcome back!" />
+    return (<Label text="Welcome back!" />);
   } @else {
-    <Button text="Log in" onClick={_ => login()} />
+    return (<Button text="Log in" onClick={_ => login()} />);
   }
 
   @foreach (var item in items) {
-    <Label key={item.Id} text={item.Name} />
+    return (<Label key={item.Id} text={item.Name} />);
   }
 
   @switch (mode) {
     @case "dark":
-      <Label text="Dark mode" />
+      return (<Label text="Dark mode" />);
     @default:
-      <Label text="Light mode" />
+      return (<Label text="Light mode" />);
   }
 </VisualElement>`
 
@@ -56,7 +56,14 @@ const EXPRESSION_EXAMPLE = `<Label text={$"Count: {count}"} />
 <VisualElement>
   @(MyCustomComponent)
   {/* This is a JSX comment */}
-</VisualElement>`
+</VisualElement>
+
+// Switch expression inside @(...)
+@(status switch {
+    "ok"  => <Label text="All good" />,
+    "err" => <Label text="Something went wrong" />,
+    _     => <Label text="Unknown" />
+})`
 
 export const UitkxReferencePage: FC = () => (
   <Box sx={Styles.root}>
@@ -119,7 +126,7 @@ export const UitkxReferencePage: FC = () => (
         </TableBody>
       </Table>
     </TableContainer>
-    <CodeBlock language="tsx" code={DIRECTIVE_HEADER_EXAMPLE} />
+    <CodeBlock language="jsx" code={DIRECTIVE_HEADER_EXAMPLE} />
 
     {/* ── Function-Style Components ──────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
@@ -158,7 +165,7 @@ export const UitkxReferencePage: FC = () => (
         </TableBody>
       </Table>
     </TableContainer>
-    <CodeBlock language="tsx" code={FUNCTION_STYLE_EXAMPLE} />
+    <CodeBlock language="jsx" code={FUNCTION_STYLE_EXAMPLE} />
 
     {/* ── Markup Control Flow ────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
@@ -199,20 +206,11 @@ export const UitkxReferencePage: FC = () => (
             <TableCell><code>@switch (val) {'{ @case "a": ... @default: ... }'}</code></TableCell>
             <TableCell>Switch expression</TableCell>
           </TableRow>
-          <TableRow>
-            <TableCell><code>@break</code></TableCell>
-            <TableCell><code>@break;</code></TableCell>
-            <TableCell>Exit a <code>@for</code> or <code>@while</code> loop</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell><code>@continue</code></TableCell>
-            <TableCell><code>@continue;</code></TableCell>
-            <TableCell>Skip to the next iteration</TableCell>
-          </TableRow>
+
         </TableBody>
       </Table>
     </TableContainer>
-    <CodeBlock language="tsx" code={CONTROL_FLOW_EXAMPLE} />
+    <CodeBlock language="jsx" code={CONTROL_FLOW_EXAMPLE} />
 
     {/* ── Expressions & Values ───────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
@@ -248,10 +246,20 @@ export const UitkxReferencePage: FC = () => (
             <TableCell><code>{'{/* TODO */}'}</code></TableCell>
             <TableCell>JSX-style block comment</TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell><code>{'<>...</>'}</code></TableCell>
+            <TableCell><code>{'<>'}{'<Label /><Label />'}{'</>'}</code></TableCell>
+            <TableCell>Fragment — invisible wrapper for multiple elements without a parent node</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><code>{'@(expr switch { ... })'}</code></TableCell>
+            <TableCell><code>{'@(status switch { "ok" => <Label text="OK" />, _ => <Label text="?" /> })'}</code></TableCell>
+            <TableCell>C# switch expression inside inline expression — returns markup per branch</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
-    <CodeBlock language="tsx" code={EXPRESSION_EXAMPLE} />
+    <CodeBlock language="jsx" code={EXPRESSION_EXAMPLE} />
 
     {/* ── Rules & Gotchas ────────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
@@ -260,7 +268,7 @@ export const UitkxReferencePage: FC = () => (
     <Typography component="ul" variant="body2">
       <li><code>@namespace</code> must appear before <code>@component</code> in directive-header form.</li>
       <li>Hook calls must be unconditional at component top level — not inside <code>@if</code>, <code>@foreach</code>, etc.</li>
-      <li><code>@break</code> / <code>@continue</code> are only valid inside <code>@for</code> and <code>@while</code>.</li>
+      <li>Each control block body must wrap its markup in <code>return (...);</code>. Setup code (variable declarations, computations) goes before <code>return</code>.</li>
       <li>Direct children of <code>@foreach</code> need a <code>key</code> attribute for stable reconciliation.</li>
       <li>Components must have a single root element.</li>
       <li>Component names must match the filename (e.g. <code>MyButton.uitkx</code> defines <code>component MyButton</code>).</li>

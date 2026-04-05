@@ -18,13 +18,13 @@ export const LongFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('LongFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('LongFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={LONG_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={LONG_FIELD_BASIC} />
     </Box>
     <UnityDocsSection componentName="LongField" />
   </Box>

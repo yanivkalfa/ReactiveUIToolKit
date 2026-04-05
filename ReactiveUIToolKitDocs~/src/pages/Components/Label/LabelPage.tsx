@@ -19,13 +19,13 @@ export const LabelPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('LabelProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('LabelProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={LABEL_BASIC} />
+      <CodeBlock language="jsx" code={LABEL_BASIC} />
     </Box>
     <UnityDocsSection componentName="Label" />
   </Box>

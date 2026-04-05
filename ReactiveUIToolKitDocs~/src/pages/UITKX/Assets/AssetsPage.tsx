@@ -46,7 +46,7 @@ export const AssetsPage: FC = () => (
         <code>../</code>) relative to the <code>.uitkx</code> file's location and
         registers them in the asset registry automatically.
       </Typography>
-      <CodeBlock language="tsx" code={EXAMPLE_BASIC} />
+      <CodeBlock language="jsx" code={EXAMPLE_BASIC} />
     </Box>
 
     {/* ── Relative paths ───────────────────────────────────── */}
@@ -59,7 +59,7 @@ export const AssetsPage: FC = () => (
         relative to the <code>.uitkx</code> file. This keeps asset references
         co-located with components — move the folder and everything still works.
       </Typography>
-      <CodeBlock language="tsx" code={EXAMPLE_RELATIVE} />
+      <CodeBlock language="jsx" code={EXAMPLE_RELATIVE} />
     </Box>
 
     {/* ── Ast<T> shorthand ─────────────────────────────────── */}
@@ -71,7 +71,7 @@ export const AssetsPage: FC = () => (
         <code>Ast&lt;T&gt;()</code> is a shorter alias for <code>Asset&lt;T&gt;()</code>.
         They are identical — use whichever reads better in your code.
       </Typography>
-      <CodeBlock language="tsx" code={EXAMPLE_SHORTHAND} />
+      <CodeBlock language="jsx" code={EXAMPLE_SHORTHAND} />
     </Box>
 
     {/* ── Inline usage ─────────────────────────────────────── */}
@@ -83,7 +83,7 @@ export const AssetsPage: FC = () => (
         You can call <code>Asset&lt;T&gt;()</code> directly inside attribute
         expressions — no setup variable needed.
       </Typography>
-      <CodeBlock language="tsx" code={EXAMPLE_INLINE} />
+      <CodeBlock language="jsx" code={EXAMPLE_INLINE} />
     </Box>
 
     {/* ── @uss directive ───────────────────────────────────── */}
@@ -97,7 +97,7 @@ export const AssetsPage: FC = () => (
         and applied to the root element at render time. Relative paths work the same
         way as <code>Asset&lt;T&gt;()</code>.
       </Typography>
-      <CodeBlock language="tsx" code={EXAMPLE_USS} />
+      <CodeBlock language="jsx" code={EXAMPLE_USS} />
       <Typography variant="body2" paragraph sx={{ mt: 1, opacity: 0.7 }}>
         Multiple <code>@uss</code> directives are supported — each stylesheet is
         applied in order.
@@ -193,7 +193,7 @@ export const AssetsPage: FC = () => (
       <Typography variant="h6" component="h3" gutterBottom sx={{ mt: 2 }}>
         Examples
       </Typography>
-      <CodeBlock language="tsx" code={`Asset<Texture2D>("./missing.png")   // UITKX0022 — file does not exist\nAsset<AudioClip>("./bg.png")        // UITKX0023 — AudioClip vs .png`} />
+      <CodeBlock language="jsx" code={`Asset<Texture2D>("./missing.png")   // UITKX0022 — file does not exist\nAsset<AudioClip>("./bg.png")        // UITKX0023 — AudioClip vs .png`} />
     </Box>
 
     {/* ── Supported types ──────────────────────────────────── */}

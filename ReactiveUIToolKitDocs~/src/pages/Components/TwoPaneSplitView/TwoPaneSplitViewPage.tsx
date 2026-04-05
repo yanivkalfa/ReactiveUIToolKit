@@ -19,13 +19,13 @@ export const TwoPaneSplitViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('TwoPaneSplitViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('TwoPaneSplitViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TWO_PANE_SPLIT_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={TWO_PANE_SPLIT_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="TwoPaneSplitView" />
   </Box>

@@ -86,28 +86,59 @@ export const HmrPage: FC = () => (
 
     <Section title="State Preservation">
       <Typography variant="body1" paragraph>
-        HMR preserves all hook state across swaps:
+        HMR preserves all hook state across swaps. The table below details behaviour per hook:
       </Typography>
-      <List sx={Styles.list}>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useState</code> — current values retained.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useRef</code> — ref objects preserved.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useEffect</code> — cleanup runs, effect re-runs with new closure.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useMemo</code> / <code>useCallback</code> — recomputed with new function body.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useContext</code> — context values preserved.</>} />
-        </ListItem>
-      </List>
-      <Typography variant="body1" paragraph>
+      <TableContainer component={Paper} variant="outlined" sx={Styles.table}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell><strong>Hook</strong></TableCell>
+              <TableCell><strong>HMR Behaviour</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <TableRow>
+              <TableCell><code>useState</code></TableCell>
+              <TableCell>Current values retained across swaps.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useRef</code></TableCell>
+              <TableCell>Ref objects preserved; <code>.Current</code> unchanged.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useEffect</code></TableCell>
+              <TableCell>Cleanup runs, then the effect re-runs with the new closure.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useMemo</code> / <code>useCallback</code></TableCell>
+              <TableCell>Recomputed with the new function body. <code>useCallback</code> returns <code>{'Func<T>'}</code>, not <code>Action</code>.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useContext</code></TableCell>
+              <TableCell>Stateless — reads the current provider value without occupying a hook slot. Always reflects the latest value.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useImperativeHandle</code></TableCell>
+              <TableCell>Handle recreated by calling the new factory. Parent refs receive the updated handle.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useStableFunc</code> / <code>useStableAction</code> / <code>useStableCallback</code></TableCell>
+              <TableCell>Wrapper identity preserved; inner delegate silently replaced with the new closure.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useAnimate</code> / <code>useTweenFloat</code></TableCell>
+              <TableCell>Animation state resets and tracks are re-evaluated from the new definition.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useDeferredValue</code></TableCell>
+              <TableCell>Deferred value is recalculated from the new upstream value on the next render.</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <Typography variant="body1" paragraph sx={{ mt: 1 }}>
         If the number or order of hooks changes between edits, HMR detects the mismatch, resets
-        state for that component, and logs a warning.
+        state for that component, and logs a <code>[HMR] Hook mismatch</code> warning.
       </Typography>
     </Section>
 
