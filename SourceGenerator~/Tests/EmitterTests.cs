@@ -134,6 +134,72 @@ public class EmitterTests
     }
 
     [Fact]
+    public void ForeachDirective_WithSetupCode_GeneratesIIFE()
+    {
+        var src = Wrap("""
+            <box>
+                @foreach (var entry in log) {
+                    var a = "test";
+                    return (
+                        <label key={entry} text={entry} />
+                    );
+                }
+                <label text="after" />
+            </box>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced,
+            "Expected generated source.\n" + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+        Assert.True(result.SourceContains("var a = \"test\""),
+            "Expected setup code in output. Generated:\n" + (result.GeneratedSource ?? "<null>"));
+    }
+
+    [Fact]
+    public void ForeachDirective_WithSetupCode_InRealComponent_GeneratesValidCSharp()
+    {
+        // Mimics a real component: function-level hooks PLUS a foreach with setup code
+        var src = """
+            component TestComp {
+                var (count, setCount) = useState(0);
+                var (log, setLog) = useState(new System.Collections.Generic.List<string> { "Ready." });
+                return (
+                    <box>
+                        <label text={count.ToString()} />
+                        @foreach (var entry in log) {
+                            var prefix = "[LOG] ";
+                            return (
+                                <label key={entry} text={prefix + entry} />
+                            );
+                        }
+                        <label text="footer" />
+                    </box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src);
+
+        Assert.True(result.SourceWasProduced,
+            "Expected generated source but got diagnostics:\n"
+            + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+
+        // Verify structure — IIFE brace balance must be correct
+        Assert.True(result.SourceContains("var prefix = \"[LOG] \""),
+            "Expected foreach setup code in generated output.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+
+        // Verify the closing pattern matches EmitForNode/EmitWhileNode: ); } return __r.ToArray(); }))()
+        Assert.True(result.SourceContains("} return __r.ToArray(); }))()"),
+            "IIFE must have exactly 2 closing braces (foreach body + IIFE lambda).\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+        Assert.False(result.SourceContains("}} return __r.ToArray();"),
+            "Double '}}' in plain string = 4 braces (bug). Must use single '}' each.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
+
+        // Verify no false UITKX0014 (hook in loop)
+        Assert.False(result.HasDiagnostic("UITKX0014"),
+            "UITKX0014 should NOT fire — hooks are at component top level, not inside @foreach.\n"
+            + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
+    }
+
+    [Fact]
     public void ForDirective_WithLoopFlow_EmitsBreakAndContinueStatements()
     {
         var src = Wrap(

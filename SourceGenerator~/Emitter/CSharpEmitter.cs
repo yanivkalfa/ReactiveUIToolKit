@@ -1177,7 +1177,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 _sb.Append(foreachCode);
                 _sb.Append(" __r.Add(");
                 EmitBodyExpr(forn.Body);
-                _sb.Append("); }} return __r.ToArray(); }}))()");
+                _sb.Append("); } return __r.ToArray(); }))()");
             }
             else
             {

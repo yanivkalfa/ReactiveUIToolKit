@@ -84,6 +84,104 @@ public class DiagnosticTests
         );
     }
 
+    // ── Hooks in SetupCode (control-block body preamble) ─────────────────────
+
+    [Fact]
+    public void UITKX0013_HookInIfSetupCode()
+    {
+        var src = Wrap("""
+            @if (true) {
+                var s = Hooks.UseState(0);
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0013"),
+            "Expected UITKX0013 for hook in @if branch SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0014_HookInForeachSetupCode()
+    {
+        var src = Wrap("""
+            @foreach (var item in items) {
+                var s = Hooks.UseState(0);
+                return (
+                    <label key={item} text={item}/>
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0014"),
+            "Expected UITKX0014 for hook in @foreach SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0014_HookInForSetupCode()
+    {
+        var src = Wrap("""
+            @for (var i = 0; i < 10; i++) {
+                var s = Hooks.UseState(0);
+                return (
+                    <box key={i.ToString()}/>
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0014"),
+            "Expected UITKX0014 for hook in @for SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0014_HookInWhileSetupCode()
+    {
+        var src = Wrap("""
+            @while (true) {
+                var s = Hooks.UseState(0);
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0014"),
+            "Expected UITKX0014 for hook in @while SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0015_HookInSwitchCaseSetupCode()
+    {
+        var src = Wrap("""
+            @switch (mode) {
+                @case 0:
+                    var s = Hooks.UseState(42);
+                    return (
+                        <box />
+                    );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0015"),
+            "Expected UITKX0015 for hook in @switch case SetupCode"
+        );
+    }
+
     // ── Structural violations (UITKX0017–0019) ───────────────────────────────
 
     [Fact]
@@ -118,6 +216,63 @@ public class DiagnosticTests
         Assert.False(
             result.HasDiagnostic("UITKX0018"),
             "UITKX0018 should not fire when dependency array is provided"
+        );
+    }
+
+    [Fact]
+    public void UITKX0018_UseEffectMissingDepsInIfSetupCode()
+    {
+        var src = Wrap("""
+            @if (true) {
+                Hooks.UseEffect(() => { });
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0018"),
+            "Expected UITKX0018 for UseEffect missing deps in @if SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0018_UseEffectMissingDepsInForeachSetupCode()
+    {
+        var src = Wrap("""
+            @foreach (var item in items) {
+                Hooks.UseEffect(() => { });
+                return (
+                    <label key={item} text={item}/>
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.True(
+            result.HasDiagnostic("UITKX0018"),
+            "Expected UITKX0018 for UseEffect missing deps in @foreach SetupCode"
+        );
+    }
+
+    [Fact]
+    public void UITKX0018_UseEffectWithDepsInSetupCode_NotFired()
+    {
+        var src = Wrap("""
+            @if (true) {
+                Hooks.UseEffect(() => { }, new object[] { });
+                return (
+                    <box />
+                );
+            }
+            <box/>
+            """);
+        var result = GeneratorTestHelper.Run(src);
+        Assert.False(
+            result.HasDiagnostic("UITKX0018"),
+            "UITKX0018 should not fire when deps are provided in SetupCode"
         );
     }
 

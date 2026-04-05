@@ -2,7 +2,6 @@ import type { FC } from 'react'
 import {
   Alert,
   Box,
-  Chip,
   List,
   ListItem,
   ListItemText,

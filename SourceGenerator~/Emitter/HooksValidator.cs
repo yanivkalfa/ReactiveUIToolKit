@@ -55,16 +55,43 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             {
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
+                    {
+                        if (!string.IsNullOrWhiteSpace(branch.SetupCode))
+                            ScanCodeForHooks(branch.SetupCode, branch.SetupCodeLine,
+                                HookContext.Conditional, filePath, diagnostics);
                         WalkBody(branch.Body, HookContext.Conditional, filePath, diagnostics);
+                    }
                     break;
 
                 case ForeachNode forn:
+                    if (!string.IsNullOrWhiteSpace(forn.SetupCode))
+                        ScanCodeForHooks(forn.SetupCode, forn.SetupCodeLine,
+                            HookContext.Loop, filePath, diagnostics);
                     WalkBody(forn.Body, HookContext.Loop, filePath, diagnostics);
+                    break;
+
+                case ForNode forNode:
+                    if (!string.IsNullOrWhiteSpace(forNode.SetupCode))
+                        ScanCodeForHooks(forNode.SetupCode, forNode.SetupCodeLine,
+                            HookContext.Loop, filePath, diagnostics);
+                    WalkBody(forNode.Body, HookContext.Loop, filePath, diagnostics);
+                    break;
+
+                case WhileNode wn:
+                    if (!string.IsNullOrWhiteSpace(wn.SetupCode))
+                        ScanCodeForHooks(wn.SetupCode, wn.SetupCodeLine,
+                            HookContext.Loop, filePath, diagnostics);
+                    WalkBody(wn.Body, HookContext.Loop, filePath, diagnostics);
                     break;
 
                 case SwitchNode sw:
                     foreach (var c in sw.Cases)
+                    {
+                        if (!string.IsNullOrWhiteSpace(c.SetupCode))
+                            ScanCodeForHooks(c.SetupCode, c.SetupCodeLine,
+                                HookContext.Switch, filePath, diagnostics);
                         WalkBody(c.Body, HookContext.Switch, filePath, diagnostics);
+                    }
                     break;
 
                 case ElementNode el:
@@ -175,6 +202,52 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     )
                 );
                 break; // one diagnostic per attribute is enough
+            }
+        }
+
+        // ── Hook in SetupCode (control-block body preamble) ─────────────────
+
+        /// <summary>
+        /// Scans a control-block SetupCode string for hook calls.
+        /// Uses the same hook patterns as expression/attribute scanning, but reports
+        /// with approximate line numbers derived from the block's starting line.
+        /// </summary>
+        private static void ScanCodeForHooks(
+            string code,
+            int blockStartLine,
+            HookContext ctx,
+            string filePath,
+            IList<Diagnostic> diagnostics
+        )
+        {
+            foreach (var pattern in s_hookPatterns)
+            {
+                int idx = code.IndexOf(pattern, StringComparison.Ordinal);
+                if (idx < 0)
+                    continue;
+
+                string hookName = pattern.TrimEnd('(');
+
+                var descriptor = ctx switch
+                {
+                    HookContext.Conditional => UitkxDiagnostics.HookInConditional,
+                    HookContext.Loop => UitkxDiagnostics.HookInLoop,
+                    HookContext.Switch => UitkxDiagnostics.HookInSwitch,
+                    _ => null,
+                };
+
+                if (descriptor == null)
+                    continue;
+
+                // Approximate line by counting newlines before the match
+                int approxLine = blockStartLine;
+                for (int i = 0; i < idx && i < code.Length; i++)
+                    if (code[i] == '\n')
+                        approxLine++;
+
+                var loc = Location.Create(filePath, default, default);
+                diagnostics.Add(Diagnostic.Create(descriptor, loc, hookName, approxLine));
+                break; // one diagnostic per SetupCode block is enough
             }
         }
 

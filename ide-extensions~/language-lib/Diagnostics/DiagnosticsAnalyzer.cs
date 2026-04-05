@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -13,6 +14,10 @@ namespace ReactiveUITK.Language.Diagnostics
     ///
     /// Tier 2 checks:
     /// <list type="bullet">
+    ///   <item>UITKX0013 — Hook called inside <c>@if</c> / <c>@else</c> branch</item>
+    ///   <item>UITKX0014 — Hook called inside <c>@foreach</c> / <c>@for</c> / <c>@while</c> loop</item>
+    ///   <item>UITKX0015 — Hook called inside <c>@switch</c> case</item>
+    ///   <item>UITKX0016 — Hook called inside event-handler attribute</item>
     ///   <item>UITKX0103 — <c>component</c> name does not match filename</item>
     ///   <item>UITKX0104 — Duplicate literal <c>key="…"</c> among siblings</item>
     ///   <item>UITKX0105 — Unknown PascalCase element (when index available)</item>
@@ -94,7 +99,7 @@ namespace ReactiveUITK.Language.Diagnostics
             CheckSingleRenderRoot(parseResult.RootNodes, diags);
 
             // ── T2: AST walks ─────────────────────────────────────────────────
-            WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags);
+            WalkNodeList(parseResult.RootNodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, sourceText, diags);
 
             // ── T2: Function-style unreachable-after-return ───────────────────
             if (d.IsFunctionStyle)
@@ -234,7 +239,7 @@ namespace ReactiveUITK.Language.Diagnostics
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes)
         {
             var diags = new List<ParseDiagnostic>();
-            WalkNodeList(nodes, insideForeach: false, projectElements, knownAttributes, diags);
+            WalkNodeList(nodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, null, diags);
             return diags;
         }
 
@@ -242,11 +247,25 @@ namespace ReactiveUITK.Language.Diagnostics
         //  AST WALKER
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Hook-context tracking for Rules of Hooks validation (UITKX0013–0016).
+        /// Mirrors <c>HooksValidator.HookContext</c> in the SourceGenerator.
+        /// </summary>
+        private enum HookContext
+        {
+            TopLevel,
+            Conditional,
+            Loop,
+            Switch,
+        }
+
         private static void WalkNodeList(
             ImmutableArray<AstNode> nodes,
             bool insideForeach,
+            HookContext hookCtx,
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
+            string? sourceText,
             List<ParseDiagnostic> diags
         )
         {
@@ -256,7 +275,7 @@ namespace ReactiveUITK.Language.Diagnostics
             for (int idx = 0; idx < nodes.Length; idx++)
             {
                 var node = nodes[idx];
-                WalkNode(node, insideForeach, projectElements, knownAttributes, diags);
+                WalkNode(node, insideForeach, hookCtx, projectElements, knownAttributes, sourceText, diags);
             }
         }
 
@@ -321,8 +340,10 @@ namespace ReactiveUITK.Language.Diagnostics
         private static void WalkNode(
             AstNode node,
             bool insideForeach,
+            HookContext hookCtx,
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
+            string? sourceText,
             List<ParseDiagnostic> diags
         )
         {
@@ -330,32 +351,251 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 case ElementNode el:
                     CheckElement(el, insideForeach, projectElements, knownAttributes, diags);
-                    WalkNodeList(el.Children, insideForeach: false, projectElements, knownAttributes, diags);
+                    // Check attribute values for hook calls — always wrong, even at top-level
+                    CheckAttributeHooks(el, diags);
+                    WalkNodeList(el.Children, insideForeach: false, hookCtx, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
-                        WalkNodeList(branch.Body, insideForeach, projectElements, knownAttributes, diags);
+                    {
+                        if (!string.IsNullOrWhiteSpace(branch.SetupCode))
+                            ScanCodeForHooks(branch.SetupCode!, branch.SetupCodeOffset,
+                                HookContext.Conditional, sourceText, diags);
+                        WalkNodeList(branch.Body, insideForeach, HookContext.Conditional, projectElements, knownAttributes, sourceText, diags);
+                    }
                     break;
 
                 case ForeachNode fe:
-                    WalkNodeList(fe.Body, insideForeach: true, projectElements, knownAttributes, diags);
+                    if (!string.IsNullOrWhiteSpace(fe.SetupCode))
+                        ScanCodeForHooks(fe.SetupCode!, fe.SetupCodeOffset,
+                            HookContext.Loop, sourceText, diags);
+                    WalkNodeList(fe.Body, insideForeach: true, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case ForNode fn:
-                    WalkNodeList(fn.Body, insideForeach, projectElements, knownAttributes, diags);
+                    if (!string.IsNullOrWhiteSpace(fn.SetupCode))
+                        ScanCodeForHooks(fn.SetupCode!, fn.SetupCodeOffset,
+                            HookContext.Loop, sourceText, diags);
+                    WalkNodeList(fn.Body, insideForeach, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case WhileNode wh:
-                    WalkNodeList(wh.Body, insideForeach, projectElements, knownAttributes, diags);
+                    if (!string.IsNullOrWhiteSpace(wh.SetupCode))
+                        ScanCodeForHooks(wh.SetupCode!, wh.SetupCodeOffset,
+                            HookContext.Loop, sourceText, diags);
+                    WalkNodeList(wh.Body, insideForeach, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case SwitchNode sw:
                     foreach (var sc in sw.Cases)
-                        WalkNodeList(sc.Body, insideForeach, projectElements, knownAttributes, diags);
+                    {
+                        if (!string.IsNullOrWhiteSpace(sc.SetupCode))
+                            ScanCodeForHooks(sc.SetupCode!, sc.SetupCodeOffset,
+                                HookContext.Switch, sourceText, diags);
+                        WalkNodeList(sc.Body, insideForeach, HookContext.Switch, projectElements, knownAttributes, sourceText, diags);
+                    }
                     break;
 
-                // TextNode, ExpressionNode — nothing to check.
+                case ExpressionNode ex:
+                    if (hookCtx != HookContext.TopLevel)
+                        CheckExpressionForHooks(ex.Expression, ex.SourceLine, hookCtx, diags);
+                    break;
+
+                // TextNode — nothing to check.
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  RULES OF HOOKS (UITKX0013–0016)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Patterns that indicate a hook call.  Matches the SourceGenerator's
+        // HooksValidator.s_hookPatterns — qualified, bare, and camelCase forms.
+        private static readonly string[] s_hookPatterns =
+        {
+            "Hooks.UseState(",
+            "Hooks.UseEffect(",
+            "Hooks.UseRef(",
+            "Hooks.UseCallback(",
+            "Hooks.UseMemo(",
+            "Hooks.UseContext(",
+            "Hooks.UseReducer(",
+            "Hooks.UseSignal(",
+            "Hooks.UseDeferredValue(",
+            "Hooks.UseTransition(",
+            "UseState(",
+            "UseEffect(",
+            "UseRef(",
+            "UseCallback(",
+            "UseMemo(",
+            "UseContext(",
+            "UseReducer(",
+            "UseSignal(",
+            "UseDeferredValue(",
+            "UseTransition(",
+            "useState(",
+            "useEffect(",
+            "useRef(",
+            "useCallback(",
+            "useMemo(",
+            "useContext(",
+            "useReducer(",
+            "useSignal(",
+            "useDeferredValue(",
+            "useTransition(",
+        };
+
+        /// <summary>
+        /// Scans a control-block SetupCode string for hook calls (UITKX0013–0015).
+        /// Uses <paramref name="setupCodeOffset"/> + <paramref name="sourceText"/>
+        /// to compute exact source column positions for accurate squiggles.
+        /// </summary>
+        private static void ScanCodeForHooks(
+            string code,
+            int setupCodeOffset,
+            HookContext ctx,
+            string? sourceText,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var pattern in s_hookPatterns)
+            {
+                int idx = code.IndexOf(pattern, StringComparison.Ordinal);
+                if (idx < 0)
+                    continue;
+
+                string hookName = pattern.TrimEnd('(');
+
+                string? diagCode = ctx switch
+                {
+                    HookContext.Conditional => DiagnosticCodes.HookInConditional,
+                    HookContext.Loop        => DiagnosticCodes.HookInLoop,
+                    HookContext.Switch      => DiagnosticCodes.HookInSwitch,
+                    _                       => null,
+                };
+                if (diagCode == null) continue;
+
+                // Compute exact source position using absolute offset
+                int absOffset = setupCodeOffset + idx;
+                int line = 1;
+                int col = 0;
+
+                if (sourceText != null && absOffset <= sourceText.Length)
+                {
+                    // Count lines and find column from sourceText
+                    for (int i = 0; i < absOffset; i++)
+                    {
+                        if (sourceText[i] == '\n') { line++; col = 0; }
+                        else col++;
+                    }
+                }
+                else
+                {
+                    // Fallback: approximate from SetupCode string
+                    line = 1;
+                    for (int i = 0; i < idx && i < code.Length; i++)
+                        if (code[i] == '\n') line++;
+                    col = 0;
+                    for (int i = idx - 1; i >= 0; i--)
+                    {
+                        if (code[i] == '\n') break;
+                        col++;
+                    }
+                }
+
+                string context = ctx switch
+                {
+                    HookContext.Conditional => "a conditional (@if/@else) branch",
+                    HookContext.Loop        => "a loop (@foreach/@for/@while)",
+                    HookContext.Switch      => "a @switch case",
+                    _                       => "a control block",
+                };
+
+                diags.Add(MakeDiag(
+                    diagCode,
+                    ParseSeverity.Error,
+                    $"Hook '{hookName}' must not be called inside {context}. Hooks must be called unconditionally at the top level of the component.",
+                    line,
+                    col,
+                    col + hookName.Length
+                ));
+                break; // one diagnostic per SetupCode block is enough
+            }
+        }
+
+        /// <summary>
+        /// Checks an inline expression node for hook calls when inside a
+        /// control block (UITKX0013–0015).
+        /// </summary>
+        private static void CheckExpressionForHooks(
+            string code,
+            int sourceLine,
+            HookContext ctx,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var pattern in s_hookPatterns)
+            {
+                if (code.IndexOf(pattern, StringComparison.Ordinal) < 0)
+                    continue;
+
+                string hookName = pattern.TrimEnd('(');
+
+                string? diagCode = ctx switch
+                {
+                    HookContext.Conditional => DiagnosticCodes.HookInConditional,
+                    HookContext.Loop        => DiagnosticCodes.HookInLoop,
+                    HookContext.Switch      => DiagnosticCodes.HookInSwitch,
+                    _                       => null,
+                };
+                if (diagCode == null) continue;
+
+                string context = ctx switch
+                {
+                    HookContext.Conditional => "a conditional (@if/@else) branch",
+                    HookContext.Loop        => "a loop (@foreach/@for/@while)",
+                    HookContext.Switch      => "a @switch case",
+                    _                       => "a control block",
+                };
+
+                diags.Add(MakeDiag(
+                    diagCode,
+                    ParseSeverity.Error,
+                    $"Hook '{hookName}' must not be called inside {context}. Hooks must be called unconditionally at the top level of the component.",
+                    sourceLine
+                ));
+                break;
+            }
+        }
+
+        /// <summary>
+        /// Checks element attribute values for hook calls (UITKX0016).
+        /// Hook calls in onClick, text bindings, etc. are always wrong.
+        /// </summary>
+        private static void CheckAttributeHooks(
+            ElementNode el,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var attr in el.Attributes)
+            {
+                if (attr.Value is not CSharpExpressionValue attrExpr)
+                    continue;
+
+                foreach (var pattern in s_hookPatterns)
+                {
+                    if (attrExpr.Expression.IndexOf(pattern, StringComparison.Ordinal) < 0)
+                        continue;
+
+                    string hookName = pattern.TrimEnd('(');
+                    diags.Add(MakeDiag(
+                        DiagnosticCodes.HookInEventHandler,
+                        ParseSeverity.Error,
+                        $"Hook '{hookName}' must not be called inside an event handler or attribute expression. Hooks must be called from the component body, not from callbacks.",
+                        attr.SourceLine,
+                        attr.SourceColumn,
+                        attr.SourceColumn + attr.Name.Length
+                    ));
+                    break; // one diagnostic per attribute is enough
+                }
             }
         }
 
