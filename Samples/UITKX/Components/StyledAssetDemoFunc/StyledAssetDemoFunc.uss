@@ -1,4 +1,3 @@
-/* StyledAssetDemoFunc — sample USS stylesheet for @uss directive demo */
 
 .styled-card {
     padding: 12px;
