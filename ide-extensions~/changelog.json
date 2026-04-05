@@ -1,6 +1,18 @@
 {
   "entries": [
     {
+      "date": "2026-04-05",
+      "versions": {
+        "vscode": "1.0.304",
+        "vs2022": "1.0.81"
+      },
+      "shared": [
+        "Feature: @uss and Asset<T>(\"...\") path completion — filesystem-aware autocomplete inside quoted paths",
+        "Feature: @uss added to preamble autocomplete and uitkx-schema.json directive list",
+        "Feature: Rules of Hooks diagnostics (UITKX0013–0016) now reported in the IDE with accurate squiggle positions"
+      ]
+    },
+    {
       "date": "2026-04-04",
       "versions": {
         "vscode": "1.0.303",

@@ -220,6 +220,22 @@ public sealed class CompletionHandler : ICompletionHandler
             }
         }
 
+        // ── Asset / USS path completion — intercept before main dispatch ─────
+        // When cursor is inside a quoted string on an @uss line or inside an
+        // Asset<T>("...")/Ast<T>("...") call, offer filesystem path completions.
+        {
+            var pathItems = TryGetAssetPathItems(text, offset, localPath);
+            if (pathItems != null)
+            {
+                var pathList = pathItems.ToList();
+                if (pathList.Count > 0)
+                {
+                    Log($"completion: asset path items ({pathList.Count})");
+                    return new CompletionList(pathList);
+                }
+            }
+        }
+
         var items = ctx.Kind switch
         {
             CursorKind.DirectiveName when inFunctionStylePreamble => FunctionStylePreambleItems(
@@ -280,6 +296,12 @@ public sealed class CompletionHandler : ICompletionHandler
                 insert: "@using ${1:System.Collections.Generic}",
                 detail: "Imports a C# namespace into the generated component class.",
                 doc: "Adds a `using` directive to the generated file, e.g. `@using UnityEngine`."
+            ),
+            (
+                label: "@uss",
+                insert: "@uss \"${1:./styles.uss}\"",
+                detail: "Attaches a USS stylesheet to this component.",
+                doc: "Loads a USS stylesheet and attaches it to the component's root element before panel attachment.\n\nPath is relative to the `.uitkx` file:\n```\n@uss \"./PlayerCard.uss\"\n@uss \"../shared/buttons.uss\"\n```"
             ),
             (
                 label: "component",
@@ -1296,5 +1318,168 @@ public sealed class CompletionHandler : ICompletionHandler
             return false;
         return UnityVersion.TryParse(attr.RemovedIn, out var removedVersion)
             && userVersion >= removedVersion;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ASSET / USS PATH COMPLETION
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Extension-to-CompletionItemKind mapping for asset file completions.
+    /// </summary>
+    private static readonly Dictionary<string, CompletionItemKind> s_assetExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            { ".uss",  CompletionItemKind.File },
+            { ".png",  CompletionItemKind.File },
+            { ".jpg",  CompletionItemKind.File },
+            { ".jpeg", CompletionItemKind.File },
+            { ".svg",  CompletionItemKind.File },
+            { ".ttf",  CompletionItemKind.File },
+            { ".otf",  CompletionItemKind.File },
+            { ".wav",  CompletionItemKind.File },
+            { ".mp3",  CompletionItemKind.File },
+            { ".ogg",  CompletionItemKind.File },
+            { ".mat",  CompletionItemKind.File },
+            { ".asset", CompletionItemKind.File },
+            { ".renderTexture", CompletionItemKind.File },
+        };
+
+    /// <summary>
+    /// Detects whether the cursor is inside a quoted string in an <c>@uss "..."</c>
+    /// directive or <c>Asset&lt;T&gt;("...")</c> / <c>Ast&lt;T&gt;("...")</c> call,
+    /// and returns filesystem path completions if so.
+    /// Returns <c>null</c> when the cursor is not in a path context.
+    /// </summary>
+    private static List<CompletionItem>? TryGetAssetPathItems(
+        string text, int offset, string uitkxPath)
+    {
+        if (string.IsNullOrEmpty(uitkxPath))
+            return null;
+
+        // Find the start of the current line.
+        int lineStart = text.LastIndexOf('\n', Math.Max(0, offset - 1)) + 1;
+        string lineText = text.Substring(lineStart, offset - lineStart);
+
+        // Detect @uss "..." context  — cursor must be after the opening quote
+        // Detect Asset<T>("...") / Ast<T>("...") context
+        int quoteStart = -1;
+        string? extensionFilter = null;
+
+        // Pattern 1: @uss "<cursor>"
+        var ussMatch = System.Text.RegularExpressions.Regex.Match(
+            lineText, @"@uss\s+""([^""]*)$");
+        if (ussMatch.Success)
+        {
+            quoteStart = ussMatch.Groups[1].Index + lineStart;
+            extensionFilter = ".uss";
+        }
+
+        // Pattern 2: Asset<T>("...") or Ast<T>("...")
+        if (quoteStart < 0)
+        {
+            var assetMatch = System.Text.RegularExpressions.Regex.Match(
+                lineText, @"(?:Asset|Ast)\s*<\s*\w+\s*>\s*\(\s*""([^""]*)$");
+            if (assetMatch.Success)
+            {
+                quoteStart = assetMatch.Groups[1].Index + lineStart;
+                // No filter — could be any supported asset type
+            }
+        }
+
+        if (quoteStart < 0)
+            return null;
+
+        // Extract the partial path typed so far (between opening quote and cursor)
+        string partialPath = text.Substring(quoteStart, offset - quoteStart);
+
+        // Resolve the directory to search
+        string uitkxDir = Path.GetDirectoryName(uitkxPath) ?? "";
+        if (string.IsNullOrEmpty(uitkxDir))
+            return null;
+
+        // Split partial path into directory prefix and filename prefix
+        // e.g. "./styles/ma" → dir="./styles", prefix="ma"
+        string searchDir;
+        string filePrefix;
+        int lastSlash = partialPath.LastIndexOfAny(new[] { '/', '\\' });
+        if (lastSlash >= 0)
+        {
+            string relDir = partialPath.Substring(0, lastSlash);
+            filePrefix = partialPath.Substring(lastSlash + 1);
+            searchDir = Path.GetFullPath(Path.Combine(uitkxDir, relDir));
+        }
+        else
+        {
+            filePrefix = partialPath;
+            searchDir = uitkxDir;
+        }
+
+        if (!Directory.Exists(searchDir))
+            return null;
+
+        var items = new List<CompletionItem>();
+
+        // Add subdirectories as folder completions
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories(searchDir))
+            {
+                string dirName = Path.GetFileName(dir);
+                if (dirName.StartsWith(".") || dirName.EndsWith("~"))
+                    continue; // skip hidden/Unity-ignored folders
+                if (!string.IsNullOrEmpty(filePrefix) &&
+                    !dirName.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                items.Add(new CompletionItem
+                {
+                    Label = dirName + "/",
+                    Kind = CompletionItemKind.Folder,
+                    InsertText = dirName + "/",
+                    Detail = "Directory",
+                    Command = new Command
+                    {
+                        Name = "editor.action.triggerSuggest",
+                        Title = "Re-trigger completions",
+                    },
+                });
+            }
+        }
+        catch { /* permission errors */ }
+
+        // Add matching files
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(searchDir))
+            {
+                string fileName = Path.GetFileName(file);
+                string ext = Path.GetExtension(file);
+
+                // Filter by extension when in @uss context
+                if (extensionFilter != null &&
+                    !string.Equals(ext, extensionFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // For Asset<T> context, only show known asset types
+                if (extensionFilter == null && !s_assetExtensions.ContainsKey(ext))
+                    continue;
+
+                if (!string.IsNullOrEmpty(filePrefix) &&
+                    !fileName.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                items.Add(new CompletionItem
+                {
+                    Label = fileName,
+                    Kind = CompletionItemKind.File,
+                    InsertText = fileName,
+                    Detail = ext.TrimStart('.').ToUpperInvariant() + " file",
+                });
+            }
+        }
+        catch { /* permission errors */ }
+
+        return items;
     }
 }
