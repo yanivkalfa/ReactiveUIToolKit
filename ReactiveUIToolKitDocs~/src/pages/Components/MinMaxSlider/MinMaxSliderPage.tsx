@@ -19,13 +19,13 @@ export const MinMaxSliderPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('MinMaxSliderProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('MinMaxSliderProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={MIN_MAX_SLIDER_BASIC} />
+      <CodeBlock language="jsx" code={MIN_MAX_SLIDER_BASIC} />
     </Box>
     <UnityDocsSection componentName="MinMaxSlider" />
   </Box>

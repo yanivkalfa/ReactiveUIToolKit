@@ -143,6 +143,24 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>ref ambiguous — multiple Ref&lt;T&gt; params</TableCell>
             <TableCell>Use an explicit prop name (e.g. <code>inputRef={'{x}'}</code>) instead of <code>ref</code>.</TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0022" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Asset file not found</TableCell>
+            <TableCell>Check the asset path — it must be relative to the <code>.uitkx</code> file or an absolute project path.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0023" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Asset type mismatch</TableCell>
+            <TableCell>The asset at the given path is a different type than the requested <code>Asset&lt;T&gt;</code>. Verify the generic type parameter.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0024" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Control block body missing <code>return</code></TableCell>
+            <TableCell>Each control block body (<code>@if</code>, <code>@for</code>, <code>@foreach</code>, <code>@while</code>, <code>@switch</code>) must contain a <code>return (...);</code> statement wrapping its markup.</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
@@ -226,6 +244,30 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Unused component parameter</TableCell>
             <TableCell>Remove the unused parameter or use it in the component body.</TableCell>
           </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0112" size="small" color="info" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Hint" size="small" color="info" /></TableCell>
+            <TableCell>Unused variable in setup code</TableCell>
+            <TableCell>Remove the unused variable or use it in the component.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0120" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Asset path not found (language server)</TableCell>
+            <TableCell>Fix the asset path in <code>Asset&lt;T&gt;("path")</code> — the language server validates paths in real time.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0121" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Asset type validation (language server)</TableCell>
+            <TableCell>The asset type does not match the <code>Asset&lt;T&gt;</code> generic parameter.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX0200" size="small" color="warning" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell>Attribute requires newer Unity version</TableCell>
+            <TableCell>The attribute is only available in a newer Unity version, or was removed in the current version.</TableCell>
+          </TableRow>
         </TableBody>
       </Table>
     </TableContainer>
@@ -282,13 +324,72 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell><Chip label="UITKX0305" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
             <TableCell>Unknown markup directive</TableCell>
-            <TableCell>Valid directives: <code>@if</code>, <code>@else</code>, <code>@for</code>, <code>@foreach</code>, <code>@while</code>, <code>@switch</code>, <code>@case</code>, <code>@default</code>, <code>@break</code>, <code>@continue</code>, <code>@code</code>.</TableCell>
+            <TableCell>Valid directives: <code>@if</code>, <code>@else</code>, <code>@for</code>, <code>@foreach</code>, <code>@while</code>, <code>@switch</code>, <code>@case</code>, <code>@default</code>.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0306" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>@(expr) in setup code</TableCell>
-            <TableCell>Inline expressions <code>@(...)</code> are only valid inside markup, not in <code>@code</code> blocks.</TableCell>
+            <TableCell>Inline expressions <code>@(...)</code> are only valid inside markup, not in setup code.</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </TableContainer>
+
+    {/* ── Function-Style Component Diagnostics (UITKX2100–2106) ─────────── */}
+    <Typography variant="h5" component="h2" sx={Styles.section}>
+      Function-Style Component Diagnostics
+    </Typography>
+    <Typography variant="body2" paragraph>
+      Emitted by the language server when validating function-style component
+      declarations.
+    </Typography>
+    <TableContainer>
+      <Table size="small" sx={Styles.table}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Code</TableCell>
+            <TableCell>Severity</TableCell>
+            <TableCell>Message</TableCell>
+            <TableCell>How to fix</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow>
+            <TableCell><Chip label="UITKX2100" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Non-PascalCase component name</TableCell>
+            <TableCell>Component names must start with an uppercase letter (e.g. <code>MyButton</code>, not <code>myButton</code>).</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2101" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Missing return statement</TableCell>
+            <TableCell>Function-style components must end with <code>return (...);</code> containing markup.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2102" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Malformed return statement</TableCell>
+            <TableCell>The <code>return</code> must be followed by <code>(...)</code> containing UITKX markup.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2104" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Mixed directive and function-style syntax</TableCell>
+            <TableCell>Use either directive headers (<code>@namespace</code> / <code>@component</code>) or function-style (<code>component Name {'{ }'}</code>), not both.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2105" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Invalid function-style declaration</TableCell>
+            <TableCell>Ensure the <code>component</code> keyword is followed by a valid name and optional parameter list.</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><Chip label="UITKX2106" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
+            <TableCell>Missing parameter name</TableCell>
+            <TableCell>Each parameter in the component signature must have a name: <code>component Name(string text)</code>.</TableCell>
           </TableRow>
         </TableBody>
       </Table>

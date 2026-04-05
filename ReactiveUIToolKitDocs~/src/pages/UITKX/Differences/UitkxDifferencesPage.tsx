@@ -31,8 +31,11 @@ export const UitkxDifferencesPage: FC = () => (
         <ListItem disablePadding>
           <ListItemText primary={<>You can also use the optional extension helpers <code>StateSetterExtensions.Set(value)</code> / <code>{'StateSetterExtensions.Set(prev => next)'}</code> for a fluent style.</>} />
         </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>{'StateSetterExtensions.ToValueAction<T>()'}</code> converts a setter into an <code>{'Action<T>'}</code>, useful for binding directly to <code>onChange</code> events (e.g. <code>{'onChange={setName.ToValueAction()}'}</code>).</>} />
+        </ListItem>
       </List>
-      <CodeBlock language="tsx" code={UITKX_STATE_COUNTER_EXAMPLE} />
+      <CodeBlock language="jsx" code={UITKX_STATE_COUNTER_EXAMPLE} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -55,6 +58,19 @@ export const UitkxDifferencesPage: FC = () => (
           <ListItemText primary="Interop with Unity controls, styles, and events is a first-class constraint, so some APIs deliberately differ from browser React conventions." />
         </ListItem>
       </List>
+    </Box>
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        UseCallback returns Func&lt;T&gt;
+      </Typography>
+      <Typography variant="body1" paragraph>
+        React's <code>useCallback</code> returns the same function type you pass in.
+        In ReactiveUIToolKit, <code>{'UseCallback<T>'}</code> always returns{' '}
+        <code>{'Func<T>'}</code> — a parameterless delegate that returns <code>T</code>.
+        If you need a stable <code>Action</code> or <code>{'Action<T>'}</code>, use{' '}
+        <code>UseStableCallback</code>, <code>{'UseStableAction<T>'}</code>, or{' '}
+        <code>{'UseStableFunc<T>'}</code> instead.
+      </Typography>
     </Box>
   </Box>
 )

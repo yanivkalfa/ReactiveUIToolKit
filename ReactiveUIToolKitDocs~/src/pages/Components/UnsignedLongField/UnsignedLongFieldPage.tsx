@@ -19,13 +19,13 @@ export const UnsignedLongFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('UnsignedLongFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('UnsignedLongFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={UNSIGNED_LONG_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={UNSIGNED_LONG_FIELD_BASIC} />
     </Box>
     <UnityDocsSection componentName="UnsignedLongField" />
   </Box>

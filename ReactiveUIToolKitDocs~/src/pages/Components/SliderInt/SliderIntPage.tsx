@@ -18,13 +18,13 @@ export const SliderIntPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('SliderIntProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('SliderIntProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={SLIDER_INT_BASIC} />
+      <CodeBlock language="jsx" code={SLIDER_INT_BASIC} />
     </Box>
     <UnityDocsSection componentName="SliderInt" />
   </Box>

@@ -26,6 +26,11 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 - **`JustifySpaceEvenly`** — added missing `Justify.SpaceEvenly` shortcut
 - **`WhiteSpace.Pre`/`PreWrap`** — added `WsPre` and `WsPreWrap` shortcuts
 
+### Docs
+- **Documentation audit complete** — all 67 identified gaps now addressed: expanded guides for hooks, context, events, refs, keys, HMR, styling, advanced API, known issues, and more
+- **CodeBlock syntax highlighting** — fixed non-functional C# highlighting in docs site by switching all code blocks to JSX (prism-react-renderer compatible)
+- **`onChange` event documented** — added `ChangeEventHandler<T>` / `ChangeEvent<T>` to the Events page reference table
+
 ## [0.2.45] - 2026-03-29
 
 ### Added

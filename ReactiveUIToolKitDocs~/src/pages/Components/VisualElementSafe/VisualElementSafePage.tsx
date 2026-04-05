@@ -25,14 +25,14 @@ export const VisualElementSafePage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Signature
       </Typography>
-      <CodeBlock language="tsx" code={VISUAL_ELEMENT_SAFE_SIGNATURE} />
+      <CodeBlock language="jsx" code={VISUAL_ELEMENT_SAFE_SIGNATURE} />
     </Box>
 
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Safe-area aware container
       </Typography>
-      <CodeBlock language="tsx" code={VISUAL_ELEMENT_SAFE} />
+      <CodeBlock language="jsx" code={VISUAL_ELEMENT_SAFE} />
     </Box>
   </Box>
 )

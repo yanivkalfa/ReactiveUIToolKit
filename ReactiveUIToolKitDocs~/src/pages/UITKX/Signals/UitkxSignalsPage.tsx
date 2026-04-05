@@ -27,7 +27,7 @@ export const UitkxSignalsPage: FC = () => (
           <ListItemText primary={<>Signals live in a global registry keyed by <code>string</code>.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Call <code>{'Signals.Get<T>(key, initialValue)'}</code> to create or return a <code>{'Signal<T>'}</code> instance.</>} />
+          <ListItemText primary={<>Call <code>{'SignalFactory.Get<T>(key, initialValue)'}</code> to create or return a <code>{'Signal<T>'}</code> instance.</>} />
         </ListItem>
         <ListItem disablePadding>
           <ListItemText primary={<>Call <code>signal.Subscribe(...)</code> to watch changes outside of components; use <code>useSignal(...)</code> inside components.</>} />
@@ -47,7 +47,7 @@ export const UitkxSignalsPage: FC = () => (
         <code>SignalsRuntime.EnsureInitialized()</code> at startup if you use signals before any
         component mounts.
       </Typography>
-      <CodeBlock language="tsx" code={UITKX_SIGNALS_RUNTIME_EXAMPLE} />
+      <CodeBlock language="jsx" code={UITKX_SIGNALS_RUNTIME_EXAMPLE} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -71,7 +71,18 @@ export const UitkxSignalsPage: FC = () => (
           <ListItemText primary={<><code>{'useSignal<T, TSlice>(signal, selector, comparer)'}</code> — project a slice with custom equality.</>} />
         </ListItem>
       </List>
-      <CodeBlock language="tsx" code={UITKX_SIGNALS_COMPONENT_EXAMPLE} />
+      <CodeBlock language="jsx" code={UITKX_SIGNALS_COMPONENT_EXAMPLE} />
+    </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Thread safety
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>{'Signal<T>'}</code> uses lock-based synchronization internally — signals can be
+        safely read, written, and subscribed to from any thread. This makes them suitable for
+        background tasks or async workflows that update shared UI state.
+      </Typography>
     </Box>
   </Box>
 )

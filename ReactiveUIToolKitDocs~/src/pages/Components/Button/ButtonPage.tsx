@@ -20,7 +20,7 @@ export const ButtonPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ButtonProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ButtonProps')} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -32,7 +32,7 @@ export const ButtonPage: FC = () => (
         in <code>ButtonProps</code>. Combine with <code>Hooks.UseState</code> to build controlled
         buttons.
       </Typography>
-      <CodeBlock language="tsx" code={BUTTON_BASIC} />
+      <CodeBlock language="jsx" code={BUTTON_BASIC} />
     </Box>
     <UnityDocsSection componentName="Button" />
   </Box>

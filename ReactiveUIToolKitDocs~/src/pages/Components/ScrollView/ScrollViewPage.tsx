@@ -19,13 +19,13 @@ export const ScrollViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ScrollViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ScrollViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={SCROLL_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={SCROLL_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="ScrollView" />
   </Box>

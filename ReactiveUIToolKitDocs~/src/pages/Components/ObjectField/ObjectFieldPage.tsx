@@ -19,13 +19,13 @@ export const ObjectFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ObjectFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ObjectFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage (Editor)
       </Typography>
-      <CodeBlock language="tsx" code={OBJECT_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={OBJECT_FIELD_BASIC} />
     </Box>
     <UnityDocsSection componentName="ObjectField" />
   </Box>

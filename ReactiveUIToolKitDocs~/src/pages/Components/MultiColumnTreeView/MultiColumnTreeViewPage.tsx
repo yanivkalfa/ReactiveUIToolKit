@@ -20,7 +20,7 @@ export const MultiColumnTreeViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('MultiColumnTreeViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('MultiColumnTreeViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
@@ -42,7 +42,7 @@ export const MultiColumnTreeViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={MULTI_COLUMN_TREE_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={MULTI_COLUMN_TREE_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="MultiColumnTreeView" />
   </Box>

@@ -18,13 +18,13 @@ export const TogglePage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ToggleProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ToggleProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TOGGLE_BASIC} />
+      <CodeBlock language="jsx" code={TOGGLE_BASIC} />
     </Box>
     <UnityDocsSection componentName="Toggle" />
   </Box>

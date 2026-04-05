@@ -20,13 +20,13 @@ export const ToolbarPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ToolbarProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ToolbarProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage (Editor)
       </Typography>
-      <CodeBlock language="tsx" code={TOOLBAR_BASIC} />
+      <CodeBlock language="jsx" code={TOOLBAR_BASIC} />
     </Box>
     <UnityDocsSection componentName="Toolbar" />
   </Box>
