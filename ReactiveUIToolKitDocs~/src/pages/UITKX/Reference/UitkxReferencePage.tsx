@@ -55,7 +55,8 @@ const EXPRESSION_EXAMPLE = `<Label text={$"Count: {count}"} />
 <Button onClick={_ => setCount(count + 1)} />
 <VisualElement>
   @(MyCustomComponent)
-  {/* This is a JSX comment */}
+  // This is a line comment
+  /* This is a block comment */
 </VisualElement>
 
 // Switch expression inside @(...)
@@ -242,9 +243,14 @@ export const UitkxReferencePage: FC = () => (
             <TableCell>Plain string attribute</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>{'{/* comment */}'}</code></TableCell>
-            <TableCell><code>{'{/* TODO */}'}</code></TableCell>
-            <TableCell>JSX-style block comment</TableCell>
+            <TableCell><code>// comment</code></TableCell>
+            <TableCell><code>// TODO</code></TableCell>
+            <TableCell>Line comment (to end of line)</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><code>/* comment */</code></TableCell>
+            <TableCell><code>/* TODO */</code></TableCell>
+            <TableCell>Block comment (multi-line)</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>{'<>...</>'}</code></TableCell>
