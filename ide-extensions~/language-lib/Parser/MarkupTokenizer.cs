@@ -285,23 +285,42 @@ namespace ReactiveUITK.Language.Parser
         }
 
         /// <summary>
-        /// Tries to skip a JSX-style comment <c>{/* ... */}</c> and returns
-        /// the comment body in <paramref name="content"/>.
-        /// Returns <c>true</c> if a JSX comment was found and consumed.
-        /// Handles multi-line content and unclosed comments (consumed to EOF).
+        /// Tries to skip a line comment <c>// ...</c> in markup.
+        /// Returns <c>true</c> if a line comment was found and consumed (up to EOL).
         /// </summary>
-        public bool TrySkipJsxComment(out string content)
+        public bool TrySkipLineComment(out string content)
         {
             content = string.Empty;
-            if (!IsAt("{/*"))
+            if (!IsAt("//"))
                 return false;
-            TryConsume("{/*");
+            TryConsume("//");
+            var sb = new System.Text.StringBuilder();
+            while (!IsEof && Current != '\n' && Current != '\r')
+            {
+                sb.Append(Current);
+                Advance();
+            }
+            content = sb.ToString();
+            return true;
+        }
+
+        /// <summary>
+        /// Tries to skip a block comment <c>/* ... */</c> in markup.
+        /// Returns <c>true</c> if a block comment was found and consumed.
+        /// Handles multi-line content and unclosed comments (consumed to EOF).
+        /// </summary>
+        public bool TrySkipBlockComment(out string content)
+        {
+            content = string.Empty;
+            if (!IsAt("/*"))
+                return false;
+            TryConsume("/*");
             var sb = new System.Text.StringBuilder();
             while (!IsEof)
             {
-                if (IsAt("*/}"))
+                if (IsAt("*/"))
                 {
-                    TryConsume("*/}");
+                    TryConsume("*/");
                     content = sb.ToString();
                     return true;
                 }

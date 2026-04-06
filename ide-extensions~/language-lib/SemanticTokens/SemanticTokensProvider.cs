@@ -223,8 +223,8 @@ namespace ReactiveUITK.Language.SemanticTokens
                     EmitKeyword(tokens, source, lineStarts, ex.SourceLine, "@(");
                     break;
 
-                case JsxCommentNode jc:
-                    EmitJsxCommentTokens(jc, source, lineStarts, tokens);
+                case CommentNode jc:
+                    EmitCommentTokens(jc, source, lineStarts, tokens);
                     break;
 
                 case TextNode _:
@@ -567,22 +567,50 @@ namespace ReactiveUITK.Language.SemanticTokens
 
         // ── @code body scanner ────────────────────────────────────────────────
 
-        private static void EmitJsxCommentTokens(
-            JsxCommentNode jc,
+        private static void EmitCommentTokens(
+            CommentNode jc,
             string source,
             int[] lineStarts,
             List<SemanticTokenData> tokens
         )
         {
-            int col = FindOnLine(source, lineStarts, jc.SourceLine, "{/*");
+            // Determine the marker to search for in source based on comment kind
+            string marker = jc.IsBlock ? "/*" : "//";
+            int col = FindOnLine(source, lineStarts, jc.SourceLine, marker);
             if (col < 0)
                 return;
 
             int startOffset = lineStarts[jc.SourceLine - 1] + col;
-            int closeAt = source.IndexOf("*/}", startOffset, StringComparison.Ordinal);
+
+            if (!jc.IsBlock)
+            {
+                // Line comment — single token to end of line
+                int lineEnd = jc.SourceLine < lineStarts.Length
+                    ? lineStarts[jc.SourceLine]
+                    : source.Length;
+                // Trim trailing newline chars
+                while (lineEnd > startOffset && (source[lineEnd - 1] == '\r' || source[lineEnd - 1] == '\n'))
+                    lineEnd--;
+                int len = lineEnd - startOffset;
+                if (len > 0)
+                {
+                    EmitToken(
+                        tokens,
+                        jc.SourceLine - 1,
+                        col,
+                        len,
+                        SemanticTokenTypes.Comment,
+                        s_noMods
+                    );
+                }
+                return;
+            }
+
+            // Block comment — find closing */
+            int closeAt = source.IndexOf("*/", startOffset + 2, StringComparison.Ordinal);
             if (closeAt < 0)
             {
-                int fallbackLen = "{/*".Length + jc.Content.Length + "*/}".Length;
+                int fallbackLen = "/*".Length + jc.Content.Length + "*/".Length;
                 EmitToken(
                     tokens,
                     jc.SourceLine - 1,
@@ -594,7 +622,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                 return;
             }
 
-            int endExclusive = closeAt + 3;
+            int endExclusive = closeAt + 2;
             int startLineIdx = Array.BinarySearch(lineStarts, startOffset);
             if (startLineIdx < 0)
                 startLineIdx = (~startLineIdx) - 1;

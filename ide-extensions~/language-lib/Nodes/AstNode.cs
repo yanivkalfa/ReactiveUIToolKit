@@ -54,10 +54,10 @@ namespace ReactiveUITK.Language.Nodes
     }
 
     /// <summary>
-    /// A JSX-style comment <c>{/* ... */}</c> in markup.
+    /// A comment in markup: <c>// line comment</c> or <c>/* block comment */</c>.
     /// Not emitted to C#; preserved by the formatter.
     /// </summary>
-    public sealed record JsxCommentNode(string Content, int SourceLine, string SourceFile)
+    public sealed record CommentNode(string Content, int SourceLine, string SourceFile, bool IsBlock = false)
         : AstNode(SourceLine, SourceFile);
 
     // ── Attribute value discriminated-union ──────────────────────────────────

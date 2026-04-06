@@ -322,9 +322,19 @@ namespace ReactiveUITK.Language.Formatter
                     Ln($"@({en.Expression})");
                     break;
 
-                case JsxCommentNode jc:
-                    Ln($"{{/* {jc.Content.Trim()} */}}");
+                case CommentNode jc:
+                {
+                    string trimmed = jc.Content.Trim();
+                    if (jc.IsBlock || trimmed.Contains('\n'))
+                    {
+                        Ln($"/* {trimmed} */");
+                    }
+                    else
+                    {
+                        Ln($"// {trimmed}");
+                    }
                     break;
+                }
             }
         }
 
@@ -1789,7 +1799,7 @@ namespace ReactiveUITK.Language.Formatter
                             {
                                 MarkupStartIndex = 0,
                                 MarkupEndIndex = jsxText.Length,
-                                MarkupStartLine = 0,
+                                MarkupStartLine = 1,
                             };
                             var synthNodes = UitkxParser.Parse(
                                 jsxText, _filePath, synthDirectives, synthDiags);
@@ -1991,7 +2001,13 @@ namespace ReactiveUITK.Language.Formatter
                         int jsxEnd = FindJsxElementEnd(code, peek, code.Length);
                         if (jsxEnd > peek)
                         {
+                            // Insert '(' then '\n' so the normalised text reads
+                            // "return (\n<Tag..." matching the canonical form.
+                            // Without the '\n', the first format pass produces
+                            // "return (<Tag..." requiring a second pass to
+                            // break the line — an idempotency bug.
                             insertions.Add((peek, '('));
+                            insertions.Add((peek, '\n'));
                             insertions.Add((jsxEnd, ')'));
                             i = jsxEnd;
                             continue;
@@ -2143,88 +2159,6 @@ namespace ReactiveUITK.Language.Formatter
         /// nested children.  Skips over string literals and <c>{expr}</c> blocks.
         /// </summary>
         private static int FindJsxElementEnd(string text, int start, int limit)
-        {
-            if (start >= limit || text[start] != '<')
-                return start;
-
-            int depth = 0;
-            int i = start;
-
-            while (i < limit)
-            {
-                char ch = text[i];
-
-                if (ch == '"')
-                {
-                    i++;
-                    while (i < limit && text[i] != '"')
-                        i++;
-                    if (i < limit)
-                        i++;
-                    continue;
-                }
-
-                if (ch == '{')
-                {
-                    i++;
-                    int braceDepth = 1;
-                    while (i < limit && braceDepth > 0)
-                    {
-                        if (text[i] == '{')
-                            braceDepth++;
-                        else if (text[i] == '}')
-                            braceDepth--;
-                        else if (text[i] == '"')
-                        {
-                            i++;
-                            while (i < limit && text[i] != '"')
-                            {
-                                if (text[i] == '\\')
-                                    i++;
-                                i++;
-                            }
-                        }
-                        if (braceDepth > 0)
-                            i++;
-                    }
-                    if (i < limit)
-                        i++;
-                    continue;
-                }
-
-                if (ch == '/' && i + 1 < limit && text[i + 1] == '>')
-                {
-                    depth--;
-                    i += 2;
-                    if (depth <= 0)
-                        return i;
-                    continue;
-                }
-
-                if (ch == '<' && i + 1 < limit && text[i + 1] == '/')
-                {
-                    depth--;
-                    i += 2;
-                    while (i < limit && text[i] != '>')
-                        i++;
-                    if (i < limit)
-                        i++;
-                    if (depth <= 0)
-                        return i;
-                    continue;
-                }
-
-                if (ch == '<' && i + 1 < limit && char.IsLetter(text[i + 1]))
-                {
-                    depth++;
-                    i++;
-                    continue;
-                }
-
-                i++;
-            }
-
-            return i;
-        }
+            => ReturnFinder.FindJsxElementEnd(text, start, limit);
     }
 }

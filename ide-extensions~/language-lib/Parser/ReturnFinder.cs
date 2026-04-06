@@ -84,6 +84,35 @@ namespace ReactiveUITK.Language.Parser
                             }
                         }
 
+                        // ── Bare JSX: return <Tag .../>;  or  return <Tag>...</Tag>; ──
+                        // Treat as if the user wrote return (<JSX>);  by synthesising
+                        // paren positions that the caller can use unchanged.
+                        if (j < endExclusive && source[j] == '<'
+                            && j + 1 < endExclusive && char.IsLetter(source[j + 1]))
+                        {
+                            int jsxEnd = FindJsxElementEnd(source, j, endExclusive);
+                            if (jsxEnd > j)
+                            {
+                                int k = jsxEnd;
+                                SkipWhitespace(source, ref k);
+                                if (k < endExclusive && source[k] == ';')
+                                {
+                                    // Synthesise paren positions so callers
+                                    // parse [openParen+1 .. closeParen) = [jsxStart .. jsxEnd).
+                                    returnStart = candidateStart;
+                                    openParen = j - 1;      // openParen + 1 == jsxStart
+                                    closeParen = jsxEnd;     // exclusive stop for markup
+                                    stmtEndExclusive = k + 1;
+
+                                    if (!useLastReturn)
+                                        return true;
+
+                                    i = stmtEndExclusive;
+                                    continue;
+                                }
+                            }
+                        }
+
                         if (!useLastReturn)
                             return false;
                     }
@@ -315,6 +344,90 @@ namespace ReactiveUITK.Language.Parser
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Starting from an opening <c>&lt;</c> at <paramref name="start"/>,
+        /// walks a JSX element (handling nested tags, <c>{expr}</c> blocks, and
+        /// strings) and returns the exclusive position past the element's closing
+        /// delimiter (<c>/&gt;</c> or <c>&lt;/Tag&gt;</c>).
+        /// Returns <paramref name="start"/> unchanged if the position is not a valid
+        /// JSX element opening.
+        /// </summary>
+        internal static int FindJsxElementEnd(string text, int start, int limit)
+        {
+            if (start >= limit || text[start] != '<')
+                return start;
+
+            int depth = 0;
+            int idx = start;
+
+            while (idx < limit)
+            {
+                char ch = text[idx];
+
+                if (ch == '"')
+                {
+                    idx++;
+                    while (idx < limit && text[idx] != '"')
+                        idx++;
+                    if (idx < limit) idx++;
+                    continue;
+                }
+
+                if (ch == '{')
+                {
+                    idx++;
+                    int braceDepth = 1;
+                    while (idx < limit && braceDepth > 0)
+                    {
+                        if      (text[idx] == '{') braceDepth++;
+                        else if (text[idx] == '}') braceDepth--;
+                        else if (text[idx] == '"')
+                        {
+                            idx++;
+                            while (idx < limit && text[idx] != '"')
+                            {
+                                if (text[idx] == '\\') idx++;
+                                idx++;
+                            }
+                        }
+                        if (braceDepth > 0) idx++;
+                    }
+                    if (idx < limit) idx++;
+                    continue;
+                }
+
+                if (ch == '/' && idx + 1 < limit && text[idx + 1] == '>')
+                {
+                    depth--;
+                    idx += 2;
+                    if (depth <= 0) return idx;
+                    continue;
+                }
+
+                if (ch == '<' && idx + 1 < limit && text[idx + 1] == '/')
+                {
+                    depth--;
+                    idx += 2;
+                    while (idx < limit && text[idx] != '>')
+                        idx++;
+                    if (idx < limit) idx++;
+                    if (depth <= 0) return idx;
+                    continue;
+                }
+
+                if (ch == '<' && idx + 1 < limit && char.IsLetter(text[idx + 1]))
+                {
+                    depth++;
+                    idx++;
+                    continue;
+                }
+
+                idx++;
+            }
+
+            return idx;
         }
     }
 }

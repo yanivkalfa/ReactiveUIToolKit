@@ -484,13 +484,13 @@ public sealed class FormatterSnapshotTests
     }
 
     [Fact]
-    public void JSX_Comment_EmitsWithSpacesAroundContent()
+    public void Comment_EmitsWithSpacesAroundContent()
     {
         var source = N(
             """
             component Foo {
               return (
-                {/* some note */}
+                // some note
                 <Box />
               );
             }
@@ -499,7 +499,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("{/* some note */}", result);
+        Assert.Contains("// some note", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -3074,8 +3074,10 @@ public sealed class FormatterSnapshotTests
                   @switch (mode) {
                     @case "normal":
                       return (
-                      <Label text="Normal mode" />
-                      <Button text="Click" onClick={_ => doIt()} />
+                      <VisualElement>
+                        <Label text="Normal mode" />
+                        <Button text="Click" onClick={_ => doIt()} />
+                      </VisualElement>
                       );
                     @default:
                       return (<Label text="Other" />);
@@ -3089,9 +3091,10 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("\n        @case \"normal\":", result);
-        // Both children of the case at same indent level (one deeper than @case)
-        Assert.Contains("\n            <Label text=\"Normal mode\" />", result);
-        Assert.Contains("\n            <Button text=\"Click\"", result);
+        // Children wrapped in a container
+        Assert.Contains("\n            <VisualElement>", result);
+        Assert.Contains("\n              <Label text=\"Normal mode\" />", result);
+        Assert.Contains("\n              <Button text=\"Click\"", result);
         Assert.Contains("\n        @default:", result);
         Assert.Equal(result, Format(result));
     }
@@ -3930,8 +3933,10 @@ public sealed class FormatterSnapshotTests
                   @switch (mode) {
                     @case "normal":
                       return (
-                      <Label text="Normal" />
-                      <Button text="-5" onClick={_ => setCount(count - 5)} />
+                      <VisualElement>
+                        <Label text="Normal" />
+                        <Button text="-5" onClick={_ => setCount(count - 5)} />
+                      </VisualElement>
                       );
                     @default:
                       return (<Label text={$"Mode: {mode}"} />);
@@ -4016,8 +4021,9 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(first, second);
         // Spot checks:
         Assert.Contains("\n        @case \"normal\":", first);
-        Assert.Contains("\n            <Label text=\"Normal\" />", first);
-        Assert.Contains("\n            <Button text=\"-5\"", first);
+        Assert.Contains("\n            <VisualElement>", first);
+        Assert.Contains("\n              <Label text=\"Normal\" />", first);
+        Assert.Contains("\n              <Button text=\"-5\"", first);
         Assert.Contains("} @else if (count < 0) {", first);
         Assert.Contains("} @else {", first);
         Assert.Contains("\n          @for (int i = 0;", first);
@@ -5331,20 +5337,20 @@ public sealed class FormatterSnapshotTests
     }
 
     [Fact]
-    public void I17_JSX_Comment_ExtraSpaces_Normalised()
+    public void I17_Comment_ExtraSpaces_Normalised()
     {
         var source = N(
             """
             component Foo {
               return (
-                {/* extra spaces */}
+                // extra spaces
                 <Box />
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("{/* extra spaces */}", result);
+        Assert.Contains("// extra spaces", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -8819,9 +8825,11 @@ component Comp {
             "  return (<Box></Box>);"
         );
         Assert.NotEqual(source, modified);
+        // Multi-return: formatter uses last return. Verify no corruption.
         var result = Format(modified);
-        Assert.NotEqual(modified, result);
         Assert.Contains("<Button", result);
+        Assert.Contains("<Route path=\"/jsxDemo\"", result);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -9075,6 +9083,289 @@ component Comp {
         Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Regression: full test file — blank line insert + format idempotency
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void RealFile_BlankLineBeforeReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert a blank line right before the main "return ("
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        // Route should never become Router
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_ManyBlankLinesBeforeReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert many blank lines right before the main "return ("
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n\n\n\n\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        // Format and check the output is not corrupted
+        var formatted = Format(modified);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", formatted);
+        Assert.Contains("<Route path=\"/jsxDemo\"", formatted);
+
+        // Check that a second format is idempotent
+        var formatted2 = Format(formatted);
+        Assert.Equal(formatted, formatted2);
+    }
+
+    private static void CollectTags(
+        System.Collections.Immutable.ImmutableArray<ReactiveUITK.Language.Nodes.AstNode> nodes,
+        System.Collections.Generic.List<string> tags
+    )
+    {
+        foreach (var node in nodes)
+        {
+            if (node is ReactiveUITK.Language.Nodes.ElementNode el)
+            {
+                tags.Add(el.TagName);
+                CollectTags(el.Children, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.IfNode ifn)
+            {
+                foreach (var br in ifn.Branches)
+                    CollectTags(br.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.ForeachNode fe)
+            {
+                CollectTags(fe.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.SwitchNode sw)
+            {
+                foreach (var c in sw.Cases)
+                    CollectTags(c.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.ForNode fn)
+            {
+                CollectTags(fn.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.WhileNode wh)
+            {
+                CollectTags(wh.Body, tags);
+            }
+        }
+    }
+
+    [Fact]
+    public void RealFile_BlankLinesInsideReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert blank lines between return ( and <ScrollView
+        var modified = source.Replace(
+            "  return (\n    <ScrollView",
+            "  return (\n\n\n\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_CRLF_BlankLinesBeforeReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        // Read with CRLF line endings
+        var source = File.ReadAllText(file).Replace("\r\n", "\n").Replace("\n", "\r\n");
+
+        // Insert blank CRLF lines before the main return
+        var modified = source.Replace(
+            "\r\n  return (\r\n    <ScrollView",
+            "\r\n\r\n\r\n\r\n  return (\r\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_CRLF_Parse_NoDiagnosticErrors()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        // Read the raw file (CRLF on Windows)
+        var source = File.ReadAllText(file);
+        var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(source, file, diags);
+        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(source, file, directives, diags);
+        var errors = diags
+            .Where(d => d.Severity == ReactiveUITK.Language.ParseSeverity.Error)
+            .ToList();
+        Assert.True(
+            errors.Count == 0,
+            $"Parse errors with CRLF:\n{string.Join("\n", errors.Select(e => $"  {e.Code} L{e.SourceLine}: {e.Message}"))}"
+        );
+    }
+
+    [Fact]
+    public void RealFile_AddVarAboveReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert a dummy var assignment before the main return
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n  var dummy = (\n    <Label text=\"test\" />\n  );\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_AddFragmentVarAboveReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert a fragment var assignment before the main return (user's exact pattern)
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n  var something = (\n    <>\n  );\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_AddRemoveVarThenFormat_ThreeRounds_Idempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Round 1: add var + format
+        var round1Input = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n  var something = (\n    <Label text=\"test\" />\n  );\n\n  return (\n    <ScrollView"
+        );
+        var round1 = FormatWithRoslyn(round1Input);
+
+        // Round 2: remove the var (simulating user deleting it) + format
+        var round2Input = round1.Replace(
+            "  var something = (\n    <Label text=\"test\" />\n  );\n\n",
+            ""
+        );
+        var round2 = FormatWithRoslyn(round2Input);
+
+        // Round 3: format again — must be stable
+        var round3 = FormatWithRoslyn(round2);
+        Assert.Equal(round2, round3);
+        Assert.Contains("<Route path=\"/jsxDemo\"", round2);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", round2);
+    }
+
     private static System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic> RunAnalyzer(
         string source,
         string filePath
@@ -9100,5 +9391,530 @@ component Comp {
         var analyzer = new ReactiveUITK.Language.Diagnostics.DiagnosticsAnalyzer();
         var t2 = analyzer.Analyze(parseResult, filePath);
         return t2.ToList();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  DEBUG: Blank-line-count sweep — reproduce corruption
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    public void RealFile_BlankLineSweep_NoCorruption(int extraBlanks)
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // User's exact reproduction: add blank lines between the ternary and return (
+        var blanks = new string('\n', extraBlanks);
+        var modified = source.Replace(
+            "// var blaaaa = new VirtualNode[] { first, second };\n\n  return (",
+            "// var blaaaa = new VirtualNode[] { first, second };\n" + blanks + "\n  return ("
+        );
+        Assert.NotEqual(source, modified);
+
+        // ── Test 1: Formatter output is correct ──
+        var formatted = Format(modified);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", formatted);
+        Assert.DoesNotContain("</string,>", formatted);
+        Assert.Contains("<Route path=\"/jsxDemo\"", formatted);
+
+        var formattedRoslyn = FormatWithRoslyn(modified);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", formattedRoslyn);
+        Assert.DoesNotContain("</string,>", formattedRoslyn);
+        Assert.Contains("<Route path=\"/jsxDemo\"", formattedRoslyn);
+
+        // ── Test 2: Simulate LSP per-line edit path ──
+        // Use CRLF input (like the editor sends)
+        var crlfInput = modified.Replace("\n", "\r\n");
+        var fmtOutput = N(new AstFormatter(FormatterOptions.Default).Format(crlfInput));
+
+        // Simulate the LSP FormattingHandler edit computation
+        var normalizedInput = crlfInput.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLines = normalizedInput.Split('\n');
+        var fmtLines = fmtOutput.Split('\n');
+
+        // Compute edits (same logic as FormattingHandler)
+        var edits =
+            new List<(int startLine, int startCol, int endLine, int endCol, string newText)>();
+        int minLen = System.Math.Min(origLines.Length, fmtLines.Length);
+        bool linesRemoved = origLines.Length > fmtLines.Length;
+
+        for (int i = 0; i < minLen; i++)
+        {
+            if (origLines[i] != fmtLines[i])
+            {
+                if (origLines[i].TrimEnd().Length == 0 && fmtLines[i].TrimEnd().Length == 0)
+                    continue;
+
+                bool isLastCommonLine = linesRemoved && i == minLen - 1;
+                int endLine = isLastCommonLine ? origLines.Length - 1 : i;
+                int endCol = isLastCommonLine
+                    ? origLines[origLines.Length - 1].Length
+                    : origLines[i].Length;
+
+                edits.Add((i, 0, endLine, endCol, fmtLines[i]));
+
+                if (isLastCommonLine)
+                    linesRemoved = false;
+            }
+        }
+
+        if (fmtLines.Length > origLines.Length)
+        {
+            var extraLines = new string[fmtLines.Length - origLines.Length];
+            System.Array.Copy(fmtLines, origLines.Length, extraLines, 0, extraLines.Length);
+            edits.Add(
+                (
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    "\n" + string.Join("\n", extraLines)
+                )
+            );
+        }
+        else if (linesRemoved)
+        {
+            int lastFmt = fmtLines.Length - 1;
+            int lastOrig = origLines.Length - 1;
+            edits.Add(
+                (lastFmt, origLines[lastFmt].Length, lastOrig, origLines[lastOrig].Length, "")
+            );
+        }
+
+        // Apply edits to the CRLF input (simulating VS Code)
+        // VS Code applies edits using CRLF positions but we computed with LF.
+        // Apply to the LF-normalized text and check result.
+        var applied = ApplyEditsToText(normalizedInput, edits);
+
+        // The applied result should match the formatted output
+        var hasRouterBug = applied.Contains("<Router path=\"/jsxDemo\"");
+        var hasStringBug = applied.Contains("</string,>");
+
+        if (hasRouterBug || hasStringBug || applied != fmtOutput)
+        {
+            // Find first difference
+            int diffIdx = -1;
+            for (int i = 0; i < System.Math.Min(applied.Length, fmtOutput.Length); i++)
+            {
+                if (applied[i] != fmtOutput[i])
+                {
+                    diffIdx = i;
+                    break;
+                }
+            }
+            if (diffIdx < 0 && applied.Length != fmtOutput.Length)
+                diffIdx = System.Math.Min(applied.Length, fmtOutput.Length);
+
+            var msg =
+                $"LSP EDIT CORRUPTION with {extraBlanks} extra blank(s):\n"
+                + $"  RouterBug={hasRouterBug} StringBug={hasStringBug}\n"
+                + $"  origLines={origLines.Length} fmtLines={fmtLines.Length} edits={edits.Count}\n"
+                + $"  applied.Length={applied.Length} expected.Length={fmtOutput.Length}\n";
+
+            if (diffIdx >= 0)
+            {
+                int ctx = 80;
+                int s = System.Math.Max(0, diffIdx - ctx);
+                int e1 = System.Math.Min(applied.Length, diffIdx + ctx);
+                int e2 = System.Math.Min(fmtOutput.Length, diffIdx + ctx);
+                msg +=
+                    $"  First diff at char {diffIdx}:\n"
+                    + $"  Applied:  ...{applied.Substring(s, e1 - s).Replace("\n", "\\n")}...\n"
+                    + $"  Expected: ...{fmtOutput.Substring(s, e2 - s).Replace("\n", "\\n")}...\n";
+            }
+            Assert.Fail(msg);
+        }
+    }
+
+    /// <summary>
+    /// Apply LSP-style text edits to a document. Edits reference positions in
+    /// the original document and are applied in reverse order.
+    /// Line/col positions map to the text's actual line structure.
+    /// </summary>
+    private static string ApplyEditsToText(
+        string text,
+        List<(int startLine, int startCol, int endLine, int endCol, string newText)> edits
+    )
+    {
+        // Convert line/col positions to absolute offsets in the text
+        var lineStarts = new List<int> { 0 };
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+                lineStarts.Add(i + 1);
+        }
+
+        // Sort edits in reverse order (bottom to top) as VS Code does
+        var sorted = edits
+            .OrderByDescending(e => e.startLine)
+            .ThenByDescending(e => e.startCol)
+            .ToList();
+
+        var sb = new System.Text.StringBuilder(text);
+        foreach (var (sl, sc, el, ec, nt) in sorted)
+        {
+            int startOffset = lineStarts[sl] + sc;
+            int endOffset = lineStarts[el] + ec;
+            sb.Remove(startOffset, endOffset - startOffset);
+            sb.Insert(startOffset, nt);
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Compute per-line edits exactly as FormattingHandler does.
+    /// </summary>
+    private static List<(
+        int startLine,
+        int startCol,
+        int endLine,
+        int endCol,
+        string newText
+    )> ComputePerLineEdits(string[] origLines, string[] fmtLines)
+    {
+        var edits = new List<(int, int, int, int, string)>();
+        int minLen = System.Math.Min(origLines.Length, fmtLines.Length);
+        bool linesRemoved = origLines.Length > fmtLines.Length;
+
+        for (int i = 0; i < minLen; i++)
+        {
+            if (origLines[i] != fmtLines[i])
+            {
+                if (origLines[i].TrimEnd().Length == 0 && fmtLines[i].TrimEnd().Length == 0)
+                    continue;
+
+                bool isLastCommonLine = linesRemoved && i == minLen - 1;
+                int endLine = isLastCommonLine ? origLines.Length - 1 : i;
+                int endCol = isLastCommonLine
+                    ? origLines[origLines.Length - 1].Length
+                    : origLines[i].Length;
+
+                edits.Add((i, 0, endLine, endCol, fmtLines[i]));
+
+                if (isLastCommonLine)
+                    linesRemoved = false;
+            }
+        }
+
+        if (fmtLines.Length > origLines.Length)
+        {
+            var extraLines = new string[fmtLines.Length - origLines.Length];
+            System.Array.Copy(fmtLines, origLines.Length, extraLines, 0, extraLines.Length);
+            edits.Add(
+                (
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    "\n" + string.Join("\n", extraLines)
+                )
+            );
+        }
+        else if (linesRemoved)
+        {
+            int lastFmt = fmtLines.Length - 1;
+            int lastOrig = origLines.Length - 1;
+            edits.Add(
+                (lastFmt, origLines[lastFmt].Length, lastOrig, origLines[lastOrig].Length, "")
+            );
+        }
+
+        return edits;
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(12)]
+    public void RealFile_BlankLineSweep_CRLFEdits_NoCorruption(int extraBlanks)
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var sourceLF = N(File.ReadAllText(file));
+
+        // Add extra blank lines (LF)
+        var blanks = new string('\n', extraBlanks);
+        var modifiedLF = sourceLF.Replace(
+            "// var blaaaa = new VirtualNode[] { first, second };\n\n  return (",
+            "// var blaaaa = new VirtualNode[] { first, second };\n" + blanks + "\n  return ("
+        );
+        Assert.NotEqual(sourceLF, modifiedLF);
+
+        // Create CRLF version (what VS Code actually has)
+        var modifiedCRLF = modifiedLF.Replace("\n", "\r\n");
+
+        // ── Check: base file must be idempotent first ──
+        var baseFormatted = FormatWithRoslyn(sourceLF);
+        Assert.Equal(sourceLF, baseFormatted);
+
+        // Format with Roslyn (like the LSP does)
+        var formatted = FormatWithRoslyn(modifiedCRLF);
+
+        // Compute edits from LF-normalized text (like FormattingHandler)
+        var normalizedInput = modifiedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLines = normalizedInput.Split('\n');
+        var fmtLines = formatted.Split('\n');
+        var edits = ComputePerLineEdits(origLines, fmtLines);
+
+        // ─── Apply to LF text (sanity check) ────
+        var appliedLF = ApplyEditsToText(normalizedInput, edits);
+        Assert.Equal(formatted, appliedLF);
+
+        // ─── Apply to CRLF text (the REAL scenario) ────
+        var appliedCRLF = ApplyEditsToText(modifiedCRLF, edits);
+
+        // Check for corruption in the CRLF-applied result
+        var hasRouterBug = appliedCRLF.Contains("<Router path=\"/jsxDemo\"");
+        var hasStringBug = appliedCRLF.Contains("</string,>");
+
+        // Also verify the CRLF result matches expected (formatted + CRLF endings)
+        // After applying LF-based edits to CRLF text, unchanged lines keep \r\n
+        // but edited lines get LF-only content. Normalize to LF for comparison.
+        var appliedNormalized = appliedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        if (hasRouterBug || hasStringBug || appliedNormalized != formatted)
+        {
+            int diffIdx = -1;
+            for (int i = 0; i < System.Math.Min(appliedNormalized.Length, formatted.Length); i++)
+            {
+                if (appliedNormalized[i] != formatted[i])
+                {
+                    diffIdx = i;
+                    break;
+                }
+            }
+            if (diffIdx < 0 && appliedNormalized.Length != formatted.Length)
+                diffIdx = System.Math.Min(appliedNormalized.Length, formatted.Length);
+
+            var msg =
+                $"CRLF EDIT CORRUPTION with {extraBlanks} blanks:\n"
+                + $"  RouterBug={hasRouterBug} StringBug={hasStringBug}\n"
+                + $"  origLines={origLines.Length} fmtLines={fmtLines.Length} edits={edits.Count}\n"
+                + $"  appliedLen={appliedNormalized.Length} expectedLen={formatted.Length}\n";
+            if (diffIdx >= 0)
+            {
+                int s = System.Math.Max(0, diffIdx - 80);
+                int e1 = System.Math.Min(appliedNormalized.Length, diffIdx + 80);
+                int e2 = System.Math.Min(formatted.Length, diffIdx + 80);
+                msg +=
+                    $"  First diff at char {diffIdx}:\n"
+                    + $"  Applied:  ...{appliedNormalized.Substring(s, e1 - s).Replace("\n", "\\n").Replace("\r", "\\r")}...\n"
+                    + $"  Expected: ...{formatted.Substring(s, e2 - s).Replace("\n", "\\n").Replace("\r", "\\r")}...\n";
+            }
+            Assert.Fail(msg);
+        }
+    }
+
+    /// <summary>
+    /// Test that the formatted output of the file with NO changes is byte-for-byte
+    /// identical (idempotent). If this fails, the per-line diff will always produce
+    /// edits which could interact badly with the blank-line shift.
+    /// </summary>
+    [Fact]
+    public void RealFile_IdempotencyCheck_WithRoslyn()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var sourceLF = N(File.ReadAllText(file));
+        var formatted = FormatWithRoslyn(sourceLF);
+
+        if (formatted != sourceLF)
+        {
+            // Find first difference
+            int diffIdx = -1;
+            for (int i = 0; i < System.Math.Min(formatted.Length, sourceLF.Length); i++)
+            {
+                if (formatted[i] != sourceLF[i])
+                {
+                    diffIdx = i;
+                    break;
+                }
+            }
+            if (diffIdx < 0)
+                diffIdx = System.Math.Min(formatted.Length, sourceLF.Length);
+
+            // Find line number
+            int lineNum = 0;
+            for (int i = 0; i < diffIdx && i < sourceLF.Length; i++)
+                if (sourceLF[i] == '\n')
+                    lineNum++;
+
+            int s = System.Math.Max(0, diffIdx - 120);
+            int e1 = System.Math.Min(formatted.Length, diffIdx + 120);
+            int e2 = System.Math.Min(sourceLF.Length, diffIdx + 120);
+            Assert.Fail(
+                $"File is NOT idempotent with Roslyn! First diff at char {diffIdx} (line ~{lineNum}):\n"
+                    + $"  formatted.Length={formatted.Length} source.Length={sourceLF.Length}\n"
+                    + $"  Formatted: ...{formatted.Substring(s, e1 - s).Replace("\n", "\\n")}...\n"
+                    + $"  Source:    ...{sourceLF.Substring(s, e2 - s).Replace("\n", "\\n")}...\n"
+            );
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Block diff algorithm tests (Ruff/Prettier-style single edit)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Compute a minimal block diff: scan forward for the first differing line,
+    /// scan backward for the last, emit a single edit. Mirrors FormattingHandler.
+    /// </summary>
+    private static (
+        int startLine,
+        int startCol,
+        int endLine,
+        int endCol,
+        string newText
+    )? ComputeBlockDiffEdit(string[] origLines, string[] fmtLines)
+    {
+        int minLen = System.Math.Min(origLines.Length, fmtLines.Length);
+
+        // Scan forward: first differing line
+        int firstDiff = 0;
+        while (firstDiff < minLen && origLines[firstDiff] == fmtLines[firstDiff])
+            firstDiff++;
+
+        // Scan backward: last differing line
+        int origEnd = origLines.Length - 1;
+        int fmtEnd = fmtLines.Length - 1;
+        while (origEnd > firstDiff && fmtEnd > firstDiff && origLines[origEnd] == fmtLines[fmtEnd])
+        {
+            origEnd--;
+            fmtEnd--;
+        }
+
+        if (firstDiff > origEnd && firstDiff > fmtEnd)
+            return null;
+
+        var newText = string.Join("\n", fmtLines, firstDiff, fmtEnd - firstDiff + 1);
+        return (firstDiff, 0, origEnd, origLines[origEnd].Length, newText);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    public void RealFile_BlockDiff_NoCorruption(int extraBlanks)
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        var blanks = new string('\n', extraBlanks);
+        var modified = source.Replace(
+            "// var blaaaa = new VirtualNode[] { first, second };\n\n  return (",
+            "// var blaaaa = new VirtualNode[] { first, second };\n" + blanks + "\n  return ("
+        );
+        Assert.NotEqual(source, modified);
+
+        var formatted = FormatWithRoslyn(modified);
+
+        // ── LF path ──
+        var origLines = modified.Split('\n');
+        var fmtLines = formatted.Split('\n');
+        var blockEdit = ComputeBlockDiffEdit(origLines, fmtLines);
+
+        if (formatted == modified)
+        {
+            Assert.Null(blockEdit);
+            return;
+        }
+        Assert.NotNull(blockEdit);
+
+        var edits = new List<(int startLine, int startCol, int endLine, int endCol, string newText)>
+        {
+            blockEdit.Value,
+        };
+        var applied = ApplyEditsToText(modified, edits);
+        Assert.Equal(formatted, applied);
+
+        // ── CRLF path (what VS Code actually has) ──
+        var modifiedCRLF = modified.Replace("\n", "\r\n");
+        var normalizedCRLF = modifiedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLinesCRLF = normalizedCRLF.Split('\n');
+        var fmtLinesCRLF = formatted.Split('\n');
+        var blockEditCRLF = ComputeBlockDiffEdit(origLinesCRLF, fmtLinesCRLF);
+        Assert.NotNull(blockEditCRLF);
+
+        var editsCRLF = new List<(
+            int startLine,
+            int startCol,
+            int endLine,
+            int endCol,
+            string newText
+        )>
+        {
+            blockEditCRLF.Value,
+        };
+
+        // Apply to CRLF text
+        var appliedCRLF = ApplyEditsToText(modifiedCRLF, editsCRLF);
+        var appliedCRLFNormalized = appliedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+        Assert.Equal(formatted, appliedCRLFNormalized);
+
+        // Verify no corruption patterns
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", applied);
+        Assert.DoesNotContain("</string,>", applied);
+        Assert.Contains("<Route path=\"/jsxDemo\"", applied);
     }
 }

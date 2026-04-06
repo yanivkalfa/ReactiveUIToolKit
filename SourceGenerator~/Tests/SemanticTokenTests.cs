@@ -144,16 +144,16 @@ public sealed class SemanticTokenTests
     // ── Comment test ───────────────────────────────────────────────────────
 
     [Fact]
-    public void JsxComment_IsComment()
+    public void LineComment_IsComment()
     {
-        var source = "component C {\n  return (\n    <Box>\n      {/* hello */}\n    </Box>\n  );\n}";
+        var source = "component C {\n  return (\n    <Box>\n      // hello\n    </Box>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(tokens.Any(t => t.TokenType == SemanticTokenTypes.Comment),
-            "Expected a comment token for {/* */}");
+            "Expected a comment token for //");
     }
 
     [Fact]
-    public void JsxComment_SetterInsideComment_IsSuppressed()
+    public void LineComment_SetterInsideComment_IsSuppressed()
     {
         // function-style component with useState and a commented-out setter call
         var source =
@@ -161,7 +161,7 @@ public sealed class SemanticTokenTests
             "  var (count, setCount) = useState(0);\n" +
             "  return (\n" +
             "    <Box>\n" +
-            "      {/* <Button onClick={_ => setCount(count + 1)} /> */}\n" +
+            "      // <Button onClick={_ => setCount(count + 1)} />\n" +
             "    </Box>\n" +
             "  );\n" +
             "}";
@@ -171,21 +171,21 @@ public sealed class SemanticTokenTests
         Assert.Empty(line4Fn);
         // But the comment token itself must exist on that line
         Assert.True(tokens.Any(t => t.Line == 4 && t.TokenType == SemanticTokenTypes.Comment),
-            "Expected a comment token on the JSX comment line");
+            "Expected a comment token on the comment line");
     }
 
     [Fact]
-    public void JsxComment_MultiLine_SettersSuppressed()
+    public void BlockComment_MultiLine_SettersSuppressed()
     {
         var source =
             "component Counter {\n" +
             "  var (count, setCount) = useState(0);\n" +
             "  return (\n" +
             "    <Box>\n" +
-            "      {/* multi-line comment\n" +
+            "      /* multi-line comment\n" +
             "        setCount(count + 1)\n" +
             "        setCount(count - 1)\n" +
-            "      */}\n" +
+            "      */\n" +
             "    </Box>\n" +
             "  );\n" +
             "}";
@@ -203,7 +203,7 @@ public sealed class SemanticTokenTests
     [Fact]
     public void CStyleComment_SettersSuppressed()
     {
-        // In code context, {/* */} is a C# block + comment — no JsxCommentNode
+        // In code context, /* */ is a C# block comment — no CommentNode (setup code, not markup)
         var source =
             "component Counter {\n" +
             "  var (count, setCount) = useState(0);\n" +
