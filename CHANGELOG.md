@@ -6,6 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.3.2] - 2026-04-07
+
+### Breaking
+- **Comment syntax changed** — `{/* */}` JSX comments replaced with standard `//` (line) and `/* */` (block) comments in markup. Existing `{/* */}` comments in JSX return blocks must be converted.
+
+### Added
+- **UITKX0025 for variable assignments** — `var x = (<A/><B/>)` now correctly flagged as single-root violation in IDE diagnostics
+- **Block comments in markup** — `/* */` now supported in JSX markup for multi-line comments
+
+### Fixed
+- **`@(expr)` type enforcement** — VDG now emits `VirtualNode` (not `object`) for inline `@(expr)`, matching the SG's cast. IDE shows errors for non-VirtualNode expressions early.
+- **Formatter block diff** — formatter now uses a single block TextEdit instead of per-line diffs, eliminating corruption on files with blank-line variations
+- **Formatter idempotency** — bare-return formatting now matches canonical form on first pass
+- **Formatter preserves empty containers** — `<Box></Box>` no longer collapsed to self-closing by the formatter
+- **HMR comment node handling** — fixed pre-existing dangling comma bug in `EmitChildArgs` when comment nodes appear between children
+
 ## [0.3.1] - 2026-04-05
 
 ### Added

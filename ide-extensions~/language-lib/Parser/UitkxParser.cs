@@ -67,7 +67,8 @@ namespace ReactiveUITK.Language.Parser
             string source,
             string filePath,
             DirectiveSet directives,
-            List<ParseDiagnostic> diagnostics
+            List<ParseDiagnostic> diagnostics,
+            bool validateSingleRoot = false
         )
         {
             var parser = new UitkxParser(
@@ -79,9 +80,15 @@ namespace ReactiveUITK.Language.Parser
                 diagnostics
             );
 
-            return parser
-                .ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false)
-                .ToImmutableArray();
+            var nodes = parser
+                .ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false);
+
+            if (validateSingleRoot)
+                parser.ValidateSingleRoot(
+                    nodes, "variable assignment",
+                    directives.MarkupStartIndex, directives.MarkupEndIndex);
+
+            return nodes.ToImmutableArray();
         }
 
         // ── Control block body parsing ───────────────────────────────────────
@@ -97,7 +104,12 @@ namespace ReactiveUITK.Language.Parser
             public readonly int SetupCodeOffset;
             public readonly int SetupCodeLine;
 
-            public ControlBlockBody(List<AstNode> nodes, string? setupCode, int setupCodeOffset, int setupCodeLine)
+            public ControlBlockBody(
+                List<AstNode> nodes,
+                string? setupCode,
+                int setupCodeOffset,
+                int setupCodeLine
+            )
             {
                 Nodes = nodes;
                 SetupCode = setupCode;
@@ -133,13 +145,18 @@ namespace ReactiveUITK.Language.Parser
             int bodyEnd = closeBrace; // exclusive: position of '}'
 
             // Try to find return (...); at depth 0 within the body.
-            if (ReturnFinder.TryFindTopLevelReturn(
-                    _source, bodyStart, bodyEnd,
+            if (
+                ReturnFinder.TryFindTopLevelReturn(
+                    _source,
+                    bodyStart,
+                    bodyEnd,
                     out int returnStart,
                     out int returnOpenParen,
                     out int returnCloseParen,
                     out int returnStmtEnd,
-                    useLastReturn: false))
+                    useLastReturn: false
+                )
+            )
             {
                 // Extract setup code (everything before 'return')
                 string? setupCode = null;
@@ -165,6 +182,9 @@ namespace ReactiveUITK.Language.Parser
                 var body = ParseContent(null, stopAtBrace: false, stopAtCase: false);
                 _stopPosExclusive = savedStop;
 
+                // Validate single root element
+                ValidateSingleRoot(body, blockName, returnStart, returnStmtEnd);
+
                 // Advance scanner past ');' and '}'
                 _scanner.AdvanceTo(closeBrace);
                 _scanner.TryConsume('}');
@@ -174,18 +194,72 @@ namespace ReactiveUITK.Language.Parser
             else
             {
                 // No return() found — emit diagnostic and fall back to parsing as markup
-                _diagnostics.Add(new ParseDiagnostic
-                {
-                    Code = "UITKX0024",
-                    Severity = ParseSeverity.Error,
-                    SourceLine = ReturnFinder.LineAtPos(_source, bodyStart),
-                    Message = $"Control block body ({blockName}) must contain 'return (...);'.",
-                });
+                _diagnostics.Add(
+                    new ParseDiagnostic
+                    {
+                        Code = "UITKX0024",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = ReturnFinder.LineAtPos(_source, bodyStart),
+                        Message = $"Control block body ({blockName}) must contain 'return (...);'.",
+                    }
+                );
 
                 // Error recovery: parse body as pure markup, same as before
                 var fallback = ParseContent(null, stopAtBrace: true, stopAtCase: stopAtCase);
                 _scanner.TryConsume('}');
                 return new ControlBlockBody(fallback, null, 0, 0);
+            }
+        }
+
+        /// <summary>
+        /// Emits UITKX0025 if the parsed body contains more than one significant
+        /// root node (ElementNode, ExpressionNode, or non-whitespace TextNode).
+        /// The diagnostic spans from <paramref name="rangeStart"/> to <paramref name="rangeEnd"/>.
+        /// </summary>
+        private void ValidateSingleRoot(
+            List<AstNode> nodes,
+            string blockName,
+            int rangeStart,
+            int rangeEnd
+        )
+        {
+            int rootCount = 0;
+            foreach (var node in nodes)
+            {
+                bool significant = node switch
+                {
+                    ElementNode => true,
+                    ExpressionNode => true,
+                    TextNode t => !string.IsNullOrWhiteSpace(t.Content),
+                    _ => false,
+                };
+                if (!significant)
+                    continue;
+                rootCount++;
+                if (rootCount == 2)
+                    break;
+            }
+
+            if (rootCount > 1)
+            {
+                int startLine = ReturnFinder.LineAtPos(_source, rangeStart);
+                int startCol = ColAtPos(rangeStart);
+                int endLine = ReturnFinder.LineAtPos(_source, rangeEnd);
+                int endCol = ColAtPos(rangeEnd);
+
+                _diagnostics.Add(
+                    new ParseDiagnostic
+                    {
+                        Code = "UITKX0025",
+                        Severity = ParseSeverity.Error,
+                        SourceLine = startLine,
+                        SourceColumn = startCol,
+                        EndLine = endLine,
+                        EndColumn = endCol,
+                        Message =
+                            $"JSX expression in {blockName} must have a single root element. Wrap multiple elements in a container like <VisualElement>.",
+                    }
+                );
             }
         }
 
@@ -197,11 +271,7 @@ namespace ReactiveUITK.Language.Parser
         /// <param name="stopTag">Stop (without consuming) at matching closing tag.</param>
         /// <param name="stopAtBrace">Stop (without consuming) at bare '}'.</param>
         /// <param name="stopAtCase">Stop (without consuming) at '@case' or '@default'.</param>
-        private List<AstNode> ParseContent(
-            string? stopTag,
-            bool stopAtBrace,
-            bool stopAtCase
-        )
+        private List<AstNode> ParseContent(string? stopTag, bool stopAtBrace, bool stopAtCase)
         {
             var nodes = new List<AstNode>();
 
@@ -251,17 +321,25 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.TrySkipHtmlComment())
                     continue;
 
-                // ── JSX comment {/* ... */} or child expression {expr} ────────
-                if (c == '{')
+                // ── Line comment // ... or block comment /* ... */ ───────────
+                if (c == '/')
                 {
-                    int commentLine1 = _scanner.Line;
-                    if (_scanner.TrySkipJsxComment(out string jsxContent))
+                    int commentLine = _scanner.Line;
+                    if (_scanner.TrySkipLineComment(out string lineContent))
                     {
-                        nodes.Add(new JsxCommentNode(jsxContent, commentLine1, _filePath));
+                        nodes.Add(new CommentNode(lineContent, commentLine, _filePath, IsBlock: false));
                         continue;
                     }
+                    if (_scanner.TrySkipBlockComment(out string blockContent))
+                    {
+                        nodes.Add(new CommentNode(blockContent, commentLine, _filePath, IsBlock: true));
+                        continue;
+                    }
+                }
 
-                    // ── Child expression {expr} ─────────────────────────────
+                // ── Child expression {expr} ─────────────────────────────────
+                if (c == '{')
+                {
                     int exprLine = _scanner.Line;
                     int exprCol = ColAtPos(_scanner.Pos);
                     var (expr, exprOffset) = _scanner.ReadBraceExpressionWithOffset();
@@ -342,21 +420,13 @@ namespace ReactiveUITK.Language.Parser
                             break;
                         case "break":
                             _diagnostics.Add(
-                                ErrUnexpectedToken(
-                                    "@break",
-                                    atLine,
-                                    "@for or @while loop block"
-                                )
+                                ErrUnexpectedToken("@break", atLine, "@for or @while loop block")
                             );
                             SkipToEndOfLine();
                             break;
                         case "continue":
                             _diagnostics.Add(
-                                ErrUnexpectedToken(
-                                    "@continue",
-                                    atLine,
-                                    "@for or @while loop block"
-                                )
+                                ErrUnexpectedToken("@continue", atLine, "@for or @while loop block")
                             );
                             SkipToEndOfLine();
                             break;
@@ -493,11 +563,7 @@ namespace ReactiveUITK.Language.Parser
                 // Best-effort: continue without consuming
             }
 
-            var children = ParseContent(
-                stopTag: tagName,
-                stopAtBrace: false,
-                stopAtCase: false
-            );
+            var children = ParseContent(stopTag: tagName, stopAtBrace: false, stopAtCase: false);
 
             int closeTagLine = 0;
 
@@ -724,7 +790,11 @@ namespace ReactiveUITK.Language.Parser
 
                     int elseIfBrace = _scanner.Pos;
                     _scanner.Advance(); // consume '{'
-                    var elseIfResult = ParseControlBlockBody(elseIfBrace, stopAtCase: false, "@else if");
+                    var elseIfResult = ParseControlBlockBody(
+                        elseIfBrace,
+                        stopAtCase: false,
+                        "@else if"
+                    );
                     branches.Add(
                         new IfBranch(elseCond, elseIfResult.Nodes.ToImmutableArray(), elseLine)
                         {
@@ -745,12 +815,14 @@ namespace ReactiveUITK.Language.Parser
                     int elseBrace = _scanner.Pos;
                     _scanner.Advance(); // consume '{'
                     var elseResult = ParseControlBlockBody(elseBrace, stopAtCase: false, "@else");
-                    branches.Add(new IfBranch(null, elseResult.Nodes.ToImmutableArray(), elseLine)
-                    {
-                        SetupCode = elseResult.SetupCode,
-                        SetupCodeOffset = elseResult.SetupCodeOffset,
-                        SetupCodeLine = elseResult.SetupCodeLine,
-                    });
+                    branches.Add(
+                        new IfBranch(null, elseResult.Nodes.ToImmutableArray(), elseLine)
+                        {
+                            SetupCode = elseResult.SetupCode,
+                            SetupCodeOffset = elseResult.SetupCodeOffset,
+                            SetupCodeLine = elseResult.SetupCodeLine,
+                        }
+                    );
                     break; // @else terminates the chain
                 }
             }
@@ -912,7 +984,11 @@ namespace ReactiveUITK.Language.Parser
             _scanner.Advance(); // consume '{'
 
             // Find the matching '}' for the entire switch block
-            int switchCloseBrace = ReturnFinder.FindMatchingBrace(_source, switchOpenBrace, _source.Length);
+            int switchCloseBrace = ReturnFinder.FindMatchingBrace(
+                _source,
+                switchOpenBrace,
+                _source.Length
+            );
 
             var cases = new List<SwitchCase>();
 
@@ -963,30 +1039,57 @@ namespace ReactiveUITK.Language.Parser
                         if (ReturnFinder.TrySkipNonCodeSpan(_source, ref searchPos, caseBodyEnd))
                             continue;
                         char ch = _source[searchPos];
-                        if (ch == '{') { braceDepth++; searchPos++; continue; }
-                        if (ch == '}') { if (braceDepth > 0) { braceDepth--; searchPos++; continue; } break; }
+                        if (ch == '{')
+                        {
+                            braceDepth++;
+                            searchPos++;
+                            continue;
+                        }
+                        if (ch == '}')
+                        {
+                            if (braceDepth > 0)
+                            {
+                                braceDepth--;
+                                searchPos++;
+                                continue;
+                            }
+                            break;
+                        }
                         if (braceDepth == 0 && ch == '@')
                         {
                             // Check for @case or @default or @break
                             int peek = searchPos + 1;
-                            while (peek < caseBodyEnd && char.IsLetter(_source[peek])) peek++;
+                            while (peek < caseBodyEnd && char.IsLetter(_source[peek]))
+                                peek++;
                             string kw = _source.Substring(searchPos + 1, peek - searchPos - 1);
-                            if (kw == "case" || kw == "default") break;
-                            if (kw == "break") break; // @break is a case terminator
+                            if (kw == "case" || kw == "default")
+                                break;
+                            if (kw == "break")
+                                break; // @break is a case terminator
                         }
                         searchPos++;
                     }
 
                     // Now try to find return() in [caseBodyStart, searchPos)
-                    if (ReturnFinder.TryFindTopLevelReturn(
-                            _source, caseBodyStart, searchPos,
-                            out int retStart, out int retOpen, out int retClose, out int retEnd,
-                            useLastReturn: false))
+                    if (
+                        ReturnFinder.TryFindTopLevelReturn(
+                            _source,
+                            caseBodyStart,
+                            searchPos,
+                            out int retStart,
+                            out int retOpen,
+                            out int retClose,
+                            out int retEnd,
+                            useLastReturn: false
+                        )
+                    )
                     {
                         string? setupCode = null;
                         int setupCodeOffset = 0;
                         int setupCodeLine = 0;
-                        string rawSetup = _source.Substring(caseBodyStart, retStart - caseBodyStart).Trim();
+                        string rawSetup = _source
+                            .Substring(caseBodyStart, retStart - caseBodyStart)
+                            .Trim();
                         if (rawSetup.Length > 0)
                         {
                             setupCode = rawSetup;
@@ -1003,29 +1106,38 @@ namespace ReactiveUITK.Language.Parser
                         var caseBody = ParseContent(null, stopAtBrace: false, stopAtCase: false);
                         _stopPosExclusive = savedStop;
 
+                        // Validate single root element
+                        ValidateSingleRoot(caseBody, "@case", retStart, retEnd);
+
                         _scanner.AdvanceTo(retEnd); // past ");
                         TryConsumeSwitchBreak();
-                        cases.Add(new SwitchCase(caseVal, caseBody.ToImmutableArray(), caseLine)
-                        {
-                            SetupCode = setupCode,
-                            SetupCodeOffset = setupCodeOffset,
-                            SetupCodeLine = setupCodeLine,
-                        });
+                        cases.Add(
+                            new SwitchCase(caseVal, caseBody.ToImmutableArray(), caseLine)
+                            {
+                                SetupCode = setupCode,
+                                SetupCodeOffset = setupCodeOffset,
+                                SetupCodeLine = setupCodeLine,
+                            }
+                        );
                     }
                     else
                     {
-                        _diagnostics.Add(new ParseDiagnostic
-                        {
-                            Code = "UITKX0024",
-                            Severity = ParseSeverity.Error,
-                            SourceLine = ReturnFinder.LineAtPos(_source, caseBodyStart),
-                            Message = $"Switch case body must contain 'return (...);'.",
-                        });
+                        _diagnostics.Add(
+                            new ParseDiagnostic
+                            {
+                                Code = "UITKX0024",
+                                Severity = ParseSeverity.Error,
+                                SourceLine = ReturnFinder.LineAtPos(_source, caseBodyStart),
+                                Message = $"Switch case body must contain 'return (...);'.",
+                            }
+                        );
 
                         // Error recovery: parse as pure markup
                         var fallbackBody = ParseContent(null, stopAtBrace: true, stopAtCase: true);
                         TryConsumeSwitchBreak();
-                        cases.Add(new SwitchCase(caseVal, fallbackBody.ToImmutableArray(), caseLine));
+                        cases.Add(
+                            new SwitchCase(caseVal, fallbackBody.ToImmutableArray(), caseLine)
+                        );
                     }
                 }
                 else

@@ -1,6 +1,42 @@
 {
   "entries": [
     {
+      "date": "2026-04-07",
+      "versions": {
+        "vscode": "1.0.306",
+        "vs2022": "1.0.82"
+      },
+      "shared": [
+        "Breaking: comment syntax changed — {/* */} replaced with // (line) and /* */ (block) in markup",
+        "Fix: @(expr) inline expressions now type-checked as VirtualNode in IDE diagnostics",
+        "Fix: UITKX0025 single-root validation now covers var x = (<A/><B/>)",
+        "Fix: formatter uses block diff (single TextEdit) — eliminates corruption on blank-line variations",
+        "Fix: formatter bare-return idempotency — first format pass now matches canonical form",
+        "Fix: formatter no longer collapses empty container elements to self-closing",
+        "Fix: semantic tokens for // and /* */ comments in markup"
+      ],
+      "vscode": [
+        "Fix: removed custom toggleBlockComment command — Ctrl+/ uses //, Shift+Alt+A uses /* */"
+      ],
+      "vs2022": [
+        "Fix: simplified comment handler — always uses // line comments, removed context-dependent {/* */} logic"
+      ]
+    },
+    {
+      "date": "2026-04-06",
+      "versions": {
+        "vscode": "1.0.305"
+      },
+      "shared": [
+        "Fix: bare JSX returns now accepted in control blocks",
+        "Fix: formatter no longer collapses empty container elements to self-closing",
+        "Fix: formatter bare-return idempotency (first format pass now matches canonical form)"
+      ],
+      "vscode": [
+        "Fix: comment toggle now defaults to line comments in code sections"
+      ]
+    },
+    {
       "date": "2026-04-05",
       "versions": {
         "vscode": "1.0.304",

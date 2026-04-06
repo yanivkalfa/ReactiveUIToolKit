@@ -497,8 +497,13 @@ namespace ReactiveUITK.Language.Roslyn
             }
             else
             {
-                // CS0428 (method group → object) is a warning (orange), not an error — leave it visible.
-                b.Scaffold($"{indent}{{ object __uitkx_{expr.Label} = (");
+                // Inline expressions (@(expr) in markup) must resolve to VirtualNode,
+                // matching the SG emitter's ((VirtualNode)(expr)) cast.  Attribute
+                // expressions use object since their type varies.
+                string checkType = expr.Kind == SourceRegionKind.InlineExpression
+                    ? "global::ReactiveUITK.Core.VirtualNode"
+                    : "object";
+                b.Scaffold($"{indent}{{ {checkType} __uitkx_{expr.Label} = (");
                 b.Mapped(expr.Text, expr.UitkxOffset, expr.Kind, expr.UitkxLine);
                 b.Scaffold("); }\n");
             }
