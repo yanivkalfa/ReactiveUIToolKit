@@ -149,7 +149,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 foreach (var n in nodes)
                 {
                     string typeName = n.GetType().Name;
-                    if (typeName == "JsxCommentNode")
+                    if (typeName == "CommentNode")
                         continue;
                     else
                         markupNodes.Add(n);
@@ -297,16 +297,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    int srcLine = GP<int>(markupNodes[0], "SourceLine");
-                    L($"#line {srcLine} \"{_linePath}\"");
-                    _sb.Append("            return V.Fragment(key: null, __C(");
-                    for (int i = 0; i < markupNodes.Count; i++)
-                    {
-                        if (i > 0)
-                            _sb.Append(", ");
-                        EmitNode(markupNodes[i]);
-                    }
-                    _sb.AppendLine("));");
+                    L($"#error UITKX0025: Component return must have a single root element. Wrap multiple elements in a container like <VisualElement>.");
+                    L($"            return ({QVNode})null;");
                 }
 
                 L("        }"); // close Render
@@ -373,13 +365,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                             EmitNode(nodes[0]);
                         else
                         {
-                            _sb.Append("V.Fragment(key: null, __C(");
-                            for (int i = 0; i < nodes.Count; i++)
-                            {
-                                if (i > 0) _sb.Append(", ");
-                                EmitNode(nodes[i]);
-                            }
-                            _sb.Append("))");
+                            _sb.Append("#error UITKX0025: Inline JSX expression must have a single root element.");
                         }
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
@@ -470,7 +456,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     case "SwitchNode":
                         EmitSwitch(node);
                         break;
-                    case "JsxCommentNode":
+                    case "CommentNode":
                         break; // skip
                     default:
                         _sb.Append($"({QVNode})null /* unsupported: {typeName} */");
@@ -976,17 +962,21 @@ namespace ReactiveUITK.EditorSupport.HMR
                     EmitNode(body[0]);
                     return;
                 }
-                _sb.Append("V.Fragment(key: null, __C(");
-                EmitChildArgs(body);
-                _sb.Append("))");
+                _sb.Append("#error UITKX0025: Control block branch must have a single root element.");
             }
 
             private void EmitChildArgs(IList children)
             {
+                bool first = true;
                 for (int i = 0; i < children.Count; i++)
                 {
-                    if (i > 0)
+                    // Comments emit nothing — skip to avoid dangling commas
+                    if (children[i].GetType().Name == "CommentNode")
+                        continue;
+
+                    if (!first)
                         _sb.Append(", ");
+                    first = false;
                     EmitNode(children[i]);
                 }
             }

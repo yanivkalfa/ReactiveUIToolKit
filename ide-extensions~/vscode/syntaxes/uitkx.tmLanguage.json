@@ -10,7 +10,10 @@
       "include": "#function-style-declaration"
     },
     {
-      "include": "#jsx-comment"
+      "include": "#cs-line-comment"
+    },
+    {
+      "include": "#cs-block-comment"
     },
     {
       "include": "#comment"
@@ -57,21 +60,6 @@
     }
   ],
   "repository": {
-    "jsx-comment": {
-      "name": "comment.block.uitkx",
-      "begin": "\\{/\\*",
-      "end": "\\*/\\}",
-      "beginCaptures": {
-        "0": {
-          "name": "punctuation.definition.comment.uitkx"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.definition.comment.uitkx"
-        }
-      }
-    },
     "comment": {
       "name": "comment.block.uitkx",
       "begin": "<!--",
@@ -595,7 +583,10 @@
           "include": "#function-style-return-keyword"
         },
         {
-          "include": "#jsx-comment"
+          "include": "#cs-line-comment"
+        },
+        {
+          "include": "#cs-block-comment"
         },
         {
           "include": "#control-flow-with-expression"

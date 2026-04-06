@@ -328,16 +328,16 @@ public class EmitterTests
     }
 
     [Fact]
-    public void JsxCommentInsideElement_DoesNotEmitExtraComma()
+    public void CommentInsideElement_DoesNotEmitExtraComma()
     {
-        // Before the fix, JsxCommentNode emitted nothing but the comma logic still ran,
+        // Before the fix, CommentNode emitted nothing but the comma logic still ran,
         // resulting in invalid C# like V.Box(V.Label(...), , V.Label(...))
         var src = Wrap(
             """
 <box>
-    {/* this is a comment */}
+    // this is a comment
     <label text="a"/>
-    {/* another comment */}
+    // another comment
     <label text="b"/>
 </box>
 """
@@ -354,14 +354,14 @@ public class EmitterTests
     }
 
     [Fact]
-    public void JsxCommentAsRootNode_DoesNotBreakSingleRoot()
+    public void CommentAsRootNode_DoesNotBreakSingleRoot()
     {
-        // A JSX comment at the root level alongside a single element should not
+        // A comment at the root level alongside a single element should not
         // force Fragment wrapping (which would cause a dangling empty argument).
         const string src = """
             component MyComp {
                 return (
-                    {/* root comment */}
+                    // root comment
                     <box />
                 );
             }

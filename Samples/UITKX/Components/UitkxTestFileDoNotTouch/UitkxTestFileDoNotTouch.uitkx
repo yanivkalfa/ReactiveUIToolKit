@@ -444,6 +444,10 @@ component UitkxTestFileDoNotTouch(
     ? "No options"
     : string.Join(", ", options);
 
+  // var first = (<VisualElement />);
+  // var second = (<Label text="hello" />);
+  // var blaaaa = new VirtualNode[] { first, second };
+
   return (
     <ScrollView style={containerStyle}>
       <Label
@@ -461,8 +465,10 @@ component UitkxTestFileDoNotTouch(
           );
         @case "normal":
           return (
-            <Label text={$"Mode: Normal — Count: {count}"} />
-            <Button text="-5" onClick={_ => setCount(count - 5)} />
+            <VisualElement>
+              <Label text={$"Mode: Normal — Count: {count}"} />
+              <Button text="-5" onClick={_ => setCount(count - 5)} />
+            </VisualElement>
           );
         @default:
           return (
@@ -483,20 +489,22 @@ component UitkxTestFileDoNotTouch(
         );
       } @else {
         return (
-          @for (int i = 0; i < count; i++) {
-            return (
-              @if (i % 2 == 0) {
-                return (
-                  <Label text={$"Even row {i}"} />
-                );
-              } @else {
-                return (
-                  <Label text={$"Odd row {i}"} />
-                );
-              }
-            );
-          }
-          <Label text={$"Total rows: {count}"} />
+          <VisualElement>
+            @for (int i = 0; i < count; i++) {
+              return (
+                @if (i % 2 == 0) {
+                  return (
+                    <Label text={$"Even row {i}"} />
+                  );
+                } @else {
+                  return (
+                    <Label text={$"Odd row {i}"} />
+                  );
+                }
+              );
+            }
+            <Label text={$"Total rows: {count}"} />
+          </VisualElement>
         );
       }
       @foreach (var entry in log) {
@@ -504,6 +512,7 @@ component UitkxTestFileDoNotTouch(
           <Label key={entry} text={entry} />
         );
       }
+      // @(blaaaa)
       <VisualElement style={badgeStyle}>
         <Label text={$"Count: {count} Render#: {renderCount}"} />
         <Label text={$"Signal: {signalCount}  Double: {doubleCount}"} />
@@ -612,11 +621,11 @@ component UitkxTestFileDoNotTouch(
       <UitkxTestSubFileDoNotTouch
         message="UitkxCounterFunc — Go-to-definition test"
       />
-      {/* ── visualElementSafe: safe-area-aware wrapper ── */}
+      // ── visualElementSafe: safe-area-aware wrapper ──
       <visualElementSafe style={badgeStyle}>
         <Label text="Inside a visualElementSafe (safe-area padding applied)" />
       </visualElementSafe>
-      {/* ── Route element with inline JSX (no V.Func / V.Text needed) ── */}
+      // ── Route element with inline JSX (no V.Func / V.Text needed) ──
       <Router>
         <Route path="/" exact element={<Label text="JSX route — home" />} />
         <Route path="/jsxDemo" element={<Label text="JSX route — demo" />} />

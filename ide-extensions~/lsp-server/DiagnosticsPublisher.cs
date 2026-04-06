@@ -160,7 +160,7 @@ public sealed class DiagnosticsPublisher
                     MarkupEndIndex = jsxEnd,
                     MarkupStartLine = jsxLine,
                 };
-                var jsxNodes = UitkxParser.Parse(text, localPath, jsxDirectives, parseDiags);
+                var jsxNodes = UitkxParser.Parse(text, localPath, jsxDirectives, parseDiags, validateSingleRoot: true);
                 setupBuilder.AddRange(jsxNodes);
             }
             setupJsxNodes = setupBuilder.ToImmutable();

@@ -21,7 +21,8 @@ namespace ReactiveUITK.Samples.UITKX.Editor
         {
             VisualElement hostElement = rootVisualElement;
             hostElement.style.flexGrow = 1f;
-            EditorRootRendererUtility.Render(hostElement, V.Func(DiabloMenuDemoFunc.Render));
+            // TODO: DiabloMenuDemoFunc was removed — replace with a valid component.
+            // EditorRootRendererUtility.Render(hostElement, V.Func(DiabloMenuDemoFunc.Render));
         }
 
         private void OnDisable()

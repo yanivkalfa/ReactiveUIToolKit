@@ -156,7 +156,7 @@ namespace ReactiveUITK.Language.Diagnostics
         ///
         /// Excluded from the count (they do not produce rendered output):
         /// <list type="bullet">
-        ///   <item><see cref="JsxCommentNode"/> — JSX comment, not rendered.</item>
+        ///   <item><see cref="CommentNode"/> — comment, not rendered.</item>
         ///   <item>Whitespace-only <see cref="TextNode"/>.</item>
         /// </list>
         ///
@@ -175,7 +175,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 switch (node)
                 {
                     // Non-rendering nodes — excluded from the count.
-                    case JsxCommentNode:
+                    case CommentNode:
                         continue;
                     case TextNode tn when string.IsNullOrWhiteSpace(tn.Content):
                         continue;

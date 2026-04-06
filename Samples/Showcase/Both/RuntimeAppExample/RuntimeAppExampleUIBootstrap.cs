@@ -31,8 +31,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
                 return;
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
-            var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            rootRenderer.Render(V.Host(hostProps, null, V.Func(DiabloMenuDemoFunc.Render)));
+            // TODO: DiabloMenuDemoFunc was removed — replace with a valid component.
+            // var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
+            // rootRenderer.Render(V.Host(hostProps, null, V.Func(DiabloMenuDemoFunc.Render)));
         }
     }
 }

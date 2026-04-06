@@ -404,3 +404,114 @@ Fixed — `FormatElement()` in AstFormatter now checks `el.CloseTagLine == 0`
 in addition to `el.Children.IsEmpty` when deciding self-close. Elements written
 as `<Box></Box>` (CloseTagLine > 0) are preserved; only truly self-closing
 `<Box />` (CloseTagLine == 0) stays collapsed.
+
+---
+
+## Formatter emits blank lines without indentation (cursor jumps to column 0)
+
+**Symptom:** After formatting, clicking on a blank line between indented code
+places the cursor at column 0 instead of the expected indentation level. Pressing
+Enter works correctly (VS Code `onEnterRules` handle that), but clicking does not
+because the line has no whitespace content at all.
+
+**Root cause:** All 13 blank-line emission points in `AstFormatter.cs` use bare
+`_sb.Append('\n')` without prepending `IndentStr()`. The `_indent` field is
+correct at every emission point — it's just never used for blank lines.
+
+**Fix:** Prepend `IndentStr()` before `'\n'` at all blank-line emission sites
+(lines ~123, 230, 246, 248, 278, 670, 977, 1516, 1556, 1648, 1671, 1682, 1698).
+Many formatter snapshot tests will need blank-line expected output updates.
+
+**Files to modify:**
+- `ide-extensions~/language-lib/Formatter/AstFormatter.cs` — all blank-line emissions
+- `SourceGenerator~/Tests/FormatterSnapshotTests.cs` — update expected outputs
+
+**Priority:** Medium — quality-of-life cursor positioning.
+
+---
+
+## HMR error when reordering hook definitions (moving hooks up/down)
+
+**Symptom:** When HMR is running and a hook call is moved to a different line
+(e.g. swapping the position of two `useState` calls — moving one line above or
+below another), an error is thrown at runtime.
+
+**Context:** React-style hooks rely on call order being stable across renders.
+When HMR hot-reloads a component whose hook call order has changed, the runtime
+hook registry sees a different sequence than the previous render, causing a
+mismatch error.
+
+**Priority:** Medium — common during active development with HMR.
+
+---
+
+## Companion `.cs` files lack IDE support (IntelliSense, coloring, formatting, etc.)
+
+**Symptom:** The companion `.cs` file for a `.uitkx` component does not receive
+any UITKX-aware IDE features. Standard C# IntelliSense works, but there is no
+UITKX-specific coloring, formatting, diagnostics, or schema awareness for the
+companion code.
+
+**Desired behavior:** Companion `.cs` files should have feature parity with
+`.uitkx` files where applicable — syntax coloring for UITKX-related patterns,
+IntelliSense for component props/hooks used in the companion, formatting
+consistency, and UITKX diagnostics.
+
+**Priority:** Medium — improves the split-file authoring experience.
+
+---
+
+## ~~UITKX0025 single-root JSX validation missing for variable assignments~~ ✅ FIXED
+
+Fixed — `UitkxParser.Parse()` now accepts `validateSingleRoot` parameter.
+`DiagnosticsPublisher` passes `true` when parsing setup-code JSX ranges,
+so `var x = (<A/><B/>)` now emits UITKX0025 in the IDE.
+
+---
+
+## ~~`Ctrl+/` toggle comment inserts `//` instead of `{/* */}` inside JSX~~ ✅ FIXED
+
+Fixed — replaced `{/* */}` JSX comment syntax entirely with standard `//` and
+`/* */` comments in markup. The parser now handles `//` (line) and `/* */` (block)
+directly in `ParseContent()`. `JsxCommentNode` renamed to `CommentNode` with
+`IsBlock` flag. All IDE extensions updated: custom `uitkx.toggleBlockComment`
+command removed (VS Code), `CommentBlock`/`UncommentBlock` removed (VS2022),
+TextMate grammar uses `cs-line-comment`/`cs-block-comment` rules. `Ctrl+/`
+inserts `//`, `Shift+Alt+A` inserts `/* */` — both work everywhere.
+
+---
+
+## JSX syntax not supported inside C# collection initializers
+
+**Symptom:** JSX elements cannot be used directly inside C# array or collection
+initializers:
+
+```uitkx
+// Desired — does NOT work today
+var bla = new VirtualNode[] {
+    <VisualElement></VisualElement>,
+    <Label text="hello" />
+};
+```
+
+The parser treats `<VisualElement>` as C# generics/comparisons, not JSX,
+because collection initializer `{ ... }` blocks are opaque C# to the
+directive scanner.
+
+**Current workarounds (both ugly):**
+1. Pre-define each element: `var a = (<VisualElement />); var b = (<Label />); var arr = new[] { a, b };`
+2. Use the `V.*` factory API: `new VirtualNode[] { V.VisualElement(null, key: null) }`
+
+**Root cause:** `FindJsxBlockRanges` / `FindBareJsxRanges` in DirectiveParser
+only detect JSX inside `= (...)` parenthesized assignments and `=> <Tag>`
+arrow expressions. The `{ <Tag/>, <Tag/> }` pattern inside `new T[] { ... }`
+is not scanned for JSX.
+
+**Possible approaches:**
+1. Extend DirectiveParser to detect `new ...[] {` or `new List<...> {` openers,
+   then scan for JSX elements inside the braces (complex — must handle nested
+   braces, strings, and generic type args)
+2. Support a JSX array literal syntax like `@[<A/>, <B/>]` that the parser
+   owns (simpler, explicit, no C# ambiguity)
+
+**Priority:** Medium — improves ergonomics for collection-of-elements patterns.

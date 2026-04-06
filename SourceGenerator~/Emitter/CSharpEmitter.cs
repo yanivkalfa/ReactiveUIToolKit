@@ -99,7 +99,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             foreach (var n in rootNodes)
             {
-                if (n is JsxCommentNode) { } // JSX comments are markup-only; skip in emitted C#
+                if (n is CommentNode) { } // comments are markup-only; skip in emitted C#
                 else
                     markupNodes.Add(n);
             }
@@ -300,12 +300,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             else
             {
-                // Multiple roots — wrap in Fragment
-                int srcLine = markup[0].SourceLine;
-                L($"#line {srcLine} \"{_linePath}\"");
-                _sb.Append($"{I3}return V.Fragment(key: null, __C(");
-                EmitChildArgs(markup);
-                _sb.AppendLine("));");
+                // Multiple roots — emit compile-time error
+                L($"#error UITKX0025: Component return must have a single root element. Wrap multiple elements in a container like <VisualElement>.");
+                _sb.AppendLine($"{I3}return ({QVNode})null;");
             }
 
             L($"{I2}}}"); // close Render
@@ -545,8 +542,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 case SwitchNode s:
                     EmitSwitchNode(s);
                     break;
-                case JsxCommentNode:
-                    // JSX comments emit nothing to C#
+                case CommentNode:
+                    // comments emit nothing to C#
                     break;
                 default:
                     _sb.Append($"({QVNode})null /* unhandled: {node.GetType().Name} */");
@@ -1191,9 +1188,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     EmitNode(forn.Body[0]);
                 else
                 {
-                    _sb.Append("V.Fragment(key: null, __C(");
-                    EmitChildArgs(forn.Body);
-                    _sb.Append("))");
+                    _sb.Append("#error UITKX0025: @foreach body must have a single root element.");
                 }
 
                 _sb.Append(").ToArray()");
@@ -1331,10 +1326,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// </summary>
         private void EmitBodyAsFragment(ImmutableArray<AstNode> body)
         {
-            _sb.Append("V.Fragment(key: null, __C(");
-            if (!body.IsEmpty)
-                EmitChildArgs(body);
-            _sb.Append("))");
+            if (body.IsEmpty)
+            {
+                _sb.Append($"({QVNode})null");
+            }
+            else if (body.Length == 1)
+            {
+                EmitNode(body[0]);
+            }
+            else
+            {
+                _sb.Append("#error UITKX0025: Control block branch must have a single root element.");
+            }
         }
 
         /// <summary>
@@ -1353,9 +1356,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
             else
             {
-                _sb.Append("V.Fragment(key: null, __C(");
-                EmitChildArgs(body);
-                _sb.Append("))");
+                _sb.Append("#error UITKX0025: Control block body must have a single root element.");
             }
         }
 
@@ -1371,8 +1372,8 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             bool first = true;
             for (int i = 0; i < children.Length; i++)
             {
-                // JSX comments emit nothing — skip to avoid dangling commas
-                if (children[i] is JsxCommentNode)
+                // Comments emit nothing — skip to avoid dangling commas
+                if (children[i] is CommentNode)
                     continue;
 
                 if (!first)
@@ -1593,13 +1594,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         EmitNode(nodes[0]);
                     else
                     {
-                        _sb.Append($"V.Fragment(key: null, __C(");
-                        for (int i = 0; i < nodes.Length; i++)
-                        {
-                            if (i > 0) _sb.Append(", ");
-                            EmitNode(nodes[i]);
-                        }
-                        _sb.Append("))");
+                        _sb.Append("#error UITKX0025: Inline JSX expression must have a single root element.");
                     }
                     string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                     _sb.Length = savedLen;
