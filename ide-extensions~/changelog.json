@@ -3,6 +3,15 @@
     {
       "date": "2026-04-07",
       "versions": {
+        "vs2022": "1.0.83"
+      },
+      "vs2022": [
+        "Fix: CI pipeline now correctly packages LSP server binaries in VSIX — clean marketplace installs no longer fail with 'no launch strategy succeeded'"
+      ]
+    },
+    {
+      "date": "2026-04-07",
+      "versions": {
         "vscode": "1.0.306",
         "vs2022": "1.0.82"
       },

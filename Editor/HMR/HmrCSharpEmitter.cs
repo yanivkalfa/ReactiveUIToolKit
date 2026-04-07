@@ -182,6 +182,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                     $"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]"
                 );
                 L($"    [global::ReactiveUITK.UitkxElement(\"{_componentName}\")]");
+
+                // Emit hook signature for proactive HMR state-reset detection
+                string funcSetupForSig = GP<string>(_directives, "FunctionSetupCode");
+                string hookSig = ExtractHookSignature(funcSetupForSig);
+                if (hookSig.Length > 0)
+                    L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
+
                 L($"    public partial class {_componentName}");
                 L("    {");
 
@@ -1265,6 +1272,61 @@ namespace ReactiveUITK.EditorSupport.HMR
                 code = code.Replace(from, to);
 
             return code;
+        }
+
+        // ── Hook signature extraction ──────────────────────────────────────────
+
+        /// <summary>
+        /// Matches any hook call in setup code — both user-written camelCase
+        /// (useState, useEffect) and fully-qualified PascalCase (Hooks.UseState).
+        /// Captures the hook name (without "Hooks." prefix) in group 1.
+        /// </summary>
+        private static readonly Regex s_hookSignatureRe = new Regex(
+            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|ProvideContext)(?:<[^>]*>)?\s*\(",
+            RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// Scans raw setup code for hook call patterns and returns
+        /// a comma-separated ordered signature string (e.g. "UseState,UseEffect,UseMemo").
+        /// Returns empty string if no hooks are found.
+        /// </summary>
+        internal static string ExtractHookSignature(string setupCode)
+        {
+            if (string.IsNullOrWhiteSpace(setupCode))
+                return string.Empty;
+
+            var matches = s_hookSignatureRe.Matches(setupCode);
+            if (matches.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < matches.Count; i++)
+            {
+                if (i > 0)
+                    sb.Append(',');
+                sb.Append(NormalizeHookName(matches[i].Groups[1].Value));
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Normalizes a hook name to its canonical PascalCase form
+        /// matching the runtime hook ID constants in Hooks.cs.
+        /// </summary>
+        private static string NormalizeHookName(string name)
+        {
+            // Already PascalCase
+            if (char.IsUpper(name[0]))
+                return name;
+
+            // camelCase → PascalCase: useState → UseState, provideContext → ProvideContext
+            if (name.StartsWith("use"))
+                return "Use" + char.ToUpper(name[3]) + name.Substring(4);
+            if (name.StartsWith("provide"))
+                return "Provide" + char.ToUpper(name[7]) + name.Substring(8);
+
+            return name;
         }
 
         // ── Asset path resolution (mirrors CSharpEmitter) ─────────────────────

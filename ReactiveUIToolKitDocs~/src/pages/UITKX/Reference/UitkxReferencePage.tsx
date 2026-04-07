@@ -55,7 +55,8 @@ const EXPRESSION_EXAMPLE = `<Label text={$"Count: {count}"} />
 <Button onClick={_ => setCount(count + 1)} />
 <VisualElement>
   @(MyCustomComponent)
-  {/* This is a JSX comment */}
+  // This is a line comment
+  /* This is a block comment */
 </VisualElement>
 
 // Switch expression inside @(...)
@@ -242,9 +243,14 @@ export const UitkxReferencePage: FC = () => (
             <TableCell>Plain string attribute</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><code>{'{/* comment */}'}</code></TableCell>
-            <TableCell><code>{'{/* TODO */}'}</code></TableCell>
-            <TableCell>JSX-style block comment</TableCell>
+            <TableCell><code>// comment</code></TableCell>
+            <TableCell><code>// TODO</code></TableCell>
+            <TableCell>Line comment (to end of line)</TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell><code>/* comment */</code></TableCell>
+            <TableCell><code>/* TODO */</code></TableCell>
+            <TableCell>Block comment (multi-line)</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><code>{'<>...</>'}</code></TableCell>
@@ -260,6 +266,25 @@ export const UitkxReferencePage: FC = () => (
       </Table>
     </TableContainer>
     <CodeBlock language="jsx" code={EXPRESSION_EXAMPLE} />
+
+    {/* ── JSX in Setup Code ──────────────────────────────────────────────── */}
+    <Typography variant="h5" component="h2" sx={Styles.section}>
+      JSX in Setup Code
+    </Typography>
+    <Typography variant="body2" paragraph>
+      JSX elements can be used in setup code (before <code>return</code>) in
+      several ways. Bare JSX works in assignments, ternaries, and arrow
+      expressions. For collection initializers (arrays, lists, dictionaries),
+      wrap each element in parentheses <code>()</code>.
+    </Typography>
+    <CodeBlock language="jsx" code={`// ── Bare JSX — works in assignments and ternaries ──
+var header = <Label text="Title" />;
+var icon = isActive ? <Box style={activeStyle} /> : <Box style={inactiveStyle} />;
+
+// ── Paren-wrapped JSX — works everywhere, including collections ──
+var arr  = new VirtualNode[] { (<Label text="hi" />), (<Box />) };
+var list = new List<VirtualNode> { (<A/>), (<B/>) };
+var dict = new Dictionary<string, VirtualNode> { { "header", (<Label text="Title" />) } };`} />
 
     {/* ── Rules & Gotchas ────────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
