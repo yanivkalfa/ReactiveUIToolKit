@@ -8,6 +8,9 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ## [0.3.3] - 2026-04-07
 
+### Fixed
+- **VS2022 CI build** — pipeline now correctly packages LSP server binaries in VSIX; clean marketplace installs no longer fail with "no launch strategy succeeded"
+
 ### Added
 - **HMR hook signature detection** — both emitters now emit `[HookSignature]` attribute with ordered hook call list. `UitkxHmrDelegateSwapper` compares old/new signatures before render and proactively resets all component state on mismatch, preventing silent hook corruption.
 
