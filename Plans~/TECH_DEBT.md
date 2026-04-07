@@ -407,39 +407,30 @@ as `<Box></Box>` (CloseTagLine > 0) are preserved; only truly self-closing
 
 ---
 
-## Formatter emits blank lines without indentation (cursor jumps to column 0)
+## ~~Formatter emits blank lines without indentation (cursor jumps to column 0)~~ ✅ WON'T FIX
 
-**Symptom:** After formatting, clicking on a blank line between indented code
-places the cursor at column 0 instead of the expected indentation level. Pressing
-Enter works correctly (VS Code `onEnterRules` handle that), but clicking does not
-because the line has no whitespace content at all.
-
-**Root cause:** All 13 blank-line emission points in `AstFormatter.cs` use bare
-`_sb.Append('\n')` without prepending `IndentStr()`. The `_indent` field is
-correct at every emission point — it's just never used for blank lines.
-
-**Fix:** Prepend `IndentStr()` before `'\n'` at all blank-line emission sites
-(lines ~123, 230, 246, 248, 278, 670, 977, 1516, 1556, 1648, 1671, 1682, 1698).
-Many formatter snapshot tests will need blank-line expected output updates.
-
-**Files to modify:**
-- `ide-extensions~/language-lib/Formatter/AstFormatter.cs` — all blank-line emissions
-- `SourceGenerator~/Tests/FormatterSnapshotTests.cs` — update expected outputs
-
-**Priority:** Medium — quality-of-life cursor positioning.
+This is a VS Code platform limitation shared by all JSX-style languages including
+React/TypeScript. Cursor position on blank lines is controlled by the user's
+`editor.autoIndent` setting and VS Code's built-in indent engine, not by the
+formatter output. Adding whitespace-only indentation to blank lines would be
+stripped by VS Code's `files.trimTrailingWhitespace` on save, breaking formatter
+idempotency. The `onEnterRules` and `indentationRules` already configured in
+`language-configuration.json` handle the Enter-key case correctly.
 
 ---
 
-## HMR error when reordering hook definitions (moving hooks up/down)
+## ~~HMR error when reordering hook definitions (moving hooks up/down)~~ ✅ FIXED
 
-**Symptom:** When HMR is running and a hook call is moved to a different line
-(e.g. swapping the position of two `useState` calls — moving one line above or
-below another), an error is thrown at runtime.
-
-**Context:** React-style hooks rely on call order being stable across renders.
-When HMR hot-reloads a component whose hook call order has changed, the runtime
-hook registry sees a different sequence than the previous render, causing a
-mismatch error.
+Fixed — implemented proactive hook signature detection for HMR. Both emitters
+(SG and HMR) now extract hook call order from `FunctionSetupCode` via regex and
+emit a `[HookSignature("UseState,UseEffect,...")]` attribute on the generated
+class. `UitkxHmrDelegateSwapper` compares old/new signatures before render and
+proactively resets all state on mismatch — running effect cleanups, disposing
+signal subscriptions, clearing hook states, queued updates, setter caches, and
+context dependencies. Also fixed `HookOrderPrimed` (was never set to `true`,
+making runtime validation dead code) and replaced the incomplete
+`ResetComponentState()` (only cleared `HookStates`) with comprehensive
+`FullResetComponentState()`.
 
 **Priority:** Medium — common during active development with HMR.
 
@@ -481,37 +472,18 @@ inserts `//`, `Shift+Alt+A` inserts `/* */` — both work everywhere.
 
 ---
 
-## JSX syntax not supported inside C# collection initializers
+## ~~JSX syntax not supported inside C# collection initializers~~ ✅ RESOLVED
 
-**Symptom:** JSX elements cannot be used directly inside C# array or collection
-initializers:
+Resolved — parenthesized `()` wrappers already work universally. The existing
+`FindJsxBlockRanges` scanner detects `(<Tag` anywhere in setup code, including
+inside collection initializers, dictionary literals, and method arguments:
 
 ```uitkx
-// Desired — does NOT work today
-var bla = new VirtualNode[] {
-    <VisualElement></VisualElement>,
-    <Label text="hello" />
-};
+var arr  = new VirtualNode[] { (<Label text="hi" />), (<Box />) };
+var list = new List<VirtualNode> { (<A/>), (<B/>) };
+var dict = new Dictionary<string, VirtualNode> { { "a", (<Label />) } };
 ```
 
-The parser treats `<VisualElement>` as C# generics/comparisons, not JSX,
-because collection initializer `{ ... }` blocks are opaque C# to the
-directive scanner.
-
-**Current workarounds (both ugly):**
-1. Pre-define each element: `var a = (<VisualElement />); var b = (<Label />); var arr = new[] { a, b };`
-2. Use the `V.*` factory API: `new VirtualNode[] { V.VisualElement(null, key: null) }`
-
-**Root cause:** `FindJsxBlockRanges` / `FindBareJsxRanges` in DirectiveParser
-only detect JSX inside `= (...)` parenthesized assignments and `=> <Tag>`
-arrow expressions. The `{ <Tag/>, <Tag/> }` pattern inside `new T[] { ... }`
-is not scanned for JSX.
-
-**Possible approaches:**
-1. Extend DirectiveParser to detect `new ...[] {` or `new List<...> {` openers,
-   then scan for JSX elements inside the braces (complex — must handle nested
-   braces, strings, and generic type args)
-2. Support a JSX array literal syntax like `@[<A/>, <B/>]` that the parser
-   owns (simpler, explicit, no C# ambiguity)
-
-**Priority:** Medium — improves ergonomics for collection-of-elements patterns.
+Bare JSX (without parens) remains supported for ternaries, assignments, and
+returns. The `()` form is the universal escape hatch for any expression context.
+Documented in language reference and README.
