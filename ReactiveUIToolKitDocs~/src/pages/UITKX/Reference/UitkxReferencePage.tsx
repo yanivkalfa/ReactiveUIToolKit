@@ -267,6 +267,25 @@ export const UitkxReferencePage: FC = () => (
     </TableContainer>
     <CodeBlock language="jsx" code={EXPRESSION_EXAMPLE} />
 
+    {/* ── JSX in Setup Code ──────────────────────────────────────────────── */}
+    <Typography variant="h5" component="h2" sx={Styles.section}>
+      JSX in Setup Code
+    </Typography>
+    <Typography variant="body2" paragraph>
+      JSX elements can be used in setup code (before <code>return</code>) in
+      several ways. Bare JSX works in assignments, ternaries, and arrow
+      expressions. For collection initializers (arrays, lists, dictionaries),
+      wrap each element in parentheses <code>()</code>.
+    </Typography>
+    <CodeBlock language="jsx" code={`// ── Bare JSX — works in assignments and ternaries ──
+var header = <Label text="Title" />;
+var icon = isActive ? <Box style={activeStyle} /> : <Box style={inactiveStyle} />;
+
+// ── Paren-wrapped JSX — works everywhere, including collections ──
+var arr  = new VirtualNode[] { (<Label text="hi" />), (<Box />) };
+var list = new List<VirtualNode> { (<A/>), (<B/>) };
+var dict = new Dictionary<string, VirtualNode> { { "header", (<Label text="Title" />) } };`} />
+
     {/* ── Rules & Gotchas ────────────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
       Rules & Gotchas

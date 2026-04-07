@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Fiber;
 using UnityEngine;
@@ -138,6 +139,23 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (fiber.Tag == FiberTag.FunctionComponent && IsMatch(fiber, componentName, uitkxFilePath))
             {
+                // ── Proactive hook signature check ───────────────────────
+                // Compare [HookSignature] attributes from old and new types.
+                // A mismatch means hooks were added/removed/reordered — reset
+                // all state BEFORE render to avoid silent corruption.
+                bool signatureChanged = HasHookSignatureChanged(
+                    fiber.TypedRender?.Method?.DeclaringType,
+                    newDelegate.Method.DeclaringType
+                );
+
+                if (signatureChanged)
+                {
+                    Debug.Log(
+                        $"[HMR] Hook signature changed in {componentName} — resetting state"
+                    );
+                    FullResetComponentState(fiber);
+                }
+
                 // Swap the render delegate
                 fiber.TypedRender = newDelegate;
 
@@ -155,7 +173,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Debug.LogWarning(
                         $"[HMR] Hook mismatch in {componentName}, state was reset: {ex.Message}"
                     );
-                    ResetComponentState(fiber);
+                    FullResetComponentState(fiber);
                     try
                     {
                         fiber.ComponentState?.OnStateUpdated?.Invoke();
@@ -206,13 +224,75 @@ namespace ReactiveUITK.EditorSupport.HMR
             return false;
         }
 
-        private static void ResetComponentState(FiberNode fiber)
+        private static bool HasHookSignatureChanged(Type oldType, Type newType)
         {
-            if (fiber.ComponentState == null)
+            if (oldType == null || newType == null)
+                return false;
+
+            var oldAttr = oldType.GetCustomAttribute<HookSignatureAttribute>();
+            var newAttr = newType.GetCustomAttribute<HookSignatureAttribute>();
+
+            // If either type lacks the attribute (pre-upgrade code), skip check
+            if (oldAttr == null || newAttr == null)
+                return false;
+
+            return !string.Equals(oldAttr.Signature, newAttr.Signature, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Comprehensive component state reset: runs effect cleanups, clears all
+        /// hook state, queued updates, caches, and context dependencies.
+        /// </summary>
+        private static void FullResetComponentState(FiberNode fiber)
+        {
+            var state = fiber.ComponentState;
+            if (state == null)
                 return;
 
-            // Clear hook states so hooks re-initialize on next render
-            fiber.ComponentState.HookStates.Clear();
+            // Run effect cleanups before clearing (mirrors unmount flow in FiberReconciler)
+            if (state.FunctionEffects != null)
+            {
+                for (int i = 0; i < state.FunctionEffects.Count; i++)
+                {
+                    try
+                    {
+                        state.FunctionEffects[i].cleanup?.Invoke();
+                    }
+                    catch { }
+                }
+                state.FunctionEffects.Clear();
+            }
+
+            if (state.FunctionLayoutEffects != null)
+            {
+                for (int i = 0; i < state.FunctionLayoutEffects.Count; i++)
+                {
+                    try
+                    {
+                        state.FunctionLayoutEffects[i].cleanup?.Invoke();
+                    }
+                    catch { }
+                }
+                state.FunctionLayoutEffects.Clear();
+            }
+
+            // Dispose signal subscriptions before clearing hook states
+            Hooks.DisposeSignalSubscriptions(state);
+
+            // Clear hook values so hooks re-initialize on next render
+            state.HookStates.Clear();
+
+            // Reset hook validation state
+            state.HookOrderSignatures?.Clear();
+            state.HookOrderPrimed = false;
+
+            // Clear queued state updates and caches
+            state.HookStateQueues?.Clear();
+            state.PendingHookStatePreviews?.Clear();
+            state.StateSetterDelegateCache?.Clear();
+
+            // Clear context dependency tracking
+            state.ContextDependencies?.Clear();
         }
     }
 }

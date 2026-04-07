@@ -9427,8 +9427,8 @@ component Comp {
         // User's exact reproduction: add blank lines between the ternary and return (
         var blanks = new string('\n', extraBlanks);
         var modified = source.Replace(
-            "// var blaaaa = new VirtualNode[] { first, second };\n\n  return (",
-            "// var blaaaa = new VirtualNode[] { first, second };\n" + blanks + "\n  return ("
+            ": string.Join(\", \", options);\n\n  return (",
+            ": string.Join(\", \", options);\n" + blanks + "\n  return ("
         );
         Assert.NotEqual(source, modified);
 
@@ -9670,8 +9670,8 @@ component Comp {
         // Add extra blank lines (LF)
         var blanks = new string('\n', extraBlanks);
         var modifiedLF = sourceLF.Replace(
-            "// var blaaaa = new VirtualNode[] { first, second };\n\n  return (",
-            "// var blaaaa = new VirtualNode[] { first, second };\n" + blanks + "\n  return ("
+            ": string.Join(\", \", options);\n\n  return (",
+            ": string.Join(\", \", options);\n" + blanks + "\n  return ("
         );
         Assert.NotEqual(sourceLF, modifiedLF);
 
@@ -9862,8 +9862,8 @@ component Comp {
 
         var blanks = new string('\n', extraBlanks);
         var modified = source.Replace(
-            "// var blaaaa = new VirtualNode[] { first, second };\n\n  return (",
-            "// var blaaaa = new VirtualNode[] { first, second };\n" + blanks + "\n  return ("
+            ": string.Join(\", \", options);\n\n  return (",
+            ": string.Join(\", \", options);\n" + blanks + "\n  return ("
         );
         Assert.NotEqual(source, modified);
 

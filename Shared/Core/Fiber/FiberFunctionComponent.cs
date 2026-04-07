@@ -153,6 +153,10 @@ namespace ReactiveUITK.Core.Fiber
                 HookContext.Current = null;
             }
 
+            // After first render: lock in recorded hook order for validation on subsequent renders
+            if (!componentState.HookOrderPrimed && componentState.HookOrderSignatures?.Count > 0)
+                componentState.HookOrderPrimed = true;
+
             // Mark effect flags so the commit phase can run effects.
             if (
                 componentState.FunctionLayoutEffects != null

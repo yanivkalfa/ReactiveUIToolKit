@@ -444,10 +444,6 @@ component UitkxTestFileDoNotTouch(
     ? "No options"
     : string.Join(", ", options);
 
-  // var first = (<VisualElement />);
-  // var second = (<Label text="hello" />);
-  // var blaaaa = new VirtualNode[] { first, second };
-
   return (
     <ScrollView style={containerStyle}>
       <Label
@@ -512,7 +508,6 @@ component UitkxTestFileDoNotTouch(
           <Label key={entry} text={entry} />
         );
       }
-      // @(blaaaa)
       <VisualElement style={badgeStyle}>
         <Label text={$"Count: {count} Render#: {renderCount}"} />
         <Label text={$"Signal: {signalCount}  Double: {doubleCount}"} />
