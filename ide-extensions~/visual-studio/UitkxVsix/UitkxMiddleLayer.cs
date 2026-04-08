@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Threading;
@@ -40,7 +41,20 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
         Log($"NOTIFY  → {methodName}");
 
         if (methodName == "textDocument/publishDiagnostics")
+        {
+            // Route full diagnostics to our custom taggers (classifier + unreachable tagger).
             UitkxDiagnosticStore.HandlePublishDiagnostics(methodParam);
+
+            // Strip Unnecessary-tagged diagnostics from VS2022's built-in passthrough.
+            // With CodeRemoteContentTypeName, VS2022's built-in rendering partially
+            // overrides our IClassifier's "excluded code" classification for Hint severity,
+            // resulting in keywords keeping their syntax colors instead of full gray.
+            // By stripping these, we let our UitkxClassifier + UitkxUnreachableCodeTagger
+            // handle ALL fade rendering without interference.
+            var filtered = StripUnnecessaryDiagnostics(methodParam);
+            await sendNotification(filtered);
+            return;
+        }
 
         await sendNotification(methodParam);
     }
@@ -137,14 +151,11 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
 
             if (text != null)
             {
-                await rpc.NotifyWithParameterObjectAsync(
-                    "textDocument/didChange",
-                    new
-                    {
-                        textDocument = new { uri, version = 1 },
-                        contentChanges = new[] { new { text } },
-                    });
-                Log($"  Synced buffer for {TruncateUri(uri)}");
+                var sent = await BufferSyncService.SyncIfChangedAsync(rpc, uri, text);
+                if (sent)
+                    Log($"  Synced buffer for {TruncateUri(uri)}");
+                else
+                    Log($"  Skipped sync (unchanged) for {TruncateUri(uri)}");
             }
         }
         catch (Exception ex)
@@ -155,4 +166,31 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
 
     private static string TruncateUri(string uri) =>
         uri.Length > 60 ? "..." + uri.Substring(uri.Length - 50) : uri;
+
+    /// <summary>
+    /// Returns a clone of the publishDiagnostics params with diagnostics that
+    /// carry <c>DiagnosticTag.Unnecessary</c> (tag value 1) removed.
+    /// This prevents VS2022's built-in rendering from interfering with our
+    /// custom "excluded code" classifier/tagger fade.
+    /// </summary>
+    private static JToken StripUnnecessaryDiagnostics(JToken param)
+    {
+        var clone = param.DeepClone();
+        var diagArray = clone["diagnostics"] as JArray;
+        if (diagArray == null || diagArray.Count == 0)
+            return clone;
+
+        for (int i = diagArray.Count - 1; i >= 0; i--)
+        {
+            var tags = diagArray[i]["tags"] as JArray;
+            if (tags != null && tags.Any(t => t.Value<int>() == 1))
+            {
+                diagArray.RemoveAt(i);
+            }
+        }
+
+        var originalCount = (param["diagnostics"] as JArray)?.Count ?? 0;
+        Log($"  Stripped {originalCount - diagArray.Count} Unnecessary diagnostics from VS2022 passthrough");
+        return clone;
+    }
 }

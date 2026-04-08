@@ -1,6 +1,31 @@
 {
   "entries": [
     {
+      "date": "2026-04-08",
+      "versions": {
+        "vscode": "1.0.306",
+        "vs2022": "1.0.84"
+      },
+      "shared": [
+        "Fix: unreachable code after return now correctly dims entire scope without squiggly lines",
+        "Fix: stale gray no longer persists after removing return statement — unreachable diagnostics stripped from T3 carry-forward cache"
+      ],
+      "vs2022": [
+        "Fix: unreachable code now renders fully gray — custom high-priority classification overrides competing VS2022 LSP syntax colors"
+      ]
+    },
+    {
+      "date": "2026-04-08",
+      "versions": {
+        "vs2022": "1.0.84"
+      },
+      "vs2022": [
+        "Fix: eliminated color flickering/dancing in unreachable code regions caused by redundant classification sources and didChange spam",
+        "Fix: centralized buffer sync via BufferSyncService — deduplicated 6 independent didChange senders to eliminate redundant server re-parses",
+        "Fix: classifier subscriber leak — stale instances no longer accumulate on static diagnostic events"
+      ]
+    },
+    {
       "date": "2026-04-07",
       "versions": {
         "vs2022": "1.0.83"

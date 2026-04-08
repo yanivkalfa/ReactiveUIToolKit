@@ -48,8 +48,12 @@ namespace UitkxLanguageServer.Roslyn
             // lines via #pragma warning disable CS0246 so that real user type-not-found
             // errors (e.g. misspelled type names) surface as diagnostics.
             // "CS0246",
-            "CS0162", // Unreachable code detected — suppressed globally; UITKX0107 handles all
-            // unreachable-after-return dimming directly from .uitkx source analysis.
+            // CS0162 — Unreachable code detected.
+            // NOT suppressed: UITKX0107 handles root-scope returns with full-range
+            // dimming. CS0162 covers nested scopes (lambdas, local functions)
+            // where our T2 analysis doesn't reach. PushTier3 drops CS0162 inside
+            // UITKX0107 ranges to avoid duplicates.
+            // "CS0162",
             "CS8019", // Unnecessary using directive
             "CS1591", // Missing XML comment
             "CS0649", // Field '…' is never assigned to

@@ -68,14 +68,7 @@ internal sealed class UitkxQuickInfoSource : IAsyncQuickInfoSource
 
             // Sync current buffer contents to server before hovering.
             var currentText = snapshot.GetText();
-            await rpc.NotifyWithParameterObjectAsync(
-                    "textDocument/didChange",
-                    new
-                    {
-                        textDocument = new { uri, version = 1 },
-                        contentChanges = new[] { new { text = currentText } },
-                    }
-                )
+            await BufferSyncService.SyncIfChangedAsync(rpc, uri, currentText)
                 .ConfigureAwait(false);
 
             Log($"Calling textDocument/hover: {uri} {lineNo}:{charNo}");

@@ -222,6 +222,8 @@ public sealed class DiagnosticsPublisher
 
         // Carry forward the last T3 diagnostics so the error list doesn't
         // flash empty during the 300ms debounce gap before Roslyn rebuilds.
+        // BUT strip unreachable diagnostics from the carry-forward: they
+        // cause stale gray when the user deletes a return statement.
         IEnumerable<ParseDiagnostic> combined = t1t2;
         if (
             !string.IsNullOrEmpty(localPath)
@@ -229,7 +231,12 @@ public sealed class DiagnosticsPublisher
             && cachedT3.Count > 0
         )
         {
-            combined = t1t2.Concat(cachedT3);
+            var nonUnreachable = cachedT3.Where(d =>
+                d.Code != "CS0162"
+                && d.Code != DiagnosticCodes.UnreachableAfterReturn
+                && d.Code != DiagnosticCodes.UnreachableAfterBreakOrContinue
+            );
+            combined = t1t2.Concat(nonUnreachable);
         }
 
         PushToClient(uri, combined);
@@ -261,6 +268,11 @@ public sealed class DiagnosticsPublisher
         {
             // Map Roslyn diagnostics → ParseDiagnostic
             var t3 = _roslynMapper.Map(roslynDiags, uitkxFilePath, uitkxSource);
+
+            // Expand CS0162 (unreachable code) from a single statement to the
+            // full unreachable range up to the enclosing closing `}`.
+            if (!string.IsNullOrEmpty(uitkxSource))
+                t3 = ExpandUnreachableRanges(t3, uitkxSource);
 
             // Retrieve the last T1+T2 snapshot for this file (may be missing
             // if Publish hasn't run yet — that's fine, an empty list is safe).
@@ -320,7 +332,171 @@ public sealed class DiagnosticsPublisher
         }
     }
 
-    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Private helpers ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Expands CS0162 diagnostics from a single statement to the full
+    /// unreachable range within the enclosing scope block.
+    /// </summary>
+    private static IReadOnlyList<ParseDiagnostic> ExpandUnreachableRanges(
+        IReadOnlyList<ParseDiagnostic> diagnostics, string source)
+    {
+        var result = new List<ParseDiagnostic>(diagnostics.Count);
+        var lineOffsets = BuildLineOffsets(source);
+
+        foreach (var d in diagnostics)
+        {
+            if (d.Code != "CS0162")
+            {
+                result.Add(d);
+                continue;
+            }
+
+            int endLine = FindEnclosingScopeEnd(source, lineOffsets, d.SourceLine);
+            if (endLine > d.SourceLine)
+            {
+                // Re-emit as UITKX0107 with Hint severity so it gets identical
+                // treatment to our own T2 unreachable diagnostic: dim-only, no
+                // squiggly, and proper Unnecessary tag in ToLsp().
+                result.Add(new ParseDiagnostic
+                {
+                    Code = DiagnosticCodes.UnreachableAfterReturn,
+                    Severity = ParseSeverity.Hint,
+                    Message = "Unreachable code after 'return'.",
+                    SourceLine = d.SourceLine,
+                    SourceColumn = 0,
+                    EndLine = endLine - 1,
+                    EndColumn = 9999,
+                });
+            }
+            else
+            {
+                // Single-statement fallback: still convert to UITKX0107.
+                result.Add(new ParseDiagnostic
+                {
+                    Code = DiagnosticCodes.UnreachableAfterReturn,
+                    Severity = ParseSeverity.Hint,
+                    Message = "Unreachable code after 'return'.",
+                    SourceLine = d.SourceLine,
+                    SourceColumn = d.SourceColumn,
+                    EndLine = d.EndLine,
+                    EndColumn = d.EndColumn,
+                });
+            }
+        }
+
+        return result;
+    }
+
+    private static List<int> BuildLineOffsets(string source)
+    {
+        var offsets = new List<int> { 0 };
+        for (int i = 0; i < source.Length; i++)
+        {
+            if (source[i] == '\n')
+                offsets.Add(i + 1);
+        }
+        return offsets;
+    }
+
+    /// <summary>
+    /// From <paramref name="startLine"/> (1-based), scans forward to find the
+    /// closing <c>}</c> at brace depth 0, skipping strings, comments, and
+    /// nested blocks. Returns the 1-based line of that <c>}</c>.
+    /// </summary>
+    private static int FindEnclosingScopeEnd(string source, List<int> lineOffsets, int startLine)
+    {
+        if (startLine < 1 || startLine > lineOffsets.Count)
+            return startLine;
+
+        int i = lineOffsets[startLine - 1];
+        int braceDepth = 0;
+        int currentLine = startLine;
+
+        while (i < source.Length)
+        {
+            char c = source[i];
+            if (c == '\n') { currentLine++; i++; continue; }
+            if (c == '\r') { i++; continue; }
+
+            // Skip strings
+            if (c == '"')
+            {
+                i++;
+                if (i + 1 < source.Length && source[i] == '"' && source[i + 1] == '"')
+                {
+                    i += 2;
+                    while (i + 2 < source.Length)
+                    {
+                        if (source[i] == '\n') currentLine++;
+                        if (source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"')
+                        { i += 3; break; }
+                        i++;
+                    }
+                    continue;
+                }
+                while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                {
+                    if (source[i] == '\\') i++;
+                    i++;
+                }
+                if (i < source.Length && source[i] == '"') i++;
+                continue;
+            }
+            if (c == '\'')
+            {
+                i++;
+                while (i < source.Length && source[i] != '\'' && source[i] != '\n')
+                {
+                    if (source[i] == '\\') i++;
+                    i++;
+                }
+                if (i < source.Length && source[i] == '\'') i++;
+                continue;
+            }
+            if (c == '$' && i + 1 < source.Length && source[i + 1] == '"')
+            {
+                i += 2;
+                while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                {
+                    if (source[i] == '\\') i++;
+                    i++;
+                }
+                if (i < source.Length && source[i] == '"') i++;
+                continue;
+            }
+
+            // Skip comments
+            if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
+            {
+                while (i < source.Length && source[i] != '\n') i++;
+                continue;
+            }
+            if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
+            {
+                i += 2;
+                while (i + 1 < source.Length)
+                {
+                    if (source[i] == '\n') currentLine++;
+                    if (source[i] == '*' && source[i + 1] == '/')
+                    { i += 2; break; }
+                    i++;
+                }
+                continue;
+            }
+
+            if (c == '{') { braceDepth++; i++; continue; }
+            if (c == '}')
+            {
+                if (braceDepth > 0) { braceDepth--; i++; continue; }
+                return currentLine;
+            }
+
+            i++;
+        }
+
+        return startLine;
+    }
 
     private void PushToClient(DocumentUri uri, IEnumerable<ParseDiagnostic> diagnostics)
     {
