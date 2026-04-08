@@ -99,14 +99,7 @@ internal sealed class UitkxCompletionSource : IAsyncCompletionSource
             // VS2022 does not send textDocument/didChange for custom LSP types, so the
             // server's document store is stale. Push the current buffer text before completing.
             var currentText = snapshot.GetText();
-            await rpc.NotifyWithParameterObjectAsync(
-                    "textDocument/didChange",
-                    new
-                    {
-                        textDocument = new { uri, version = 1 },
-                        contentChanges = new[] { new { text = currentText } },
-                    }
-                )
+            await BufferSyncService.SyncIfChangedAsync(rpc, uri, currentText)
                 .ConfigureAwait(false);
 
             Log($"Calling textDocument/completion: {uri} {lineNo}:{charNo}");

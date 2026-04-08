@@ -260,11 +260,11 @@ component UitkxTestFileDoNotTouch(
     });
   }
 
-  {/* return (
+  return (
     <Box>
       <Label text="This is a TabView demo." />
     </Box>
-  ); */}
+  );
 
 
    // ── MultiColumnTreeView actions ────────────────────────────────────────────

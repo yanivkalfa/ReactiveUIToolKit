@@ -134,14 +134,7 @@ internal sealed class UitkxFormatDocumentHandler : ICommandHandler<FormatDocumen
         var currentText = snapshot.GetText();
 
         // Sync buffer text to server (VS2022 doesn't send didChange for custom content types).
-        await rpc.NotifyWithParameterObjectAsync(
-                "textDocument/didChange",
-                new
-                {
-                    textDocument = new { uri, version = 1 },
-                    contentChanges = new[] { new { text = currentText } },
-                }
-            )
+        await BufferSyncService.SyncIfChangedAsync(rpc, uri, currentText)
             .ConfigureAwait(false);
 
         Log($"Calling textDocument/formatting for {uri}");
@@ -151,7 +144,7 @@ internal sealed class UitkxFormatDocumentHandler : ICommandHandler<FormatDocumen
                 new
                 {
                     textDocument = new { uri },
-                    options = new { tabSize = 4, insertSpaces = true },
+                    options = new { tabSize = 2, insertSpaces = true },
                 },
                 token
             )

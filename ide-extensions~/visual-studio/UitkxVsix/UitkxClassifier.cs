@@ -274,7 +274,7 @@ internal sealed class UitkxClassifier : IClassifier
 
     private ITextSnapshot? _cachedSnapshot;
     private List<ClassificationSpan> _cachedSpans = new();
-    private IClassificationType? _excludedCode;
+    private IClassificationType? _unreachableCode;
     private ITextBuffer? _ownerBuffer;
 
 #pragma warning disable CS0067
@@ -283,8 +283,9 @@ internal sealed class UitkxClassifier : IClassifier
 
     public UitkxClassifier(IClassificationTypeRegistryService classificationTypeRegistryService)
     {
-        _excludedCode =
-            classificationTypeRegistryService.GetClassificationType("excluded code")
+        _unreachableCode =
+            classificationTypeRegistryService.GetClassificationType(UitkxClassificationNames.Unreachable)
+            ?? classificationTypeRegistryService.GetClassificationType("excluded code")
             ?? classificationTypeRegistryService.GetClassificationType("text")!;
         _keyword =
             classificationTypeRegistryService.GetClassificationType("keyword")
@@ -393,6 +394,18 @@ internal sealed class UitkxClassifier : IClassifier
     }
 
     private static bool _classifyLogged;
+    private static int _classifyCallCount;
+    private static readonly System.Diagnostics.Stopwatch _sw = System.Diagnostics.Stopwatch.StartNew();
+
+    private static void ClassifierLog(string msg)
+    {
+        try
+        {
+            var logPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "uitkx-unreachable-trace.log");
+            System.IO.File.AppendAllText(logPath, $"[{_sw.ElapsedMilliseconds,8}ms] [Classifier] {msg}\n");
+        }
+        catch { }
+    }
 
     public IList<ClassificationSpan> GetClassificationSpans(SnapshotSpan span)
     {
@@ -402,19 +415,53 @@ internal sealed class UitkxClassifier : IClassifier
         var unreachableRanges = GetUnreachableRanges(span.Snapshot);
 
         var results = new List<ClassificationSpan>();
+        int replacedCount = 0;
         foreach (var classificationSpan in _cachedSpans)
         {
             if (classificationSpan.Span.IntersectsWith(span))
             {
-                // If this span falls within an unreachable range, replace with excluded code.
+                // Replace tokens inside unreachable regions with our custom
+                // high-priority gray classification.  We use per-token
+                // replacement (not a broad span) because VS2022's classification
+                // aggregator resolves overlapping spans by priority — our
+                // uitkx.unreachable format has Order(After = Priority.High) so
+                // it will override any competing keyword/type/tag colors from
+                // VS2022's built-in LSP classifier.
                 if (
                     unreachableRanges != null
                     && IsInUnreachableRange(classificationSpan.Span, unreachableRanges)
                 )
-                    results.Add(new ClassificationSpan(classificationSpan.Span, _excludedCode!));
+                {
+                    results.Add(new ClassificationSpan(classificationSpan.Span, _unreachableCode!));
+                    replacedCount++;
+                }
                 else
                     results.Add(classificationSpan);
             }
+        }
+
+        // Also add broad unreachable spans to cover unclassified text
+        // (brackets, semicolons, whitespace, etc.) that the lexer skips.
+        if (unreachableRanges != null)
+        {
+            foreach (var (start, end) in unreachableRanges)
+            {
+                var clippedStart = Math.Max(start, span.Start.Position);
+                var clippedEnd = Math.Min(end, span.End.Position);
+                if (clippedEnd > clippedStart)
+                {
+                    results.Add(new ClassificationSpan(
+                        new SnapshotSpan(span.Snapshot, clippedStart, clippedEnd - clippedStart),
+                        _unreachableCode!));
+                }
+            }
+        }
+
+        // Log every Nth call to avoid flooding (log first 5, then every 50th)
+        _classifyCallCount++;
+        if (_classifyCallCount <= 5 || _classifyCallCount % 50 == 0)
+        {
+            ClassifierLog($"GetClassificationSpans #{_classifyCallCount}: {results.Count} spans, {replacedCount} replaced with excluded-code, {unreachableRanges?.Count ?? 0} unreachable ranges");
         }
 
         if (!_classifyLogged && results.Count > 0)
@@ -464,10 +511,40 @@ internal sealed class UitkxClassifier : IClassifier
 
     private void OnDiagnosticsChanged(string uri, List<LspDiagnostic> diagnostics)
     {
+        // Guard: verify this classifier is still the active singleton for its buffer.
+        // When a file is closed and reopened, VS2022 creates a new buffer and a new
+        // classifier, but old classifiers remain subscribed to the static event
+        // (IClassifier has no Dispose lifecycle).  Without this check, stale instances
+        // accumulate and fire ClassificationChanged on dead buffers.
+        var buffer = _ownerBuffer;
+        if (buffer == null)
+        {
+            UitkxDiagnosticStore.DiagnosticsChanged -= OnDiagnosticsChanged;
+            return;
+        }
+
+        try
+        {
+            if (!buffer.Properties.TryGetProperty(typeof(UitkxClassifier), out UitkxClassifier current)
+                || !ReferenceEquals(current, this))
+            {
+                UitkxDiagnosticStore.DiagnosticsChanged -= OnDiagnosticsChanged;
+                _ownerBuffer = null;
+                ClassifierLog("Stale classifier detected — unsubscribed from DiagnosticsChanged");
+                return;
+            }
+        }
+        catch
+        {
+            // Buffer may have been disposed.
+            UitkxDiagnosticStore.DiagnosticsChanged -= OnDiagnosticsChanged;
+            _ownerBuffer = null;
+            return;
+        }
+
         // Filter by file URI so we only react to diagnostics for our buffer.
         if (
-            _ownerBuffer != null
-            && _ownerBuffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc)
+            buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc)
         )
         {
             var myUri = new Uri(doc.FilePath).AbsoluteUri;
@@ -478,20 +555,20 @@ internal sealed class UitkxClassifier : IClassifier
         // Store diagnostics directly (bypass tagger's 200ms debounce).
         _latestDiagnostics = diagnostics;
 
+        var unreachableCount = diagnostics.Count(d => d.Tags != null && d.Tags.Contains(1));
+        ClassifierLog($"OnDiagnosticsChanged: {diagnostics.Count} total, {unreachableCount} with Unnecessary tag → invalidating cache + firing ClassificationChanged");
+
         // When diagnostics change, invalidate cache so GetClassificationSpans re-evaluates.
         _cachedSnapshot = null;
         try
         {
-            if (_ownerBuffer != null)
-            {
-                var snapshot = _ownerBuffer.CurrentSnapshot;
-                ClassificationChanged?.Invoke(
-                    this,
-                    new ClassificationChangedEventArgs(
-                        new SnapshotSpan(snapshot, 0, snapshot.Length)
-                    )
-                );
-            }
+            var snapshot = buffer.CurrentSnapshot;
+            ClassificationChanged?.Invoke(
+                this,
+                new ClassificationChangedEventArgs(
+                    new SnapshotSpan(snapshot, 0, snapshot.Length)
+                )
+            );
         }
         catch { }
     }
