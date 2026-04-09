@@ -62,10 +62,6 @@ namespace ReactiveUITK.Language.SemanticTokens
             foreach (var node in parseResult.RootNodes)
                 CollectNodeTokens(node, source, lineStarts, tokens, knownElements);
 
-            // 3. Hook setter variables (var (state, setter) = useState(...))
-            //    Scans the full source so hooks at any nesting level are covered.
-            CollectHookSetterTokens(source, lineStarts, tokens);
-
             return NormalizeTokenConflicts(tokens)
                 .OrderBy(t => t.Line)
                 .ThenBy(t => t.Column)
@@ -101,8 +97,8 @@ namespace ReactiveUITK.Language.SemanticTokens
 
             // Suppress non-comment tokens that are contained within a comment
             // token on the same line (e.g. setCount(...) inside {/* ... */}).
-            var commentTokens = merged.Values
-                .Where(t => t.TokenType == SemanticTokenTypes.Comment)
+            var commentTokens = merged
+                .Values.Where(t => t.TokenType == SemanticTokenTypes.Comment)
                 .ToList();
 
             if (commentTokens.Count > 0)
@@ -116,9 +112,11 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                     foreach (var ct in commentTokens)
                     {
-                        if (ct.Line == t.Line
+                        if (
+                            ct.Line == t.Line
                             && t.Column >= ct.Column
-                            && t.Column + t.Length <= ct.Column + ct.Length)
+                            && t.Column + t.Length <= ct.Column + ct.Length
+                        )
                         {
                             keysToRemove.Add(kvp.Key);
                             break;
@@ -148,7 +146,11 @@ namespace ReactiveUITK.Language.SemanticTokens
             const string keyword = "component";
             if (
                 i + keyword.Length > source.Length
-                || !string.Equals(source.Substring(i, keyword.Length), keyword, StringComparison.Ordinal)
+                || !string.Equals(
+                    source.Substring(i, keyword.Length),
+                    keyword,
+                    StringComparison.Ordinal
+                )
             )
                 return;
 
@@ -410,161 +412,6 @@ namespace ReactiveUITK.Language.SemanticTokens
             RegexOptions.Compiled
         );
 
-        // ── Hook setter coloring ────────────────────────────────────────────
-
-        // Matches: var (anyState, <setter>) = useState(  or  Hooks.UseState(
-        private static readonly Regex s_hookTupleRegex = new Regex(
-            @"\bvar\s*\(\s*\w+\s*,\s*(?<setter>\w+)\s*\)\s*=\s*(?:Hooks\.)?[Uu]se[A-Za-z]+\s*[<(]",
-            RegexOptions.Compiled
-        );
-
-        /// <summary>
-        /// Scans the entire source for hook tuple destructuring and emits
-        /// <see cref="SemanticTokenTypes.Function"/> tokens for setter variables.
-        /// Called once as a post-pass so it covers hooks at any nesting level.
-        /// </summary>
-        private static void CollectHookSetterTokens(
-            string source,
-            int[] lineStarts,
-            List<SemanticTokenData> tokens
-        )
-        {
-            var commentRanges = FindCommentRanges(source);
-            var setterNames = new HashSet<string>(StringComparer.Ordinal);
-
-            var matches = s_hookTupleRegex.Matches(source);
-            foreach (Match m in matches)
-            {
-                var setter = m.Groups["setter"];
-                if (!setter.Success)
-                    continue;
-
-                setterNames.Add(setter.Value);
-
-                if (IsInsideComment(setter.Index, setter.Length, commentRanges))
-                    continue;
-
-                int offset = setter.Index;
-                int lineIdx = Array.BinarySearch(lineStarts, offset);
-                if (lineIdx < 0)
-                    lineIdx = (~lineIdx) - 1;
-                if (lineIdx < 0)
-                    lineIdx = 0;
-                int col = offset - lineStarts[lineIdx];
-                EmitToken(
-                    tokens,
-                    lineIdx,
-                    col,
-                    setter.Length,
-                    SemanticTokenTypes.Function,
-                    s_noMods
-                );
-            }
-
-            // Also color setter invocations (e.g. setCount(...)) as functions.
-            foreach (var setterName in setterNames)
-            {
-                var callRegex = new Regex(
-                    $@"\b{Regex.Escape(setterName)}\b(?=\s*\()",
-                    RegexOptions.Compiled
-                );
-
-                foreach (Match call in callRegex.Matches(source))
-                {
-                    if (IsInsideComment(call.Index, call.Length, commentRanges))
-                        continue;
-
-                    int offset = call.Index;
-                    int lineIdx = Array.BinarySearch(lineStarts, offset);
-                    if (lineIdx < 0)
-                        lineIdx = (~lineIdx) - 1;
-                    if (lineIdx < 0)
-                        lineIdx = 0;
-                    int col = offset - lineStarts[lineIdx];
-
-                    EmitToken(
-                        tokens,
-                        lineIdx,
-                        col,
-                        call.Length,
-                        SemanticTokenTypes.Function,
-                        s_noMods
-                    );
-                }
-            }
-        }
-
-        /// <summary>
-        /// Returns offset ranges (start, end-exclusive) for all C-style comments
-        /// (<c>/* ... */</c>, <c>{/* ... */}</c>, <c>// ...\n</c>).
-        /// </summary>
-        private static List<(int Start, int End)> FindCommentRanges(string source)
-        {
-            var ranges = new List<(int Start, int End)>();
-            int i = 0;
-            while (i < source.Length - 1)
-            {
-                char c = source[i];
-
-                // Skip string literals
-                if (c == '"')
-                {
-                    i++;
-                    while (i < source.Length && source[i] != '"')
-                    {
-                        if (source[i] == '\\') i++;
-                        i++;
-                    }
-                    if (i < source.Length) i++; // skip closing "
-                    continue;
-                }
-                if (c == '\'')
-                {
-                    i++;
-                    while (i < source.Length && source[i] != '\'')
-                    {
-                        if (source[i] == '\\') i++;
-                        i++;
-                    }
-                    if (i < source.Length) i++; // skip closing '
-                    continue;
-                }
-
-                if (c == '/' && source[i + 1] == '*')
-                {
-                    int start = i;
-                    i += 2;
-                    while (i < source.Length - 1 && !(source[i] == '*' && source[i + 1] == '/'))
-                        i++;
-                    i += 2; // skip */
-                    ranges.Add((start, i));
-                    continue;
-                }
-                if (c == '/' && source[i + 1] == '/')
-                {
-                    int start = i;
-                    i += 2;
-                    while (i < source.Length && source[i] != '\n')
-                        i++;
-                    ranges.Add((start, i));
-                    continue;
-                }
-                i++;
-            }
-            return ranges;
-        }
-
-        private static bool IsInsideComment(
-            int offset, int length, List<(int Start, int End)> commentRanges)
-        {
-            foreach (var (start, end) in commentRanges)
-            {
-                if (offset >= start && offset + length <= end)
-                    return true;
-            }
-            return false;
-        }
-
         // ── @code body scanner ────────────────────────────────────────────────
 
         private static void EmitCommentTokens(
@@ -585,11 +432,13 @@ namespace ReactiveUITK.Language.SemanticTokens
             if (!jc.IsBlock)
             {
                 // Line comment — single token to end of line
-                int lineEnd = jc.SourceLine < lineStarts.Length
-                    ? lineStarts[jc.SourceLine]
-                    : source.Length;
+                int lineEnd =
+                    jc.SourceLine < lineStarts.Length ? lineStarts[jc.SourceLine] : source.Length;
                 // Trim trailing newline chars
-                while (lineEnd > startOffset && (source[lineEnd - 1] == '\r' || source[lineEnd - 1] == '\n'))
+                while (
+                    lineEnd > startOffset
+                    && (source[lineEnd - 1] == '\r' || source[lineEnd - 1] == '\n')
+                )
                     lineEnd--;
                 int len = lineEnd - startOffset;
                 if (len > 0)

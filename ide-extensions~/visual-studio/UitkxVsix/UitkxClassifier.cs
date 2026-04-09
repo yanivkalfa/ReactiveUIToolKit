@@ -414,8 +414,27 @@ internal sealed class UitkxClassifier : IClassifier
         // Get unreachable ranges from the diagnostic tagger.
         var unreachableRanges = GetUnreachableRanges(span.Snapshot);
 
+        // Build a position-keyed lookup for classification overrides so the
+        // inner loop is O(1) per span.  Key = buffer position, Value = override.
+        var overrides = _latestOverrides;
+        HashSet<int>? overridePositions = null;
+        if (overrides != null && overrides.Count > 0)
+        {
+            overridePositions = new HashSet<int>(overrides.Count);
+            var snapshot = span.Snapshot;
+            foreach (var ov in overrides)
+            {
+                if (ov.Line < 0 || ov.Line >= snapshot.LineCount) continue;
+                var line = snapshot.GetLineFromLineNumber(ov.Line);
+                int pos = line.Start.Position + ov.Character;
+                if (pos >= 0 && pos < snapshot.Length)
+                    overridePositions.Add(pos);
+            }
+        }
+
         var results = new List<ClassificationSpan>();
         int replacedCount = 0;
+        int overrideCount = 0;
         foreach (var classificationSpan in _cachedSpans)
         {
             if (classificationSpan.Span.IntersectsWith(span))
@@ -434,6 +453,16 @@ internal sealed class UitkxClassifier : IClassifier
                 {
                     results.Add(new ClassificationSpan(classificationSpan.Span, _unreachableCode!));
                     replacedCount++;
+                }
+                else if (
+                    overridePositions != null
+                    && overridePositions.Contains(classificationSpan.Span.Start.Position)
+                )
+                {
+                    // Reclassify: the server identified this as a delegate-typed
+                    // identifier that should be colored as a method/function.
+                    results.Add(new ClassificationSpan(classificationSpan.Span, _method));
+                    overrideCount++;
                 }
                 else
                     results.Add(classificationSpan);
@@ -461,7 +490,7 @@ internal sealed class UitkxClassifier : IClassifier
         _classifyCallCount++;
         if (_classifyCallCount <= 5 || _classifyCallCount % 50 == 0)
         {
-            ClassifierLog($"GetClassificationSpans #{_classifyCallCount}: {results.Count} spans, {replacedCount} replaced with excluded-code, {unreachableRanges?.Count ?? 0} unreachable ranges");
+            ClassifierLog($"GetClassificationSpans #{_classifyCallCount}: {results.Count} spans, {replacedCount} replaced with excluded-code, {overrideCount} reclassified by overrides, {unreachableRanges?.Count ?? 0} unreachable ranges");
         }
 
         if (!_classifyLogged && results.Count > 0)
@@ -498,6 +527,8 @@ internal sealed class UitkxClassifier : IClassifier
             _ownerBuffer = snapshot.TextBuffer;
             // Listen for diagnostic changes to invalidate cached classifications.
             UitkxDiagnosticStore.DiagnosticsChanged += OnDiagnosticsChanged;
+            // Listen for Roslyn-driven classification overrides (delegate → method).
+            ClassificationOverrideStore.OverridesChanged += OnOverridesChanged;
         }
 
         if (ReferenceEquals(snapshot, _cachedSnapshot))
@@ -573,7 +604,57 @@ internal sealed class UitkxClassifier : IClassifier
         catch { }
     }
 
+    private void OnOverridesChanged(string uri, List<ClassificationOverrideEntry> overrides)
+    {
+        var buffer = _ownerBuffer;
+        if (buffer == null)
+        {
+            ClassificationOverrideStore.OverridesChanged -= OnOverridesChanged;
+            return;
+        }
+
+        try
+        {
+            if (!buffer.Properties.TryGetProperty(typeof(UitkxClassifier), out UitkxClassifier current)
+                || !ReferenceEquals(current, this))
+            {
+                ClassificationOverrideStore.OverridesChanged -= OnOverridesChanged;
+                return;
+            }
+        }
+        catch
+        {
+            ClassificationOverrideStore.OverridesChanged -= OnOverridesChanged;
+            return;
+        }
+
+        // Filter by file URI.
+        if (buffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument doc))
+        {
+            var myUri = new Uri(doc.FilePath).AbsoluteUri;
+            if (!string.Equals(myUri, uri, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+
+        _latestOverrides = overrides;
+        ClassifierLog($"OnOverridesChanged: {overrides.Count} overrides → invalidating cache");
+
+        _cachedSnapshot = null;
+        try
+        {
+            var snapshot = buffer.CurrentSnapshot;
+            ClassificationChanged?.Invoke(
+                this,
+                new ClassificationChangedEventArgs(
+                    new SnapshotSpan(snapshot, 0, snapshot.Length)
+                )
+            );
+        }
+        catch { }
+    }
+
     private List<LspDiagnostic>? _latestDiagnostics;
+    private List<ClassificationOverrideEntry>? _latestOverrides;
 
     private List<(int start, int end)>? GetUnreachableRanges(ITextSnapshot snapshot)
     {
@@ -696,6 +777,11 @@ internal sealed class UitkxClassifier : IClassifier
                     if (probe < text.Length && text[probe] == '(')
                     {
                         AddSpan(snapshot, spans, start, token.Length, _method);
+                    }
+                    else if (probe < text.Length && text[probe] == '<')
+                    {
+                        AddSpan(snapshot, spans, start, token.Length,
+                            IsGenericCallSite(text, probe, text.Length) ? _method : _identifier);
                     }
                     else
                     {
@@ -1360,6 +1446,11 @@ internal sealed class UitkxClassifier : IClassifier
                     {
                         AddSpan(snapshot, spans, identStart, token.Length, _method);
                     }
+                    else if (probe < end && text[probe] == '<')
+                    {
+                        AddSpan(snapshot, spans, identStart, token.Length,
+                            IsGenericCallSite(text, probe, end) ? _method : _identifier);
+                    }
                     else
                     {
                         AddSpan(snapshot, spans, identStart, token.Length, _identifier);
@@ -1376,6 +1467,45 @@ internal sealed class UitkxClassifier : IClassifier
 
             i++;
         }
+    }
+
+    /// <summary>
+    /// Checks whether the '<' at <paramref name="ltPos"/> starts a generic type
+    /// argument list followed by '(', e.g. <c>useState&lt;string&gt;(</c>.
+    /// Returns true if the pattern <c>&lt;...&gt;(</c> is found with balanced
+    /// angle brackets.  Bails out on characters that cannot appear inside
+    /// generic type arguments to avoid false positives on comparison operators.
+    /// </summary>
+    private static bool IsGenericCallSite(string text, int ltPos, int end)
+    {
+        if (ltPos >= end || text[ltPos] != '<')
+            return false;
+
+        int depth = 1;
+        int i = ltPos + 1;
+        while (i < end && depth > 0)
+        {
+            char c = text[i];
+            if (c == '<') { depth++; }
+            else if (c == '>') { depth--; }
+            // Characters that can't appear in a generic type argument list —
+            // bail out to avoid misclassifying comparison chains.
+            else if (c == ';' || c == '{' || c == '}')
+                return false;
+            // '=' is allowed only as part of '=>' (lambda) — bare '=' is not.
+            else if (c == '=' && (i + 1 >= end || text[i + 1] != '>'))
+                return false;
+            i++;
+        }
+
+        if (depth != 0)
+            return false;
+
+        // Skip optional whitespace after '>'
+        while (i < end && char.IsWhiteSpace(text[i]))
+            i++;
+
+        return i < end && text[i] == '(';
     }
 
     private static int ParseNumber(string text, int index)

@@ -1,6 +1,20 @@
 {
   "entries": [
     {
+      "date": "2026-04-09",
+      "versions": {
+        "vscode": "1.0.308",
+        "vs2022": "1.0.85"
+      },
+      "shared": [
+        "Feature: delegate-typed variables (useState setters, callbacks) now colored as functions in both VS Code and VS2022",
+        "Fix: generic function calls like useState<string>() no longer lose function coloring"
+      ],
+      "vs2022": [
+        "Feature: custom notification channel (CustomMessageTarget) for server-to-client classification overrides"
+      ]
+    },
+    {
       "date": "2026-04-08",
       "versions": {
         "vscode": "1.0.307",

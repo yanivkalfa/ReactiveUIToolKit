@@ -7,10 +7,12 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Host.Mef;
+using OmniSharp.Extensions.LanguageServer.Protocol;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using ReactiveUITK.Language.Diagnostics;
 using ReactiveUITK.Language.Parser;
 using ReactiveUITK.Language.Roslyn;
+using ReactiveUITK.Language.SemanticTokens;
 using CSharpParseOptions = Microsoft.CodeAnalysis.CSharp.CSharpParseOptions;
 
 namespace UitkxLanguageServer.Roslyn
@@ -157,6 +159,7 @@ namespace UitkxLanguageServer.Roslyn
 
         private readonly ReferenceAssemblyLocator _refLocator;
         private readonly VirtualDocumentGenerator _docGenerator = new VirtualDocumentGenerator();
+        private readonly RoslynSemanticTokensProvider _roslynTokensProvider = new RoslynSemanticTokensProvider();
         private readonly ILanguageServerFacade _server;
         private readonly IPropsTypeProvider _propsTypes;
 
@@ -647,6 +650,26 @@ namespace UitkxLanguageServer.Roslyn
 
                 // 4. Push T3 diagnostics through the publisher
                 publisher.PushTier3(uitkxFilePath, GetLatestDiagnostics(uitkxFilePath), source);
+
+                // 5. Push classification overrides to VS2022 (custom notification).
+                //    VSCode uses LSP semantic tokens for delegate coloring; VS2022
+                //    cannot consume semantic tokens, so we push overrides via a
+                //    custom uitkx/classificationOverrides notification instead.
+                if (CapabilityPatchStream.IsVisualStudio && !ct.IsCancellationRequested)
+                {
+                    ServerLog.Log($"[RoslynHost] IsVisualStudio gate passed, calling PushClassificationOverridesAsync for '{System.IO.Path.GetFileName(uitkxFilePath)}'");
+                    try
+                    {
+                        await PushClassificationOverridesAsync(
+                            uitkxFilePath, source, state, ct
+                        ).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) { /* next rebuild will send */ }
+                    catch (Exception ex)
+                    {
+                        ServerLog.Log($"[RoslynHost] PushClassificationOverrides error: {ex.Message}");
+                    }
+                }
             }
             catch (OperationCanceledException)
             {
@@ -660,6 +683,47 @@ namespace UitkxLanguageServer.Roslyn
             {
                 state.Gate.Release();
             }
+        }
+
+        /// <summary>
+        /// Sends a <c>uitkx/classificationOverrides</c> notification to VS2022
+        /// containing delegate-typed identifiers that need to be reclassified
+        /// from <c>identifier</c> to <c>method</c> (function call colour).
+        /// </summary>
+        private async Task PushClassificationOverridesAsync(
+            string uitkxFilePath,
+            string source,
+            FileState state,
+            CancellationToken ct
+        )
+        {
+            var roslynDoc = GetRoslynDocument(uitkxFilePath);
+            var vDoc = state.VirtualDoc;
+            if (roslynDoc == null || vDoc == null)
+            {
+                ServerLog.Log(
+                    $"[RoslynHost] PushClassificationOverrides skipped — "
+                    + $"roslynDoc={roslynDoc != null}, vDoc={vDoc != null} "
+                    + $"for '{System.IO.Path.GetFileName(uitkxFilePath)}'"
+                );
+                return;
+            }
+
+            var overrides = await _roslynTokensProvider
+                .GetDelegateOverridesAsync(roslynDoc, vDoc.Map, source, ct)
+                .ConfigureAwait(false);
+
+            // Always send — an empty array clears stale overrides from a prior edit.
+            _server.SendNotification("uitkx/classificationOverrides", new
+            {
+                uri = DocumentUri.File(uitkxFilePath).ToString(),
+                overrides = overrides,
+            });
+
+            ServerLog.Log(
+                $"[RoslynHost] Pushed {overrides.Length} classification overrides for "
+                + $"'{System.IO.Path.GetFileName(uitkxFilePath)}'"
+            );
         }
 
         private void UpdateWorkspace(

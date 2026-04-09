@@ -531,3 +531,97 @@ internal static class UitkxDiagnosticStore
         }
     }
 }
+
+// ── Classification override model ────────────────────────────────────────────
+
+/// <summary>
+/// A single classification override received from the LSP server via the
+/// custom <c>uitkx/classificationOverrides</c> notification.
+/// </summary>
+internal sealed class ClassificationOverrideEntry
+{
+    /// <summary>0-based line number in the .uitkx file.</summary>
+    public int Line;
+    /// <summary>0-based character offset on the line.</summary>
+    public int Character;
+    /// <summary>Character length of the token.</summary>
+    public int Length;
+    /// <summary>
+    /// Target classification type: <c>"method"</c>, <c>"keyword"</c>, etc.
+    /// </summary>
+    public string Type = "";
+}
+
+// ── Static store for incoming classification overrides ────────────────────────
+
+/// <summary>
+/// Central store that receives <c>uitkx/classificationOverrides</c> from the
+/// LSP server (via <see cref="UitkxMiddleLayer"/>) and dispatches to the
+/// <see cref="UitkxClassifier"/>.  Mirrors <see cref="UitkxDiagnosticStore"/>.
+/// </summary>
+internal static class ClassificationOverrideStore
+{
+    /// <summary>
+    /// Fired when overrides for a URI are updated.
+    /// Parameters: (string uri, List&lt;ClassificationOverrideEntry&gt; overrides)
+    /// </summary>
+    internal static event Action<string, List<ClassificationOverrideEntry>>? OverridesChanged;
+
+    private static readonly string LogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-override-store.log"
+    );
+
+    private static void Log(string msg)
+    {
+        try
+        {
+            File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Called from <see cref="UitkxMiddleLayer"/> when a
+    /// <c>uitkx/classificationOverrides</c> notification arrives from the server.
+    /// </summary>
+    internal static void HandleClassificationOverrides(JToken param)
+    {
+        try
+        {
+            var uri = param["uri"]?.ToString();
+            if (string.IsNullOrEmpty(uri))
+                return;
+
+            var overridesArray = param["overrides"] as JArray;
+            var overrides = new List<ClassificationOverrideEntry>();
+
+            if (overridesArray != null)
+            {
+                foreach (var item in overridesArray)
+                {
+                    overrides.Add(new ClassificationOverrideEntry
+                    {
+                        Line = item["Line"]?.Value<int>() ?? item["line"]?.Value<int>() ?? 0,
+                        Character = item["Column"]?.Value<int>() ?? item["column"]?.Value<int>() ?? 0,
+                        Length = item["Length"]?.Value<int>() ?? item["length"]?.Value<int>() ?? 0,
+                        Type = item["OverrideType"]?.ToString()
+                            ?? item["overrideType"]?.ToString()
+                            ?? item["type"]?.ToString()
+                            ?? "",
+                    });
+                }
+            }
+
+            Log($"Parsed {overrides.Count} classification overrides for {uri}");
+            foreach (var o in overrides)
+                Log($"  [{o.Line}:{o.Character}] len={o.Length} type={o.Type}");
+
+            OverridesChanged?.Invoke(uri!, overrides);
+        }
+        catch (Exception ex)
+        {
+            Log($"Error parsing classification overrides: {ex.Message}");
+        }
+    }
+}

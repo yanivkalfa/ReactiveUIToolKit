@@ -146,6 +146,23 @@ namespace UitkxLanguageServer.Roslyn
                 return Array.Empty<SemanticTokenData>();
             }
 
+            // Pre-fetch syntax root and semantic model for delegate detection.
+            // Both are already cached by Roslyn (~1ms each on subsequent calls).
+            SyntaxNode? syntaxRoot = null;
+            SemanticModel? semanticModel = null;
+            try
+            {
+                syntaxRoot = await document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
+                semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            { /* graceful degradation — delegate detection skipped */
+            }
+
             // Pre-build a line-starts lookup so offset → (line, col) is fast.
             var lineStarts = BuildLineStarts(uitkxSource);
 
@@ -158,6 +175,39 @@ namespace UitkxLanguageServer.Roslyn
                 // Map classification type to an LSP token type string.
                 if (!s_typeMap.TryGetValue(cs.ClassificationType, out var tokenType))
                     continue;
+
+                // Override locals/parameters whose type is a delegate to Function.
+                // This covers all delegate-typed variables generically:
+                //   var (count, setCount) = useState(0)  → setCount is StateSetter<int> → Function
+                //   Action callback = MyMethod           → callback is Action → Function
+                if (
+                    syntaxRoot != null
+                    && semanticModel != null
+                    && (
+                        cs.ClassificationType == "local name"
+                        || cs.ClassificationType == "parameter name"
+                    )
+                )
+                {
+                    try
+                    {
+                        var token = syntaxRoot.FindToken(cs.TextSpan.Start);
+                        if (token.Parent != null)
+                        {
+                            var typeInfo = semanticModel.GetTypeInfo(token.Parent, ct);
+                            var type = typeInfo.Type ?? typeInfo.ConvertedType;
+                            if (type?.TypeKind == TypeKind.Delegate)
+                                tokenType = SemanticTokenTypes.Function;
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    { /* graceful fallback to original classification */
+                    }
+                }
 
                 // Only include spans that trace back to user-authored .uitkx C# code.
                 var mapped = map.ToUitkxOffset(cs.TextSpan.Start);
@@ -203,6 +253,114 @@ namespace UitkxLanguageServer.Roslyn
                     return cmp != 0 ? cmp : a.Column.CompareTo(b.Column);
                 }
             );
+
+            return results.ToArray();
+        }
+
+        /// <summary>
+        /// Returns classification overrides for locals/parameters whose Roslyn type
+        /// is a delegate.  These overrides tell the VS2022 classifier to reclassify
+        /// the span from <c>identifier</c> to <c>method</c> (function colour).
+        /// </summary>
+        /// <remarks>
+        /// This is the Phase B counterpart of the inline delegate detection in
+        /// <see cref="GetTokensAsync"/>: VSCode gets the override via semantic
+        /// tokens, but VS2022 cannot consume semantic tokens — it receives these
+        /// overrides via a custom <c>uitkx/classificationOverrides</c> notification.
+        /// </remarks>
+        public async Task<ClassificationOverride[]> GetDelegateOverridesAsync(
+            Document document,
+            SourceMap map,
+            string uitkxSource,
+            CancellationToken ct = default
+        )
+        {
+            if (map == null || map.Entries.IsDefaultOrEmpty)
+                return Array.Empty<ClassificationOverride>();
+
+            var entries = map.Entries;
+            int totalStart = entries[0].VirtualStart;
+            int totalEnd = entries[entries.Length - 1].VirtualEnd;
+            var querySpan = TextSpan.FromBounds(totalStart, totalEnd);
+
+            IEnumerable<ClassifiedSpan> classified;
+            try
+            {
+                classified = await Classifier
+                    .GetClassifiedSpansAsync(document, querySpan, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { return Array.Empty<ClassificationOverride>(); }
+
+            SyntaxNode? syntaxRoot = null;
+            SemanticModel? semanticModel = null;
+            try
+            {
+                syntaxRoot = await document.GetSyntaxRootAsync(ct).ConfigureAwait(false);
+                semanticModel = await document.GetSemanticModelAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { return Array.Empty<ClassificationOverride>(); }
+
+            if (syntaxRoot == null || semanticModel == null)
+                return Array.Empty<ClassificationOverride>();
+
+            var lineStarts = BuildLineStarts(uitkxSource);
+            var results = new List<ClassificationOverride>();
+
+            foreach (var cs in classified)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                if (cs.ClassificationType != "local name" && cs.ClassificationType != "parameter name")
+                    continue;
+
+                try
+                {
+                    var token = syntaxRoot.FindToken(cs.TextSpan.Start);
+                    if (token.Parent == null) continue;
+
+                    // Try expression-based type info first (works for usages like
+                    // `setGameStarted(true)`).
+                    var typeInfo = semanticModel.GetTypeInfo(token.Parent, ct);
+                    var type = typeInfo.Type ?? typeInfo.ConvertedType;
+
+                    // For tuple declarations like `var (x, setX) = useState(...)`,
+                    // GetTypeInfo fails because the parent is a SingleVariableDesignationSyntax
+                    // (not an expression).  Fall back to GetDeclaredSymbol → symbol.Type.
+                    if (type?.TypeKind != TypeKind.Delegate)
+                    {
+                        var declared = semanticModel.GetDeclaredSymbol(token.Parent, ct);
+                        if (declared is ILocalSymbol local)
+                            type = local.Type;
+                        else if (declared is IParameterSymbol param)
+                            type = param.Type;
+                    }
+
+                    if (type?.TypeKind != TypeKind.Delegate) continue;
+
+                    var mapped = map.ToUitkxOffset(cs.TextSpan.Start);
+                    if (!mapped.HasValue) continue;
+
+                    int uitkxStart = mapped.Value.UitkxOffset;
+                    int tokenLength = cs.TextSpan.Length;
+                    int maxLen = mapped.Value.Entry.UitkxEnd - uitkxStart;
+                    if (tokenLength > maxLen) tokenLength = maxLen;
+                    if (tokenLength <= 0) continue;
+
+                    var (line0, col0) = OffsetToLineCol(uitkxStart, lineStarts);
+                    results.Add(new ClassificationOverride
+                    {
+                        Line = line0,
+                        Column = col0,
+                        Length = tokenLength,
+                        OverrideType = "method",
+                    });
+                }
+                catch (OperationCanceledException) { throw; }
+                catch { /* skip single token */ }
+            }
 
             return results.ToArray();
         }
