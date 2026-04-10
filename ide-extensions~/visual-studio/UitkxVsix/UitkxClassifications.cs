@@ -20,6 +20,7 @@ internal static class UitkxClassificationNames
     public const string Identifier = "uitkx.identifier";
     public const string Operator = "uitkx.operator";
     public const string Comment = "uitkx.comment";
+    public const string Unreachable = "uitkx.unreachable";
 }
 
 internal static class UitkxClassificationTypes
@@ -76,6 +77,10 @@ internal static class UitkxClassificationTypes
     [Export(typeof(ClassificationTypeDefinition))]
     [Name(UitkxClassificationNames.Comment)]
     internal static ClassificationTypeDefinition? Comment;
+
+    [Export(typeof(ClassificationTypeDefinition))]
+    [Name(UitkxClassificationNames.Unreachable)]
+    internal static ClassificationTypeDefinition? Unreachable;
 #pragma warning restore CS0649
 }
 
@@ -228,5 +233,26 @@ internal sealed class UitkxCommentFormat : UitkxColorFormatBase
     public UitkxCommentFormat()
         : base("UITKX Comment", 0x6A, 0x99, 0x55)
     {
+    }
+}
+
+/// <summary>
+/// High-priority gray format for unreachable code regions.
+/// Must override all other classification formats (keyword, type, tag, etc.)
+/// so that unreachable tokens are rendered as solid gray regardless of what
+/// VS2022's LSP framework or other classifiers produce.
+/// </summary>
+[Export(typeof(EditorFormatDefinition))]
+[ClassificationType(ClassificationTypeNames = UitkxClassificationNames.Unreachable)]
+[Name(UitkxClassificationNames.Unreachable)]
+[Order(After = Priority.High)]
+[UserVisible(true)]
+internal sealed class UitkxUnreachableFormat : ClassificationFormatDefinition
+{
+    public UitkxUnreachableFormat()
+    {
+        DisplayName = "UITKX Unreachable Code";
+        ForegroundColor = Color.FromRgb(0x80, 0x80, 0x80);
+        ForegroundOpacity = 1.0;
     }
 }

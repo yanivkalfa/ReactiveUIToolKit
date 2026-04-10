@@ -21,7 +21,7 @@ export const BoundsIntFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('BoundsIntFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('BoundsIntFieldProps')} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -32,7 +32,7 @@ export const BoundsIntFieldPage: FC = () => (
         Pass a <code>BoundsIntFieldProps</code> with an initial <code>BoundsInt</code> to render the
         field. Combine it with <code>Hooks.UseState</code> or signals to keep the value controlled.
       </Typography>
-      <CodeBlock language="tsx" code={BOUNDS_INT_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={BOUNDS_INT_FIELD_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

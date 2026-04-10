@@ -111,7 +111,7 @@ component KeyedDiffLisDemoFunc {
           style={btnStyle}
         />
         <Button
-          text="Rotate tail → head"
+          text="Rotate tail â†’ head"
           onClick={_ => RotateTailToHead()}
           style={btnStyle}
         />
@@ -128,13 +128,15 @@ component KeyedDiffLisDemoFunc {
         />
       </VisualElement>
       @foreach (var item in items) {
-        <VisualElement style={rowItemStyle} key={item}>
-          <Label text={$"Key: {item}"} />
-          <Label
-            text={$"Index {items.IndexOf(item)}"}
-            style={new Style { (StyleKeys.Color, Color.cyan) }}
-          />
-        </VisualElement>
+        return (
+          <VisualElement style={rowItemStyle} key={item}>
+            <Label text={$"Key: {item}"} />
+            <Label
+              text={$"Index {items.IndexOf(item)}"}
+              style={new Style { (StyleKeys.Color, Color.cyan) }}
+            />
+          </VisualElement>
+        );
       }
     </ScrollView>
   );

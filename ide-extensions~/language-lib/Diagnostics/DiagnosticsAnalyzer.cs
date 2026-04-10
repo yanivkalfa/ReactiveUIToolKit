@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -13,11 +14,15 @@ namespace ReactiveUITK.Language.Diagnostics
     ///
     /// Tier 2 checks:
     /// <list type="bullet">
+    ///   <item>UITKX0013 — Hook called inside <c>@if</c> / <c>@else</c> branch</item>
+    ///   <item>UITKX0014 — Hook called inside <c>@foreach</c> / <c>@for</c> / <c>@while</c> loop</item>
+    ///   <item>UITKX0015 — Hook called inside <c>@switch</c> case</item>
+    ///   <item>UITKX0016 — Hook called inside event-handler attribute</item>
     ///   <item>UITKX0103 — <c>component</c> name does not match filename</item>
     ///   <item>UITKX0104 — Duplicate literal <c>key="…"</c> among siblings</item>
     ///   <item>UITKX0105 — Unknown PascalCase element (when index available)</item>
     ///   <item>UITKX0106 — Element inside <c>@foreach</c> body has no <c>key</c> (warning)</item>
-    ///   <item>UITKX0107 — Unreachable code after top-level <c>return</c> in <c>@code</c></item>
+    ///   <item>UITKX0107 — Unreachable code after top-level <c>return</c> in component body</item>
     ///   <item>UITKX0108 — Component has more than one root render node</item>
     ///   <item>UITKX0109 — Unknown attribute on a known element (when attribute map available)</item>
     ///   <item>UITKX0111 — Unused component parameter in function-style component</item>
@@ -94,7 +99,7 @@ namespace ReactiveUITK.Language.Diagnostics
             CheckSingleRenderRoot(parseResult.RootNodes, diags);
 
             // ── T2: AST walks ─────────────────────────────────────────────────
-            WalkNodeList(parseResult.RootNodes, insideForeach: false, projectElements, knownAttributes, diags);
+            WalkNodeList(parseResult.RootNodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, sourceText, diags);
 
             // ── T2: Function-style unreachable-after-return ───────────────────
             if (d.IsFunctionStyle)
@@ -120,29 +125,34 @@ namespace ReactiveUITK.Language.Diagnostics
                     }
                 }
 
-                // Render-return wrapper — if setup code has an early return,
-                // the `return (` line that wraps the render root ISN'T an AST
-                // node, so neither CheckUnreachableAfterReturn (code-block
-                // internal) nor Site B (sibling ElementNodes) covers it.
-                // Emit a one-line diagnostic for that gap.
-                if (d.MarkupStartLine > 0)
+                // Site B — early return in setup code (before the render return).
+                // Dim from the line after the early return to the closing `}`.
+                if (!string.IsNullOrEmpty(sourceText) && d.FunctionSetupStartOffset >= 0
+                    && d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
                 {
-                    var setupCb = parseResult.RootNodes
-                        .OfType<CodeBlockNode>().FirstOrDefault();
-                    if (setupCb != null && HasTopLevelReturn(setupCb))
+                    int earlyReturnLine = FindEarlyReturnInSetup(
+                        sourceText, d.FunctionSetupStartOffset, d.FunctionSetupStartLine,
+                        d.FunctionReturnEndLine);
+                    if (earlyReturnLine > 0)
                     {
-                        diags.Add(new ParseDiagnostic
+                        int unreachStart = earlyReturnLine + 1;
+                        int unreachEnd = d.FunctionBodyEndLine - 1;
+                        if (unreachEnd >= unreachStart)
                         {
-                            Code = DiagnosticCodes.UnreachableAfterReturn,
-                            Severity = ParseSeverity.Hint,
-                            Message = "Unreachable code after 'return'.",
-                            SourceLine = d.MarkupStartLine,
-                            SourceColumn = 0,
-                            EndLine = d.MarkupStartLine,
-                            EndColumn = 9999,
-                        });
+                            diags.Add(new ParseDiagnostic
+                            {
+                                Code = DiagnosticCodes.UnreachableAfterReturn,
+                                Severity = ParseSeverity.Hint,
+                                Message = "Unreachable code after 'return'.",
+                                SourceLine = unreachStart,
+                                SourceColumn = 0,
+                                EndLine = unreachEnd,
+                                EndColumn = 9999,
+                            });
+                        }
                     }
                 }
+
             }
 
             // ── T2: UITKX0111 — Unused component parameter ───────────────────
@@ -174,8 +184,7 @@ namespace ReactiveUITK.Language.Diagnostics
         ///
         /// Excluded from the count (they do not produce rendered output):
         /// <list type="bullet">
-        ///   <item><see cref="CodeBlockNode"/> — setup code or <c>@code</c> class body.</item>
-        ///   <item><see cref="JsxCommentNode"/> — JSX comment, not rendered.</item>
+        ///   <item><see cref="CommentNode"/> — comment, not rendered.</item>
         ///   <item>Whitespace-only <see cref="TextNode"/>.</item>
         /// </list>
         ///
@@ -194,8 +203,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 switch (node)
                 {
                     // Non-rendering nodes — excluded from the count.
-                    case CodeBlockNode:
-                    case JsxCommentNode:
+                    case CommentNode:
                         continue;
                     case TextNode tn when string.IsNullOrWhiteSpace(tn.Content):
                         continue;
@@ -246,8 +254,6 @@ namespace ReactiveUITK.Language.Diagnostics
                 SwitchNode       => "@switch",
                 ExpressionNode en => $"@({en.Expression})",
                 TextNode tn      => $"text \"{ tn.Content.Trim() }\"",
-                BreakNode        => "@break",
-                ContinueNode     => "@continue",
                 _                => node.GetType().Name,
             };
 
@@ -261,7 +267,7 @@ namespace ReactiveUITK.Language.Diagnostics
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes)
         {
             var diags = new List<ParseDiagnostic>();
-            WalkNodeList(nodes, insideForeach: false, projectElements, knownAttributes, diags);
+            WalkNodeList(nodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, null, diags);
             return diags;
         }
 
@@ -269,13 +275,26 @@ namespace ReactiveUITK.Language.Diagnostics
         //  AST WALKER
         // ═══════════════════════════════════════════════════════════════════════
 
+        /// <summary>
+        /// Hook-context tracking for Rules of Hooks validation (UITKX0013–0016).
+        /// Mirrors <c>HooksValidator.HookContext</c> in the SourceGenerator.
+        /// </summary>
+        private enum HookContext
+        {
+            TopLevel,
+            Conditional,
+            Loop,
+            Switch,
+        }
+
         private static void WalkNodeList(
             ImmutableArray<AstNode> nodes,
             bool insideForeach,
+            HookContext hookCtx,
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
-            List<ParseDiagnostic> diags,
-            bool skipReturnCheck = false
+            string? sourceText,
+            List<ParseDiagnostic> diags
         )
         {
             // UITKX0104 — Duplicate literal key among siblings at this level.
@@ -284,46 +303,7 @@ namespace ReactiveUITK.Language.Diagnostics
             for (int idx = 0; idx < nodes.Length; idx++)
             {
                 var node = nodes[idx];
-                WalkNode(node, insideForeach, projectElements, knownAttributes, diags,
-                    skipReturnCheck: skipReturnCheck && node is CodeBlockNode);
-
-                bool isScopeEnder = node is BreakNode || node is ContinueNode;
-                bool isReturnEnder = !isScopeEnder && !skipReturnCheck
-                    && node is CodeBlockNode cbn && HasTopLevelReturn(cbn);
-
-                if (!isScopeEnder && !isReturnEnder)
-                    continue;
-
-                // Everything after this node in the sibling list is unreachable.
-                // Emit a single multi-line diagnostic that spans the entire region.
-                if (idx + 1 >= nodes.Length)
-                    break; // nothing follows — no diagnostic needed
-
-                int firstLine = nodes[idx + 1].SourceLine;
-
-                // Compute the last line of the unreachable region by finding the
-                // deepest descendant line among all remaining siblings.
-                int lastLine = firstLine;
-                for (int j = idx + 1; j < nodes.Length; j++)
-                    lastLine = System.Math.Max(lastLine, GetLastDescendantLine(nodes[j]));
-
-                bool fromReturn = isReturnEnder;
-                diags.Add(new ParseDiagnostic
-                {
-                    Code = fromReturn
-                        ? DiagnosticCodes.UnreachableAfterReturn
-                        : DiagnosticCodes.UnreachableAfterBreakOrContinue,
-                    Severity = ParseSeverity.Hint,
-                    Message = fromReturn
-                        ? "Unreachable code after 'return'."
-                        : "This node is unreachable because a preceding '@break' or '@continue' exits the loop body.",
-                    SourceLine = firstLine,
-                    SourceColumn = 0,
-                    EndLine = lastLine,
-                    EndColumn = 9999,
-                });
-
-                break; // no need to continue — everything after is covered
+                WalkNode(node, insideForeach, hookCtx, projectElements, knownAttributes, sourceText, diags);
             }
         }
 
@@ -378,11 +358,6 @@ namespace ReactiveUITK.Language.Diagnostics
                             max = System.Math.Max(max, GetLastDescendantLine(child));
                     }
                     break;
-
-                case CodeBlockNode cb:
-                    foreach (var rm in cb.ReturnMarkups)
-                        max = System.Math.Max(max, GetLastDescendantLine(rm.Element));
-                    break;
             }
 
             // Add 1 to account for the closing brace/tag line that follows
@@ -393,57 +368,262 @@ namespace ReactiveUITK.Language.Diagnostics
         private static void WalkNode(
             AstNode node,
             bool insideForeach,
+            HookContext hookCtx,
             HashSet<string>? projectElements,
             IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
-            List<ParseDiagnostic> diags,
-            bool skipReturnCheck = false
+            string? sourceText,
+            List<ParseDiagnostic> diags
         )
         {
             switch (node)
             {
                 case ElementNode el:
                     CheckElement(el, insideForeach, projectElements, knownAttributes, diags);
-                    WalkNodeList(el.Children, insideForeach: false, projectElements, knownAttributes, diags);
+                    // Check attribute values for hook calls — always wrong, even at top-level
+                    CheckAttributeHooks(el, diags);
+                    WalkNodeList(el.Children, insideForeach: false, hookCtx, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
-                        WalkNodeList(branch.Body, insideForeach, projectElements, knownAttributes, diags);
+                    {
+                        if (!string.IsNullOrWhiteSpace(branch.SetupCode))
+                            ScanCodeForHooks(branch.SetupCode!, branch.SetupCodeOffset,
+                                HookContext.Conditional, sourceText, diags);
+                        WalkNodeList(branch.Body, insideForeach, HookContext.Conditional, projectElements, knownAttributes, sourceText, diags);
+                    }
                     break;
 
                 case ForeachNode fe:
-                    WalkNodeList(fe.Body, insideForeach: true, projectElements, knownAttributes, diags);
+                    if (!string.IsNullOrWhiteSpace(fe.SetupCode))
+                        ScanCodeForHooks(fe.SetupCode!, fe.SetupCodeOffset,
+                            HookContext.Loop, sourceText, diags);
+                    WalkNodeList(fe.Body, insideForeach: true, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case ForNode fn:
-                    WalkNodeList(fn.Body, insideForeach, projectElements, knownAttributes, diags);
+                    if (!string.IsNullOrWhiteSpace(fn.SetupCode))
+                        ScanCodeForHooks(fn.SetupCode!, fn.SetupCodeOffset,
+                            HookContext.Loop, sourceText, diags);
+                    WalkNodeList(fn.Body, insideForeach, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case WhileNode wh:
-                    WalkNodeList(wh.Body, insideForeach, projectElements, knownAttributes, diags);
+                    if (!string.IsNullOrWhiteSpace(wh.SetupCode))
+                        ScanCodeForHooks(wh.SetupCode!, wh.SetupCodeOffset,
+                            HookContext.Loop, sourceText, diags);
+                    WalkNodeList(wh.Body, insideForeach, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case SwitchNode sw:
                     foreach (var sc in sw.Cases)
-                        WalkNodeList(sc.Body, insideForeach, projectElements, knownAttributes, diags);
-                    break;
-
-                case CodeBlockNode cb:
-                    CheckUnreachableAfterReturn(cb, diags);
-                    foreach (var rm in cb.ReturnMarkups)
                     {
-                        CheckElement(rm.Element, insideForeach, projectElements, knownAttributes, diags);
-                        WalkNodeList(
-                            rm.Element.Children,
-                            insideForeach: false,
-                            projectElements,
-                            knownAttributes,
-                            diags
-                        );
+                        if (!string.IsNullOrWhiteSpace(sc.SetupCode))
+                            ScanCodeForHooks(sc.SetupCode!, sc.SetupCodeOffset,
+                                HookContext.Switch, sourceText, diags);
+                        WalkNodeList(sc.Body, insideForeach, HookContext.Switch, projectElements, knownAttributes, sourceText, diags);
                     }
                     break;
 
-                // TextNode, ExpressionNode — nothing to check.
+                case ExpressionNode ex:
+                    if (hookCtx != HookContext.TopLevel)
+                        CheckExpressionForHooks(ex.Expression, ex.SourceLine, hookCtx, diags);
+                    break;
+
+                // TextNode — nothing to check.
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        //  RULES OF HOOKS (UITKX0013–0016)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // Patterns that indicate a hook call.  Matches the SourceGenerator's
+        // HooksValidator.s_hookPatterns — qualified, bare, and camelCase forms.
+        private static readonly string[] s_hookPatterns =
+        {
+            "Hooks.UseState(",
+            "Hooks.UseEffect(",
+            "Hooks.UseRef(",
+            "Hooks.UseCallback(",
+            "Hooks.UseMemo(",
+            "Hooks.UseContext(",
+            "Hooks.UseReducer(",
+            "Hooks.UseSignal(",
+            "Hooks.UseDeferredValue(",
+            "Hooks.UseTransition(",
+            "UseState(",
+            "UseEffect(",
+            "UseRef(",
+            "UseCallback(",
+            "UseMemo(",
+            "UseContext(",
+            "UseReducer(",
+            "UseSignal(",
+            "UseDeferredValue(",
+            "UseTransition(",
+            "useState(",
+            "useEffect(",
+            "useRef(",
+            "useCallback(",
+            "useMemo(",
+            "useContext(",
+            "useReducer(",
+            "useSignal(",
+            "useDeferredValue(",
+            "useTransition(",
+        };
+
+        /// <summary>
+        /// Scans a control-block SetupCode string for hook calls (UITKX0013–0015).
+        /// Uses <paramref name="setupCodeOffset"/> + <paramref name="sourceText"/>
+        /// to compute exact source column positions for accurate squiggles.
+        /// </summary>
+        private static void ScanCodeForHooks(
+            string code,
+            int setupCodeOffset,
+            HookContext ctx,
+            string? sourceText,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var pattern in s_hookPatterns)
+            {
+                int idx = code.IndexOf(pattern, StringComparison.Ordinal);
+                if (idx < 0)
+                    continue;
+
+                string hookName = pattern.TrimEnd('(');
+
+                string? diagCode = ctx switch
+                {
+                    HookContext.Conditional => DiagnosticCodes.HookInConditional,
+                    HookContext.Loop        => DiagnosticCodes.HookInLoop,
+                    HookContext.Switch      => DiagnosticCodes.HookInSwitch,
+                    _                       => null,
+                };
+                if (diagCode == null) continue;
+
+                // Compute exact source position using absolute offset
+                int absOffset = setupCodeOffset + idx;
+                int line = 1;
+                int col = 0;
+
+                if (sourceText != null && absOffset <= sourceText.Length)
+                {
+                    // Count lines and find column from sourceText
+                    for (int i = 0; i < absOffset; i++)
+                    {
+                        if (sourceText[i] == '\n') { line++; col = 0; }
+                        else col++;
+                    }
+                }
+                else
+                {
+                    // Fallback: approximate from SetupCode string
+                    line = 1;
+                    for (int i = 0; i < idx && i < code.Length; i++)
+                        if (code[i] == '\n') line++;
+                    col = 0;
+                    for (int i = idx - 1; i >= 0; i--)
+                    {
+                        if (code[i] == '\n') break;
+                        col++;
+                    }
+                }
+
+                string context = ctx switch
+                {
+                    HookContext.Conditional => "a conditional (@if/@else) branch",
+                    HookContext.Loop        => "a loop (@foreach/@for/@while)",
+                    HookContext.Switch      => "a @switch case",
+                    _                       => "a control block",
+                };
+
+                diags.Add(MakeDiag(
+                    diagCode,
+                    ParseSeverity.Error,
+                    $"Hook '{hookName}' must not be called inside {context}. Hooks must be called unconditionally at the top level of the component.",
+                    line,
+                    col,
+                    col + hookName.Length
+                ));
+                break; // one diagnostic per SetupCode block is enough
+            }
+        }
+
+        /// <summary>
+        /// Checks an inline expression node for hook calls when inside a
+        /// control block (UITKX0013–0015).
+        /// </summary>
+        private static void CheckExpressionForHooks(
+            string code,
+            int sourceLine,
+            HookContext ctx,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var pattern in s_hookPatterns)
+            {
+                if (code.IndexOf(pattern, StringComparison.Ordinal) < 0)
+                    continue;
+
+                string hookName = pattern.TrimEnd('(');
+
+                string? diagCode = ctx switch
+                {
+                    HookContext.Conditional => DiagnosticCodes.HookInConditional,
+                    HookContext.Loop        => DiagnosticCodes.HookInLoop,
+                    HookContext.Switch      => DiagnosticCodes.HookInSwitch,
+                    _                       => null,
+                };
+                if (diagCode == null) continue;
+
+                string context = ctx switch
+                {
+                    HookContext.Conditional => "a conditional (@if/@else) branch",
+                    HookContext.Loop        => "a loop (@foreach/@for/@while)",
+                    HookContext.Switch      => "a @switch case",
+                    _                       => "a control block",
+                };
+
+                diags.Add(MakeDiag(
+                    diagCode,
+                    ParseSeverity.Error,
+                    $"Hook '{hookName}' must not be called inside {context}. Hooks must be called unconditionally at the top level of the component.",
+                    sourceLine
+                ));
+                break;
+            }
+        }
+
+        /// <summary>
+        /// Checks element attribute values for hook calls (UITKX0016).
+        /// Hook calls in onClick, text bindings, etc. are always wrong.
+        /// </summary>
+        private static void CheckAttributeHooks(
+            ElementNode el,
+            List<ParseDiagnostic> diags)
+        {
+            foreach (var attr in el.Attributes)
+            {
+                if (attr.Value is not CSharpExpressionValue attrExpr)
+                    continue;
+
+                foreach (var pattern in s_hookPatterns)
+                {
+                    if (attrExpr.Expression.IndexOf(pattern, StringComparison.Ordinal) < 0)
+                        continue;
+
+                    string hookName = pattern.TrimEnd('(');
+                    diags.Add(MakeDiag(
+                        DiagnosticCodes.HookInEventHandler,
+                        ParseSeverity.Error,
+                        $"Hook '{hookName}' must not be called inside an event handler or attribute expression. Hooks must be called from the component body, not from callbacks.",
+                        attr.SourceLine,
+                        attr.SourceColumn,
+                        attr.SourceColumn + attr.Name.Length
+                    ));
+                    break; // one diagnostic per attribute is enough
+                }
             }
         }
 
@@ -587,219 +767,6 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        private static readonly Regex s_topLevelReturnRegex = new Regex(
-            @"^\s*return\b",
-            RegexOptions.Compiled
-        );
-
-        /// <summary>
-        /// Returns true when the code block contains an unconditional top-level
-        /// <c>return</c> statement (depth 0), meaning all subsequent sibling
-        /// AST nodes are unreachable.
-        /// </summary>
-        internal static bool HasTopLevelReturn(CodeBlockNode cb)
-        {
-            if (string.IsNullOrWhiteSpace(cb.Code))
-                return false;
-
-            var lines = cb.Code.Replace("\r\n", "\n").Split('\n');
-            int depth = 0;
-
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string line = lines[i];
-                string trimmed = line.Trim();
-
-                if (trimmed.Length == 0)
-                {
-                    depth += CountChar(line, '{') - CountChar(line, '}');
-                    if (depth < 0) depth = 0;
-                    continue;
-                }
-
-                if (depth == 0 && s_topLevelReturnRegex.IsMatch(line))
-                    return true;
-
-                depth += CountChar(line, '{') - CountChar(line, '}');
-                if (depth < 0) depth = 0;
-            }
-
-            return false;
-        }
-
-        private static void CheckUnreachableAfterReturn(
-            CodeBlockNode cb,
-            List<ParseDiagnostic> diags
-        )
-        {
-            if (string.IsNullOrWhiteSpace(cb.Code))
-                return;
-
-            var lines = cb.Code.Replace("\r\n", "\n").Split('\n');
-            int depth = 0;
-
-            // For function-style (via CanonicalLowering), SourceLine already points
-            // to the first line of actual code, so no adjustment is needed.
-            int lineBase = cb.SourceLine;
-
-            // ── Unified unreachable-zone tracker ──────────────────────────
-            // Works at ALL brace depths.  When a return statement completes
-            // (single-line or multi-line + balanced parens + `;`), every
-            // subsequent line at the same or deeper depth is unreachable
-            // until a `}` drops us below the return's depth.
-            //
-            // `unreachDepth`  — the brace depth at which the return was
-            //                   found, or −1 when not in an unreachable zone.
-            // `parenTracking` — > 0 while we are inside a multi-line return's
-            //                   `return ( … )` parenthesised expression.
-            int unreachDepth   = -1;
-            int rangeStart     = -1;
-            int rangeEnd       = -1;
-            int parenTracking  = -1; // -1 = not tracking; ≥ 0 = paren depth
-
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string line = lines[i];
-                string trimmed = line.Trim();
-                int srcLine = lineBase + i;
-
-                int opens  = CountChar(line, '{');
-                int closes = CountChar(line, '}');
-                int nextDepth = depth + opens - closes;
-                if (nextDepth < 0) nextDepth = 0;
-
-                if (trimmed.Length == 0)
-                {
-                    depth = nextDepth;
-                    continue;
-                }
-
-                bool isComment = trimmed.StartsWith("//", System.StringComparison.Ordinal);
-
-                // ── Multi-line return tracking ─────────────────────────────
-                // We saw `return (` on a previous line.  Count parens across
-                // lines until they balance, then check for `;`.
-                if (parenTracking >= 0)
-                {
-                    for (int ci = 0; ci < line.Length; ci++)
-                    {
-                        char ch = line[ci];
-                        if (ch == '(') parenTracking++;
-                        else if (ch == ')')
-                        {
-                            parenTracking--;
-                            if (parenTracking <= 0)
-                            {
-                                // Parens balanced.  Check the rest of the
-                                // line (after `)`) for `;`.
-                                string rest = line.Substring(ci + 1).Trim();
-                                if (rest.StartsWith(";", System.StringComparison.Ordinal))
-                                {
-                                    // Return statement complete on this line.
-                                    // Start unreachable zone from next line.
-                                    unreachDepth = depth;
-                                }
-                                parenTracking = -1;
-                                break;
-                            }
-                        }
-                    }
-                    depth = nextDepth;
-                    continue;
-                }
-
-                // ── Flush unreachable zone when exiting scope ──────────────
-                if (unreachDepth >= 0 && nextDepth < unreachDepth)
-                {
-                    if (rangeStart > 0 && rangeEnd >= rangeStart)
-                    {
-                        diags.Add(new ParseDiagnostic
-                        {
-                            Code       = DiagnosticCodes.UnreachableAfterReturn,
-                            Severity   = ParseSeverity.Hint,
-                            Message    = "Unreachable code after 'return'.",
-                            SourceLine = rangeStart,
-                            SourceColumn = 0,
-                            EndLine    = rangeEnd,
-                            EndColumn  = 9999,
-                        });
-                    }
-                    unreachDepth = -1;
-                    rangeStart   = -1;
-                    rangeEnd     = -1;
-                }
-
-                // ── Accumulate unreachable lines ───────────────────────────
-                if (unreachDepth >= 0 && depth >= unreachDepth && !isComment)
-                {
-                    if (rangeStart < 0) rangeStart = srcLine;
-                    rangeEnd = srcLine;
-                }
-
-                // ── Detect new return ──────────────────────────────────────
-                if (unreachDepth < 0 && !isComment
-                    && s_topLevelReturnRegex.IsMatch(line))
-                {
-
-                    // Single-line return: `return <Tag/>;` or `return expr;`
-                    if (trimmed.EndsWith(";", System.StringComparison.Ordinal))
-                    {
-                        unreachDepth = depth;
-                    }
-                    // Multi-line paren-wrapped: `return (`
-                    else
-                    {
-                        string afterReturn = trimmed.Substring("return".Length).TrimStart();
-                        if (afterReturn.StartsWith("(", System.StringComparison.Ordinal))
-                        {
-                            // Start tracking parens from this line.
-                            parenTracking = 0;
-                            for (int ci = 0; ci < line.Length; ci++)
-                            {
-                                if (line[ci] == '(') parenTracking++;
-                                else if (line[ci] == ')') parenTracking--;
-                            }
-                            if (parenTracking <= 0)
-                            {
-                                // Balanced on same line — check for ;
-                                if (trimmed.EndsWith(";", System.StringComparison.Ordinal))
-                                {
-                                    unreachDepth = depth;
-                                }
-                                parenTracking = -1;
-                            }
-                        }
-                    }
-                }
-
-                depth = nextDepth;
-            }
-
-            // Flush any remaining unreachable range at end of code block.
-            if (unreachDepth >= 0 && rangeStart > 0 && rangeEnd >= rangeStart)
-            {
-                diags.Add(new ParseDiagnostic
-                {
-                    Code       = DiagnosticCodes.UnreachableAfterReturn,
-                    Severity   = ParseSeverity.Hint,
-                    Message    = "Unreachable code after 'return'.",
-                    SourceLine = rangeStart,
-                    SourceColumn = 0,
-                    EndLine    = rangeEnd,
-                    EndColumn  = 9999,
-                });
-            }
-        }
-
-        private static int CountChar(string text, char ch)
-        {
-            int count = 0;
-            for (int i = 0; i < text.Length; i++)
-                if (text[i] == ch)
-                    count++;
-            return count;
-        }
-
         // ═══════════════════════════════════════════════════════════════════════
         //  UNUSED PARAMETER CHECK
         // ═══════════════════════════════════════════════════════════════════════
@@ -940,10 +907,8 @@ namespace ReactiveUITK.Language.Diagnostics
         /// <summary>
         /// Recursively collects C# expression text from markup nodes only
         /// (element attributes, inline expressions, control-flow conditions).
-        /// <see cref="CodeBlockNode.Code"/> is deliberately excluded — setup
-        /// code is handled separately by <see cref="IsUsedInSetupCode"/> with
-        /// scope-aware shadowing. Only <see cref="ReturnMarkupNode"/> elements
-        /// inside code blocks are collected.
+        /// Setup code is handled separately by <see cref="IsUsedInSetupCode"/> with
+        /// scope-aware shadowing.
         /// </summary>
         private static void CollectCSharpText(ImmutableArray<AstNode> nodes, System.Text.StringBuilder sb)
         {
@@ -953,13 +918,6 @@ namespace ReactiveUITK.Language.Diagnostics
                 {
                     case ExpressionNode en:
                         sb.Append(' ').Append(en.Expression).Append(' ');
-                        break;
-
-                    case CodeBlockNode cb:
-                        // Do NOT append cb.Code — it is scanned by IsUsedInSetupCode.
-                        // Only collect from return-markup elements embedded in code.
-                        foreach (var rm in cb.ReturnMarkups)
-                            CollectCSharpTextFromElement(rm.Element, sb);
                         break;
 
                     case ElementNode el:
@@ -1050,6 +1008,146 @@ namespace ReactiveUITK.Language.Diagnostics
                 EndLine = line,
                 EndColumn = endColumn > 0 ? endColumn : column,
             };
+
+        /// <summary>
+        /// Scans the setup code region for a top-level <c>return …;</c> statement
+        /// that appears before the render return. Returns the 1-based line of the
+        /// <c>;</c> ending that early return, or -1 if none found.
+        /// </summary>
+        private static int FindEarlyReturnInSetup(
+            string source, int setupStartOffset, int setupStartLine, int renderReturnEndLine)
+        {
+            int i = setupStartOffset;
+            int braceDepth = 0;
+            int parenDepth = 0;
+            int currentLine = setupStartLine;
+
+            while (i < source.Length)
+            {
+                char c = source[i];
+
+                // Track line numbers
+                if (c == '\n')
+                {
+                    currentLine++;
+                    i++;
+                    continue;
+                }
+                if (c == '\r')
+                {
+                    i++;
+                    continue;
+                }
+
+                // Skip strings
+                if (c == '"')
+                {
+                    if (i + 2 < source.Length && source[i + 1] == '"' && source[i + 2] == '"')
+                    {
+                        // Raw string literal — skip to closing """
+                        i += 3;
+                        while (i + 2 < source.Length)
+                        {
+                            if (source[i] == '\n') currentLine++;
+                            if (source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"')
+                            { i += 3; break; }
+                            i++;
+                        }
+                        continue;
+                    }
+                    i++;
+                    while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                    {
+                        if (source[i] == '\\') i++; // skip escape
+                        i++;
+                    }
+                    if (i < source.Length && source[i] == '"') i++;
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < source.Length && source[i] != '\'' && source[i] != '\n')
+                    {
+                        if (source[i] == '\\') i++;
+                        i++;
+                    }
+                    if (i < source.Length && source[i] == '\'') i++;
+                    continue;
+                }
+
+                // Skip line comments
+                if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
+                {
+                    while (i < source.Length && source[i] != '\n') i++;
+                    continue;
+                }
+                // Skip block comments
+                if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < source.Length)
+                    {
+                        if (source[i] == '\n') currentLine++;
+                        if (source[i] == '*' && source[i + 1] == '/')
+                        { i += 2; break; }
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Track nesting
+                if (c == '{') { braceDepth++; i++; continue; }
+                if (c == '}')
+                {
+                    if (braceDepth > 0) braceDepth--;
+                    else return -1; // hit component closing brace
+                    i++;
+                    continue;
+                }
+                if (c == '(') { parenDepth++; i++; continue; }
+                if (c == ')')
+                {
+                    if (parenDepth > 0) parenDepth--;
+                    i++;
+                    continue;
+                }
+
+                // At top level, look for `return` keyword
+                if (braceDepth == 0 && parenDepth == 0
+                    && i + 6 <= source.Length
+                    && source.Substring(i, 6) == "return"
+                    && (i + 6 >= source.Length || !char.IsLetterOrDigit(source[i + 6]) && source[i + 6] != '_'))
+                {
+                    // Find the `;` that ends this return statement
+                    int j = i + 6;
+                    int retBraces = 0, retParens = 0;
+                    int retLine = currentLine;
+                    while (j < source.Length)
+                    {
+                        char rc = source[j];
+                        if (rc == '\n') retLine++;
+                        if (rc == '{') retBraces++;
+                        else if (rc == '}') { if (retBraces > 0) retBraces--; else break; }
+                        else if (rc == '(') retParens++;
+                        else if (rc == ')') { if (retParens > 0) retParens--; }
+                        else if (rc == ';' && retBraces == 0 && retParens == 0)
+                        {
+                            // Found the end of the return statement.
+                            // Only report if this line is before the render return.
+                            if (retLine < renderReturnEndLine)
+                                return retLine;
+                            return -1; // this IS the render return
+                        }
+                        j++;
+                    }
+                }
+
+                i++;
+            }
+
+            return -1;
+        }
 
         // ═══════════════════════════════════════════════════════════════════════
         //  ASSET PATH VALIDATION

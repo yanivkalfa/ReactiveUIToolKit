@@ -64,29 +64,40 @@ component MyComponent {
 }
 ```
 
-**3. Add a companion `.cs` file**
-
-```csharp
-// MyComponent.cs
-namespace MyGame.UI
-{
-    public partial class MyComponent { }
-}
-```
-
 The source generator emits `Render()` into the partial class automatically on
-the next Unity compile.
+the next Unity compile. The `@namespace` directive determines the namespace.
 
-For function-style `.uitkx` files, `@namespace` is not required in markup.
-Namespace is inferred from the companion partial `.cs` file.
-
-**4. Use the component**
+**3. Use the component**
 
 ```csharp
 var node = V.Func(MyComponent.Render, props);
 ```
 
 That's it — no reflection, no codegen at runtime.
+
+**4. Add companion files (optional)**
+
+Extract reusable logic into companion `.uitkx` files using `hook` and `module`:
+
+```uitkx
+// MyComponent.hooks.uitkx — custom hooks
+@namespace MyGame.UI
+
+hook useCounter(int initial = 0) -> (int, Action) {
+    var (count, setCount) = useState(initial);
+    var increment = useCallback(() => setCount(count + 1), count);
+    return (count, increment);
+}
+```
+
+```uitkx
+// MyComponent.style.uitkx — styles and constants
+@namespace MyGame.UI
+
+module MyComponent {
+    public static Style CardStyle => new Style { (FlexDirection, "row") };
+}
+```
 
 ---
 
@@ -109,15 +120,15 @@ Unity UI Toolkit inline style. Values are compile-time checked — passing a `fl
 where a `Color` is expected is a build error.
 
 ```csharp
-using ReactiveUITK.Props.Typed;
-using static ReactiveUITK.Props.Typed.CssHelpers;
+// In .uitkx files, CssHelpers is auto-imported — no using needed.
+// In .cs files, add: using static ReactiveUITK.Props.Typed.CssHelpers;
 
 var cardStyle = new Style {
     Width = Pct(100),
     Height = Px(200),
     BackgroundColor = Rgba(0.1f, 0.1f, 0.15f, 0.9f),
-    FlexDirection = Column,
-    JustifyContent = SpaceBetween,
+    FlexDirection = FlexColumn,
+    JustifyContent = JustifySpaceBetween,
     AlignItems = AlignCenter,
     Padding = 16f,
     BorderRadius = 8f,
@@ -134,9 +145,11 @@ var cardStyle = new Style {
 | Transforms | `float` / struct | Rotate, Scale, Translate, TransformOrigin |
 | Assets | `Texture2D` / `Font` | BackgroundImage, FontFamily |
 
-**`CssHelpers`** (import via `using static`) provides shortcuts: `Pct()`, `Px()`,
-`Auto`, `None`, `Row`, `Column`, `JustifyCenter`, `AlignCenter`, `Hex("#FF0000")`,
-`Rgba(255, 0, 0)`, color presets (`White`, `Black`, `Red`, …), and all enum values.
+**`CssHelpers`** (auto-imported in `.uitkx` files) provides shortcuts: `Pct()`, `Px()`,
+`StyleAuto`, `StyleNone`, `FlexRow`, `FlexColumn`, `JustifyCenter`, `AlignCenter`, `Hex("#FF0000")`,
+`Rgba(255, 0, 0)`, color presets (`ColorWhite`, `ColorBlack`, `ColorRed`, …), compound struct
+factories (`BgRepeatNone`, `BgSizeCover`, `Origin()`, `Xlate()`, `EaseInOut`, …),
+and all enum values including element props (`SelectNone`, `SortCustom`, `PickIgnore`, etc.).
 
 The old tuple syntax `(StyleKeys.Key, value)` remains available as an escape hatch.
 

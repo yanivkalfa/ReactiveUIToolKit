@@ -62,10 +62,6 @@ namespace ReactiveUITK.Language.SemanticTokens
             foreach (var node in parseResult.RootNodes)
                 CollectNodeTokens(node, source, lineStarts, tokens, knownElements);
 
-            // 3. Hook setter variables (var (state, setter) = useState(...))
-            //    Scans the full source so hooks at any nesting level are covered.
-            CollectHookSetterTokens(source, lineStarts, tokens);
-
             return NormalizeTokenConflicts(tokens)
                 .OrderBy(t => t.Line)
                 .ThenBy(t => t.Column)
@@ -101,8 +97,8 @@ namespace ReactiveUITK.Language.SemanticTokens
 
             // Suppress non-comment tokens that are contained within a comment
             // token on the same line (e.g. setCount(...) inside {/* ... */}).
-            var commentTokens = merged.Values
-                .Where(t => t.TokenType == SemanticTokenTypes.Comment)
+            var commentTokens = merged
+                .Values.Where(t => t.TokenType == SemanticTokenTypes.Comment)
                 .ToList();
 
             if (commentTokens.Count > 0)
@@ -116,9 +112,11 @@ namespace ReactiveUITK.Language.SemanticTokens
 
                     foreach (var ct in commentTokens)
                     {
-                        if (ct.Line == t.Line
+                        if (
+                            ct.Line == t.Line
                             && t.Column >= ct.Column
-                            && t.Column + t.Length <= ct.Column + ct.Length)
+                            && t.Column + t.Length <= ct.Column + ct.Length
+                        )
                         {
                             keysToRemove.Add(kvp.Key);
                             break;
@@ -148,7 +146,11 @@ namespace ReactiveUITK.Language.SemanticTokens
             const string keyword = "component";
             if (
                 i + keyword.Length > source.Length
-                || !string.Equals(source.Substring(i, keyword.Length), keyword, StringComparison.Ordinal)
+                || !string.Equals(
+                    source.Substring(i, keyword.Length),
+                    keyword,
+                    StringComparison.Ordinal
+                )
             )
                 return;
 
@@ -219,27 +221,12 @@ namespace ReactiveUITK.Language.SemanticTokens
                     CollectSwitchTokens(sw, source, lineStarts, tokens, knownElements);
                     break;
 
-                case BreakNode br:
-                    EmitKeyword(tokens, source, lineStarts, br.SourceLine, "@break");
-                    break;
-
-                case ContinueNode cn:
-                    EmitKeyword(tokens, source, lineStarts, cn.SourceLine, "@continue");
-                    break;
-
-                case CodeBlockNode cb:
-                    EmitKeyword(tokens, source, lineStarts, cb.SourceLine, "@code");
-                    var markupLines = CollectEmbeddedMarkupTokensInCodeBlock(
-                        cb, source, lineStarts, tokens, knownElements);
-                    CollectCodeBlockBodyTokens(cb, source, lineStarts, tokens, markupLines);
-                    break;
-
                 case ExpressionNode ex:
                     EmitKeyword(tokens, source, lineStarts, ex.SourceLine, "@(");
                     break;
 
-                case JsxCommentNode jc:
-                    EmitJsxCommentTokens(jc, source, lineStarts, tokens);
+                case CommentNode jc:
+                    EmitCommentTokens(jc, source, lineStarts, tokens);
                     break;
 
                 case TextNode _:
@@ -425,179 +412,54 @@ namespace ReactiveUITK.Language.SemanticTokens
             RegexOptions.Compiled
         );
 
-        // ── Hook setter coloring ────────────────────────────────────────────
-
-        // Matches: var (anyState, <setter>) = useState(  or  Hooks.UseState(
-        private static readonly Regex s_hookTupleRegex = new Regex(
-            @"\bvar\s*\(\s*\w+\s*,\s*(?<setter>\w+)\s*\)\s*=\s*(?:Hooks\.)?[Uu]se[A-Za-z]+\s*[<(]",
-            RegexOptions.Compiled
-        );
-
-        /// <summary>
-        /// Scans the entire source for hook tuple destructuring and emits
-        /// <see cref="SemanticTokenTypes.Function"/> tokens for setter variables.
-        /// Called once as a post-pass so it covers hooks at any nesting level.
-        /// </summary>
-        private static void CollectHookSetterTokens(
-            string source,
-            int[] lineStarts,
-            List<SemanticTokenData> tokens
-        )
-        {
-            var commentRanges = FindCommentRanges(source);
-            var setterNames = new HashSet<string>(StringComparer.Ordinal);
-
-            var matches = s_hookTupleRegex.Matches(source);
-            foreach (Match m in matches)
-            {
-                var setter = m.Groups["setter"];
-                if (!setter.Success)
-                    continue;
-
-                setterNames.Add(setter.Value);
-
-                if (IsInsideComment(setter.Index, setter.Length, commentRanges))
-                    continue;
-
-                int offset = setter.Index;
-                int lineIdx = Array.BinarySearch(lineStarts, offset);
-                if (lineIdx < 0)
-                    lineIdx = (~lineIdx) - 1;
-                if (lineIdx < 0)
-                    lineIdx = 0;
-                int col = offset - lineStarts[lineIdx];
-                EmitToken(
-                    tokens,
-                    lineIdx,
-                    col,
-                    setter.Length,
-                    SemanticTokenTypes.Function,
-                    s_noMods
-                );
-            }
-
-            // Also color setter invocations (e.g. setCount(...)) as functions.
-            foreach (var setterName in setterNames)
-            {
-                var callRegex = new Regex(
-                    $@"\b{Regex.Escape(setterName)}\b(?=\s*\()",
-                    RegexOptions.Compiled
-                );
-
-                foreach (Match call in callRegex.Matches(source))
-                {
-                    if (IsInsideComment(call.Index, call.Length, commentRanges))
-                        continue;
-
-                    int offset = call.Index;
-                    int lineIdx = Array.BinarySearch(lineStarts, offset);
-                    if (lineIdx < 0)
-                        lineIdx = (~lineIdx) - 1;
-                    if (lineIdx < 0)
-                        lineIdx = 0;
-                    int col = offset - lineStarts[lineIdx];
-
-                    EmitToken(
-                        tokens,
-                        lineIdx,
-                        col,
-                        call.Length,
-                        SemanticTokenTypes.Function,
-                        s_noMods
-                    );
-                }
-            }
-        }
-
-        /// <summary>
-        /// Returns offset ranges (start, end-exclusive) for all C-style comments
-        /// (<c>/* ... */</c>, <c>{/* ... */}</c>, <c>// ...\n</c>).
-        /// </summary>
-        private static List<(int Start, int End)> FindCommentRanges(string source)
-        {
-            var ranges = new List<(int Start, int End)>();
-            int i = 0;
-            while (i < source.Length - 1)
-            {
-                char c = source[i];
-
-                // Skip string literals
-                if (c == '"')
-                {
-                    i++;
-                    while (i < source.Length && source[i] != '"')
-                    {
-                        if (source[i] == '\\') i++;
-                        i++;
-                    }
-                    if (i < source.Length) i++; // skip closing "
-                    continue;
-                }
-                if (c == '\'')
-                {
-                    i++;
-                    while (i < source.Length && source[i] != '\'')
-                    {
-                        if (source[i] == '\\') i++;
-                        i++;
-                    }
-                    if (i < source.Length) i++; // skip closing '
-                    continue;
-                }
-
-                if (c == '/' && source[i + 1] == '*')
-                {
-                    int start = i;
-                    i += 2;
-                    while (i < source.Length - 1 && !(source[i] == '*' && source[i + 1] == '/'))
-                        i++;
-                    i += 2; // skip */
-                    ranges.Add((start, i));
-                    continue;
-                }
-                if (c == '/' && source[i + 1] == '/')
-                {
-                    int start = i;
-                    i += 2;
-                    while (i < source.Length && source[i] != '\n')
-                        i++;
-                    ranges.Add((start, i));
-                    continue;
-                }
-                i++;
-            }
-            return ranges;
-        }
-
-        private static bool IsInsideComment(
-            int offset, int length, List<(int Start, int End)> commentRanges)
-        {
-            foreach (var (start, end) in commentRanges)
-            {
-                if (offset >= start && offset + length <= end)
-                    return true;
-            }
-            return false;
-        }
-
         // ── @code body scanner ────────────────────────────────────────────────
 
-        private static void EmitJsxCommentTokens(
-            JsxCommentNode jc,
+        private static void EmitCommentTokens(
+            CommentNode jc,
             string source,
             int[] lineStarts,
             List<SemanticTokenData> tokens
         )
         {
-            int col = FindOnLine(source, lineStarts, jc.SourceLine, "{/*");
+            // Determine the marker to search for in source based on comment kind
+            string marker = jc.IsBlock ? "/*" : "//";
+            int col = FindOnLine(source, lineStarts, jc.SourceLine, marker);
             if (col < 0)
                 return;
 
             int startOffset = lineStarts[jc.SourceLine - 1] + col;
-            int closeAt = source.IndexOf("*/}", startOffset, StringComparison.Ordinal);
+
+            if (!jc.IsBlock)
+            {
+                // Line comment — single token to end of line
+                int lineEnd =
+                    jc.SourceLine < lineStarts.Length ? lineStarts[jc.SourceLine] : source.Length;
+                // Trim trailing newline chars
+                while (
+                    lineEnd > startOffset
+                    && (source[lineEnd - 1] == '\r' || source[lineEnd - 1] == '\n')
+                )
+                    lineEnd--;
+                int len = lineEnd - startOffset;
+                if (len > 0)
+                {
+                    EmitToken(
+                        tokens,
+                        jc.SourceLine - 1,
+                        col,
+                        len,
+                        SemanticTokenTypes.Comment,
+                        s_noMods
+                    );
+                }
+                return;
+            }
+
+            // Block comment — find closing */
+            int closeAt = source.IndexOf("*/", startOffset + 2, StringComparison.Ordinal);
             if (closeAt < 0)
             {
-                int fallbackLen = "{/*".Length + jc.Content.Length + "*/}".Length;
+                int fallbackLen = "/*".Length + jc.Content.Length + "*/".Length;
                 EmitToken(
                     tokens,
                     jc.SourceLine - 1,
@@ -609,7 +471,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                 return;
             }
 
-            int endExclusive = closeAt + 3;
+            int endExclusive = closeAt + 2;
             int startLineIdx = Array.BinarySearch(lineStarts, startOffset);
             if (startLineIdx < 0)
                 startLineIdx = (~startLineIdx) - 1;
@@ -642,394 +504,6 @@ namespace ReactiveUITK.Language.SemanticTokens
                     );
                 }
             }
-        }
-
-        private static void CollectCodeBlockBodyTokens(
-            CodeBlockNode cb,
-            string source,
-            int[] lineStarts,
-            List<SemanticTokenData> tokens,
-            HashSet<int> embeddedMarkupLines
-        )
-        {
-            if (!TryGetCodeBodyBounds(cb, source, lineStarts, out int bodyStart, out int bodyEnd))
-                return;
-
-            // 3. Lines that contain embedded markup — handled by element walker, skip them
-            var markupLines = new HashSet<int>(embeddedMarkupLines);
-
-            // 3b. Lines inside JSX comment spans {/* ... */} in @code should not be
-            // tokenized as C#; they are handled by grammar + comment semantic tokens.
-            var jsxCommentLines = new HashSet<int>();
-            int scan = bodyStart;
-            while (scan < bodyEnd)
-            {
-                int jsxStart = source.IndexOf(
-                    "{/*",
-                    scan,
-                    bodyEnd - scan,
-                    StringComparison.Ordinal
-                );
-                if (jsxStart < 0)
-                    break;
-
-                int jsxClose = source.IndexOf(
-                    "*/}",
-                    jsxStart + 3,
-                    bodyEnd - (jsxStart + 3),
-                    StringComparison.Ordinal
-                );
-                int jsxEndExclusive = jsxClose >= 0 ? jsxClose + 3 : bodyEnd;
-
-                int startLineIdx2 = Array.BinarySearch(lineStarts, jsxStart);
-                if (startLineIdx2 < 0)
-                    startLineIdx2 = (~startLineIdx2) - 1;
-                if (startLineIdx2 < 0)
-                    startLineIdx2 = 0;
-
-                int endLineIdx2 = Array.BinarySearch(
-                    lineStarts,
-                    Math.Max(jsxStart, jsxEndExclusive - 1)
-                );
-                if (endLineIdx2 < 0)
-                    endLineIdx2 = (~endLineIdx2) - 1;
-                if (endLineIdx2 < 0)
-                    endLineIdx2 = 0;
-
-                for (int li2 = startLineIdx2; li2 <= endLineIdx2; li2++)
-                    jsxCommentLines.Add(li2 + 1);
-
-                scan = Math.Max(scan + 1, jsxEndExclusive);
-            }
-
-            // 4. Determine the first source line that overlaps bodyStart
-            int startLineIdx = Array.BinarySearch(lineStarts, bodyStart);
-            if (startLineIdx < 0)
-                startLineIdx = (~startLineIdx) - 1;
-            if (startLineIdx < 0)
-                startLineIdx = 0;
-
-            // 5. Walk each line inside the body
-            bool inMarkupLikeRun = false;
-            for (int li = startLineIdx; li < lineStarts.Length; li++)
-            {
-                int lineStart = lineStarts[li];
-                if (lineStart >= bodyEnd)
-                    break;
-
-                int lineEnd = (li + 1 < lineStarts.Length) ? lineStarts[li + 1] : source.Length;
-
-                // Clip to body bounds
-                int segStart = Math.Max(lineStart, bodyStart);
-                int segEnd = Math.Min(lineEnd, bodyEnd);
-                if (segStart >= segEnd)
-                    continue;
-
-                string seg = source.Substring(segStart, segEnd - segStart).TrimEnd('\r', '\n');
-                int colBase = segStart - lineStart;
-
-                int line1 = li + 1;
-                if (markupLines.Contains(line1))
-                {
-                    // For lines that contain embedded markup (e.g. "return (<Box/>);"),
-                    // still emit C# tokens for the prefix before the first '<'.
-                    int ltIdx = seg.IndexOf('<');
-                    if (ltIdx > 0)
-                    {
-                        string prefix = seg.Substring(0, ltIdx);
-                        foreach (Match m in s_codeBodyTokenRegex.Matches(prefix))
-                        {
-                            if (!m.Success) continue;
-                            string tt;
-                            if (m.Groups["kw"].Success) tt = SemanticTokenTypes.Keyword;
-                            else if (m.Groups["func"].Success) tt = SemanticTokenTypes.Function;
-                            else if (m.Groups["type"].Success) tt = SemanticTokenTypes.Type;
-                            else if (m.Groups["var"].Success) tt = SemanticTokenTypes.Variable;
-                            else continue;
-                            EmitToken(tokens, li, colBase + m.Index, m.Length, tt, s_noMods);
-                        }
-                    }
-                    continue;
-                }
-                if (jsxCommentLines.Contains(line1))
-                    continue;
-
-                string trimmed = seg.TrimStart();
-
-                // Heuristic: skip C# semantic tokenization on markup-like lines
-                // embedded inside @code blocks (e.g. <Box>, @if (...) { ... }).
-                // This keeps coloring aligned with normal UITKX markup scopes.
-                if (IsLikelyEmbeddedMarkupLine(seg))
-                {
-                    inMarkupLikeRun = true;
-                    continue;
-                }
-
-                // Keep skipping C# semantics for closing punctuation lines that
-                // belong to an active embedded-markup run (e.g. ")", "}", ");").
-                if (inMarkupLikeRun && IsLikelyMarkupCloserLine(trimmed))
-                    continue;
-
-                if (trimmed.Length > 0)
-                    inMarkupLikeRun = false;
-
-                // Strip // line comment — emit Comment token for it
-                int slashIdx = seg.IndexOf("//", StringComparison.Ordinal);
-                if (slashIdx >= 0)
-                {
-                    EmitToken(
-                        tokens,
-                        li,
-                        colBase + slashIdx,
-                        seg.Length - slashIdx,
-                        SemanticTokenTypes.Comment,
-                        s_noMods
-                    );
-                    seg = seg.Substring(0, slashIdx);
-                }
-
-                // Emit C# tokens
-                foreach (Match m in s_codeBodyTokenRegex.Matches(seg))
-                {
-                    if (!m.Success)
-                        continue;
-                    string ttType;
-                    if (m.Groups["str"].Success)
-                        ttType = SemanticTokenTypes.String;
-                    else if (m.Groups["num"].Success)
-                        ttType = SemanticTokenTypes.Number;
-                    else if (m.Groups["kw"].Success)
-                        ttType = SemanticTokenTypes.Keyword;
-                    else if (m.Groups["func"].Success)
-                        ttType = SemanticTokenTypes.Function;
-                    else if (m.Groups["type"].Success)
-                        ttType = SemanticTokenTypes.Type;
-                    else if (m.Groups["var"].Success)
-                        ttType = SemanticTokenTypes.Variable;
-                    else
-                        continue;
-                    EmitToken(tokens, li, colBase + m.Index, m.Length, ttType, s_noMods);
-                }
-            }
-        }
-
-        private static HashSet<int> CollectEmbeddedMarkupTokensInCodeBlock(
-            CodeBlockNode cb,
-            string source,
-            int[] lineStarts,
-            List<SemanticTokenData> tokens,
-            HashSet<string>? knownElements
-        )
-        {
-            var markupLines = new HashSet<int>();
-            if (!TryGetCodeBodyBounds(cb, source, lineStarts, out int bodyStart, out int bodyEnd))
-                return markupLines;
-
-            int i = bodyStart;
-            while (i < bodyEnd)
-            {
-                if (TrySkipNonCodeSpan(source, ref i, bodyEnd))
-                    continue;
-
-                if (source[i] == '<' && i + 1 < bodyEnd && char.IsLetter(source[i + 1]))
-                {
-                    // Skip C# generic type brackets like List<string>,
-                    // Dictionary<int, string>, etc. — the char before '<'
-                    // being a letter/digit/underscore means this is a generic
-                    // type parameter list, not an UITKX element tag.
-                    if (i > 0 && (char.IsLetterOrDigit(source[i - 1]) || source[i - 1] == '_'))
-                    {
-                        i++;
-                        continue;
-                    }
-
-                    int line1 = OffsetToLine1(lineStarts, i);
-                    var parseDiags = new List<ParseDiagnostic>();
-                    var (element, endPos) = UitkxParser.ParseSingleElement(
-                        source,
-                        string.Empty,
-                        i,
-                        line1,
-                        parseDiags
-                    );
-
-                    if (element != null && endPos > i)
-                    {
-                        CollectElementTokens(element, source, lineStarts, tokens, knownElements);
-
-                        int startLine = element.SourceLine;
-                        int endLine = element.CloseTagLine > 0 ? element.CloseTagLine : element.SourceLine;
-                        if (endLine < startLine)
-                            endLine = startLine;
-
-                        for (int line = startLine; line <= endLine; line++)
-                            markupLines.Add(line);
-
-                        i = endPos;
-                        continue;
-                    }
-                }
-
-                i++;
-            }
-
-            return markupLines;
-        }
-
-        private static bool TryGetCodeBodyBounds(
-            CodeBlockNode cb,
-            string source,
-            int[] lineStarts,
-            out int bodyStart,
-            out int bodyEnd
-        )
-        {
-            bodyStart = 0;
-            bodyEnd = 0;
-
-            int searchLineStart = lineStarts[cb.SourceLine - 1];
-            int searchEnd =
-                (cb.SourceLine + 1 < lineStarts.Length)
-                    ? lineStarts[cb.SourceLine + 1]
-                    : source.Length;
-            int openBrace = source.IndexOf(
-                '{',
-                searchLineStart,
-                Math.Min(searchEnd, source.Length) - searchLineStart
-            );
-            if (openBrace < 0)
-                return false;
-
-            bodyStart = openBrace + 1;
-
-            int depth = 1;
-            for (int i = bodyStart; i < source.Length; i++)
-            {
-                if (source[i] == '{')
-                    depth++;
-                else if (source[i] == '}')
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        bodyEnd = i;
-                        break;
-                    }
-                }
-            }
-
-            return bodyEnd > bodyStart;
-        }
-
-        private static bool TrySkipNonCodeSpan(string source, ref int i, int limit)
-        {
-            if (i >= limit)
-                return false;
-
-            if (source[i] == '/' && i + 1 < limit)
-            {
-                if (source[i + 1] == '/')
-                {
-                    i += 2;
-                    while (i < limit && source[i] != '\n')
-                        i++;
-                    return true;
-                }
-
-                if (source[i + 1] == '*')
-                {
-                    i += 2;
-                    while (i + 1 < limit && !(source[i] == '*' && source[i + 1] == '/'))
-                        i++;
-                    i = i + 1 < limit ? i + 2 : limit;
-                    return true;
-                }
-            }
-
-            if (source[i] == '\'')
-            {
-                int j = i + 1;
-                while (j < limit)
-                {
-                    if (source[j] == '\\')
-                    {
-                        j += 2;
-                        continue;
-                    }
-                    if (source[j] == '\'')
-                    {
-                        j++;
-                        break;
-                    }
-                    j++;
-                }
-                i = j;
-                return true;
-            }
-
-            int quotePos = -1;
-            bool isVerbatim = false;
-
-            if (source[i] == '"')
-            {
-                quotePos = i;
-            }
-            else if ((source[i] == '$' || source[i] == '@') && i + 1 < limit && source[i + 1] == '"')
-            {
-                quotePos = i + 1;
-                isVerbatim = source[i] == '@';
-            }
-            else if (
-                (source[i] == '$' || source[i] == '@')
-                && i + 2 < limit
-                && (source[i + 1] == '$' || source[i + 1] == '@')
-                && source[i + 2] == '"'
-            )
-            {
-                quotePos = i + 2;
-                isVerbatim = source[i] == '@' || source[i + 1] == '@';
-            }
-
-            if (quotePos >= 0)
-            {
-                int j = quotePos + 1;
-                while (j < limit)
-                {
-                    if (isVerbatim)
-                    {
-                        if (source[j] == '"')
-                        {
-                            if (j + 1 < limit && source[j + 1] == '"')
-                            {
-                                j += 2;
-                                continue;
-                            }
-                            j++;
-                            break;
-                        }
-                        j++;
-                        continue;
-                    }
-
-                    if (source[j] == '\\')
-                    {
-                        j += 2;
-                        continue;
-                    }
-
-                    if (source[j] == '"')
-                    {
-                        j++;
-                        break;
-                    }
-
-                    j++;
-                }
-                i = j;
-                return true;
-            }
-
-            return false;
         }
 
         private static int OffsetToLine1(int[] lineStarts, int offset)
@@ -1073,9 +547,7 @@ namespace ReactiveUITK.Language.SemanticTokens
                 || trimmed.StartsWith("@while", StringComparison.Ordinal)
                 || trimmed.StartsWith("@switch", StringComparison.Ordinal)
                 || trimmed.StartsWith("@case", StringComparison.Ordinal)
-                || trimmed.StartsWith("@default", StringComparison.Ordinal)
-                || trimmed.StartsWith("@break", StringComparison.Ordinal)
-                || trimmed.StartsWith("@continue", StringComparison.Ordinal);
+                || trimmed.StartsWith("@default", StringComparison.Ordinal);
         }
 
         private static bool IsLikelyMarkupCloserLine(string trimmed)

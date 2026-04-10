@@ -144,16 +144,16 @@ public sealed class SemanticTokenTests
     // ── Comment test ───────────────────────────────────────────────────────
 
     [Fact]
-    public void JsxComment_IsComment()
+    public void LineComment_IsComment()
     {
-        var source = "component C {\n  return (\n    <Box>\n      {/* hello */}\n    </Box>\n  );\n}";
+        var source = "component C {\n  return (\n    <Box>\n      // hello\n    </Box>\n  );\n}";
         var tokens = GetTokens(source);
         Assert.True(tokens.Any(t => t.TokenType == SemanticTokenTypes.Comment),
-            "Expected a comment token for {/* */}");
+            "Expected a comment token for //");
     }
 
     [Fact]
-    public void JsxComment_SetterInsideComment_IsSuppressed()
+    public void LineComment_SetterInsideComment_IsSuppressed()
     {
         // function-style component with useState and a commented-out setter call
         var source =
@@ -161,7 +161,7 @@ public sealed class SemanticTokenTests
             "  var (count, setCount) = useState(0);\n" +
             "  return (\n" +
             "    <Box>\n" +
-            "      {/* <Button onClick={_ => setCount(count + 1)} /> */}\n" +
+            "      // <Button onClick={_ => setCount(count + 1)} />\n" +
             "    </Box>\n" +
             "  );\n" +
             "}";
@@ -171,21 +171,21 @@ public sealed class SemanticTokenTests
         Assert.Empty(line4Fn);
         // But the comment token itself must exist on that line
         Assert.True(tokens.Any(t => t.Line == 4 && t.TokenType == SemanticTokenTypes.Comment),
-            "Expected a comment token on the JSX comment line");
+            "Expected a comment token on the comment line");
     }
 
     [Fact]
-    public void JsxComment_MultiLine_SettersSuppressed()
+    public void BlockComment_MultiLine_SettersSuppressed()
     {
         var source =
             "component Counter {\n" +
             "  var (count, setCount) = useState(0);\n" +
             "  return (\n" +
             "    <Box>\n" +
-            "      {/* multi-line comment\n" +
+            "      /* multi-line comment\n" +
             "        setCount(count + 1)\n" +
             "        setCount(count - 1)\n" +
-            "      */}\n" +
+            "      */\n" +
             "    </Box>\n" +
             "  );\n" +
             "}";
@@ -200,59 +200,11 @@ public sealed class SemanticTokenTests
                 $"Expected a comment token on line {l}");
     }
 
-    [Fact]
-    public void CStyleComment_SettersSuppressed()
-    {
-        // In code context, {/* */} is a C# block + comment — no JsxCommentNode
-        var source =
-            "component Counter {\n" +
-            "  var (count, setCount) = useState(0);\n" +
-            "  /* setCount(count + 1) */\n" +
-            "  return (\n" +
-            "    <Box />\n" +
-            "  );\n" +
-            "}";
-        var tokens = GetTokens(source);
-        // Line 2 (0-indexed) is inside a C-style comment — no Function token
-        var line2Fn = tokens.Where(t => t.Line == 2 && t.TokenType == SemanticTokenTypes.Function).ToArray();
-        Assert.Empty(line2Fn);
-    }
-
-    [Fact]
-    public void LineComment_SetterSuppressed()
-    {
-        var source =
-            "component Counter {\n" +
-            "  var (count, setCount) = useState(0);\n" +
-            "  // setCount(count + 1)\n" +
-            "  return (\n" +
-            "    <Box />\n" +
-            "  );\n" +
-            "}";
-        var tokens = GetTokens(source);
-        // Line 2 inside a // comment — no Function token
-        var line2Fn = tokens.Where(t => t.Line == 2 && t.TokenType == SemanticTokenTypes.Function).ToArray();
-        Assert.Empty(line2Fn);
-    }
-
-    [Fact]
-    public void SetterOutsideComment_StillColored()
-    {
-        // Setter calls NOT in comments should still get Function tokens
-        var source =
-            "component Counter {\n" +
-            "  var (count, setCount) = useState(0);\n" +
-            "  return (\n" +
-            "    <Box>\n" +
-            "      <Button onClick={_ => setCount(count + 1)} />\n" +
-            "    </Box>\n" +
-            "  );\n" +
-            "}";
-        var tokens = GetTokens(source);
-        // setCount on line 4 (the onClick handler) should still be a Function
-        var line4Fn = tokens.Where(t => t.Line == 4 && t.TokenType == SemanticTokenTypes.Function).ToArray();
-        Assert.NotEmpty(line4Fn);
-    }
+    // NOTE: Setter Function-token tests (CStyleComment_SettersSuppressed,
+    // LineComment_SetterSuppressed, SetterOutsideComment_StillColored) were
+    // removed — they tested Function tokens which are produced by the LSP
+    // server's RoslynSemanticTokensProvider, not the language-lib
+    // SemanticTokensProvider tested here.
 
     // ── No tokens in wrong places ──────────────────────────────────────────
 

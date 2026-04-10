@@ -253,6 +253,26 @@ namespace ReactiveUITK.Props
                     catch { }
                 }
             };
+            styleSetters["unityTextAutoSize"] = (e, v) =>
+            {
+                if (v is TextAutoSizeMode mode)
+                {
+                    try { e.style.unityTextAutoSize = new StyleTextAutoSize(new TextAutoSize(mode, default, default)); } catch { }
+                }
+                else if (v is string s)
+                {
+                    try
+                    {
+                        var m = s switch
+                        {
+                            "best-fit" => TextAutoSizeMode.BestFit,
+                            _ => TextAutoSizeMode.None,
+                        };
+                        e.style.unityTextAutoSize = new StyleTextAutoSize(new TextAutoSize(m, default, default));
+                    }
+                    catch { }
+                }
+            };
 
             styleSetters["backgroundImage"] = (e, v) =>
             {
@@ -502,6 +522,17 @@ namespace ReactiveUITK.Props
                 {
                     if (v is BackgroundRepeat br)
                         e.style.backgroundRepeat = br;
+                    else if (v is string s)
+                    {
+                        var r = s switch
+                        {
+                            "no-repeat" => Repeat.NoRepeat,
+                            "space"     => Repeat.Space,
+                            "round"     => Repeat.Round,
+                            _           => Repeat.Repeat,
+                        };
+                        e.style.backgroundRepeat = new BackgroundRepeat(r, r);
+                    }
                 }
                 catch { }
             };
@@ -511,6 +542,15 @@ namespace ReactiveUITK.Props
                 {
                     if (v is BackgroundPosition bp)
                         e.style.backgroundPositionX = bp;
+                    else if (v is string s)
+                    {
+                        e.style.backgroundPositionX = s switch
+                        {
+                            "left"  => new BackgroundPosition(BackgroundPositionKeyword.Left),
+                            "right" => new BackgroundPosition(BackgroundPositionKeyword.Right),
+                            _       => new BackgroundPosition(BackgroundPositionKeyword.Center),
+                        };
+                    }
                 }
                 catch { }
             };
@@ -520,6 +560,15 @@ namespace ReactiveUITK.Props
                 {
                     if (v is BackgroundPosition bp)
                         e.style.backgroundPositionY = bp;
+                    else if (v is string s)
+                    {
+                        e.style.backgroundPositionY = s switch
+                        {
+                            "top"    => new BackgroundPosition(BackgroundPositionKeyword.Top),
+                            "bottom" => new BackgroundPosition(BackgroundPositionKeyword.Bottom),
+                            _        => new BackgroundPosition(BackgroundPositionKeyword.Center),
+                        };
+                    }
                 }
                 catch { }
             };
@@ -529,6 +578,15 @@ namespace ReactiveUITK.Props
                 {
                     if (v is BackgroundSize bs)
                         e.style.backgroundSize = bs;
+                    else if (v is string s)
+                    {
+                        e.style.backgroundSize = s switch
+                        {
+                            "cover"   => new BackgroundSize(BackgroundSizeType.Cover),
+                            "contain" => new BackgroundSize(BackgroundSizeType.Contain),
+                            _         => new BackgroundSize(BackgroundSizeType.Length),
+                        };
+                    }
                 }
                 catch { }
             };
@@ -604,6 +662,13 @@ namespace ReactiveUITK.Props
                     e.style.transitionTimingFunction = sl;
                 else if (v is System.Collections.Generic.List<EasingFunction> list)
                     e.style.transitionTimingFunction = new StyleList<EasingFunction>(list);
+                else if (v is string s)
+                {
+                    var mode = ConvertToEasingMode(s);
+                    e.style.transitionTimingFunction = new StyleList<EasingFunction>(
+                        new System.Collections.Generic.List<EasingFunction> { new EasingFunction(mode) }
+                    );
+                }
             };
             // backgroundPosition kept as no-op for backward compat (IStyle splits to backgroundPositionX/Y)
             styleSetters["backgroundPosition"] = (e, v) => { };
@@ -813,6 +878,14 @@ namespace ReactiveUITK.Props
                 try
                 {
                     e.style.unityTextOverflowPosition = StyleKeyword.Null;
+                }
+                catch { }
+            };
+            styleResetters["unityTextAutoSize"] = e =>
+            {
+                try
+                {
+                    e.style.unityTextAutoSize = StyleKeyword.Null;
                 }
                 catch { }
             };
@@ -1721,6 +1794,11 @@ namespace ReactiveUITK.Props
             }
             if (styleKey == "unityTextAutoSize")
             {
+                try
+                {
+                    element.style.unityTextAutoSize = StyleKeyword.Null;
+                }
+                catch { }
                 return;
             }
         }
@@ -2860,6 +2938,33 @@ namespace ReactiveUITK.Props
 
             return Align.Stretch;
         }
+
+        private static EasingMode ConvertToEasingMode(string s) => s switch
+        {
+            "linear"              => EasingMode.Linear,
+            "ease-in"             => EasingMode.EaseIn,
+            "ease-out"            => EasingMode.EaseOut,
+            "ease-in-out"         => EasingMode.EaseInOut,
+            "ease-in-sine"        => EasingMode.EaseInSine,
+            "ease-out-sine"       => EasingMode.EaseOutSine,
+            "ease-in-out-sine"    => EasingMode.EaseInOutSine,
+            "ease-in-cubic"       => EasingMode.EaseInCubic,
+            "ease-out-cubic"      => EasingMode.EaseOutCubic,
+            "ease-in-out-cubic"   => EasingMode.EaseInOutCubic,
+            "ease-in-circ"        => EasingMode.EaseInCirc,
+            "ease-out-circ"       => EasingMode.EaseOutCirc,
+            "ease-in-out-circ"    => EasingMode.EaseInOutCirc,
+            "ease-in-elastic"     => EasingMode.EaseInElastic,
+            "ease-out-elastic"    => EasingMode.EaseOutElastic,
+            "ease-in-out-elastic" => EasingMode.EaseInOutElastic,
+            "ease-in-back"        => EasingMode.EaseInBack,
+            "ease-out-back"       => EasingMode.EaseOutBack,
+            "ease-in-out-back"    => EasingMode.EaseInOutBack,
+            "ease-in-bounce"      => EasingMode.EaseInBounce,
+            "ease-out-bounce"     => EasingMode.EaseOutBounce,
+            "ease-in-out-bounce"  => EasingMode.EaseInOutBounce,
+            _                     => EasingMode.Ease,
+        };
 
         public static void NotifyElementRemoved(VisualElement element)
         {

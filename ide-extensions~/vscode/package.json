@@ -3,7 +3,7 @@
   "displayName": "UITKX",
   "description": "Language support for .uitkx ReactiveUIToolKit component templates",
   "icon": "images/logo.png",
-  "version": "1.0.301",
+  "version": "1.1.0",
   "publisher": "ReactiveUITK",
   "license": "MIT",
   "repository": {
@@ -140,24 +140,8 @@
         "description": "Applied to code that is unreachable after @break, @continue, or return in the same scope"
       }
     ],
-    "commands": [
-      {
-        "command": "uitkx.toggleBlockComment",
-        "title": "UITKX: Toggle Block Comment"
-      }
-    ],
-    "keybindings": [
-      {
-        "command": "uitkx.toggleBlockComment",
-        "key": "ctrl+/",
-        "when": "editorTextFocus && editorLangId == uitkx"
-      },
-      {
-        "command": "uitkx.toggleBlockComment",
-        "key": "cmd+/",
-        "when": "editorTextFocus && editorLangId == uitkx"
-      }
-    ]
+    "commands": [],
+    "keybindings": []
   },
   "scripts": {
     "prebuild": "node -e \"require('fs').cpSync('../grammar/uitkx.tmLanguage.json','syntaxes/uitkx.tmLanguage.json')\"",

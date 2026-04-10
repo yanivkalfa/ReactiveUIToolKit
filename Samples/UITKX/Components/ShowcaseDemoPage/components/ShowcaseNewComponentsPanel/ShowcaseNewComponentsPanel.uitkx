@@ -3,18 +3,16 @@
 @using System.Collections.Generic
 @using ReactiveUITK.Core
 @using UnityEngine
-@using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ShowcaseNewComponentsPanel(
-  bool foldoutOpen = true, 
-  ChangeEventHandler<bool>? onFoldoutChange = null, 
-  float sliderValue = 0.5f, 
-  ChangeEventHandler<float>? onSliderChange = null, 
-  int sliderIntValue = 5, 
-  ChangeEventHandler<int>? onSliderIntChange = null, 
-  List<string>? ddChoices = null, 
-  string ddValue = "", 
+  bool foldoutOpen = true,
+  ChangeEventHandler<bool>? onFoldoutChange = null,
+  float sliderValue = 0.5f,
+  ChangeEventHandler<float>? onSliderChange = null,
+  int sliderIntValue = 5,
+  ChangeEventHandler<int>? onSliderIntChange = null,
+  List<string>? ddChoices = null,
+  string ddValue = "",
   ChangeEventHandler<string>? onDdChange = null
 ) {
   var groupContentStyle = new Style {

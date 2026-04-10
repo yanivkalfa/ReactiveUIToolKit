@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXShared
+@namespace ReactiveUITK.Samples.UITKXShared
 
 component AnimationsDemoPage {
   var (repeatClickCount, setRepeatClickCount) = useState(0);

@@ -19,13 +19,13 @@ export const ImagePage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ImageProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ImageProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={IMAGE_BASIC} />
+      <CodeBlock language="jsx" code={IMAGE_BASIC} />
     </Box>
     <UnityDocsSection componentName="Image" />
   </Box>

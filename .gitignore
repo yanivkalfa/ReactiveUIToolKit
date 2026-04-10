@@ -53,6 +53,7 @@ ide-extensions~/visual-studio/CHANGELOG.md
 # LSP server build artifacts
 ide-extensions~/lsp-server/bin/
 ide-extensions~/lsp-server/obj/
+ide-extensions~/lsp-server/publish/
 
 # Language lib build artifacts
 ide-extensions~/language-lib/bin/
@@ -67,6 +68,10 @@ publisher-secrets.json
 publisher-secrets.json.meta
 
 # ── Stale/orphan entries ───────────────────────────────────────
+# NOTE: Resources/__uitkx_registry.asset is intentionally NOT ignored.
+# It must be committed because builds require it (no Editor to regenerate).
+# The file is small (~50 bytes per asset entry) and auto-maintained by
+# UitkxAssetRegistrySync on domain reload and .uitkx save.
 _docs_branch/
 _docs_branch.meta
 

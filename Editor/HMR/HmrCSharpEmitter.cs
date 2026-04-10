@@ -76,12 +76,22 @@ namespace ReactiveUITK.EditorSupport.HMR
         // ── Public entry point ────────────────────────────────────────────────
 
         /// <summary>
+        /// Parses a JSX markup fragment and returns the AST nodes (opaque IList).
+        /// Signature: (jsxText, filePath, startLine) → IList of AST nodes.
+        /// </summary>
+        internal delegate IList MarkupParseFunc(string jsxText, string filePath, int startLine);
+
+        /// <summary>
         /// Emit C# from the AST and directives produced by the Language parser.
         /// All parameters are opaque objects from the dynamically loaded Language.dll.
         /// </summary>
-        public static string Emit(object directives, object rootNodes, string filePath)
+        public static string Emit(
+            object directives,
+            object rootNodes,
+            string filePath,
+            MarkupParseFunc parseMarkup = null)
         {
-            var ctx = new EmitCtx(directives, filePath);
+            var ctx = new EmitCtx(directives, filePath, parseMarkup);
             ctx.EmitFile(rootNodes);
             return ctx.ToString();
         }
@@ -103,12 +113,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             private readonly IList _ussFiles;
             private readonly IList _functionParams;
             private readonly IList _injects;
+            private readonly MarkupParseFunc _parseMarkup;
             private bool _isRootElement = true;
 
-            public EmitCtx(object directives, string filePath)
+            public EmitCtx(object directives, string filePath, MarkupParseFunc parseMarkup)
             {
                 _directives = directives;
                 _filePath = filePath;
+                _parseMarkup = parseMarkup;
                 _displayName = Path.GetFileName(filePath);
                 _linePath = filePath.Replace("\\", "/");
                 _ns = GP<string>(directives, "Namespace") ?? "UITKX.Generated";
@@ -116,7 +128,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _propsTypeName = GP<string>(directives, "PropsTypeName");
                 _isFunctionStyle = GP<bool>(directives, "IsFunctionStyle");
                 _usings = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(directives, "Usings"));
-                _ussFiles = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(directives, "UssFiles"));
+                _ussFiles = UitkxHmrCompiler.GetItems(
+                    UitkxHmrCompiler.GetProp(directives, "UssFiles")
+                );
                 _functionParams = UitkxHmrCompiler.GetItems(
                     UitkxHmrCompiler.GetProp(directives, "FunctionParams")
                 );
@@ -131,15 +145,11 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 var nodes = UitkxHmrCompiler.GetItems(rootNodes);
 
-                // Separate code blocks from markup
-                var codeBlocks = new List<object>();
                 var markupNodes = new List<object>();
                 foreach (var n in nodes)
                 {
                     string typeName = n.GetType().Name;
-                    if (typeName == "CodeBlockNode")
-                        codeBlocks.Add(n);
-                    else if (typeName == "JsxCommentNode")
+                    if (typeName == "CommentNode")
                         continue;
                     else
                         markupNodes.Add(n);
@@ -157,6 +167,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("using ReactiveUITK.Core.Animation;");
                 L("using ReactiveUITK.Props.Typed;");
                 L("using static ReactiveUITK.Props.Typed.StyleKeys;");
+                L("using static ReactiveUITK.Props.Typed.CssHelpers;");
                 L("using static ReactiveUITK.AssetHelpers;");
                 L("using UColor = UnityEngine.Color;");
                 foreach (var u in _usings)
@@ -167,8 +178,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // Namespace + class
                 L($"namespace {_ns}");
                 L("{");
-                L($"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]");
+                L(
+                    $"    [global::ReactiveUITK.UitkxSource(@\"{_filePath.Replace("\"", "\"\"")}\")]"
+                );
                 L($"    [global::ReactiveUITK.UitkxElement(\"{_componentName}\")]");
+
+                // Emit hook signature for proactive HMR state-reset detection
+                string funcSetupForSig = GP<string>(_directives, "FunctionSetupCode");
+                string hookSig = ExtractHookSignature(funcSetupForSig);
+                if (hookSig.Length > 0)
+                    L($"    [global::ReactiveUITK.HookSignature(\"{hookSig}\")]");
+
                 L($"    public partial class {_componentName}");
                 L("    {");
 
@@ -197,10 +217,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // @uss stylesheet keys
                 if (_ussFiles.Count > 0)
                 {
-                    _sb.Append("        internal static readonly string[] __uitkx_ussKeys = new string[] { ");
+                    _sb.Append(
+                        "        internal static readonly string[] __uitkx_ussKeys = new string[] { "
+                    );
                     for (int i = 0; i < _ussFiles.Count; i++)
                     {
-                        if (i > 0) _sb.Append(", ");
+                        if (i > 0)
+                            _sb.Append(", ");
                         string rawPath = _ussFiles[i]?.ToString() ?? "";
                         string resolved;
                         if (rawPath.StartsWith("./") || rawPath.StartsWith("../"))
@@ -235,7 +258,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                             ?? (string)fp.GetType().GetField("TypeAnnotation")?.GetValue(fp)
                             ?? "object";
                         string propName = char.ToUpper(fpName[0]) + fpName.Substring(1);
-                        L($"            var {fpName} = __HmrProp<{fpType}>(__rawProps, \"{propName}\", default({fpType}));");
+                        L(
+                            $"            var {fpName} = __HmrProp<{fpType}>(__rawProps, \"{propName}\", default({fpType}));"
+                        );
                     }
                     L("");
                 }
@@ -247,9 +272,22 @@ namespace ReactiveUITK.EditorSupport.HMR
                     L("");
                 }
 
-                // @code blocks
-                foreach (var cb in codeBlocks)
-                    EmitCodeBlock(cb);
+                // Function-style setup code
+                string funcSetup = GP<string>(_directives, "FunctionSetupCode");
+                if (!string.IsNullOrWhiteSpace(funcSetup))
+                {
+                    int setupLine = GP<int>(_directives, "FunctionSetupStartLine");
+                    if (setupLine <= 0)
+                        setupLine = GP<int>(_directives, "ComponentDeclarationLine");
+                    L($"#line {setupLine} \"{_linePath}\"");
+                    funcSetup = SpliceSetupCodeMarkup(funcSetup);
+                    funcSetup = ApplyHookAliases(funcSetup);
+                    if (funcSetup.Contains("Asset<") || funcSetup.Contains("Ast<"))
+                        funcSetup = ResolveAssetPaths(funcSetup, _filePath);
+                    _sb.Append(funcSetup);
+                    if (!funcSetup.EndsWith("\n"))
+                        _sb.AppendLine();
+                }
 
                 // Return expression
                 if (markupNodes.Count == 0)
@@ -266,16 +304,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 else
                 {
-                    int srcLine = GP<int>(markupNodes[0], "SourceLine");
-                    L($"#line {srcLine} \"{_linePath}\"");
-                    _sb.Append("            return V.Fragment(key: null, __C(");
-                    for (int i = 0; i < markupNodes.Count; i++)
-                    {
-                        if (i > 0)
-                            _sb.Append(", ");
-                        EmitNode(markupNodes[i]);
-                    }
-                    _sb.AppendLine("));");
+                    L($"#error UITKX0025: Component return must have a single root element. Wrap multiple elements in a container like <VisualElement>.");
+                    L($"            return ({QVNode})null;");
                 }
 
                 L("        }"); // close Render
@@ -286,6 +316,114 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 L("    }"); // close class
                 L("}"); // close namespace
+            }
+
+            // ── Setup-code JSX splice ─────────────────────────────────────
+
+            /// <summary>
+            /// Replaces embedded JSX markup spans inside <paramref name="setupCode"/>
+            /// with their emitted C# VirtualNode call equivalents.
+            /// </summary>
+            private string SpliceSetupCodeMarkup(string setupCode)
+            {
+                if (_parseMarkup == null)
+                    return setupCode;
+
+                // Read markup/bare ranges via reflection (ImmutableArray<(int,int,int)>).
+                var markupRanges = GetTupleRanges(_directives, "SetupCodeMarkupRanges");
+                var bareRanges = GetTupleRanges(_directives, "SetupCodeBareJsxRanges");
+
+                if (markupRanges.Count == 0 && bareRanges.Count == 0)
+                    return setupCode;
+
+                var allRanges = new List<(int Start, int End, int Line)>(markupRanges.Count + bareRanges.Count);
+                allRanges.AddRange(markupRanges);
+                allRanges.AddRange(bareRanges);
+                allRanges.Sort((a, b) => a.Start.CompareTo(b.Start));
+
+                int fseOffset = GP<int>(_directives, "FunctionSetupStartOffset");
+                int gapOffset = GP<int>(_directives, "FunctionSetupGapOffset");
+                int gapLength = GP<int>(_directives, "FunctionSetupGapLength");
+
+                var spliced = new StringBuilder(setupCode.Length);
+                int prev = 0;
+
+                foreach (var (absStart, absEnd, line) in allRanges)
+                {
+                    int relStart = AbsToSetupOffset(absStart, fseOffset, gapOffset, gapLength);
+                    int relEnd = AbsToSetupOffset(absEnd, fseOffset, gapOffset, gapLength);
+
+                    if (relStart < 0) relStart = 0;
+                    if (relEnd < 0) relEnd = 0;
+                    if (relStart > setupCode.Length) relStart = setupCode.Length;
+                    if (relEnd > setupCode.Length) relEnd = setupCode.Length;
+                    if (relEnd <= relStart) continue;
+
+                    if (relStart > prev)
+                        spliced.Append(setupCode, prev, relStart - prev);
+
+                    string jsxText = setupCode.Substring(relStart, relEnd - relStart);
+                    IList nodes = _parseMarkup(jsxText, _filePath, line);
+
+                    if (nodes != null && nodes.Count > 0)
+                    {
+                        int savedLen = _sb.Length;
+                        if (nodes.Count == 1)
+                            EmitNode(nodes[0]);
+                        else
+                        {
+                            _sb.Append("#error UITKX0025: Inline JSX expression must have a single root element.");
+                        }
+                        string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
+                        _sb.Length = savedLen;
+                        spliced.Append(emittedCs.Trim());
+                    }
+                    else
+                    {
+                        spliced.Append(jsxText);
+                    }
+
+                    prev = relEnd;
+                }
+
+                if (prev < setupCode.Length)
+                    spliced.Append(setupCode, prev, setupCode.Length - prev);
+
+                return spliced.ToString();
+            }
+
+            private static int AbsToSetupOffset(int absPos, int fseOffset, int gapOffset, int gapLength)
+            {
+                int relOffset = absPos - fseOffset;
+                if (gapOffset >= 0 && relOffset >= gapOffset)
+                    relOffset -= gapLength;
+                return relOffset;
+            }
+
+            /// <summary>
+            /// Reads an ImmutableArray&lt;(int, int, int)&gt; property via reflection,
+            /// returning the tuples as a plain list.
+            /// </summary>
+            private static List<(int Start, int End, int Line)> GetTupleRanges(object obj, string propName)
+            {
+                var result = new List<(int, int, int)>();
+                object raw = UitkxHmrCompiler.GetProp(obj, propName);
+                if (raw == null) return result;
+
+                // ImmutableArray<T> implements IEnumerable
+                if (raw is IEnumerable enumerable)
+                {
+                    foreach (object tuple in enumerable)
+                    {
+                        // ValueTuple<int,int,int> fields: Item1, Item2, Item3
+                        var t = tuple.GetType();
+                        int s = (int)(t.GetField("Item1")?.GetValue(tuple) ?? 0);
+                        int e = (int)(t.GetField("Item2")?.GetValue(tuple) ?? 0);
+                        int l = (int)(t.GetField("Item3")?.GetValue(tuple) ?? 0);
+                        result.Add((s, e, l));
+                    }
+                }
+                return result;
             }
 
             // ── Node emission ─────────────────────────────────────────────
@@ -325,7 +463,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     case "SwitchNode":
                         EmitSwitch(node);
                         break;
-                    case "JsxCommentNode":
+                    case "CommentNode":
                         break; // skip
                     default:
                         _sb.Append($"({QVNode})null /* unsupported: {typeName} */");
@@ -427,7 +565,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Text({textVal}, key: {keyExpr})");
             }
 
-            private void EmitTyped(TagRes res, IList attrs, string keyExpr, IList children, bool injectUssKeys = false)
+            private void EmitTyped(
+                TagRes res,
+                IList attrs,
+                string keyExpr,
+                IList children,
+                bool injectUssKeys = false
+            )
             {
                 var filteredAttrs = FilterAttrs(attrs, "key");
 
@@ -445,8 +589,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
                 if (injectUssKeys)
                 {
-                    if (!first) _sb.Append(", ");
-                    _sb.Append("ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }");
+                    if (!first)
+                        _sb.Append(", ");
+                    _sb.Append(
+                        "ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                    );
                 }
                 _sb.Append($" }}, key: {keyExpr}");
 
@@ -459,7 +606,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append(")");
             }
 
-            private void EmitDict(TagRes res, IList attrs, string keyExpr, IList children, bool injectUssKeys = false)
+            private void EmitDict(
+                TagRes res,
+                IList attrs,
+                string keyExpr,
+                IList children,
+                bool injectUssKeys = false
+            )
             {
                 var filteredAttrs = FilterAttrs(attrs, "key");
 
@@ -489,7 +642,8 @@ namespace ReactiveUITK.EditorSupport.HMR
                     }
                     if (injectUssKeys)
                     {
-                        if (!first) _sb.Append(", ");
+                        if (!first)
+                            _sb.Append(", ");
                         _sb.Append("[\"__ussKeys\"] = __uitkx_ussKeys");
                     }
                     _sb.Append(" }");
@@ -562,12 +716,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    if (asm.IsDynamic) continue;
+                    if (asm.IsDynamic)
+                        continue;
                     try
                     {
                         foreach (var type in asm.GetTypes())
                         {
-                            if (type.Name != typeName) continue;
+                            if (type.Name != typeName)
+                                continue;
                             // Look for nested types that implement IProps
                             foreach (var nested in type.GetNestedTypes())
                             {
@@ -576,7 +732,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                             }
                         }
                     }
-                    catch { /* ReflectionTypeLoadException — skip */ }
+                    catch
+                    { /* ReflectionTypeLoadException — skip */
+                    }
                 }
                 // Fallback: assume uitkx convention
                 return $"{typeName}.{typeName}Props";
@@ -636,6 +794,15 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _sb.Append(" else { ");
                     }
 
+                    string setupCode = GP<string>(branch, "SetupCode");
+                    if (setupCode != null)
+                    {
+                        setupCode = ApplyHookAliases(setupCode);
+                        if (setupCode.Contains("Asset<") || setupCode.Contains("Ast<"))
+                            setupCode = ResolveAssetPaths(setupCode, _filePath);
+                        _sb.Append(setupCode);
+                        _sb.Append(" ");
+                    }
                     _sb.Append("return ");
                     EmitBodyAsFragment(body);
                     _sb.Append("; }");
@@ -649,27 +816,59 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string iterDecl = GP<string>(node, "IteratorDeclaration") ?? "var item";
                 string collExpr = GP<string>(node, "CollectionExpression") ?? "new object[0]";
                 var body = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(node, "Body"));
+                string setupCode = GP<string>(node, "SetupCode");
 
-                // Emit as __C(expression that yields children).
-                // Use LINQ Select to map each item to a VNode, then wrap in Fragment.
-                _sb.Append($"V.Fragment(key: null, __C(");
-                _sb.Append($"({collExpr}).Select({iterDecl} => {{ return (object)(");
-                if (body.Count == 1)
-                    EmitNode(body[0]);
-                else
+                // Extract just the variable name from "var item" or "int x" style declarations
+                string iterVar = iterDecl.Trim().Split(new[] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries) is { Length: > 0 } parts
+                    ? parts[parts.Length - 1]
+                    : "__item";
+
+                if (setupCode != null)
+                {
+                    // IIFE with statement mode for setup code
+                    _sb.Append("((Func<" + QVNode + ">)(() => { ");
+                    _sb.Append($"var __items = new List<{QVNode}>(); ");
+                    _sb.Append($"foreach ({iterDecl} in {collExpr}) {{ ");
+                    setupCode = ApplyHookAliases(setupCode);
+                    if (setupCode.Contains("Asset<") || setupCode.Contains("Ast<"))
+                        setupCode = ResolveAssetPaths(setupCode, _filePath);
+                    _sb.Append(setupCode);
+                    _sb.Append(" __items.Add(");
                     EmitBodyAsFragment(body);
-                _sb.Append("); }).ToArray()");
-                _sb.Append("))");
+                    _sb.Append("); } ");
+                    _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()" );
+                }
+                else
+                {
+                    _sb.Append($"V.Fragment(key: null, __C(");
+                    _sb.Append($"({collExpr}).Select({iterVar} => {{ return (object)(");
+                    if (body.Count == 1)
+                        EmitNode(body[0]);
+                    else
+                        EmitBodyAsFragment(body);
+                    _sb.Append("); }).ToArray()");
+                    _sb.Append("))");
+                }
             }
 
             private void EmitFor(object node)
             {
                 string forExpr = GP<string>(node, "ForExpression") ?? "";
                 var body = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(node, "Body"));
+                string setupCode = GP<string>(node, "SetupCode");
 
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
-                _sb.Append($"for ({forExpr}) {{ __items.Add(");
+                _sb.Append($"for ({forExpr}) {{ ");
+                if (setupCode != null)
+                {
+                    setupCode = ApplyHookAliases(setupCode);
+                    if (setupCode.Contains("Asset<") || setupCode.Contains("Ast<"))
+                        setupCode = ResolveAssetPaths(setupCode, _filePath);
+                    _sb.Append(setupCode);
+                    _sb.Append(" ");
+                }
+                _sb.Append("__items.Add(");
                 EmitBodyAsFragment(body);
                 _sb.Append("); } ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
@@ -679,10 +878,20 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 string cond = GP<string>(node, "Condition") ?? "false";
                 var body = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(node, "Body"));
+                string setupCode = GP<string>(node, "SetupCode");
 
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
-                _sb.Append($"while ({cond}) {{ __items.Add(");
+                _sb.Append($"while ({cond}) {{ ");
+                if (setupCode != null)
+                {
+                    setupCode = ApplyHookAliases(setupCode);
+                    if (setupCode.Contains("Asset<") || setupCode.Contains("Ast<"))
+                        setupCode = ResolveAssetPaths(setupCode, _filePath);
+                    _sb.Append(setupCode);
+                    _sb.Append(" ");
+                }
+                _sb.Append("__items.Add(");
                 EmitBodyAsFragment(body);
                 _sb.Append("); } ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
@@ -693,22 +902,57 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string switchExpr = GP<string>(node, "SwitchExpression") ?? "null";
                 var cases = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(node, "Cases"));
 
-                _sb.Append("((Func<" + QVNode + ">)(() => { ");
-                _sb.Append($"switch ({switchExpr}) {{ ");
+                // Pre-compute body fragments for fallthrough merging
+                var caseData = new List<(string val, string setupCode, string bodyFrag)>();
                 foreach (var c in cases)
                 {
                     string val = GP<string>(c, "ValueExpression");
                     var body = UitkxHmrCompiler.GetItems(UitkxHmrCompiler.GetProp(c, "Body"));
-                    if (val != null)
-                        _sb.Append($"case {val}: ");
-                    else
-                        _sb.Append("default: ");
-                    _sb.Append("return ");
+                    string setupCode = GP<string>(c, "SetupCode");
+                    int mark = _sb.Length;
                     EmitBodyAsFragment(body);
+                    string frag = _sb.ToString(mark, _sb.Length - mark);
+                    _sb.Length = mark;
+                    caseData.Add((val, setupCode, frag));
+                }
+
+                _sb.Append("((Func<" + QVNode + ">)(() => { ");
+                _sb.Append($"switch ({switchExpr}) {{ ");
+                int i = 0;
+                while (i < caseData.Count)
+                {
+                    var (val, setupCode, bodyFrag) = caseData[i];
+                    // Merge consecutive no-setup, non-default cases with identical bodies
+                    int groupEnd = i + 1;
+                    if (setupCode == null && val != null)
+                    {
+                        while (groupEnd < caseData.Count
+                            && caseData[groupEnd].setupCode == null
+                            && caseData[groupEnd].val != null
+                            && caseData[groupEnd].bodyFrag == bodyFrag)
+                            groupEnd++;
+                    }
+                    for (int j = i; j < groupEnd; j++)
+                    {
+                        if (caseData[j].val != null)
+                            _sb.Append($"case {caseData[j].val}: ");
+                        else
+                            _sb.Append("default: ");
+                    }
+                    if (setupCode != null)
+                    {
+                        setupCode = ApplyHookAliases(setupCode);
+                        if (setupCode.Contains("Asset<") || setupCode.Contains("Ast<"))
+                            setupCode = ResolveAssetPaths(setupCode, _filePath);
+                        _sb.Append(setupCode);
+                        _sb.Append(" ");
+                    }
+                    _sb.Append("return ");
+                    _sb.Append(bodyFrag);
                     _sb.Append("; ");
+                    i = groupEnd;
                 }
                 _sb.Append($"}} return ({QVNode})null; }}))()");
-                ;
             }
 
             // ── Helpers ───────────────────────────────────────────────────
@@ -725,79 +969,23 @@ namespace ReactiveUITK.EditorSupport.HMR
                     EmitNode(body[0]);
                     return;
                 }
-                _sb.Append("V.Fragment(key: null, __C(");
-                EmitChildArgs(body);
-                _sb.Append("))");
+                _sb.Append("#error UITKX0025: Control block branch must have a single root element.");
             }
 
             private void EmitChildArgs(IList children)
             {
+                bool first = true;
                 for (int i = 0; i < children.Count; i++)
                 {
-                    if (i > 0)
+                    // Comments emit nothing — skip to avoid dangling commas
+                    if (children[i].GetType().Name == "CommentNode")
+                        continue;
+
+                    if (!first)
                         _sb.Append(", ");
+                    first = false;
                     EmitNode(children[i]);
                 }
-            }
-
-            private void EmitCodeBlock(object cb)
-            {
-                string code = GP<string>(cb, "Code") ?? "";
-                int codeLine = GP<int>(cb, "SourceLine");
-                L($"#line {codeLine} \"{_linePath}\"");
-
-                // Handle return markup in code blocks
-                var returnMarkups = UitkxHmrCompiler.GetItems(
-                    UitkxHmrCompiler.GetProp(cb, "ReturnMarkups")
-                );
-                if (returnMarkups.Count > 0)
-                {
-                    // Splice return markups FIRST (offsets refer to original code),
-                    // then apply hook aliases to the result — matches real emitter order.
-                    code = SpliceReturnMarkups(code, returnMarkups);
-                }
-
-                // Apply hook substitutions (mirrors CSharpEmitter.ApplyHookAliases)
-                code = ApplyHookAliases(code);
-
-                // Resolve relative asset paths (mirrors CSharpEmitter.ResolveAssetPaths)
-                if (code.Contains("Asset<") || code.Contains("Ast<"))
-                    code = ResolveAssetPaths(code, _filePath);
-
-                _sb.AppendLine(code);
-            }
-
-            private string SpliceReturnMarkups(string code, IList returnMarkups)
-            {
-                var sorted = new List<(int start, int end, object element)>();
-                foreach (var rm in returnMarkups)
-                {
-                    int start = GP<int>(rm, "StartOffsetInCodeBlock");
-                    int end = GP<int>(rm, "EndOffsetInCodeBlock");
-                    var element = UitkxHmrCompiler.GetProp(rm, "Element");
-                    sorted.Add((start, end, element));
-                }
-                sorted.Sort((a, b) => a.start.CompareTo(b.start));
-
-                var spliced = new StringBuilder();
-                int lastEnd = 0;
-                foreach (var (start, end, element) in sorted)
-                {
-                    if (start > lastEnd)
-                        spliced.Append(code, lastEnd, start - lastEnd);
-
-                    // Capture EmitNode output without polluting _sb
-                    int savedLen = _sb.Length;
-                    EmitNode(element);
-                    string elemCs = _sb.ToString(savedLen, _sb.Length - savedLen);
-                    _sb.Length = savedLen;
-
-                    spliced.Append(elemCs.Trim());
-                    lastEnd = end;
-                }
-                if (lastEnd < code.Length)
-                    spliced.Append(code, lastEnd, code.Length - lastEnd);
-                return spliced.ToString();
             }
 
             private void EmitHelper()
@@ -825,7 +1013,9 @@ namespace ReactiveUITK.EditorSupport.HMR
                 L("");
 
                 // Cross-assembly reflection helper for reading props
-                L("        private static T __HmrProp<T>(global::ReactiveUITK.Core.IProps props, string name, T fallback)");
+                L(
+                    "        private static T __HmrProp<T>(global::ReactiveUITK.Core.IProps props, string name, T fallback)"
+                );
                 L("        {");
                 L("            if (props == null) return fallback;");
                 L("            var p = props.GetType().GetProperty(name);");
@@ -1039,35 +1229,43 @@ namespace ReactiveUITK.EditorSupport.HMR
         // Matches generic hook calls: useRef<VisualElement?>(, useState<int>( etc.
         private static readonly Regex s_genericHookAliasRe = new Regex(
             @"\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition)(<(?:[^<>]|<(?:[^<>]|<[^<>]*>)*>)*>)\s*\(",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled
+        );
 
         // Matches setter lambda calls: setFoo(v => ...) → setFoo.Set(v => ...)
         private static readonly Regex s_setterLambdaRe = new Regex(
             @"\b(set[A-Z][a-zA-Z0-9_]*)\(\s*(?=[a-zA-Z_][a-zA-Z0-9_]*\s*=>|\([^)]*\)\s*=>)",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled
+        );
 
         // Matches Asset<T>("path") or Ast<T>("path") with any string-literal path.
         private static readonly Regex s_assetCallRe = new Regex(
             @"(?:Asset|Ast)\s*<\s*\w+\s*>\s*\(\s*""([^""]+)""\s*\)",
-            RegexOptions.Compiled);
+            RegexOptions.Compiled
+        );
 
         private static string ApplyHookAliases(string code)
         {
             // Setter lambda sugar: setFoo(v => v+1) → setFoo.Set(v => v+1)
             code = s_setterLambdaRe.Replace(code, "$1.Set(");
 
-            if (code.IndexOf("use", StringComparison.Ordinal) < 0
-                && code.IndexOf("provideContext", StringComparison.Ordinal) < 0)
+            if (
+                code.IndexOf("use", StringComparison.Ordinal) < 0
+                && code.IndexOf("provideContext", StringComparison.Ordinal) < 0
+            )
                 return code;
 
             // Generic hook calls: useRef<T>( → Hooks.UseRef<T>(
-            code = s_genericHookAliasRe.Replace(code, m =>
-            {
-                string hookName = m.Groups[1].Value;
-                string typeArgs = m.Groups[2].Value;
-                string pascalName = char.ToUpper(hookName[3]) + hookName.Substring(4);
-                return $"Hooks.Use{pascalName}{typeArgs}(";
-            });
+            code = s_genericHookAliasRe.Replace(
+                code,
+                m =>
+                {
+                    string hookName = m.Groups[1].Value;
+                    string typeArgs = m.Groups[2].Value;
+                    string pascalName = char.ToUpper(hookName[3]) + hookName.Substring(4);
+                    return $"Hooks.Use{pascalName}{typeArgs}(";
+                }
+            );
 
             // Simple non-generic aliases
             foreach (var (from, to) in s_hookAliases)
@@ -1076,18 +1274,76 @@ namespace ReactiveUITK.EditorSupport.HMR
             return code;
         }
 
+        // ── Hook signature extraction ──────────────────────────────────────────
+
+        /// <summary>
+        /// Matches any hook call in setup code — both user-written camelCase
+        /// (useState, useEffect) and fully-qualified PascalCase (Hooks.UseState).
+        /// Captures the hook name (without "Hooks." prefix) in group 1.
+        /// </summary>
+        private static readonly Regex s_hookSignatureRe = new Regex(
+            @"(?:Hooks\.)?\b(useState|useEffect|useLayoutEffect|useRef|useCallback|useMemo|useContext|useReducer|useSignal|useDeferredValue|useTransition|useSafeArea|useStableFunc|useStableAction|useStableCallback|useImperativeHandle|useAnimate|useTweenFloat|provideContext|UseState|UseEffect|UseLayoutEffect|UseRef|UseCallback|UseMemo|UseContext|UseReducer|UseSignal|UseDeferredValue|UseTransition|UseSafeArea|UseStableFunc|UseStableAction|UseStableCallback|UseImperativeHandle|UseAnimate|UseTweenFloat|ProvideContext)(?:<[^>]*>)?\s*\(",
+            RegexOptions.Compiled
+        );
+
+        /// <summary>
+        /// Scans raw setup code for hook call patterns and returns
+        /// a comma-separated ordered signature string (e.g. "UseState,UseEffect,UseMemo").
+        /// Returns empty string if no hooks are found.
+        /// </summary>
+        internal static string ExtractHookSignature(string setupCode)
+        {
+            if (string.IsNullOrWhiteSpace(setupCode))
+                return string.Empty;
+
+            var matches = s_hookSignatureRe.Matches(setupCode);
+            if (matches.Count == 0)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < matches.Count; i++)
+            {
+                if (i > 0)
+                    sb.Append(',');
+                sb.Append(NormalizeHookName(matches[i].Groups[1].Value));
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Normalizes a hook name to its canonical PascalCase form
+        /// matching the runtime hook ID constants in Hooks.cs.
+        /// </summary>
+        private static string NormalizeHookName(string name)
+        {
+            // Already PascalCase
+            if (char.IsUpper(name[0]))
+                return name;
+
+            // camelCase → PascalCase: useState → UseState, provideContext → ProvideContext
+            if (name.StartsWith("use"))
+                return "Use" + char.ToUpper(name[3]) + name.Substring(4);
+            if (name.StartsWith("provide"))
+                return "Provide" + char.ToUpper(name[7]) + name.Substring(8);
+
+            return name;
+        }
+
         // ── Asset path resolution (mirrors CSharpEmitter) ─────────────────────
 
         private static string ResolveAssetPaths(string expression, string filePath)
         {
-            return s_assetCallRe.Replace(expression, match =>
-            {
-                string rawPath = match.Groups[1].Value;
-                if (!rawPath.StartsWith("./") && !rawPath.StartsWith("../"))
-                    return match.Value;
-                string resolved = ResolveRelativePath(rawPath, filePath);
-                return match.Value.Replace($"\"{rawPath}\"", $"\"{resolved}\"");
-            });
+            return s_assetCallRe.Replace(
+                expression,
+                match =>
+                {
+                    string rawPath = match.Groups[1].Value;
+                    if (!rawPath.StartsWith("./") && !rawPath.StartsWith("../"))
+                        return match.Value;
+                    string resolved = ResolveRelativePath(rawPath, filePath);
+                    return match.Value.Replace($"\"{rawPath}\"", $"\"{resolved}\"");
+                }
+            );
         }
 
         private static string ResolveRelativePath(string relativePath, string filePath)
@@ -1098,7 +1354,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             var stack = new List<string>();
             foreach (var p in parts)
             {
-                if (p == "." || p == "") continue;
+                if (p == "." || p == "")
+                    continue;
                 if (p == ".." && stack.Count > 0)
                     stack.RemoveAt(stack.Count - 1);
                 else if (p != "..")

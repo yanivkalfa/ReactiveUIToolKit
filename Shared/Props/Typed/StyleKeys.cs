@@ -53,6 +53,7 @@ namespace ReactiveUITK.Props.Typed
         public const string UnityTextOutlineColor = "unityTextOutlineColor";
         public const string UnityTextOutlineWidth = "unityTextOutlineWidth";
         public const string UnityTextOverflowPosition = "unityTextOverflowPosition";
+        public const string UnityTextAutoSize = "unityTextAutoSize";
 
         public const string BorderWidth = "borderWidth";
         public const string BorderColor = "borderColor";

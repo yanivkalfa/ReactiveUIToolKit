@@ -4,8 +4,8 @@
 @using UnityEngine
 
 component EffectPanel(
-  string label = "Panel", 
-  int generation = 0, 
+  string label = "Panel",
+  int generation = 0,
   List<string>? log = null
 ) {
   useEffect(() => {

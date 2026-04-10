@@ -37,3 +37,24 @@ public sealed class HelloRuntime : MonoBehaviour
     rootRenderer.Render(V.Func(HelloWorld.Render));
   }
 }`
+
+export const UITKX_EDITOR_BOOTSTRAP = `using UnityEditor;
+using UnityEngine.UIElements;
+using ReactiveUITK;
+using ReactiveUITK.Core;
+using ReactiveUITK.EditorSupport;
+
+public sealed class HelloEditorWindow : EditorWindow
+{
+  [MenuItem("Window/Hello UITKX")]
+  public static void ShowWindow() => GetWindow<HelloEditorWindow>("Hello UITKX");
+
+  private void CreateGUI()
+  {
+    EditorRootRendererUtility.Mount(
+      this,
+      V.Func(HelloWorld.Render),
+      rootVisualElement
+    );
+  }
+}`

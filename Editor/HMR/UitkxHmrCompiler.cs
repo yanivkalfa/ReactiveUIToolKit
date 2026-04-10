@@ -187,8 +187,8 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (string.IsNullOrEmpty(componentName))
                 {
-                    result.Error = "No @component directive found";
-                    return result;
+                    // ── Hook/module file path ────────────────────────────────
+                    return CompileHookModuleFile(directives, uitkxPath, sw, result);
                 }
 
                 result.ComponentName = componentName;
@@ -207,7 +207,21 @@ namespace ReactiveUITK.EditorSupport.HMR
                     null,
                     new object[] { directives, astNodes, uitkxPath }
                 );
-                string csharp = HmrCSharpEmitter.Emit(directives, lowered, uitkxPath);
+
+                // Build a delegate that can parse standalone JSX fragments.
+                // Used by the emitter to splice embedded JSX in setup code.
+                HmrCSharpEmitter.MarkupParseFunc parseMarkup = (jsxText, path, startLine) =>
+                {
+                    string synthetic = "@namespace __Tmp\n@component __Tmp\n" + jsxText;
+                    var miniDiags = CreateDiagnosticList();
+                    var miniDir = _directiveParse.Invoke(
+                        null, new object[] { synthetic, path, miniDiags, false });
+                    var nodes = _uitkxParse.Invoke(
+                        null, new object[] { synthetic, path, miniDir, miniDiags });
+                    return GetItems(nodes);
+                };
+
+                string csharp = HmrCSharpEmitter.Emit(directives, lowered, uitkxPath, parseMarkup);
                 stepSw.Stop();
                 result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
 
@@ -245,6 +259,73 @@ namespace ReactiveUITK.EditorSupport.HMR
             catch (Exception ex)
             {
                 result.Error = ex is TargetInvocationException tie
+                    ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}\n{tie.InnerException?.StackTrace}"
+                    : $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
+            }
+            finally
+            {
+                sw.Stop();
+                result.TotalMs = sw.Elapsed.TotalMilliseconds;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Compiles a hook or module .uitkx file (no component keyword).
+        /// Uses <see cref="HmrHookEmitter"/> to generate the C# source and
+        /// compiles it the same way as component files.
+        /// </summary>
+        private HmrCompileResult CompileHookModuleFile(
+            object directives, string uitkxPath, Stopwatch sw, HmrCompileResult result)
+        {
+            try
+            {
+                result.IsHookModuleFile = true;
+                string containerClass = HmrHookEmitter.DeriveContainerClassName(uitkxPath);
+                result.HookContainerClass = containerClass;
+                result.ComponentName = containerClass;
+
+                var stepSw = Stopwatch.StartNew();
+
+                // ── Emit C# for hook bodies and/or module bodies ─────────
+                var sources = new List<string>();
+
+                string hookCSharp = HmrHookEmitter.Emit(directives, uitkxPath, containerClass);
+                if (!string.IsNullOrEmpty(hookCSharp))
+                    sources.Add(hookCSharp);
+
+                string moduleCSharp = HmrHookEmitter.EmitModules(directives, uitkxPath);
+                if (!string.IsNullOrEmpty(moduleCSharp))
+                    sources.Add(moduleCSharp);
+
+                if (sources.Count == 0)
+                {
+                    result.Error = "No hook or module declarations found";
+                    return result;
+                }
+
+                stepSw.Stop();
+                result.EmitMs = stepSw.Elapsed.TotalMilliseconds;
+
+                // ── Compile ──────────────────────────────────────────────
+                stepSw = Stopwatch.StartNew();
+                var asm = CompileSources(sources.ToArray(), containerClass, out string compileError);
+                stepSw.Stop();
+                result.CompileMs = stepSw.Elapsed.TotalMilliseconds;
+
+                if (asm == null)
+                {
+                    result.Error = compileError;
+                    return result;
+                }
+
+                result.LoadedAssembly = asm;
+                result.Success = true;
+            }
+            catch (Exception ex)
+            {
+                result.Error = ex is System.Reflection.TargetInvocationException tie
                     ? $"{tie.InnerException?.GetType().Name}: {tie.InnerException?.Message ?? ex.Message}\n{tie.InnerException?.StackTrace}"
                     : $"{ex.GetType().Name}: {ex.Message}\n{ex.StackTrace}";
             }
@@ -1245,6 +1326,20 @@ namespace ReactiveUITK.EditorSupport.HMR
         public string Error;
         public string ComponentName;
         public Assembly LoadedAssembly;
+
+        /// <summary>
+        /// True when this result is from a hook/module .uitkx file
+        /// (as opposed to a component file). The controller uses this
+        /// to route to the hook delegate swapper instead of the
+        /// component fiber swapper.
+        /// </summary>
+        public bool IsHookModuleFile;
+
+        /// <summary>
+        /// Container class name for hook files (e.g. "CounterHooks").
+        /// Used by the delegate swapper to find the static fields.
+        /// </summary>
+        public string HookContainerClass;
 
         // Per-step timing (milliseconds)
         public double ParseMs;

@@ -19,13 +19,13 @@ export const RepeatButtonPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('RepeatButtonProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('RepeatButtonProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={REPEAT_BUTTON_BASIC} />
+      <CodeBlock language="jsx" code={REPEAT_BUTTON_BASIC} />
     </Box>
     <UnityDocsSection componentName="RepeatButton" />
   </Box>

@@ -23,6 +23,54 @@ namespace ReactiveUITK.Language.Parser
         public int NameColumn { get; init; } = -1;
     }
 
+    // ── Hook declaration ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A single <c>hook</c> declaration parsed from a .uitkx file:
+    /// <c>hook useCounter(int initial = 0) -&gt; (int, Action) { ... }</c>.
+    /// </summary>
+    public sealed record HookDeclaration(
+        /// <summary>Hook name (camelCase), e.g. <c>useCounter</c>.</summary>
+        string Name,
+        /// <summary>Generic type parameters including angle brackets, e.g. <c>&lt;T&gt;</c>, or <c>null</c> if non-generic.</summary>
+        string? GenericParams,
+        /// <summary>Typed parameters declared in the hook header.</summary>
+        ImmutableArray<FunctionParam> Params,
+        /// <summary>Return type text after <c>-&gt;</c>, e.g. <c>(int, Action)</c>, or <c>null</c> for void hooks.</summary>
+        string? ReturnType,
+        /// <summary>Raw C# body text between the braces.</summary>
+        string Body,
+        /// <summary>1-based line of the <c>hook</c> keyword.</summary>
+        int DeclarationLine,
+        /// <summary>1-based line of the first body statement.</summary>
+        int BodyStartLine,
+        /// <summary>Absolute char offset in source just after the opening <c>{</c>.</summary>
+        int BodyStartOffset,
+        /// <summary>Absolute char offset in source just before the closing <c>}</c>.</summary>
+        int BodyEndOffset
+    );
+
+    // ── Module declaration ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// A single <c>module</c> declaration parsed from a .uitkx file:
+    /// <c>module Counter { ... }</c>.
+    /// </summary>
+    public sealed record ModuleDeclaration(
+        /// <summary>Module name (PascalCase), e.g. <c>Counter</c>.</summary>
+        string Name,
+        /// <summary>Raw C# body text between the braces.</summary>
+        string Body,
+        /// <summary>1-based line of the <c>module</c> keyword.</summary>
+        int DeclarationLine,
+        /// <summary>1-based line of the first body statement.</summary>
+        int BodyStartLine,
+        /// <summary>Absolute char offset in source just after the opening <c>{</c>.</summary>
+        int BodyStartOffset,
+        /// <summary>Absolute char offset in source just before the closing <c>}</c>.</summary>
+        int BodyEndOffset
+    );
+
     // ── Directive data ────────────────────────────────────────────────────────
 
     /// <summary>
@@ -160,7 +208,15 @@ namespace ReactiveUITK.Language.Parser
         /// position in <see cref="FunctionSetupCode"/> is at or past
         /// <see cref="FunctionSetupGapOffset"/>.
         /// </summary>
-        int FunctionSetupGapLength = 0
+        int FunctionSetupGapLength = 0,
+        /// <summary>
+        /// Hook declarations parsed from this file. Empty/default for component or directive-style files.
+        /// </summary>
+        ImmutableArray<HookDeclaration> HookDeclarations = default,
+        /// <summary>
+        /// Module declarations parsed from this file. Empty/default for component or directive-style files.
+        /// </summary>
+        ImmutableArray<ModuleDeclaration> ModuleDeclarations = default
     );
 
     // ── Full parse result ─────────────────────────────────────────────────────

@@ -29,65 +29,77 @@ namespace MyGame.UI                    // ← from @namespace
 export const EXAMPLE_DIRECTORY = `Assets/
   UI/
     PlayerCard/
-      PlayerCard.uitkx          ← component template
-      PlayerCard.styles.cs      ← optional: style constants & helpers
-      PlayerCard.types.cs       ← optional: enums, structs, DTOs
-      PlayerCard.utils.cs       ← optional: pure helper functions`
+      PlayerCard.uitkx           ← component
+      PlayerCard.hooks.uitkx     ← custom hooks (optional)
+      PlayerCard.style.uitkx     ← styles module (optional)
+      PlayerCard.utils.uitkx     ← utilities module (optional)`
 
-export const EXAMPLE_STYLES = `// PlayerCard.styles.cs
-using UnityEngine;
+export const EXAMPLE_HOOKS = `// PlayerCard.hooks.uitkx
+@namespace MyGame.UI
 
-namespace MyGame.UI
-{
-    public partial class PlayerCard
-    {
-        public static readonly Color HealthGreen = new(0.2f, 0.8f, 0.3f);
-        public static readonly Color DamageRed   = new(0.9f, 0.2f, 0.2f);
-        public static readonly float AvatarSize  = 64f;
+hook usePlayerAnimation(PlayerInfo player) -> (float, bool) {
+  var (opacity, setOpacity) = useState(1f);
+  var (isFlashing, setFlashing) = useState(false);
+
+  useEffect(() => {
+    if (player.Health <= 0) {
+      setFlashing(true);
+      setOpacity(0.5f);
     }
+    return null;
+  }, player.Health);
+
+  return (opacity, isFlashing);
 }`
 
-export const EXAMPLE_TYPES = `// PlayerCard.types.cs
-namespace MyGame.UI
-{
-    public partial class PlayerCard
-    {
-        public enum PlayerRank { Bronze, Silver, Gold, Diamond }
+export const EXAMPLE_STYLES = `// PlayerCard.style.uitkx
+@namespace MyGame.UI
 
-        public readonly struct PlayerInfo
-        {
-            public string Name { get; init; }
-            public int Health { get; init; }
-            public int MaxHealth { get; init; }
-            public PlayerRank Rank { get; init; }
-        }
-    }
+module PlayerCard {
+  public static readonly Color HealthGreen = new(0.2f, 0.8f, 0.3f);
+  public static readonly Color DamageRed   = new(0.9f, 0.2f, 0.2f);
+  public static readonly float AvatarSize  = 64f;
+
+  public static Style CardStyle => new Style {
+    (FlexDirection, "row"),
+    (Padding, Px(8)),
+    (BackgroundColor, Hex("#1a1a2e"))
+  };
 }`
 
-export const EXAMPLE_UTILS = `// PlayerCard.utils.cs
-namespace MyGame.UI
-{
-    public partial class PlayerCard
-    {
-        public static string FormatHealth(int current, int max)
-            => $"{current} / {max} HP";
+export const EXAMPLE_TYPES = `// PlayerCard.types.uitkx
+@namespace MyGame.UI
 
-        public static string RankLabel(PlayerRank rank) => rank switch
-        {
-            PlayerRank.Diamond => "★ Diamond",
-            PlayerRank.Gold    => "● Gold",
-            PlayerRank.Silver  => "○ Silver",
-            _                  => "· Bronze",
-        };
-    }
+module PlayerCard {
+  public enum PlayerRank { Bronze, Silver, Gold, Diamond }
+
+  public readonly struct PlayerInfo {
+    public string Name { get; init; }
+    public int Health { get; init; }
+    public int MaxHealth { get; init; }
+    public PlayerRank Rank { get; init; }
+  }
 }`
 
-export const EXAMPLE_STANDALONE = `// Alternatively, standalone classes under the same namespace also work.
-// This is useful for types shared across multiple components.
-namespace MyGame.UI
-{
-    public static class SharedColors
-    {
-        public static readonly Color Gold = new(1f, 0.84f, 0f);
-    }
+export const EXAMPLE_UTILS = `// PlayerCard.utils.uitkx
+@namespace MyGame.UI
+
+module PlayerCard {
+  public static string FormatHealth(int current, int max)
+    => $"{current} / {max} HP";
+
+  public static string RankLabel(PlayerRank rank) => rank switch {
+    PlayerRank.Diamond => "★ Diamond",
+    PlayerRank.Gold    => "● Gold",
+    PlayerRank.Silver  => "○ Silver",
+    _                  => "· Bronze",
+  };
+}`
+
+export const EXAMPLE_STANDALONE = `// SharedColors.uitkx — standalone module, not tied to a specific component
+@namespace MyGame.UI
+
+module SharedColors {
+  public static readonly Color Gold = new(1f, 0.84f, 0f);
+  public static readonly Color Silver = new(0.75f, 0.75f, 0.75f);
 }`

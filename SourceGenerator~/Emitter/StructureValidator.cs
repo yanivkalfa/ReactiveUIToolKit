@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using ReactiveUITK.Language.Nodes;
+using ReactiveUITK.Language.Parser;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
 {
@@ -20,11 +21,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         public static void Validate(
             ImmutableArray<AstNode> rootNodes,
             string filePath,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            DirectiveSet directives = default
         )
         {
             CheckMultipleRoots(rootNodes, filePath, diagnostics);
-            CheckUseEffectInCodeBlocks(rootNodes, filePath, diagnostics);
+            CheckUseEffectInSetupCode(directives, filePath, diagnostics);
+            ScanControlBlockSetupCodes(rootNodes, filePath, diagnostics);
             WalkForeachForIndexKey(rootNodes, filePath, diagnostics);
         }
 
@@ -36,7 +39,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             IList<Diagnostic> diagnostics
         )
         {
-            // Count top-level element nodes (CodeBlockNode is not a render output)
+            // Count top-level element nodes
             var elementRoots = rootNodes.OfType<ElementNode>().ToArray();
             if (elementRoots.Length <= 1)
                 return;
@@ -53,14 +56,90 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         // ── UITKX0018 — UseEffect missing dependency array ───────────────────
 
-        private static void CheckUseEffectInCodeBlocks(
-            ImmutableArray<AstNode> rootNodes,
+        private static void CheckUseEffectInSetupCode(
+            DirectiveSet directives,
             string filePath,
             IList<Diagnostic> diagnostics
         )
         {
-            foreach (var node in rootNodes.OfType<CodeBlockNode>())
-                ScanUseEffectMissingDeps(node.Code, node.SourceLine, filePath, diagnostics);
+            if (!string.IsNullOrWhiteSpace(directives.FunctionSetupCode))
+            {
+                int setupLine = directives.FunctionSetupStartLine > 0
+                    ? directives.FunctionSetupStartLine
+                    : directives.ComponentDeclarationLine > 0
+                        ? directives.ComponentDeclarationLine
+                        : 1;
+                ScanUseEffectMissingDeps(directives.FunctionSetupCode, setupLine, filePath, diagnostics);
+            }
+        }
+
+        // ── UITKX0018 — UseEffect missing deps in control-block SetupCode ────
+
+        /// <summary>
+        /// Recursively walks the AST and scans every control-block's SetupCode
+        /// for <c>UseEffect</c> calls missing a dependency array.
+        /// </summary>
+        private static void ScanControlBlockSetupCodes(
+            ImmutableArray<AstNode> nodes,
+            string filePath,
+            IList<Diagnostic> diagnostics
+        )
+        {
+            foreach (var node in nodes)
+            {
+                switch (node)
+                {
+                    case IfNode ifn:
+                        foreach (var branch in ifn.Branches)
+                        {
+                            if (!string.IsNullOrWhiteSpace(branch.SetupCode))
+                                ScanUseEffectMissingDeps(
+                                    branch.SetupCode, branch.SetupCodeLine,
+                                    filePath, diagnostics);
+                            ScanControlBlockSetupCodes(branch.Body, filePath, diagnostics);
+                        }
+                        break;
+
+                    case ForeachNode forn:
+                        if (!string.IsNullOrWhiteSpace(forn.SetupCode))
+                            ScanUseEffectMissingDeps(
+                                forn.SetupCode, forn.SetupCodeLine,
+                                filePath, diagnostics);
+                        ScanControlBlockSetupCodes(forn.Body, filePath, diagnostics);
+                        break;
+
+                    case ForNode forNode:
+                        if (!string.IsNullOrWhiteSpace(forNode.SetupCode))
+                            ScanUseEffectMissingDeps(
+                                forNode.SetupCode, forNode.SetupCodeLine,
+                                filePath, diagnostics);
+                        ScanControlBlockSetupCodes(forNode.Body, filePath, diagnostics);
+                        break;
+
+                    case WhileNode wn:
+                        if (!string.IsNullOrWhiteSpace(wn.SetupCode))
+                            ScanUseEffectMissingDeps(
+                                wn.SetupCode, wn.SetupCodeLine,
+                                filePath, diagnostics);
+                        ScanControlBlockSetupCodes(wn.Body, filePath, diagnostics);
+                        break;
+
+                    case SwitchNode sw:
+                        foreach (var c in sw.Cases)
+                        {
+                            if (!string.IsNullOrWhiteSpace(c.SetupCode))
+                                ScanUseEffectMissingDeps(
+                                    c.SetupCode, c.SetupCodeLine,
+                                    filePath, diagnostics);
+                            ScanControlBlockSetupCodes(c.Body, filePath, diagnostics);
+                        }
+                        break;
+
+                    case ElementNode el:
+                        ScanControlBlockSetupCodes(el.Children, filePath, diagnostics);
+                        break;
+                }
+            }
         }
 
         private static void ScanUseEffectMissingDeps(

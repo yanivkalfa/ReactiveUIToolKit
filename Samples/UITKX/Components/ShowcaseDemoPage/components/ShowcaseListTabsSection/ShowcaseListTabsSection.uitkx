@@ -4,15 +4,13 @@
 @using ReactiveUITK.Props.Typed
 @using ReactiveUITK.Samples.UITKXShared
 @using UnityEngine
-@using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ShowcaseListTabsSection(
-  Action<int>? onListCountChanged = null, 
-  Action<int>? onMclvCountChanged = null, 
+  Action<int>? onListCountChanged = null,
+  Action<int>? onMclvCountChanged = null,
   Action<int>? onListTabIndexChanged = null
 ) {
-  // ── State ──────────────────────────────────────────────────────────────
+  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var (listTabIndex, setListTabIndex) = useState(0);
   var (showTabs, setShowTabs) = useState(true);
 
@@ -24,7 +22,7 @@ component ShowcaseListTabsSection(
     return null;
   }, new object[] { listTabIndex });
 
-  // ── ListView actions ────────────────────────────────────────────────────
+  // â”€â”€ ListView actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void ListAddItem() {
     setListRows(prev => {
       var next = new List<ListViewRowState> {
@@ -77,7 +75,7 @@ component ShowcaseListTabsSection(
     });
   }
 
-  // ── TabView ─────────────────────────────────────────────────────────────
+  // â”€â”€ TabView â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var tabViewProps = new TabViewProps {
     SelectedTabIndex = listTabIndex,
     SelectedIndexChanged = idx => setListTabIndex(idx),
@@ -130,7 +128,9 @@ component ShowcaseListTabsSection(
         />
       </VisualElement>
       @if (!showTabs) {
-        <Text text="List tabs hidden" />
+        return (
+          <Text text="List tabs hidden" />
+        );
       }
     </VisualElement>
   );

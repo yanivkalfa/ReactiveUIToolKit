@@ -3,6 +3,7 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
@@ -338,6 +339,22 @@ public sealed class HoverHandler : IHoverHandler
 
             ITypeSymbol? type = typeInfo.Type ?? typeInfo.ConvertedType;
 
+            // GetSymbolInfo/GetTypeInfo return nothing for declarations
+            // (variable declarations, tuple designations, parameters).
+            // Fall back to GetDeclaredSymbol which handles these cases.
+            if (sym == null && type == null)
+            {
+                sym = semanticModel.GetDeclaredSymbol(token.Parent, ct);
+
+                // For local variables and parameters, extract the type from the symbol.
+                if (sym is ILocalSymbol localSym)
+                    type = localSym.Type;
+                else if (sym is IParameterSymbol paramSym)
+                    type = paramSym.Type;
+                else if (sym is IFieldSymbol fieldSym)
+                    type = fieldSym.Type;
+            }
+
             if (sym == null && type == null)
                 return null;
 
@@ -346,11 +363,23 @@ public sealed class HoverHandler : IHoverHandler
             if (sym != null)
             {
                 var display = SanitizeInternalTypes(sym.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat));
-                var kind = sym.Kind.ToString().ToLowerInvariant();
+                var kind = GetFriendlyKind(sym);
                 md = $"**({kind})** `{display}`";
 
-                // Append type if it's different from the display string.
-                if (type != null)
+                // For delegate types, show the invoke signature.
+                if (sym is INamedTypeSymbol namedType && namedType.TypeKind == TypeKind.Delegate
+                    && namedType.DelegateInvokeMethod != null)
+                {
+                    var invokeMethod = namedType.DelegateInvokeMethod;
+                    var returnType = SanitizeInternalTypes(invokeMethod.ReturnType.ToDisplayString(
+                        SymbolDisplayFormat.MinimallyQualifiedFormat));
+                    var paramList = string.Join(", ", invokeMethod.Parameters.Select(p =>
+                        SanitizeInternalTypes(p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+                        + " " + p.Name));
+                    md = $"**({kind})** `{returnType} {display}({paramList})`";
+                }
+                // For locals/parameters/fields, show as "name : Type".
+                else if (type != null)
                 {
                     var typeDisplay = SanitizeInternalTypes(type.ToDisplayString(
                         SymbolDisplayFormat.MinimallyQualifiedFormat
@@ -375,10 +404,6 @@ public sealed class HoverHandler : IHoverHandler
                 ));
                 md = $"`{typeDisplay}`";
             }
-
-            ServerLog.Log(
-                $"[HoverHandler] Roslyn hover: {md.Substring(0, Math.Min(80, md.Length))}"
-            );
 
             return new Hover
             {
@@ -412,6 +437,38 @@ public sealed class HoverHandler : IHoverHandler
         if (!m.Success)
             return string.Empty;
         return Regex.Replace(m.Groups[1].Value.Trim(), @"\s+", " ");
+    }
+
+    /// <summary>
+    /// Returns a user-friendly kind string for a symbol, e.g. "delegate",
+    /// "class", "local variable" instead of the raw enum name.
+    /// </summary>
+    private static string GetFriendlyKind(ISymbol sym)
+    {
+        if (sym is INamedTypeSymbol namedType)
+        {
+            return namedType.TypeKind switch
+            {
+                TypeKind.Delegate  => "delegate",
+                TypeKind.Class     => "class",
+                TypeKind.Struct    => "struct",
+                TypeKind.Interface => "interface",
+                TypeKind.Enum      => "enum",
+                _                  => "type",
+            };
+        }
+
+        return sym.Kind switch
+        {
+            Microsoft.CodeAnalysis.SymbolKind.Local     => "local variable",
+            Microsoft.CodeAnalysis.SymbolKind.Parameter => "parameter",
+            Microsoft.CodeAnalysis.SymbolKind.Field     => "field",
+            Microsoft.CodeAnalysis.SymbolKind.Property  => "property",
+            Microsoft.CodeAnalysis.SymbolKind.Method    => "method",
+            Microsoft.CodeAnalysis.SymbolKind.Event     => "event",
+            Microsoft.CodeAnalysis.SymbolKind.Namespace => "namespace",
+            _                    => sym.Kind.ToString().ToLowerInvariant(),
+        };
     }
 
     private static bool TryGetHookSetterHover(

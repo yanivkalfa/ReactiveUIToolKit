@@ -19,13 +19,13 @@ export const EnumFlagsFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('EnumFlagsFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('EnumFlagsFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={ENUM_FLAGS_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={ENUM_FLAGS_FIELD_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

@@ -34,7 +34,7 @@ namespace ReactiveUITK.Elements
             if (properties.TryGetValue("orientation", out var o) && o is string s)
             {
                 split.orientation =
-                    s == "vertical"
+                    s.Equals("vertical", System.StringComparison.OrdinalIgnoreCase)
                         ? TwoPaneSplitViewOrientation.Vertical
                         : TwoPaneSplitViewOrientation.Horizontal;
             }

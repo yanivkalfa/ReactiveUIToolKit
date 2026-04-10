@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 @using UnityEngine.UIElements
 @using System
@@ -17,18 +17,22 @@ component PortalEventScopeDemoFunc {
     setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
   }
 
-  // ── var: portalNode (setup-code JSX) ─────────────────────────────────────
+  // â”€â”€ var: portalNode (setup-code JSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var portalNode = portalTarget != null
     ? (
       <Portal target={portalTarget}>
         @if (mounted) {
-          <Button
-            text="Portal Button (click me)"
-            onClick={_ => AppendLog("Portal button clicked")}
-            style={new Style { (StyleKeys.MarginTop, 6f) }}
-          />
+          return (
+            <Button
+              text="Portal Button (click me)"
+              onClick={_ => AppendLog("Portal button clicked")}
+              style={new Style { (StyleKeys.MarginTop, 6f) }}
+            />
+          );
         } @else {
-          <Label text="Portal unmounted." />
+          return (
+            <Label text="Portal unmounted." />
+          );
         }
       </Portal>
     )

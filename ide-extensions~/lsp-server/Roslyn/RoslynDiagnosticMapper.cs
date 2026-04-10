@@ -48,8 +48,12 @@ namespace UitkxLanguageServer.Roslyn
             // lines via #pragma warning disable CS0246 so that real user type-not-found
             // errors (e.g. misspelled type names) surface as diagnostics.
             // "CS0246",
-            "CS0162", // Unreachable code detected — suppressed globally; UITKX0107 handles all
-            // unreachable-after-return dimming directly from .uitkx source analysis.
+            // CS0162 — Unreachable code detected.
+            // NOT suppressed: UITKX0107 handles root-scope returns with full-range
+            // dimming. CS0162 covers nested scopes (lambdas, local functions)
+            // where our T2 analysis doesn't reach. PushTier3 drops CS0162 inside
+            // UITKX0107 ranges to avoid duplicates.
+            // "CS0162",
             "CS8019", // Unnecessary using directive
             "CS1591", // Missing XML comment
             "CS0649", // Field '…' is never assigned to
@@ -97,6 +101,21 @@ namespace UitkxLanguageServer.Roslyn
         {
             var result = new List<ParseDiagnostic>(diagnosticsWithMap.Count);
 
+            // Pre-scan: detect whether the batch contains CS1503 errors from
+            // state-setter direct-value calls (e.g. setGrid(newGrid)).  When
+            // present, any CS1662 "cannot convert lambda" error in the same
+            // batch is a cascade artefact — Roslyn marks the enclosing lambda
+            // as having an error return type when the body contains CS1503.
+            bool hasStateSetterCS1503 = false;
+            foreach (var (diag, _) in diagnosticsWithMap)
+            {
+                if (diag.Id == "CS1503" && diag.GetMessage().Contains("Func<"))
+                {
+                    hasStateSetterCS1503 = true;
+                    break;
+                }
+            }
+
             foreach (var (diag, mapEntry) in diagnosticsWithMap)
             {
                 // Drop hidden diagnostics
@@ -116,6 +135,14 @@ namespace UitkxLanguageServer.Roslyn
                     if (msg.Contains("Func<"))
                         continue;
                 }
+
+                // CS1662: suppress when it cascades from state-setter CS1503.
+                // Roslyn reports "cannot convert lambda expression to intended
+                // delegate type" on the enclosing lambda when its body contains
+                // CS1503 errors from __StateSetter__<T>(Func<T,T>) calls.
+                // This is not a real user error — the lambda shape is correct.
+                if (diag.Id == "CS1662" && hasStateSetterCS1503)
+                    continue;
 
                 // ── Resolve position ─────────────────────────────────────────
 

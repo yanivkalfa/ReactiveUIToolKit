@@ -121,18 +121,16 @@ internal sealed class CapabilityPatchStream : Stream
             }
         }
 
-        // Patch #2: Strip textDocument/semanticTokens from client/registerCapability.
-        // OmniSharp dynamically registers semanticTokens, which causes VS2022 to
-        // override our IClassifier with LSP-based coloring. Our custom classifier
-        // provides richer coloring, so we suppress the dynamic registration.
-        if (text.IndexOf("client/registerCapability", StringComparison.Ordinal) >= 0
-            && text.IndexOf("semanticTokens", StringComparison.Ordinal) >= 0)
+        // Patch #2: Process client/registerCapability — strip semanticTokens
+        // (we use our own IClassifier) and inject rename (OmniSharp doesn't
+        // dynamically register it because its RenameProvider is null, but
+        // VS2022 only enables features that have dynamic registrations).
+        if (text.IndexOf("client/registerCapability", StringComparison.Ordinal) >= 0)
         {
-            var stripped = StripSemanticTokensRegistration(text);
-            if (stripped != text)
+            var patched2 = StripAndInjectRegistrations(text);
+            if (patched2 != text)
             {
-                var result = Encoding.UTF8.GetBytes(RewriteContentLength(stripped));
-                ServerLog.Log("[CapabilityPatchStream] Stripped semanticTokens from client/registerCapability.");
+                var result = Encoding.UTF8.GetBytes(RewriteContentLength(patched2));
                 return result;
             }
         }
@@ -185,15 +183,15 @@ internal sealed class CapabilityPatchStream : Stream
     }
 
     /// <summary>
-    /// Removes any registration entry whose <c>method</c> contains "semanticTokens"
-    /// from a <c>client/registerCapability</c> JSON-RPC message.
-    /// Uses simple string manipulation to avoid adding a JSON library dependency.
+    /// Strips dynamic registrations that conflict with our extension and injects
+    /// missing ones that VS2022 needs.
+    /// - Removes <c>semanticTokens</c> to preserve our custom <c>IClassifier</c>.
+    /// - Injects <c>textDocument/rename</c> because OmniSharp doesn't register it
+    ///   (its RenameProvider is null) but our server has a custom RenameHandler.
     /// </summary>
-    private static string StripSemanticTokensRegistration(string text)
+    private static string StripAndInjectRegistrations(string text)
     {
-        // The registrations array is: "registrations":[{...},{...},...]
-        // Each entry is {"id":"...","method":"textDocument/semanticTokens/full","registerOptions":{...}}
-        // We need to find and remove any entry containing "semanticTokens".
+        var conflicting = new[] { "semanticTokens" };
 
         // Locate the body (after headers)
         var headerEnd = text.IndexOf("\r\n\r\n", StringComparison.Ordinal);
@@ -207,10 +205,10 @@ internal sealed class CapabilityPatchStream : Stream
         var arrStart = body.IndexOf('[', regIdx);
         if (arrStart < 0) return text;
 
-        // Walk the array and collect non-semanticTokens entries
+        // Walk the array and collect non-conflicting entries
         var entries = new System.Collections.Generic.List<string>();
         var pos = arrStart + 1;
-        var removed = false;
+        var modified = false;
 
         while (pos < body.Length)
         {
@@ -244,10 +242,30 @@ internal sealed class CapabilityPatchStream : Stream
             }
 
             var entry = body.Substring(entryStart, pos - entryStart);
-            if (entry.IndexOf("semanticTokens", StringComparison.Ordinal) >= 0)
+
+            // Log each entry's method for debugging
+            var methodIdx = entry.IndexOf("\"method\":", StringComparison.Ordinal);
+            if (methodIdx >= 0)
             {
-                removed = true;
-                ServerLog.Log($"[CapabilityPatchStream] Removed registration: {entry.Substring(0, Math.Min(100, entry.Length))}");
+                var methodEnd = entry.IndexOf(',', methodIdx);
+                if (methodEnd < 0) methodEnd = entry.Length;
+                ServerLog.Log($"[CapabilityPatchStream] Registration: {entry.Substring(methodIdx, Math.Min(80, methodEnd - methodIdx))}");
+            }
+
+            var isConflicting = false;
+            foreach (var method in conflicting)
+            {
+                if (entry.IndexOf(method, StringComparison.Ordinal) >= 0)
+                {
+                    isConflicting = true;
+                    break;
+                }
+            }
+
+            if (isConflicting)
+            {
+                modified = true;
+                ServerLog.Log($"[CapabilityPatchStream] Stripped dynamic registration: {entry.Substring(0, Math.Min(100, entry.Length))}");
             }
             else
             {
@@ -255,7 +273,22 @@ internal sealed class CapabilityPatchStream : Stream
             }
         }
 
-        if (!removed) return text;
+        // Always inject rename registration for *.uitkx files.
+        // OmniSharp may register rename for **/*.cs only — that doesn't cover .uitkx.
+        {
+            var renameReg =
+                "{\"id\":\"uitkx-rename\","
+                + "\"method\":\"textDocument/rename\","
+                + "\"registerOptions\":{"
+                + "\"documentSelector\":[{\"pattern\":\"**/*.uitkx\"}],"
+                + "\"prepareProvider\":true"
+                + "}}";
+            entries.Add(renameReg);
+            modified = true;
+            ServerLog.Log("[CapabilityPatchStream] Injected dynamic registration for textDocument/rename (*.uitkx)");
+        }
+
+        if (!modified) return text;
 
         // Rebuild the body with filtered registrations
         var prefix = body.Substring(0, arrStart + 1);
