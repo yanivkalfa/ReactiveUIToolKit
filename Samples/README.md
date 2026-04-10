@@ -14,7 +14,8 @@ signals, synthetic events, keyed diffing, and more.
 ### UITKX/ (Modern UITKX Style)
 
 Same demos rewritten in `.uitkx` declarative markup.
-Each component has a `.uitkx` file + companion `.cs` file.
+Each component has a `.uitkx` file, with optional companion
+`.hooks.uitkx` and `.style.uitkx` files for hooks and styling.
 This is the recommended authoring style.
 
 ### Showcase/ (Host Application)

@@ -1,4 +1,4 @@
-export const PROPTYPES_EXAMPLE = `// Define prop types for a component (in a companion .utils.cs file)
+export const PROPTYPES_EXAMPLE = `// Define prop types for a component (in a companion .utils.uitkx module)
 public static readonly PropTypeDefinition[] CardPropTypes = new[]
 {
     PropTypes.String("title", required: true),

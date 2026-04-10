@@ -72,7 +72,6 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
     )
     {
         var text = request.ContentChanges.LastOrDefault()?.Text ?? "";
-        ServerLog.Log($"didChange: {request.TextDocument.Uri}  len={text.Length}");
         _store.Set(request.TextDocument.Uri, text);
 
         var path = request.TextDocument.Uri.GetFileSystemPath();
@@ -91,6 +90,19 @@ public sealed class TextSyncHandler : TextDocumentSyncHandlerBase
         else
         {
             _diagnostics.Publish(request.TextDocument.Uri, text, _roslynHost);
+
+            // When a .uitkx peer file changes, invalidate dependent
+            // workspaces and re-publish their diagnostics so stale errors clear.
+            if (path != null && path.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+            {
+                var invalidated = _roslynHost.InvalidatePeerDependents(path);
+                foreach (var depPath in invalidated)
+                {
+                    var depUri = DocumentUri.FromFileSystemPath(depPath);
+                    if (_store.TryGet(depUri, out var depText) && depText != null)
+                        _diagnostics.Publish(depUri, depText, _roslynHost);
+                }
+            }
         }
 
         return Unit.Task;

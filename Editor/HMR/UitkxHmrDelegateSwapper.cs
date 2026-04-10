@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -63,6 +64,145 @@ namespace ReactiveUITK.EditorSupport.HMR
                 Debug.Log($"[HMR] Compiled {componentName} — no active instances to swap.");
 
             return total;
+        }
+
+        /// <summary>
+        /// Swaps hook delegate fields in the project assembly to point at the
+        /// new body methods from the HMR-compiled assembly, then triggers a
+        /// global re-render on all active fiber trees.
+        /// </summary>
+        /// <returns>Number of hooks swapped.</returns>
+        public static int SwapHooks(
+            Assembly hmrAssembly,
+            string containerClassName,
+            string ns)
+        {
+            // ── 1. Find the container class in the project assemblies ────────
+            string fullName = string.IsNullOrEmpty(ns)
+                ? containerClassName
+                : $"{ns}.{containerClassName}";
+
+            Type projectContainer = null;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.IsDynamic)
+                    continue;
+                projectContainer = asm.GetType(fullName);
+                if (projectContainer != null)
+                    break;
+            }
+
+            if (projectContainer == null)
+            {
+                Debug.LogWarning(
+                    $"[HMR] Could not find hook container '{fullName}' in loaded assemblies.");
+                return 0;
+            }
+
+            // ── 2. Find the HMR container class with new body methods ────────
+            Type hmrContainer = hmrAssembly.GetType(fullName);
+            if (hmrContainer == null)
+            {
+                Debug.LogWarning(
+                    $"[HMR] Could not find hook container '{fullName}' in HMR assembly.");
+                return 0;
+            }
+
+            // ── 3. Swap each __hmr_* field ───────────────────────────────────
+            int swapped = 0;
+            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+
+            foreach (var field in projectContainer.GetFields(bindingFlags))
+            {
+                if (!field.Name.StartsWith("__hmr_"))
+                    continue;
+                if (field.Name.EndsWith("_cache"))
+                    continue;
+
+                string hookName = field.Name.Substring("__hmr_".Length);
+                string bodyMethodName = $"__{hookName}_body";
+
+                if (field.FieldType == typeof(MethodInfo))
+                {
+                    // ── Generic hook: swap MethodInfo + clear cache ──────
+                    var newMethod = hmrContainer.GetMethod(
+                        bodyMethodName, bindingFlags);
+                    if (newMethod != null)
+                    {
+                        field.SetValue(null, newMethod);
+                        swapped++;
+
+                        var cacheField = projectContainer.GetField(
+                            field.Name + "_cache", bindingFlags);
+                        if (cacheField?.GetValue(null) is System.Collections.IDictionary dict)
+                            dict.Clear();
+                    }
+                }
+                else if (typeof(Delegate).IsAssignableFrom(field.FieldType))
+                {
+                    // ── Non-generic hook: swap Func/Action delegate ──────
+                    var newMethod = hmrContainer.GetMethod(
+                        bodyMethodName, bindingFlags);
+                    if (newMethod != null)
+                    {
+                        try
+                        {
+                            var newDel = Delegate.CreateDelegate(
+                                field.FieldType, newMethod);
+                            field.SetValue(null, newDel);
+                            swapped++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning(
+                                $"[HMR] Failed to swap hook '{hookName}': {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            // ── 4. Trigger global re-render ──────────────────────────────────
+            if (swapped > 0)
+                TriggerGlobalReRender();
+
+            return swapped;
+        }
+
+        /// <summary>
+        /// Triggers a re-render on all active fiber trees so components pick up
+        /// new hook implementations. Used by hook HMR since any component might
+        /// call the changed hook.
+        /// </summary>
+        private static void TriggerGlobalReRender()
+        {
+            foreach (var renderer in EditorRootRendererUtility.GetAllRenderers())
+            {
+                var fiberRenderer = renderer.FiberRendererInternal;
+                if (fiberRenderer?.Root?.Current == null)
+                    continue;
+                ScheduleFullTreeUpdate(fiberRenderer.Root.Current);
+            }
+
+            foreach (var rootRenderer in RootRenderer.AllInstances)
+            {
+                var vhr = rootRenderer.VNodeHostRendererInternal;
+                if (vhr?.FiberRendererInternal?.Root?.Current == null)
+                    continue;
+                ScheduleFullTreeUpdate(vhr.FiberRendererInternal.Root.Current);
+            }
+        }
+
+        private static void ScheduleFullTreeUpdate(FiberNode fiber)
+        {
+            if (fiber == null)
+                return;
+            if (fiber.Tag == FiberTag.FunctionComponent)
+            {
+                try { fiber.ComponentState?.OnStateUpdated?.Invoke(); }
+                catch { /* best effort */ }
+            }
+            ScheduleFullTreeUpdate(fiber.Child);
+            ScheduleFullTreeUpdate(fiber.Sibling);
         }
 
         // ── Delegate extraction ───────────────────────────────────────────────

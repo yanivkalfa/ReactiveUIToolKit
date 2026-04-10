@@ -79,6 +79,13 @@ var server = await LanguageServer.From(options =>
                 sp =>
                 {
                     var roslynHost = sp.GetRequiredService<RoslynHost>();
+
+                    // Wire DiagnosticsPublisher → RoslynHost so that
+                    // RevalidateOpenDocuments triggers full T3 Roslyn rebuilds
+                    // (not just T1+T2) when background index changes occur.
+                    var diagnostics = sp.GetRequiredService<DiagnosticsPublisher>();
+                    diagnostics.SetRoslynHost(roslynHost);
+
                     return new RoslynHostStartup(roslynHost);
                 });
         })

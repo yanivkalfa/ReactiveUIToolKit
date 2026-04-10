@@ -98,7 +98,7 @@ T useContext<T>(string key)`} />
         Type-safe context keys
       </Typography>
       <Typography variant="body1" paragraph>
-        Define context keys as string constants in a companion file or static
+        Define context keys as string constants in a module file or static
         class. This prevents typos and makes keys discoverable via IntelliSense.
       </Typography>
       <CodeBlock language="jsx" code={CONTEXT_TYPED_EXAMPLE} />

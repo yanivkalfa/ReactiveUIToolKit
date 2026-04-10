@@ -8,7 +8,7 @@ namespace ReactiveUITK
     /// Used during HMR delegate swap to detect hook order/count changes and
     /// proactively reset component state instead of relying on runtime exceptions.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
     public sealed class HookSignatureAttribute : Attribute
     {
         public string Signature { get; }

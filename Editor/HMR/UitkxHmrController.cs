@@ -300,11 +300,35 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 // Swap delegates (timed)
                 var swapSw = Stopwatch.StartNew();
-                int swapped = UitkxHmrDelegateSwapper.SwapAll(
-                    result.LoadedAssembly,
-                    result.ComponentName,
-                    uitkxPath
-                );
+                int swapped;
+                if (result.IsHookModuleFile)
+                {
+                    // Hook/module files: update static delegate fields + global re-render
+                    string ns = null;
+                    try
+                    {
+                        // Extract namespace from the first type in the HMR assembly
+                        var firstType = result.LoadedAssembly.GetTypes().FirstOrDefault();
+                        if (firstType != null)
+                            ns = firstType.Namespace;
+                    }
+                    catch { }
+
+                    swapped = UitkxHmrDelegateSwapper.SwapHooks(
+                        result.LoadedAssembly,
+                        result.HookContainerClass,
+                        ns
+                    );
+                }
+                else
+                {
+                    // Component files: swap per-fiber render delegates
+                    swapped = UitkxHmrDelegateSwapper.SwapAll(
+                        result.LoadedAssembly,
+                        result.ComponentName,
+                        uitkxPath
+                    );
+                }
                 swapSw.Stop();
                 result.SwapMs = swapSw.Elapsed.TotalMilliseconds;
 

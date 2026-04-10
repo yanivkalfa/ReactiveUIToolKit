@@ -148,6 +148,19 @@ internal sealed class UitkxQuickInfoSource : IAsyncQuickInfoSource
 
             if (line.StartsWith("## "))
                 runs.Add(new ClassifiedTextRun("keyword", line.Substring(3).Replace("`", "")));
+            else if (line.StartsWith("**(") && line.Contains(")**"))
+            {
+                // Roslyn hover: **(kind)** `symbol` : `type`
+                var boldEnd = line.IndexOf(")**") + 3;
+                var kindText = line.Substring(2, boldEnd - 4); // "(kind)"
+                runs.Add(new ClassifiedTextRun("keyword", kindText));
+                var rest = line.Substring(boldEnd).Replace("`", "").Trim();
+                if (!string.IsNullOrEmpty(rest))
+                {
+                    runs.Add(new ClassifiedTextRun("text", " "));
+                    runs.Add(new ClassifiedTextRun("text", rest));
+                }
+            }
             else if (line.StartsWith("**") && line.EndsWith("**") && line.Length >= 4)
                 runs.Add(new ClassifiedTextRun("keyword", line.Substring(2, line.Length - 4)));
             else

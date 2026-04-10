@@ -39,7 +39,7 @@ export const UitkxConceptsPage: FC = () => (
           <ListItemText primary="State setters are called directly like functions, for example setCount(count + 1)." />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary="Companion .cs files are optional — use them to share styles, types, or utilities. The source generator produces the full class from the .uitkx file alone." />
+          <ListItemText primary="Three file types: component (.uitkx) for UI, hook (.hooks.uitkx) for reusable state logic, and module (.style.uitkx, .utils.uitkx) for styles, types, and utilities." />
         </ListItem>
       </List>
     </Box>

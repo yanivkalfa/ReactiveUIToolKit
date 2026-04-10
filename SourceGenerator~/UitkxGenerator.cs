@@ -139,6 +139,7 @@ namespace ReactiveUITK.SourceGenerator
                     // snapshot (Roslyn source generators cannot see types generated in the
                     // same pass via GetTypeByMetadataName).
                     var peerComponentsBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
+                    var peerHookContainersBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                     foreach (var txt in uitkxFiles)
                     {
                         ct.ThrowIfCancellationRequested();
@@ -151,9 +152,13 @@ namespace ReactiveUITK.SourceGenerator
                             continue;
                         if (TryBuildPeerComponentInfo(src, txt.Path, out var peerInfo))
                             peerComponentsBuilder.Add(peerInfo);
+                        if (TryBuildPeerHookContainerInfo(src, txt.Path, out var hookInfo))
+                            peerHookContainersBuilder.Add(hookInfo);
                     }
                     ImmutableArray<PeerComponentInfo> peerComponents =
                         peerComponentsBuilder.ToImmutable();
+                    ImmutableArray<PeerHookContainerInfo> peerHookContainers =
+                        peerHookContainersBuilder.ToImmutable();
 
                     // ── Primary path: use AdditionalTexts (incremental-cache-aware) ─
                     // The .uitkx files are injected as <AdditionalFiles> by
@@ -166,7 +171,7 @@ namespace ReactiveUITK.SourceGenerator
                         string? source = txt.GetText(ct)?.ToString();
                         if (source == null)
                             continue;
-                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents));
+                        results.Add(UitkxPipeline.Run(source, txt.Path, compilation, ct, peerComponents, peerHookContainers));
                     }
 
                     // ── Fallback path: disk scan ───────────────────────────────────
@@ -182,6 +187,7 @@ namespace ReactiveUITK.SourceGenerator
 
                             // Pre-scan for peer component names (same as the AdditionalTexts path)
                             var diskPeerBuilder = ImmutableArray.CreateBuilder<PeerComponentInfo>();
+                            var diskHookBuilder = ImmutableArray.CreateBuilder<PeerHookContainerInfo>();
                             foreach (string fp in diskFiles)
                             {
                                 if (IsInsideIgnoredFolder(fp)) continue;
@@ -190,9 +196,13 @@ namespace ReactiveUITK.SourceGenerator
                                 string raw = File.ReadAllText(fp);
                                 if (TryBuildPeerComponentInfo(raw, fp, out var peerInfo))
                                     diskPeerBuilder.Add(peerInfo);
+                                if (TryBuildPeerHookContainerInfo(raw, fp, out var hookInfo))
+                                    diskHookBuilder.Add(hookInfo);
                             }
                             ImmutableArray<PeerComponentInfo> diskPeerComponents =
                                 diskPeerBuilder.ToImmutable();
+                            ImmutableArray<PeerHookContainerInfo> diskPeerHookContainers =
+                                diskHookBuilder.ToImmutable();
 
                             foreach (string filePath in diskFiles)
                             {
@@ -200,7 +210,7 @@ namespace ReactiveUITK.SourceGenerator
                                 if (IsInsideIgnoredFolder(filePath))
                                     continue;
                                 string source = File.ReadAllText(filePath);
-                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents));
+                                results.Add(UitkxPipeline.Run(source, filePath, compilation, ct, diskPeerComponents, diskPeerHookContainers));
                             }
                         }
                     }
@@ -299,6 +309,26 @@ namespace ReactiveUITK.SourceGenerator
                 ds.FunctionParams.IsDefault
                     ? ImmutableArray<FunctionParam>.Empty
                     : ds.FunctionParams
+            );
+            return true;
+        }
+
+        private static bool TryBuildPeerHookContainerInfo(
+            string source,
+            string filePath,
+            out PeerHookContainerInfo hookInfo
+        )
+        {
+            var throwawayDiags = new List<ParseDiagnostic>();
+            var ds = DirectiveParser.Parse(source, filePath, throwawayDiags);
+            if (ds.HookDeclarations.IsDefaultOrEmpty || string.IsNullOrEmpty(ds.Namespace))
+            {
+                hookInfo = default!;
+                return false;
+            }
+            hookInfo = new PeerHookContainerInfo(
+                ds.Namespace!,
+                Emitter.HookEmitter.DeriveContainerClassName(filePath)
             );
             return true;
         }

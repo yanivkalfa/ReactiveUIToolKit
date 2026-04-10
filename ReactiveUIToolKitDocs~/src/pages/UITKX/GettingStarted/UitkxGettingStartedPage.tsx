@@ -73,9 +73,10 @@ export const UitkxGettingStartedPage: FC = () => (
       Companion files (optional)
     </Typography>
     <Typography variant="body1" paragraph>
-      The generator produces everything needed, but you can optionally add <code>.cs</code> files
-      next to your <code>.uitkx</code> to share styles, types, or utilities across components. See
-      the <strong>Companion Files</strong> page for naming conventions and examples.
+      The generator produces everything needed, but you can optionally add <code>.uitkx</code>{' '}
+      companion files using <code>hook</code> and <code>module</code> keywords to extract reusable
+      state logic, styles, types, or utilities. See the <strong>Companion Files</strong> page for
+      details.
     </Typography>
   </Box>
 )

@@ -1,6 +1,40 @@
 {
   "entries": [
     {
+      "date": "2026-04-10",
+      "versions": {
+        "vscode": "1.1.0",
+        "vs2022": "1.1.0"
+      },
+      "shared": [
+        "Feature: full IDE support for hook companion files (.hooks.uitkx) — parsing, diagnostics, hover, completions, coloring, formatting",
+        "Feature: full IDE support for module companion files (.style.uitkx, .utils.uitkx) — parsing, diagnostics, hover, completions, coloring, formatting",
+        "Feature: cross-file peer resolution reads editor buffers instead of disk — no stale diagnostics when editing companion files",
+        "Feature: hover shows type info for local variable, parameter, and field declarations",
+        "Feature: hover shows delegate invoke signature (e.g. void Action(int value)) instead of raw type name",
+        "Fix: CS1662 lambda cascade errors suppressed when caused by state-setter type mismatches",
+        "Fix: removed 7 hot-path log calls that fired on every keystroke, rebuild, or hover"
+      ],
+      "vs2022": [
+        "Feature: hook and module keywords colored as keywords in the classifier",
+        "Feature: hover tooltip correctly renders (kind) prefix for Roslyn-style hover format"
+      ]
+    },
+    {
+      "date": "2026-04-09",
+      "versions": {
+        "vscode": "1.0.308",
+        "vs2022": "1.0.85"
+      },
+      "shared": [
+        "Feature: delegate-typed variables (useState setters, callbacks) now colored as functions in both VS Code and VS2022",
+        "Fix: generic function calls like useState<string>() no longer lose function coloring"
+      ],
+      "vs2022": [
+        "Feature: custom notification channel (CustomMessageTarget) for server-to-client classification overrides"
+      ]
+    },
+    {
       "date": "2026-04-08",
       "versions": {
         "vscode": "1.0.307",
