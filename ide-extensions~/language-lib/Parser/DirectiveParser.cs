@@ -36,6 +36,8 @@ namespace ReactiveUITK.Language.Parser
         {
             "namespace",
             "component",
+            "hook",
+            "module",
             "using",
             "uss",
             "props",
@@ -177,6 +179,16 @@ namespace ReactiveUITK.Language.Parser
                     parsedPreambleLine = true;
                 }
             } while (parsedPreambleLine);
+
+            // ── Keyword dispatch: component / hook / module ─────────────────
+            if (TryReadKeywordAt(source, i, "hook") || TryReadKeywordAt(source, i, "module"))
+            {
+                return TryParseHookModuleFile(
+                    source, filePath, diagnosticBag, ref directiveSet,
+                    ref i, ref line,
+                    usings, ussFiles, inlineNamespace
+                );
+            }
 
             if (!TryReadKeyword(source, ref i, "component"))
                 return false;
@@ -445,6 +457,383 @@ namespace ReactiveUITK.Language.Parser
             return true;
         }
 
+        // ── Hook / Module file parser ─────────────────────────────────────────
+
+        /// <summary>
+        /// Parses a .uitkx file containing one or more <c>hook</c> and/or
+        /// <c>module</c> declarations (no component).
+        /// Called from <see cref="TryParseFunctionStyle"/> when the first
+        /// top-level keyword after the preamble is <c>hook</c> or <c>module</c>.
+        /// </summary>
+        private static bool TryParseHookModuleFile(
+            string source,
+            string filePath,
+            List<ParseDiagnostic> diagnosticBag,
+            ref DirectiveSet directiveSet,
+            ref int i,
+            ref int line,
+            List<string> usings,
+            List<string> ussFiles,
+            string? inlineNamespace
+        )
+        {
+            string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
+
+            // Validate preamble: @uss is not allowed in hook/module files
+            if (ussFiles.Count > 0)
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2210",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = line,
+                    Message = "@uss is not allowed in hook/module files. Stylesheets can only be attached to component files.",
+                });
+            }
+
+            var hooks = new List<HookDeclaration>();
+            var modules = new List<ModuleDeclaration>();
+
+            // Parse multiple declarations in sequence
+            while (i < source.Length)
+            {
+                SkipLeadingFunctionStyleTrivia(source, ref i, ref line);
+                if (i >= source.Length) break;
+
+                if (TryReadKeyword(source, ref i, "hook"))
+                {
+                    ParseSingleHook(source, filePath, diagnosticBag, hooks, ref i, ref line);
+                }
+                else if (TryReadKeyword(source, ref i, "module"))
+                {
+                    ParseSingleModule(source, filePath, diagnosticBag, modules, ref i, ref line);
+                }
+                else
+                {
+                    break; // unknown content after declarations
+                }
+            }
+
+            if (hooks.Count == 0 && modules.Count == 0)
+                return false;
+
+            // Check for trailing content after declarations
+            if (TryFindNextNonWhitespace(source, i, out int trailingPos))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2105",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = LineAtPos(source, trailingPos),
+                    Message = "Invalid top-level statement after hook/module declarations.",
+                });
+            }
+
+            int firstDeclLine = hooks.Count > 0
+                ? hooks[0].DeclarationLine
+                : modules[0].DeclarationLine;
+
+            directiveSet = new DirectiveSet(
+                Namespace: functionNamespace,
+                ComponentName: null,
+                PropsTypeName: null,
+                DefaultKey: null,
+                Usings: usings.ToImmutableArray(),
+                UssFiles: ImmutableArray<string>.Empty,
+                Injects: ImmutableArray<(string Type, string Name)>.Empty,
+                MarkupStartLine: firstDeclLine,
+                MarkupStartIndex: source.Length,
+                MarkupEndIndex: source.Length,
+                IsFunctionStyle: true,
+                HasExplicitNamespace: inlineNamespace != null,
+                FunctionSetupCode: string.Empty,
+                FunctionSetupStartLine: firstDeclLine,
+                HookDeclarations: hooks.ToImmutableArray(),
+                ModuleDeclarations: modules.ToImmutableArray()
+            );
+            return true;
+        }
+
+        /// <summary>
+        /// Parses a single hook declaration starting after the <c>hook</c> keyword
+        /// has already been consumed.
+        /// </summary>
+        private static void ParseSingleHook(
+            string source,
+            string filePath,
+            List<ParseDiagnostic> diagnosticBag,
+            List<HookDeclaration> hooks,
+            ref int i,
+            ref int line
+        )
+        {
+            int hookLine = line;
+            SkipSpaces(source, ref i);
+
+            // Hook name (camelCase)
+            if (!TryReadIdentifier(source, ref i, out string hookName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2200",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = hookLine,
+                    Message = "Expected hook name after 'hook' keyword.",
+                });
+                return;
+            }
+
+            // Warning if not starting with "use"
+            if (!hookName.StartsWith("use", StringComparison.Ordinal))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2203",
+                    Severity = ParseSeverity.Warning,
+                    SourceLine = hookLine,
+                    Message = $"Hook name '{hookName}' should start with 'use' (e.g. 'use{char.ToUpper(hookName[0])}{hookName.Substring(1)}').",
+                });
+            }
+
+            // Optional generic parameters: <T> or <T, U>
+            string? genericParams = null;
+            if (i < source.Length && source[i] == '<')
+            {
+                genericParams = ReadGenericParams(source, ref i);
+            }
+
+            // Parameter list
+            SkipSpaces(source, ref i);
+            var hookParams = ImmutableArray<FunctionParam>.Empty;
+            if (i < source.Length && source[i] == '(')
+            {
+                hookParams = ParseFunctionParamList(source, ref i, ref line, hookLine, diagnosticBag);
+            }
+            else
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2201",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = hookLine,
+                    Message = $"Hook '{hookName}' is missing a parameter list. Add '()' after the name.",
+                });
+            }
+
+            // Optional -> ReturnType
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+            string? returnType = TryReadArrowReturnType(source, ref i, ref line);
+
+            // Body { ... }
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+            if (i >= source.Length || source[i] != '{')
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2202",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = hookLine,
+                    Message = $"Hook '{hookName}' is missing a body. Expected '{{' after declaration.",
+                });
+                return;
+            }
+
+            int bodyOpen = i;
+            if (!TryReadBalancedBlock(source, bodyOpen, out int bodyCloseExclusive))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2202",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = hookLine,
+                    Message = $"Unclosed hook body for '{hookName}'. Missing '}}'.",
+                });
+                return;
+            }
+
+            int bodyStart = bodyOpen + 1;
+            int bodyEnd = bodyCloseExclusive - 1;
+            string rawBody = source.Substring(bodyStart, Math.Max(0, bodyEnd - bodyStart));
+            string body = rawBody.Trim();
+
+            // BodyStartOffset must point to where the trimmed body text
+            // actually starts (first non-whitespace char), NOT to bodyStart
+            // which includes leading \r\n and indentation stripped by Trim().
+            // This offset is used by VDG to build SourceMap entries, so a
+            // mismatch here shifts ALL mapped positions (rename, go-to-def, etc.).
+            int trimmedLeading = rawBody.Length - rawBody.TrimStart().Length;
+            int actualBodyStart = bodyStart + trimmedLeading;
+
+            int bodyStartLine = LineAtPos(source, FirstNonWhitespaceAt(source, bodyStart));
+
+            hooks.Add(new HookDeclaration(
+                Name: hookName,
+                GenericParams: genericParams,
+                Params: hookParams,
+                ReturnType: returnType,
+                Body: body,
+                DeclarationLine: hookLine,
+                BodyStartLine: bodyStartLine,
+                BodyStartOffset: actualBodyStart,
+                BodyEndOffset: bodyEnd
+            ));
+
+            i = bodyCloseExclusive; // advance past '}'
+        }
+
+        /// <summary>
+        /// Parses a single module declaration starting after the <c>module</c>
+        /// keyword has already been consumed.
+        /// </summary>
+        private static void ParseSingleModule(
+            string source,
+            string filePath,
+            List<ParseDiagnostic> diagnosticBag,
+            List<ModuleDeclaration> modules,
+            ref int i,
+            ref int line
+        )
+        {
+            int moduleLine = line;
+            SkipSpaces(source, ref i);
+
+            // Module name (PascalCase)
+            if (!TryReadIdentifier(source, ref i, out string moduleName))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2204",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = moduleLine,
+                    Message = "Expected module name after 'module' keyword.",
+                });
+                return;
+            }
+
+            // Body { ... }
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+            if (i >= source.Length || source[i] != '{')
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2205",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = moduleLine,
+                    Message = $"Module '{moduleName}' is missing a body. Expected '{{' after name.",
+                });
+                return;
+            }
+
+            int bodyOpen = i;
+            if (!TryReadBalancedBlock(source, bodyOpen, out int bodyCloseExclusive))
+            {
+                diagnosticBag.Add(new ParseDiagnostic
+                {
+                    Code = "UITKX2205",
+                    Severity = ParseSeverity.Error,
+                    SourceLine = moduleLine,
+                    Message = $"Unclosed module body for '{moduleName}'. Missing '}}'.",
+                });
+                return;
+            }
+
+            int bodyStart = bodyOpen + 1;
+            int bodyEnd = bodyCloseExclusive - 1;
+            string rawBody = source.Substring(bodyStart, Math.Max(0, bodyEnd - bodyStart));
+            string body = rawBody.Trim();
+
+            // BodyStartOffset must point to where the trimmed body text
+            // actually starts (first non-whitespace char), NOT to bodyStart
+            // which includes leading \r\n and indentation stripped by Trim().
+            int trimmedLeading = rawBody.Length - rawBody.TrimStart().Length;
+            int actualBodyStart = bodyStart + trimmedLeading;
+
+            int bodyStartLine = LineAtPos(source, FirstNonWhitespaceAt(source, bodyStart));
+
+            modules.Add(new ModuleDeclaration(
+                Name: moduleName,
+                Body: body,
+                DeclarationLine: moduleLine,
+                BodyStartLine: bodyStartLine,
+                BodyStartOffset: actualBodyStart,
+                BodyEndOffset: bodyEnd
+            ));
+
+            i = bodyCloseExclusive; // advance past '}'
+        }
+
+        // ── Arrow return type reader ──────────────────────────────────────────
+
+        /// <summary>
+        /// Reads an optional <c>-&gt; ReturnType</c> after a hook parameter list.
+        /// Handles tuples <c>(int, Action)</c>, generics <c>List&lt;int&gt;</c>,
+        /// arrays, and nullable types by scanning until <c>{</c> at depth zero.
+        /// Returns <c>null</c> if no arrow is present (void hook).
+        /// </summary>
+        private static string? TryReadArrowReturnType(string source, ref int i, ref int line)
+        {
+            if (i + 1 >= source.Length || source[i] != '-' || source[i + 1] != '>')
+                return null;
+
+            i += 2; // consume '->'
+            SkipWhitespaceAndNewlines(source, ref i, ref line);
+
+            int start = i;
+            int parenDepth = 0;
+            int angleDepth = 0;
+
+            while (i < source.Length)
+            {
+                char c = source[i];
+
+                if (c == '(') { parenDepth++; i++; continue; }
+                if (c == ')') { parenDepth--; i++; continue; }
+                if (c == '<') { angleDepth++; i++; continue; }
+                if (c == '>') { angleDepth--; i++; continue; }
+
+                // Stop at '{' only when all parens and angles are balanced
+                if (c == '{' && parenDepth == 0 && angleDepth == 0)
+                    break;
+
+                // Track newlines
+                if (IsNewline(c))
+                {
+                    ConsumeNewline(source, ref i, ref line);
+                    continue;
+                }
+
+                i++;
+            }
+
+            string returnType = source.Substring(start, i - start).Trim();
+            return returnType.Length > 0 ? returnType : null;
+        }
+
+        // ── Generic params reader ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Reads generic type parameters including angle brackets from the current
+        /// position, e.g. <c>&lt;T&gt;</c> or <c>&lt;TKey, TValue&gt;</c>.
+        /// Returns the full string including <c>&lt;</c> and <c>&gt;</c>.
+        /// </summary>
+        private static string ReadGenericParams(string source, ref int i)
+        {
+            if (i >= source.Length || source[i] != '<')
+                return string.Empty;
+
+            int start = i;
+            int depth = 0;
+
+            while (i < source.Length)
+            {
+                if (source[i] == '<') { depth++; i++; }
+                else if (source[i] == '>') { depth--; i++; if (depth == 0) break; }
+                else i++;
+            }
+
+            return source.Substring(start, i - start);
+        }
+
         // ── Function param-list parser ────────────────────────────────────────
 
         /// <summary>
@@ -711,7 +1100,9 @@ namespace ReactiveUITK.Language.Parser
                     skippedSomething = true;
                 }
             } while (skippedSomething);
-            return TryReadKeywordAt(source, i, "component");
+            return TryReadKeywordAt(source, i, "component")
+                || TryReadKeywordAt(source, i, "hook")
+                || TryReadKeywordAt(source, i, "module");
         }
 
         /// <summary>

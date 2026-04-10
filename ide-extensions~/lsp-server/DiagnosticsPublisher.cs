@@ -67,6 +67,10 @@ public sealed class DiagnosticsPublisher
     // each fires IndexChanged individually; we coalesce into one revalidation.
     private CancellationTokenSource? _revalidateCts;
 
+    // Lazily resolved via SetRoslynHost so that RevalidateOpenDocuments can
+    // trigger full T3 Roslyn rebuilds (not just T1+T2).
+    private Roslyn.RoslynHost? _roslynHost;
+
     public DiagnosticsPublisher(
         ILanguageServerFacade server,
         UitkxSchema schema,
@@ -89,6 +93,17 @@ public sealed class DiagnosticsPublisher
         _index.IndexChanged += ScheduleDebouncedRevalidation;
     }
 
+    /// <summary>
+    /// Sets the <see cref="Roslyn.RoslynHost"/> used by
+    /// <see cref="RevalidateOpenDocuments"/> so it can trigger full T3
+    /// Roslyn rebuilds (not just T1+T2).  Called once after all singletons
+    /// have been resolved to avoid a circular-dependency in DI.
+    /// </summary>
+    public void SetRoslynHost(Roslyn.RoslynHost roslynHost)
+    {
+        _roslynHost = roslynHost;
+    }
+
     private void RevalidateOpenDocuments()
     {
         foreach (var (uriString, text) in _documentStore.GetAll())
@@ -98,7 +113,7 @@ public sealed class DiagnosticsPublisher
             try
             {
                 var docUri = DocumentUri.From(uriString);
-                Publish(docUri, text, roslynHost: null);
+                Publish(docUri, text, _roslynHost);
             }
             catch (Exception ex)
             {
@@ -320,11 +335,6 @@ public sealed class DiagnosticsPublisher
 
             DocumentUri uri = DocumentUri.File(uitkxFilePath);
             PushToClient(uri, combined);
-
-            ServerLog.Log(
-                $"[Diagnostics] T3 push '{System.IO.Path.GetFileName(uitkxFilePath)}': "
-                    + $"{t3.Count} Roslyn diagnostic(s), {combined.Count} total."
-            );
         }
         catch (Exception ex)
         {

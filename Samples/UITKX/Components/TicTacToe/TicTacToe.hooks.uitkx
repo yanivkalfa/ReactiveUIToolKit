@@ -1,0 +1,109 @@
+@namespace Samples.TicTacToe
+@using UnityEngine.UIElements
+
+hook useTestHomeState() -> (
+  bool gameStarted, 
+  string playerTurn, 
+  string[,] grid, 
+  string winnerMessage, 
+  string movesLeft, 
+  PointerEventHandler handleStartGame, 
+  PointerEventHandler handleRestartGame, 
+  System.Func<int, int, PointerEventHandler> handleColumnClick
+) {
+  var (gameStarted, setGameStarted) = useState(false);
+  var (playerTurn, setPlayerTurn) = useState<string>("X");
+  var (grid, setGrid) = useState<string[,]>(new string[3, 3]
+  {
+    { "", "", "" },
+    { "", "", "" },
+    { "", "", "" }
+  });
+
+  var (winnerMessage, setWinnerMessage) = useState<string>("");
+
+  PointerEventHandler handleStartGame = _ => {
+    setGameStarted(true);
+  };
+
+  PointerEventHandler handleRestartGame = _ => {
+    setGameStarted(true);
+    setPlayerTurn("X");
+    setWinnerMessage("");
+    setGrid(new string[3, 3]
+    {
+      { "", "", "" },
+      { "", "", "" },
+      { "", "", "" }
+    });
+  };
+
+  Func<string[,], bool> haveAWinner = currentGrid => {
+    var winningPositions = new (int row, int col)[][]
+    {
+      new[] { (0, 0), (0, 1), (0, 2) },
+      new[] { (1, 0), (1, 1), (1, 2) },
+      new[] { (2, 0), (2, 1), (2, 2) },
+
+      new[] { (0, 0), (1, 0), (2, 0) },
+      new[] { (0, 1), (1, 1), (2, 1) },
+      new[] { (0, 2), (1, 2), (2, 2) },
+
+      new[] { (0, 0), (1, 1), (2, 2) },
+      new[] { (0, 2), (1, 1), (2, 0) }
+    };
+
+    foreach (var line in winningPositions)
+    {
+      var firstValue = currentGrid[line[0].row, line[0].col];
+
+      if (
+      firstValue != "" &&
+      firstValue == currentGrid[line[1].row, line[1].col] &&
+      firstValue == currentGrid[line[2].row, line[2].col]
+      ) {
+        setWinnerMessage($"Player {firstValue} is the winner");
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  Func<int, int, PointerEventHandler> handleColumnClick = (row, col) => _ => {
+    if (grid[row, col] != "" || winnerMessage != "") {
+      return;
+    }
+
+    var newGrid = (string[,])grid.Clone();
+    newGrid[row, col] = playerTurn;
+
+    setGrid(newGrid);
+
+    if (haveAWinner(newGrid)) {
+      return;
+    }
+
+    setPlayerTurn(prevTurn => prevTurn == "X" ? "O" : "X");
+  };
+
+  var movesLeft = useMemo(() => {
+    var movesLeftCount = 0;
+
+    for (int row = 0; row < 3; row++)
+    {
+      for (int col = 0; col < 3; col++)
+      {
+        if (grid[row, col] == "")
+        {
+          movesLeftCount++;
+        }
+      }
+    }
+
+    return movesLeftCount.ToString();
+  }, new object[] { grid });
+
+  return (gameStarted, playerTurn, grid, winnerMessage, movesLeft, handleStartGame, handleRestartGame, handleColumnClick);
+
+}

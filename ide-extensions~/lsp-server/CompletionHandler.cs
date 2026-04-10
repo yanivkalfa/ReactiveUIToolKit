@@ -309,6 +309,18 @@ public sealed class CompletionHandler : ICompletionHandler
                 detail: "Declares a function-style UITKX component.",
                 doc: "Defines the component body. Use hooks (`useState`, `useEffect`, …) before the `return (…)` statement."
             ),
+            (
+                label: "hook",
+                insert: "hook ${1:useName}(${2}) -> ${3:ReturnType} {\n\t$0\n}",
+                detail: "Declares a custom hook function.",
+                doc: "Defines a reusable hook that can be called from component setup code.\n\nHooks can use `useState`, `useEffect`, and other hooks internally.\n```\nhook useCounter(int initial) -> (int count, Action increment) {\n    var (count, setCount) = useState(initial);\n    Action increment = () => setCount(c => c + 1);\n    return (count, increment);\n}\n```"
+            ),
+            (
+                label: "module",
+                insert: "module ${1:Name} {\n\t$0\n}",
+                detail: "Declares a module (partial class).",
+                doc: "Defines a partial class that can hold shared logic, extension methods, or utilities alongside component files.\n```\nmodule MathUtils {\n    public static int Clamp(int v, int lo, int hi)\n        => Math.Max(lo, Math.Min(hi, v));\n}\n```"
+            ),
         };
 
         return candidates

@@ -10,6 +10,12 @@
       "include": "#function-style-declaration"
     },
     {
+      "include": "#hook-declaration"
+    },
+    {
+      "include": "#module-declaration"
+    },
+    {
       "include": "#cs-line-comment"
     },
     {
@@ -124,6 +130,56 @@
           ]
         },
         "5": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      }
+    },
+    "hook-declaration": {
+      "comment": "Handles hook declarations: hook useName<T>(params) -> ReturnType {",
+      "name": "meta.hook.uitkx",
+      "match": "^(\\s*)(hook)\\s+([A-Za-z_][A-Za-z0-9_]*)(<[^>]+>)?\\s*(\\([^)]*\\))\\s*(?:(->)\\s*([^{]+?))?\\s*(\\{)?\\s*$",
+      "captures": {
+        "2": {
+          "name": "keyword.other.hook.uitkx"
+        },
+        "3": {
+          "name": "entity.name.function.uitkx"
+        },
+        "4": {
+          "patterns": [
+            { "include": "#expression-content" }
+          ]
+        },
+        "5": {
+          "patterns": [
+            { "include": "#expression-content" }
+          ]
+        },
+        "6": {
+          "name": "keyword.operator.arrow.uitkx"
+        },
+        "7": {
+          "patterns": [
+            { "include": "#expression-content" }
+          ]
+        },
+        "8": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      }
+    },
+    "module-declaration": {
+      "comment": "Handles module declarations: module Name {",
+      "name": "meta.module.uitkx",
+      "match": "^(\\s*)(module)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\{)?\\s*$",
+      "captures": {
+        "2": {
+          "name": "keyword.other.module.uitkx"
+        },
+        "3": {
+          "name": "entity.name.type.uitkx"
+        },
+        "4": {
           "name": "punctuation.section.block.begin.uitkx"
         }
       }

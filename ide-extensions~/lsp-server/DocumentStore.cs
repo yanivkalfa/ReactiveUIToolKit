@@ -28,6 +28,36 @@ public sealed class DocumentStore
             return _docs.TryGetValue(uri.ToString(), out text!);
     }
 
+    /// <summary>
+    /// Looks up editor content by local file path (case-insensitive).
+    /// Unlike <see cref="TryGet(DocumentUri, out string)"/> which uses the
+    /// URI string as key, this method converts each stored URI to a local path
+    /// and compares against <paramref name="localPath"/>.  Returns <c>true</c>
+    /// if the file is open in the editor and its text is available.
+    /// </summary>
+    public bool TryGetByPath(string localPath, out string text)
+    {
+        lock (_lock)
+        {
+            foreach (var kvp in _docs)
+            {
+                try
+                {
+                    var uri = new System.Uri(kvp.Key);
+                    if (uri.IsFile && string.Equals(
+                        uri.LocalPath, localPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        text = kvp.Value;
+                        return true;
+                    }
+                }
+                catch { }
+            }
+        }
+        text = null!;
+        return false;
+    }
+
     /// <summary>Returns a snapshot of all currently open documents as (uriString, text) pairs.</summary>
     public IReadOnlyList<(string UriString, string Text)> GetAll()
     {

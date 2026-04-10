@@ -144,33 +144,24 @@ export const HmrPage: FC = () => (
 
     <Section title="Companion Files">
       <Typography variant="body1" paragraph>
-        Companion <code>.cs</code> files are <strong>optional</strong>. The source generator
-        produces a complete class from the <code>.uitkx</code> file alone. However, you can add
-        <code>.cs</code> files in the same directory to share styles, types, or utilities. When a{' '}
-        <code>.uitkx</code> file changes, HMR automatically includes all <code>.cs</code> files in
-        the same directory (excluding <code>.g.cs</code>) in the compilation:
+        Companion <code>.uitkx</code> files using <code>hook</code> and <code>module</code>{' '}
+        keywords are fully supported by HMR:
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<>Style helpers (e.g. <code>MyComponent.styles.cs</code>)</>} />
+          <ListItemText primary={<><strong>Hook files</strong> (e.g. <code>MyComponent.hooks.uitkx</code>) — the hook delegate is swapped in-place. All components that use the hook re-render with the new logic. Hook state is preserved.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Type / prop definitions (e.g. <code>MyComponent.types.cs</code>)</>} />
+          <ListItemText primary={<><strong>Style modules</strong> (e.g. <code>MyComponent.style.uitkx</code>) — module changes trigger a domain reload since they contain static data.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Shared utilities (e.g. <code>MyComponent.utils.cs</code>)</>} />
+          <ListItemText primary={<><strong>Utility modules</strong> (e.g. <code>MyComponent.utils.uitkx</code>) — same as style modules, domain reload.</>} />
         </ListItem>
       </List>
       <Typography variant="body1" paragraph>
-        Companion <code>.cs</code> file changes also trigger HMR — saving a{' '}
-        <code>.styles.cs</code> or <code>.utils.cs</code> file automatically detects the
-        associated <code>.uitkx</code> in the same directory, recompiles everything, and swaps the
-        result in-place.
-      </Typography>
-      <Typography variant="body1" paragraph>
-        <strong>Creating new companion files</strong> works too — simply create a <code>.cs</code>{' '}
-        file in the same directory as your <code>.uitkx</code>. The file watcher detects new files
-        and includes them in the next compilation.
+        Generic hooks (e.g. <code>{'hook useLocalStorage<T>(...)'}</code>) use a cached delegate
+        strategy — first call per type parameter after HMR pays ~1-2µs, subsequent calls are direct
+        invocations.
       </Typography>
     </Section>
 

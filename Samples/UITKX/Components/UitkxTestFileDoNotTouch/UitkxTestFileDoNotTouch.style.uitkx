@@ -1,0 +1,35 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using ReactiveUITK.Props.Typed
+@using static ReactiveUITK.Props.Typed.StyleKeys
+@using static ReactiveUITK.Props.Typed.CssHelpers
+
+module UitkxTestFileDoNotTouch {
+  public static readonly Style ContainerStyle = new Style
+  {
+    BackgroundColor = ColorGray,
+    Padding = 20,
+    Display = DisplayFlex,
+    FlexDirection = FlexColumn,
+    JustifyContent = JustifyStart,
+    AlignItems = AlignCenter,
+    FlexGrow = 1,
+  };
+
+  public static readonly Style ButtonStyle = new Style
+  {
+    BackgroundColor = Hex("#96b2e6"),
+    BorderColor = Hex("#1963ee"),
+    BorderWidth = 2f,
+    BorderRadius = 5f,
+    Padding = 10f,
+    Color = ColorWhite,
+  };
+
+  public static readonly Style HeaderStyle = new Style
+  {
+    FontSize = 24f,
+    Color = ColorWhite,
+    Padding = 10f,
+    MarginBottom = 20f,
+  };
+}

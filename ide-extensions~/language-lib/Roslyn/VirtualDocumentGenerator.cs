@@ -255,6 +255,12 @@ namespace ReactiveUITK.Language.Roslyn
                 b.Scaffold(line + "\n");
             b.Scaffold("\n");
 
+            // ── Hook/module file dispatch ────────────────────────────────────
+            if (!d.HookDeclarations.IsDefaultOrEmpty)
+                return GenerateHookDocument(b, parseResult, source, uitkxFilePath);
+            if (!d.ModuleDeclarations.IsDefaultOrEmpty)
+                return GenerateModuleDocument(b, parseResult, source, uitkxFilePath);
+
             // ── Namespace + class header ─────────────────────────────────────
             string ns = !string.IsNullOrEmpty(d.Namespace)
                 ? d.Namespace!
@@ -285,6 +291,165 @@ namespace ReactiveUITK.Language.Roslyn
             // ── Close class + namespace ──────────────────────────────────────
             b.Scaffold("    }\n}\n");
 
+            return b.Build(uitkxFilePath);
+        }
+
+        // ── Hook document ─────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Generates a virtual C# document for a .uitkx file containing hook
+        /// declarations. Each hook becomes a method inside a static container
+        /// class with hook stubs for IntelliSense.
+        /// </summary>
+        private VirtualDocument GenerateHookDocument(
+            VirtualDocBuilder b,
+            ParseResult parseResult,
+            string source,
+            string uitkxFilePath
+        )
+        {
+            var d = parseResult.Directives;
+            string ns = !string.IsNullOrEmpty(d.Namespace)
+                ? d.Namespace!
+                : "ReactiveUITK.Generated";
+            string escapedPath = EscapePathForLineDirective(uitkxFilePath);
+
+            // Derive class name same as HookEmitter
+            string fileName = System.IO.Path.GetFileNameWithoutExtension(uitkxFilePath);
+            foreach (var suffix in new[] { ".hooks", ".utils", ".styles" })
+            {
+                if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    fileName = fileName.Substring(0, fileName.Length - suffix.Length);
+                    break;
+                }
+            }
+            if (fileName.Length > 0 && char.IsLower(fileName[0]))
+                fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
+            string containerClass = fileName + "Hooks";
+
+            b.Scaffold($"namespace {ns}\n{{\n");
+            b.Scaffold($"    static partial class {containerClass}\n    {{\n");
+            b.Scaffold("#line hidden\n");
+
+            // ── Scaffold Ref<T> stand-in ──────────────────────────────────────
+            b.Scaffold(
+                "        private sealed class __UitkxRef__<T>\n"
+                    + "        {\n"
+                    + "            public T Current { get; set; } = default!;\n"
+                    + "            public T Value { get => Current; set => Current = value; }\n"
+                    + "        }\n"
+            );
+
+            // ── Hook stubs (same as component stubs) ──────────────────────────
+            b.Scaffold(
+                "\n"
+                    + "        // ── Roslyn-only hook stubs (never called at runtime) ──────────\n"
+                    + "#pragma warning disable CS8603, CS8625, CS1998, CS0246\n"
+                    + "        private delegate void __StateSetter__<T>(global::System.Func<T, T> updater);\n"
+                    + "        private static (T value, __StateSetter__<T> set)\n"
+                    + "            useState<T>(T initial = default) => (initial, null!);\n"
+                    + "        private static T useMemo<T>(global::System.Func<T> factory, params object[] deps)\n"
+                    + "            => factory != null ? factory() : default!;\n"
+                    + "        private static void useEffect(\n"
+                    + "            global::System.Func<global::System.Action> effectFactory,\n"
+                    + "            params object[] deps) { }\n"
+                    + "        private static __UitkxRef__<T> useRef<T>(T initial = default) => new();\n"
+                    + "        private static global::UnityEngine.UIElements.VisualElement useRef() => null!;\n"
+                    + "        private static global::System.Func<T> useCallback<T>(\n"
+                    + "            global::System.Func<T> callback, params object[] deps) => callback!;\n"
+                    + "        private static T useSignal<T>(object signal) => default!;\n"
+                    + "        private static T useSignal<T>(string key, T initialValue = default) => initialValue;\n"
+                    + "        private static T useContext<T>(string key) => default!;\n"
+                    + "        private static void provideContext<T>(string key, T value) { }\n"
+                    + "        private static void provideContext(string key, object value) { }\n"
+                    + "        private static void useLayoutEffect(\n"
+                    + "            global::System.Func<global::System.Action> effectFactory,\n"
+                    + "            params object[] deps) { }\n"
+                    + "        private static T Asset<T>(string path) where T : global::UnityEngine.Object => default!;\n"
+                    + "        private static T Ast<T>(string path) where T : global::UnityEngine.Object => default!;\n"
+                    + "#pragma warning restore CS8603, CS8625, CS1998, CS0246\n\n"
+            );
+
+            // ── Emit each hook as a method ────────────────────────────────────
+            foreach (var hook in d.HookDeclarations)
+            {
+                string genericSuffix = hook.GenericParams ?? string.Empty;
+                string returnType = string.IsNullOrEmpty(hook.ReturnType) ? "void" : hook.ReturnType!;
+
+                // Build parameter list
+                var paramSb = new StringBuilder();
+                if (!hook.Params.IsDefaultOrEmpty)
+                {
+                    for (int pi = 0; pi < hook.Params.Length; pi++)
+                    {
+                        if (pi > 0) paramSb.Append(", ");
+                        var p = hook.Params[pi];
+                        paramSb.Append(p.Type).Append(' ').Append(p.Name);
+                        if (p.DefaultValue != null)
+                            paramSb.Append(" = ").Append(p.DefaultValue);
+                    }
+                }
+
+                b.Scaffold($"        public static {returnType} {hook.Name}{genericSuffix}({paramSb})\n");
+                b.Scaffold("        {\n");
+                b.Scaffold($"#line {hook.BodyStartLine} \"{escapedPath}\"\n");
+
+                // Map the body text to source for IntelliSense
+                b.Mapped(
+                    hook.Body,
+                    hook.BodyStartOffset,
+                    SourceRegionKind.HookBody,
+                    hook.BodyStartLine
+                );
+
+                b.Scaffold("\n#line hidden\n");
+                b.Scaffold("        }\n\n");
+            }
+
+            b.Scaffold("    }\n}\n");
+            return b.Build(uitkxFilePath);
+        }
+
+        // ── Module document ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Generates a virtual C# document for a .uitkx file containing module
+        /// declarations. Each module becomes a partial class with its body
+        /// source-mapped for IntelliSense.
+        /// </summary>
+        private VirtualDocument GenerateModuleDocument(
+            VirtualDocBuilder b,
+            ParseResult parseResult,
+            string source,
+            string uitkxFilePath
+        )
+        {
+            var d = parseResult.Directives;
+            string ns = !string.IsNullOrEmpty(d.Namespace)
+                ? d.Namespace!
+                : "ReactiveUITK.Generated";
+            string escapedPath = EscapePathForLineDirective(uitkxFilePath);
+
+            b.Scaffold($"namespace {ns}\n{{\n");
+
+            foreach (var module in d.ModuleDeclarations)
+            {
+                b.Scaffold($"    partial class {module.Name}\n    {{\n");
+                b.Scaffold($"#line {module.BodyStartLine} \"{escapedPath}\"\n");
+
+                b.Mapped(
+                    module.Body,
+                    module.BodyStartOffset,
+                    SourceRegionKind.ModuleBody,
+                    module.BodyStartLine
+                );
+
+                b.Scaffold("\n#line hidden\n");
+                b.Scaffold("    }\n\n");
+            }
+
+            b.Scaffold("}\n");
             return b.Build(uitkxFilePath);
         }
 

@@ -270,6 +270,8 @@ internal sealed class UitkxClassifier : IClassifier
         "in",
         "out",
         "ref",
+        "hook",
+        "module",
     };
 
     private ITextSnapshot? _cachedSnapshot;

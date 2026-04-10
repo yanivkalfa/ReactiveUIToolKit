@@ -196,6 +196,20 @@ namespace UitkxLanguageServer.Roslyn
                         {
                             var typeInfo = semanticModel.GetTypeInfo(token.Parent, ct);
                             var type = typeInfo.Type ?? typeInfo.ConvertedType;
+
+                            // For tuple declarations like `var (x, setX) = useState(...)`,
+                            // GetTypeInfo fails because the parent is a
+                            // SingleVariableDesignationSyntax (not an expression).
+                            // Fall back to GetDeclaredSymbol → symbol.Type.
+                            if (type?.TypeKind != TypeKind.Delegate)
+                            {
+                                var declared = semanticModel.GetDeclaredSymbol(token.Parent, ct);
+                                if (declared is ILocalSymbol local)
+                                    type = local.Type;
+                                else if (declared is IParameterSymbol param)
+                                    type = param.Type;
+                            }
+
                             if (type?.TypeKind == TypeKind.Delegate)
                                 tokenType = SemanticTokenTypes.Function;
                         }

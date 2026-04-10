@@ -26,6 +26,18 @@ namespace ReactiveUITK.Language.Roslyn
         /// Covers all statements before the <c>return</c>.
         /// </summary>
         FunctionSetup,
+
+        /// <summary>
+        /// The body of a <c>hook</c> declaration in a .uitkx file.
+        /// Pure C# code — no markup.
+        /// </summary>
+        HookBody,
+
+        /// <summary>
+        /// The body of a <c>module</c> declaration in a .uitkx file.
+        /// Pure C# code — no markup.
+        /// </summary>
+        ModuleBody,
     }
 
     // ── Source map entry ──────────────────────────────────────────────────────

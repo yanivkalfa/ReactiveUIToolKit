@@ -16,7 +16,7 @@ export const HOOKS_USESTATE_EXAMPLE = `component CounterDemo {
   );
 }`
 
-export const HOOKS_USEREDUCER_EXAMPLE = `// Define reducer and action types in a companion .types.cs file:
+export const HOOKS_USEREDUCER_EXAMPLE = `// Define reducer and action types in a companion .types.uitkx module:
 // enum CounterAction { Increment, Decrement, Reset }
 // TState Reducer(TState state, CounterAction action) => action switch {
 //   CounterAction.Increment => state + 1,

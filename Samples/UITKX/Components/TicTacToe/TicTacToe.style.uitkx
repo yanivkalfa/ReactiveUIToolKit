@@ -1,0 +1,86 @@
+@namespace Samples.TicTacToe
+@using ReactiveUITK.Props.Typed
+@using static ReactiveUITK.Props.Typed.StyleKeys
+@using static ReactiveUITK.Props.Typed.CssHelpers
+@using UnityEngine
+
+module TicTacToe {
+  public static readonly Style containerStyle = new Style
+  {
+    BackgroundColor = ColorGray,
+    Padding = 20f,
+    Display = DisplayFlex,
+    FlexDirection = FlexColumn,
+    JustifyContent = JustifyStart,
+    AlignItems = AlignCenter,
+    FlexGrow = 1
+  };
+
+  public static readonly Style ButtonStyles = new Style
+  {
+    BackgroundColor = Hex("#96b2e6"),
+    BorderColor = Hex("#1963ee"),
+    BorderWidth = 2f,
+    BorderRadius = 5f,
+    Padding = 10f,
+    Color = ColorWhite,
+  };
+
+  public static readonly Style GameWrapperStyles = new Style
+  {
+    Display = DisplayFlex,
+    FlexDirection = FlexColumn,
+    JustifyContent = JustifyStart,
+    Width = Px(300),
+    Height = Px(300),
+    BackgroundColor = Hex("#2e2a2a"),
+    BorderColor = Hex("#ecb6b6"),
+    BorderWidth = 2f,
+    BorderRadius = 5f,
+    MarginTop = 20f,
+  };
+
+  public static readonly Style RowStyles = new Style
+  {
+    Display = DisplayFlex,
+    FlexDirection = FlexRow,
+    JustifyContent = JustifySpaceEvenly,
+    AlignItems = AlignCenter,
+    Width = Pct(100),
+    Height = Pct(33.3333f),
+    BackgroundColor = Hex("#3c65df"),
+    BorderColor = Hex("#ecb6b6"),
+    BorderWidth = 1f,
+  };
+
+  public static readonly Style ColumnStyles = new Style
+  {
+    Display = DisplayFlex,
+    Height = Pct(100),
+    Width = Pct(33.3333f),
+    BackgroundColor = Hex("#3c65df"),
+    BorderColor = Hex("#ecb6b6"),
+    BorderRightWidth = 1f,
+    JustifyContent = JustifyCenter,
+    AlignItems = AlignCenter,
+  };
+
+  public static readonly Style DetailsStyles = new Style
+  {
+    Display = DisplayFlex,
+    FlexDirection = FlexRow,
+    JustifyContent = JustifySpaceBetween,
+  };
+
+  public static readonly Style PlayerTurnStyles = new Style
+  {
+    Display = DisplayFlex,
+    FlexDirection = FlexRow,
+  };
+
+  public static readonly Style PlayerTurnLabelStyles = new Style
+  {
+    Color = ColorBlue,
+  };
+
+}

@@ -127,7 +127,7 @@ export const StylingPage: FC = () => {
     </Typography>
     <Typography variant="body1" paragraph>
       <code>StyleKeys</code> and <code>CssHelpers</code> are auto-imported in{' '}
-      <code>.uitkx</code> files. For companion <code>.cs</code> files, add:
+      <code>.uitkx</code> files (components, hooks, and modules). No additional imports needed.
     </Typography>
     <CodeBlock language="jsx" code={EXAMPLE_IMPORT} />
 
@@ -269,8 +269,6 @@ export const StylingPage: FC = () => {
     <Typography variant="body1" paragraph>
       <code>CssHelpers</code> is <strong>auto-imported</strong> in <code>.uitkx</code> files —
       all shortcuts are available without any <code>@using</code> directive.
-      In companion <code>.cs</code> files, add{' '}
-      <code>using static ReactiveUITK.Props.Typed.CssHelpers;</code>.
     </Typography>
 
     <Alert severity="warning" sx={{ mb: 3 }}>

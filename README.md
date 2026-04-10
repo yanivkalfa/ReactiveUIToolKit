@@ -64,29 +64,40 @@ component MyComponent {
 }
 ```
 
-**3. Add a companion `.cs` file**
-
-```csharp
-// MyComponent.cs
-namespace MyGame.UI
-{
-    public partial class MyComponent { }
-}
-```
-
 The source generator emits `Render()` into the partial class automatically on
-the next Unity compile.
+the next Unity compile. The `@namespace` directive determines the namespace.
 
-For function-style `.uitkx` files, `@namespace` is not required in markup.
-Namespace is inferred from the companion partial `.cs` file.
-
-**4. Use the component**
+**3. Use the component**
 
 ```csharp
 var node = V.Func(MyComponent.Render, props);
 ```
 
 That's it — no reflection, no codegen at runtime.
+
+**4. Add companion files (optional)**
+
+Extract reusable logic into companion `.uitkx` files using `hook` and `module`:
+
+```uitkx
+// MyComponent.hooks.uitkx — custom hooks
+@namespace MyGame.UI
+
+hook useCounter(int initial = 0) -> (int, Action) {
+    var (count, setCount) = useState(initial);
+    var increment = useCallback(() => setCount(count + 1), count);
+    return (count, increment);
+}
+```
+
+```uitkx
+// MyComponent.style.uitkx — styles and constants
+@namespace MyGame.UI
+
+module MyComponent {
+    public static Style CardStyle => new Style { (FlexDirection, "row") };
+}
+```
 
 ---
 
