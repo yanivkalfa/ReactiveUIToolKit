@@ -71,7 +71,7 @@ public class DebugDumpTest
             Path.GetDirectoryName(typeof(DebugDumpTest).Assembly.Location)!,
             "../../../../.."));
         var filePath = Path.Combine(samplesDir,
-            "Samples", "UITKX", "Components", "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
+            "Samples", "Components", "UitkxCounterFunc", "UitkxCounterFunc.uitkx");
 
         Assert.True(File.Exists(filePath), $"File not found: {filePath}");
         var source = File.ReadAllText(filePath);
@@ -107,7 +107,7 @@ public class DebugDumpTest
             Path.GetDirectoryName(typeof(DebugDumpTest).Assembly.Location)!,
             "../../../../.."));
         var filePath = Path.Combine(samplesDir,
-            "Samples", "UITKX", "Shared", "ListViewStatefulDemoFunc.uitkx");
+            "Samples", "Shared", "ListViewStatefulDemoFunc.uitkx");
 
         Assert.True(File.Exists(filePath), $"File not found: {filePath}");
         var source = File.ReadAllText(filePath);
@@ -137,7 +137,7 @@ public class DebugDumpTest
             Path.GetDirectoryName(typeof(DebugDumpTest).Assembly.Location)!,
             "../../../../.."));
         var filePath = Path.Combine(samplesDir,
-            "Samples", "UITKX", "Components", "SyntheticEventDemoFunc", "SyntheticEventDemoFunc.uitkx");
+            "Samples", "Components", "SyntheticEventDemoFunc", "SyntheticEventDemoFunc.uitkx");
 
         Assert.True(File.Exists(filePath), $"File not found: {filePath}");
         var source = File.ReadAllText(filePath);

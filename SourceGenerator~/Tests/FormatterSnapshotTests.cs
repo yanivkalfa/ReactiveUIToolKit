@@ -13,7 +13,7 @@ namespace ReactiveUITK.SourceGenerator.Tests;
 //  Two categories of tests:
 //
 //  A) IDEMPOTENCY — every manually-normalised sample .uitkx file in
-//     Samples/UITKX/ should be returned byte-for-byte unchanged when passed
+//     Samples/ should be returned byte-for-byte unchanged when passed
 //     through the formatter a second time.  An idempotency failure means the
 //     formatter is changing a file that is already correct, which would cause a
 //     "save-loop" in the editor (format-on-save never settles).
@@ -66,7 +66,7 @@ public sealed class FormatterSnapshotTests
 
     public static IEnumerable<object[]> AllSampleFiles()
     {
-        var samplesDir = Path.Combine(WorkspaceRoot(), "Samples", "UITKX");
+        var samplesDir = Path.Combine(WorkspaceRoot(), "Samples");
         var files = Directory.GetFiles(samplesDir, "*.uitkx", SearchOption.AllDirectories);
         System.Array.Sort(files); // deterministic ordering in test runner
         foreach (var f in files)
