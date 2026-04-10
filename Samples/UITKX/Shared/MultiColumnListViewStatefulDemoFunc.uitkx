@@ -5,16 +5,16 @@
 @using ReactiveUITK.Props.Typed
 
 component MultiColumnListViewStatefulDemoFunc(
-  IReadOnlyList<MultiColumnListViewRowState>? items = null, 
-  List<SortedColumnDef>? sortDefs = null, 
-  Dictionary<string, float>? columnWidths = null, 
-  Dictionary<string, bool>? columnVisibility = null, 
-  Dictionary<string, int>? columnDisplayIndex = null, 
-  Action? addItem = null, 
-  Action? setTopItem = null, 
-  Action? deleteLast = null, 
-  ColumnSortEventHandler? onSortChanged = null, 
-  ColumnLayoutEventHandler? onLayoutChanged = null, 
+  IReadOnlyList<MultiColumnListViewRowState>? items = null,
+  List<SortedColumnDef>? sortDefs = null,
+  Dictionary<string, float>? columnWidths = null,
+  Dictionary<string, bool>? columnVisibility = null,
+  Dictionary<string, int>? columnDisplayIndex = null,
+  Action? addItem = null,
+  Action? setTopItem = null,
+  Action? deleteLast = null,
+  ColumnSortEventHandler? onSortChanged = null,
+  ColumnLayoutEventHandler? onLayoutChanged = null,
   Action<int>? onCountChanged = null
 ) {
   var safeItems = items ?? Array.Empty<MultiColumnListViewRowState>();

@@ -2,13 +2,13 @@
 @using UnityEngine.UIElements
 
 hook useTestHomeState() -> (
-  bool gameStarted, 
-  string playerTurn, 
-  string[,] grid, 
-  string winnerMessage, 
-  string movesLeft, 
-  PointerEventHandler handleStartGame, 
-  PointerEventHandler handleRestartGame, 
+  bool gameStarted,
+  string playerTurn,
+  string[,] grid,
+  string winnerMessage,
+  string movesLeft,
+  PointerEventHandler handleStartGame,
+  PointerEventHandler handleRestartGame,
   System.Func<int, int, PointerEventHandler> handleColumnClick
 ) {
   var (gameStarted, setGameStarted) = useState(false);
@@ -105,5 +105,4 @@ hook useTestHomeState() -> (
   }, new object[] { grid });
 
   return (gameStarted, playerTurn, grid, winnerMessage, movesLeft, handleStartGame, handleRestartGame, handleColumnClick);
-
 }

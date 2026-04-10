@@ -8934,10 +8934,10 @@ component Comp {
         var expected = N(
             """
             component Foo(
-              IReadOnlyList<int>? items = null, 
-              Action? addItem = null, 
-              Action? setTopItem = null, 
-              Action? deleteLast = null, 
+              IReadOnlyList<int>? items = null,
+              Action? addItem = null,
+              Action? setTopItem = null,
+              Action? deleteLast = null,
               Action<int>? onCountChanged = null
             ) {
               return (

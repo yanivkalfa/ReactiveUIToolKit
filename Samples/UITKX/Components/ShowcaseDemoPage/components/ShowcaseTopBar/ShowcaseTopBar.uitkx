@@ -5,9 +5,9 @@
 @using System.Diagnostics
 
 component ShowcaseTopBar(
-  string inputText = "", 
-  ChangeEventHandler<string>? onInputChange = null, 
-  Action? onSetText = null, 
+  string inputText = "",
+  ChangeEventHandler<string>? onInputChange = null,
+  Action? onSetText = null,
   DateTime currentTime = default
 ) {
   var topBarStyle = new Style {
