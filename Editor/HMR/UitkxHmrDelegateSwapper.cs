@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Core.Fiber;
 using UnityEngine;
@@ -62,6 +64,145 @@ namespace ReactiveUITK.EditorSupport.HMR
                 Debug.Log($"[HMR] Compiled {componentName} — no active instances to swap.");
 
             return total;
+        }
+
+        /// <summary>
+        /// Swaps hook delegate fields in the project assembly to point at the
+        /// new body methods from the HMR-compiled assembly, then triggers a
+        /// global re-render on all active fiber trees.
+        /// </summary>
+        /// <returns>Number of hooks swapped.</returns>
+        public static int SwapHooks(
+            Assembly hmrAssembly,
+            string containerClassName,
+            string ns)
+        {
+            // ── 1. Find the container class in the project assemblies ────────
+            string fullName = string.IsNullOrEmpty(ns)
+                ? containerClassName
+                : $"{ns}.{containerClassName}";
+
+            Type projectContainer = null;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.IsDynamic)
+                    continue;
+                projectContainer = asm.GetType(fullName);
+                if (projectContainer != null)
+                    break;
+            }
+
+            if (projectContainer == null)
+            {
+                Debug.LogWarning(
+                    $"[HMR] Could not find hook container '{fullName}' in loaded assemblies.");
+                return 0;
+            }
+
+            // ── 2. Find the HMR container class with new body methods ────────
+            Type hmrContainer = hmrAssembly.GetType(fullName);
+            if (hmrContainer == null)
+            {
+                Debug.LogWarning(
+                    $"[HMR] Could not find hook container '{fullName}' in HMR assembly.");
+                return 0;
+            }
+
+            // ── 3. Swap each __hmr_* field ───────────────────────────────────
+            int swapped = 0;
+            var bindingFlags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public;
+
+            foreach (var field in projectContainer.GetFields(bindingFlags))
+            {
+                if (!field.Name.StartsWith("__hmr_"))
+                    continue;
+                if (field.Name.EndsWith("_cache"))
+                    continue;
+
+                string hookName = field.Name.Substring("__hmr_".Length);
+                string bodyMethodName = $"__{hookName}_body";
+
+                if (field.FieldType == typeof(MethodInfo))
+                {
+                    // ── Generic hook: swap MethodInfo + clear cache ──────
+                    var newMethod = hmrContainer.GetMethod(
+                        bodyMethodName, bindingFlags);
+                    if (newMethod != null)
+                    {
+                        field.SetValue(null, newMethod);
+                        swapped++;
+
+                        var cacheField = projectContainer.GetField(
+                            field.Name + "_cache", bindingFlags);
+                        if (cacheField?.GetValue(null) is System.Collections.IDictionary dict)
+                            dict.Clear();
+                    }
+                }
+                else if (typeof(Delegate).IsAssignableFrom(field.FieldType))
+                {
+                    // ── Non-generic hook: swap Func/Action delegate ──────
+                    var newMethod = hmrContainer.GetMethod(
+                        bodyMethodName, bindingFlags);
+                    if (newMethod != null)
+                    {
+                        try
+                        {
+                            var newDel = Delegate.CreateDelegate(
+                                field.FieldType, newMethod);
+                            field.SetValue(null, newDel);
+                            swapped++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogWarning(
+                                $"[HMR] Failed to swap hook '{hookName}': {ex.Message}");
+                        }
+                    }
+                }
+            }
+
+            // ── 4. Trigger global re-render ──────────────────────────────────
+            if (swapped > 0)
+                TriggerGlobalReRender();
+
+            return swapped;
+        }
+
+        /// <summary>
+        /// Triggers a re-render on all active fiber trees so components pick up
+        /// new hook implementations. Used by hook HMR since any component might
+        /// call the changed hook.
+        /// </summary>
+        private static void TriggerGlobalReRender()
+        {
+            foreach (var renderer in EditorRootRendererUtility.GetAllRenderers())
+            {
+                var fiberRenderer = renderer.FiberRendererInternal;
+                if (fiberRenderer?.Root?.Current == null)
+                    continue;
+                ScheduleFullTreeUpdate(fiberRenderer.Root.Current);
+            }
+
+            foreach (var rootRenderer in RootRenderer.AllInstances)
+            {
+                var vhr = rootRenderer.VNodeHostRendererInternal;
+                if (vhr?.FiberRendererInternal?.Root?.Current == null)
+                    continue;
+                ScheduleFullTreeUpdate(vhr.FiberRendererInternal.Root.Current);
+            }
+        }
+
+        private static void ScheduleFullTreeUpdate(FiberNode fiber)
+        {
+            if (fiber == null)
+                return;
+            if (fiber.Tag == FiberTag.FunctionComponent)
+            {
+                try { fiber.ComponentState?.OnStateUpdated?.Invoke(); }
+                catch { /* best effort */ }
+            }
+            ScheduleFullTreeUpdate(fiber.Child);
+            ScheduleFullTreeUpdate(fiber.Sibling);
         }
 
         // ── Delegate extraction ───────────────────────────────────────────────
@@ -138,6 +279,23 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             if (fiber.Tag == FiberTag.FunctionComponent && IsMatch(fiber, componentName, uitkxFilePath))
             {
+                // ── Proactive hook signature check ───────────────────────
+                // Compare [HookSignature] attributes from old and new types.
+                // A mismatch means hooks were added/removed/reordered — reset
+                // all state BEFORE render to avoid silent corruption.
+                bool signatureChanged = HasHookSignatureChanged(
+                    fiber.TypedRender?.Method?.DeclaringType,
+                    newDelegate.Method.DeclaringType
+                );
+
+                if (signatureChanged)
+                {
+                    Debug.Log(
+                        $"[HMR] Hook signature changed in {componentName} — resetting state"
+                    );
+                    FullResetComponentState(fiber);
+                }
+
                 // Swap the render delegate
                 fiber.TypedRender = newDelegate;
 
@@ -155,7 +313,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     Debug.LogWarning(
                         $"[HMR] Hook mismatch in {componentName}, state was reset: {ex.Message}"
                     );
-                    ResetComponentState(fiber);
+                    FullResetComponentState(fiber);
                     try
                     {
                         fiber.ComponentState?.OnStateUpdated?.Invoke();
@@ -206,13 +364,75 @@ namespace ReactiveUITK.EditorSupport.HMR
             return false;
         }
 
-        private static void ResetComponentState(FiberNode fiber)
+        private static bool HasHookSignatureChanged(Type oldType, Type newType)
         {
-            if (fiber.ComponentState == null)
+            if (oldType == null || newType == null)
+                return false;
+
+            var oldAttr = oldType.GetCustomAttribute<HookSignatureAttribute>();
+            var newAttr = newType.GetCustomAttribute<HookSignatureAttribute>();
+
+            // If either type lacks the attribute (pre-upgrade code), skip check
+            if (oldAttr == null || newAttr == null)
+                return false;
+
+            return !string.Equals(oldAttr.Signature, newAttr.Signature, StringComparison.Ordinal);
+        }
+
+        /// <summary>
+        /// Comprehensive component state reset: runs effect cleanups, clears all
+        /// hook state, queued updates, caches, and context dependencies.
+        /// </summary>
+        private static void FullResetComponentState(FiberNode fiber)
+        {
+            var state = fiber.ComponentState;
+            if (state == null)
                 return;
 
-            // Clear hook states so hooks re-initialize on next render
-            fiber.ComponentState.HookStates.Clear();
+            // Run effect cleanups before clearing (mirrors unmount flow in FiberReconciler)
+            if (state.FunctionEffects != null)
+            {
+                for (int i = 0; i < state.FunctionEffects.Count; i++)
+                {
+                    try
+                    {
+                        state.FunctionEffects[i].cleanup?.Invoke();
+                    }
+                    catch { }
+                }
+                state.FunctionEffects.Clear();
+            }
+
+            if (state.FunctionLayoutEffects != null)
+            {
+                for (int i = 0; i < state.FunctionLayoutEffects.Count; i++)
+                {
+                    try
+                    {
+                        state.FunctionLayoutEffects[i].cleanup?.Invoke();
+                    }
+                    catch { }
+                }
+                state.FunctionLayoutEffects.Clear();
+            }
+
+            // Dispose signal subscriptions before clearing hook states
+            Hooks.DisposeSignalSubscriptions(state);
+
+            // Clear hook values so hooks re-initialize on next render
+            state.HookStates.Clear();
+
+            // Reset hook validation state
+            state.HookOrderSignatures?.Clear();
+            state.HookOrderPrimed = false;
+
+            // Clear queued state updates and caches
+            state.HookStateQueues?.Clear();
+            state.PendingHookStatePreviews?.Clear();
+            state.StateSetterDelegateCache?.Clear();
+
+            // Clear context dependency tracking
+            state.ContextDependencies?.Clear();
         }
     }
 }

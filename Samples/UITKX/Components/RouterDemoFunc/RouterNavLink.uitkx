@@ -4,9 +4,9 @@
 @using UnityEngine
 
 component RouterNavLink(
-  string path = "/", 
-  string label = "", 
-  bool exact = false, 
+  string path = "/",
+  string label = "",
+  bool exact = false,
   bool replace = false
 ) {
   var displayLabel = string.IsNullOrEmpty(label) ? path : label;

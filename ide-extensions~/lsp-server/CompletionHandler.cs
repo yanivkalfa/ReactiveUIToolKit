@@ -123,9 +123,19 @@ public sealed class CompletionHandler : ICompletionHandler
         // operate on a stale virtual document, producing wrong virtual offsets.
         if (!string.IsNullOrEmpty(localPath))
         {
-            try { await _roslynHost.EnsureReadyAsync(localPath, text, parseResult, cancellationToken).ConfigureAwait(false); }
-            catch (OperationCanceledException) { throw; }
-            catch { /* workspace not ready — proceed with whatever state exists */ }
+            try
+            {
+                await _roslynHost
+                    .EnsureReadyAsync(localPath, text, parseResult, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            { /* workspace not ready — proceed with whatever state exists */
+            }
         }
 
         // ── Source-map authority: is this cursor offset inside any mapped C# region?
@@ -164,7 +174,14 @@ public sealed class CompletionHandler : ICompletionHandler
             char? trigger = triggerChar?.Length == 1 ? triggerChar[0] : (char?)null;
 
             var roslynList = await _roslynCompletion
-                .GetCompletionsAsync(localPath, text, parseResult, offset, trigger, cancellationToken)
+                .GetCompletionsAsync(
+                    localPath,
+                    text,
+                    parseResult,
+                    offset,
+                    trigger,
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
 
             if (roslynList.Count > 0)
@@ -178,9 +195,11 @@ public sealed class CompletionHandler : ICompletionHandler
             // through to UITKX items (which would be meaningless in C# context).
             // isIncomplete: true tells VS Code to retry when the user types more,
             // so completions will appear once Roslyn finishes compiling.
-            if (ctx.Kind == CursorKind.CSharpExpression
+            if (
+                ctx.Kind == CursorKind.CSharpExpression
                 || ctx.Kind == CursorKind.AttributeValue
-                || offsetIsInCSharpRegion)
+                || offsetIsInCSharpRegion
+            )
             {
                 // Before giving up, check whether the cursor is inside a StyleKeys
                 // tuple value (e.g. `(StyleKeys.FlexDirection, "|")`) and return
@@ -201,6 +220,22 @@ public sealed class CompletionHandler : ICompletionHandler
             }
         }
 
+        // ── Asset / USS path completion — intercept before main dispatch ─────
+        // When cursor is inside a quoted string on an @uss line or inside an
+        // Asset<T>("...")/Ast<T>("...") call, offer filesystem path completions.
+        {
+            var pathItems = TryGetAssetPathItems(text, offset, localPath);
+            if (pathItems != null)
+            {
+                var pathList = pathItems.ToList();
+                if (pathList.Count > 0)
+                {
+                    Log($"completion: asset path items ({pathList.Count})");
+                    return new CompletionList(pathList);
+                }
+            }
+        }
+
         var items = ctx.Kind switch
         {
             CursorKind.DirectiveName when inFunctionStylePreamble => FunctionStylePreambleItems(
@@ -217,19 +252,25 @@ public sealed class CompletionHandler : ICompletionHandler
                 Enumerable.Empty<CompletionItem>(),
             CursorKind.ControlFlowName => ControlFlowItems(ctx.Prefix, text, request.Position),
             CursorKind.TagName => TagItems(ctx.Prefix, text, offset),
-            CursorKind.AttributeName => AttributeItems(ctx.TagName ?? "", ctx.Prefix, HasExistingBinding(text, offset)),
+            CursorKind.AttributeName => AttributeItems(
+                ctx.TagName ?? "",
+                ctx.Prefix,
+                HasExistingBinding(text, offset)
+            ),
             CursorKind.AttributeValue => AttributeValueItems(
                 ctx.TagName ?? "",
                 ctx.AttributeName ?? "",
                 ctx.Prefix
             ),
-            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems("", text, offset),
+            CursorKind.None when inCodeBlockLine && triggerChar == "<" => TagItems(
+                "",
+                text,
+                offset
+            ),
             _ => Enumerable.Empty<CompletionItem>(),
         };
 
-        var list = items
-            .Where(i => !string.Equals(i.Label, "@code", StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var list = items.ToList();
         Log($"completion: kind={ctx.Kind} prefix='{ctx.Prefix}' → {list.Count} items");
         return new CompletionList(list);
     }
@@ -257,10 +298,28 @@ public sealed class CompletionHandler : ICompletionHandler
                 doc: "Adds a `using` directive to the generated file, e.g. `@using UnityEngine`."
             ),
             (
+                label: "@uss",
+                insert: "@uss \"${1:./styles.uss}\"",
+                detail: "Attaches a USS stylesheet to this component.",
+                doc: "Loads a USS stylesheet and attaches it to the component's root element before panel attachment.\n\nPath is relative to the `.uitkx` file:\n```\n@uss \"./PlayerCard.uss\"\n@uss \"../shared/buttons.uss\"\n```"
+            ),
+            (
                 label: "component",
                 insert: "component ${1:MyComponent} {\n\treturn (\n\t\t$0\n\t);\n}",
                 detail: "Declares a function-style UITKX component.",
                 doc: "Defines the component body. Use hooks (`useState`, `useEffect`, …) before the `return (…)` statement."
+            ),
+            (
+                label: "hook",
+                insert: "hook ${1:useName}(${2}) -> ${3:ReturnType} {\n\t$0\n}",
+                detail: "Declares a custom hook function.",
+                doc: "Defines a reusable hook that can be called from component setup code.\n\nHooks can use `useState`, `useEffect`, and other hooks internally.\n```\nhook useCounter(int initial) -> (int count, Action increment) {\n    var (count, setCount) = useState(initial);\n    Action increment = () => setCount(c => c + 1);\n    return (count, increment);\n}\n```"
+            ),
+            (
+                label: "module",
+                insert: "module ${1:Name} {\n\t$0\n}",
+                detail: "Declares a module (partial class).",
+                doc: "Defines a partial class that can hold shared logic, extension methods, or utilities alongside component files.\n```\nmodule MathUtils {\n    public static int Clamp(int v, int lo, int hi)\n        => Math.Max(lo, Math.Min(hi, v));\n}\n```"
             ),
         };
 
@@ -319,7 +378,6 @@ public sealed class CompletionHandler : ICompletionHandler
         Switch,
         Loop,
         If,
-        Code,
     }
 
     private static HashSet<string> GetAllowedControlFlowNames(
@@ -330,13 +388,6 @@ public sealed class CompletionHandler : ICompletionHandler
     {
         var stack = ScanBlockStack(sourceText, atIndex);
         BlockKind top = stack.Count > 0 ? stack[stack.Count - 1] : BlockKind.Unknown;
-
-        // Inside @code { ... } we should not suggest UITKX markup directives.
-        if (stack.Contains(BlockKind.Code))
-        {
-            if (!IsLikelyEmbeddedMarkupAtOffset(sourceText, cursorOffset))
-                return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
 
         // Always valid in markup positions
         var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -442,7 +493,6 @@ public sealed class CompletionHandler : ICompletionHandler
                         "foreach" => BlockKind.Loop,
                         "if" => BlockKind.If,
                         "else" => BlockKind.If,
-                        "code" => BlockKind.Code,
                         _ => null,
                     };
                 }
@@ -733,10 +783,13 @@ public sealed class CompletionHandler : ICompletionHandler
                 {
                     Label = name,
                     Kind = CompletionItemKind.Class,
-                    InsertText = existingTag
-                        ? name
-                        : acceptsChildren ? $"{name} " : $"{name} $1 />",
-                    InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
+                    InsertText =
+                        existingTag ? name
+                        : acceptsChildren ? $"{name} "
+                        : $"{name} $1 />",
+                    InsertTextFormat = existingTag
+                        ? InsertTextFormat.PlainText
+                        : InsertTextFormat.Snippet,
                     Detail = detail,
                     Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = docMd },
                 };
@@ -756,10 +809,10 @@ public sealed class CompletionHandler : ICompletionHandler
                 {
                     Label = va.HasValue ? $"{va.Value.LabelPrefix}{kv.Key}" : kv.Key,
                     Kind = CompletionItemKind.Class,
-                    InsertText = existingTag
-                        ? kv.Key
-                        : BuildTagSnippet(kv.Key, kv.Value),
-                    InsertTextFormat = existingTag ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
+                    InsertText = existingTag ? kv.Key : BuildTagSnippet(kv.Key, kv.Value),
+                    InsertTextFormat = existingTag
+                        ? InsertTextFormat.PlainText
+                        : InsertTextFormat.Snippet,
                     SortText = va.HasValue ? $"{va.Value.SortPrefix}{kv.Key}" : null,
                     Detail = va.HasValue
                         ? (kv.Value.PropsType ?? "") + va.Value.DetailSuffix
@@ -775,7 +828,11 @@ public sealed class CompletionHandler : ICompletionHandler
         return dynamicItems.Concat(schemaItems);
     }
 
-    private IEnumerable<CompletionItem> AttributeItems(string tagName, string prefix, bool hasExistingBinding)
+    private IEnumerable<CompletionItem> AttributeItems(
+        string tagName,
+        string prefix,
+        bool hasExistingBinding
+    )
     {
         var workspaceProps = _index.GetProps(tagName);
         var coveredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -795,10 +852,13 @@ public sealed class CompletionHandler : ICompletionHandler
                 var isString = p.Type.Equals("string", StringComparison.OrdinalIgnoreCase);
                 // When an existing ={value} binding follows the cursor, insert
                 // only the attribute name — the binding is already there.
-                var insert = hasExistingBinding
-                    ? canonicalName
-                    : isString ? $"{canonicalName}=\"$1\"" : $"{canonicalName}={{$1}}";
-                var format = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet;
+                var insert =
+                    hasExistingBinding ? canonicalName
+                    : isString ? $"{canonicalName}=\"$1\""
+                    : $"{canonicalName}={{$1}}";
+                var format = hasExistingBinding
+                    ? InsertTextFormat.PlainText
+                    : InsertTextFormat.Snippet;
                 var doc = string.IsNullOrEmpty(p.XmlDoc) ? $"**{p.Type}** `{p.Name}`" : p.XmlDoc;
                 return new CompletionItem
                 {
@@ -830,11 +890,11 @@ public sealed class CompletionHandler : ICompletionHandler
                     Label = va.HasValue ? $"{va.Value.LabelPrefix}{a.Name}" : a.Name,
                     Kind = CompletionItemKind.Property,
                     InsertText = hasExistingBinding ? a.Name : a.Name + "=\"$1\"",
-                    InsertTextFormat = hasExistingBinding ? InsertTextFormat.PlainText : InsertTextFormat.Snippet,
+                    InsertTextFormat = hasExistingBinding
+                        ? InsertTextFormat.PlainText
+                        : InsertTextFormat.Snippet,
                     SortText = va.HasValue ? $"{va.Value.SortPrefix}{a.Name}" : null,
-                    Detail = va.HasValue
-                        ? (a.Type ?? "") + va.Value.DetailSuffix
-                        : a.Type,
+                    Detail = va.HasValue ? (a.Type ?? "") + va.Value.DetailSuffix : a.Type,
                     Documentation = new MarkupContent
                     {
                         Kind = MarkupKind.Markdown,
@@ -914,7 +974,163 @@ public sealed class CompletionHandler : ICompletionHandler
             return new[] { ValueItem("{ }", attr.Type, "{ $0 }", true) };
         }
 
+        // ── Enum-typed attribute shortcuts (CssHelpers) ──────────────────
+        var enumItems = GetEnumShortcutItems(tagName, attributeName, type, prefix);
+        if (enumItems != null)
+            return enumItems;
+
         return Enumerable.Empty<CompletionItem>();
+    }
+
+    /// <summary>
+    /// Maps enum-typed and string-enum attributes to their CssHelpers shortcut names.
+    /// Returns null when the attribute has no known shortcuts.
+    /// </summary>
+    private IEnumerable<CompletionItem>? GetEnumShortcutItems(
+        string tagName,
+        string attributeName,
+        string typeLC,
+        string prefix
+    )
+    {
+        var shortcuts = ResolveEnumShortcuts(tagName, attributeName, typeLC);
+        if (shortcuts == null)
+            return null;
+
+        return shortcuts
+            .Where(s => s.Label.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            .Select(s => new CompletionItem
+            {
+                Label = s.Label,
+                Kind = CompletionItemKind.EnumMember,
+                InsertText = s.Label,
+                InsertTextFormat = InsertTextFormat.PlainText,
+                Detail = s.Detail,
+                Documentation = new MarkupContent { Kind = MarkupKind.Markdown, Value = s.Doc },
+            });
+    }
+
+    private record struct EnumShortcut(string Label, string Detail, string Doc);
+
+    private static EnumShortcut[]? ResolveEnumShortcuts(
+        string tagName,
+        string attributeName,
+        string typeLC
+    )
+    {
+        // Typed enum attributes (schema type is the enum name)
+        switch (typeLC)
+        {
+            case "pickingmode":
+                return new[]
+                {
+                    new EnumShortcut("PickPosition", "PickingMode", "`PickingMode.Position`"),
+                    new EnumShortcut("PickIgnore", "PickingMode", "`PickingMode.Ignore`"),
+                };
+            case "selectiontype":
+                return new[]
+                {
+                    new EnumShortcut("SelectNone", "SelectionType", "`SelectionType.None`"),
+                    new EnumShortcut("SelectSingle", "SelectionType", "`SelectionType.Single`"),
+                    new EnumShortcut("SelectMultiple", "SelectionType", "`SelectionType.Multiple`"),
+                };
+            case "scrollervisibility":
+                return new[]
+                {
+                    new EnumShortcut(
+                        "ScrollerAuto",
+                        "ScrollerVisibility",
+                        "`ScrollerVisibility.Auto`"
+                    ),
+                    new EnumShortcut(
+                        "ScrollerVisible",
+                        "ScrollerVisibility",
+                        "`ScrollerVisibility.AlwaysVisible`"
+                    ),
+                    new EnumShortcut(
+                        "ScrollerHidden",
+                        "ScrollerVisibility",
+                        "`ScrollerVisibility.Hidden`"
+                    ),
+                };
+            case "languagedirection":
+                return new[]
+                {
+                    new EnumShortcut(
+                        "DirInherit",
+                        "LanguageDirection",
+                        "`LanguageDirection.Inherit`"
+                    ),
+                    new EnumShortcut("DirLTR", "LanguageDirection", "`LanguageDirection.LTR`"),
+                    new EnumShortcut("DirRTL", "LanguageDirection", "`LanguageDirection.RTL`"),
+                };
+        }
+
+        // String-based attributes — use (tagName, attributeName) for disambiguation
+        var attrLC = attributeName.ToLowerInvariant();
+        var tagLC = tagName.ToLowerInvariant();
+
+        if (attrLC == "direction" && (tagLC is "slider" or "sliderint" or "minmaxslider"))
+        {
+            return new[]
+            {
+                new EnumShortcut(
+                    "SliderHorizontal",
+                    "string",
+                    "Slider `SliderDirection.Horizontal`"
+                ),
+                new EnumShortcut("SliderVertical", "string", "Slider `SliderDirection.Vertical`"),
+            };
+        }
+
+        if (attrLC == "mode" && tagLC == "scrollview")
+        {
+            return new[]
+            {
+                new EnumShortcut("ScrollVertical", "string", "`ScrollViewMode.Vertical`"),
+                new EnumShortcut("ScrollHorizontal", "string", "`ScrollViewMode.Horizontal`"),
+                new EnumShortcut("ScrollBoth", "string", "`ScrollViewMode.VerticalAndHorizontal`"),
+            };
+        }
+
+        if (attrLC == "scalemode" && tagLC == "image")
+        {
+            return new[]
+            {
+                new EnumShortcut("ScaleStretch", "string", "`ScaleMode.StretchToFill`"),
+                new EnumShortcut("ScaleFit", "string", "`ScaleMode.ScaleToFit`"),
+                new EnumShortcut("ScaleCrop", "string", "`ScaleMode.ScaleAndCrop`"),
+            };
+        }
+
+        if (attrLC == "orientation" && tagLC == "twopanesplitview")
+        {
+            return new[]
+            {
+                new EnumShortcut(
+                    "OrientHorizontal",
+                    "string",
+                    "`TwoPaneSplitViewOrientation.Horizontal`"
+                ),
+                new EnumShortcut(
+                    "OrientVertical",
+                    "string",
+                    "`TwoPaneSplitViewOrientation.Vertical`"
+                ),
+            };
+        }
+
+        if (attrLC == "sortingmode" && tagLC is "multicolumnlistview" or "multicolumntreeview")
+        {
+            return new[]
+            {
+                new EnumShortcut("SortNone", "string", "`ColumnSortingMode.None`"),
+                new EnumShortcut("SortDefault", "string", "`ColumnSortingMode.Default`"),
+                new EnumShortcut("SortCustom", "string", "`ColumnSortingMode.Custom`"),
+            };
+        }
+
+        return null;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -931,11 +1147,8 @@ public sealed class CompletionHandler : ICompletionHandler
             "switch" => "@switch ($1)\n{\n\t@case $2 => $0\n}",
             "case" => "@case $1 => $0",
             "default" => "@default => $0",
-            "code" => "@code\n{\n\t$0\n}",
             "for" => "@for (int $1 = 0; $1 < $2; $1++)\n{\n\t$0\n}",
             "while" => "@while ($1)\n{\n\t$0\n}",
-            "break" => "@break;",
-            "continue" => "@continue;",
             _ => "@" + name,
         };
 
@@ -964,7 +1177,8 @@ public sealed class CompletionHandler : ICompletionHandler
     {
         // Find start of current line.
         int lineStart = offset;
-        while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--;
+        while (lineStart > 0 && text[lineStart - 1] != '\n')
+            lineStart--;
 
         string lineUpToCursor = text.Substring(lineStart, offset - lineStart);
 
@@ -978,8 +1192,8 @@ public sealed class CompletionHandler : ICompletionHandler
         if (!match.Success)
             return null;
 
-        string propName   = match.Groups[1].Value;                        // e.g. "FlexDirection"
-        string typedSoFar = match.Groups[2].Value;                        // e.g. "ro"
+        string propName = match.Groups[1].Value; // e.g. "FlexDirection"
+        string typedSoFar = match.Groups[2].Value; // e.g. "ro"
 
         // Schema keys are camelCase ("flexDirection"); StyleKeys constants are PascalCase.
         string camelKey = char.ToLowerInvariant(propName[0]) + propName.Substring(1);
@@ -997,10 +1211,10 @@ public sealed class CompletionHandler : ICompletionHandler
                 var va = GetVersionAnnotation(versionInfo?.SinceUnity, userVersion);
                 return new CompletionItem
                 {
-                    Label      = va.HasValue ? $"{va.Value.LabelPrefix}{v}" : v,
-                    Kind       = CompletionItemKind.Value,
-                    SortText   = va.HasValue ? $"{va.Value.SortPrefix}{v}" : null,
-                    Detail     = va.HasValue
+                    Label = va.HasValue ? $"{va.Value.LabelPrefix}{v}" : v,
+                    Kind = CompletionItemKind.Value,
+                    SortText = va.HasValue ? $"{va.Value.SortPrefix}{v}" : null,
+                    Detail = va.HasValue
                         ? $"StyleKeys.{propName}{va.Value.DetailSuffix}"
                         : $"StyleKeys.{propName}",
                     InsertText = v,
@@ -1077,7 +1291,8 @@ public sealed class CompletionHandler : ICompletionHandler
     /// </summary>
     private static VersionAnnotation? GetVersionAnnotation(
         string? sinceUnity,
-        UnityVersion userVersion)
+        UnityVersion userVersion
+    )
     {
         if (sinceUnity is null)
             return null;
@@ -1106,11 +1321,177 @@ public sealed class CompletionHandler : ICompletionHandler
     /// Returns <c>true</c> when the attribute has a <c>removedIn</c> annotation
     /// and the user's Unity version is at or past that version.
     /// </summary>
-    private static bool IsRemovedForVersion(UitkxSchema.AttributeInfo attr, UnityVersion userVersion)
+    private static bool IsRemovedForVersion(
+        UitkxSchema.AttributeInfo attr,
+        UnityVersion userVersion
+    )
     {
         if (attr.RemovedIn is null || !userVersion.IsKnown)
             return false;
         return UnityVersion.TryParse(attr.RemovedIn, out var removedVersion)
             && userVersion >= removedVersion;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ASSET / USS PATH COMPLETION
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Extension-to-CompletionItemKind mapping for asset file completions.
+    /// </summary>
+    private static readonly Dictionary<string, CompletionItemKind> s_assetExtensions =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            { ".uss",  CompletionItemKind.File },
+            { ".png",  CompletionItemKind.File },
+            { ".jpg",  CompletionItemKind.File },
+            { ".jpeg", CompletionItemKind.File },
+            { ".svg",  CompletionItemKind.File },
+            { ".ttf",  CompletionItemKind.File },
+            { ".otf",  CompletionItemKind.File },
+            { ".wav",  CompletionItemKind.File },
+            { ".mp3",  CompletionItemKind.File },
+            { ".ogg",  CompletionItemKind.File },
+            { ".mat",  CompletionItemKind.File },
+            { ".asset", CompletionItemKind.File },
+            { ".renderTexture", CompletionItemKind.File },
+        };
+
+    /// <summary>
+    /// Detects whether the cursor is inside a quoted string in an <c>@uss "..."</c>
+    /// directive or <c>Asset&lt;T&gt;("...")</c> / <c>Ast&lt;T&gt;("...")</c> call,
+    /// and returns filesystem path completions if so.
+    /// Returns <c>null</c> when the cursor is not in a path context.
+    /// </summary>
+    private static List<CompletionItem>? TryGetAssetPathItems(
+        string text, int offset, string uitkxPath)
+    {
+        if (string.IsNullOrEmpty(uitkxPath))
+            return null;
+
+        // Find the start of the current line.
+        int lineStart = text.LastIndexOf('\n', Math.Max(0, offset - 1)) + 1;
+        string lineText = text.Substring(lineStart, offset - lineStart);
+
+        // Detect @uss "..." context  — cursor must be after the opening quote
+        // Detect Asset<T>("...") / Ast<T>("...") context
+        int quoteStart = -1;
+        string? extensionFilter = null;
+
+        // Pattern 1: @uss "<cursor>"
+        var ussMatch = System.Text.RegularExpressions.Regex.Match(
+            lineText, @"@uss\s+""([^""]*)$");
+        if (ussMatch.Success)
+        {
+            quoteStart = ussMatch.Groups[1].Index + lineStart;
+            extensionFilter = ".uss";
+        }
+
+        // Pattern 2: Asset<T>("...") or Ast<T>("...")
+        if (quoteStart < 0)
+        {
+            var assetMatch = System.Text.RegularExpressions.Regex.Match(
+                lineText, @"(?:Asset|Ast)\s*<\s*\w+\s*>\s*\(\s*""([^""]*)$");
+            if (assetMatch.Success)
+            {
+                quoteStart = assetMatch.Groups[1].Index + lineStart;
+                // No filter — could be any supported asset type
+            }
+        }
+
+        if (quoteStart < 0)
+            return null;
+
+        // Extract the partial path typed so far (between opening quote and cursor)
+        string partialPath = text.Substring(quoteStart, offset - quoteStart);
+
+        // Resolve the directory to search
+        string uitkxDir = Path.GetDirectoryName(uitkxPath) ?? "";
+        if (string.IsNullOrEmpty(uitkxDir))
+            return null;
+
+        // Split partial path into directory prefix and filename prefix
+        // e.g. "./styles/ma" → dir="./styles", prefix="ma"
+        string searchDir;
+        string filePrefix;
+        int lastSlash = partialPath.LastIndexOfAny(new[] { '/', '\\' });
+        if (lastSlash >= 0)
+        {
+            string relDir = partialPath.Substring(0, lastSlash);
+            filePrefix = partialPath.Substring(lastSlash + 1);
+            searchDir = Path.GetFullPath(Path.Combine(uitkxDir, relDir));
+        }
+        else
+        {
+            filePrefix = partialPath;
+            searchDir = uitkxDir;
+        }
+
+        if (!Directory.Exists(searchDir))
+            return null;
+
+        var items = new List<CompletionItem>();
+
+        // Add subdirectories as folder completions
+        try
+        {
+            foreach (var dir in Directory.EnumerateDirectories(searchDir))
+            {
+                string dirName = Path.GetFileName(dir);
+                if (dirName.StartsWith(".") || dirName.EndsWith("~"))
+                    continue; // skip hidden/Unity-ignored folders
+                if (!string.IsNullOrEmpty(filePrefix) &&
+                    !dirName.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                items.Add(new CompletionItem
+                {
+                    Label = dirName + "/",
+                    Kind = CompletionItemKind.Folder,
+                    InsertText = dirName + "/",
+                    Detail = "Directory",
+                    Command = new Command
+                    {
+                        Name = "editor.action.triggerSuggest",
+                        Title = "Re-trigger completions",
+                    },
+                });
+            }
+        }
+        catch { /* permission errors */ }
+
+        // Add matching files
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(searchDir))
+            {
+                string fileName = Path.GetFileName(file);
+                string ext = Path.GetExtension(file);
+
+                // Filter by extension when in @uss context
+                if (extensionFilter != null &&
+                    !string.Equals(ext, extensionFilter, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // For Asset<T> context, only show known asset types
+                if (extensionFilter == null && !s_assetExtensions.ContainsKey(ext))
+                    continue;
+
+                if (!string.IsNullOrEmpty(filePrefix) &&
+                    !fileName.StartsWith(filePrefix, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                items.Add(new CompletionItem
+                {
+                    Label = fileName,
+                    Kind = CompletionItemKind.File,
+                    InsertText = fileName,
+                    Detail = ext.TrimStart('.').ToUpperInvariant() + " file",
+                });
+            }
+        }
+        catch { /* permission errors */ }
+
+        return items;
     }
 }

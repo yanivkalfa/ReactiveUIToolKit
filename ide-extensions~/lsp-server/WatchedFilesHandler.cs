@@ -19,8 +19,13 @@ namespace UitkxLanguageServer;
 public sealed class WatchedFilesHandler : IDidChangeWatchedFilesHandler
 {
     private readonly WorkspaceIndex _index;
+    private readonly Roslyn.RoslynHost _roslynHost;
 
-    public WatchedFilesHandler(WorkspaceIndex index) => _index = index;
+    public WatchedFilesHandler(WorkspaceIndex index, Roslyn.RoslynHost roslynHost)
+    {
+        _index = index;
+        _roslynHost = roslynHost;
+    }
 
     // ── Registration ──────────────────────────────────────────────────────────
 
@@ -68,6 +73,12 @@ public sealed class WatchedFilesHandler : IDidChangeWatchedFilesHandler
                 {
                     ServerLog.Log($"WatchedFilesHandler: {change.Type} → {localPath}");
                     _index.Refresh(localPath);
+
+                    // When a peer .uitkx file changes on disk, invalidate
+                    // workspaces of files that depend on it so the next
+                    // EnsureReadyAsync rebuilds with fresh peer content.
+                    if (localPath.EndsWith(".uitkx", StringComparison.OrdinalIgnoreCase))
+                        _roslynHost.InvalidatePeerDependents(localPath);
                 }
             }
             catch (Exception ex)

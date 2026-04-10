@@ -3,20 +3,18 @@
 @using System.Collections.Generic
 @using ReactiveUITK.Core
 @using ReactiveUITK.Props.Typed
-@using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component MultiColumnListViewStatefulDemoFunc(
-  IReadOnlyList<MultiColumnListViewRowState>? items = null, 
-  List<SortedColumnDef>? sortDefs = null, 
-  Dictionary<string, float>? columnWidths = null, 
-  Dictionary<string, bool>? columnVisibility = null, 
-  Dictionary<string, int>? columnDisplayIndex = null, 
-  Action? addItem = null, 
-  Action? setTopItem = null, 
-  Action? deleteLast = null, 
-  ColumnSortEventHandler? onSortChanged = null, 
-  ColumnLayoutEventHandler? onLayoutChanged = null, 
+  IReadOnlyList<MultiColumnListViewRowState>? items = null,
+  List<SortedColumnDef>? sortDefs = null,
+  Dictionary<string, float>? columnWidths = null,
+  Dictionary<string, bool>? columnVisibility = null,
+  Dictionary<string, int>? columnDisplayIndex = null,
+  Action? addItem = null,
+  Action? setTopItem = null,
+  Action? deleteLast = null,
+  ColumnSortEventHandler? onSortChanged = null,
+  ColumnLayoutEventHandler? onLayoutChanged = null,
   Action<int>? onCountChanged = null
 ) {
   var safeItems = items ?? Array.Empty<MultiColumnListViewRowState>();
@@ -126,10 +124,10 @@ component MultiColumnListViewStatefulDemoFunc(
       </VisualElement>
       <MultiColumnListView
         items={displayed}
-        selection={SelectionType.None}
+        selection={SelectNone}
         fixedItemHeight={20f}
         columns={columns}
-        sortingMode={ColumnSortingMode.Custom}
+        sortingMode={SortCustom}
         sortedColumns={sortDefs}
         columnSortingChanged={onSortChanged ?? (_ => {})}
         columnWidths={columnWidths}

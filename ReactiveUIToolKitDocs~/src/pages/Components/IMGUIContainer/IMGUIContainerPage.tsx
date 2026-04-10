@@ -20,13 +20,13 @@ export const IMGUIContainerPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('IMGUIContainerProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('IMGUIContainerProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage (Editor)
       </Typography>
-      <CodeBlock language="tsx" code={IMGUI_CONTAINER_BASIC} />
+      <CodeBlock language="jsx" code={IMGUI_CONTAINER_BASIC} />
     </Box>
     <UnityDocsSection componentName="IMGUIContainer" />
   </Box>

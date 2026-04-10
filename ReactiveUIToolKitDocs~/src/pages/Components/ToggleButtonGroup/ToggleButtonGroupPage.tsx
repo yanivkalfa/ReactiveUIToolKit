@@ -21,13 +21,13 @@ export const ToggleButtonGroupPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ToggleButtonGroupProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ToggleButtonGroupProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TOGGLE_BUTTON_GROUP_BASIC} />
+      <CodeBlock language="jsx" code={TOGGLE_BUTTON_GROUP_BASIC} />
     </Box>
     <UnityDocsSection componentName="ToggleButtonGroup" />
   </Box>

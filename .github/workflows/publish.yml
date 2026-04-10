@@ -325,7 +325,35 @@ jobs:
         working-directory: ide-extensions~/visual-studio/UitkxVsix
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -no_logo
-          msbuild UitkxVsix.csproj -restore -t:Build -p:Configuration=Release -p:DeployExtension=false
+          msbuild UitkxVsix.csproj -t:Restore -p:Configuration=Release -v:minimal
+          msbuild UitkxVsix.csproj -t:Build -p:Configuration=Release -p:DeployExtension=false -v:minimal
+          msbuild UitkxVsix.csproj -t:CreateVsixContainer -p:Configuration=Release -p:DeployExtension=false -v:minimal
+
+      - name: Verify VSIX contains LSP server
+        if: steps.check.outputs.skip == 'false'
+        shell: pwsh
+        working-directory: ide-extensions~/visual-studio/UitkxVsix
+        run: |
+          # Find the VSIX and verify it contains UitkxLanguageServer.exe
+          $vsix = Get-ChildItem -Recurse -Filter "*.vsix" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $vsix) { Write-Error "No VSIX found after build"; exit 1 }
+          $zip = $vsix.FullName -replace '\.vsix$', '.zip'
+          $tmp = Join-Path $env:TEMP 'vsix-verify'
+          try {
+            Copy-Item $vsix.FullName $zip -Force
+            if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+            Expand-Archive $zip $tmp -Force
+            $server = Get-ChildItem $tmp -Recurse -Filter "UitkxLanguageServer.exe"
+            if (-not $server) {
+              Write-Host "::error::VSIX is missing UitkxLanguageServer.exe! Contents:"
+              Get-ChildItem $tmp -Recurse | ForEach-Object { Write-Host $_.FullName }
+              exit 1
+            }
+            Write-Host "Verified: VSIX contains $($server.FullName)"
+          } finally {
+            Remove-Item $zip -Force -ErrorAction SilentlyContinue
+            Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+          }
 
       - name: Locate VSIX
         if: steps.check.outputs.skip == 'false'

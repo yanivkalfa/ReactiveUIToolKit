@@ -22,12 +22,14 @@ component RouterQuickAccessPanel {
       style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}
     >
       @foreach (var link in links) {
-        <Link
-          to={link.Path}
-          label={link.Label}
-          style={linkStyle}
-          key={link.Path}
-        />
+        return (
+          <Link
+            to={link.Path}
+            label={link.Label}
+            style={linkStyle}
+            key={link.Path}
+          />
+        );
       }
     </VisualElement>
   );

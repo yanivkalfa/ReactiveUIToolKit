@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
@@ -77,89 +76,50 @@ public sealed class FormattingHandler : IDocumentFormattingHandler
 
         ServerLog.Log($"[Formatting] applying edit for '{localPath}' (input={text.Length} chars, output={formatted.Length} chars)");
 
-        // Emit per-line TextEdits to preserve cursor position.
-        // Normalize \r\n to \n before splitting so line comparison matches the
-        // formatter's normalized output.
+        // ── Minimal block diff (Ruff / Prettier style) ──
+        // Normalize line endings to LF before diffing so line comparison
+        // matches the formatter's normalized output.
         var normalizedText = text.Replace("\r\n", "\n").Replace("\r", "\n");
         var origLines = normalizedText.Split('\n');
         var fmtLines  = formatted.Split('\n');
 
-        var edits = new List<TextEdit>();
-
+        // Scan forward: find first line that differs.
+        int firstDiff = 0;
         int minLen = Math.Min(origLines.Length, fmtLines.Length);
+        while (firstDiff < minLen && origLines[firstDiff] == fmtLines[firstDiff])
+            firstDiff++;
 
-        bool linesRemoved = origLines.Length > fmtLines.Length;
-
-        // Replace changed lines that exist in both original and formatted.
-        // When lines were removed, the last per-line edit must extend through
-        // the end of the original document to absorb the deleted lines;
-        // otherwise the line-deletion edit would overlap with the last
-        // replacement and VS Code silently drops the entire batch.
-        for (int i = 0; i < minLen; i++)
+        // Scan backward: find last line that differs.
+        // origEnd / fmtEnd are inclusive indices of the last differing line.
+        int origEnd = origLines.Length - 1;
+        int fmtEnd  = fmtLines.Length - 1;
+        while (origEnd > firstDiff && fmtEnd > firstDiff
+               && origLines[origEnd] == fmtLines[fmtEnd])
         {
-            if (origLines[i] != fmtLines[i])
-            {
-                // Skip edits that only strip trailing whitespace from blank lines.
-                // This preserves cursor indentation on the line the user is editing.
-                if (origLines[i].TrimEnd().Length == 0 && fmtLines[i].TrimEnd().Length == 0)
-                    continue;
-
-                bool isLastCommonLine = linesRemoved && i == minLen - 1;
-                int endLine = isLastCommonLine ? origLines.Length - 1 : i;
-                int endCol  = isLastCommonLine ? origLines[origLines.Length - 1].Length : origLines[i].Length;
-                string newText = isLastCommonLine
-                    ? fmtLines[i]  // replacement absorbs trailing deleted lines
-                    : fmtLines[i];
-
-                edits.Add(new TextEdit
-                {
-                    Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-                        new Position(i, 0),
-                        new Position(endLine, endCol)),
-                    NewText = newText,
-                });
-
-                if (isLastCommonLine)
-                {
-                    linesRemoved = false; // absorbed — don't emit a separate delete
-                }
-            }
+            origEnd--;
+            fmtEnd--;
         }
 
-        // Handle line count differences.
-        if (fmtLines.Length > origLines.Length)
-        {
-            // Formatter added lines — insert after the last original line.
-            var extraLines = new string[fmtLines.Length - origLines.Length];
-            Array.Copy(fmtLines, origLines.Length, extraLines, 0, extraLines.Length);
-            edits.Add(new TextEdit
-            {
-                Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-                    new Position(origLines.Length - 1, origLines[origLines.Length - 1].Length),
-                    new Position(origLines.Length - 1, origLines[origLines.Length - 1].Length)),
-                NewText = "\n" + string.Join("\n", extraLines),
-            });
-        }
-        else if (linesRemoved)
-        {
-            // Lines were removed but no per-line edit in the common range
-            // absorbed them (all common lines were identical or skipped).
-            // Emit a standalone delete for the trailing original lines.
-            int lastFmt = fmtLines.Length - 1;
-            int lastOrig = origLines.Length - 1;
-            edits.Add(new TextEdit
-            {
-                Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
-                    new Position(lastFmt, origLines[lastFmt].Length),
-                    new Position(lastOrig, origLines[lastOrig].Length)),
-                NewText = "",
-            });
-        }
-
-        if (edits.Count == 0)
+        // If all lines match, nothing to do (shouldn't happen — we already
+        // checked formatted == text above, but guard anyway).
+        if (firstDiff > origEnd && firstDiff > fmtEnd)
             return Task.FromResult<TextEditContainer?>(null);
 
-        return Task.FromResult<TextEditContainer?>(new TextEditContainer(edits));
+        // Build the replacement text from fmtLines[firstDiff..fmtEnd].
+        var newText = string.Join("\n", fmtLines, firstDiff, fmtEnd - firstDiff + 1);
+
+        // The single edit replaces origLines[firstDiff..origEnd] with the new text.
+        var edit = new TextEdit
+        {
+            Range = new OmniSharp.Extensions.LanguageServer.Protocol.Models.Range(
+                new Position(firstDiff, 0),
+                new Position(origEnd, origLines[origEnd].Length)),
+            NewText = newText,
+        };
+
+        ServerLog.Log($"[Formatting] block diff: firstDiff={firstDiff} origEnd={origEnd} fmtEnd={fmtEnd} (1 edit instead of per-line)");
+
+        return Task.FromResult<TextEditContainer?>(new TextEditContainer(edit));
     }
 
     /// <summary>

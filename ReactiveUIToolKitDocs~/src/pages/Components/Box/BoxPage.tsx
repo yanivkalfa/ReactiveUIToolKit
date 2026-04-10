@@ -20,7 +20,7 @@ export const BoxPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('BoxProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('BoxProps')} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -31,7 +31,7 @@ export const BoxPage: FC = () => (
         Pass a <code>BoxProps</code> instance to <code>V.Box</code> and supply children as additional
         arguments.
       </Typography>
-      <CodeBlock language="tsx" code={BOX_BASIC} />
+      <CodeBlock language="jsx" code={BOX_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

@@ -68,7 +68,15 @@ namespace ReactiveUITK.Language.Formatter
                 if (d.Severity == ParseSeverity.Error)
                     return source;
 
-            if (directives.IsFunctionStyle)
+            // ── Hook/module files: dedicated path ─────────────────────────────
+            // Must be checked BEFORE IsFunctionStyle because the parser sets that
+            // flag for hook/module files too.
+            if (!directives.HookDeclarations.IsDefaultOrEmpty
+                || !directives.ModuleDeclarations.IsDefaultOrEmpty)
+            {
+                FormatHookModuleFile(source, directives);
+            }
+            else if (directives.IsFunctionStyle)
             {
                 FormatFunctionStyleComponent(directives, nodes);
             }
@@ -148,7 +156,7 @@ namespace ReactiveUITK.Language.Formatter
                 for (int pi = 0; pi < paramArray.Length; pi++)
                 {
                     bool isLast = pi == paramArray.Length - 1;
-                    Ln(isLast ? paramArray[pi] : paramArray[pi] + ", ");
+                    Ln(isLast ? paramArray[pi] : paramArray[pi] + ",");
                 }
                 _indent--;
                 Ln(") {");
@@ -253,6 +261,234 @@ namespace ReactiveUITK.Language.Formatter
         }
 
         // ═══════════════════════════════════════════════════════════════════════
+        //  HOOK / MODULE FILES
+        // ═══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Formats a .uitkx file that contains <c>hook</c> and/or <c>module</c>
+        /// declarations (no component markup). Re-emits the preamble directives,
+        /// then each declaration header + body with normalized indentation.
+        /// </summary>
+        private void FormatHookModuleFile(string source, DirectiveSet directives)
+        {
+            // ── Preamble ──────────────────────────────────────────────────────
+            bool hasPreamble = false;
+
+            if (directives.HasExplicitNamespace && !string.IsNullOrWhiteSpace(directives.Namespace))
+            {
+                Ln($"@namespace {directives.Namespace}");
+                hasPreamble = true;
+            }
+
+            foreach (var u in directives.Usings)
+            {
+                Ln($"@using {u}");
+                hasPreamble = true;
+            }
+
+            if (hasPreamble)
+                _sb.Append('\n');
+
+            string tabExp = new string(' ', _opts.IndentSize);
+
+            // ── Hooks ─────────────────────────────────────────────────────────
+            if (!directives.HookDeclarations.IsDefaultOrEmpty)
+            {
+                for (int i = 0; i < directives.HookDeclarations.Length; i++)
+                {
+                    if (i > 0) _sb.Append('\n');
+                    var hook = directives.HookDeclarations[i];
+                    EmitHookHeader(hook);
+                    _indent++;
+                    EmitSetupCodeNormalized(hook.Body.Trim(), tabExp);
+                    _indent--;
+                    Ln("}");
+                }
+            }
+
+            // ── Modules ──────────────────────────────────────────────────────
+            if (!directives.ModuleDeclarations.IsDefaultOrEmpty)
+            {
+                for (int i = 0; i < directives.ModuleDeclarations.Length; i++)
+                {
+                    // Blank line between hooks and first module, or between modules
+                    if (i > 0 || !directives.HookDeclarations.IsDefaultOrEmpty)
+                        _sb.Append('\n');
+                    var mod = directives.ModuleDeclarations[i];
+                    Ln($"module {mod.Name} {{");
+                    _indent++;
+                    EmitSetupCodeNormalized(mod.Body.Trim(), tabExp);
+                    _indent--;
+                    Ln("}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Emits the hook declaration header line:
+        /// <c>hook useName&lt;T&gt;(type param) -> ReturnType {</c>
+        /// When the single-line form exceeds <see cref="FormatterOptions.PrintWidth"/>,
+        /// wraps parameters and return-type tuple members one-per-line (same
+        /// convention as the component header wrapping).
+        /// </summary>
+        private void EmitHookHeader(HookDeclaration hook)
+        {
+            // ── Build single-line form to measure ─────────────────────────────
+            string singleLine = BuildHookHeaderSingleLine(hook);
+
+            if (singleLine.Length <= _opts.PrintWidth)
+            {
+                Ln(singleLine);
+                return;
+            }
+
+            // ── Wrapped form ──────────────────────────────────────────────────
+            // hook name<T>(
+            //   type param,
+            //   type param
+            // ) -> (
+            //   type member,
+            //   type member
+            // ) {
+
+            var prefix = new StringBuilder();
+            prefix.Append("hook ");
+            prefix.Append(hook.Name);
+            if (!string.IsNullOrEmpty(hook.GenericParams))
+                prefix.Append(hook.GenericParams);
+
+            bool hasParams = !hook.Params.IsDefaultOrEmpty;
+            bool hasReturnType = !string.IsNullOrEmpty(hook.ReturnType);
+            bool returnIsTuple = hasReturnType && hook.ReturnType!.TrimStart().StartsWith("(");
+
+            if (hasParams)
+            {
+                _sb.Append(IndentStr()).Append(prefix).Append("(\n");
+                _indent++;
+                for (int i = 0; i < hook.Params.Length; i++)
+                {
+                    var p = hook.Params[i];
+                    string paramText = p.DefaultValue != null
+                        ? $"{p.Type} {p.Name} = {p.DefaultValue}"
+                        : $"{p.Type} {p.Name}";
+                    bool isLast = i == hook.Params.Length - 1;
+                    Ln(isLast ? paramText : paramText + ",");
+                }
+                _indent--;
+
+                if (hasReturnType && returnIsTuple)
+                {
+                    // `) -> (`  on its own line, then tuple members
+                    Ln(") -> (");
+                    EmitWrappedTupleMembers(hook.ReturnType!);
+                    Ln(") {");
+                }
+                else if (hasReturnType)
+                {
+                    Ln($") -> {hook.ReturnType} {{");
+                }
+                else
+                {
+                    Ln(") {");
+                }
+            }
+            else
+            {
+                // No params but return type is long
+                if (hasReturnType && returnIsTuple)
+                {
+                    _sb.Append(IndentStr()).Append(prefix).Append("() -> (\n");
+                    EmitWrappedTupleMembers(hook.ReturnType!);
+                    Ln(") {");
+                }
+                else
+                {
+                    // Fallback: single-line (shouldn't exceed width without params, but safe)
+                    Ln(singleLine);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Builds the single-line hook header string for measuring purposes.
+        /// </summary>
+        private static string BuildHookHeaderSingleLine(HookDeclaration hook)
+        {
+            var sb = new StringBuilder();
+            sb.Append("hook ");
+            sb.Append(hook.Name);
+            if (!string.IsNullOrEmpty(hook.GenericParams))
+                sb.Append(hook.GenericParams);
+            sb.Append('(');
+            if (!hook.Params.IsDefaultOrEmpty)
+            {
+                for (int p = 0; p < hook.Params.Length; p++)
+                {
+                    if (p > 0) sb.Append(", ");
+                    var param = hook.Params[p];
+                    sb.Append(param.Type).Append(' ').Append(param.Name);
+                    if (param.DefaultValue != null)
+                        sb.Append(" = ").Append(param.DefaultValue);
+                }
+            }
+            sb.Append(')');
+            if (!string.IsNullOrEmpty(hook.ReturnType))
+                sb.Append(" -> ").Append(hook.ReturnType);
+            sb.Append(" {");
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Emits the inner members of a tuple return type, one per line, indented.
+        /// Input: <c>(bool foo, string bar, int baz)</c> — outer parens are stripped.
+        /// </summary>
+        private void EmitWrappedTupleMembers(string tupleType)
+        {
+            // Strip outer parens
+            string inner = tupleType.Trim();
+            if (inner.StartsWith("(")) inner = inner.Substring(1);
+            if (inner.EndsWith(")")) inner = inner.Substring(0, inner.Length - 1);
+            inner = inner.Trim();
+
+            // Split on commas, respecting nested generics/tuples
+            var members = SplitRespectingNesting(inner);
+
+            _indent++;
+            for (int i = 0; i < members.Count; i++)
+            {
+                bool isLast = i == members.Count - 1;
+                string member = members[i].Trim();
+                Ln(isLast ? member : member + ",");
+            }
+            _indent--;
+        }
+
+        /// <summary>
+        /// Splits a string on top-level commas, respecting <c>&lt;&gt;</c>,
+        /// <c>()</c>, and <c>[]</c> nesting.
+        /// </summary>
+        private static List<string> SplitRespectingNesting(string text)
+        {
+            var result = new List<string>();
+            int depth = 0;
+            int start = 0;
+            for (int i = 0; i < text.Length; i++)
+            {
+                char c = text[i];
+                if (c == '<' || c == '(' || c == '[') depth++;
+                else if (c == '>' || c == ')' || c == ']') depth--;
+                else if (c == ',' && depth == 0)
+                {
+                    result.Add(text.Substring(start, i - start));
+                    start = i + 1;
+                }
+            }
+            if (start < text.Length)
+                result.Add(text.Substring(start));
+            return result;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
         //  NODE LIST
         // ═══════════════════════════════════════════════════════════════════════
 
@@ -309,15 +545,6 @@ namespace ReactiveUITK.Language.Formatter
                 case SwitchNode sw:
                     FormatSwitch(sw);
                     break;
-                case BreakNode:
-                    Ln("@break;");
-                    break;
-                case ContinueNode:
-                    Ln("@continue;");
-                    break;
-                case CodeBlockNode cb:
-                    FormatCodeBlock(cb);
-                    break;
 
                 case TextNode tn:
                 {
@@ -331,9 +558,19 @@ namespace ReactiveUITK.Language.Formatter
                     Ln($"@({en.Expression})");
                     break;
 
-                case JsxCommentNode jc:
-                    Ln($"{{/* {jc.Content.Trim()} */}}");
+                case CommentNode jc:
+                {
+                    string trimmed = jc.Content.Trim();
+                    if (jc.IsBlock || trimmed.Contains('\n'))
+                    {
+                        Ln($"/* {trimmed} */");
+                    }
+                    else
+                    {
+                        Ln($"// {trimmed}");
+                    }
                     break;
+                }
             }
         }
 
@@ -524,7 +761,7 @@ namespace ReactiveUITK.Language.Formatter
         }
 
         // ═══════════════════════════════════════════════════════════════════════
-        //  @code BLOCK
+        //  C# SETUP CODE EMISSION
         // ═══════════════════════════════════════════════════════════════════════
 
         /// <summary>
@@ -1327,166 +1564,6 @@ namespace ReactiveUITK.Language.Formatter
                 _sb.Append($"<{el.TagName} {string.Join(" ", attrStrings)}{closing}");
         }
 
-        private void FormatCodeBlock(CodeBlockNode cb)
-        {
-            Ln("@code {");
-            _indent++;
-            string tabExp = new string(' ', _opts.IndentSize);
-
-            if (cb.ReturnMarkups.IsEmpty)
-            {
-                // No embedded JSX — the entire body is pure C#.
-                // Offer it to the pluggable Roslyn formatter first; fall back to
-                // the simple indentation-only formatter on failure or no delegate.
-                string codeToFormat = cb.Code ?? string.Empty;
-                if (_csharpFormatter != null)
-                {
-                    try
-                    {
-                        string? formatted = _csharpFormatter.Format(codeToFormat, _opts.IndentSize);
-                        if (!string.IsNullOrEmpty(formatted))
-                            codeToFormat = formatted;
-                    }
-                    catch
-                    {
-                        // Ignore delegate errors and proceed with built-in formatting.
-                    }
-                }
-
-                EmitCSharpLines(
-                    codeToFormat,
-                    tabExp,
-                    firstLineStripped: true,
-                    suppressLastNewline: false
-                );
-            }
-            else
-            {
-                int pos = 0;
-                bool firstSegment = true;
-
-                foreach (var rm in cb.ReturnMarkups) // sorted by StartOffsetInCodeBlock
-                {
-                    int jsxStart = rm.StartOffsetInCodeBlock;
-
-                    // ── C# segment before this JSX element ──────────────────────────
-                    if (jsxStart > pos)
-                    {
-                        string seg = cb.Code.Substring(pos, jsxStart - pos);
-
-                        if (firstSegment)
-                        {
-                            // The very first segment: ExpressionExtractor stripped
-                            // leading whitespace from line[0].
-                            EmitCSharpLines(
-                                seg,
-                                tabExp,
-                                firstLineStripped: true,
-                                suppressLastNewline: true
-                            );
-                            firstSegment = false;
-                        }
-                        else
-                        {
-                            // Subsequent segment: the first char(s) up to the first \n
-                            // are the inline suffix of the previous JSX tag (e.g. ";").
-                            // Append them directly (no indent prefix) then process rest.
-                            int nlPos = seg.IndexOf('\n');
-                            if (nlPos < 0)
-                            {
-                                // Entirely on one line (e.g. "; ") — append inline.
-                                _sb.Append(seg.TrimEnd());
-                            }
-                            else
-                            {
-                                _sb.Append(seg.Substring(0, nlPos)); // e.g. ";"
-                                _sb.Append('\n');
-                                string rest = seg.Substring(nlPos + 1);
-                                if (!string.IsNullOrWhiteSpace(rest))
-                                    EmitCSharpLines(
-                                        rest,
-                                        tabExp,
-                                        firstLineStripped: false,
-                                        suppressLastNewline: true
-                                    );
-                            }
-                        }
-                    }
-                    else
-                    {
-                        firstSegment = false;
-                    }
-
-                    // ── JSX element ───────────────────────────────────────
-                    // Always separate '=' from '<' with a space. No () wrapping —
-                    // the CSharpEmitter requires the bare  = <Tag ...>  form.
-                    if (rm.Element.Children.IsEmpty)
-                    {
-                        // Self-closing: space + inline tag, no parens.
-                        _sb.Append(' ');
-                        AppendElementInline(rm.Element, selfClose: true);
-                    }
-                    else
-                    {
-                        // Multi-line: wrap in ().
-                        // Result: = (\n    <Tag>\n        children\n    </Tag>\n)
-                        // The C# tail (e.g. ";") is appended inline after ')' by the
-                        // tail-handling code below, giving the idiomatic "    );" line.
-                        _sb.Append(" (\n");
-                        _indent++;
-                        _sb.Append(IndentStr());
-                        AppendElementInline(rm.Element, selfClose: false);
-                        _sb.Append('\n');
-                        _indent++;
-                        FormatNodeList(rm.Element.Children, topLevel: false);
-                        _indent--;
-                        _sb.Append(IndentStr() + $"</{rm.Element.TagName}>\n");
-                        _indent--;
-                        _sb.Append(IndentStr() + ')');
-                    }
-
-                    pos = rm.EndOffsetInCodeBlock;
-                }
-
-                // ── Remaining C# text after all JSX regions ─────────────────────
-                if (pos < cb.Code.Length)
-                {
-                    string tail = cb.Code.Substring(pos);
-                    int nlPos = tail.IndexOf('\n');
-                    if (nlPos < 0)
-                    {
-                        // Just a one-line suffix like ";"
-                        string oneLineTail = tail.TrimEnd();
-
-                        _sb.Append(oneLineTail);
-                        _sb.Append('\n');
-                    }
-                    else
-                    {
-                        string firstTailLine = tail.Substring(0, nlPos).TrimEnd();
-                        string rest = tail.Substring(nlPos + 1);
-
-                        _sb.Append(firstTailLine); // inline suffix, e.g. ";" or ");"
-                        _sb.Append('\n');
-
-                        if (!string.IsNullOrWhiteSpace(rest))
-                            EmitCSharpLines(
-                                rest,
-                                tabExp,
-                                firstLineStripped: false,
-                                suppressLastNewline: false
-                            );
-                    }
-                }
-            }
-
-            if (_sb.Length > 0 && _sb[_sb.Length - 1] != '\n')
-                _sb.Append('\n');
-
-            _indent--;
-            Ln("}");
-        }
-
         // ═══════════════════════════════════════════════════════════════════════
         //  CONTROL FLOW
         // ═══════════════════════════════════════════════════════════════════════
@@ -1516,7 +1593,13 @@ namespace ReactiveUITK.Language.Formatter
                 }
 
                 _indent++;
+                if (branch.SetupCode != null)
+                    EmitSetupCodeLines(branch.SetupCode);
+                Ln("return (");
+                _indent++;
                 FormatNodeList(branch.Body, topLevel: false);
+                _indent--;
+                Ln(");");
                 _indent--;
                 Ln("}");
             }
@@ -1526,7 +1609,13 @@ namespace ReactiveUITK.Language.Formatter
         {
             Ln($"@foreach ({node.IteratorDeclaration} in {node.CollectionExpression}) {{");
             _indent++;
+            if (node.SetupCode != null)
+                EmitSetupCodeLines(node.SetupCode);
+            Ln("return (");
+            _indent++;
             FormatNodeList(node.Body, topLevel: false);
+            _indent--;
+            Ln(");");
             _indent--;
             Ln("}");
         }
@@ -1535,7 +1624,13 @@ namespace ReactiveUITK.Language.Formatter
         {
             Ln($"@for ({node.ForExpression}) {{");
             _indent++;
+            if (node.SetupCode != null)
+                EmitSetupCodeLines(node.SetupCode);
+            Ln("return (");
+            _indent++;
             FormatNodeList(node.Body, topLevel: false);
+            _indent--;
+            Ln(");");
             _indent--;
             Ln("}");
         }
@@ -1544,7 +1639,13 @@ namespace ReactiveUITK.Language.Formatter
         {
             Ln($"@while ({node.Condition}) {{");
             _indent++;
+            if (node.SetupCode != null)
+                EmitSetupCodeLines(node.SetupCode);
+            Ln("return (");
+            _indent++;
             FormatNodeList(node.Body, topLevel: false);
+            _indent--;
+            Ln(");");
             _indent--;
             Ln("}");
         }
@@ -1564,7 +1665,13 @@ namespace ReactiveUITK.Language.Formatter
 
                 // Body is indented under the case label
                 _indent++;
+                if (sc.SetupCode != null)
+                    EmitSetupCodeLines(sc.SetupCode);
+                Ln("return (");
+                _indent++;
                 FormatNodeList(sc.Body, topLevel: false);
+                _indent--;
+                Ln(");");
                 _indent--;
             }
 
@@ -1575,6 +1682,16 @@ namespace ReactiveUITK.Language.Formatter
         // ═══════════════════════════════════════════════════════════════════════
         //  OUTPUT HELPERS
         // ═══════════════════════════════════════════════════════════════════════
+
+        private void EmitSetupCodeLines(string setupCode)
+        {
+            foreach (var line in setupCode.Split('\n'))
+            {
+                var trimmed = line.TrimEnd('\r');
+                if (trimmed.Length > 0)
+                    Ln(trimmed);
+            }
+        }
 
         /// <summary>
         /// Append an indented line (or block of lines) terminating with a single LF.
@@ -1918,7 +2035,7 @@ namespace ReactiveUITK.Language.Formatter
                             {
                                 MarkupStartIndex = 0,
                                 MarkupEndIndex = jsxText.Length,
-                                MarkupStartLine = 0,
+                                MarkupStartLine = 1,
                             };
                             var synthNodes = UitkxParser.Parse(
                                 jsxText, _filePath, synthDirectives, synthDiags);
@@ -2120,7 +2237,13 @@ namespace ReactiveUITK.Language.Formatter
                         int jsxEnd = FindJsxElementEnd(code, peek, code.Length);
                         if (jsxEnd > peek)
                         {
+                            // Insert '(' then '\n' so the normalised text reads
+                            // "return (\n<Tag..." matching the canonical form.
+                            // Without the '\n', the first format pass produces
+                            // "return (<Tag..." requiring a second pass to
+                            // break the line — an idempotency bug.
                             insertions.Add((peek, '('));
+                            insertions.Add((peek, '\n'));
                             insertions.Add((jsxEnd, ')'));
                             i = jsxEnd;
                             continue;
@@ -2272,88 +2395,6 @@ namespace ReactiveUITK.Language.Formatter
         /// nested children.  Skips over string literals and <c>{expr}</c> blocks.
         /// </summary>
         private static int FindJsxElementEnd(string text, int start, int limit)
-        {
-            if (start >= limit || text[start] != '<')
-                return start;
-
-            int depth = 0;
-            int i = start;
-
-            while (i < limit)
-            {
-                char ch = text[i];
-
-                if (ch == '"')
-                {
-                    i++;
-                    while (i < limit && text[i] != '"')
-                        i++;
-                    if (i < limit)
-                        i++;
-                    continue;
-                }
-
-                if (ch == '{')
-                {
-                    i++;
-                    int braceDepth = 1;
-                    while (i < limit && braceDepth > 0)
-                    {
-                        if (text[i] == '{')
-                            braceDepth++;
-                        else if (text[i] == '}')
-                            braceDepth--;
-                        else if (text[i] == '"')
-                        {
-                            i++;
-                            while (i < limit && text[i] != '"')
-                            {
-                                if (text[i] == '\\')
-                                    i++;
-                                i++;
-                            }
-                        }
-                        if (braceDepth > 0)
-                            i++;
-                    }
-                    if (i < limit)
-                        i++;
-                    continue;
-                }
-
-                if (ch == '/' && i + 1 < limit && text[i + 1] == '>')
-                {
-                    depth--;
-                    i += 2;
-                    if (depth <= 0)
-                        return i;
-                    continue;
-                }
-
-                if (ch == '<' && i + 1 < limit && text[i + 1] == '/')
-                {
-                    depth--;
-                    i += 2;
-                    while (i < limit && text[i] != '>')
-                        i++;
-                    if (i < limit)
-                        i++;
-                    if (depth <= 0)
-                        return i;
-                    continue;
-                }
-
-                if (ch == '<' && i + 1 < limit && char.IsLetter(text[i + 1]))
-                {
-                    depth++;
-                    i++;
-                    continue;
-                }
-
-                i++;
-            }
-
-            return i;
-        }
+            => ReturnFinder.FindJsxElementEnd(text, start, limit);
     }
 }

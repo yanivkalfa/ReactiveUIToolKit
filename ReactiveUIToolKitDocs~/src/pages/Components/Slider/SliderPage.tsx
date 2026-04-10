@@ -22,13 +22,13 @@ export const SliderPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('SliderProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('SliderProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={SLIDER_BASIC} />
+      <CodeBlock language="jsx" code={SLIDER_BASIC} />
     </Box>
     <UnityDocsSection componentName="Slider" />
   </Box>

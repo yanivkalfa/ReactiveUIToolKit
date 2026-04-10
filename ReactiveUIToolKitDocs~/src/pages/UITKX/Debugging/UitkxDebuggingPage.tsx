@@ -40,7 +40,7 @@ export const UitkxDebuggingPage: FC = () => (
         back to the original <code>.uitkx</code> file and line number.
       </li>
     </Typography>
-    <CodeBlock language="csharp" code={GENERATED_FILE_PATH} />
+    <CodeBlock language="jsx" code={GENERATED_FILE_PATH} />
 
     {/* ── Reading #line mappings ──────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
@@ -80,6 +80,29 @@ export const UitkxDebuggingPage: FC = () => (
       <li>Missing completions — check if the completion request/response is present</li>
       <li>Stale diagnostics — look for <code>textDocument/publishDiagnostics</code> messages</li>
       <li>Server crashes — look for error messages in the trace output</li>
+    </Typography>
+
+    {/* ── Breakpoints & stack traces ─────────────────────────────────────── */}
+    <Typography variant="h5" component="h2" sx={Styles.section}>
+      Breakpoints &amp; Stack Traces
+    </Typography>
+    <Typography variant="body2" paragraph>
+      Breakpoints cannot be set directly in <code>.uitkx</code> files. Instead,
+      debug in the generated <code>.uitkx.g.cs</code> files:
+    </Typography>
+    <Typography component="ol" variant="body2">
+      <li>Open the <code>.uitkx.g.cs</code> file (F12 on a generated symbol, or find it in the GeneratedFiles folder).</li>
+      <li>Set breakpoints in the generated C# code — the debugger will hit them normally.</li>
+      <li>
+        When an exception occurs, the stack trace uses <code>#line</code>{' '}
+        directives to show <strong>your original .uitkx file and line number</strong>,
+        not the generated C# line.
+      </li>
+    </Typography>
+    <Typography variant="body2" paragraph>
+      You can also use Unity&apos;s built-in <strong>UI Toolkit Debugger</strong>{' '}
+      (Window → UI Toolkit → Debugger) to inspect the live VisualElement tree
+      that the UITKX reconciler produces.
     </Typography>
 
     {/* ── Formatter issues ────────────────────────────────────────────────── */}

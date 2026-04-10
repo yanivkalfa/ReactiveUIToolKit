@@ -766,7 +766,7 @@ export const UitkxComponentReferencePage: FC<UitkxComponentReferencePageProps> =
         <Typography variant="h5" component="h2" gutterBottom>
           UITKX Example
         </Typography>
-        <CodeBlock language="tsx" code={getExample(title)} />
+        <CodeBlock language="jsx" code={getExample(title)} />
       </Box>
 
       <Box sx={Styles.section}>

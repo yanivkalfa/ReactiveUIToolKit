@@ -178,5 +178,16 @@ export const FAQPage: FC = () => (
       content. Also check that the <code>component</code> keyword is present and
       that any <code>@using</code> directives are correct.
     </Typography>
+
+    <Typography variant="body1" sx={Styles.question}>
+      I get CS0229 ambiguity errors when using <code>Column</code>, <code>Row</code>, etc.
+    </Typography>
+    <Typography variant="body2" paragraph>
+      Remove <code>@using UnityEngine.UIElements</code> from your <code>.uitkx</code>{' '}
+      file. The <code>CssHelpers</code> shortcuts (<code>FlexRow</code>, <code>FlexColumn</code>,{' '}
+      <code>SelectNone</code>, etc.) are auto-imported and conflict with the identically named
+      UIElements enum members. Use CssHelpers shortcuts instead of qualified enum
+      names like <code>FlexDirection.Column</code>.
+    </Typography>
   </Box>
 )

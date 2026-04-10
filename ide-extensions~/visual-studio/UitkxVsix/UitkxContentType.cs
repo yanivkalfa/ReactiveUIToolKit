@@ -9,8 +9,10 @@ namespace UitkxVsix;
 /// <summary>Defines the "uitkx" content type.</summary>
 /// <remarks>
 /// BaseDefinition is <c>CodeRemoteContentTypeName</c> so VS2022 natively routes
-/// LSP features (F12, Shift+F12, hover, completion, etc.) through the
+/// LSP features (F12, Shift+F12, F2, hover, completion, etc.) through the
 /// <see cref="ILanguageClient"/> framework and middleware.
+/// This requires the server to report capabilities statically in InitializeResult
+/// (forced via OnInitialize callback that disables dynamic registration).
 /// LSP semantic-token registration is stripped by <c>CapabilityPatchStream</c>
 /// to preserve our custom <c>IClassifier</c> coloring.
 /// </remarks>

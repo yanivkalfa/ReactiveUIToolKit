@@ -1,4 +1,4 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using UnityEngine
 
 component SyntheticEventDemoFunc {

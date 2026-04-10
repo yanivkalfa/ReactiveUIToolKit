@@ -43,7 +43,7 @@ export const UitkxRouterPage: FC = () => (
         The example below shows declarative route composition in markup together with imperative
         setup-code helpers through <code>RouterHooks</code>.
       </Typography>
-      <CodeBlock language="tsx" code={UITKX_ROUTER_EXAMPLE} />
+      <CodeBlock language="jsx" code={UITKX_ROUTER_EXAMPLE} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -81,7 +81,25 @@ export const UitkxRouterPage: FC = () => (
         <ListItem disablePadding>
           <ListItemText primary={<><code>RouterHooks.UseNavigationState()</code> — arbitrary state object passed during navigation.</>} />
         </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>RouterHooks.UseRouteMatch()</code> — the current <code>RouteMatch</code> object with the matched path, pattern, and resolved parameters.</>} />
+        </ListItem>
+        <ListItem disablePadding>
+          <ListItemText primary={<><code>RouterHooks.UseNavigationBase()</code> — the base path for resolving relative navigations in nested route trees.</>} />
+        </ListItem>
       </List>
+    </Box>
+
+    <Box sx={Styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Link vs RouterNavLink
+      </Typography>
+      <Typography variant="body1" paragraph>
+        <code>{'<RouterNavLink>'}</code> is the markup element for in-app navigation. It renders a
+        clickable label that calls <code>UseNavigate()</code> under the hood.{' '}
+        <code>V.Link(to, label, replace, style, key, state)</code> is the equivalent runtime C# factory.
+        Both produce the same element — use whichever matches your syntax preference.
+      </Typography>
     </Box>
 
     <Box sx={Styles.section}>

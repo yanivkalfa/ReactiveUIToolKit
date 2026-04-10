@@ -19,13 +19,13 @@ export const HelpBoxPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('HelpBoxProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('HelpBoxProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={HELP_BOX_BASIC} />
+      <CodeBlock language="jsx" code={HELP_BOX_BASIC} />
     </Box>
     <UnityDocsSection componentName="HelpBox" />
   </Box>

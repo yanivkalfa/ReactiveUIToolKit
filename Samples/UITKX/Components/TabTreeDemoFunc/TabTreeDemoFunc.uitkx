@@ -1,10 +1,9 @@
-﻿@namespace ReactiveUITK.Samples.UITKXComponents
+@namespace ReactiveUITK.Samples.UITKXComponents
 @using ReactiveUITK.Samples.UITKXShared
 @using System
 @using System.Collections.Generic
 @using ReactiveUITK.Props.Typed
 @using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component TabTreeDemoFunc {
   var (tabIndex, setTabIndex) = useState(0);

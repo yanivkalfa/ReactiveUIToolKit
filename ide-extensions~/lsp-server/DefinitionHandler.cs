@@ -187,6 +187,35 @@ public sealed class DefinitionHandler : IDefinitionHandler
             }
         }
 
+        // ── Case 4b: hook / module declaration name ─────────────────────────
+        // When the cursor is on a hook or module declaration name, return the
+        // same position.  VS Code detects "definition == current location"
+        // and shows Find All References — matching JSX/TSX behaviour.
+        if (!parseResult.Directives.HookDeclarations.IsDefaultOrEmpty)
+        {
+            foreach (var hook in parseResult.Directives.HookDeclarations)
+            {
+                if (word == hook.Name)
+                {
+                    ServerLog.Log(
+                        $"definition: '{word}' is own hook declaration – returning cursor pos for references fallback");
+                    return MakeLocation(localPath, line1, col0);
+                }
+            }
+        }
+        if (!parseResult.Directives.ModuleDeclarations.IsDefaultOrEmpty)
+        {
+            foreach (var mod in parseResult.Directives.ModuleDeclarations)
+            {
+                if (word == mod.Name)
+                {
+                    ServerLog.Log(
+                        $"definition: '{word}' is own module declaration – returning cursor pos for references fallback");
+                    return MakeLocation(localPath, line1, col0);
+                }
+            }
+        }
+
         // ── Case 5: Roslyn symbol resolution ─────────────────────────────────
         // Covers symbols defined in companion .cs files and declarations that
         // the text-regex heuristic above cannot find.
@@ -238,8 +267,15 @@ public sealed class DefinitionHandler : IDefinitionHandler
             // var (word, …) = …  tuple deconstruction
             if (col < 0 && trimmed.StartsWith("var (", StringComparison.Ordinal))
             {
-                m = System.Text.RegularExpressions.Regex.Match(line, $@"\b({escaped})\b");
-                if (m.Success) col = m.Groups[1].Index;
+                // Only search inside the var (...) portion, not the RHS.
+                int parenStart = line.IndexOf("var (", StringComparison.Ordinal) + 4;
+                int parenEnd = line.IndexOf(')', parenStart);
+                if (parenEnd > parenStart)
+                {
+                    var tupleInner = line.Substring(parenStart, parenEnd - parenStart);
+                    m = System.Text.RegularExpressions.Regex.Match(tupleInner, $@"\b({escaped})\b");
+                    if (m.Success) col = parenStart + m.Groups[1].Index;
+                }
             }
 
             // TypeName word = …
@@ -280,8 +316,15 @@ public sealed class DefinitionHandler : IDefinitionHandler
 
             if (col < 0 && line.Contains("var (", StringComparison.Ordinal))
             {
-                m = System.Text.RegularExpressions.Regex.Match(line, $@"\b({escaped})\b");
-                if (m.Success) col = m.Groups[1].Index;
+                // Only search inside the var (...) portion, not the RHS of the assignment.
+                int parenStart = line.IndexOf("var (", StringComparison.Ordinal) + 4;
+                int parenEnd = line.IndexOf(')', parenStart);
+                if (parenEnd > parenStart)
+                {
+                    var tupleInner = line.Substring(parenStart, parenEnd - parenStart);
+                    m = System.Text.RegularExpressions.Regex.Match(tupleInner, $@"\b({escaped})\b");
+                    if (m.Success) col = parenStart + m.Groups[1].Index;
+                }
             }
 
             if (col < 0)
@@ -396,13 +439,57 @@ public sealed class DefinitionHandler : IDefinitionHandler
                 var uitkxResult = vdoc.Map.ToUitkxOffset(span.Start);
                 if (uitkxResult.HasValue)
                 {
+                    // Compute the line of the mapped-back definition.
+                    var defPos = LspHelpers.OffsetToPosition(text, uitkxResult.Value.UitkxOffset);
+                    // When the definition is on the SAME line as the cursor,
+                    // the user is already on the declaration.  Return the
+                    // exact cursor position so VS Code detects
+                    // "definition == current location" and shows
+                    // Find All References — matching JSX/TSX behaviour.
+                    if (defPos.Line == position.Line)
+                    {
+                        ServerLog.Log(
+                            $"definition: Roslyn '{word}' → same line – returning cursor pos for references fallback");
+                        return MakeLocation(localPath, (int)position.Line + 1, (int)position.Character);
+                    }
+
                     ServerLog.Log($"definition: Roslyn '{word}' → {localPath} (via SourceMap)");
                     return MakeLocationFromOffset(localPath, text, uitkxResult.Value.UitkxOffset);
                 }
             }
             else
             {
-                // Definition is in a companion .cs document
+                // ── Check if definition is in a peer virtual document ────
+                var peerInfo = _roslynHost.TryGetPeerVirtualDocument(localPath, defDoc.Id);
+                if (peerInfo.HasValue)
+                {
+                    var (peerPath, peerVDoc) = peerInfo.Value;
+                    var peerResult = peerVDoc.Map.ToUitkxOffset(span.Start);
+                    if (peerResult.HasValue)
+                    {
+                        var peerSource = File.Exists(peerPath) ? File.ReadAllText(peerPath) : "";
+                        ServerLog.Log(
+                            $"definition: Roslyn '{word}' → {peerPath} (via peer SourceMap)");
+                        return MakeLocationFromOffset(peerPath, peerSource, peerResult.Value.UitkxOffset);
+                    }
+
+                    // The definition position is in the scaffold (e.g. a hook/module
+                    // method signature).  Fall back to searching the peer .uitkx
+                    // source for the symbol name (hook/module declaration keyword line).
+                    if (File.Exists(peerPath))
+                    {
+                        var peerSource = File.ReadAllText(peerPath);
+                        var (declLine, declCol) = FindDeclarationInUitkx(peerSource, word);
+                        if (declLine > 0)
+                        {
+                            ServerLog.Log(
+                                $"definition: Roslyn '{word}' → {peerPath}:{declLine} (via peer text search)");
+                            return MakeLocation(peerPath, declLine, declCol);
+                        }
+                    }
+                }
+
+                // ── Definition is in a companion .cs document ────────────
                 var dir = Path.GetDirectoryName(localPath);
                 if (dir == null) continue;
 
@@ -434,5 +521,43 @@ public sealed class DefinitionHandler : IDefinitionHandler
             else if (text[i] != '\r') { col++; }
         }
         return MakeLocation(filePath, line + 1, col);
+    }
+
+    /// <summary>
+    /// Searches a .uitkx source for a <c>hook</c> or <c>module</c> declaration
+    /// whose name matches <paramref name="symbolName"/>.  Returns the 1-based
+    /// line and 0-based column of the name, or (0, 0) if not found.
+    /// </summary>
+    private static (int Line, int Col) FindDeclarationInUitkx(string source, string symbolName)
+    {
+        int lineNum = 0;
+        foreach (var rawLine in source.Split('\n'))
+        {
+            lineNum++;
+            var line = rawLine.TrimEnd('\r');
+            var trimmed = line.TrimStart();
+
+            // Match:  hook symbolName(...)  or  module symbolName(...)
+            foreach (var keyword in new[] { "hook ", "module " })
+            {
+                if (!trimmed.StartsWith(keyword, StringComparison.Ordinal))
+                    continue;
+
+                int nameStart = trimmed.IndexOf(symbolName, keyword.Length, StringComparison.Ordinal);
+                if (nameStart < 0)
+                    continue;
+
+                // Whole-word check
+                int nameEnd = nameStart + symbolName.Length;
+                bool rightOk = nameEnd >= trimmed.Length
+                    || !char.IsLetterOrDigit(trimmed[nameEnd]) && trimmed[nameEnd] != '_';
+                if (!rightOk)
+                    continue;
+
+                int col = line.IndexOf(symbolName, StringComparison.Ordinal);
+                return (lineNum, col >= 0 ? col : 0);
+            }
+        }
+        return (0, 0);
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.LanguageServer.Client;
 using Microsoft.VisualStudio.Threading;
@@ -40,7 +41,20 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
         Log($"NOTIFY  → {methodName}");
 
         if (methodName == "textDocument/publishDiagnostics")
+        {
+            // Route full diagnostics to our custom taggers (classifier + unreachable tagger).
             UitkxDiagnosticStore.HandlePublishDiagnostics(methodParam);
+
+            // Strip Unnecessary-tagged diagnostics from VS2022's built-in passthrough.
+            // With CodeRemoteContentTypeName, VS2022's built-in rendering partially
+            // overrides our IClassifier's "excluded code" classification for Hint severity,
+            // resulting in keywords keeping their syntax colors instead of full gray.
+            // By stripping these, we let our UitkxClassifier + UitkxUnreachableCodeTagger
+            // handle ALL fade rendering without interference.
+            var filtered = StripUnnecessaryDiagnostics(methodParam);
+            await sendNotification(filtered);
+            return;
+        }
 
         await sendNotification(methodParam);
     }
@@ -67,7 +81,8 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
         else
         {
             var json = result?.ToString(Newtonsoft.Json.Formatting.None);
-            if (json != null && json.Length > 300) json = json.Substring(0, 300);
+            if (json != null && json.Length > 300)
+                json = json.Substring(0, 300);
             Log($"RESPONSE← {methodName}: {json}");
         }
 
@@ -75,13 +90,14 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
     }
 
     private static bool NeedsBufferSync(string method) =>
-        method is "textDocument/definition"
-            or "textDocument/formatting"
-            or "textDocument/hover"
-            or "textDocument/completion"
-            or "textDocument/rename"
-            or "textDocument/prepareRename"
-            or "textDocument/references";
+        method
+            is "textDocument/definition"
+                or "textDocument/formatting"
+                or "textDocument/hover"
+                or "textDocument/completion"
+                or "textDocument/rename"
+                or "textDocument/prepareRename"
+                or "textDocument/references";
 
     /// <summary>
     /// Extracts the URI from the request params, finds the matching VS buffer,
@@ -101,25 +117,36 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
 
             // Get the current buffer text from VS's running document table.
             string? text = null;
-            await Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory
-                .SwitchToMainThreadAsync();
+            await Microsoft.VisualStudio.Shell.ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             var rdt = (Microsoft.VisualStudio.Shell.Interop.IVsRunningDocumentTable)
                 Microsoft.VisualStudio.Shell.Package.GetGlobalService(
-                    typeof(Microsoft.VisualStudio.Shell.Interop.SVsRunningDocumentTable));
-            if (rdt == null) return;
+                    typeof(Microsoft.VisualStudio.Shell.Interop.SVsRunningDocumentTable)
+                );
+            if (rdt == null)
+                return;
 
             string localPath;
-            try { localPath = new Uri(uri).LocalPath; }
-            catch { return; }
+            try
+            {
+                localPath = new Uri(uri).LocalPath;
+            }
+            catch
+            {
+                return;
+            }
 
-            if (rdt.FindAndLockDocument(
+            if (
+                rdt.FindAndLockDocument(
                     (uint)Microsoft.VisualStudio.Shell.Interop._VSRDTFLAGS.RDT_NoLock,
                     localPath,
                     out _,
                     out _,
                     out var docData,
-                    out _) == 0 && docData != IntPtr.Zero)
+                    out _
+                ) == 0
+                && docData != IntPtr.Zero
+            )
             {
                 var obj = System.Runtime.InteropServices.Marshal.GetObjectForIUnknown(docData);
                 if (obj is Microsoft.VisualStudio.Text.ITextBuffer buffer)
@@ -137,14 +164,11 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
 
             if (text != null)
             {
-                await rpc.NotifyWithParameterObjectAsync(
-                    "textDocument/didChange",
-                    new
-                    {
-                        textDocument = new { uri, version = 1 },
-                        contentChanges = new[] { new { text } },
-                    });
-                Log($"  Synced buffer for {TruncateUri(uri)}");
+                var sent = await BufferSyncService.SyncIfChangedAsync(rpc, uri, text);
+                if (sent)
+                    Log($"  Synced buffer for {TruncateUri(uri)}");
+                else
+                    Log($"  Skipped sync (unchanged) for {TruncateUri(uri)}");
             }
         }
         catch (Exception ex)
@@ -155,4 +179,33 @@ internal sealed class UitkxMiddleLayer : ILanguageClientMiddleLayer
 
     private static string TruncateUri(string uri) =>
         uri.Length > 60 ? "..." + uri.Substring(uri.Length - 50) : uri;
+
+    /// <summary>
+    /// Returns a clone of the publishDiagnostics params with diagnostics that
+    /// carry <c>DiagnosticTag.Unnecessary</c> (tag value 1) removed.
+    /// This prevents VS2022's built-in rendering from interfering with our
+    /// custom "excluded code" classifier/tagger fade.
+    /// </summary>
+    private static JToken StripUnnecessaryDiagnostics(JToken param)
+    {
+        var clone = param.DeepClone();
+        var diagArray = clone["diagnostics"] as JArray;
+        if (diagArray == null || diagArray.Count == 0)
+            return clone;
+
+        for (int i = diagArray.Count - 1; i >= 0; i--)
+        {
+            var tags = diagArray[i]["tags"] as JArray;
+            if (tags != null && tags.Any(t => t.Value<int>() == 1))
+            {
+                diagArray.RemoveAt(i);
+            }
+        }
+
+        var originalCount = (param["diagnostics"] as JArray)?.Count ?? 0;
+        Log(
+            $"  Stripped {originalCount - diagArray.Count} Unnecessary diagnostics from VS2022 passthrough"
+        );
+        return clone;
+    }
 }

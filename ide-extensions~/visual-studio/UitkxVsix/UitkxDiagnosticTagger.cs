@@ -44,17 +44,20 @@ internal sealed class UitkxUnreachableCodeTaggerProvider : ITaggerProvider
     public ITagger<T>? CreateTagger<T>(ITextBuffer buffer)
         where T : ITag
     {
-        if (typeof(T) != typeof(IClassificationTag))
-            return null;
-
-        var excludedCode =
-            ClassificationRegistry.GetClassificationType("excluded code")
-            ?? ClassificationRegistry.GetClassificationType("text");
-
-        return buffer.Properties.GetOrCreateSingletonProperty(
-                typeof(UitkxUnreachableCodeTagger),
-                () => new UitkxUnreachableCodeTagger(buffer, excludedCode)
-            ) as ITagger<T>;
+        // Disabled: UitkxClassifier already handles unreachable code dimming by
+        // replacing syntax classification spans with "excluded code" in its
+        // GetClassificationSpans() method.  Having this tagger ALSO produce
+        // IClassificationTag "excluded code" spans for the same regions causes
+        // VS2022's classification aggregator to re-merge classifications from
+        // two independent sources on every repaint cycle, creating visible
+        // "dancing" / flickering between syntax colors and gray.
+        //
+        // The UitkxClassifier approach is superior because it atomically
+        // replaces per-token classifications (keyword, string, identifier, etc.)
+        // with "excluded code" in a single GetClassificationSpans pass, whereas
+        // this tagger produces a broad span that the aggregator must reconcile
+        // with the classifier's per-token spans — a fundamentally racy operation.
+        return null;
     }
 }
 
@@ -77,6 +80,12 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
     private static readonly string LogPath = Path.Combine(
         Path.GetTempPath(),
         "uitkx-diag-tagger.log"
+    );
+
+    private static readonly System.Diagnostics.Stopwatch TraceSw = System.Diagnostics.Stopwatch.StartNew();
+    private static readonly string TraceLogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-unreachable-trace.log"
     );
 
     private static void Log(string msg)
@@ -137,14 +146,7 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
         {
             try
             {
-                await rpc.NotifyWithParameterObjectAsync(
-                    "textDocument/didChange",
-                    new
-                    {
-                        textDocument = new { uri, version = 1 },
-                        contentChanges = new[] { new { text } },
-                    }
-                );
+                await BufferSyncService.SyncIfChangedAsync(rpc, uri, text);
             }
             catch { }
         });
@@ -162,6 +164,8 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
         var myUri = new Uri(doc.FilePath).AbsoluteUri;
         if (!string.Equals(myUri, uri, StringComparison.OrdinalIgnoreCase))
             return;
+
+        try { File.AppendAllText(TraceLogPath, $"[{TraceSw.ElapsedMilliseconds,8}ms] [ErrTagger] OnDiagnosticsChanged: {diagnostics.Count} diags, starting 200ms debounce\n"); } catch { }
 
         // Debounce: the server pushes T1+T2 then T3 rapidly. Wait 200ms for
         // the final batch before raising TagsChanged to avoid squiggle flicker.
@@ -190,6 +194,7 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
         _diagnostics = pending;
         _pendingDiagnostics = null;
         Log($"Applied {pending.Count} diagnostics (debounced)");
+        try { File.AppendAllText(TraceLogPath, $"[{TraceSw.ElapsedMilliseconds,8}ms] [ErrTagger] OnDebounceElapsed: applied {pending.Count} diags → firing TagsChanged\n"); } catch { }
 
         try
         {
@@ -213,6 +218,15 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
 
         foreach (var diag in _diagnostics)
         {
+            var hasUnnecessary = diag.Tags != null && diag.Tags.Contains(1);
+
+            // Skip Unnecessary-tagged diagnostics entirely — the fade is handled
+            // by UitkxClassifier + UitkxUnreachableCodeTagger via "excluded code"
+            // classification. Emitting an IErrorTag here would add a redundant
+            // squiggle/hint indicator on top of the fade.
+            if (hasUnnecessary)
+                continue;
+
             var start = GetPosition(snapshot, diag.StartLine, diag.StartChar);
             var end = GetPosition(snapshot, diag.EndLine, diag.EndChar);
 
@@ -223,15 +237,12 @@ internal sealed class UitkxDiagnosticTagger : ITagger<IErrorTag>, IDisposable
             if (!spans.IntersectsWith(span))
                 continue;
 
-            var hasUnnecessary = diag.Tags != null && diag.Tags.Contains(1);
-
             var errorType = diag.Severity switch
             {
-                1 => PredefinedErrorTypeNames.SyntaxError, // Error (keep red even if Unnecessary)
-                2 => PredefinedErrorTypeNames.Warning, // Warning (keep yellow even if Unnecessary)
-                3 => PredefinedErrorTypeNames.HintedSuggestion, // Information
-                4 when hasUnnecessary => PredefinedErrorTypeNames.HintedSuggestion, // Hint+Unnecessary → dimmed
-                4 => PredefinedErrorTypeNames.HintedSuggestion, // Hint
+                1 => PredefinedErrorTypeNames.SyntaxError,
+                2 => PredefinedErrorTypeNames.Warning,
+                3 => PredefinedErrorTypeNames.HintedSuggestion,
+                4 => PredefinedErrorTypeNames.HintedSuggestion,
                 _ => PredefinedErrorTypeNames.SyntaxError,
             };
 
@@ -274,6 +285,13 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
     private System.Threading.Timer? _debounceTimer;
     private List<LspDiagnostic>? _pendingDiagnostics;
 
+    private static readonly System.Diagnostics.Stopwatch TraceSw = System.Diagnostics.Stopwatch.StartNew();
+    private static readonly string TraceLogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-unreachable-trace.log"
+    );
+    private static int _getTagsCallCount;
+
     public UitkxUnreachableCodeTagger(ITextBuffer buffer, IClassificationType excludedCode)
     {
         _buffer = buffer;
@@ -309,6 +327,9 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
         )
             return;
 
+        var unreachableCount = diagnostics.Count(d => d.Tags != null && d.Tags.Contains(1) && d.Severity is not (1 or 2));
+        try { File.AppendAllText(TraceLogPath, $"[{TraceSw.ElapsedMilliseconds,8}ms] [UnreachTagger] OnDiagnosticsChanged: {diagnostics.Count} diags, {unreachableCount} Hint+Unnecessary → starting 200ms debounce\n"); } catch { }
+
         _pendingDiagnostics = diagnostics;
         if (_debounceTimer == null)
             _debounceTimer = new System.Threading.Timer(
@@ -330,6 +351,7 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
             return;
         _diagnostics = pending;
         _pendingDiagnostics = null;
+        try { File.AppendAllText(TraceLogPath, $"[{TraceSw.ElapsedMilliseconds,8}ms] [UnreachTagger] OnDebounceElapsed: applied {pending.Count} diags → firing TagsChanged\n"); } catch { }
         try
         {
             var snapshot = _buffer.CurrentSnapshot;
@@ -349,6 +371,7 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
             yield break;
 
         var snapshot = spans[0].Snapshot;
+        int tagCount = 0;
 
         foreach (var diag in _diagnostics)
         {
@@ -369,10 +392,17 @@ internal sealed class UitkxUnreachableCodeTagger : ITagger<IClassificationTag>, 
             if (!spans.IntersectsWith(span))
                 continue;
 
+            tagCount++;
             yield return new TagSpan<IClassificationTag>(
                 span,
                 new ClassificationTag(_excludedCode)
             );
+        }
+
+        _getTagsCallCount++;
+        if (_getTagsCallCount <= 5 || _getTagsCallCount % 50 == 0)
+        {
+            try { File.AppendAllText(TraceLogPath, $"[{TraceSw.ElapsedMilliseconds,8}ms] [UnreachTagger] GetTags #{_getTagsCallCount}: produced {tagCount} excluded-code tags\n"); } catch { }
         }
     }
 
@@ -424,6 +454,13 @@ internal static class UitkxDiagnosticStore
         Path.GetTempPath(),
         "uitkx-diag-store.log"
     );
+
+    private static readonly System.Diagnostics.Stopwatch TraceSw = System.Diagnostics.Stopwatch.StartNew();
+    private static readonly string TraceLogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-unreachable-trace.log"
+    );
+    private static int _publishCount;
 
     private static void Log(string msg)
     {
@@ -481,11 +518,110 @@ internal static class UitkxDiagnosticStore
                 Log(
                     $"  sev={d.Severity} [{d.StartLine}:{d.StartChar}-{d.EndLine}:{d.EndChar}] tags={string.Join(",", d.Tags ?? Array.Empty<int>())} {d.Message}"
                 );
+
+            _publishCount++;
+            var unnecessaryCount = diagnostics.Count(d => d.Tags != null && d.Tags.Contains(1));
+            try { File.AppendAllText(TraceLogPath, $"[{TraceSw.ElapsedMilliseconds,8}ms] [Store] publishDiagnostics #{_publishCount}: {diagnostics.Count} diags, {unnecessaryCount} with Unnecessary tag → broadcasting to {DiagnosticsChanged?.GetInvocationList()?.Length ?? 0} listeners\n"); } catch { }
+
             DiagnosticsChanged?.Invoke(uri!, diagnostics);
         }
         catch (Exception ex)
         {
             Log($"Error parsing diagnostics: {ex.Message}");
+        }
+    }
+}
+
+// ── Classification override model ────────────────────────────────────────────
+
+/// <summary>
+/// A single classification override received from the LSP server via the
+/// custom <c>uitkx/classificationOverrides</c> notification.
+/// </summary>
+internal sealed class ClassificationOverrideEntry
+{
+    /// <summary>0-based line number in the .uitkx file.</summary>
+    public int Line;
+    /// <summary>0-based character offset on the line.</summary>
+    public int Character;
+    /// <summary>Character length of the token.</summary>
+    public int Length;
+    /// <summary>
+    /// Target classification type: <c>"method"</c>, <c>"keyword"</c>, etc.
+    /// </summary>
+    public string Type = "";
+}
+
+// ── Static store for incoming classification overrides ────────────────────────
+
+/// <summary>
+/// Central store that receives <c>uitkx/classificationOverrides</c> from the
+/// LSP server (via <see cref="UitkxMiddleLayer"/>) and dispatches to the
+/// <see cref="UitkxClassifier"/>.  Mirrors <see cref="UitkxDiagnosticStore"/>.
+/// </summary>
+internal static class ClassificationOverrideStore
+{
+    /// <summary>
+    /// Fired when overrides for a URI are updated.
+    /// Parameters: (string uri, List&lt;ClassificationOverrideEntry&gt; overrides)
+    /// </summary>
+    internal static event Action<string, List<ClassificationOverrideEntry>>? OverridesChanged;
+
+    private static readonly string LogPath = Path.Combine(
+        Path.GetTempPath(),
+        "uitkx-override-store.log"
+    );
+
+    private static void Log(string msg)
+    {
+        try
+        {
+            File.AppendAllText(LogPath, $"[{DateTime.UtcNow:O}] {msg}\n");
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Called from <see cref="UitkxMiddleLayer"/> when a
+    /// <c>uitkx/classificationOverrides</c> notification arrives from the server.
+    /// </summary>
+    internal static void HandleClassificationOverrides(JToken param)
+    {
+        try
+        {
+            var uri = param["uri"]?.ToString();
+            if (string.IsNullOrEmpty(uri))
+                return;
+
+            var overridesArray = param["overrides"] as JArray;
+            var overrides = new List<ClassificationOverrideEntry>();
+
+            if (overridesArray != null)
+            {
+                foreach (var item in overridesArray)
+                {
+                    overrides.Add(new ClassificationOverrideEntry
+                    {
+                        Line = item["Line"]?.Value<int>() ?? item["line"]?.Value<int>() ?? 0,
+                        Character = item["Column"]?.Value<int>() ?? item["column"]?.Value<int>() ?? 0,
+                        Length = item["Length"]?.Value<int>() ?? item["length"]?.Value<int>() ?? 0,
+                        Type = item["OverrideType"]?.ToString()
+                            ?? item["overrideType"]?.ToString()
+                            ?? item["type"]?.ToString()
+                            ?? "",
+                    });
+                }
+            }
+
+            Log($"Parsed {overrides.Count} classification overrides for {uri}");
+            foreach (var o in overrides)
+                Log($"  [{o.Line}:{o.Character}] len={o.Length} type={o.Type}");
+
+            OverridesChanged?.Invoke(uri!, overrides);
+        }
+        catch (Exception ex)
+        {
+            Log($"Error parsing classification overrides: {ex.Message}");
         }
     }
 }

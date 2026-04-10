@@ -20,7 +20,7 @@ export const MultiColumnListViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('MultiColumnListViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('MultiColumnListViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
@@ -42,7 +42,7 @@ export const MultiColumnListViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={MULTI_COLUMN_LIST_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={MULTI_COLUMN_LIST_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="MultiColumnListView" />
   </Box>

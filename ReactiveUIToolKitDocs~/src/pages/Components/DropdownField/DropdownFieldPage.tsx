@@ -18,13 +18,13 @@ export const DropdownFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('DropdownFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('DropdownFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={DROPDOWN_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={DROPDOWN_FIELD_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

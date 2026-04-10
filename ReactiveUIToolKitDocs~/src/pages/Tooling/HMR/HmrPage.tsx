@@ -86,60 +86,82 @@ export const HmrPage: FC = () => (
 
     <Section title="State Preservation">
       <Typography variant="body1" paragraph>
-        HMR preserves all hook state across swaps:
+        HMR preserves all hook state across swaps. The table below details behaviour per hook:
       </Typography>
-      <List sx={Styles.list}>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useState</code> — current values retained.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useRef</code> — ref objects preserved.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useEffect</code> — cleanup runs, effect re-runs with new closure.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useMemo</code> / <code>useCallback</code> — recomputed with new function body.</>} />
-        </ListItem>
-        <ListItem disablePadding>
-          <ListItemText primary={<><code>useContext</code> — context values preserved.</>} />
-        </ListItem>
-      </List>
-      <Typography variant="body1" paragraph>
+      <TableContainer component={Paper} variant="outlined" sx={Styles.table}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell><strong>Hook</strong></TableCell>
+              <TableCell><strong>HMR Behaviour</strong></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            <TableRow>
+              <TableCell><code>useState</code></TableCell>
+              <TableCell>Current values retained across swaps.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useRef</code></TableCell>
+              <TableCell>Ref objects preserved; <code>.Current</code> unchanged.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useEffect</code></TableCell>
+              <TableCell>Cleanup runs, then the effect re-runs with the new closure.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useMemo</code> / <code>useCallback</code></TableCell>
+              <TableCell>Recomputed with the new function body. <code>useCallback</code> returns <code>{'Func<T>'}</code>, not <code>Action</code>.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useContext</code></TableCell>
+              <TableCell>Stateless — reads the current provider value without occupying a hook slot. Always reflects the latest value.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useImperativeHandle</code></TableCell>
+              <TableCell>Handle recreated by calling the new factory. Parent refs receive the updated handle.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useStableFunc</code> / <code>useStableAction</code> / <code>useStableCallback</code></TableCell>
+              <TableCell>Wrapper identity preserved; inner delegate silently replaced with the new closure.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useAnimate</code> / <code>useTweenFloat</code></TableCell>
+              <TableCell>Animation state resets and tracks are re-evaluated from the new definition.</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell><code>useDeferredValue</code></TableCell>
+              <TableCell>Deferred value is recalculated from the new upstream value on the next render.</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <Typography variant="body1" paragraph sx={{ mt: 1 }}>
         If the number or order of hooks changes between edits, HMR detects the mismatch, resets
-        state for that component, and logs a warning.
+        state for that component, and logs a <code>[HMR] Hook mismatch</code> warning.
       </Typography>
     </Section>
 
     <Section title="Companion Files">
       <Typography variant="body1" paragraph>
-        Companion <code>.cs</code> files are <strong>optional</strong>. The source generator
-        produces a complete class from the <code>.uitkx</code> file alone. However, you can add
-        <code>.cs</code> files in the same directory to share styles, types, or utilities. When a{' '}
-        <code>.uitkx</code> file changes, HMR automatically includes all <code>.cs</code> files in
-        the same directory (excluding <code>.g.cs</code>) in the compilation:
+        Companion <code>.uitkx</code> files using <code>hook</code> and <code>module</code>{' '}
+        keywords are fully supported by HMR:
       </Typography>
       <List sx={Styles.list}>
         <ListItem disablePadding>
-          <ListItemText primary={<>Style helpers (e.g. <code>MyComponent.styles.cs</code>)</>} />
+          <ListItemText primary={<><strong>Hook files</strong> (e.g. <code>MyComponent.hooks.uitkx</code>) — the hook delegate is swapped in-place. All components that use the hook re-render with the new logic. Hook state is preserved.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Type / prop definitions (e.g. <code>MyComponent.types.cs</code>)</>} />
+          <ListItemText primary={<><strong>Style modules</strong> (e.g. <code>MyComponent.style.uitkx</code>) — module changes trigger a domain reload since they contain static data.</>} />
         </ListItem>
         <ListItem disablePadding>
-          <ListItemText primary={<>Shared utilities (e.g. <code>MyComponent.utils.cs</code>)</>} />
+          <ListItemText primary={<><strong>Utility modules</strong> (e.g. <code>MyComponent.utils.uitkx</code>) — same as style modules, domain reload.</>} />
         </ListItem>
       </List>
       <Typography variant="body1" paragraph>
-        Companion <code>.cs</code> file changes also trigger HMR — saving a{' '}
-        <code>.styles.cs</code> or <code>.utils.cs</code> file automatically detects the
-        associated <code>.uitkx</code> in the same directory, recompiles everything, and swaps the
-        result in-place.
-      </Typography>
-      <Typography variant="body1" paragraph>
-        <strong>Creating new companion files</strong> works too — simply create a <code>.cs</code>{' '}
-        file in the same directory as your <code>.uitkx</code>. The file watcher detects new files
-        and includes them in the next compilation.
+        Generic hooks (e.g. <code>{'hook useLocalStorage<T>(...)'}</code>) use a cached delegate
+        strategy — first call per type parameter after HMR pays ~1-2µs, subsequent calls are direct
+        invocations.
       </Typography>
     </Section>
 

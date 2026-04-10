@@ -20,13 +20,13 @@ export const TreeViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('TreeViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('TreeViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TREE_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={TREE_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="TreeView" />
   </Box>

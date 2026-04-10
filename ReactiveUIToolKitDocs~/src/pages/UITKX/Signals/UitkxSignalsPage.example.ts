@@ -20,5 +20,5 @@ component SignalCounterDemo {
 export const UITKX_SIGNALS_RUNTIME_EXAMPLE = `using ReactiveUITK.Signals;
 
 SignalsRuntime.EnsureInitialized();
-var counter = Signals.Get<int>("demo.counter", 0);
+var counter = SignalFactory.Get<int>("demo.counter", 0);
 counter.Dispatch(previous => previous + 1);`

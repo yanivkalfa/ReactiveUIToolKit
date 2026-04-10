@@ -6,9 +6,9 @@ namespace ReactiveUITK.Core
     /// Set by the Editor-side HMR controller; read by the Fiber reconciler
     /// to enable cross-assembly delegate matching during hot reload.
     /// </summary>
-    internal static class HmrState
+    public static class HmrState
     {
-        internal static bool IsActive;
+        public static bool IsActive;
     }
 }
 #endif

@@ -19,13 +19,13 @@ export const ScrollerPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('ScrollerProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('ScrollerProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={SCROLLER_BASIC} />
+      <CodeBlock language="jsx" code={SCROLLER_BASIC} />
     </Box>
     <UnityDocsSection componentName="Scroller" />
   </Box>

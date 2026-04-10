@@ -71,7 +71,7 @@ const PropertyCardView: FC<{ card: PropertyCard }> = ({ card }) => {
         <Typography variant="body2" sx={{ mb: 1 }}>
           Type: <code>{card.type}</code>
         </Typography>
-        <CodeBlock language="tsx" code={`// Typed\nnew Style { ${card.typedExample} }\n\n// Untyped\nnew Style { ${card.untypedExample} }`} />
+        <CodeBlock language="jsx" code={`// Typed\nnew Style { ${card.typedExample} }\n\n// Untyped\nnew Style { ${card.untypedExample} }`} />
         {card.helpers && card.helpers.length > 0 && (
           <Typography variant="body2" sx={{ mt: 1 }}>
             CssHelpers:{' '}
@@ -126,9 +126,10 @@ export const StylingPage: FC = () => {
       Setup
     </Typography>
     <Typography variant="body1" paragraph>
-      Add these directives at the top of your <code>.uitkx</code> file or companion <code>.cs</code>:
+      <code>StyleKeys</code> and <code>CssHelpers</code> are auto-imported in{' '}
+      <code>.uitkx</code> files (components, hooks, and modules). No additional imports needed.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_IMPORT} />
+    <CodeBlock language="jsx" code={EXAMPLE_IMPORT} />
 
     {/* ── Two approaches ────────────────────────────────────── */}
     <Typography variant="h5" component="h2" gutterBottom>
@@ -137,7 +138,7 @@ export const StylingPage: FC = () => {
     <Typography variant="body1" paragraph>
       Every property can be set in two ways. Both are valid and can be mixed in the same style object:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_BOTH_APIs} />
+    <CodeBlock language="jsx" code={EXAMPLE_BOTH_APIs} />
 
     {/* ── Jump links ────────────────────────────────────────── */}
     <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2, mt: 4 }}>
@@ -145,6 +146,7 @@ export const StylingPage: FC = () => {
       <Chip label="Type reference" component="a" href="#type-reference" clickable size="small" />
       <Chip label="CssHelpers reference" component="a" href="#csshelpers-reference" clickable size="small" />
       <Chip label="Enum shortcuts" component="a" href="#enum-shortcuts" clickable size="small" />
+      <Chip label="Compound helpers" component="a" href="#compound-helpers" clickable size="small" />
     </Box>
 
     {/* ── Property reference ────────────────────────────────── */}
@@ -186,12 +188,12 @@ export const StylingPage: FC = () => {
     <Typography variant="body1" paragraph>
       <code>Style</code> is a plain C# object — use ternaries, if/else, or any expression:
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_CONDITIONAL} />
+    <CodeBlock language="jsx" code={EXAMPLE_CONDITIONAL} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Inline styles
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_INLINE} />
+    <CodeBlock language="jsx" code={EXAMPLE_INLINE} />
 
     {/* ── Type reference ────────────────────────────────────── */}
     <Typography id="type-reference" variant="h4" component="h2" gutterBottom sx={{ mt: 4 }}>
@@ -265,9 +267,17 @@ export const StylingPage: FC = () => {
       CssHelpers reference
     </Typography>
     <Typography variant="body1" paragraph>
-      Import via <code>using static ReactiveUITK.Props.Typed.CssHelpers;</code> to use these
-      directly without qualification:
+      <code>CssHelpers</code> is <strong>auto-imported</strong> in <code>.uitkx</code> files —
+      all shortcuts are available without any <code>@using</code> directive.
     </Typography>
+
+    <Alert severity="warning" sx={{ mb: 3 }}>
+      <strong>Do not</strong> add <code>@using UnityEngine.UIElements</code> to{' '}
+      <code>.uitkx</code> files — it causes naming conflicts with{' '}
+      <code>using static StyleKeys</code> constants like{' '}
+      <code>FlexDirection</code> and <code>Position</code>. The SG already
+      imports the UIElements types it needs via targeted aliases.
+    </Alert>
 
     <Typography variant="h6" gutterBottom>Length helpers</Typography>
     <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
@@ -295,9 +305,9 @@ export const StylingPage: FC = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          <TableRow><TableCell><code>Auto</code></TableCell><TableCell><code>StyleKeyword.Auto</code></TableCell></TableRow>
-          <TableRow><TableCell><code>None</code></TableCell><TableCell><code>StyleKeyword.None</code></TableCell></TableRow>
-          <TableRow><TableCell><code>Initial</code></TableCell><TableCell><code>StyleKeyword.Initial</code></TableCell></TableRow>
+          <TableRow><TableCell><code>StyleAuto</code></TableCell><TableCell><code>StyleKeyword.Auto</code></TableCell></TableRow>
+          <TableRow><TableCell><code>StyleNone</code></TableCell><TableCell><code>StyleKeyword.None</code></TableCell></TableRow>
+          <TableRow><TableCell><code>StyleInitial</code></TableCell><TableCell><code>StyleKeyword.Initial</code></TableCell></TableRow>
         </TableBody>
       </Table>
     </TableContainer>
@@ -312,7 +322,7 @@ export const StylingPage: FC = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          <TableRow><TableCell><code>White</code>, <code>Black</code>, <code>Red</code>, <code>Green</code>, <code>Blue</code>, <code>Yellow</code>, <code>Cyan</code>, <code>Magenta</code>, <code>Grey</code>, <code>Transparent</code></TableCell><TableCell>Named color constants</TableCell></TableRow>
+          <TableRow><TableCell><code>ColorWhite</code>, <code>ColorBlack</code>, <code>ColorRed</code>, <code>ColorGreen</code>, <code>ColorBlue</code>, <code>ColorYellow</code>, <code>ColorCyan</code>, <code>ColorMagenta</code>, <code>ColorGrey</code>, <code>ColorTransparent</code></TableCell><TableCell>Named color constants</TableCell></TableRow>
           <TableRow><TableCell><code>Hex(&quot;#FF0000&quot;)</code></TableCell><TableCell>Color from hex string</TableCell></TableRow>
           <TableRow><TableCell><code>Rgba(255, 0, 0)</code></TableCell><TableCell>Color from 0–255 byte values</TableCell></TableRow>
           <TableRow><TableCell><code>Rgba(1f, 0f, 0f, 0.5f)</code></TableCell><TableCell>Color from 0–1 float values</TableCell></TableRow>
@@ -336,19 +346,56 @@ export const StylingPage: FC = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          <TableRow><TableCell><code>FlexDirection</code></TableCell><TableCell><code>Row</code>, <code>Column</code>, <code>RowReverse</code>, <code>ColumnReverse</code></TableCell></TableRow>
-          <TableRow><TableCell><code>Justify</code></TableCell><TableCell><code>JustifyStart</code>, <code>JustifyEnd</code>, <code>JustifyCenter</code>, <code>SpaceBetween</code>, <code>SpaceAround</code></TableCell></TableRow>
-          <TableRow><TableCell><code>Align</code></TableCell><TableCell><code>AlignStart</code>, <code>AlignEnd</code>, <code>AlignCenter</code>, <code>Stretch</code>, <code>AlignAuto</code></TableCell></TableRow>
-          <TableRow><TableCell><code>Wrap</code></TableCell><TableCell><code>WrapOn</code>, <code>NoWrap</code>, <code>WrapRev</code></TableCell></TableRow>
-          <TableRow><TableCell><code>Position</code></TableCell><TableCell><code>Relative</code>, <code>Absolute</code></TableCell></TableRow>
-          <TableRow><TableCell><code>DisplayStyle</code></TableCell><TableCell><code>Flex</code>, <code>DisplayNone</code></TableCell></TableRow>
-          <TableRow><TableCell><code>Visibility</code></TableCell><TableCell><code>Visible</code>, <code>Hidden</code></TableCell></TableRow>
+          <TableRow><TableCell><code>FlexDirection</code></TableCell><TableCell><code>FlexRow</code>, <code>FlexColumn</code>, <code>FlexRowReverse</code>, <code>FlexColumnReverse</code></TableCell></TableRow>
+          <TableRow><TableCell><code>Justify</code></TableCell><TableCell><code>JustifyStart</code>, <code>JustifyEnd</code>, <code>JustifyCenter</code>, <code>JustifySpaceBetween</code>, <code>JustifySpaceAround</code>, <code>JustifySpaceEvenly</code></TableCell></TableRow>
+          <TableRow><TableCell><code>Align</code></TableCell><TableCell><code>AlignStart</code>, <code>AlignEnd</code>, <code>AlignCenter</code>, <code>AlignStretch</code>, <code>AlignAuto</code></TableCell></TableRow>
+          <TableRow><TableCell><code>Wrap</code></TableCell><TableCell><code>WrapOn</code>, <code>WrapOff</code>, <code>WrapReverse</code></TableCell></TableRow>
+          <TableRow><TableCell><code>Position</code></TableCell><TableCell><code>PosRelative</code>, <code>PosAbsolute</code></TableCell></TableRow>
+          <TableRow><TableCell><code>DisplayStyle</code></TableCell><TableCell><code>DisplayFlex</code>, <code>DisplayNone</code></TableCell></TableRow>
+          <TableRow><TableCell><code>Visibility</code></TableCell><TableCell><code>VisVisible</code>, <code>VisHidden</code></TableCell></TableRow>
           <TableRow><TableCell><code>Overflow</code></TableCell><TableCell><code>OverflowVisible</code>, <code>OverflowHidden</code></TableCell></TableRow>
-          <TableRow><TableCell><code>WhiteSpace</code></TableCell><TableCell><code>Normal</code>, <code>Nowrap</code></TableCell></TableRow>
-          <TableRow><TableCell><code>TextOverflow</code></TableCell><TableCell><code>Clip</code>, <code>Ellipsis</code></TableCell></TableRow>
-          <TableRow><TableCell><code>TextAnchor</code></TableCell><TableCell><code>UpperLeft</code>, <code>UpperCenter</code>, <code>UpperRight</code>, <code>MiddleLeft</code>, <code>MiddleCenter</code>, <code>MiddleRight</code>, <code>LowerLeft</code>, <code>LowerCenter</code>, <code>LowerRight</code></TableCell></TableRow>
-          <TableRow><TableCell><code>FontStyle</code></TableCell><TableCell><code>FontNormal</code>, <code>Bold</code>, <code>Italic</code>, <code>BoldItalic</code></TableCell></TableRow>
-          <TableRow><TableCell><code>TextOverflowPosition</code></TableCell><TableCell><code>OverflowStart</code>, <code>OverflowMiddle</code>, <code>OverflowEnd</code></TableCell></TableRow>
+          <TableRow><TableCell><code>WhiteSpace</code></TableCell><TableCell><code>WsNormal</code>, <code>WsNowrap</code>, <code>WsPre</code>, <code>WsPreWrap</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TextOverflow</code></TableCell><TableCell><code>TextClip</code>, <code>TextEllipsis</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TextAnchor</code></TableCell><TableCell><code>TextUpperLeft</code>, <code>TextUpperCenter</code>, <code>TextUpperRight</code>, <code>TextMiddleLeft</code>, <code>TextMiddleCenter</code>, <code>TextMiddleRight</code>, <code>TextLowerLeft</code>, <code>TextLowerCenter</code>, <code>TextLowerRight</code></TableCell></TableRow>
+          <TableRow><TableCell><code>FontStyle</code></TableCell><TableCell><code>FontNormal</code>, <code>FontBold</code>, <code>FontItalic</code>, <code>FontBoldItalic</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TextOverflowPosition</code></TableCell><TableCell><code>TextOverflowStart</code>, <code>TextOverflowMiddle</code>, <code>TextOverflowEnd</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TextAutoSizeMode</code></TableCell><TableCell><code>AutoSizeNone</code>, <code>AutoSizeBestFit</code></TableCell></TableRow>
+          <TableRow><TableCell><code>PickingMode</code></TableCell><TableCell><code>PickPosition</code>, <code>PickIgnore</code></TableCell></TableRow>
+          <TableRow><TableCell><code>SelectionType</code></TableCell><TableCell><code>SelectNone</code>, <code>SelectSingle</code>, <code>SelectMultiple</code></TableCell></TableRow>
+          <TableRow><TableCell><code>ScrollerVisibility</code></TableCell><TableCell><code>ScrollerAuto</code>, <code>ScrollerVisible</code>, <code>ScrollerHidden</code></TableCell></TableRow>
+          <TableRow><TableCell><code>LanguageDirection</code></TableCell><TableCell><code>DirInherit</code>, <code>DirLTR</code>, <code>DirRTL</code></TableCell></TableRow>
+          <TableRow><TableCell><code>SliderDirection</code></TableCell><TableCell><code>SliderHorizontal</code>, <code>SliderVertical</code></TableCell></TableRow>
+          <TableRow><TableCell><code>ScrollViewMode</code></TableCell><TableCell><code>ScrollVertical</code>, <code>ScrollHorizontal</code>, <code>ScrollBoth</code></TableCell></TableRow>
+          <TableRow><TableCell><code>ScaleMode</code></TableCell><TableCell><code>ScaleStretch</code>, <code>ScaleFit</code>, <code>ScaleCrop</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TwoPaneSplitViewOrientation</code></TableCell><TableCell><code>OrientHorizontal</code>, <code>OrientVertical</code></TableCell></TableRow>
+          <TableRow><TableCell><code>ColumnSortingMode</code></TableCell><TableCell><code>SortNone</code>, <code>SortDefault</code>, <code>SortCustom</code></TableCell></TableRow>
+        </TableBody>
+      </Table>
+    </TableContainer>
+
+    <Typography id="compound-helpers" variant="h5" component="h2" gutterBottom sx={{ mt: 3 }}>
+      Compound struct helpers
+    </Typography>
+    <Typography variant="body1" paragraph>
+      CssHelpers provides factory methods and presets for compound struct types,
+      so you don&apos;t need verbose constructor calls:
+    </Typography>
+
+    <TableContainer component={Paper} variant="outlined" sx={{ mb: 2 }}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell><strong>Type</strong></TableCell>
+            <TableCell><strong>Helpers</strong></TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          <TableRow><TableCell><code>BackgroundRepeat</code></TableCell><TableCell><code>BgRepeat(x, y)</code>, <code>BgRepeatNone</code>, <code>BgRepeatBoth</code>, <code>BgRepeatX</code>, <code>BgRepeatY</code>, <code>BgRepeatSpace</code>, <code>BgRepeatRound</code></TableCell></TableRow>
+          <TableRow><TableCell><code>BackgroundPosition</code></TableCell><TableCell><code>BgPos(keyword)</code>, <code>BgPos(keyword, offset)</code>, <code>BgPosCenter</code>, <code>BgPosTop</code>, <code>BgPosBottom</code>, <code>BgPosLeft</code>, <code>BgPosRight</code></TableCell></TableRow>
+          <TableRow><TableCell><code>BackgroundSize</code></TableCell><TableCell><code>BgSize(x, y)</code>, <code>BgSizeCover</code>, <code>BgSizeContain</code></TableCell></TableRow>
+          <TableRow><TableCell><code>TransformOrigin</code></TableCell><TableCell><code>Origin(x, y)</code>, <code>OriginCenter</code></TableCell></TableRow>
+          <TableRow><TableCell><code>Translate</code></TableCell><TableCell><code>Xlate(x, y)</code></TableCell></TableRow>
+          <TableRow><TableCell><code>EasingFunction</code></TableCell><TableCell><code>Easing(mode)</code>, <code>EaseDefault</code>, <code>EaseLinear</code>, <code>EaseIn</code>, <code>EaseOut</code>, <code>EaseInOut</code>, + sine/cubic/circ/elastic/back/bounce variants</TableCell></TableRow>
         </TableBody>
       </Table>
     </TableContainer>
@@ -370,7 +417,7 @@ export const StylingPage: FC = () => {
       Add <code>@uss "path"</code> to the preamble (before the <code>component</code> keyword).
       Relative paths are resolved from the <code>.uitkx</code> file's location.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_USS_BASIC} />
+    <CodeBlock language="jsx" code={EXAMPLE_USS_BASIC} />
 
     <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
       Example .uss file
@@ -384,7 +431,7 @@ export const StylingPage: FC = () => {
       You can import multiple <code>@uss</code> files — they are applied in order,
       so later sheets can override earlier ones.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_USS_MULTIPLE} />
+    <CodeBlock language="jsx" code={EXAMPLE_USS_MULTIPLE} />
 
     <Typography variant="h6" component="h3" sx={{ mt: 3 }} gutterBottom>
       Combining USS + typed Style
@@ -394,12 +441,24 @@ export const StylingPage: FC = () => {
       is great for dynamic, state-driven values. Use both together —
       USS handles the baseline, <code>Style</code> handles the runtime overrides.
     </Typography>
-    <CodeBlock language="tsx" code={EXAMPLE_USS_COMBINED} />
+    <CodeBlock language="jsx" code={EXAMPLE_USS_COMBINED} />
 
     <Alert severity="info" sx={{ mt: 2 }}>
       <strong>HMR support:</strong> Saving a <code>.uss</code> file triggers
       hot-reload of all components that reference it via <code>@uss</code> —
       no domain reload needed.
+    </Alert>
+
+    <Alert severity="info" sx={{ mt: 2 }}>
+      <strong>Specificity:</strong> Inline <code>style={'{...}'}</code> always wins over USS
+      rules — matching standard CSS behavior. Use USS for static layout and theming, and
+      inline <code>Style</code> for dynamic, state-driven overrides.
+    </Alert>
+
+    <Alert severity="info" sx={{ mt: 2 }}>
+      <strong>Multiple classes:</strong> <code>className</code> accepts space-separated class names
+      (e.g. <code>className=&quot;card dark-theme&quot;</code>). Each name is added
+      via <code>AddToClassList</code>.
     </Alert>
 
     {/* ── Table of contents ─────────────────────────────────── */}
@@ -412,6 +471,7 @@ export const StylingPage: FC = () => {
         <li><Link href="#type-reference">Type reference</Link></li>
         <li><Link href="#csshelpers-reference">CssHelpers reference</Link></li>
         <li><Link href="#enum-shortcuts">Enum shortcuts</Link></li>
+        <li><Link href="#compound-helpers">Compound struct helpers</Link></li>
         <li><Link href="#uss-stylesheets">USS Stylesheets</Link></li>
       </Box>
     </Paper>

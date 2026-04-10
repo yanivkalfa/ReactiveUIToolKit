@@ -20,13 +20,13 @@ export const TabViewPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('TabViewProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('TabViewProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TAB_VIEW_BASIC} />
+      <CodeBlock language="jsx" code={TAB_VIEW_BASIC} />
     </Box>
     <UnityDocsSection componentName="TabView" />
   </Box>

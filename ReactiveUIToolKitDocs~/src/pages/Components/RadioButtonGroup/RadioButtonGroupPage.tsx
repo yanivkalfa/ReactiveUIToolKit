@@ -19,13 +19,13 @@ export const RadioButtonGroupPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('RadioButtonGroupProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('RadioButtonGroupProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={RADIO_BUTTON_GROUP_BASIC} />
+      <CodeBlock language="jsx" code={RADIO_BUTTON_GROUP_BASIC} />
     </Box>
     <UnityDocsSection componentName="RadioButtonGroup" />
   </Box>

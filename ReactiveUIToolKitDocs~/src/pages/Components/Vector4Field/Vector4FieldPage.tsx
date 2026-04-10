@@ -19,13 +19,13 @@ export const Vector4FieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('Vector4FieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('Vector4FieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={VECTOR4_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={VECTOR4_FIELD_BASIC} />
     </Box>
     <UnityDocsSection componentName="Vector4Field" />
   </Box>

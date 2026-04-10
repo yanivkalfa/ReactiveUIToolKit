@@ -60,7 +60,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the width of the element.',
     typedExample: 'Width = Px(200)',
     untypedExample: '(StyleKeys.Width, 200f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'height',
@@ -70,7 +70,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the height of the element.',
     typedExample: 'Height = Px(100)',
     untypedExample: '(StyleKeys.Height, 100f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'minWidth',
@@ -80,7 +80,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the minimum width. The element will not shrink below this.',
     typedExample: 'MinWidth = 120f',
     untypedExample: '(StyleKeys.MinWidth, 120f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'minHeight',
@@ -90,7 +90,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the minimum height. The element will not shrink below this.',
     typedExample: 'MinHeight = 80f',
     untypedExample: '(StyleKeys.MinHeight, 80f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'maxWidth',
@@ -100,7 +100,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the maximum width. The element will not grow beyond this.',
     typedExample: 'MaxWidth = Pct(100)',
     untypedExample: '(StyleKeys.MaxWidth, 500f)',
-    helpers: ['Px()', 'Pct()', 'None'],
+    helpers: ['Px()', 'Pct()', 'StyleNone'],
   },
   {
     key: 'maxHeight',
@@ -110,7 +110,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the maximum height. The element will not grow beyond this.',
     typedExample: 'MaxHeight = Pct(50)',
     untypedExample: '(StyleKeys.MaxHeight, 300f)',
-    helpers: ['Px()', 'Pct()', 'None'],
+    helpers: ['Px()', 'Pct()', 'StyleNone'],
   },
 
   // â”€â”€ Positioning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -122,7 +122,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Offset from the left edge when position is absolute.',
     typedExample: 'Left = 0f',
     untypedExample: '(StyleKeys.Left, 0f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'top',
@@ -132,7 +132,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Offset from the top edge when position is absolute.',
     typedExample: 'Top = 0f',
     untypedExample: '(StyleKeys.Top, 0f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'right',
@@ -142,7 +142,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Offset from the right edge when position is absolute.',
     typedExample: 'Right = 0f',
     untypedExample: '(StyleKeys.Right, 0f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'bottom',
@@ -152,7 +152,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Offset from the bottom edge when position is absolute.',
     typedExample: 'Bottom = 0f',
     untypedExample: '(StyleKeys.Bottom, 0f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
 
   // â”€â”€ Spacing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -164,7 +164,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Shorthand that sets all four margins at once.',
     typedExample: 'Margin = 8f',
     untypedExample: '(StyleKeys.Margin, 8f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
     shorthand: true,
   },
   {
@@ -175,7 +175,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the left margin.',
     typedExample: 'MarginLeft = 16f',
     untypedExample: '(StyleKeys.MarginLeft, 16f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'marginRight',
@@ -185,7 +185,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the right margin.',
     typedExample: 'MarginRight = 16f',
     untypedExample: '(StyleKeys.MarginRight, 16f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'marginTop',
@@ -195,7 +195,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the top margin.',
     typedExample: 'MarginTop = 8f',
     untypedExample: '(StyleKeys.MarginTop, 8f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'marginBottom',
@@ -205,7 +205,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the bottom margin.',
     typedExample: 'MarginBottom = 8f',
     untypedExample: '(StyleKeys.MarginBottom, 8f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'padding',
@@ -266,9 +266,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'FlexDirection',
     category: 'Flexbox',
     description: 'Sets the main axis direction of flex children.',
-    typedExample: 'FlexDirection = Column',
+    typedExample: 'FlexDirection = FlexColumn',
     untypedExample: '(StyleKeys.FlexDirection, "column")',
-    helpers: ['Row', 'Column', 'RowReverse', 'ColumnReverse'],
+    helpers: ['FlexRow', 'FlexColumn', 'FlexRowReverse', 'FlexColumnReverse'],
   },
   {
     key: 'flexWrap',
@@ -278,7 +278,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Controls whether flex children wrap to the next line.',
     typedExample: 'FlexWrap = WrapOn',
     untypedExample: '(StyleKeys.FlexWrap, "wrap")',
-    helpers: ['WrapOn', 'NoWrap', 'WrapRev'],
+    helpers: ['WrapOn', 'WrapOff', 'WrapReverse'],
   },
   {
     key: 'flexGrow',
@@ -306,7 +306,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'The initial main-axis size before growing or shrinking.',
     typedExample: 'FlexBasis = Pct(50)',
     untypedExample: '(StyleKeys.FlexBasis, 200f)',
-    helpers: ['Px()', 'Pct()', 'Auto'],
+    helpers: ['Px()', 'Pct()', 'StyleAuto'],
   },
   {
     key: 'justifyContent',
@@ -314,9 +314,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Justify',
     category: 'Flexbox',
     description: 'Aligns children along the main axis.',
-    typedExample: 'JustifyContent = SpaceBetween',
+    typedExample: 'JustifyContent = JustifySpaceBetween',
     untypedExample: '(StyleKeys.JustifyContent, "center")',
-    helpers: ['JustifyStart', 'JustifyEnd', 'JustifyCenter', 'SpaceBetween', 'SpaceAround'],
+    helpers: ['JustifyStart', 'JustifyEnd', 'JustifyCenter', 'JustifySpaceBetween', 'JustifySpaceAround', 'JustifySpaceEvenly'],
   },
   {
     key: 'alignItems',
@@ -326,7 +326,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Aligns children along the cross axis.',
     typedExample: 'AlignItems = AlignCenter',
     untypedExample: '(StyleKeys.AlignItems, "center")',
-    helpers: ['AlignStart', 'AlignEnd', 'AlignCenter', 'Stretch', 'AlignAuto'],
+    helpers: ['AlignStart', 'AlignEnd', 'AlignCenter', 'AlignStretch', 'AlignAuto'],
   },
   {
     key: 'alignSelf',
@@ -334,9 +334,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Align',
     category: 'Flexbox',
     description: 'Overrides the parent\u2019s alignItems for this element.',
-    typedExample: 'AlignSelf = Stretch',
+    typedExample: 'AlignSelf = AlignStretch',
     untypedExample: '(StyleKeys.AlignSelf, "stretch")',
-    helpers: ['AlignStart', 'AlignEnd', 'AlignCenter', 'Stretch', 'AlignAuto'],
+    helpers: ['AlignStart', 'AlignEnd', 'AlignCenter', 'AlignStretch', 'AlignAuto'],
   },
   {
     key: 'alignContent',
@@ -346,7 +346,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Aligns wrapped flex lines along the cross axis.',
     typedExample: 'AlignContent = AlignCenter',
     untypedExample: '(StyleKeys.AlignContent, "center")',
-    helpers: ['AlignStart', 'AlignEnd', 'AlignCenter', 'Stretch', 'AlignAuto'],
+    helpers: ['AlignStart', 'AlignEnd', 'AlignCenter', 'AlignStretch', 'AlignAuto'],
   },
 
   // â”€â”€ Border â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -402,9 +402,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Color',
     category: 'Border',
     description: 'Shorthand that sets all four border colors at once.',
-    typedExample: 'BorderColor = Red',
+    typedExample: 'BorderColor = ColorRed',
     untypedExample: '(StyleKeys.BorderColor, Color.red)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack', 'ColorRed'],
     shorthand: true,
   },
   {
@@ -415,7 +415,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the left border color.',
     typedExample: 'BorderLeftColor = Hex("#ccc")',
     untypedExample: '(StyleKeys.BorderLeftColor, Color.grey)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
   {
     key: 'borderRightColor',
@@ -425,7 +425,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the right border color.',
     typedExample: 'BorderRightColor = Hex("#ccc")',
     untypedExample: '(StyleKeys.BorderRightColor, Color.grey)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
   {
     key: 'borderTopColor',
@@ -433,9 +433,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Color',
     category: 'Border',
     description: 'Sets the top border color.',
-    typedExample: 'BorderTopColor = White',
+    typedExample: 'BorderTopColor = ColorWhite',
     untypedExample: '(StyleKeys.BorderTopColor, Color.white)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
   {
     key: 'borderBottomColor',
@@ -443,9 +443,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Color',
     category: 'Border',
     description: 'Sets the bottom border color.',
-    typedExample: 'BorderBottomColor = White',
+    typedExample: 'BorderBottomColor = ColorWhite',
     untypedExample: '(StyleKeys.BorderBottomColor, Color.white)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
   {
     key: 'borderRadius',
@@ -526,9 +526,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'TextAnchor',
     category: 'Text',
     description: 'Sets the horizontal and vertical text alignment.',
-    typedExample: 'TextAlign = MiddleCenter',
+    typedExample: 'TextAlign = TextMiddleCenter',
     untypedExample: '(StyleKeys.TextAlign, "center")',
-    helpers: ['UpperLeft', 'UpperCenter', 'UpperRight', 'MiddleLeft', 'MiddleCenter', 'MiddleRight', 'LowerLeft', 'LowerCenter', 'LowerRight'],
+    helpers: ['TextUpperLeft', 'TextUpperCenter', 'TextUpperRight', 'TextMiddleLeft', 'TextMiddleCenter', 'TextMiddleRight', 'TextLowerLeft', 'TextLowerCenter', 'TextLowerRight'],
   },
   {
     key: 'textOverflow',
@@ -536,9 +536,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'TextOverflow',
     category: 'Text',
     description: 'How overflowing text is handled (clip or show ellipsis).',
-    typedExample: 'TextOverflow = Ellipsis',
+    typedExample: 'TextOverflow = TextEllipsis',
     untypedExample: '(StyleKeys.TextOverflow, "ellipsis")',
-    helpers: ['Clip', 'Ellipsis'],
+    helpers: ['TextClip', 'TextEllipsis'],
   },
   {
     key: 'unityFontStyle',
@@ -546,9 +546,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'FontStyle',
     category: 'Text',
     description: 'Sets the font weight and style (bold, italic, etc.).',
-    typedExample: 'UnityFontStyle = Bold',
+    typedExample: 'UnityFontStyle = FontBold',
     untypedExample: '(StyleKeys.UnityFontStyle, "bold")',
-    helpers: ['Bold', 'Italic', 'BoldItalic', 'FontNormal'],
+    helpers: ['FontBold', 'FontItalic', 'FontBoldItalic', 'FontNormal'],
   },
   {
     key: 'unityTextOutlineColor',
@@ -556,9 +556,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Color',
     category: 'Text',
     description: 'Sets the text outline color.',
-    typedExample: 'UnityTextOutlineColor = Black',
+    typedExample: 'UnityTextOutlineColor = ColorBlack',
     untypedExample: '(StyleKeys.UnityTextOutlineColor, Color.black)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
   {
     key: 'unityTextOutlineWidth',
@@ -575,9 +575,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'TextOverflowPosition',
     category: 'Text',
     description: 'Where the ellipsis appears when text overflows.',
-    typedExample: 'UnityTextOverflowPosition = OverflowMiddle',
+    typedExample: 'UnityTextOverflowPosition = TextOverflowMiddle',
     untypedExample: '(StyleKeys.UnityTextOverflowPosition, "middle")',
-    helpers: ['OverflowStart', 'OverflowMiddle', 'OverflowEnd'],
+    helpers: ['TextOverflowStart', 'TextOverflowMiddle', 'TextOverflowEnd'],
   },
 
   // â”€â”€ Colors â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -587,9 +587,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Color',
     category: 'Colors',
     description: 'Sets the text color.',
-    typedExample: 'Color = White',
+    typedExample: 'Color = ColorWhite',
     untypedExample: '(StyleKeys.Color, Color.white)',
-    helpers: ['Hex()', 'Rgba()', 'White', 'Black', 'Red', 'Transparent'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack', 'ColorRed', 'ColorTransparent'],
   },
   {
     key: 'backgroundColor',
@@ -599,7 +599,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Sets the background color of the element.',
     typedExample: 'BackgroundColor = Hex("#1a1a2e")',
     untypedExample: '(StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.18f))',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
   {
     key: 'backgroundImageTint',
@@ -609,7 +609,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Tints the background image with a color.',
     typedExample: 'BackgroundImageTint = Rgba(255, 200, 200)',
     untypedExample: '(StyleKeys.BackgroundImageTint, Color.red)',
-    helpers: ['Hex()', 'Rgba()', 'Color presets'],
+    helpers: ['Hex()', 'Rgba()', 'ColorWhite', 'ColorBlack'],
   },
 
   // â”€â”€ Enum Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -619,9 +619,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Position',
     category: 'Enum Styles',
     description: 'Sets the positioning mode (relative or absolute).',
-    typedExample: 'Position = Absolute',
+    typedExample: 'Position = PosAbsolute',
     untypedExample: '(StyleKeys.Position, "absolute")',
-    helpers: ['Relative', 'Absolute'],
+    helpers: ['PosRelative', 'PosAbsolute'],
   },
   {
     key: 'display',
@@ -631,7 +631,7 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     description: 'Shows or hides the element (flex or none).',
     typedExample: 'Display = DisplayNone',
     untypedExample: '(StyleKeys.Display, "none")',
-    helpers: ['Flex', 'DisplayNone'],
+    helpers: ['DisplayFlex', 'DisplayNone'],
   },
   {
     key: 'visibility',
@@ -639,9 +639,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Visibility',
     category: 'Enum Styles',
     description: 'Controls visibility. Unlike display, the element still takes space when hidden.',
-    typedExample: 'Visibility = Hidden',
+    typedExample: 'Visibility = VisHidden',
     untypedExample: '(StyleKeys.Visibility, "hidden")',
-    helpers: ['Visible', 'Hidden'],
+    helpers: ['VisVisible', 'VisHidden'],
   },
   {
     key: 'overflow',
@@ -668,9 +668,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'WhiteSpace',
     category: 'Enum Styles',
     description: 'Controls whether text wraps to the next line.',
-    typedExample: 'WhiteSpace = Nowrap',
+    typedExample: 'WhiteSpace = WsNowrap',
     untypedExample: '(StyleKeys.WhiteSpace, "nowrap")',
-    helpers: ['Normal', 'Nowrap'],
+    helpers: ['WsNormal', 'WsNowrap', 'WsPre', 'WsPreWrap'],
   },
 
   // â”€â”€ Background â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -689,8 +689,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'BackgroundRepeat',
     category: 'Background',
     description: 'Controls how the background image tiles.',
-    typedExample: 'BackgroundRepeat = new BackgroundRepeat(\n    Repeat.NoRepeat, Repeat.NoRepeat)',
-    untypedExample: '(StyleKeys.BackgroundRepeat, new BackgroundRepeat(...))',
+    typedExample: 'BackgroundRepeat = BgRepeatNone',
+    untypedExample: '(StyleKeys.BackgroundRepeat, "no-repeat")',
+    helpers: ['BgRepeat(x, y)', 'BgRepeatNone', 'BgRepeatBoth', 'BgRepeatX', 'BgRepeatY', 'BgRepeatSpace', 'BgRepeatRound'],
   },
   {
     key: 'backgroundPositionX',
@@ -698,8 +699,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'BackgroundPosition',
     category: 'Background',
     description: 'Horizontal position of the background image.',
-    typedExample: 'BackgroundPositionX = new BackgroundPosition(\n    BackgroundPositionKeyword.Center)',
-    untypedExample: '(StyleKeys.BackgroundPositionX, new BackgroundPosition(...))',
+    typedExample: 'BackgroundPositionX = BgPosCenter',
+    untypedExample: '(StyleKeys.BackgroundPositionX, "center")',
+    helpers: ['BgPos(keyword)', 'BgPos(keyword, offset)', 'BgPosCenter', 'BgPosLeft', 'BgPosRight'],
   },
   {
     key: 'backgroundPositionY',
@@ -707,8 +709,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'BackgroundPosition',
     category: 'Background',
     description: 'Vertical position of the background image.',
-    typedExample: 'BackgroundPositionY = new BackgroundPosition(\n    BackgroundPositionKeyword.Center)',
-    untypedExample: '(StyleKeys.BackgroundPositionY, new BackgroundPosition(...))',
+    typedExample: 'BackgroundPositionY = BgPosCenter',
+    untypedExample: '(StyleKeys.BackgroundPositionY, "center")',
+    helpers: ['BgPos(keyword)', 'BgPos(keyword, offset)', 'BgPosCenter', 'BgPosTop', 'BgPosBottom'],
   },
   {
     key: 'backgroundSize',
@@ -716,8 +719,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'BackgroundSize',
     category: 'Background',
     description: 'Controls the size of the background image.',
-    typedExample: 'BackgroundSize = new BackgroundSize(\n    BackgroundSizeType.Cover)',
-    untypedExample: '(StyleKeys.BackgroundSize, new BackgroundSize(...))',
+    typedExample: 'BackgroundSize = BgSizeCover',
+    untypedExample: '(StyleKeys.BackgroundSize, "cover")',
+    helpers: ['BgSize(x, y)', 'BgSizeCover', 'BgSizeContain'],
   },
 
   // â”€â”€ Transforms â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -745,8 +749,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'Translate',
     category: 'Transforms',
     description: 'Moves the element by the given X/Y offset.',
-    typedExample: 'Translate = new Translate(Px(10), Px(-5), 0)',
+    typedExample: 'Translate = Xlate(Px(10), Px(-5))',
     untypedExample: '(StyleKeys.Translate, new Translate(...))',
+    helpers: ['Xlate(x, y)'],
   },
   {
     key: 'transformOrigin',
@@ -754,8 +759,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'TransformOrigin',
     category: 'Transforms',
     description: 'Sets the pivot point for rotate, scale, and translate.',
-    typedExample: 'TransformOrigin = new TransformOrigin(\n    Length.Percent(50), Length.Percent(50), 0)',
+    typedExample: 'TransformOrigin = OriginCenter',
     untypedExample: '(StyleKeys.TransformOrigin, new TransformOrigin(...))',
+    helpers: ['Origin(x, y)', 'OriginCenter'],
   },
 
   // â”€â”€ Assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -787,9 +793,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     category: 'Filter & Effects',
     sinceUnity: '6000.3',
     description: 'Applies graphical filter effects (blur, grayscale, etc.). Multiple filters can be chained.',
-    typedExample: 'Filter = new StyleList<FilterFunction>(\n    new List<FilterFunction> { Blur(4), Grayscale(0.5f) })',
+    typedExample: 'Filter = new StyleList<FilterFunction>(\\n    new List<FilterFunction> { FilterBlur(4), FilterGrayscale(0.5f) })',
     untypedExample: '(StyleKeys.Filter, new StyleList<FilterFunction>(...))',
-    helpers: ['Blur()', 'Grayscale()', 'Contrast()', 'HueRotate()', 'Invert()', 'Opacity()', 'Sepia()', 'Tint()'],
+    helpers: ['FilterBlur()', 'FilterGrayscale()', 'FilterContrast()', 'FilterHueRotate()', 'FilterInvert()', 'FilterOpacity()', 'FilterSepia()', 'FilterTint()'],
   },
   {
     key: 'unityMaterial',
@@ -836,8 +842,9 @@ export const STYLE_PROPERTY_CATALOG: PropertyCard[] = [
     type: 'StyleList<EasingFunction>',
     category: 'Transitions',
     description: 'The easing curve for each transition (e.g. ease-in, ease-out, linear).',
-    typedExample: 'TransitionTimingFunction = new List<EasingFunction>\n    { new(EasingMode.EaseInOut) }',
-    untypedExample: '(StyleKeys.TransitionTimingFunction, new List<EasingFunction> { new(EasingMode.EaseInOut) })',
+    typedExample: 'TransitionTimingFunction = new List<EasingFunction>\n    { EaseInOut }',
+    untypedExample: '(StyleKeys.TransitionTimingFunction, "ease-in-out")',
+    helpers: ['Easing(mode)', 'EaseDefault', 'EaseLinear', 'EaseIn', 'EaseOut', 'EaseInOut', '+ sine/cubic/circ/elastic/back/bounce'],
   },
 ]
 

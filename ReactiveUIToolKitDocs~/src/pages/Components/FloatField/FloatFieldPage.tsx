@@ -19,13 +19,13 @@ export const FloatFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('FloatFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('FloatFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={FLOAT_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={FLOAT_FIELD_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

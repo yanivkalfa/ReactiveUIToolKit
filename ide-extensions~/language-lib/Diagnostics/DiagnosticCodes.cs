@@ -4,6 +4,8 @@ namespace ReactiveUITK.Language.Diagnostics
     /// Diagnostic code constants used by the UITKX language library.
     ///
     /// ID ranges:
+    ///   UITKX0013–0016   T2 — Rules of Hooks (shared codes with SourceGenerator);
+    ///                         language-lib DiagnosticsAnalyzer
     ///   UITKX0101–0112   T2 — Structural (directive + schema checks); language-lib
     ///   UITKX0120         T2 — Asset path validation; language-lib
     ///   UITKX0200–0200   T2v — Version compatibility; lsp-server
@@ -13,6 +15,33 @@ namespace ReactiveUITK.Language.Diagnostics
     /// </summary>
     public static class DiagnosticCodes
     {
+        // ── T2 — Rules of Hooks (shared IDs with SourceGenerator) ────────────
+
+        /// <summary>
+        /// Hook called inside an <c>@if</c> / <c>@else</c> branch.
+        /// Hooks must be called unconditionally at the top level of the component.
+        /// </summary>
+        public const string HookInConditional = "UITKX0013";
+
+        /// <summary>
+        /// Hook called inside a <c>@foreach</c>, <c>@for</c>, or <c>@while</c> loop.
+        /// Hooks must be called unconditionally at the top level of the component.
+        /// </summary>
+        public const string HookInLoop = "UITKX0014";
+
+        /// <summary>
+        /// Hook called inside a <c>@switch</c> case.
+        /// Hooks must be called unconditionally at the top level of the component.
+        /// </summary>
+        public const string HookInSwitch = "UITKX0015";
+
+        /// <summary>
+        /// Hook called inside an event-handler attribute expression
+        /// (e.g. <c>onClick={() =&gt; UseState(0)}</c>).
+        /// Hooks must be called from the component body, not from callbacks.
+        /// </summary>
+        public const string HookInEventHandler = "UITKX0016";
+
         // ── T2 — Structural diagnostics (this analyzer) ──────────────────────
 
         /// <summary>File contains no <c>@namespace</c> directive.</summary>

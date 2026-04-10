@@ -157,6 +157,15 @@ namespace UitkxLanguageServer.Roslyn
             // Tier 4: Fallback BCL from well-known types in this process
             AddFallbackBcl(refs);
 
+            // Tier 5: netstandard.dll — type-forwarder shim required by DLLs
+            // targeting netstandard (all Unity ScriptAssemblies and Unity engine
+            // modules).  Not present in TRUSTED_PLATFORM_ASSEMBLIES on .NET 8+,
+            // but lives alongside the runtime in the shared framework directory.
+            // Without it, Roslyn can't resolve the assembly-reference chain from
+            // netstandard-targeting DLLs → real BCL types, causing delegate and
+            // event types to appear as error types in semantic analysis.
+            AddNetstandardShim(refs);
+
             if (errors.Count > 0)
                 ServerLog.Log(
                     $"[ReferenceAssemblyLocator] {errors.Count} error(s) during reference scan:\n"
@@ -266,6 +275,43 @@ namespace UitkxLanguageServer.Roslyn
                 {
                     // Best-effort fallback — silent on failure
                 }
+            }
+        }
+
+        /// <summary>
+        /// Ensures <c>netstandard.dll</c> is present in the metadata references.
+        /// Unity assemblies (ScriptAssemblies and engine modules) target
+        /// <c>netstandard 2.1</c>. Without the type-forwarder shim, Roslyn
+        /// can't complete the assembly-reference chain from those DLLs to the
+        /// real BCL types on .NET 8+, which causes transitive type-resolution
+        /// failures (e.g. <c>PointerEventHandler</c> parameter type
+        /// <c>ReactivePointerEvent</c> whose base <c>ReactiveEvent</c> has an
+        /// <c>EventBase</c> field from UIElements).
+        /// </summary>
+        private static void AddNetstandardShim(Dictionary<string, MetadataReference> target)
+        {
+            const string key = "netstandard.dll";
+            if (target.ContainsKey(key))
+                return;
+
+            // netstandard.dll lives in the same directory as System.Private.CoreLib.dll
+            try
+            {
+                string? coreLibPath = typeof(object).Assembly.Location;
+                if (string.IsNullOrEmpty(coreLibPath))
+                    return;
+
+                string runtimeDir = Path.GetDirectoryName(coreLibPath)!;
+                string netstandardPath = Path.Combine(runtimeDir, key);
+                if (File.Exists(netstandardPath))
+                {
+                    target[key] = MetadataReference.CreateFromFile(netstandardPath);
+                    ServerLog.Log($"[ReferenceAssemblyLocator] Added {key} from {runtimeDir}");
+                }
+            }
+            catch
+            {
+                // Best-effort — if we can't find it, stubs/polyfill will fill the gaps.
             }
         }
 

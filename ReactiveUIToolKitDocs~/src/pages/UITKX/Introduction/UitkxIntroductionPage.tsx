@@ -27,7 +27,7 @@ export const UitkxIntroductionPage: FC = () => (
       in C# on top of UI Toolkit.
     </Typography>
 
-    <CodeBlock language="tsx" code={QUICK_SAMPLE} />
+    <CodeBlock language="jsx" code={QUICK_SAMPLE} />
 
     <Typography variant="h5" component="h2" gutterBottom>
       Highlights

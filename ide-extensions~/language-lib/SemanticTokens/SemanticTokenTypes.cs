@@ -32,7 +32,7 @@ namespace ReactiveUITK.Language.SemanticTokens
         /// <summary>Standard LSP function type — used for hook setter variables.</summary>
         public const string Function = "function";
 
-        /// <summary>Standard LSP comment type — used for {/* */} JSX comments.</summary>
+        /// <summary>Standard LSP comment type — used for // and /* */ comments.</summary>
         public const string Comment = "comment";
 
         /// <summary>Standard LSP type — PascalCase class/type names inside @code.</summary>

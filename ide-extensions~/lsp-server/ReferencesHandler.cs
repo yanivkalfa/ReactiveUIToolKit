@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -100,9 +101,27 @@ public sealed class ReferencesHandler : IReferencesHandler
                         ServerLog.Log(
                             $"[References] C# symbol: '{symbol.Name}' ({symbol.Kind})");
 
+                        var peerVDocs = _roslynHost.GetPeerVirtualDocuments(localPath);
                         var locations = CollectRoslynReferences(
                             roslynDoc, symbol, localPath, text, vdoc,
-                            includeDeclaration, ct);
+                            includeDeclaration, ct, peerVDocs);
+
+                        // For methods that match a peer hook, also collect
+                        // text-based hook references across peer .uitkx files.
+                        if (symbol is IMethodSymbol && peerVDocs != null && peerVDocs.Count > 0)
+                        {
+                            CollectHookReferences(
+                                symbol.Name, localPath, includeDeclaration, locations);
+                        }
+
+                        // For fields/properties (module styles), also collect
+                        // text-based references across peer .uitkx files.
+                        if ((symbol is IFieldSymbol || symbol is IPropertySymbol)
+                            && peerVDocs != null && peerVDocs.Count > 0)
+                        {
+                            CollectPeerSymbolReferences(
+                                symbol.Name, localPath, includeDeclaration, locations);
+                        }
 
                         ServerLog.Log($"[References] C# path: {locations.Count} location(s)");
                         return new LocationContainer(locations);
@@ -133,6 +152,38 @@ public sealed class ReferencesHandler : IReferencesHandler
                 var locations = CollectComponentReferences(word, includeDeclaration);
                 ServerLog.Log($"[References] Component path: {locations.Count} location(s)");
                 return new LocationContainer(locations);
+            }
+
+            // ── Hook-name path: cursor on a hook declaration ─────────────
+            if (!parseResult.Directives.HookDeclarations.IsDefaultOrEmpty)
+            {
+                foreach (var hook in parseResult.Directives.HookDeclarations)
+                {
+                    if (word == hook.Name)
+                    {
+                        ServerLog.Log($"[References] Hook: '{word}'");
+                        var locations = new List<LspLocation>();
+                        CollectHookReferences(word, localPath, includeDeclaration, locations);
+                        ServerLog.Log($"[References] Hook path: {locations.Count} location(s)");
+                        return new LocationContainer(locations);
+                    }
+                }
+            }
+
+            // ── Module-name path: cursor on a module declaration name ────
+            if (!parseResult.Directives.ModuleDeclarations.IsDefaultOrEmpty)
+            {
+                foreach (var mod in parseResult.Directives.ModuleDeclarations)
+                {
+                    if (word == mod.Name)
+                    {
+                        ServerLog.Log($"[References] Module: '{word}'");
+                        var locations = new List<LspLocation>();
+                        CollectModuleReferences(word, localPath, includeDeclaration, locations);
+                        ServerLog.Log($"[References] Module path: {locations.Count} location(s)");
+                        return new LocationContainer(locations);
+                    }
+                }
             }
         }
 
@@ -188,7 +239,8 @@ public sealed class ReferencesHandler : IReferencesHandler
         string uitkxText,
         VirtualDocument vdoc,
         bool includeDeclaration,
-        CancellationToken ct)
+        CancellationToken ct,
+        Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)>? peerVDocs = null)
     {
         var locations = new List<LspLocation>();
 
@@ -208,7 +260,7 @@ public sealed class ReferencesHandler : IReferencesHandler
                     foreach (var declLoc in refSymbol.Definition.Locations)
                     {
                         var loc = MapRoslynLocation(
-                            declLoc, roslynDoc, uitkxFilePath, uitkxText, vdoc);
+                            declLoc, roslynDoc, uitkxFilePath, uitkxText, vdoc, peerVDocs);
                         if (loc != null)
                             locations.Add(loc);
                     }
@@ -218,7 +270,7 @@ public sealed class ReferencesHandler : IReferencesHandler
                 foreach (var refLoc in refSymbol.Locations)
                 {
                     var loc = MapRoslynLocation(
-                        refLoc.Location, roslynDoc, uitkxFilePath, uitkxText, vdoc);
+                        refLoc.Location, roslynDoc, uitkxFilePath, uitkxText, vdoc, peerVDocs);
                     if (loc != null)
                         locations.Add(loc);
                 }
@@ -242,7 +294,8 @@ public sealed class ReferencesHandler : IReferencesHandler
         Document roslynDoc,
         string uitkxFilePath,
         string uitkxText,
-        VirtualDocument vdoc)
+        VirtualDocument vdoc,
+        Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)>? peerVDocs = null)
     {
         if (!roslynLoc.IsInSource)
             return null;
@@ -287,6 +340,44 @@ public sealed class ReferencesHandler : IReferencesHandler
             }
 
             return null;
+        }
+
+        // ── Check if location is in a peer virtual document ──────────────
+        if (peerVDocs != null)
+        {
+            foreach (var doc in roslynDoc.Project.Documents)
+            {
+                var docTree = doc.GetSyntaxTreeAsync().GetAwaiter().GetResult();
+                if (docTree != tree)
+                    continue;
+
+                if (peerVDocs.TryGetValue(doc.Id, out var peerEntry))
+                {
+                    var (peerPath, peerVDoc) = peerEntry;
+                    var peerStartResult = peerVDoc.Map.ToUitkxOffset(span.Start);
+                    if (peerStartResult.HasValue)
+                    {
+                        string peerSource;
+                        try { peerSource = File.Exists(peerPath) ? File.ReadAllText(peerPath) : ""; }
+                        catch { break; }
+
+                        var peerEndResult = peerVDoc.Map.ToUitkxOffset(span.End);
+                        int endOffset = peerEndResult.HasValue
+                            ? peerEndResult.Value.UitkxOffset
+                            : peerStartResult.Value.UitkxOffset + span.Length;
+
+                        return new LspLocation
+                        {
+                            Uri = DocumentUri.FromFileSystemPath(peerPath),
+                            Range = LspHelpers.OffsetRangeToLspRange(
+                                peerSource,
+                                peerStartResult.Value.UitkxOffset,
+                                endOffset),
+                        };
+                    }
+                    break;
+                }
+            }
         }
 
         // Location is in a companion .cs document
@@ -389,5 +480,210 @@ public sealed class ReferencesHandler : IReferencesHandler
         }
 
         return locations;
+    }
+
+    // ── Hook reference collection ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Collects hook declaration and call-site references across .uitkx files
+    /// in the same directory. Deduplicates against locations already collected.
+    /// </summary>
+    private void CollectHookReferences(
+        string hookName,
+        string originFilePath,
+        bool includeDeclaration,
+        List<LspLocation> locations)
+    {
+        var dir = Path.GetDirectoryName(originFilePath);
+        if (dir == null) return;
+
+        IEnumerable<string> files;
+        try { files = Directory.EnumerateFiles(dir, "*.uitkx"); }
+        catch { return; }
+
+        foreach (var uitkxFile in files)
+        {
+            string fileText;
+            var fileUri = DocumentUri.FromFileSystemPath(uitkxFile);
+            if (!_store.TryGet(fileUri, out fileText!))
+            {
+                try { fileText = File.ReadAllText(uitkxFile); }
+                catch { continue; }
+            }
+
+            // Hook declaration: `hook hookName(`
+            if (includeDeclaration)
+            {
+                var hookDeclPattern = new Regex(
+                    $@"(?<=\bhook\s+){Regex.Escape(hookName)}\b",
+                    RegexOptions.CultureInvariant);
+                foreach (Match m in hookDeclPattern.Matches(fileText))
+                {
+                    AddLocationDedup(locations, fileUri, fileText, m.Index, m.Length);
+                }
+            }
+
+            // Call sites: `hookName(` — whole-word followed by `(`
+            var callPattern = new Regex(
+                $@"\b{Regex.Escape(hookName)}(?=\s*\()",
+                RegexOptions.CultureInvariant);
+            foreach (Match m in callPattern.Matches(fileText))
+            {
+                // Skip hook declaration lines (already handled above)
+                int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+                var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
+                if (linePrefix.StartsWith("hook ", StringComparison.Ordinal))
+                    continue;
+
+                AddLocationDedup(locations, fileUri, fileText, m.Index, m.Length);
+            }
+        }
+    }
+
+    // ── Peer symbol reference collection (module fields/styles) ───────────────
+
+    /// <summary>
+    /// Collects bare identifier references for module fields/properties
+    /// across peer .uitkx files (accessed via <c>using static</c>).
+    /// </summary>
+    private void CollectPeerSymbolReferences(
+        string symbolName,
+        string definingFilePath,
+        bool includeDeclaration,
+        List<LspLocation> locations)
+    {
+        var dir = Path.GetDirectoryName(definingFilePath);
+        if (dir == null) return;
+
+        IEnumerable<string> files;
+        try { files = Directory.EnumerateFiles(dir, "*.uitkx"); }
+        catch { return; }
+
+        foreach (var uitkxFile in files)
+        {
+            // Skip the defining file — Roslyn already found references within it
+            if (string.Equals(
+                    Path.GetFullPath(uitkxFile),
+                    Path.GetFullPath(definingFilePath),
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string fileText;
+            var fileUri = DocumentUri.FromFileSystemPath(uitkxFile);
+            if (!_store.TryGet(fileUri, out fileText!))
+            {
+                try { fileText = File.ReadAllText(uitkxFile); }
+                catch { continue; }
+            }
+
+            var pattern = new Regex(
+                $@"\b{Regex.Escape(symbolName)}\b",
+                RegexOptions.CultureInvariant);
+
+            foreach (Match m in pattern.Matches(fileText))
+            {
+                // Skip directive lines and comments
+                int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+                var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
+                if (linePrefix.StartsWith("@", StringComparison.Ordinal))
+                    continue;
+                if (linePrefix.StartsWith("//", StringComparison.Ordinal))
+                    continue;
+
+                AddLocationDedup(locations, fileUri, fileText, m.Index, m.Length);
+            }
+        }
+    }
+
+    // ── Module reference collection ───────────────────────────────────────────
+
+    /// <summary>
+    /// Collects module declaration and usage references across .uitkx files
+    /// in the same directory.  Finds <c>module Name { }</c> declarations and
+    /// bare identifier usages of the module name.
+    /// </summary>
+    private void CollectModuleReferences(
+        string moduleName,
+        string originFilePath,
+        bool includeDeclaration,
+        List<LspLocation> locations)
+    {
+        var dir = Path.GetDirectoryName(originFilePath);
+        if (dir == null) return;
+
+        IEnumerable<string> files;
+        try { files = Directory.EnumerateFiles(dir, "*.uitkx"); }
+        catch { return; }
+
+        foreach (var uitkxFile in files)
+        {
+            string fileText;
+            var fileUri = DocumentUri.FromFileSystemPath(uitkxFile);
+            if (!_store.TryGet(fileUri, out fileText!))
+            {
+                try { fileText = File.ReadAllText(uitkxFile); }
+                catch { continue; }
+            }
+
+            // Module declaration: `module Name {`
+            if (includeDeclaration)
+            {
+                var declPattern = new Regex(
+                    $@"(?<=\bmodule\s+){Regex.Escape(moduleName)}\b",
+                    RegexOptions.CultureInvariant);
+                foreach (Match m in declPattern.Matches(fileText))
+                {
+                    AddLocationDedup(locations, fileUri, fileText, m.Index, m.Length);
+                }
+            }
+
+            // Usages of the module name as an identifier (e.g. `ModuleName.field`)
+            var usagePattern = new Regex(
+                $@"\b{Regex.Escape(moduleName)}\b",
+                RegexOptions.CultureInvariant);
+            foreach (Match m in usagePattern.Matches(fileText))
+            {
+                // Skip the declaration keyword line itself
+                int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+                var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
+                if (linePrefix.StartsWith("module ", StringComparison.Ordinal))
+                    continue;
+                // Skip directives and comments
+                if (linePrefix.StartsWith("@", StringComparison.Ordinal))
+                    continue;
+                if (linePrefix.StartsWith("//", StringComparison.Ordinal))
+                    continue;
+
+                AddLocationDedup(locations, fileUri, fileText, m.Index, m.Length);
+            }
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Adds a location only if no existing location covers the same file and range.
+    /// Prevents duplicates when Roslyn SourceMap and text-based scan both find
+    /// the same reference.
+    /// </summary>
+    private static void AddLocationDedup(
+        List<LspLocation> locations,
+        DocumentUri uri,
+        string text,
+        int offset,
+        int length)
+    {
+        var range = LspHelpers.OffsetRangeToLspRange(text, offset, offset + length);
+        var uriStr = uri.ToString();
+        foreach (var existing in locations)
+        {
+            if (existing.Uri.ToString() == uriStr
+                && existing.Range.Start.Line == range.Start.Line
+                && existing.Range.Start.Character == range.Start.Character
+                && existing.Range.End.Line == range.End.Line
+                && existing.Range.End.Character == range.End.Character)
+                return;
+        }
+        locations.Add(new LspLocation { Uri = uri, Range = range });
     }
 }

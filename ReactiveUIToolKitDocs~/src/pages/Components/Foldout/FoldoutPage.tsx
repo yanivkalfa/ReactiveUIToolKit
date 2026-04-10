@@ -21,7 +21,7 @@ export const FoldoutPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('FoldoutProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('FoldoutProps')} />
     </Box>
 
     <Box sx={Styles.section}>
@@ -33,7 +33,7 @@ export const FoldoutPage: FC = () => (
         <code>OnChange</code> handler. The example below also shows children rendered inside the
         foldout when it is expanded.
       </Typography>
-      <CodeBlock language="tsx" code={FOLDOUT_BASIC} />
+      <CodeBlock language="jsx" code={FOLDOUT_BASIC} />
     </Box>
 
     <Box sx={Styles.section}>

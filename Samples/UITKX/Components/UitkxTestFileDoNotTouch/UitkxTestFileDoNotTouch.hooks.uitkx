@@ -1,0 +1,39 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine.UIElements
+
+hook useTestCounter() -> (int count, Action increment, Action decrement) {
+  var (count, setCount) = useState(0);
+  Action increment = () => setCount(c => c + 1);
+  Action decrement = () => setCount(c => c - 1);
+  return (count, increment, decrement);
+}
+
+hook useTestFormState(
+  string initialFirstName,
+  string initialLastName,
+  string initialEmail,
+  int initialAge,
+  bool initialSubscribed,
+  string initialCountry
+) -> (
+  string firstName,
+  string lastName,
+  string email,
+  int age,
+  bool subscribed,
+  string country,
+  Hooks.StateSetter<string> setFirstName,
+  Hooks.StateSetter<string> setLastName,
+  Hooks.StateSetter<string> setEmail,
+  Hooks.StateSetter<int> setAge,
+  Hooks.StateSetter<bool> setSubscribed,
+  Hooks.StateSetter<string> setCountry
+) {
+  var (firstName, setFirstName) = useState(initialFirstName);
+  var (lastName, setLastName) = useState(initialLastName);
+  var (email, setEmail) = useState(initialEmail);
+  var (age, setAge) = useState(initialAge);
+  var (subscribed, setSubscribed) = useState(initialSubscribed);
+  var (country, setCountry) = useState(initialCountry);
+  return (firstName, lastName, email, age, subscribed, country, setFirstName, setLastName, setEmail, setAge, setSubscribed, setCountry);
+}

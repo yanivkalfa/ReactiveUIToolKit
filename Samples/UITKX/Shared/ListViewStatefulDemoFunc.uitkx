@@ -5,14 +5,12 @@
 @using ReactiveUITK.Core
 @using ReactiveUITK.Props.Typed
 @using UnityEngine
-@using UnityEngine.UIElements
-@using static ReactiveUITK.Props.Typed.StyleKeys
 
 component ListViewStatefulDemoFunc(
-  IReadOnlyList<ListViewRowState>? items = null, 
-  Action? addItem = null, 
-  Action? setTopItem = null, 
-  Action? deleteLast = null, 
+  IReadOnlyList<ListViewRowState>? items = null,
+  Action? addItem = null,
+  Action? setTopItem = null,
+  Action? deleteLast = null,
   Action<int>? onCountChanged = null
 ) {
   var safeItems = items ?? Array.Empty<ListViewRowState>();
@@ -68,7 +66,7 @@ component ListViewStatefulDemoFunc(
       <ListView
         items={listItems}
         fixedItemHeight={20f}
-        selection={SelectionType.None}
+        selection={SelectNone}
         row={rowRenderer}
         style={listStyle}
       />

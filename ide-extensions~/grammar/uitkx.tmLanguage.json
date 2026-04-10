@@ -10,7 +10,16 @@
       "include": "#function-style-declaration"
     },
     {
-      "include": "#jsx-comment"
+      "include": "#hook-declaration"
+    },
+    {
+      "include": "#module-declaration"
+    },
+    {
+      "include": "#cs-line-comment"
+    },
+    {
+      "include": "#cs-block-comment"
     },
     {
       "include": "#comment"
@@ -37,12 +46,6 @@
       "include": "#control-flow-keyword"
     },
     {
-      "include": "#code-block"
-    },
-    {
-      "include": "#code-block-newline-brace"
-    },
-    {
       "include": "#inline-expression"
     },
     {
@@ -63,21 +66,6 @@
     }
   ],
   "repository": {
-    "jsx-comment": {
-      "name": "comment.block.uitkx",
-      "begin": "\\{/\\*",
-      "end": "\\*/\\}",
-      "beginCaptures": {
-        "0": {
-          "name": "punctuation.definition.comment.uitkx"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.definition.comment.uitkx"
-        }
-      }
-    },
     "comment": {
       "name": "comment.block.uitkx",
       "begin": "<!--",
@@ -146,6 +134,56 @@
         }
       }
     },
+    "hook-declaration": {
+      "comment": "Handles hook declarations: hook useName<T>(params) -> ReturnType {",
+      "name": "meta.hook.uitkx",
+      "match": "^(\\s*)(hook)\\s+([A-Za-z_][A-Za-z0-9_]*)(<[^>]+>)?\\s*(\\([^)]*\\))\\s*(?:(->)\\s*([^{]+?))?\\s*(\\{)?\\s*$",
+      "captures": {
+        "2": {
+          "name": "keyword.other.hook.uitkx"
+        },
+        "3": {
+          "name": "entity.name.function.uitkx"
+        },
+        "4": {
+          "patterns": [
+            { "include": "#expression-content" }
+          ]
+        },
+        "5": {
+          "patterns": [
+            { "include": "#expression-content" }
+          ]
+        },
+        "6": {
+          "name": "keyword.operator.arrow.uitkx"
+        },
+        "7": {
+          "patterns": [
+            { "include": "#expression-content" }
+          ]
+        },
+        "8": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      }
+    },
+    "module-declaration": {
+      "comment": "Handles module declarations: module Name {",
+      "name": "meta.module.uitkx",
+      "match": "^(\\s*)(module)\\s+([A-Za-z_][A-Za-z0-9_]*)(\\s*\\{)?\\s*$",
+      "captures": {
+        "2": {
+          "name": "keyword.other.module.uitkx"
+        },
+        "3": {
+          "name": "entity.name.type.uitkx"
+        },
+        "4": {
+          "name": "punctuation.section.block.begin.uitkx"
+        }
+      }
+    },
     "control-flow-with-expression": {
       "comment": "Handles control-flow directives with parenthesized expressions and tokenizes inner C# content",
       "name": "meta.control.uitkx",
@@ -176,7 +214,7 @@
     "control-flow-keyword": {
       "comment": "Handles standalone control-flow directives without parenthesized expressions",
       "name": "meta.control.uitkx",
-      "match": "(@)(else|default|break|continue)\\b",
+      "match": "(@)(else|default)\\b",
       "captures": {
         "1": {
           "name": "keyword.control.uitkx"
@@ -216,53 +254,6 @@
           "name": "keyword.operator.uitkx"
         }
       }
-    },
-    "code-block": {
-      "comment": "Handles @code { ... } with brace on the same line",
-      "begin": "(@code)\\s*(\\{)",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.other.directive.uitkx"
-        },
-        "2": {
-          "name": "punctuation.section.block.begin.uitkx"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.section.block.end.uitkx"
-        }
-      },
-      "patterns": [
-        {
-          "include": "#code-block-body"
-        }
-      ]
-    },
-    "code-block-newline-brace": {
-      "comment": "Handles @code on its own line followed by { ... } on the next line",
-      "begin": "(@code)\\s*$",
-      "end": "\\}",
-      "beginCaptures": {
-        "1": {
-          "name": "keyword.other.directive.uitkx"
-        }
-      },
-      "endCaptures": {
-        "0": {
-          "name": "punctuation.section.block.end.uitkx"
-        }
-      },
-      "patterns": [
-        {
-          "match": "\\{",
-          "name": "punctuation.section.block.begin.uitkx"
-        },
-        {
-          "include": "#code-block-body"
-        }
-      ]
     },
     "inline-expression": {
       "comment": "Handles @(expr) inline C# expressions",
@@ -359,9 +350,6 @@
           "include": "#tag-close"
         },
         {
-          "include": "#code-block"
-        },
-        {
           "include": "#tag-attributes"
         }
       ]
@@ -416,9 +404,6 @@
         },
         {
           "include": "#tag-close"
-        },
-        {
-          "include": "#code-block"
         },
         {
           "include": "#tag-attributes"
@@ -645,13 +630,19 @@
       "end": "\\*/"
     },
     "code-block-body": {
-      "comment": "Content inside @code { } or control-flow bodies — full expression tokenization PLUS embedded markup highlighting",
+      "comment": "Content inside control-flow bodies — full expression tokenization PLUS embedded markup highlighting",
       "patterns": [
         {
           "include": "#function-style-setup-keyword"
         },
         {
-          "include": "#jsx-comment"
+          "include": "#function-style-return-keyword"
+        },
+        {
+          "include": "#cs-line-comment"
+        },
+        {
+          "include": "#cs-block-comment"
         },
         {
           "include": "#control-flow-with-expression"

@@ -18,13 +18,13 @@ export const TextElementPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('TextElementProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('TextElementProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={TEXT_ELEMENT_BASIC} />
+      <CodeBlock language="jsx" code={TEXT_ELEMENT_BASIC} />
     </Box>
     <UnityDocsSection componentName="TextElement" />
   </Box>

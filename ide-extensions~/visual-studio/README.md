@@ -103,7 +103,7 @@ Manual route (if needed): upload the built VSIX using marketplace publishing tok
 
 ## Known Limitations
 
-- Full support including dimming of unreachable code and JSX comment colouring.
+- Full support including dimming of unreachable code and comment colouring.
 - The UITKX Visual Studio extension uses MEF-based classification and the
   shared language library.
 - The LSP server does not yet support Go-To-Definition or Find References.

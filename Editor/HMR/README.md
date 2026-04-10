@@ -79,17 +79,19 @@ The HMR window shows:
 
 ## Companion Files
 
-Companion `.cs` files are **optional**. The source generator produces a complete class from
-the `.uitkx` file alone — no boilerplate needed. When you do add `.cs` files in the same
-directory, HMR automatically includes them (excluding `.g.cs`) in the compilation:
+Companion `.uitkx` files let you extract reusable logic alongside a component. There are
+two kinds:
 
-- Style helpers (e.g. `MyComponent.styles.cs`)
-- Type / prop definitions (e.g. `MyComponent.types.cs`)
-- Shared utilities (e.g. `MyComponent.utils.cs`)
+- **Hook files** (e.g. `MyComponent.hooks.uitkx`) — define custom hooks with the `hook`
+  keyword. HMR swaps hook delegates in-place via `Delegate.Swap` — **no domain reload,
+  state is preserved**.
+- **Module files** (e.g. `MyComponent.style.uitkx`, `MyComponent.utils.uitkx`) — define
+  shared styles, constants, or utilities with the `module` keyword. Module changes **trigger
+  a domain reload** because they generate static members on the partial class.
 
-Companion `.cs` file changes also trigger HMR — saving a `.styles.cs` or `.utils.cs` file
-automatically detects the associated `.uitkx` in the same directory, recompiles everything,
-and swaps the result in-place.
+Companion file changes also trigger HMR — saving a `.hooks.uitkx` or `.style.uitkx` file
+automatically detects the associated component, recompiles everything, and swaps the result
+in-place (or triggers domain reload for modules).
 
 ## New Component Support
 

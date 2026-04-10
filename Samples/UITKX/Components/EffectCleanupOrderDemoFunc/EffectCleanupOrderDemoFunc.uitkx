@@ -31,7 +31,7 @@ component EffectCleanupOrderDemoFunc {
 
   return (
     <VisualElement style={containerStyle}>
-      <Text text="Effect Cleanup Order — Step 2 Test" />
+      <Text text="Effect Cleanup Order â€” Step 2 Test" />
       <Label
         text="All CLEANUPS must appear before any SETUPS within the same generation."
         style={new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.Color, new Color(0.75f, 0.75f, 0.75f, 1f)) }}
@@ -39,7 +39,7 @@ component EffectCleanupOrderDemoFunc {
       <VisualElement style={sectionStyle}>
         <Button
           text="Next Generation (triggers both effects)"
-          onClick={_ => { logRef.Current.Add($"── generation {generation + 1} ────────────"); setGeneration(g => g + 1); }}
+          onClick={_ => { logRef.Current.Add($"â”€â”€ generation {generation + 1} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€"); setGeneration(g => g + 1); }}
         />
         <Button
           text="Clear Log"
@@ -63,15 +63,21 @@ component EffectCleanupOrderDemoFunc {
       />
       <VisualElement style={logBoxStyle}>
         @if (displayLog.Count == 0) {
-          <Text text="Log is empty — click 'Next Generation' to start." />
+          return (
+            <Text text="Log is empty â€” click 'Next Generation' to start." />
+          );
         } @else {
-          @foreach (var entry in displayLog) {
-            <Label
-              text={entry}
-              key={entry}
-              style={new Style { (StyleKeys.Color, entry.Contains("cleanup") ? new Color(0.9f, 0.55f, 0.2f, 1f) : new Color(0.3f, 0.85f, 0.45f, 1f)), (StyleKeys.FontSize, 11f) }}
-            />
-          }
+          return (
+            @foreach (var entry in displayLog) {
+              return (
+                <Label
+                  text={entry}
+                  key={entry}
+                  style={new Style { (StyleKeys.Color, entry.Contains("cleanup") ? new Color(0.9f, 0.55f, 0.2f, 1f) : new Color(0.3f, 0.85f, 0.45f, 1f)), (StyleKeys.FontSize, 11f) }}
+                />
+              );
+            }
+          );
         }
       </VisualElement>
     </VisualElement>

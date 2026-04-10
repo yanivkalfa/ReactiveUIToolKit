@@ -484,13 +484,13 @@ public sealed class FormatterSnapshotTests
     }
 
     [Fact]
-    public void JSX_Comment_EmitsWithSpacesAroundContent()
+    public void Comment_EmitsWithSpacesAroundContent()
     {
         var source = N(
             """
             component Foo {
               return (
-                {/* some note */}
+                // some note
                 <Box />
               );
             }
@@ -499,7 +499,7 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("{/* some note */}", result);
+        Assert.Contains("// some note", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -524,7 +524,7 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@if (show) {", result);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
         Assert.Contains("\n    }", result);
     }
 
@@ -549,8 +549,8 @@ public sealed class FormatterSnapshotTests
 
         // @else on same line as closing }.
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
-        Assert.Contains("\n      <Label text=\"no\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"no\" />", result);
     }
 
     [Fact]
@@ -600,7 +600,7 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("@foreach (var item in items) {", result);
-        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n        <Label text={item} key={item} />", result);
         Assert.Contains("\n    }", result);
     }
 
@@ -620,11 +620,15 @@ public sealed class FormatterSnapshotTests
               return (
                 <Box>
                   @foreach (var g in groups) {
+                    return (
                     <Group>
                       @foreach (var row in g.Rows) {
+                        return (
                         <Row text={row.Name} />
+                        );
                       }
                     </Group>
+                    );
                   }
                 </Box>
               );
@@ -636,9 +640,9 @@ public sealed class FormatterSnapshotTests
 
         // Children of <Box> (the return root) start at 6-space.
         Assert.Contains("\n      @foreach (var g in groups) {", result);
-        Assert.Contains("\n        <Group>", result);
-        Assert.Contains("\n          @foreach (var row in g.Rows) {", result);
-        Assert.Contains("\n            <Row", result);
+        Assert.Contains("\n          <Group>", result);
+        Assert.Contains("\n            @foreach (var row in g.Rows) {", result);
+        Assert.Contains("\n                <Row", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -654,11 +658,11 @@ public sealed class FormatterSnapshotTests
               return (
                 @switch (mode) {
                     @case "a":
-                        <LabelA />
+                        return (<LabelA />);
                     @case "b":
-                        <LabelB />
+                        return (<LabelB />);
                     @default:
-                        <LabelDefault />
+                        return (<LabelDefault />);
                 }
               );
             }
@@ -669,10 +673,10 @@ public sealed class FormatterSnapshotTests
 
         Assert.Contains("@switch (mode) {", result);
         Assert.Contains("\n      @case \"a\":", result);
-        Assert.Contains("\n        <LabelA />", result);
+        Assert.Contains("\n          <LabelA />", result);
         Assert.Contains("\n      @case \"b\":", result);
         Assert.Contains("\n      @default:", result);
-        Assert.Contains("\n        <LabelDefault />", result);
+        Assert.Contains("\n          <LabelDefault />", result);
         Assert.Contains("\n    }", result);
     }
 
@@ -729,8 +733,6 @@ public sealed class FormatterSnapshotTests
         Assert.StartsWith("component HelloWorld {", result);
         Assert.DoesNotContain("component HelloWorld()", result);
     }
-
-
 
     // ════════════════════════════════════════════════════════════════════════════
     //  B.8  Setup code before return
@@ -1889,8 +1891,6 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(first, second);
     }
 
-
-
     [Fact]
     public void DoubleFormat_WithForEach_Stable()
     {
@@ -3039,11 +3039,11 @@ public sealed class FormatterSnapshotTests
                 <Box>
                   @switch (mode) {
                       @case "a":
-                          <LabelA />
+                          return (<LabelA />);
                       @case "b":
-                          <LabelB />
+                          return (<LabelB />);
                       @default:
-                          <LabelDefault />
+                          return (<LabelDefault />);
                   }
                 </Box>
               );
@@ -3056,10 +3056,10 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("@switch (mode) {", result);
         // @switch pushes indent → @case is two levels deeper than @switch itself.
         Assert.Contains("\n        @case \"a\":", result);
-        Assert.Contains("\n          <LabelA />", result);
+        Assert.Contains("\n            <LabelA />", result);
         Assert.Contains("\n        @case \"b\":", result);
         Assert.Contains("\n        @default:", result);
-        Assert.Contains("\n          <LabelDefault />", result);
+        Assert.Contains("\n            <LabelDefault />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3073,10 +3073,14 @@ public sealed class FormatterSnapshotTests
                 <Box>
                   @switch (mode) {
                     @case "normal":
-                      <Label text="Normal mode" />
-                      <Button text="Click" onClick={_ => doIt()} />
+                      return (
+                      <VisualElement>
+                        <Label text="Normal mode" />
+                        <Button text="Click" onClick={_ => doIt()} />
+                      </VisualElement>
+                      );
                     @default:
-                      <Label text="Other" />
+                      return (<Label text="Other" />);
                   }
                 </Box>
               );
@@ -3087,9 +3091,10 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("\n        @case \"normal\":", result);
-        // Both children of the case at same indent level (one deeper than @case)
-        Assert.Contains("\n          <Label text=\"Normal mode\" />", result);
-        Assert.Contains("\n          <Button text=\"Click\"", result);
+        // Children wrapped in a container
+        Assert.Contains("\n            <VisualElement>", result);
+        Assert.Contains("\n              <Label text=\"Normal mode\" />", result);
+        Assert.Contains("\n              <Button text=\"Click\"", result);
         Assert.Contains("\n        @default:", result);
         Assert.Equal(result, Format(result));
     }
@@ -3105,13 +3110,13 @@ public sealed class FormatterSnapshotTests
               return (
                 <Box>
                   @if (count < -5) {
-                    <Label text="Very negative" />
+                    return (<Label text="Very negative" />);
                   } @else if (count < 0) {
-                    <Label text="Negative" />
+                    return (<Label text="Negative" />);
                   } @else if (count == 0) {
-                    <Label text="Zero" />
+                    return (<Label text="Zero" />);
                   } @else {
-                    <Label text="Positive" />
+                    return (<Label text="Positive" />);
                   }
                 </Box>
               );
@@ -3125,8 +3130,8 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("} @else if (count < 0) {", result);
         Assert.Contains("} @else if (count == 0) {", result);
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n        <Label text=\"Very negative\" />", result);
-        Assert.Contains("\n        <Label text=\"Zero\" />", result);
+        Assert.Contains("\n          <Label text=\"Very negative\" />", result);
+        Assert.Contains("\n          <Label text=\"Zero\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3139,16 +3144,20 @@ public sealed class FormatterSnapshotTests
               return (
                 <Box>
                   @if (count <= 0) {
-                    <Label text="None" />
+                    return (<Label text="None" />);
                   } @else {
+                    return (
                     @for (int i = 0; i < count; i++) {
+                      return (
                       @if (i % 2 == 0) {
-                        <Label text={$"Even {i}"} />
+                        return (<Label text={$"Even {i}"} />);
                       } @else {
-                        <Label text={$"Odd {i}"} />
+                        return (<Label text={$"Odd {i}"} />);
                       }
+                      );
                     }
                     <Label text={$"Total: {count}"} />
+                    );
                   }
                 </Box>
               );
@@ -3159,12 +3168,12 @@ public sealed class FormatterSnapshotTests
         var result = Format(source);
 
         Assert.Contains("} @else {", result);
-        Assert.Contains("\n        @for (int i = 0;", result);
-        Assert.Contains("\n          @if (i % 2 == 0) {", result);
-        Assert.Contains("\n            <Label text={$\"Even {i}\"", result);
-        Assert.Contains("\n          } @else {", result);
-        Assert.Contains("\n            <Label text={$\"Odd {i}\"", result);
-        Assert.Contains("\n        <Label text={$\"Total:", result);
+        Assert.Contains("\n          @for (int i = 0;", result);
+        Assert.Contains("\n              @if (i % 2 == 0) {", result);
+        Assert.Contains("\n                  <Label text={$\"Even {i}\"", result);
+        Assert.Contains("\n              } @else {", result);
+        Assert.Contains("\n                  <Label text={$\"Odd {i}\"", result);
+        Assert.Contains("\n          <Label text={$\"Total:", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3191,9 +3200,9 @@ public sealed class FormatterSnapshotTests
 
         var result = Format(source);
 
-        Assert.Contains("\n        <Label text=\"Very neg\" />", result);
-        Assert.Contains("\n        <Label text=\"Neg\" />", result);
-        Assert.Contains("\n        <Label text=\"Ok\" />", result);
+        Assert.Contains("\n          <Label text=\"Very neg\" />", result);
+        Assert.Contains("\n          <Label text=\"Neg\" />", result);
+        Assert.Contains("\n          <Label text=\"Ok\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -3923,29 +3932,37 @@ public sealed class FormatterSnapshotTests
                 <ScrollView>
                   @switch (mode) {
                     @case "normal":
-                      <Label text="Normal" />
-                      <Button text="-5" onClick={_ => setCount(count - 5)} />
+                      return (
+                      <VisualElement>
+                        <Label text="Normal" />
+                        <Button text="-5" onClick={_ => setCount(count - 5)} />
+                      </VisualElement>
+                      );
                     @default:
-                      <Label text={$"Mode: {mode}"} />
+                      return (<Label text={$"Mode: {mode}"} />);
                   }
                   @if (count < -5) {
-                    <Label text="Very neg!" />
+                    return (<Label text="Very neg!" />);
                   } @else if (count < 0) {
-                    <Label text="Neg" />
+                    return (<Label text="Neg" />);
                   } @else if (count == 0) {
-                    <Label text="Zero" />
+                    return (<Label text="Zero" />);
                   } @else {
+                    return (
                     @for (int i = 0; i < count; i++) {
+                      return (
                       @if (i % 2 == 0) {
-                        <Label text={$"Even {i}"} />
+                        return (<Label text={$"Even {i}"} />);
                       } @else {
-                        <Label text={$"Odd {i}"} />
+                        return (<Label text={$"Odd {i}"} />);
                       }
+                      );
                     }
                     <Label text={$"Total: {count}"} />
+                    );
                   }
                   @foreach (var entry in log) {
-                    <Label key={entry} text={entry} />
+                    return (<Label key={entry} text={entry} />);
                   }
                   <VisualElement>
                     <Button
@@ -3961,7 +3978,7 @@ public sealed class FormatterSnapshotTests
                   </VisualElement>
                   <ToggleButtonGroup value={selected}>
                     @foreach (var opt in opts) {
-                      <Button key={opt} text={opt} onClick={_ => setSelected(0)} />
+                      return (<Button key={opt} text={opt} onClick={_ => setSelected(0)} />);
                     }
                   </ToggleButtonGroup>
                   <Label
@@ -4004,12 +4021,13 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(first, second);
         // Spot checks:
         Assert.Contains("\n        @case \"normal\":", first);
-        Assert.Contains("\n          <Label text=\"Normal\" />", first);
-        Assert.Contains("\n          <Button text=\"-5\"", first);
+        Assert.Contains("\n            <VisualElement>", first);
+        Assert.Contains("\n              <Label text=\"Normal\" />", first);
+        Assert.Contains("\n              <Button text=\"-5\"", first);
         Assert.Contains("} @else if (count < 0) {", first);
         Assert.Contains("} @else {", first);
-        Assert.Contains("\n        @for (int i = 0;", first);
-        Assert.Contains("\n          @if (i % 2 == 0) {", first);
+        Assert.Contains("\n          @for (int i = 0;", first);
+        Assert.Contains("\n              @if (i % 2 == 0) {", first);
         Assert.Contains("key={entry}", first);
         Assert.Contains(
             "(StyleKeys.MinWidth, 30f), (\"unityTextAlign\", \"middle-center\")",
@@ -4913,8 +4931,6 @@ public sealed class FormatterSnapshotTests
         Assert.Equal(result, Format(result));
     }
 
-
-
     [Fact]
     public void G10_Directive_ExtraBlankLinesBetweenUsings_CappedToOne()
     {
@@ -5176,14 +5192,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @if (show) {
+                  return (
                             <Label text="yes" />
+                  );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5195,14 +5213,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @if (show) {
+                return (
                 <Label text="yes" />
+                );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text=\"yes\" />", result);
+        Assert.Contains("\n        <Label text=\"yes\" />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5214,14 +5234,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var item in items) {
+                  return (
                             <Label text={item} key={item} />
+                  );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n        <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5233,14 +5255,16 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var item in items) {
+                return (
                 <Label text={item} key={item} />
+                );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      <Label text={item} key={item} />", result);
+        Assert.Contains("\n        <Label text={item} key={item} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5253,17 +5277,17 @@ public sealed class FormatterSnapshotTests
               return (
                 @switch (mode) {
                     @case "a":
-                                    <LabelA />
+                                    return (<LabelA />);
                     @default:
-                                    <LabelDefault />
+                                    return (<LabelDefault />);
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n        <LabelA />", result);
-        Assert.Contains("\n        <LabelDefault />", result);
+        Assert.Contains("\n          <LabelA />", result);
+        Assert.Contains("\n          <LabelDefault />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5275,17 +5299,21 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var x in items) {
+                  return (
                             @if (x != null) {
+                              return (
                                         <Label text={x} />
+                              );
                             }
+                  );
                 }
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("\n      @if (x != null) {", result);
-        Assert.Contains("\n        <Label text={x} />", result);
+        Assert.Contains("\n        @if (x != null) {", result);
+        Assert.Contains("\n            <Label text={x} />", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5309,20 +5337,20 @@ public sealed class FormatterSnapshotTests
     }
 
     [Fact]
-    public void I17_JSX_Comment_ExtraSpaces_Normalised()
+    public void I17_Comment_ExtraSpaces_Normalised()
     {
         var source = N(
             """
             component Foo {
               return (
-                {/* extra spaces */}
+                // extra spaces
                 <Box />
               );
             }
             """
         );
         var result = Format(source);
-        Assert.Contains("{/* extra spaces */}", result);
+        Assert.Contains("// extra spaces", result);
         Assert.Equal(result, Format(result));
     }
 
@@ -5510,7 +5538,9 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @if (show) {   
+                  return (
                   <Label text="yes" />   
+                  );
                 }   
               );
             }
@@ -5533,7 +5563,9 @@ public sealed class FormatterSnapshotTests
             component Foo {
               return (
                 @foreach (var item in items) {   
+                  return (
                   <Label text={item} />   
+                  );
                 }   
               );
             }
@@ -8644,10 +8676,10 @@ component Comp {
         // Key identifiers must map to their correct source lines
         var checks = new[]
         {
-            ("MctvSetChild", 273),
-            ("MctvDeleteLast", 301),
-            ("TreeViewRowState", 61),
-            ("var secondElement", 322),
+            ("MctvSetChild", 271),
+            ("MctvDeleteLast", 299),
+            ("TreeViewRowState", 59),
+            ("var secondElement", 320),
         };
         foreach (var (id, expectedLine) in checks)
         {
@@ -8793,9 +8825,11 @@ component Comp {
             "  return (<Box></Box>);"
         );
         Assert.NotEqual(source, modified);
+        // Multi-return: formatter uses last return. Verify no corruption.
         var result = Format(modified);
-        Assert.NotEqual(modified, result);
         Assert.Contains("<Button", result);
+        Assert.Contains("<Route path=\"/jsxDemo\"", result);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════
@@ -8900,10 +8934,10 @@ component Comp {
         var expected = N(
             """
             component Foo(
-              IReadOnlyList<int>? items = null, 
-              Action? addItem = null, 
-              Action? setTopItem = null, 
-              Action? deleteLast = null, 
+              IReadOnlyList<int>? items = null,
+              Action? addItem = null,
+              Action? setTopItem = null,
+              Action? deleteLast = null,
               Action<int>? onCountChanged = null
             ) {
               return (
@@ -9049,6 +9083,289 @@ component Comp {
         Assert.DoesNotContain(diags, d => d.Code == "UITKX0111");
     }
 
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Regression: full test file — blank line insert + format idempotency
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void RealFile_BlankLineBeforeReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert a blank line right before the main "return ("
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        // Route should never become Router
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_ManyBlankLinesBeforeReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert many blank lines right before the main "return ("
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n\n\n\n\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        // Format and check the output is not corrupted
+        var formatted = Format(modified);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", formatted);
+        Assert.Contains("<Route path=\"/jsxDemo\"", formatted);
+
+        // Check that a second format is idempotent
+        var formatted2 = Format(formatted);
+        Assert.Equal(formatted, formatted2);
+    }
+
+    private static void CollectTags(
+        System.Collections.Immutable.ImmutableArray<ReactiveUITK.Language.Nodes.AstNode> nodes,
+        System.Collections.Generic.List<string> tags
+    )
+    {
+        foreach (var node in nodes)
+        {
+            if (node is ReactiveUITK.Language.Nodes.ElementNode el)
+            {
+                tags.Add(el.TagName);
+                CollectTags(el.Children, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.IfNode ifn)
+            {
+                foreach (var br in ifn.Branches)
+                    CollectTags(br.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.ForeachNode fe)
+            {
+                CollectTags(fe.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.SwitchNode sw)
+            {
+                foreach (var c in sw.Cases)
+                    CollectTags(c.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.ForNode fn)
+            {
+                CollectTags(fn.Body, tags);
+            }
+            else if (node is ReactiveUITK.Language.Nodes.WhileNode wh)
+            {
+                CollectTags(wh.Body, tags);
+            }
+        }
+    }
+
+    [Fact]
+    public void RealFile_BlankLinesInsideReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert blank lines between return ( and <ScrollView
+        var modified = source.Replace(
+            "  return (\n    <ScrollView",
+            "  return (\n\n\n\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_CRLF_BlankLinesBeforeReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        // Read with CRLF line endings
+        var source = File.ReadAllText(file).Replace("\r\n", "\n").Replace("\n", "\r\n");
+
+        // Insert blank CRLF lines before the main return
+        var modified = source.Replace(
+            "\r\n  return (\r\n    <ScrollView",
+            "\r\n\r\n\r\n\r\n  return (\r\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_CRLF_Parse_NoDiagnosticErrors()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        // Read the raw file (CRLF on Windows)
+        var source = File.ReadAllText(file);
+        var diags = new System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic>();
+        var directives = ReactiveUITK.Language.Parser.DirectiveParser.Parse(source, file, diags);
+        var nodes = ReactiveUITK.Language.Parser.UitkxParser.Parse(source, file, directives, diags);
+        var errors = diags
+            .Where(d => d.Severity == ReactiveUITK.Language.ParseSeverity.Error)
+            .ToList();
+        Assert.True(
+            errors.Count == 0,
+            $"Parse errors with CRLF:\n{string.Join("\n", errors.Select(e => $"  {e.Code} L{e.SourceLine}: {e.Message}"))}"
+        );
+    }
+
+    [Fact]
+    public void RealFile_AddVarAboveReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert a dummy var assignment before the main return
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n  var dummy = (\n    <Label text=\"test\" />\n  );\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_AddFragmentVarAboveReturn_FormatIdempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Insert a fragment var assignment before the main return (user's exact pattern)
+        var modified = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n  var something = (\n    <>\n  );\n\n  return (\n    <ScrollView"
+        );
+        Assert.NotEqual(source, modified);
+
+        var first = FormatWithRoslyn(modified);
+        var second = FormatWithRoslyn(first);
+        Assert.Equal(first, second);
+        Assert.Contains("<Route path=\"/jsxDemo\"", first);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", first);
+    }
+
+    [Fact]
+    public void RealFile_AddRemoveVarThenFormat_ThreeRounds_Idempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // Round 1: add var + format
+        var round1Input = source.Replace(
+            "\n  return (\n    <ScrollView",
+            "\n  var something = (\n    <Label text=\"test\" />\n  );\n\n  return (\n    <ScrollView"
+        );
+        var round1 = FormatWithRoslyn(round1Input);
+
+        // Round 2: remove the var (simulating user deleting it) + format
+        var round2Input = round1.Replace(
+            "  var something = (\n    <Label text=\"test\" />\n  );\n\n",
+            ""
+        );
+        var round2 = FormatWithRoslyn(round2Input);
+
+        // Round 3: format again — must be stable
+        var round3 = FormatWithRoslyn(round2);
+        Assert.Equal(round2, round3);
+        Assert.Contains("<Route path=\"/jsxDemo\"", round2);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", round2);
+    }
+
     private static System.Collections.Generic.List<ReactiveUITK.Language.ParseDiagnostic> RunAnalyzer(
         string source,
         string filePath
@@ -9074,5 +9391,847 @@ component Comp {
         var analyzer = new ReactiveUITK.Language.Diagnostics.DiagnosticsAnalyzer();
         var t2 = analyzer.Analyze(parseResult, filePath);
         return t2.ToList();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  DEBUG: Blank-line-count sweep — reproduce corruption
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    public void RealFile_BlankLineSweep_NoCorruption(int extraBlanks)
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        // User's exact reproduction: add blank lines between the ternary and return (
+        var blanks = new string('\n', extraBlanks);
+        var modified = source.Replace(
+            ": string.Join(\", \", options);\n\n  return (",
+            ": string.Join(\", \", options);\n" + blanks + "\n  return ("
+        );
+        Assert.NotEqual(source, modified);
+
+        // ── Test 1: Formatter output is correct ──
+        var formatted = Format(modified);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", formatted);
+        Assert.DoesNotContain("</string,>", formatted);
+        Assert.Contains("<Route path=\"/jsxDemo\"", formatted);
+
+        var formattedRoslyn = FormatWithRoslyn(modified);
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", formattedRoslyn);
+        Assert.DoesNotContain("</string,>", formattedRoslyn);
+        Assert.Contains("<Route path=\"/jsxDemo\"", formattedRoslyn);
+
+        // ── Test 2: Simulate LSP per-line edit path ──
+        // Use CRLF input (like the editor sends)
+        var crlfInput = modified.Replace("\n", "\r\n");
+        var fmtOutput = N(new AstFormatter(FormatterOptions.Default).Format(crlfInput));
+
+        // Simulate the LSP FormattingHandler edit computation
+        var normalizedInput = crlfInput.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLines = normalizedInput.Split('\n');
+        var fmtLines = fmtOutput.Split('\n');
+
+        // Compute edits (same logic as FormattingHandler)
+        var edits =
+            new List<(int startLine, int startCol, int endLine, int endCol, string newText)>();
+        int minLen = System.Math.Min(origLines.Length, fmtLines.Length);
+        bool linesRemoved = origLines.Length > fmtLines.Length;
+
+        for (int i = 0; i < minLen; i++)
+        {
+            if (origLines[i] != fmtLines[i])
+            {
+                if (origLines[i].TrimEnd().Length == 0 && fmtLines[i].TrimEnd().Length == 0)
+                    continue;
+
+                bool isLastCommonLine = linesRemoved && i == minLen - 1;
+                int endLine = isLastCommonLine ? origLines.Length - 1 : i;
+                int endCol = isLastCommonLine
+                    ? origLines[origLines.Length - 1].Length
+                    : origLines[i].Length;
+
+                edits.Add((i, 0, endLine, endCol, fmtLines[i]));
+
+                if (isLastCommonLine)
+                    linesRemoved = false;
+            }
+        }
+
+        if (fmtLines.Length > origLines.Length)
+        {
+            var extraLines = new string[fmtLines.Length - origLines.Length];
+            System.Array.Copy(fmtLines, origLines.Length, extraLines, 0, extraLines.Length);
+            edits.Add(
+                (
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    "\n" + string.Join("\n", extraLines)
+                )
+            );
+        }
+        else if (linesRemoved)
+        {
+            int lastFmt = fmtLines.Length - 1;
+            int lastOrig = origLines.Length - 1;
+            edits.Add(
+                (lastFmt, origLines[lastFmt].Length, lastOrig, origLines[lastOrig].Length, "")
+            );
+        }
+
+        // Apply edits to the CRLF input (simulating VS Code)
+        // VS Code applies edits using CRLF positions but we computed with LF.
+        // Apply to the LF-normalized text and check result.
+        var applied = ApplyEditsToText(normalizedInput, edits);
+
+        // The applied result should match the formatted output
+        var hasRouterBug = applied.Contains("<Router path=\"/jsxDemo\"");
+        var hasStringBug = applied.Contains("</string,>");
+
+        if (hasRouterBug || hasStringBug || applied != fmtOutput)
+        {
+            // Find first difference
+            int diffIdx = -1;
+            for (int i = 0; i < System.Math.Min(applied.Length, fmtOutput.Length); i++)
+            {
+                if (applied[i] != fmtOutput[i])
+                {
+                    diffIdx = i;
+                    break;
+                }
+            }
+            if (diffIdx < 0 && applied.Length != fmtOutput.Length)
+                diffIdx = System.Math.Min(applied.Length, fmtOutput.Length);
+
+            var msg =
+                $"LSP EDIT CORRUPTION with {extraBlanks} extra blank(s):\n"
+                + $"  RouterBug={hasRouterBug} StringBug={hasStringBug}\n"
+                + $"  origLines={origLines.Length} fmtLines={fmtLines.Length} edits={edits.Count}\n"
+                + $"  applied.Length={applied.Length} expected.Length={fmtOutput.Length}\n";
+
+            if (diffIdx >= 0)
+            {
+                int ctx = 80;
+                int s = System.Math.Max(0, diffIdx - ctx);
+                int e1 = System.Math.Min(applied.Length, diffIdx + ctx);
+                int e2 = System.Math.Min(fmtOutput.Length, diffIdx + ctx);
+                msg +=
+                    $"  First diff at char {diffIdx}:\n"
+                    + $"  Applied:  ...{applied.Substring(s, e1 - s).Replace("\n", "\\n")}...\n"
+                    + $"  Expected: ...{fmtOutput.Substring(s, e2 - s).Replace("\n", "\\n")}...\n";
+            }
+            Assert.Fail(msg);
+        }
+    }
+
+    /// <summary>
+    /// Apply LSP-style text edits to a document. Edits reference positions in
+    /// the original document and are applied in reverse order.
+    /// Line/col positions map to the text's actual line structure.
+    /// </summary>
+    private static string ApplyEditsToText(
+        string text,
+        List<(int startLine, int startCol, int endLine, int endCol, string newText)> edits
+    )
+    {
+        // Convert line/col positions to absolute offsets in the text
+        var lineStarts = new List<int> { 0 };
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+                lineStarts.Add(i + 1);
+        }
+
+        // Sort edits in reverse order (bottom to top) as VS Code does
+        var sorted = edits
+            .OrderByDescending(e => e.startLine)
+            .ThenByDescending(e => e.startCol)
+            .ToList();
+
+        var sb = new System.Text.StringBuilder(text);
+        foreach (var (sl, sc, el, ec, nt) in sorted)
+        {
+            int startOffset = lineStarts[sl] + sc;
+            int endOffset = lineStarts[el] + ec;
+            sb.Remove(startOffset, endOffset - startOffset);
+            sb.Insert(startOffset, nt);
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Compute per-line edits exactly as FormattingHandler does.
+    /// </summary>
+    private static List<(
+        int startLine,
+        int startCol,
+        int endLine,
+        int endCol,
+        string newText
+    )> ComputePerLineEdits(string[] origLines, string[] fmtLines)
+    {
+        var edits = new List<(int, int, int, int, string)>();
+        int minLen = System.Math.Min(origLines.Length, fmtLines.Length);
+        bool linesRemoved = origLines.Length > fmtLines.Length;
+
+        for (int i = 0; i < minLen; i++)
+        {
+            if (origLines[i] != fmtLines[i])
+            {
+                if (origLines[i].TrimEnd().Length == 0 && fmtLines[i].TrimEnd().Length == 0)
+                    continue;
+
+                bool isLastCommonLine = linesRemoved && i == minLen - 1;
+                int endLine = isLastCommonLine ? origLines.Length - 1 : i;
+                int endCol = isLastCommonLine
+                    ? origLines[origLines.Length - 1].Length
+                    : origLines[i].Length;
+
+                edits.Add((i, 0, endLine, endCol, fmtLines[i]));
+
+                if (isLastCommonLine)
+                    linesRemoved = false;
+            }
+        }
+
+        if (fmtLines.Length > origLines.Length)
+        {
+            var extraLines = new string[fmtLines.Length - origLines.Length];
+            System.Array.Copy(fmtLines, origLines.Length, extraLines, 0, extraLines.Length);
+            edits.Add(
+                (
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    origLines.Length - 1,
+                    origLines[origLines.Length - 1].Length,
+                    "\n" + string.Join("\n", extraLines)
+                )
+            );
+        }
+        else if (linesRemoved)
+        {
+            int lastFmt = fmtLines.Length - 1;
+            int lastOrig = origLines.Length - 1;
+            edits.Add(
+                (lastFmt, origLines[lastFmt].Length, lastOrig, origLines[lastOrig].Length, "")
+            );
+        }
+
+        return edits;
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(12)]
+    public void RealFile_BlankLineSweep_CRLFEdits_NoCorruption(int extraBlanks)
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var sourceLF = N(File.ReadAllText(file));
+
+        // Add extra blank lines (LF)
+        var blanks = new string('\n', extraBlanks);
+        var modifiedLF = sourceLF.Replace(
+            ": string.Join(\", \", options);\n\n  return (",
+            ": string.Join(\", \", options);\n" + blanks + "\n  return ("
+        );
+        Assert.NotEqual(sourceLF, modifiedLF);
+
+        // Create CRLF version (what VS Code actually has)
+        var modifiedCRLF = modifiedLF.Replace("\n", "\r\n");
+
+        // ── Check: base file must be idempotent first ──
+        var baseFormatted = FormatWithRoslyn(sourceLF);
+        Assert.Equal(sourceLF, baseFormatted);
+
+        // Format with Roslyn (like the LSP does)
+        var formatted = FormatWithRoslyn(modifiedCRLF);
+
+        // Compute edits from LF-normalized text (like FormattingHandler)
+        var normalizedInput = modifiedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLines = normalizedInput.Split('\n');
+        var fmtLines = formatted.Split('\n');
+        var edits = ComputePerLineEdits(origLines, fmtLines);
+
+        // ─── Apply to LF text (sanity check) ────
+        var appliedLF = ApplyEditsToText(normalizedInput, edits);
+        Assert.Equal(formatted, appliedLF);
+
+        // ─── Apply to CRLF text (the REAL scenario) ────
+        var appliedCRLF = ApplyEditsToText(modifiedCRLF, edits);
+
+        // Check for corruption in the CRLF-applied result
+        var hasRouterBug = appliedCRLF.Contains("<Router path=\"/jsxDemo\"");
+        var hasStringBug = appliedCRLF.Contains("</string,>");
+
+        // Also verify the CRLF result matches expected (formatted + CRLF endings)
+        // After applying LF-based edits to CRLF text, unchanged lines keep \r\n
+        // but edited lines get LF-only content. Normalize to LF for comparison.
+        var appliedNormalized = appliedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+
+        if (hasRouterBug || hasStringBug || appliedNormalized != formatted)
+        {
+            int diffIdx = -1;
+            for (int i = 0; i < System.Math.Min(appliedNormalized.Length, formatted.Length); i++)
+            {
+                if (appliedNormalized[i] != formatted[i])
+                {
+                    diffIdx = i;
+                    break;
+                }
+            }
+            if (diffIdx < 0 && appliedNormalized.Length != formatted.Length)
+                diffIdx = System.Math.Min(appliedNormalized.Length, formatted.Length);
+
+            var msg =
+                $"CRLF EDIT CORRUPTION with {extraBlanks} blanks:\n"
+                + $"  RouterBug={hasRouterBug} StringBug={hasStringBug}\n"
+                + $"  origLines={origLines.Length} fmtLines={fmtLines.Length} edits={edits.Count}\n"
+                + $"  appliedLen={appliedNormalized.Length} expectedLen={formatted.Length}\n";
+            if (diffIdx >= 0)
+            {
+                int s = System.Math.Max(0, diffIdx - 80);
+                int e1 = System.Math.Min(appliedNormalized.Length, diffIdx + 80);
+                int e2 = System.Math.Min(formatted.Length, diffIdx + 80);
+                msg +=
+                    $"  First diff at char {diffIdx}:\n"
+                    + $"  Applied:  ...{appliedNormalized.Substring(s, e1 - s).Replace("\n", "\\n").Replace("\r", "\\r")}...\n"
+                    + $"  Expected: ...{formatted.Substring(s, e2 - s).Replace("\n", "\\n").Replace("\r", "\\r")}...\n";
+            }
+            Assert.Fail(msg);
+        }
+    }
+
+    /// <summary>
+    /// Test that the formatted output of the file with NO changes is byte-for-byte
+    /// identical (idempotent). If this fails, the per-line diff will always produce
+    /// edits which could interact badly with the blank-line shift.
+    /// </summary>
+    [Fact]
+    public void RealFile_IdempotencyCheck_WithRoslyn()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var sourceLF = N(File.ReadAllText(file));
+        var formatted = FormatWithRoslyn(sourceLF);
+
+        if (formatted != sourceLF)
+        {
+            // Find first difference
+            int diffIdx = -1;
+            for (int i = 0; i < System.Math.Min(formatted.Length, sourceLF.Length); i++)
+            {
+                if (formatted[i] != sourceLF[i])
+                {
+                    diffIdx = i;
+                    break;
+                }
+            }
+            if (diffIdx < 0)
+                diffIdx = System.Math.Min(formatted.Length, sourceLF.Length);
+
+            // Find line number
+            int lineNum = 0;
+            for (int i = 0; i < diffIdx && i < sourceLF.Length; i++)
+                if (sourceLF[i] == '\n')
+                    lineNum++;
+
+            int s = System.Math.Max(0, diffIdx - 120);
+            int e1 = System.Math.Min(formatted.Length, diffIdx + 120);
+            int e2 = System.Math.Min(sourceLF.Length, diffIdx + 120);
+            Assert.Fail(
+                $"File is NOT idempotent with Roslyn! First diff at char {diffIdx} (line ~{lineNum}):\n"
+                    + $"  formatted.Length={formatted.Length} source.Length={sourceLF.Length}\n"
+                    + $"  Formatted: ...{formatted.Substring(s, e1 - s).Replace("\n", "\\n")}...\n"
+                    + $"  Source:    ...{sourceLF.Substring(s, e2 - s).Replace("\n", "\\n")}...\n"
+            );
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  Block diff algorithm tests (Ruff/Prettier-style single edit)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Compute a minimal block diff: scan forward for the first differing line,
+    /// scan backward for the last, emit a single edit. Mirrors FormattingHandler.
+    /// </summary>
+    private static (
+        int startLine,
+        int startCol,
+        int endLine,
+        int endCol,
+        string newText
+    )? ComputeBlockDiffEdit(string[] origLines, string[] fmtLines)
+    {
+        int minLen = System.Math.Min(origLines.Length, fmtLines.Length);
+
+        // Scan forward: first differing line
+        int firstDiff = 0;
+        while (firstDiff < minLen && origLines[firstDiff] == fmtLines[firstDiff])
+            firstDiff++;
+
+        // Scan backward: last differing line
+        int origEnd = origLines.Length - 1;
+        int fmtEnd = fmtLines.Length - 1;
+        while (origEnd > firstDiff && fmtEnd > firstDiff && origLines[origEnd] == fmtLines[fmtEnd])
+        {
+            origEnd--;
+            fmtEnd--;
+        }
+
+        if (firstDiff > origEnd && firstDiff > fmtEnd)
+            return null;
+
+        var newText = string.Join("\n", fmtLines, firstDiff, fmtEnd - firstDiff + 1);
+        return (firstDiff, 0, origEnd, origLines[origEnd].Length, newText);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    public void RealFile_BlockDiff_NoCorruption(int extraBlanks)
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+        var source = N(File.ReadAllText(file));
+
+        var blanks = new string('\n', extraBlanks);
+        var modified = source.Replace(
+            ": string.Join(\", \", options);\n\n  return (",
+            ": string.Join(\", \", options);\n" + blanks + "\n  return ("
+        );
+        Assert.NotEqual(source, modified);
+
+        var formatted = FormatWithRoslyn(modified);
+
+        // ── LF path ──
+        var origLines = modified.Split('\n');
+        var fmtLines = formatted.Split('\n');
+        var blockEdit = ComputeBlockDiffEdit(origLines, fmtLines);
+
+        if (formatted == modified)
+        {
+            Assert.Null(blockEdit);
+            return;
+        }
+        Assert.NotNull(blockEdit);
+
+        var edits = new List<(int startLine, int startCol, int endLine, int endCol, string newText)>
+        {
+            blockEdit.Value,
+        };
+        var applied = ApplyEditsToText(modified, edits);
+        Assert.Equal(formatted, applied);
+
+        // ── CRLF path (what VS Code actually has) ──
+        var modifiedCRLF = modified.Replace("\n", "\r\n");
+        var normalizedCRLF = modifiedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+        var origLinesCRLF = normalizedCRLF.Split('\n');
+        var fmtLinesCRLF = formatted.Split('\n');
+        var blockEditCRLF = ComputeBlockDiffEdit(origLinesCRLF, fmtLinesCRLF);
+        Assert.NotNull(blockEditCRLF);
+
+        var editsCRLF = new List<(
+            int startLine,
+            int startCol,
+            int endLine,
+            int endCol,
+            string newText
+        )>
+        {
+            blockEditCRLF.Value,
+        };
+
+        // Apply to CRLF text
+        var appliedCRLF = ApplyEditsToText(modifiedCRLF, editsCRLF);
+        var appliedCRLFNormalized = appliedCRLF.Replace("\r\n", "\n").Replace("\r", "\n");
+        Assert.Equal(formatted, appliedCRLFNormalized);
+
+        // Verify no corruption patterns
+        Assert.DoesNotContain("<Router path=\"/jsxDemo\"", applied);
+        Assert.DoesNotContain("</string,>", applied);
+        Assert.Contains("<Route path=\"/jsxDemo\"", applied);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HOOK / MODULE FILE FORMATTING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void HookFile_NotDestroyed_PreservesContent()
+    {
+        // Regression: formatter used to route hook files through
+        // FormatFunctionStyleComponent, emitting `component Component { return (); }`
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useCounter() -> (int count, Action increment) {
+              var (count, setCount) = useState(0);
+              Action increment = () => setCount(c => c + 1);
+              return (count, increment);
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("hook useCounter()", result);
+        Assert.Contains("var (count, setCount) = useState(0);", result);
+        Assert.Contains("return (count, increment);", result);
+        Assert.DoesNotContain("component Component", result);
+    }
+
+    [Fact]
+    public void ModuleFile_NotDestroyed_PreservesContent()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+            @using ReactiveUITK.Props.Typed
+
+            module Counter {
+              public static readonly Style containerStyle = new Style
+              {
+                Padding = 20,
+              };
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("module Counter {", result);
+        Assert.Contains("public static readonly Style containerStyle", result);
+        Assert.DoesNotContain("component Component", result);
+    }
+
+    [Fact]
+    public void HookFile_Idempotent()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useCounter() -> (int count, Action increment) {
+              var (count, setCount) = useState(0);
+              Action increment = () => setCount(c => c + 1);
+              return (count, increment);
+            }
+            """
+        );
+
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void ModuleFile_Idempotent()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+            @using ReactiveUITK.Props.Typed
+
+            module Counter {
+              public static readonly Style containerStyle = new Style
+              {
+                Padding = 20,
+                FlexGrow = 1,
+              };
+            }
+            """
+        );
+
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void HookHeader_ShortLine_StaysSingleLine()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useFlag() -> bool {
+              return true;
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("hook useFlag() -> bool {", result);
+    }
+
+    [Fact]
+    public void HookHeader_LongParams_WrapsPerLine()
+    {
+        // PrintWidth default is 80; this header exceeds it.
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useData(string veryLongParamNameOne, string veryLongParamNameTwo, int anotherLongParam) -> int {
+              return 42;
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        // Should be wrapped one-per-line
+        Assert.Contains("hook useData(\n", result);
+        Assert.Contains("  string veryLongParamNameOne,", result);
+        Assert.Contains("  string veryLongParamNameTwo,", result);
+        Assert.Contains("  int anotherLongParam\n", result);
+        Assert.Contains(") -> int {", result);
+    }
+
+    [Fact]
+    public void HookHeader_LongTupleReturn_WrapsPerLine()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useGameState() -> (bool gameStarted, string playerTurn, string winnerMessage, PointerEventHandler handleStart) {
+              return (false, "X", "", null);
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains(") -> (\n", result);
+        Assert.Contains("  bool gameStarted,", result);
+        Assert.Contains("  string playerTurn,", result);
+        Assert.Contains("  PointerEventHandler handleStart\n", result);
+        Assert.Contains(") {", result);
+    }
+
+    [Fact]
+    public void HookHeader_LongParamsAndTupleReturn_BothWrap()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useBigHook(string paramAlpha, string paramBeta, int paramGamma) -> (bool flagOne, string valueTwo, int countThree, Action callbackFour) {
+              return (true, "x", 0, () => {});
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        // Params wrapped
+        Assert.Contains("hook useBigHook(\n", result);
+        Assert.Contains("  string paramAlpha,", result);
+        // Return tuple wrapped
+        Assert.Contains(") -> (\n", result);
+        Assert.Contains("  bool flagOne,", result);
+        Assert.Contains("  Action callbackFour\n", result);
+        Assert.Contains(") {", result);
+    }
+
+    [Fact]
+    public void HookFile_MultipleHooks_AllPreserved()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useAlpha() -> int {
+              return 1;
+            }
+
+            hook useBeta() -> string {
+              return "hello";
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("hook useAlpha() -> int {", result);
+        Assert.Contains("hook useBeta() -> string {", result);
+        Assert.Contains("return 1;", result);
+        Assert.Contains("return \"hello\";", result);
+    }
+
+    [Fact]
+    public void HookAndModule_MixedFile_BothPreserved()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useCounter() -> int {
+              return 0;
+            }
+
+            module Counter {
+              public static readonly int X = 42;
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("hook useCounter() -> int {", result);
+        Assert.Contains("module Counter {", result);
+        Assert.Contains("public static readonly int X = 42;", result);
+    }
+
+    [Fact]
+    public void RealFile_HooksFile_Idempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.hooks.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void RealFile_StyleFile_Idempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.style.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void RealFile_HooksFile_NotDestroyed()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.hooks.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var result = Format(source);
+
+        Assert.Contains("hook useTestCounter()", result);
+        Assert.Contains("hook useTestFormState(", result);
+        Assert.DoesNotContain("component Component", result);
+    }
+
+    [Fact]
+    public void RealFile_StyleFile_NotDestroyed()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.style.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var result = Format(source);
+
+        Assert.Contains("module UitkxTestFileDoNotTouch {", result);
+        Assert.Contains("ContainerStyle", result);
+        Assert.DoesNotContain("component Component", result);
     }
 }

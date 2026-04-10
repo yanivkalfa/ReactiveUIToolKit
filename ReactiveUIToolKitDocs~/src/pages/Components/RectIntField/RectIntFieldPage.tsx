@@ -19,13 +19,13 @@ export const RectIntFieldPage: FC = () => (
       <Typography variant="h5" component="h2" gutterBottom>
         Props
       </Typography>
-      <CodeBlock language="tsx" code={getPropsDoc('RectIntFieldProps')} />
+      <CodeBlock language="jsx" code={getPropsDoc('RectIntFieldProps')} />
     </Box>
     <Box sx={Styles.section}>
       <Typography variant="h5" component="h2" gutterBottom>
         Basic usage
       </Typography>
-      <CodeBlock language="tsx" code={RECT_INT_FIELD_BASIC} />
+      <CodeBlock language="jsx" code={RECT_INT_FIELD_BASIC} />
     </Box>
     <UnityDocsSection componentName="RectIntField" />
   </Box>
