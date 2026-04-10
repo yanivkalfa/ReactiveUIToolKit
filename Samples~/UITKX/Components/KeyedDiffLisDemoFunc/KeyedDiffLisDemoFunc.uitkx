@@ -111,7 +111,7 @@ component KeyedDiffLisDemoFunc {
           style={btnStyle}
         />
         <Button
-          text="Rotate tail → head"
+          text="Rotate tail â†’ head"
           onClick={_ => RotateTailToHead()}
           style={btnStyle}
         />

@@ -27,7 +27,7 @@ component RenderDepthGuardDemoFunc {
 
   return (
     <VisualElement style={containerStyle}>
-      <Text text="Render Depth Guard — Step 1 Test" />
+      <Text text="Render Depth Guard â€” Step 1 Test" />
       <VisualElement style={infoStyle}>
         <Text
           text="MaxRenderDepth = 25.  A tree deeper than that will be capped and an error will be printed to the console.  The window must NOT freeze or crash."
@@ -42,7 +42,7 @@ component RenderDepthGuardDemoFunc {
           style={new Style { (StyleKeys.MarginRight, 8f) }}
         />
         <Button
-          text="Trigger Deep Tree (depth 30 > 25) ⚠"
+          text="Trigger Deep Tree (depth 30 > 25) âš "
           onClick={_ => { setDepth(30); setTriggered(true); }}
         />
       </VisualElement>
@@ -50,7 +50,7 @@ component RenderDepthGuardDemoFunc {
         return (
           <VisualElement style={warnStyle}>
             <Text
-              text="⚠ Deep tree triggered — check Console for '[Fiber] Maximum render depth exceeded' error."
+              text="âš  Deep tree triggered â€” check Console for '[Fiber] Maximum render depth exceeded' error."
             />
           </VisualElement>
         );
@@ -65,7 +65,7 @@ component RenderDepthGuardDemoFunc {
       } @else {
         return (
           <VisualElement style={infoStyle}>
-            <Text text="No tree rendered yet — click a button above." />
+            <Text text="No tree rendered yet â€” click a button above." />
           </VisualElement>
         );
       }

@@ -25,7 +25,7 @@ Consolidated tech debt tracker. Includes carryover items from the original
 
 ## 4. Comment toggle (Ctrl+/) misdetects pure C# as markup
 
-**Status:** Open — MEDIUM priority
+**Status:** ✅ COMPLETED
 
 **Bug:** Selecting pure C# code inside a component body and pressing `Ctrl+/`
 wraps it in `{/* */}` instead of inserting `//` on each line.
@@ -91,7 +91,7 @@ VS2022 handler needs the same fix.
 
 ## 5. Formatter non-idempotent on bare `return <Element>` inside control blocks
 
-**Status:** Open — MEDIUM priority
+**Status:** ✅ COMPLETED
 
 **Bug:** When a bare `return <Element>` (no parens) is used inside a control
 block, the formatter takes **two passes** to reach the canonical form. The first
@@ -208,99 +208,231 @@ bare returns inside `@if`/`@for` control blocks.
 
 ## 6. Companion file IDE support (IntelliSense, coloring, formatting)
 
-**Status:** Open — HIGH priority
+**Status:** ✅ COMPLETED
 
-**Problem:** Companion `.cs` files (e.g. `MyComponent.style.cs`,
-`MyComponent.util.cs`) sitting alongside a `.uitkx` file get **no IDE
-features** from the UITKX extension:
-
-- **No IntelliSense** — no completions for UITKX types, StyleKeys, CssHelpers
-- **No syntax coloring** — no UITKX-aware highlighting (e.g. StyleKeys usage)
-- **No formatting** — no UITKX-aware formatting suggestions
-- **No hover** — generic C# hover only, no component-aware context
-- **No scaffolding** — no "Create Companion File" command
-
-**Note:** The LSP server internally has infrastructure for companion files
-(RoslynHost loads them into the per-file workspace, DefinitionHandler and
-ReferencesHandler can resolve across files, TextSyncHandler detects `.cs`
-edits). But this infrastructure only benefits the `.uitkx` side — the
-companion `.cs` files themselves don't receive any UITKX language features.
-
-**What's needed:**
-
-1. **IntelliSense in companion files** — when editing a `.style.cs`, offer
-   completions for `StyleKeys.*`, `CssHelpers.*`, component-specific types.
-   May need the LSP to claim `**/*.cs` in specific directories (or files
-   matching `*.style.cs` / `*.util.cs` patterns).
-
-2. **Semantic coloring** — highlight StyleKeys constants, CssHelpers values,
-   component references in companion files with UITKX colors.
-
-3. **Cross-file navigation** — Go to Definition from companion → `.uitkx`
-   (currently works `.uitkx` → companion but not reverse).
-
-4. **Scaffolding command** — "New Companion File" in VS Code command palette
-   that creates a `.style.cs` / `.util.cs` with the correct `partial class`
-   boilerplate matching the component's namespace and class name.
-
-5. **Documentation** — document the companion file conventions and patterns.
-
-**Challenge:** Claiming `**/*.cs` for the UITKX LSP would conflict with
-OmniSharp / C# Dev Kit, which already owns `.cs` files. Need to either:
-- Use a separate language ID for companion files (e.g. `uitkx-companion`)
-- Provide features through a different mechanism (VS Code extension commands,
-  custom views, not LSP)
-- Coordinate with C# language server via middleware
-
-**Research findings — recommended approach: Hybrid Middleware + Direct Registration**
-
-Custom language ID (`uitkx-cs`) is **not viable** — VS Code resolves one
-language ID per file, so claiming `*.style.cs` would break C# Dev Kit.
-Blazer's pattern doesn't apply (`.razor.cs` is handled as regular C# by
-C# Dev Kit, Blazor server only handles `.razor`).
-
-The viable approach has 3 tiers:
-
-**Tier 1 — Middleware augmentation (existing pattern):**
-The extension already has LSP middleware that intercepts completion responses
-(extension.ts lines 379–410 for `@` prefix stripping). Extend this to detect
-companion files and inject UITKX-specific items:
-```typescript
-middleware: {
-  provideCompletionItem(document, position, context, token, next) {
-    const result = await next(document, position, context, token);
-    if (document.fileName.match(/\.(style|util)\.cs$/)) {
-      return augmentWithUITKXCompletions(result, document, position);
-    }
-    return result;
-  }
-}
-```
-Same pattern for hover, diagnostics. Zero conflict with C# Dev Kit —
-it provides base C# features, middleware adds UITKX-specific extras.
-
-**Tier 2 — Direct VS Code API registration:**
-For features that don't need C# compilation context:
-```typescript
-vscode.languages.registerCompletionItemProvider(
-  { scheme: 'file', pattern: '**/*.style.cs' },
-  myStyleCompletionProvider
-);
-```
-VS Code supports multiple providers per language — no conflict.
-Good for: color previews, StyleKeys constants, CssHelpers shortcuts.
-
-**Tier 3 — Code Actions for complex operations:**
-"Generate Props class from markup", "Create style template", etc.
-User-initiated (light bulb), no always-on overhead.
-
-**LSP server changes needed:**
-- The server already scans `.cs` files and registers for `**/*.cs` changes
-- Extend `CompletionHandler` to return UITKX-aware results when the
-  request comes from a companion file
-- The server already knows the component context from `RoslynHost`
-
-**Effort:** Medium-large for Tier 1 (middleware + LSP handler extension).
-Small for Tier 2/3 (VS Code API only). VS2022 needs equivalent middleware.
+Companion files are now `.uitkx` files using `hook` and `module` keywords
+instead of `.cs` files. Both VS Code and VS2022 provide full IDE support:
+parsing, diagnostics, hover, completions, coloring, and formatting —
+all handled by the shared LSP server with no special middleware needed.
 
 ---
+
+## 7. Formatter destroys hook/module files on save
+
+**Status:** ✅ COMPLETED
+
+**Bug:** When a `.uitkx` file containing `hook` or `module` declarations is
+saved (or formatted), the `AstFormatter` rewrites the entire file content to
+`component Component { return (); }` — complete data loss without undo.
+
+**Root cause:** `AstFormatter.Format()` checks `directives.IsFunctionStyle`
+(which is `true` for hook/module files) and routes to
+`FormatFunctionStyleComponent()`. That method doesn't know about hooks/modules
+— it falls back to `componentName = "Component"`, emits an empty scaffold,
+and discards all original content.
+
+**Fix:** At the top of `AstFormatter.Format()`, check
+`directives.HookDeclarations` / `directives.ModuleDeclarations` — if either is
+populated, return early (no formatting) or implement a dedicated hook/module
+formatter.
+
+**Files:**
+- `ide-extensions~/language-lib/Formatter/AstFormatter.cs` (lines 70-76)
+
+---
+
+## 8. TextMate grammar coloring broken for hook/module files
+
+**Status:** ✅ COMPLETED
+
+**Bug:** Syntax coloring inside `hook` and `module` bodies is broken. Words
+are fragmented into multiple colors, and the coloring doesn't make sense.
+The `hook` and `module` keywords themselves may not color correctly either.
+
+**Likely cause:** The grammar patterns for `hook-declaration` and
+`module-declaration` use `match` (single-line) which captures the declaration
+line, but the body content (everything inside `{ ... }`) falls through to
+top-level patterns that expect UITKX markup, not pure C# code. Hook/module
+bodies need to be scoped as embedded C# using a `begin`/`end` pattern that
+properly delegates to `#expression-content` or the C# grammar.
+
+**Files:**
+- `ide-extensions~/grammar/uitkx.tmLanguage.json`
+- `ide-extensions~/vscode/syntaxes/uitkx.tmLanguage.json`
+
+---
+
+## 9. IntelliSense errors in component consuming custom hooks
+
+**Status:** ✅ COMPLETED — resolved by peer workspace infrastructure
+
+**Bug:** In `TestHome.uitkx`, calling `useTestHomeState()` produces:
+- `The name 'useTestHomeState' does not exist in the current context`
+- `Cannot infer the type of implicitly-typed deconstruction variable 'gameStarted'`
+- `The name 'DetailsStyles' does not exist in the current context`
+
+**Note:** The peer `.uitkx` document infrastructure added during v1.0.308
+(`AddPeerUitkxDocuments`, `AddPeerUitkxDocumentsToSolution`,
+`EnrichWithPeerHookUsings`) may have resolved this. The LSP now loads
+hook/module `.uitkx` files as peer documents in the Roslyn workspace,
+and auto-injects `using static` directives for peer hook container classes.
+Needs re-testing to confirm whether these errors still reproduce.
+
+**Likely causes (if still present):**
+1. The test project (`Tic-tac-toe`) has an **older version** of the source
+   generator DLL that doesn't know about `hook`/`module` keywords. The new
+   DLL was only deployed to the ReactiveUIToolKit workspace's `Analyzers/`
+   folder — not to the consumer project's local package cache.
+2. The VDG (VirtualDocumentGenerator) builds each `.uitkx` file in
+   isolation. Component files don't automatically see types generated by
+   sibling hook/module `.uitkx` files. The Roslyn AdhocWorkspace needs all
+   generated sources to resolve cross-file references.
+3. Module `TestHome` generates `partial class TestHome` — but only if the
+   source generator runs. Without it, the styles are invisible.
+
+**Fix path:**
+- Ensure the consumer project gets the updated source generator DLL
+- Verify VDG/RoslynHost includes all `.uitkx` generated sources in the
+  workspace compilation (not just the current file)
+- May need to add hook container classes to the virtual document's scope
+
+**Files:**
+- `SourceGenerator~/Emitter/HookEmitter.cs`
+- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs`
+- `ide-extensions~/lsp-server/Roslyn/RoslynHost.cs`
+
+---
+
+## 10. Lambda return type mismatch in hook body
+
+**Status:** ✅ COMPLETED (v1.0.308 — netstandard.dll ref fix + CS1662 cascade suppression)
+
+**Bug:** In `TestHome.hooks.uitkx`, the line:
+```
+Func<int, int, PointerEventHandler> handleColumnClick = (row, col) => _ => {
+```
+produces: `Cannot convert lambda expression to intended delegate type because
+some of the return types in the block are not implicitly convertible to the
+delegate return type`.
+
+**Likely cause:** The VDG hook stubs don't include `PointerEventHandler`
+in the virtual document's usings or type scope. Without the proper type
+resolution, the nested lambda's return type can't be inferred. May also be
+a genuine C# type inference limitation with nested lambdas requiring explicit
+parameter types.
+
+**Files:**
+- `ide-extensions~/language-lib/Roslyn/VirtualDocumentGenerator.cs`
+
+---
+
+## 11. Hook ownership model — no implicit component binding
+
+**Status:** Open — DESIGN QUESTION
+
+**Context:** Hooks are generated into a **static container class** derived
+from the filename (e.g. `TestHome.hooks.uitkx` → `TestHomeHooks` class).
+They are **not** automatically scoped to a specific component — any component
+in the same namespace can call them.
+
+**Current model:**
+- `hook useX()` in `Foo.hooks.uitkx` → `public static class FooHooks`
+- Component calls `FooHooks.useX()` (or just `useX()` if hook aliases
+  are extended to cover custom hooks)
+- Hooks and components are connected by **namespace**, not by filename
+
+**Open question:** Should we support `hook ComponentName useX()` syntax
+to generate the hook as a method on the component's partial class instead?
+This would make `useX()` callable without qualification inside the component.
+Trade-off: less reusable, more coupled.
+
+**Decision needed before:** documentation / public API finalization.
+
+---
+
+## 12. Cross-file diagnostic staleness on tab switch
+
+**Status:** IN PROGRESS — fix implemented, pending VS2022 verification
+
+**Bug:** When two `.uitkx` files depend on each other (e.g. file B uses a
+hook/type from file A), editing file A and then switching to file B shows
+stale diagnostics. The errors/fixes don't refresh until the user makes an
+edit (even a space) in file B.
+
+**Root cause:** Two issues:
+1. Peer `.uitkx` content was read from **disk** (`File.ReadAllText`) instead
+   of the in-memory editor buffer. Unsaved edits in an open peer were invisible.
+2. `RevalidateOpenDocuments` passed `roslynHost: null`, skipping T3 Roslyn
+   rebuilds — only T1+T2 diagnostics were pushed.
+
+**Fix (implemented):**
+- Added `TryGetByPath()` to `DocumentStore` for path-based editor buffer lookup
+- Added `ReadPeerSource()` to `RoslynHost` — prefers editor content over disk
+- Both `AddPeerUitkxDocuments` and `AddPeerUitkxDocumentsToSolution` now use
+  `ReadPeerSource()` instead of `File.ReadAllText()`
+- `DiagnosticsPublisher.SetRoslynHost()` wired at startup so
+  `RevalidateOpenDocuments` triggers full T3 Roslyn rebuilds
+- Removed 7 hot-path spam logs from the server
+
+**Remaining:** Verify behavior in VS2022 extension.
+
+**Files changed:**
+- `ide-extensions~/lsp-server/DocumentStore.cs`
+- `ide-extensions~/lsp-server/Roslyn/RoslynHost.cs`
+- `ide-extensions~/lsp-server/DiagnosticsPublisher.cs`
+- `ide-extensions~/lsp-server/Program.cs`
+
+---
+
+## 13. Hover missing for variable declarations and delegate types
+
+**Status:** ✅ COMPLETED
+
+**Bug:** Hover tooltips are absent for variable declarations and show
+unhelpful text for delegate types. Autocomplete works correctly in all
+file types.
+
+**Concrete test results (TicTacToe sample):**
+
+In `TicTacToe.uitkx`:
+- `useTestHomeState()` hover ✅ works correctly
+- Destructured variables (`gameStarted`, `playerTurn`, `grid`, etc.) on
+  the LEFT side of `var (...) = useTestHomeState()` — **no hover** ❌
+
+In `TicTacToe.hooks.uitkx`:
+- Local variables like `handleStartGame`, `handleRestartGame`,
+  `handleColumnClick`, `haveAWinner` — **no hover** ❌
+- `PointerEventHandler` type name — shows `(namedtype) PointerEventHandler`
+  instead of the delegate signature ❌
+
+In `TicTacToe.style.uitkx`:
+- Style names (`containerStyle`, `ButtonStyles`) — no hover. Expected —
+  these are module fields, not yet instrumented.
+
+**Root cause:** `HoverHandler.TryGetRoslynHover()` uses
+`semanticModel.GetSymbolInfo()` and `GetTypeInfo()` to resolve symbols.
+These APIs return nothing for **declarations** (variable declarations,
+parameters, tuple designations) — only for **references/expressions**.
+The correct API for declarations is `semanticModel.GetDeclaredSymbol()`,
+which is **never called**.
+
+Affected declaration types:
+- `SingleVariableDesignationSyntax` (tuple destructuring: `var (a, b) = ...`)
+- `VariableDeclaratorSyntax` (locals: `Type name = ...`)
+- `ParameterSyntax` (lambda params: `x => ...`)
+
+Additionally, for delegate types, `sym.Kind.ToString()` returns the raw
+enum name `"namedtype"` instead of `"delegate"`. The hover doesn't show
+the delegate's invoke signature (`void PointerEventHandler(PointerEventBase evt)`).
+
+**Fix approach:**
+1. Add `semanticModel.GetDeclaredSymbol(token.Parent)` fallback before
+   the null check — covers all variable declarations and parameters
+2. For `INamedTypeSymbol` with `TypeKind == Delegate`, display the
+   `DelegateInvokeMethod` signature and show kind as `"delegate"`
+3. Map other `TypeKind` values: `class`, `struct`, `interface`, `enum`
+
+**Effort:** Small — all changes in `HoverHandler.TryGetRoslynHover()`
+
+**Files:**
+- `ide-extensions~/lsp-server/HoverHandler.cs` — `TryGetRoslynHover()`

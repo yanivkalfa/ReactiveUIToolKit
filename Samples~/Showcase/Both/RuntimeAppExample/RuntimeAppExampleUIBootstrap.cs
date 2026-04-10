@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using ReactiveUITK.Samples.UITKXComponents;
+using Samples.TicTacToe;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -32,8 +32,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
             // TODO: DiabloMenuDemoFunc was removed — replace with a valid component.
-            // var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            // rootRenderer.Render(V.Host(hostProps, null, V.Func(DiabloMenuDemoFunc.Render)));
+            var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(TicTacToe.Render)));
         }
     }
 }

@@ -360,7 +360,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 System.Text.RegularExpressions.RegexOptions.Compiled
             );
 
-        private static string ApplyHookAliases(string code)
+        internal static string ApplyHookAliases(string code)
         {
             // State-setter lambda sugar applies regardless of whether hooks are present:
             //   setFoo(v => v + 1)  →  setFoo.Set(v => v + 1)
@@ -423,7 +423,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// a comma-separated ordered signature string (e.g. "UseState,UseEffect,UseMemo").
         /// Returns empty string if no hooks are found.
         /// </summary>
-        private static string ExtractHookSignature(string setupCode)
+        internal static string ExtractHookSignature(string setupCode)
         {
             if (string.IsNullOrWhiteSpace(setupCode))
                 return string.Empty;
@@ -446,7 +446,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// Normalizes a hook name to its canonical PascalCase form
         /// matching the runtime hook ID constants in Hooks.cs.
         /// </summary>
-        private static string NormalizeHookName(string name)
+        internal static string NormalizeHookName(string name)
         {
             // Already PascalCase
             if (char.IsUpper(name[0]))

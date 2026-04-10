@@ -125,6 +125,34 @@ namespace ReactiveUITK.Language.Diagnostics
                     }
                 }
 
+                // Site B — early return in setup code (before the render return).
+                // Dim from the line after the early return to the closing `}`.
+                if (!string.IsNullOrEmpty(sourceText) && d.FunctionSetupStartOffset >= 0
+                    && d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
+                {
+                    int earlyReturnLine = FindEarlyReturnInSetup(
+                        sourceText, d.FunctionSetupStartOffset, d.FunctionSetupStartLine,
+                        d.FunctionReturnEndLine);
+                    if (earlyReturnLine > 0)
+                    {
+                        int unreachStart = earlyReturnLine + 1;
+                        int unreachEnd = d.FunctionBodyEndLine - 1;
+                        if (unreachEnd >= unreachStart)
+                        {
+                            diags.Add(new ParseDiagnostic
+                            {
+                                Code = DiagnosticCodes.UnreachableAfterReturn,
+                                Severity = ParseSeverity.Hint,
+                                Message = "Unreachable code after 'return'.",
+                                SourceLine = unreachStart,
+                                SourceColumn = 0,
+                                EndLine = unreachEnd,
+                                EndColumn = 9999,
+                            });
+                        }
+                    }
+                }
+
             }
 
             // ── T2: UITKX0111 — Unused component parameter ───────────────────
@@ -980,6 +1008,146 @@ namespace ReactiveUITK.Language.Diagnostics
                 EndLine = line,
                 EndColumn = endColumn > 0 ? endColumn : column,
             };
+
+        /// <summary>
+        /// Scans the setup code region for a top-level <c>return …;</c> statement
+        /// that appears before the render return. Returns the 1-based line of the
+        /// <c>;</c> ending that early return, or -1 if none found.
+        /// </summary>
+        private static int FindEarlyReturnInSetup(
+            string source, int setupStartOffset, int setupStartLine, int renderReturnEndLine)
+        {
+            int i = setupStartOffset;
+            int braceDepth = 0;
+            int parenDepth = 0;
+            int currentLine = setupStartLine;
+
+            while (i < source.Length)
+            {
+                char c = source[i];
+
+                // Track line numbers
+                if (c == '\n')
+                {
+                    currentLine++;
+                    i++;
+                    continue;
+                }
+                if (c == '\r')
+                {
+                    i++;
+                    continue;
+                }
+
+                // Skip strings
+                if (c == '"')
+                {
+                    if (i + 2 < source.Length && source[i + 1] == '"' && source[i + 2] == '"')
+                    {
+                        // Raw string literal — skip to closing """
+                        i += 3;
+                        while (i + 2 < source.Length)
+                        {
+                            if (source[i] == '\n') currentLine++;
+                            if (source[i] == '"' && source[i + 1] == '"' && source[i + 2] == '"')
+                            { i += 3; break; }
+                            i++;
+                        }
+                        continue;
+                    }
+                    i++;
+                    while (i < source.Length && source[i] != '"' && source[i] != '\n')
+                    {
+                        if (source[i] == '\\') i++; // skip escape
+                        i++;
+                    }
+                    if (i < source.Length && source[i] == '"') i++;
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < source.Length && source[i] != '\'' && source[i] != '\n')
+                    {
+                        if (source[i] == '\\') i++;
+                        i++;
+                    }
+                    if (i < source.Length && source[i] == '\'') i++;
+                    continue;
+                }
+
+                // Skip line comments
+                if (c == '/' && i + 1 < source.Length && source[i + 1] == '/')
+                {
+                    while (i < source.Length && source[i] != '\n') i++;
+                    continue;
+                }
+                // Skip block comments
+                if (c == '/' && i + 1 < source.Length && source[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < source.Length)
+                    {
+                        if (source[i] == '\n') currentLine++;
+                        if (source[i] == '*' && source[i + 1] == '/')
+                        { i += 2; break; }
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Track nesting
+                if (c == '{') { braceDepth++; i++; continue; }
+                if (c == '}')
+                {
+                    if (braceDepth > 0) braceDepth--;
+                    else return -1; // hit component closing brace
+                    i++;
+                    continue;
+                }
+                if (c == '(') { parenDepth++; i++; continue; }
+                if (c == ')')
+                {
+                    if (parenDepth > 0) parenDepth--;
+                    i++;
+                    continue;
+                }
+
+                // At top level, look for `return` keyword
+                if (braceDepth == 0 && parenDepth == 0
+                    && i + 6 <= source.Length
+                    && source.Substring(i, 6) == "return"
+                    && (i + 6 >= source.Length || !char.IsLetterOrDigit(source[i + 6]) && source[i + 6] != '_'))
+                {
+                    // Find the `;` that ends this return statement
+                    int j = i + 6;
+                    int retBraces = 0, retParens = 0;
+                    int retLine = currentLine;
+                    while (j < source.Length)
+                    {
+                        char rc = source[j];
+                        if (rc == '\n') retLine++;
+                        if (rc == '{') retBraces++;
+                        else if (rc == '}') { if (retBraces > 0) retBraces--; else break; }
+                        else if (rc == '(') retParens++;
+                        else if (rc == ')') { if (retParens > 0) retParens--; }
+                        else if (rc == ';' && retBraces == 0 && retParens == 0)
+                        {
+                            // Found the end of the return statement.
+                            // Only report if this line is before the render return.
+                            if (retLine < renderReturnEndLine)
+                                return retLine;
+                            return -1; // this IS the render return
+                        }
+                        j++;
+                    }
+                }
+
+                i++;
+            }
+
+            return -1;
+        }
 
         // ═══════════════════════════════════════════════════════════════════════
         //  ASSET PATH VALIDATION

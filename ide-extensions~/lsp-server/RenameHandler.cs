@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -164,6 +165,25 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                     );
                 }
             }
+
+            // Hook declaration: `hook useMyHook() -> ...`
+            if (!parseResult.Directives.HookDeclarations.IsDefaultOrEmpty)
+            {
+                foreach (var hook in parseResult.Directives.HookDeclarations)
+                {
+                    if (cWord == hook.Name)
+                    {
+                        ServerLog.Log($"[Rename] PrepareRename (hook): '{cWord}'");
+                        return new RangeOrPlaceholderRange(
+                            new PlaceholderRange
+                            {
+                                Range = OffsetRangeToLspRange(text, cStart, cEnd),
+                                Placeholder = cWord,
+                            }
+                        );
+                    }
+                }
+            }
         }
 
         return null;
@@ -246,7 +266,8 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                             symbol.Name,
                             newName,
                             changes,
-                            ct
+                            ct,
+                            _roslynHost.GetPeerVirtualDocuments(localPath)
                         );
 
                         // Store post-rename .cs text so the upcoming workspace
@@ -278,6 +299,35 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                                     changes
                                 );
                             }
+                        }
+
+                        // If the symbol is a method matching a peer hook
+                        // declaration, also rename the hook keyword line
+                        // and call sites across .uitkx files.
+                        // Skip the current file — Roslyn already renamed call sites there.
+                        if (symbol is IMethodSymbol)
+                        {
+                            var peerVDocs = _roslynHost.GetPeerVirtualDocuments(localPath);
+                            if (peerVDocs != null && peerVDocs.Count > 0)
+                            {
+                                // Pick any peer path to anchor the directory scan
+                                var firstPeerPath = peerVDocs.Values.First().PeerPath;
+                                ServerLog.Log(
+                                    $"[Rename] Hook method rename from consumer: '{symbol.Name}' → '{newName}', scanning peers from {Path.GetFileName(firstPeerPath)}");
+                                CollectHookRenameEdits(
+                                    firstPeerPath, symbol.Name, newName, changes,
+                                    skipFilePath: localPath);
+                            }
+                        }
+
+                        // If the symbol is a field/property (e.g. module style),
+                        // propagate to peer .uitkx files that use it via `using static`.
+                        if (symbol is IFieldSymbol || symbol is IPropertySymbol)
+                        {
+                            ServerLog.Log(
+                                $"[Rename] Field/property rename: '{symbol.Name}' → '{newName}', scanning peers");
+                            CollectPeerSymbolRenameEdits(
+                                localPath, symbol.Name, newName, changes);
                         }
 
                         // Log what we're returning
@@ -321,6 +371,20 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                 ServerLog.Log($"[Rename] Component rename: '{word}' → '{newName}'");
                 CollectComponentRenameEdits(word, newName, changes);
                 return new WorkspaceEdit { Changes = changes };
+            }
+
+            // ── Hook-name path ───────────────────────────────────────────
+            if (!parseResult.Directives.HookDeclarations.IsDefaultOrEmpty)
+            {
+                foreach (var hook in parseResult.Directives.HookDeclarations)
+                {
+                    if (word == hook.Name)
+                    {
+                        ServerLog.Log($"[Rename] Hook rename: '{word}' → '{newName}'");
+                        CollectHookRenameEdits(localPath, word, newName, changes);
+                        return new WorkspaceEdit { Changes = changes };
+                    }
+                }
             }
         }
 
@@ -457,7 +521,8 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         string oldName,
         string newName,
         Dictionary<DocumentUri, IEnumerable<TextEdit>> changes,
-        CancellationToken ct
+        CancellationToken ct,
+        Dictionary<DocumentId, (string PeerPath, VirtualDocument PeerVDoc)>? peerVDocs = null
     )
     {
         var solutionChanges = newSolution.GetChanges(oldSolution);
@@ -553,6 +618,81 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
                                             uitkxText,
                                             uitkxOffset,
                                             uitkxOffset + oldName.Length),
+                                        NewText = newName,
+                                    }
+                                );
+                            }
+
+                            searchPos = idx + oldName.Length;
+                        }
+
+                        cumulativeShift += lengthDelta;
+                    }
+                }
+                else if (peerVDocs != null && peerVDocs.TryGetValue(docId, out var peerEntry))
+                {
+                    // ── Peer .uitkx virtual document → map back via peer SourceMap ──
+                    var (peerPath, peerVDoc) = peerEntry;
+                    string peerSource;
+                    try { peerSource = File.Exists(peerPath) ? File.ReadAllText(peerPath) : ""; }
+                    catch { continue; }
+
+                    var peerUri = DocumentUri.FromFileSystemPath(peerPath);
+                    var oldStr = oldText.ToString();
+                    var newStr = newText.ToString();
+                    int cumulativeShift = 0;
+
+                    foreach (var entry in peerVDoc.Map.Entries)
+                    {
+                        int oldLen = entry.VirtualEnd - entry.VirtualStart;
+                        if (entry.VirtualStart >= oldStr.Length)
+                            continue;
+
+                        var oldSlice = oldStr.Substring(
+                            entry.VirtualStart,
+                            Math.Min(oldLen, oldStr.Length - entry.VirtualStart));
+
+                        int newStart = entry.VirtualStart + cumulativeShift;
+                        if (newStart >= newStr.Length)
+                            continue;
+
+                        int occurrences = CountOccurrences(oldSlice, oldName);
+                        int lengthDelta = occurrences * (newName.Length - oldName.Length);
+                        int newLen = oldLen + lengthDelta;
+
+                        if (newStart + newLen > newStr.Length)
+                            newLen = newStr.Length - newStart;
+
+                        var newSlice = newStr.Substring(newStart, newLen);
+
+                        if (oldSlice == newSlice)
+                        {
+                            cumulativeShift += lengthDelta;
+                            continue;
+                        }
+
+                        int searchPos = 0;
+                        while (searchPos < oldSlice.Length)
+                        {
+                            int idx = oldSlice.IndexOf(oldName, searchPos, StringComparison.Ordinal);
+                            if (idx < 0) break;
+
+                            bool leftOk = idx == 0 || !char.IsLetterOrDigit(oldSlice[idx - 1]) && oldSlice[idx - 1] != '_';
+                            int endIdx = idx + oldName.Length;
+                            bool rightOk = endIdx >= oldSlice.Length || !char.IsLetterOrDigit(oldSlice[endIdx]) && oldSlice[endIdx] != '_';
+
+                            if (leftOk && rightOk)
+                            {
+                                int peerUitkxOffset = entry.UitkxStart + idx;
+                                AddEdit(
+                                    changes,
+                                    peerUri,
+                                    new TextEdit
+                                    {
+                                        Range = OffsetRangeToLspRange(
+                                            peerSource,
+                                            peerUitkxOffset,
+                                            peerUitkxOffset + oldName.Length),
                                         NewText = newName,
                                     }
                                 );
@@ -716,6 +856,169 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         }
     }
 
+    // ── Hook rename ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Renames a hook declaration and all its usages across .uitkx files
+    /// in the same directory. Handles:
+    /// <list type="bullet">
+    ///   <item><c>hook oldName(...)</c> → <c>hook newName(...)</c> in the declaring file</item>
+    ///   <item><c>oldName()</c> call sites in peer component files (setup code, expressions)</item>
+    /// </list>
+    /// </summary>
+    private void CollectHookRenameEdits(
+        string hookFilePath,
+        string oldName,
+        string newName,
+        Dictionary<DocumentUri, IEnumerable<TextEdit>> changes,
+        string? skipFilePath = null
+    )
+    {
+        var dir = Path.GetDirectoryName(hookFilePath);
+        if (dir == null)
+            return;
+
+        ServerLog.Log(
+            $"[Rename] CollectHookRenameEdits: '{oldName}' → '{newName}' in {dir}, skip={Path.GetFileName(skipFilePath ?? "none")}");
+
+        IEnumerable<string> files;
+        try
+        {
+            files = Directory.EnumerateFiles(dir, "*.uitkx");
+        }
+        catch
+        {
+            return;
+        }
+
+        foreach (var uitkxFile in files)
+        {
+            // Skip the file that Roslyn already handled (avoids double-edits)
+            if (skipFilePath != null && string.Equals(
+                    Path.GetFullPath(uitkxFile),
+                    Path.GetFullPath(skipFilePath),
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string fileText;
+            var fileUri = DocumentUri.FromFileSystemPath(uitkxFile);
+            if (!_store.TryGet(fileUri, out fileText!))
+            {
+                try { fileText = File.ReadAllText(uitkxFile); }
+                catch { continue; }
+            }
+
+            var uri = DocumentUri.FromFileSystemPath(uitkxFile);
+
+            // Rename `hook oldName(` declaration (only in the declaring file)
+            var hookDeclPattern = new Regex(
+                $@"(?<=\bhook\s+){Regex.Escape(oldName)}\b",
+                RegexOptions.CultureInvariant
+            );
+            foreach (Match m in hookDeclPattern.Matches(fileText))
+            {
+                AddEdit(changes, uri, new TextEdit
+                {
+                    Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
+                    NewText = newName,
+                });
+            }
+
+            // Rename `oldName(` call sites — whole-word followed by `(`
+            // (avoids renaming substrings of other identifiers)
+            var callPattern = new Regex(
+                $@"\b{Regex.Escape(oldName)}(?=\s*\()",
+                RegexOptions.CultureInvariant
+            );
+            foreach (Match m in callPattern.Matches(fileText))
+            {
+                // Skip if this is the hook declaration itself (already handled above)
+                int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+                var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
+                if (linePrefix.StartsWith("hook ", StringComparison.Ordinal))
+                    continue;
+
+                AddEdit(changes, uri, new TextEdit
+                {
+                    Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
+                    NewText = newName,
+                });
+            }
+        }
+    }
+
+    // ── Peer symbol rename (module fields/styles) ─────────────────────────────
+
+    /// <summary>
+    /// Scans peer .uitkx files in the same directory for bare identifier usages
+    /// of a module field/property (e.g. style constants accessed via <c>using static</c>).
+    /// Skips the defining file itself (Roslyn already handled it).
+    /// </summary>
+    private void CollectPeerSymbolRenameEdits(
+        string definingFilePath,
+        string oldName,
+        string newName,
+        Dictionary<DocumentUri, IEnumerable<TextEdit>> changes
+    )
+    {
+        var dir = Path.GetDirectoryName(definingFilePath);
+        if (dir == null) return;
+
+        IEnumerable<string> files;
+        try { files = Directory.EnumerateFiles(dir, "*.uitkx"); }
+        catch { return; }
+
+        foreach (var uitkxFile in files)
+        {
+            // Skip the defining file — Roslyn already renamed within it
+            if (string.Equals(
+                    Path.GetFullPath(uitkxFile),
+                    Path.GetFullPath(definingFilePath),
+                    StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string fileText;
+            var fileUri = DocumentUri.FromFileSystemPath(uitkxFile);
+            if (!_store.TryGet(fileUri, out fileText!))
+            {
+                try { fileText = File.ReadAllText(uitkxFile); }
+                catch { continue; }
+            }
+
+            // Whole-word match for the identifier
+            var pattern = new Regex(
+                $@"\b{Regex.Escape(oldName)}\b",
+                RegexOptions.CultureInvariant
+            );
+
+            var uri = DocumentUri.FromFileSystemPath(uitkxFile);
+            int editCount = 0;
+
+            foreach (Match m in pattern.Matches(fileText))
+            {
+                // Skip occurrences in directive lines (@namespace, @using, etc.)
+                int lineStart = fileText.LastIndexOf('\n', Math.Max(0, m.Index - 1)) + 1;
+                var linePrefix = fileText.Substring(lineStart, m.Index - lineStart).TrimStart();
+                if (linePrefix.StartsWith("@", StringComparison.Ordinal))
+                    continue;
+                // Skip occurrences in comments
+                if (linePrefix.StartsWith("//", StringComparison.Ordinal))
+                    continue;
+
+                AddEdit(changes, uri, new TextEdit
+                {
+                    Range = OffsetRangeToLspRange(fileText, m.Index, m.Index + m.Length),
+                    NewText = newName,
+                });
+                editCount++;
+            }
+
+            if (editCount > 0)
+                ServerLog.Log(
+                    $"[Rename] PeerSymbol: {editCount} edit(s) in {Path.GetFileName(uitkxFile)}");
+        }
+    }
+
     // ── Symbol resolution ─────────────────────────────────────────────────────
 
     private static ISymbol? ResolveSymbol(
@@ -796,7 +1099,17 @@ public sealed class RenameHandler : IRenameHandler, IPrepareRenameHandler
         }
         else
         {
-            ((List<TextEdit>)existing).Add(edit);
+            var list = (List<TextEdit>)existing;
+            // Deduplicate: skip if an edit with the same range already exists
+            foreach (var e in list)
+            {
+                if (e.Range.Start.Line == edit.Range.Start.Line
+                    && e.Range.Start.Character == edit.Range.Start.Character
+                    && e.Range.End.Line == edit.Range.End.Line
+                    && e.Range.End.Character == edit.Range.End.Character)
+                    return;
+            }
+            list.Add(edit);
         }
     }
 

@@ -17,7 +17,7 @@ component PortalEventScopeDemoFunc {
     setLog(prev => $"{DateTime.Now:HH:mm:ss} {message}\n" + (prev ?? string.Empty));
   }
 
-  // ── var: portalNode (setup-code JSX) ─────────────────────────────────────
+  // â”€â”€ var: portalNode (setup-code JSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var portalNode = portalTarget != null
     ? (
       <Portal target={portalTarget}>

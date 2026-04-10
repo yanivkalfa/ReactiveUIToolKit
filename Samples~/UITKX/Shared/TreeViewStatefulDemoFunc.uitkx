@@ -6,14 +6,14 @@
 @using UnityEngine.UIElements
 
 component TreeViewStatefulDemoFunc(
-  IReadOnlyList<TreeViewRowState>? rows = null, 
-  Action? addParent = null, 
-  Action? addChild = null, 
-  Action? setParent = null, 
-  Action? setChild = null, 
-  Action? deleteLast = null, 
-  IList<int>? expandedItemIds = null, 
-  TreeExpansionEventHandler? onExpandedChanged = null, 
+  IReadOnlyList<TreeViewRowState>? rows = null,
+  Action? addParent = null,
+  Action? addChild = null,
+  Action? setParent = null,
+  Action? setChild = null,
+  Action? deleteLast = null,
+  IList<int>? expandedItemIds = null,
+  TreeExpansionEventHandler? onExpandedChanged = null,
   Action<int>? onCountChanged = null
 ) {
   var safeRows = rows ?? Array.Empty<TreeViewRowState>();

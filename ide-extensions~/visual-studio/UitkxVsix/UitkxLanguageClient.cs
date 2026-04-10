@@ -13,6 +13,20 @@ using StreamJsonRpc;
 
 namespace UitkxVsix;
 
+/// <summary>
+/// Receives custom (non-standard) LSP notifications from the server.
+/// <see cref="ILanguageClientMiddleLayer"/> only intercepts standard LSP methods,
+/// so custom notifications must be routed through <see cref="ILanguageClientCustomMessage2.CustomMessageTarget"/>.
+/// </summary>
+internal sealed class UitkxCustomMessageTarget
+{
+    [StreamJsonRpc.JsonRpcMethod("uitkx/classificationOverrides")]
+    public void OnClassificationOverrides(Newtonsoft.Json.Linq.JToken param)
+    {
+        ClassificationOverrideStore.HandleClassificationOverrides(param);
+    }
+}
+
 /// <summary>LSP language client for .uitkx files.</summary>
 [Export(typeof(ILanguageClient))]
 [LanguageClientContentType("uitkx")]
@@ -146,7 +160,7 @@ public class UitkxLanguageClient : ILanguageClient, ILanguageClientCustomMessage
     // can call textDocument/completion and textDocument/hover directly.
 
     object? ILanguageClientCustomMessage2.MiddleLayer { get; } = new UitkxMiddleLayer();
-    object? ILanguageClientCustomMessage2.CustomMessageTarget => null;
+    object? ILanguageClientCustomMessage2.CustomMessageTarget { get; } = new UitkxCustomMessageTarget();
 
     Task ILanguageClientCustomMessage2.AttachForCustomMessageAsync(JsonRpc rpc)
     {

@@ -8934,10 +8934,10 @@ component Comp {
         var expected = N(
             """
             component Foo(
-              IReadOnlyList<int>? items = null, 
-              Action? addItem = null, 
-              Action? setTopItem = null, 
-              Action? deleteLast = null, 
+              IReadOnlyList<int>? items = null,
+              Action? addItem = null,
+              Action? setTopItem = null,
+              Action? deleteLast = null,
               Action<int>? onCountChanged = null
             ) {
               return (
@@ -9916,5 +9916,322 @@ component Comp {
         Assert.DoesNotContain("<Router path=\"/jsxDemo\"", applied);
         Assert.DoesNotContain("</string,>", applied);
         Assert.Contains("<Route path=\"/jsxDemo\"", applied);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HOOK / MODULE FILE FORMATTING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void HookFile_NotDestroyed_PreservesContent()
+    {
+        // Regression: formatter used to route hook files through
+        // FormatFunctionStyleComponent, emitting `component Component { return (); }`
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useCounter() -> (int count, Action increment) {
+              var (count, setCount) = useState(0);
+              Action increment = () => setCount(c => c + 1);
+              return (count, increment);
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("hook useCounter()", result);
+        Assert.Contains("var (count, setCount) = useState(0);", result);
+        Assert.Contains("return (count, increment);", result);
+        Assert.DoesNotContain("component Component", result);
+    }
+
+    [Fact]
+    public void ModuleFile_NotDestroyed_PreservesContent()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+            @using ReactiveUITK.Props.Typed
+
+            module Counter {
+              public static readonly Style containerStyle = new Style
+              {
+                Padding = 20,
+              };
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("module Counter {", result);
+        Assert.Contains("public static readonly Style containerStyle", result);
+        Assert.DoesNotContain("component Component", result);
+    }
+
+    [Fact]
+    public void HookFile_Idempotent()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useCounter() -> (int count, Action increment) {
+              var (count, setCount) = useState(0);
+              Action increment = () => setCount(c => c + 1);
+              return (count, increment);
+            }
+            """
+        );
+
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void ModuleFile_Idempotent()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+            @using ReactiveUITK.Props.Typed
+
+            module Counter {
+              public static readonly Style containerStyle = new Style
+              {
+                Padding = 20,
+                FlexGrow = 1,
+              };
+            }
+            """
+        );
+
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void HookHeader_ShortLine_StaysSingleLine()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useFlag() -> bool {
+              return true;
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("hook useFlag() -> bool {", result);
+    }
+
+    [Fact]
+    public void HookHeader_LongParams_WrapsPerLine()
+    {
+        // PrintWidth default is 80; this header exceeds it.
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useData(string veryLongParamNameOne, string veryLongParamNameTwo, int anotherLongParam) -> int {
+              return 42;
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        // Should be wrapped one-per-line
+        Assert.Contains("hook useData(\n", result);
+        Assert.Contains("  string veryLongParamNameOne,", result);
+        Assert.Contains("  string veryLongParamNameTwo,", result);
+        Assert.Contains("  int anotherLongParam\n", result);
+        Assert.Contains(") -> int {", result);
+    }
+
+    [Fact]
+    public void HookHeader_LongTupleReturn_WrapsPerLine()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useGameState() -> (bool gameStarted, string playerTurn, string winnerMessage, PointerEventHandler handleStart) {
+              return (false, "X", "", null);
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains(") -> (\n", result);
+        Assert.Contains("  bool gameStarted,", result);
+        Assert.Contains("  string playerTurn,", result);
+        Assert.Contains("  PointerEventHandler handleStart\n", result);
+        Assert.Contains(") {", result);
+    }
+
+    [Fact]
+    public void HookHeader_LongParamsAndTupleReturn_BothWrap()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useBigHook(string paramAlpha, string paramBeta, int paramGamma) -> (bool flagOne, string valueTwo, int countThree, Action callbackFour) {
+              return (true, "x", 0, () => {});
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        // Params wrapped
+        Assert.Contains("hook useBigHook(\n", result);
+        Assert.Contains("  string paramAlpha,", result);
+        // Return tuple wrapped
+        Assert.Contains(") -> (\n", result);
+        Assert.Contains("  bool flagOne,", result);
+        Assert.Contains("  Action callbackFour\n", result);
+        Assert.Contains(") {", result);
+    }
+
+    [Fact]
+    public void HookFile_MultipleHooks_AllPreserved()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useAlpha() -> int {
+              return 1;
+            }
+
+            hook useBeta() -> string {
+              return "hello";
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("hook useAlpha() -> int {", result);
+        Assert.Contains("hook useBeta() -> string {", result);
+        Assert.Contains("return 1;", result);
+        Assert.Contains("return \"hello\";", result);
+    }
+
+    [Fact]
+    public void HookAndModule_MixedFile_BothPreserved()
+    {
+        var source = N(
+            """
+            @namespace MyApp
+
+            hook useCounter() -> int {
+              return 0;
+            }
+
+            module Counter {
+              public static readonly int X = 42;
+            }
+            """
+        );
+
+        var result = Format(source);
+
+        Assert.Contains("hook useCounter() -> int {", result);
+        Assert.Contains("module Counter {", result);
+        Assert.Contains("public static readonly int X = 42;", result);
+    }
+
+    [Fact]
+    public void RealFile_HooksFile_Idempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.hooks.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void RealFile_StyleFile_Idempotent()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.style.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var first = Format(source);
+        var second = Format(first);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void RealFile_HooksFile_NotDestroyed()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.hooks.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var result = Format(source);
+
+        Assert.Contains("hook useTestCounter()", result);
+        Assert.Contains("hook useTestFormState(", result);
+        Assert.DoesNotContain("component Component", result);
+    }
+
+    [Fact]
+    public void RealFile_StyleFile_NotDestroyed()
+    {
+        var file = Path.Combine(
+            WorkspaceRoot(),
+            "Samples",
+            "UITKX",
+            "Components",
+            "UitkxTestFileDoNotTouch",
+            "UitkxTestFileDoNotTouch.style.uitkx"
+        );
+        if (!File.Exists(file))
+            return;
+
+        var source = N(File.ReadAllText(file));
+        var result = Format(source);
+
+        Assert.Contains("module UitkxTestFileDoNotTouch {", result);
+        Assert.Contains("ContainerStyle", result);
+        Assert.DoesNotContain("component Component", result);
     }
 }

@@ -8,10 +8,10 @@
 @using ReactiveUITK.Samples.UITKXShared
 
 component UitkxTestFileDoNotTouch(
-  IReadOnlyList<ListViewRowState>? items = null, 
-  Action? addItem = null, 
-  Action? setTopItem = null, 
-  Action? deleteLast = null, 
+  IReadOnlyList<ListViewRowState>? items = null,
+  Action? addItem = null,
+  Action? setTopItem = null,
+  Action? deleteLast = null,
   Action<int>? onCountChanged = null
 ) {
   var myRef = useRef(false);
@@ -63,14 +63,14 @@ component UitkxTestFileDoNotTouch(
   var (mctvRows, setMctvRows) = useState(new List<MultiColumnTreeViewRowState>());
   var (mctvNextPid, setMctvNextPid) = useState(2);
 
-  // ── useContext ─────────────────────────────────────────────────────────────
+  // â”€â”€ useContext â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var portalTarget = useContext<VisualElement>(PortalContextKeys.ModalRoot);
   var themeColor = useContext<Color>("context-demo-theme");
 
-  // ── provideContext ─────────────────────────────────────────────────────────
+  // â”€â”€ provideContext â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   provideContext("kitchen-sink-theme", themeColor);
 
-  // ── useSignal / useMemo ────────────────────────────────────────────────────
+  // â”€â”€ useSignal / useMemo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var counterSignal = useMemo(() => SignalFactory.Get<int>("demo.counter", 0), Array.Empty<object>());
   var signalCount = useSignal(counterSignal);
   var doubleCount = useMemo(() => count * 2, new object[] { count });
@@ -80,12 +80,12 @@ component UitkxTestFileDoNotTouch(
     "Gamma",
   }, Array.Empty<object>());
 
-    // ── useRef ─────────────────────────────────────────────────────────────────
+    // â”€â”€ useRef â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var renderCountRef = useRef<int>(0);
   renderCountRef.Current++;
   var renderCount = renderCountRef.Current;
 
-  // ── useEffect: IDisposable subscription cleanup ────────────────────────────
+  // â”€â”€ useEffect: IDisposable subscription cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() =>
   {
     bool captured = false;
@@ -105,24 +105,24 @@ component UitkxTestFileDoNotTouch(
     };
   }, new object[] { counterSignal });
 
-  // ── useEffect: FiberReconciler event + null return ─────────────────────────
+  // â”€â”€ useEffect: FiberReconciler event + null return â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() =>
   {
     setLog(prev => new List<string>(prev) { $"Mounted at {DateTime.Now:HH:mm:ss}" });
     return null;
   }, Array.Empty<object>());
 
-  // ── useLayoutEffect ────────────────────────────────────────────────────────
+  // â”€â”€ useLayoutEffect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useLayoutEffect(() =>
   {
     setTrigger(t => t);
     return null;
   }, new object[] { count });
 
-  // ── void method: single-statement body ────────────────────────────────────
+  // â”€â”€ void method: single-statement body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void Reset() { setCount(0); }
 
-  // ── void method: multi-statement body with guard ───────────────────────────
+  // â”€â”€ void method: multi-statement body with guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void AppendLog(string message)
   {
     var next = new List<string>(log.Count + 1) {
@@ -136,7 +136,7 @@ component UitkxTestFileDoNotTouch(
     setLog(next);
   }
 
-  // ── void method: for loop + tuple swap ────────────────────────────────────
+  // â”€â”€ void method: for loop + tuple swap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void ShuffleOptions()
   {
     if (options.Count == 0)
@@ -152,7 +152,7 @@ component UitkxTestFileDoNotTouch(
     AppendLog($"Shuffled {items.Count} items");
   }
 
-  // ── void method: if / else-if / else chain ─────────────────────────────────
+  // â”€â”€ void method: if / else-if / else chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void TripleIncrement()
   {
     setCount(v => v + 1);
@@ -161,7 +161,7 @@ component UitkxTestFileDoNotTouch(
     AppendLog("Queued +1 three times");
   }
 
-  // ── void method: switch statement ─────────────────────────────────────────
+  // â”€â”€ void method: switch statement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void ApplyMode(string newMode)
   {
     switch (newMode)
@@ -179,7 +179,7 @@ component UitkxTestFileDoNotTouch(
     setMode(newMode);
   }
 
-  // ── void method: event handler with is-pattern matching ───────────────────
+  // â”€â”€ void method: event handler with is-pattern matching â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void HandleEvent(ReactiveEvent evt)
   {
     if (evt == null)
@@ -197,7 +197,7 @@ component UitkxTestFileDoNotTouch(
     }
   }
 
-  // ── TreeView actions ───────────────────────────────────────────────────────
+  // â”€â”€ TreeView actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void TreeAddParent()
   {
     var pid = treeNextPid;
@@ -260,14 +260,14 @@ component UitkxTestFileDoNotTouch(
     });
   }
 
-  {/* return (
+  return (
     <Box>
       <Label text="This is a TabView demo." />
     </Box>
-  ); */}
+  );
 
 
-   // ── MultiColumnTreeView actions ────────────────────────────────────────────
+   // â”€â”€ MultiColumnTreeView actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void MctvSetChild()
   {
     setMctvRows(prev =>
@@ -324,7 +324,7 @@ component UitkxTestFileDoNotTouch(
     </VisualElement>
   );
 
-  // ── TabViewProps with TabDef closures ──────────────────────────────────────
+  // â”€â”€ TabViewProps with TabDef closures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var tabViewProps = new TabViewProps
   {
     SelectedIndex = tabIndex,
@@ -347,14 +347,14 @@ component UitkxTestFileDoNotTouch(
   ); */}
 
 
-  // ── var: simple Style initializer ─────────────────────────────────────────
+  // â”€â”€ var: simple Style initializer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var containerStyle = new Style {
     (StyleKeys.FlexGrow, 1f),
     (StyleKeys.Padding, 12f),
     (StyleKeys.FlexDirection, "column"),
   };
 
-    // ── var: multi-line Style initializer ─────────────────────────────────────
+    // â”€â”€ var: multi-line Style initializer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var rowStyle = new Style {
     (StyleKeys.FlexDirection, "row"),
     (StyleKeys.FlexWrap, "wrap"),
@@ -387,7 +387,7 @@ component UitkxTestFileDoNotTouch(
     (StyleKeys.Color, syncColor),
   };
 
-  // ── var: typed MenuBuilderHandler lambda ───────────────────────────────────
+  // â”€â”€ var: typed MenuBuilderHandler lambda â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   MenuBuilderHandler buildMenu = dm =>
   {
     dm.AppendAction("Reset", _ => Reset());
@@ -396,7 +396,7 @@ component UitkxTestFileDoNotTouch(
     dm.AppendAction("Shuffle", _ => ShuffleOptions());
   };
 
-  // ── var: inline JSX node ───────────────────────────────────────────────────
+  // â”€â”€ var: inline JSX node â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var inlineNode = (
     <Portal target={portalTarget}>
       @if (mounted) {
@@ -415,7 +415,7 @@ component UitkxTestFileDoNotTouch(
     </Portal>
   );
 
-  // ── var: portalNode (setup-code JSX) ──────────────────────────────────────
+  // â”€â”€ var: portalNode (setup-code JSX) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var portalNode = portalTarget != null
     ? (
       <Portal target={portalTarget}>
@@ -436,10 +436,10 @@ component UitkxTestFileDoNotTouch(
     )
     : null;
 
-  // ── bool helper ───────────────────────────────────────────────────────────
+  // â”€â”€ bool helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool IsLoading() => trigger > 1000;
 
-  // ── var: string.Join ──────────────────────────────────────────────────────
+  // â”€â”€ var: string.Join â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var optionsText = options.Count == 0
     ? "No options"
     : string.Join(", ", options);
@@ -453,16 +453,16 @@ component UitkxTestFileDoNotTouch(
       @switch (mode) {
         @case "squared":
           return (
-            <Label text={$"Mode: Squared — Count²: {count * count}"} />
+            <Label text={$"Mode: Squared â€” CountÂ²: {count * count}"} />
           );
         @case "doubled":
           return (
-            <Label text={$"Mode: Doubled — ×2: {doubleCount}"} />
+            <Label text={$"Mode: Doubled â€” Ã—2: {doubleCount}"} />
           );
         @case "normal":
           return (
             <VisualElement>
-              <Label text={$"Mode: Normal — Count: {count}"} />
+              <Label text={$"Mode: Normal â€” Count: {count}"} />
               <Button text="-5" onClick={_ => setCount(count - 5)} />
             </VisualElement>
           );
@@ -550,7 +550,7 @@ component UitkxTestFileDoNotTouch(
       </VisualElement>
       <VisualElement style={rowStyle}>
         <Button
-          text="×3"
+          text="Ã—3"
           onClick={_ => TripleIncrement()}
           style={new Style { (StyleKeys.MarginRight, 6f) }}
         />
@@ -604,7 +604,7 @@ component UitkxTestFileDoNotTouch(
         <Label text={$"Trigger value: {trigger}"} />
       </Suspense>
       <UitkxTestSubFileDoNotTouch
-        message="UitkxCounterFunc — Go-to-definition test"
+        message="UitkxCounterFunc â€” Go-to-definition test"
       />
       <Button
         text={mounted ? "Unmount Portal" : "Mount Portal"}
@@ -614,19 +614,19 @@ component UitkxTestFileDoNotTouch(
       @(portalNode)
       @(inlineNode)
       <UitkxTestSubFileDoNotTouch
-        message="UitkxCounterFunc — Go-to-definition test"
+        message="UitkxCounterFunc â€” Go-to-definition test"
       />
-      // ── visualElementSafe: safe-area-aware wrapper ──
+      // â”€â”€ visualElementSafe: safe-area-aware wrapper â”€â”€
       <visualElementSafe style={badgeStyle}>
         <Label text="Inside a visualElementSafe (safe-area padding applied)" />
       </visualElementSafe>
-      // ── Route element with inline JSX (no V.Func / V.Text needed) ──
+      // â”€â”€ Route element with inline JSX (no V.Func / V.Text needed) â”€â”€
       <Router>
-        <Route path="/" exact element={<Label text="JSX route — home" />} />
-        <Route path="/jsxDemo" element={<Label text="JSX route — demo" />} />
+        <Route path="/" exact element={<Label text="JSX route â€” home" />} />
+        <Route path="/jsxDemo" element={<Label text="JSX route â€” demo" />} />
       </Router>
       <UitkxTestSubFileDoNotTouch
-        message="UitkxCounterFunc — Go-to-definition test"
+        message="UitkxCounterFunc â€” Go-to-definition test"
       />
     </ScrollView>
   );
