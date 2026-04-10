@@ -3,8 +3,8 @@
 @using UnityEngine.UIElements
 
 component RefChild(
-  Ref<TextField>? inputRef = null, 
-  Ref<Label>? labelRef = null, 
+  Ref<TextField>? inputRef = null,
+  Ref<Label>? labelRef = null,
   Action? onSnapshot = null
 ) {
   var value = inputRef?.Current?.value ?? "Hello ReactiveUITK refs!";

@@ -82,5 +82,4 @@ module TicTacToe {
   {
     Color = ColorBlue,
   };
-
 }

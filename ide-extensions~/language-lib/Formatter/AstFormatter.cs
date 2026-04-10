@@ -156,7 +156,7 @@ namespace ReactiveUITK.Language.Formatter
                 for (int pi = 0; pi < paramArray.Length; pi++)
                 {
                     bool isLast = pi == paramArray.Length - 1;
-                    Ln(isLast ? paramArray[pi] : paramArray[pi] + ", ");
+                    Ln(isLast ? paramArray[pi] : paramArray[pi] + ",");
                 }
                 _indent--;
                 Ln(") {");
@@ -301,7 +301,6 @@ namespace ReactiveUITK.Language.Formatter
                     EmitHookHeader(hook);
                     _indent++;
                     EmitSetupCodeNormalized(hook.Body.Trim(), tabExp);
-                    _sb.Append('\n');
                     _indent--;
                     Ln("}");
                 }
@@ -319,7 +318,6 @@ namespace ReactiveUITK.Language.Formatter
                     Ln($"module {mod.Name} {{");
                     _indent++;
                     EmitSetupCodeNormalized(mod.Body.Trim(), tabExp);
-                    _sb.Append('\n');
                     _indent--;
                     Ln("}");
                 }
@@ -374,7 +372,7 @@ namespace ReactiveUITK.Language.Formatter
                         ? $"{p.Type} {p.Name} = {p.DefaultValue}"
                         : $"{p.Type} {p.Name}";
                     bool isLast = i == hook.Params.Length - 1;
-                    Ln(isLast ? paramText : paramText + ", ");
+                    Ln(isLast ? paramText : paramText + ",");
                 }
                 _indent--;
 
@@ -460,7 +458,7 @@ namespace ReactiveUITK.Language.Formatter
             {
                 bool isLast = i == members.Count - 1;
                 string member = members[i].Trim();
-                Ln(isLast ? member : member + ", ");
+                Ln(isLast ? member : member + ",");
             }
             _indent--;
         }

@@ -41,7 +41,7 @@ component HookStateQueueDemoFunc {
   void MultiplyAfterAdd() {
     setValue(v => v + 1);
     setValue(v => v * 2);
-    AppendLog("Applied +1 then ×2 to verify preview chaining");
+    AppendLog("Applied +1 then Ã—2 to verify preview chaining");
   }
 
   var badgeStyle = new Style {
@@ -92,7 +92,7 @@ component HookStateQueueDemoFunc {
           style={btnStyle}
         />
         <Button
-          text="+1 then ×2"
+          text="+1 then Ã—2"
           onClick={_ => MultiplyAfterAdd()}
           style={btnStyle}
         />

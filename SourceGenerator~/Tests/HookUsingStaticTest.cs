@@ -83,7 +83,7 @@ component TestComp {
         string? componentSource = null;
         foreach (var r in runResult.Results)
             foreach (var src in r.GeneratedSources)
-                if (src.HintName.Contains("TestComp_uitkx"))
+                if (src.HintName.Contains("TestComp.uitkx"))
                     componentSource = src.SourceText.ToString();
         
         Assert.NotNull(componentSource);

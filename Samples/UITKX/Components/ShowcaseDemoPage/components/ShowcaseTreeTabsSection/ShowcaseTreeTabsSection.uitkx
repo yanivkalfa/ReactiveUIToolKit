@@ -7,11 +7,11 @@
 @using UnityEngine.UIElements
 
 component ShowcaseTreeTabsSection(
-  Action<int>? onTreeCountChanged = null, 
-  Action<int>? onMctvCountChanged = null, 
+  Action<int>? onTreeCountChanged = null,
+  Action<int>? onMctvCountChanged = null,
   Action<int>? onTreeTabIndexChanged = null
 ) {
-  // ── State ──────────────────────────────────────────────────────────────
+  // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var (treeTabIndex, setTreeTabIndex) = useState(0);
   var (showTabs, setShowTabs) = useState(true);
 
@@ -30,7 +30,7 @@ component ShowcaseTreeTabsSection(
     return null;
   }, new object[] { treeTabIndex });
 
-  // ── Tree actions ────────────────────────────────────────────────────────
+  // â”€â”€ Tree actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void TreeAddParent() {
     var pid = treeNextPid;
     setTreeNextPid(treeNextPid + 2);

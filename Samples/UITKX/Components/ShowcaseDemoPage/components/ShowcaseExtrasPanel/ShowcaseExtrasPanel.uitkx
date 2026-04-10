@@ -5,15 +5,15 @@
 @using UnityEngine
 
 component ShowcaseExtrasPanel(
-  bool isOptionEnabled = false, 
-  ChangeEventHandler<bool>? onOptionEnabledChange = null, 
-  bool isRadioSingleSelected = false, 
-  ChangeEventHandler<bool>? onRadioSingleChange = null, 
-  List<string>? selectionChoices = null, 
-  int selectionIndex = 0, 
-  ChangeEventHandler<int>? onSelectionChange = null, 
-  int progressValue = 0, 
-  int batchClicks = 0, 
+  bool isOptionEnabled = false,
+  ChangeEventHandler<bool>? onOptionEnabledChange = null,
+  bool isRadioSingleSelected = false,
+  ChangeEventHandler<bool>? onRadioSingleChange = null,
+  List<string>? selectionChoices = null,
+  int selectionIndex = 0,
+  ChangeEventHandler<int>? onSelectionChange = null,
+  int progressValue = 0,
+  int batchClicks = 0,
   Action? onBatchClick = null
 ) {
   var containerStyle = new Style {
