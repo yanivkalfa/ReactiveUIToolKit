@@ -1170,15 +1170,11 @@ namespace UitkxLanguageServer.Roslyn
                         continue;
 
                     // Derive container class name — mirrors HookEmitter / VDG logic.
+                    // Take the part before the first dot so any middle segment is ignored.
                     string fileName = System.IO.Path.GetFileNameWithoutExtension(peerPath);
-                    foreach (var suffix in new[] { ".hooks", ".utils", ".styles" })
-                    {
-                        if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                        {
-                            fileName = fileName.Substring(0, fileName.Length - suffix.Length);
-                            break;
-                        }
-                    }
+                    int dot = fileName.IndexOf('.');
+                    if (dot > 0)
+                        fileName = fileName.Substring(0, dot);
                     if (fileName.Length > 0 && char.IsLower(fileName[0]))
                         fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);
                     string containerClass = fileName + "Hooks";
