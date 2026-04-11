@@ -13,6 +13,7 @@ namespace ReactiveUITK.Props.Typed
         public string Direction { get; set; }
 
         public ChangeEventHandler<int> OnChange { get; set; }
+        public ChangeEventHandler<int> OnChangeCapture { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -36,6 +37,10 @@ namespace ReactiveUITK.Props.Typed
             if (OnChange != null)
             {
                 dict["onChange"] = OnChange;
+            }
+            if (OnChangeCapture != null)
+            {
+                dict["onChangeCapture"] = OnChangeCapture;
             }
             return dict;
         }

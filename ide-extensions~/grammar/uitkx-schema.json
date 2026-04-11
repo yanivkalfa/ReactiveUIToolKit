@@ -196,6 +196,111 @@
       "name": "onDetachFromPanel",
       "type": "PanelLifecycleEventHandler",
       "description": "Detach from panel handler."
+    },
+    {
+      "name": "onClickCapture",
+      "type": "PointerEventHandler",
+      "description": "Capture-phase click handler."
+    },
+    {
+      "name": "onPointerDownCapture",
+      "type": "PointerEventHandler",
+      "description": "Capture-phase pointer down handler."
+    },
+    {
+      "name": "onPointerUpCapture",
+      "type": "PointerEventHandler",
+      "description": "Capture-phase pointer up handler."
+    },
+    {
+      "name": "onPointerMoveCapture",
+      "type": "PointerEventHandler",
+      "description": "Capture-phase pointer move handler."
+    },
+    {
+      "name": "onPointerEnterCapture",
+      "type": "PointerEventHandler",
+      "description": "Capture-phase pointer enter handler."
+    },
+    {
+      "name": "onPointerLeaveCapture",
+      "type": "PointerEventHandler",
+      "description": "Capture-phase pointer leave handler."
+    },
+    {
+      "name": "onWheelCapture",
+      "type": "WheelEventHandler",
+      "description": "Capture-phase mouse wheel handler."
+    },
+    {
+      "name": "onScrollCapture",
+      "type": "WheelEventHandler",
+      "description": "Capture-phase scroll handler."
+    },
+    {
+      "name": "onDragEnterCapture",
+      "type": "DragEventHandler",
+      "description": "Capture-phase drag enter handler."
+    },
+    {
+      "name": "onDragLeaveCapture",
+      "type": "DragEventHandler",
+      "description": "Capture-phase drag leave handler."
+    },
+    {
+      "name": "onDragUpdatedCapture",
+      "type": "DragEventHandler",
+      "description": "Capture-phase drag updated handler."
+    },
+    {
+      "name": "onDragPerformCapture",
+      "type": "DragEventHandler",
+      "description": "Capture-phase drag perform handler."
+    },
+    {
+      "name": "onDragExitedCapture",
+      "type": "DragEventHandler",
+      "description": "Capture-phase drag exited handler."
+    },
+    {
+      "name": "onFocusCapture",
+      "type": "FocusEventHandler",
+      "description": "Capture-phase focus gained handler."
+    },
+    {
+      "name": "onBlurCapture",
+      "type": "FocusEventHandler",
+      "description": "Capture-phase focus lost handler."
+    },
+    {
+      "name": "onFocusInCapture",
+      "type": "FocusEventHandler",
+      "description": "Capture-phase focus-in handler."
+    },
+    {
+      "name": "onFocusOutCapture",
+      "type": "FocusEventHandler",
+      "description": "Capture-phase focus-out handler."
+    },
+    {
+      "name": "onKeyDownCapture",
+      "type": "KeyboardEventHandler",
+      "description": "Capture-phase key down handler."
+    },
+    {
+      "name": "onKeyUpCapture",
+      "type": "KeyboardEventHandler",
+      "description": "Capture-phase key up handler."
+    },
+    {
+      "name": "onInputCapture",
+      "type": "InputEventHandler",
+      "description": "Capture-phase input event handler."
+    },
+    {
+      "name": "onChangeCapture",
+      "type": "Action",
+      "description": "Capture-phase value change handler."
     }
   ],
   "directives": [

@@ -70,7 +70,7 @@ component GameScreen(int restartVersion = 0) {
           ref={boardRef}
           focusable={true}
           tabIndex={0}
-          onKeyDown={onKeyDown}
+          onKeyDownCapture={onKeyDown}
           style={new Style { (StyleKeys.Width, boardPx), (StyleKeys.Height, boardPx), (StyleKeys.BorderWidth, 2f), (StyleKeys.BorderColor, new Color(0.3f, 0.8f, 0.3f, 1f)), (StyleKeys.BackgroundColor, new Color(0.05f, 0.05f, 0.07f, 1f)) }}
         >
           @if (cellSize > 0) {
