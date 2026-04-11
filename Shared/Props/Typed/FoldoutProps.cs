@@ -9,6 +9,7 @@ namespace ReactiveUITK.Props.Typed
         public string Text { get; set; }
         public bool? Value { get; set; }
         public ChangeEventHandler<bool> OnChange { get; set; }
+        public ChangeEventHandler<bool> OnChangeCapture { get; set; }
         public Dictionary<string, object> Header { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
@@ -25,6 +26,10 @@ namespace ReactiveUITK.Props.Typed
             if (OnChange != null)
             {
                 dict["onChange"] = OnChange;
+            }
+            if (OnChangeCapture != null)
+            {
+                dict["onChangeCapture"] = OnChangeCapture;
             }
             if (Header != null)
             {

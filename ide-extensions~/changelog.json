@@ -3,6 +3,19 @@
     {
       "date": "2026-04-11",
       "versions": {
+        "vscode": "1.1.2",
+        "vs2022": "1.1.2"
+      },
+      "shared": [
+        "Feature: capture-phase event handlers (onClickCapture, onKeyDownCapture, onChangeCapture, etc.) — every bubble event now has a Capture suffix variant that fires during trickle-down",
+        "Feature: refactored ApplyEvent/RemoveEvent with generic RegisterEvent<T>/UnregisterEvent<T> helpers — zero-overhead, no behavioral change",
+        "Fix: removed dead diagnostic counters (totalStyleSets, totalStyleResets, totalEventsRegistered, totalEventsRemoved) and unused GetStyleMetrics()",
+        "Feature: IDE autocompletion and IntelliSense for all capture-phase event props"
+      ]
+    },
+    {
+      "date": "2026-04-11",
+      "versions": {
         "vscode": "1.1.1",
         "vs2022": "1.1.1"
       },
