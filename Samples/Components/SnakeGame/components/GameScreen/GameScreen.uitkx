@@ -1,0 +1,104 @@
+@namespace Samples.SnakeGame
+@using System
+@using System.Collections.Generic
+@using System.Linq
+@using UnityEngine
+@using UnityEngine.UIElements
+
+component GameScreen(int restartVersion = 0) {
+  var boardRef = useRef<VisualElement?>(null);
+  var areaRef = useRef<VisualElement?>(null);
+  var (cellSize, setCellSize) = useState(0f);
+  var cellSizeMeasured = useRef(false);
+  int gridSize = 15;
+
+  var (score, gameOver, snake, fruit, restart, onKeyDown) = useSnakeGame(boardRef);
+
+  var prevVersion = useRef(restartVersion);
+  if (prevVersion.Current != restartVersion) {
+    prevVersion.Current = restartVersion;
+    restart();
+  }
+
+  useEffect(() => {
+    var el = areaRef?.Current;
+    if (el == null) return null;
+
+    IVisualElementScheduledItem poller = el.schedule.Execute(() => {
+      if (cellSizeMeasured.Current) return;
+      float w = el.resolvedStyle.width;
+      float h = el.resolvedStyle.height;
+      if (w > 0 && h > 0) {
+        float size = (float)Math.Floor(Math.Min(w, h) / gridSize);
+        if (size > 0) {
+          cellSizeMeasured.Current = true;
+          setCellSize(size);
+        }
+      }
+    }).Every(50);
+
+    return () => poller.Pause();
+  }, new object[] { areaRef?.Current });
+
+  float boardPx = cellSize * gridSize;
+  float headSize = (float)Math.Floor(cellSize * 0.85f);
+  float bodySize = (float)Math.Floor(cellSize * 0.7f);
+  float fruitSize = (float)Math.Floor(cellSize * 0.6f);
+  float headPad = (cellSize - headSize) / 2f;
+  float bodyPad = (cellSize - bodySize) / 2f;
+  float fruitPad = (cellSize - fruitSize) / 2f;
+
+  return (
+    <VisualElement style={GameScreenStyles.Container}>
+      <VisualElement style={GameScreenStyles.TopBar}>
+        <Label text={$"Score: {score}"} style={GameScreenStyles.ScoreLabel} />
+        @if (gameOver) {
+          return (
+            <VisualElement style={GameScreenStyles.GameOverRow}>
+              <Label text="Game Over!" style={GameScreenStyles.GameOverText} />
+              <Button
+                text="Play Again"
+                onClick={_ => restart()}
+                style={GameScreenStyles.PlayAgainButton}
+              />
+            </VisualElement>
+          );
+        }
+      </VisualElement>
+      <VisualElement ref={areaRef} style={GameScreenStyles.BoardArea}>
+        <VisualElement
+          ref={boardRef}
+          focusable={true}
+          tabIndex={0}
+          onKeyDown={onKeyDown}
+          style={new Style { (StyleKeys.Width, boardPx), (StyleKeys.Height, boardPx), (StyleKeys.BorderWidth, 2f), (StyleKeys.BorderColor, new Color(0.3f, 0.8f, 0.3f, 1f)), (StyleKeys.BackgroundColor, new Color(0.05f, 0.05f, 0.07f, 1f)) }}
+        >
+          @if (cellSize > 0) {
+            return (
+              <VisualElement
+                style={new Style { (StyleKeys.Position, "absolute"), (StyleKeys.Width, boardPx), (StyleKeys.Height, boardPx) }}
+              >
+                <VisualElement
+                  key="head"
+                  style={new Style { (StyleKeys.Position, "absolute"), (StyleKeys.Left, snake[0].x * cellSize + headPad), (StyleKeys.Top, snake[0].y * cellSize + headPad), (StyleKeys.Width, headSize), (StyleKeys.Height, headSize), (StyleKeys.BorderRadius, 5f), (StyleKeys.BackgroundColor, new Color(0.3f, 0.95f, 0.3f, 1f)) }}
+                />
+                @foreach (var seg in snake.Skip(1).Select((s, i) => (s, i))) {
+                  return (
+                    <VisualElement
+                      key={$"b-{seg.i}"}
+                      style={new Style { (StyleKeys.Position, "absolute"), (StyleKeys.Left, seg.s.x * cellSize + bodyPad), (StyleKeys.Top, seg.s.y * cellSize + bodyPad), (StyleKeys.Width, bodySize), (StyleKeys.Height, bodySize), (StyleKeys.BorderRadius, 3f), (StyleKeys.BackgroundColor, new Color(0.2f, 0.75f, 0.2f, 1f)) }}
+                    />
+                  );
+                }
+                <VisualElement
+                  key="fruit"
+                  style={new Style { (StyleKeys.Position, "absolute"), (StyleKeys.Left, fruit.x * cellSize + fruitPad), (StyleKeys.Top, fruit.y * cellSize + fruitPad), (StyleKeys.Width, fruitSize), (StyleKeys.Height, fruitSize), (StyleKeys.BorderRadius, fruitSize / 2f), (StyleKeys.BackgroundColor, new Color(0.95f, 0.2f, 0.2f, 1f)) }}
+                />
+              </VisualElement>
+            );
+          }
+        </VisualElement>
+      </VisualElement>
+    </VisualElement>
+  );
+}
