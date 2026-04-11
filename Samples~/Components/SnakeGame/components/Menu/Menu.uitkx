@@ -1,0 +1,37 @@
+@namespace Samples.SnakeGame
+@using System
+@using ReactiveUITK.Router
+
+component Menu(Action? onRestart = null) {
+  var navigate = RouterHooks.UseNavigate();
+  string location = RouterHooks.UseLocation();
+  bool isInGame = location != null && location.Contains("/game");
+
+  return (
+    <VisualElement style={MenuStyles.Panel}>
+      <Label text="Snake Game" style={MenuStyles.Title} />
+      <Button
+        text={isInGame ? "Restart Game" : "New Game"}
+        onClick={_ => {
+          if (isInGame) {
+            onRestart?.Invoke();
+          } else {
+            navigate("/game", null);
+          }
+        }}
+        style={MenuStyles.MenuButton}
+      />
+      <Button
+        text="Quit Game"
+        onClick={_ => {
+          #if UNITY_EDITOR
+          UnityEditor.EditorApplication.isPlaying = false;
+          #else
+          UnityEngine.Application.Quit();
+          #endif
+        }}
+        style={MenuStyles.QuitButton}
+      />
+    </VisualElement>
+  );
+}

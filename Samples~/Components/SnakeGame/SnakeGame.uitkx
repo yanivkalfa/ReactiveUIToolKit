@@ -1,0 +1,22 @@
+@namespace Samples.SnakeGame
+@using ReactiveUITK.Router
+
+component SnakeGame {
+  var (restartVersion, setRestartVersion) = useState(0);
+
+  return (
+    <Router>
+      <VisualElement style={Styles.Root}>
+        <Menu onRestart={() => setRestartVersion(v => v + 1)} />
+        <VisualElement style={Styles.Content}>
+          <Route path="/" exact={true}>
+            <WelcomeScreen />
+          </Route>
+          <Route path="/game">
+            <GameScreen restartVersion={restartVersion} />
+          </Route>
+        </VisualElement>
+      </VisualElement>
+    </Router>
+  );
+}
