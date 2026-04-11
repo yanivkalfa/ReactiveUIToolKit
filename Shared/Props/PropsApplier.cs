@@ -21,11 +21,6 @@ namespace ReactiveUITK.Props
         private static readonly IDictionary<string, object> s_emptyMutableProps =
             new Dictionary<string, object>(0);
 
-        private static int totalStyleSets;
-        private static int totalStyleResets;
-        private static int totalEventsRegistered;
-        private static int totalEventsRemoved;
-
         private static readonly char[] s_classNameSeparators = { ' ', '\t', '\n', '\r' };
         private static readonly HashSet<string> s_oldClassSet = new();
         private static readonly HashSet<string> s_newClassSet = new();
@@ -1462,7 +1457,6 @@ namespace ReactiveUITK.Props
             if (styleSetters.TryGetValue(styleKey, out var setter))
             {
                 setter(element, value);
-                totalStyleSets++;
                 return;
             }
 
@@ -1475,7 +1469,6 @@ namespace ReactiveUITK.Props
             if (styleResetters.TryGetValue(styleKey, out var reset))
             {
                 reset(element);
-                totalStyleResets++;
                 return;
             }
             if (previousStyles.TryGetValue(element, out var prevMap))
@@ -1485,19 +1478,16 @@ namespace ReactiveUITK.Props
             if (styleKey == "width")
             {
                 element.style.width = StyleKeyword.Null;
-                totalStyleResets++;
                 return;
             }
             if (styleKey == "height")
             {
                 element.style.height = StyleKeyword.Null;
-                totalStyleResets++;
                 return;
             }
             if (styleKey == "opacity")
             {
                 element.style.opacity = StyleKeyword.Null;
-                totalStyleResets++;
                 return;
             }
             if (styleKey == "flexGrow")
@@ -1847,6 +1837,54 @@ namespace ReactiveUITK.Props
             }
         }
 
+        // ── Generic event registration/removal helpers ─────────────────────
+
+        private static void RegisterEvent<T>(
+            VisualElement element,
+            Core.NodeMetadata meta,
+            string propName,
+            string newSig,
+            bool capture
+        )
+            where T : EventBase<T>, new()
+        {
+            if (!meta.EventHandlers.ContainsKey(propName))
+            {
+                EventCallback<T> w = e => InvokeEvent(meta, propName, e);
+                element.RegisterCallback(
+                    w,
+                    capture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown
+                );
+                meta.EventHandlers[propName] = w;
+            }
+            meta.EventHandlerSignatures[propName] = newSig;
+        }
+
+        private static bool UnregisterEvent<T>(
+            VisualElement element,
+            Core.NodeMetadata meta,
+            string propName
+        )
+            where T : EventBase<T>, new()
+        {
+            if (
+                meta.EventHandlers.TryGetValue(propName, out var handler)
+                && handler is EventCallback<T> cb
+            )
+            {
+                bool capture = propName.EndsWith("Capture");
+                element.UnregisterCallback(
+                    cb,
+                    capture ? TrickleDown.TrickleDown : TrickleDown.NoTrickleDown
+                );
+                meta.EventHandlers.Remove(propName);
+                return true;
+            }
+            return false;
+        }
+
+        // ── ApplyEvent ─────────────────────────────────────────────────────
+
         private static void ApplyEvent(
             VisualElement element,
             string eventPropName,
@@ -1889,372 +1927,85 @@ namespace ReactiveUITK.Props
                 return;
             }
 
-            if (eventPropName == "onClick")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<ClickEvent> wrapper = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(wrapper);
-                    meta.EventHandlers[eventPropName] = wrapper;
-                }
-                if (meta.EventHandlerSignatures != null)
-                {
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                }
+            // ── Pointer events ─────────────────────────────────────────────
+            if (eventPropName == "onClick") { RegisterEvent<ClickEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onClickCapture") { RegisterEvent<ClickEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onPointerDown") { RegisterEvent<PointerDownEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onPointerDownCapture") { RegisterEvent<PointerDownEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onPointerUp") { RegisterEvent<PointerUpEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onPointerUpCapture") { RegisterEvent<PointerUpEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onPointerMove") { RegisterEvent<PointerMoveEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onPointerMoveCapture") { RegisterEvent<PointerMoveEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onPointerEnter") { RegisterEvent<PointerEnterEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onPointerEnterCapture") { RegisterEvent<PointerEnterEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onPointerLeave") { RegisterEvent<PointerLeaveEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onPointerLeaveCapture") { RegisterEvent<PointerLeaveEvent>(element, meta, eventPropName, newSig, true); return; }
 
-                if (
-                    ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.CurrentTraceLevel
-                    == ReactiveUITK.Core.Diagnostics.DiagnosticsConfig.TraceLevel.Verbose
-                )
-                {
-                    try
-                    {
-                        UnityEngine.Debug.Log(
-                            "[ApplyEvent] register onClick element="
-                                + element.name
-                                + ", parent="
-                                + (element.parent != null ? element.parent.name : "<null>")
-                        );
-                    }
-                    catch { }
-                }
-                totalEventsRegistered++;
-                return;
-            }
-            if (eventPropName == "onPointerDown")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<PointerDownEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onPointerUp")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<PointerUpEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onPointerMove")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<PointerMoveEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onPointerEnter")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<PointerEnterEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onPointerLeave")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<PointerLeaveEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onWheel")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onFocus")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<FocusEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onBlur")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<BlurEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onFocusIn")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<FocusInEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onFocusOut")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<FocusOutEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onKeyDown")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<KeyDownEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onKeyUp")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<KeyUpEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onChange")
-            {
-                if (element is UnityEngine.UIElements.Toggle)
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<bool>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
-                if (element is UnityEngine.UIElements.SliderInt)
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<int>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
-                if (element is UnityEngine.UIElements.RadioButton)
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<bool>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
-                if (element is UnityEngine.UIElements.RadioButtonGroup)
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<int>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
-                if (element is UnityEngine.UIElements.Slider)
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<float>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
-                if (element is UnityEngine.UIElements.Foldout)
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<bool>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
+            // ── Scroll / wheel ─────────────────────────────────────────────
+            if (eventPropName == "onWheel") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onWheelCapture") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onScroll") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onScrollCapture") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, true); return; }
 
-                {
-                    if (!meta.EventHandlers.ContainsKey(eventPropName))
-                    {
-                        EventCallback<ChangeEvent<string>> w = e =>
-                            InvokeEvent(meta, eventPropName, e);
-                        element.RegisterCallback(w);
-                        meta.EventHandlers[eventPropName] = w;
-                    }
-                    meta.EventHandlerSignatures[eventPropName] = newSig;
-                    return;
-                }
-            }
-            if (eventPropName == "onInput")
+            // ── Focus ──────────────────────────────────────────────────────
+            if (eventPropName == "onFocus") { RegisterEvent<FocusEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onFocusCapture") { RegisterEvent<FocusEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onBlur") { RegisterEvent<BlurEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onBlurCapture") { RegisterEvent<BlurEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onFocusIn") { RegisterEvent<FocusInEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onFocusInCapture") { RegisterEvent<FocusInEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onFocusOut") { RegisterEvent<FocusOutEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onFocusOutCapture") { RegisterEvent<FocusOutEvent>(element, meta, eventPropName, newSig, true); return; }
+
+            // ── Keyboard ───────────────────────────────────────────────────
+            if (eventPropName == "onKeyDown") { RegisterEvent<KeyDownEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onKeyDownCapture") { RegisterEvent<KeyDownEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onKeyUp") { RegisterEvent<KeyUpEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onKeyUpCapture") { RegisterEvent<KeyUpEvent>(element, meta, eventPropName, newSig, true); return; }
+
+            // ── onChange — polymorphic on element type ──────────────────────
+            if (eventPropName == "onChange" || eventPropName == "onChangeCapture")
             {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<InputEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
+                bool capture = eventPropName == "onChangeCapture";
+                if (element is UnityEngine.UIElements.Toggle or UnityEngine.UIElements.RadioButton or UnityEngine.UIElements.Foldout)
+                    RegisterEvent<ChangeEvent<bool>>(element, meta, eventPropName, newSig, capture);
+                else if (element is UnityEngine.UIElements.SliderInt or UnityEngine.UIElements.RadioButtonGroup)
+                    RegisterEvent<ChangeEvent<int>>(element, meta, eventPropName, newSig, capture);
+                else if (element is UnityEngine.UIElements.Slider)
+                    RegisterEvent<ChangeEvent<float>>(element, meta, eventPropName, newSig, capture);
+                else
+                    RegisterEvent<ChangeEvent<string>>(element, meta, eventPropName, newSig, capture);
                 return;
             }
+
+            // ── onInput ────────────────────────────────────────────────────
+            if (eventPropName == "onInput" || eventPropName == "onInputCapture")
+            {
+                RegisterEvent<InputEvent>(element, meta, eventPropName, newSig, eventPropName == "onInputCapture");
+                return;
+            }
+
+            // ── Drag events (editor-only) ──────────────────────────────────
 #if UNITY_EDITOR
-            if (eventPropName == "onDragEnter")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragEnterEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onDragLeave")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragLeaveEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onDragUpdated")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragUpdatedEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onDragPerform")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragPerformEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onDragExited")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DragExitedEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
+            if (eventPropName == "onDragEnter") { RegisterEvent<DragEnterEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onDragEnterCapture") { RegisterEvent<DragEnterEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onDragLeave") { RegisterEvent<DragLeaveEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onDragLeaveCapture") { RegisterEvent<DragLeaveEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onDragUpdated") { RegisterEvent<DragUpdatedEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onDragUpdatedCapture") { RegisterEvent<DragUpdatedEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onDragPerform") { RegisterEvent<DragPerformEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onDragPerformCapture") { RegisterEvent<DragPerformEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onDragExited") { RegisterEvent<DragExitedEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onDragExitedCapture") { RegisterEvent<DragExitedEvent>(element, meta, eventPropName, newSig, true); return; }
 #endif
-            if (eventPropName == "onScroll")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<WheelEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onGeometryChanged")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<GeometryChangedEvent> w = e =>
-                        InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onAttachToPanel")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<AttachToPanelEvent> w = e => InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
-            if (eventPropName == "onDetachFromPanel")
-            {
-                if (!meta.EventHandlers.ContainsKey(eventPropName))
-                {
-                    EventCallback<DetachFromPanelEvent> w = e =>
-                        InvokeEvent(meta, eventPropName, e);
-                    element.RegisterCallback(w);
-                    meta.EventHandlers[eventPropName] = w;
-                }
-                meta.EventHandlerSignatures[eventPropName] = newSig;
-                return;
-            }
+
+            // ── Lifecycle (no capture variants — target-only events) ───────
+            if (eventPropName == "onGeometryChanged") { RegisterEvent<GeometryChangedEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onAttachToPanel") { RegisterEvent<AttachToPanelEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onDetachFromPanel") { RegisterEvent<DetachFromPanelEvent>(element, meta, eventPropName, newSig, false); return; }
         }
+
+        // ── RemoveEvent ────────────────────────────────────────────────────
 
         private static void RemoveEvent(
             VisualElement element,
@@ -2267,223 +2018,58 @@ namespace ReactiveUITK.Props
             {
                 return;
             }
-            if (eventPropName == "onClick" && handler is EventCallback<ClickEvent> clickCb)
+
+            // ── Pointer events ─────────────────────────────────────────────
+            if (eventPropName == "onClick" || eventPropName == "onClickCapture") { UnregisterEvent<ClickEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onPointerDown" || eventPropName == "onPointerDownCapture") { UnregisterEvent<PointerDownEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onPointerUp" || eventPropName == "onPointerUpCapture") { UnregisterEvent<PointerUpEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onPointerMove" || eventPropName == "onPointerMoveCapture") { UnregisterEvent<PointerMoveEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onPointerEnter" || eventPropName == "onPointerEnterCapture") { UnregisterEvent<PointerEnterEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onPointerLeave" || eventPropName == "onPointerLeaveCapture") { UnregisterEvent<PointerLeaveEvent>(element, meta, eventPropName); return; }
+
+            // ── Scroll / wheel ─────────────────────────────────────────────
+            if (eventPropName == "onWheel" || eventPropName == "onWheelCapture") { UnregisterEvent<WheelEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onScroll" || eventPropName == "onScrollCapture") { UnregisterEvent<WheelEvent>(element, meta, eventPropName); return; }
+
+            // ── Focus ──────────────────────────────────────────────────────
+            if (eventPropName == "onFocus" || eventPropName == "onFocusCapture") { UnregisterEvent<FocusEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onBlur" || eventPropName == "onBlurCapture") { UnregisterEvent<BlurEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onFocusIn" || eventPropName == "onFocusInCapture") { UnregisterEvent<FocusInEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onFocusOut" || eventPropName == "onFocusOutCapture") { UnregisterEvent<FocusOutEvent>(element, meta, eventPropName); return; }
+
+            // ── Keyboard ───────────────────────────────────────────────────
+            if (eventPropName == "onKeyDown" || eventPropName == "onKeyDownCapture") { UnregisterEvent<KeyDownEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onKeyUp" || eventPropName == "onKeyUpCapture") { UnregisterEvent<KeyUpEvent>(element, meta, eventPropName); return; }
+
+            // ── onChange — try all possible ChangeEvent<T> types ───────────
+            if (eventPropName == "onChange" || eventPropName == "onChangeCapture")
             {
-                element.UnregisterCallback(clickCb);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<int>> chi)
-            {
-                element.UnregisterCallback(chi);
-                meta.EventHandlers.Remove(eventPropName);
-                if (meta.EventHandlerSignatures != null)
-                {
-                    meta.EventHandlerSignatures.Remove(eventPropName);
-                }
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onPointerDown" && handler is EventCallback<PointerDownEvent> pd)
-            {
-                element.UnregisterCallback(pd);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onPointerUp" && handler is EventCallback<PointerUpEvent> pu)
-            {
-                element.UnregisterCallback(pu);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onPointerMove" && handler is EventCallback<PointerMoveEvent> pm)
-            {
-                element.UnregisterCallback(pm);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onPointerEnter" && handler is EventCallback<PointerEnterEvent> pe)
-            {
-                element.UnregisterCallback(pe);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onPointerLeave" && handler is EventCallback<PointerLeaveEvent> pl)
-            {
-                element.UnregisterCallback(pl);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onWheel" && handler is EventCallback<WheelEvent> we)
-            {
-                element.UnregisterCallback(we);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onFocus" && handler is EventCallback<FocusEvent> fe)
-            {
-                element.UnregisterCallback(fe);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onBlur" && handler is EventCallback<BlurEvent> be)
-            {
-                element.UnregisterCallback(be);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onFocusIn" && handler is EventCallback<FocusInEvent> fi)
-            {
-                element.UnregisterCallback(fi);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onFocusOut" && handler is EventCallback<FocusOutEvent> fo)
-            {
-                element.UnregisterCallback(fo);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onKeyDown" && handler is EventCallback<KeyDownEvent> kd)
-            {
-                element.UnregisterCallback(kd);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onKeyUp" && handler is EventCallback<KeyUpEvent> ku)
-            {
-                element.UnregisterCallback(ku);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<string>> ch)
-            {
-                element.UnregisterCallback(ch);
-                meta.EventHandlers.Remove(eventPropName);
-                if (meta.EventHandlerSignatures != null)
-                {
-                    meta.EventHandlerSignatures.Remove(eventPropName);
-                }
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<bool>> chb)
-            {
-                element.UnregisterCallback(chb);
-                meta.EventHandlers.Remove(eventPropName);
-                if (meta.EventHandlerSignatures != null)
-                {
-                    meta.EventHandlerSignatures.Remove(eventPropName);
-                }
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onChange" && handler is EventCallback<ChangeEvent<float>> chf)
-            {
-                element.UnregisterCallback(chf);
-                meta.EventHandlers.Remove(eventPropName);
-                if (meta.EventHandlerSignatures != null)
-                {
-                    meta.EventHandlerSignatures.Remove(eventPropName);
-                }
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onInput" && handler is EventCallback<InputEvent> ie)
-            {
-                element.UnregisterCallback(ie);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-#if UNITY_EDITOR
-            if (eventPropName == "onDragEnter" && handler is EventCallback<DragEnterEvent> de)
-            {
-                element.UnregisterCallback(de);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onDragLeave" && handler is EventCallback<DragLeaveEvent> dle)
-            {
-                element.UnregisterCallback(dle);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onDragUpdated" && handler is EventCallback<DragUpdatedEvent> du)
-            {
-                element.UnregisterCallback(du);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onDragPerform" && handler is EventCallback<DragPerformEvent> dp)
-            {
-                element.UnregisterCallback(dp);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (eventPropName == "onDragExited" && handler is EventCallback<DragExitedEvent> dx)
-            {
-                element.UnregisterCallback(dx);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-#endif
-            if (eventPropName == "onScroll" && handler is EventCallback<WheelEvent> se)
-            {
-                element.UnregisterCallback(se);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (
-                eventPropName == "onGeometryChanged"
-                && handler is EventCallback<GeometryChangedEvent> gc
-            )
-            {
-                element.UnregisterCallback(gc);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (
-                eventPropName == "onAttachToPanel"
-                && handler is EventCallback<AttachToPanelEvent> atp
-            )
-            {
-                element.UnregisterCallback(atp);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
-                return;
-            }
-            if (
-                eventPropName == "onDetachFromPanel"
-                && handler is EventCallback<DetachFromPanelEvent> dfp
-            )
-            {
-                element.UnregisterCallback(dfp);
-                meta.EventHandlers.Remove(eventPropName);
-                totalEventsRemoved++;
+                // Short-circuit: first matching type wins
+                _ = UnregisterEvent<ChangeEvent<bool>>(element, meta, eventPropName)
+                    || UnregisterEvent<ChangeEvent<int>>(element, meta, eventPropName)
+                    || UnregisterEvent<ChangeEvent<float>>(element, meta, eventPropName)
+                    || UnregisterEvent<ChangeEvent<string>>(element, meta, eventPropName);
                 return;
             }
 
+            // ── onInput ────────────────────────────────────────────────────
+            if (eventPropName == "onInput" || eventPropName == "onInputCapture") { UnregisterEvent<InputEvent>(element, meta, eventPropName); return; }
+
+            // ── Drag events (editor-only) ──────────────────────────────────
+#if UNITY_EDITOR
+            if (eventPropName == "onDragEnter" || eventPropName == "onDragEnterCapture") { UnregisterEvent<DragEnterEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onDragLeave" || eventPropName == "onDragLeaveCapture") { UnregisterEvent<DragLeaveEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onDragUpdated" || eventPropName == "onDragUpdatedCapture") { UnregisterEvent<DragUpdatedEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onDragPerform" || eventPropName == "onDragPerformCapture") { UnregisterEvent<DragPerformEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onDragExited" || eventPropName == "onDragExitedCapture") { UnregisterEvent<DragExitedEvent>(element, meta, eventPropName); return; }
+#endif
+
+            // ── Lifecycle (no capture variants) ────────────────────────────
+            if (eventPropName == "onGeometryChanged") { UnregisterEvent<GeometryChangedEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onAttachToPanel") { UnregisterEvent<AttachToPanelEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onDetachFromPanel") { UnregisterEvent<DetachFromPanelEvent>(element, meta, eventPropName); return; }
+
+            // ── Fallback: try to remove by stored handler ──────────────────
             if (meta.EventHandlers.TryGetValue(eventPropName, out var stored))
             {
                 try
@@ -2494,7 +2080,6 @@ namespace ReactiveUITK.Props
                 catch { }
             }
             meta.EventHandlers.Remove(eventPropName);
-            totalEventsRemoved++;
         }
 
         private static void InvokeEvent(
@@ -2974,14 +2559,6 @@ namespace ReactiveUITK.Props
             }
             previousStyles.Remove(element);
         }
-
-        public static (
-            int styleSets,
-            int styleResets,
-            int eventsAdded,
-            int eventsRemoved
-        ) GetStyleMetrics() =>
-            (totalStyleSets, totalStyleResets, totalEventsRegistered, totalEventsRemoved);
 
         private static void TrySetStyleField(
             VisualElement element,

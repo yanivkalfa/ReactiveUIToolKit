@@ -1263,6 +1263,28 @@ namespace ReactiveUITK.Language.Roslyn
             ["onExecuteCommand"] = "global::UnityEngine.UIElements.ExecuteCommandEvent",
             ["onValidateCommand"] = "global::UnityEngine.UIElements.ValidateCommandEvent",
             ["onTooltip"] = "global::UnityEngine.UIElements.TooltipEvent",
+            // ── Capture-phase variants ────────────────────────────────────────
+            ["onClickCapture"] = "global::UnityEngine.UIElements.ClickEvent",
+            ["onPointerDownCapture"] = "global::UnityEngine.UIElements.PointerDownEvent",
+            ["onPointerUpCapture"] = "global::UnityEngine.UIElements.PointerUpEvent",
+            ["onPointerMoveCapture"] = "global::UnityEngine.UIElements.PointerMoveEvent",
+            ["onPointerEnterCapture"] = "global::UnityEngine.UIElements.PointerEnterEvent",
+            ["onPointerLeaveCapture"] = "global::UnityEngine.UIElements.PointerLeaveEvent",
+            ["onWheelCapture"] = "global::UnityEngine.UIElements.WheelEvent",
+            ["onScrollCapture"] = "global::UnityEngine.UIElements.WheelEvent",
+            ["onDragEnterCapture"] = "global::UnityEngine.UIElements.DragEnterEvent",
+            ["onDragLeaveCapture"] = "global::UnityEngine.UIElements.DragLeaveEvent",
+            ["onDragUpdatedCapture"] = "global::UnityEngine.UIElements.DragUpdatedEvent",
+            ["onDragPerformCapture"] = "global::UnityEngine.UIElements.DragPerformEvent",
+            ["onDragExitedCapture"] = "global::UnityEngine.UIElements.DragExitedEvent",
+            ["onFocusCapture"] = "global::UnityEngine.UIElements.FocusEvent",
+            ["onBlurCapture"] = "global::UnityEngine.UIElements.BlurEvent",
+            ["onFocusInCapture"] = "global::UnityEngine.UIElements.FocusInEvent",
+            ["onFocusOutCapture"] = "global::UnityEngine.UIElements.FocusOutEvent",
+            ["onKeyDownCapture"] = "global::UnityEngine.UIElements.KeyDownEvent",
+            ["onKeyUpCapture"] = "global::UnityEngine.UIElements.KeyUpEvent",
+            ["onInputCapture"] = "global::UnityEngine.UIElements.InputEvent",
+            ["onChangeCapture"] = "global::UnityEngine.UIElements.ChangeEvent<dynamic>",
         };
 
         /// <summary>
