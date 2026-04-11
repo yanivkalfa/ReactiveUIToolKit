@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "date": "2026-04-11",
+      "versions": {
+        "vscode": "1.1.1",
+        "vs2022": "1.1.1"
+      },
+      "shared": [
+        "Fix: hook/module files with arbitrary middle segments (e.g. Counter.hook.uitkx, Counter.custom.uitkx) no longer produce invalid C# class names — container class derivation now truncates at the first dot instead of relying on a suffix whitelist"
+      ]
+    },
+    {
       "date": "2026-04-10",
       "versions": {
         "vscode": "1.1.0",
