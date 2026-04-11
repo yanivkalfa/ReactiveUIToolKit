@@ -4,7 +4,9 @@
 @using UnityEngine
 @using UnityEngine.UIElements
 
-hook useSnakeGame(Ref<VisualElement?> boardRef) -> (
+hook useSnakeGame(
+  Ref<VisualElement?> boardRef
+) -> (
   int score,
   bool gameOver,
   List<(int x, int y)> snake,
@@ -62,17 +64,17 @@ hook useSnakeGame(Ref<VisualElement?> boardRef) -> (
     var lastDir = q.Count > 0 ? q.ToArray()[q.Count - 1] : directionRef.Current;
     switch (e.KeyCode) {
       case KeyCode.UpArrow:
-        if (lastDir.Item2 != 1) q.Enqueue((0, -1));
-        break;
+      if (lastDir.Item2 != 1) q.Enqueue((0, -1));
+      break;
       case KeyCode.DownArrow:
-        if (lastDir.Item2 != -1) q.Enqueue((0, 1));
-        break;
+      if (lastDir.Item2 != -1) q.Enqueue((0, 1));
+      break;
       case KeyCode.LeftArrow:
-        if (lastDir.Item1 != 1) q.Enqueue((-1, 0));
-        break;
+      if (lastDir.Item1 != 1) q.Enqueue((-1, 0));
+      break;
       case KeyCode.RightArrow:
-        if (lastDir.Item1 != -1) q.Enqueue((1, 0));
-        break;
+      if (lastDir.Item1 != -1) q.Enqueue((1, 0));
+      break;
     }
     e.StopPropagation();
   };
