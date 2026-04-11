@@ -1,5 +1,5 @@
 using ReactiveUITK.Language.Formatter;
-var source = System.IO.File.ReadAllText(@"c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\Samples\UITKX\Components\UitkxCounterFunc\UitkxCounterFunc.uitkx");
+var source = System.IO.File.ReadAllText(@"c:\Yanivs\GameDev\UnityComponents\Assets\ReactiveUIToolKit\Samples\Components\UitkxCounterFunc\UitkxCounterFunc.uitkx");
 try {
     var f = new AstFormatter(FormatterOptions.Default);
     var result = f.Format(source, "UitkxCounterFunc.uitkx");

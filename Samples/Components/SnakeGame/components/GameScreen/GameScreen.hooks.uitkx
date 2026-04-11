@@ -1,0 +1,136 @@
+@namespace Samples.SnakeGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+
+hook useSnakeGame(Ref<VisualElement?> boardRef) -> (
+  int score,
+  bool gameOver,
+  List<(int x, int y)> snake,
+  (int x, int y) fruit,
+  Action restart,
+  KeyboardEventHandler onKeyDown
+) {
+  int gridSize = 15;
+  var initialSnake = new List<(int x, int y)> { (7, 7), (6, 7), (5, 7) };
+  var rng = useMemo(() => new System.Random(), 0);
+
+  var (snake, setSnake) = useState(initialSnake);
+  var (fruit, setFruit) = useState((11, 7));
+  var (score, setScore) = useState(0);
+  var (gameOver, setGameOver) = useState(false);
+  var directionRef = useRef((1, 0));
+  var inputQueue = useRef(new Queue<(int, int)>());
+  var snakeRef = useRef(initialSnake);
+  var fruitRef = useRef((11, 7));
+  var gameOverRef = useRef(false);
+
+  Action restart = () => {
+    var fresh = new List<(int x, int y)> { (7, 7), (6, 7), (5, 7) };
+    snakeRef.Current = fresh;
+    fruitRef.Current = (11, 7);
+    gameOverRef.Current = false;
+    directionRef.Current = (1, 0);
+    inputQueue.Current.Clear();
+    setSnake(fresh);
+    setFruit((11, 7));
+    setScore(0);
+    setGameOver(false);
+  };
+
+  Func<List<(int x, int y)>, (int, int)> spawnFruit = currentSnake => {
+    var free = new List<(int x, int y)>();
+    for (int x = 0; x < gridSize; x++) {
+      for (int y = 0; y < gridSize; y++) {
+        bool occupied = false;
+        for (int s = 0; s < currentSnake.Count; s++) {
+          if (currentSnake[s].x == x && currentSnake[s].y == y) {
+            occupied = true;
+            break;
+          }
+        }
+        if (!occupied) free.Add((x, y));
+      }
+    }
+    if (free.Count == 0) return (0, 0);
+    return free[rng.Next(free.Count)];
+  };
+
+  KeyboardEventHandler onKeyDown = e => {
+    var q = inputQueue.Current;
+    var lastDir = q.Count > 0 ? q.ToArray()[q.Count - 1] : directionRef.Current;
+    switch (e.KeyCode) {
+      case KeyCode.UpArrow:
+        if (lastDir.Item2 != 1) q.Enqueue((0, -1));
+        break;
+      case KeyCode.DownArrow:
+        if (lastDir.Item2 != -1) q.Enqueue((0, 1));
+        break;
+      case KeyCode.LeftArrow:
+        if (lastDir.Item1 != 1) q.Enqueue((-1, 0));
+        break;
+      case KeyCode.RightArrow:
+        if (lastDir.Item1 != -1) q.Enqueue((1, 0));
+        break;
+    }
+    e.StopPropagation();
+  };
+
+  useEffect(() => {
+    var el = boardRef?.Current;
+    if (el == null) return null;
+
+    el.schedule.Execute(() => el.Focus());
+
+    IVisualElementScheduledItem ticker = el.schedule.Execute(() => {
+      if (el.panel != null) el.Focus();
+      if (gameOverRef.Current) return;
+
+      if (inputQueue.Current.Count > 0) directionRef.Current = inputQueue.Current.Dequeue();
+      var d = directionRef.Current;
+      var current = snakeRef.Current;
+      var head = current[0];
+      int nx = head.x + d.Item1;
+      int ny = head.y + d.Item2;
+
+      if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) {
+        gameOverRef.Current = true;
+        setGameOver(true);
+        return;
+      }
+
+      for (int i = 0; i < current.Count; i++) {
+        if (current[i].x == nx && current[i].y == ny) {
+          gameOverRef.Current = true;
+          setGameOver(true);
+          return;
+        }
+      }
+
+      var next = new List<(int x, int y)>(current.Count + 1);
+      next.Add((nx, ny));
+      for (int i = 0; i < current.Count; i++) next.Add(current[i]);
+
+      var f = fruitRef.Current;
+      if (nx == f.Item1 && ny == f.Item2) {
+        snakeRef.Current = next;
+        var newFruit = spawnFruit(next);
+        fruitRef.Current = newFruit;
+        setSnake(next);
+        setFruit(newFruit);
+        setScore(s => s + 1);
+      } else {
+        next.RemoveAt(next.Count - 1);
+        snakeRef.Current = next;
+        setSnake(next);
+      }
+    }).Every(150);
+
+    return () => {
+      ticker.Pause();
+    };
+  }, new object[] { boardRef?.Current });
+
+  return (score, gameOver, snake, fruit, restart, onKeyDown);
+}
