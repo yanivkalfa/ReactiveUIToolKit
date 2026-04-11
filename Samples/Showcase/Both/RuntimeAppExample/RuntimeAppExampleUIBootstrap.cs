@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using Samples.SnakeGame;
+using Samples.StressTest;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -32,7 +32,9 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            rootRenderer.Render(V.Host(hostProps, null, V.Func(SnakeGame.Render)));
+            rootRenderer.Render(
+                V.Host(hostProps, null, V.Func(StressTest.Render))
+            );
         }
     }
 }
