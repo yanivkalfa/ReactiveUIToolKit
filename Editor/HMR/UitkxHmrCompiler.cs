@@ -196,7 +196,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── 2. Parse AST ─────────────────────────────────────────────
                 var astNodes = _uitkxParse.Invoke(
                     null,
-                    new object[] { source, uitkxPath, directives, diagList }
+                    new object[] { source, uitkxPath, directives, diagList, false }
                 );
                 stepSw.Stop();
                 result.ParseMs = stepSw.Elapsed.TotalMilliseconds;
@@ -217,7 +217,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     var miniDir = _directiveParse.Invoke(
                         null, new object[] { synthetic, path, miniDiags, false });
                     var nodes = _uitkxParse.Invoke(
-                        null, new object[] { synthetic, path, miniDir, miniDiags });
+                        null, new object[] { synthetic, path, miniDir, miniDiags, false });
                     return GetItems(nodes);
                 };
 
@@ -228,6 +228,12 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── 4. Compile ───────────────────────────────────────────────
                 stepSw = Stopwatch.StartNew();
                 var sources = new List<string> { csharp };
+
+                // Include companion .uitkx files (.style, .hooks, .utils) as
+                // partial-class sources so module/hook members are available
+                // to the component in the same compilation unit.
+                EmitCompanionUitkxSources(uitkxPath, componentName, sources);
+
                 if (companionCsFiles != null)
                 {
                     foreach (var csFile in companionCsFiles)
@@ -336,6 +342,52 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Discovers companion .uitkx files (e.g. Foo.style.uitkx, Foo.hooks.uitkx)
+        /// beside the component file, parses their directives, emits C# for their
+        /// module/hook bodies, and appends the generated sources to the list so they
+        /// are compiled together as partial-class fragments.
+        /// </summary>
+        private void EmitCompanionUitkxSources(
+            string uitkxPath, string componentName, List<string> sources)
+        {
+            var dir = Path.GetDirectoryName(uitkxPath);
+            if (dir == null) return;
+
+            // Pattern: ComponentName.*.uitkx  (e.g. TicTacToe.style.uitkx)
+            string prefix = componentName + ".";
+            foreach (var file in Directory.GetFiles(dir, prefix + "*.uitkx"))
+            {
+                // Skip the component file itself
+                if (string.Equals(file, uitkxPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try
+                {
+                    string companionSource = File.ReadAllText(file);
+                    var diagList = CreateDiagnosticList();
+                    var companionDir = _directiveParse.Invoke(
+                        null, new object[] { companionSource, file, diagList, true });
+                    if (companionDir == null) continue;
+
+                    // Emit module bodies (style constants, utility methods, etc.)
+                    string moduleCSharp = HmrHookEmitter.EmitModules(companionDir, file);
+                    if (!string.IsNullOrEmpty(moduleCSharp))
+                        sources.Add(moduleCSharp);
+
+                    // Emit hook bodies if the companion also defines custom hooks
+                    string containerClass = HmrHookEmitter.DeriveContainerClassName(file);
+                    string hookCSharp = HmrHookEmitter.Emit(companionDir, file, containerClass);
+                    if (!string.IsNullOrEmpty(hookCSharp))
+                        sources.Add(hookCSharp);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[HMR] Failed to process companion {Path.GetFileName(file)}: {ex.Message}");
+                }
+            }
         }
 
         /// <summary>
