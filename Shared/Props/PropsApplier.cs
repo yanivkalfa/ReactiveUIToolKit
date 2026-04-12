@@ -2176,6 +2176,7 @@ namespace ReactiveUITK.Props
                 if (del is Action<DetachFromPanelEvent> detach) { detach(evt as DetachFromPanelEvent); return; }
                 if (del is Action<TooltipEvent> tooltip) { tooltip(evt as TooltipEvent); return; }
                 if (del is Action<TransitionEndEvent> transEnd) { transEnd(evt as TransitionEndEvent); return; }
+                if (del is Action<InputEvent> inputH) { inputH(evt as InputEvent); return; }
 
                 // ChangeEvent<T> typed handlers
                 if (del is Action<ChangeEvent<string>> ceStr) { ceStr(evt as ChangeEvent<string>); return; }
@@ -2206,6 +2207,10 @@ namespace ReactiveUITK.Props
                     {
                         try { newValue = evtType.GetProperty("newValue")?.GetValue(evt); }
                         catch { }
+                    }
+                    else if (evt is InputEvent inputEvt)
+                    {
+                        newValue = inputEvt.newData;
                     }
                 }
 
