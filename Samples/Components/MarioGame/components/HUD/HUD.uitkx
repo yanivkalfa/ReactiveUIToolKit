@@ -1,0 +1,26 @@
+@namespace Samples.MarioGame
+@using UnityEngine
+
+component HUD(int score, int lives) {
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.Display, "flex"),
+        (StyleKeys.FlexDirection, "row"),
+        (StyleKeys.JustifyContent, "space-between"),
+        (StyleKeys.Padding, 8f),
+        (StyleKeys.FlexShrink, 0f),
+        (StyleKeys.BackgroundColor, new Color(0f, 0f, 0f, 0.6f)),
+      }}
+    >
+      <Label
+        text={$"SCORE: {score}"}
+        style={new Style { (StyleKeys.Color, Color.white), (StyleKeys.FontSize, 18f) }}
+      />
+      <Label
+        text={$"LIVES: {lives}"}
+        style={new Style { (StyleKeys.Color, Color.white), (StyleKeys.FontSize, 18f) }}
+      />
+    </VisualElement>
+  );
+}

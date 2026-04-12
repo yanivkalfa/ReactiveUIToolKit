@@ -1,0 +1,451 @@
+@namespace Samples.MarioGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.MarioGame.MarioConstants
+
+hook useMarioGame(
+  Ref<VisualElement?> boardRef
+) -> (
+  GameState state,
+  Action restart,
+  KeyboardEventHandler onKeyDown
+) {
+  var initialState = useMemo(() => LevelGenerator.GenerateLevel(), 0);
+  var (state, setState) = useState<GameState>(initialState);
+  var stateRef = useRef<GameState>(initialState);
+
+  var leftHeld = useRef(false);
+  var rightHeld = useRef(false);
+  var jumpPressed = useRef(false);
+  var duckHeld = useRef(false);
+  var lastTime = useRef(-1f);
+
+  Action restart = () => {
+    var fresh = LevelGenerator.GenerateLevel();
+    stateRef.Current = fresh;
+    leftHeld.Current = false;
+    rightHeld.Current = false;
+    jumpPressed.Current = false;
+    duckHeld.Current = false;
+    lastTime.Current = -1f;
+    setState(fresh);
+    var el = boardRef?.Current;
+    if (el != null) el.schedule.Execute(() => el.Focus());
+  };
+
+  KeyboardEventHandler onKeyDown = e => {
+    switch (e.KeyCode) {
+      case KeyCode.LeftArrow: leftHeld.Current = true; break;
+      case KeyCode.RightArrow: rightHeld.Current = true; break;
+      case KeyCode.UpArrow: jumpPressed.Current = true; break;
+      case KeyCode.DownArrow: duckHeld.Current = true; break;
+    }
+    e.StopPropagation();
+  };
+
+  useEffect(() => {
+    var el = boardRef?.Current;
+    if (el == null) return null;
+
+    el.schedule.Execute(() => el.Focus());
+
+    // Register keyUp separately
+    EventCallback<KeyUpEvent> keyUpCb = e => {
+      switch (e.keyCode) {
+        case KeyCode.LeftArrow: leftHeld.Current = false; break;
+        case KeyCode.RightArrow: rightHeld.Current = false; break;
+        case KeyCode.DownArrow: duckHeld.Current = false; break;
+      }
+      e.StopPropagation();
+    };
+    el.RegisterCallback(keyUpCb);
+
+    IVisualElementScheduledItem ticker = el.schedule.Execute(() => {
+      float now = Time.realtimeSinceStartup;
+      if (lastTime.Current < 0) { lastTime.Current = now; return; }
+      float dt = Mathf.Min(now - lastTime.Current, 0.05f);
+      lastTime.Current = now;
+
+      var s = stateRef.Current;
+      if (s.GameOver || s.Won) return;
+
+      var p = s.Player;
+      if (!p.Alive) {
+        stateRef.Current = new GameState {
+          Player = p, Enemies = s.Enemies, Items = s.Items, Tiles = s.Tiles,
+          Score = s.Score, Lives = s.Lives, CameraX = s.CameraX,
+          GameOver = true, Won = false,
+        };
+        setState(stateRef.Current);
+        return;
+      }
+
+      // --- Input ---
+      float moveX = 0;
+      if (leftHeld.Current) moveX -= 1;
+      if (rightHeld.Current) moveX += 1;
+
+      bool wantJump = jumpPressed.Current;
+      jumpPressed.Current = false;
+      bool wantDuck = duckHeld.Current;
+
+      // --- Player physics ---
+      float px = p.X;
+      float py = p.Y;
+      float vx;
+      float vy = p.Vy;
+      bool grounded = p.Grounded;
+      bool ducking = wantDuck;
+      bool big = p.Big;
+      float bigTimer = p.BigTimer;
+      float invTimer = p.InvincibleTimer;
+
+      // Tick invincibility
+      if (invTimer > 0) invTimer -= dt;
+
+      if (ducking && grounded) {
+        // Slide with friction when ducking on ground — no active movement
+        vx = p.Vx * Math.Max(0f, 1f - 6f * dt);
+        if (Math.Abs(vx) < 5f) vx = 0;
+      } else {
+        vx = moveX * WALK_SPEED;
+      }
+
+      // Adjust position when duck state changes to keep feet in place
+      int normalH = big ? BIG_MARIO_H : MARIO_H;
+      if (ducking && !p.Ducking && grounded) {
+        py += normalH - MARIO_DUCK_H;
+      } else if (!ducking && p.Ducking && grounded) {
+        py -= normalH - MARIO_DUCK_H;
+      }
+
+      if (wantJump && grounded) {
+        vy = JUMP_VEL;
+        grounded = false;
+      }
+
+      vy += GRAVITY * dt;
+      px += vx * dt;
+      py += vy * dt;
+
+      bool facingRight = p.FacingRight;
+      if (moveX > 0) facingRight = true;
+      else if (moveX < 0) facingRight = false;
+
+      int playerH = ducking ? (big ? MARIO_H : MARIO_DUCK_H) : (big ? BIG_MARIO_H : MARIO_H);
+
+      // Big timer countdown
+      if (big) {
+        bigTimer -= dt;
+        if (bigTimer <= 0) {
+          big = false;
+          bigTimer = 0;
+        }
+      }
+
+      // --- Tile collision ---
+      grounded = false;
+      var tiles = s.Tiles;
+      var tilesOut = new List<LevelTile>(tiles.Count);
+      bool tileHitThisFrame = false;
+      int hitTileCol = -1;
+      int hitTileRow = -1;
+      int scoreAdd = 0;
+
+      for (int i = 0; i < tiles.Count; i++) {
+        var t = tiles[i];
+        float tx = t.Col * TILE;
+        float ty = t.Row * TILE;
+
+        // Skip tiles far from player (perf: ~4000 tiles total)
+        if (tx < px - TILE * 3 || tx > px + MARIO_W + TILE * 3 ||
+            ty < py - TILE * 3 || ty > py + playerH + TILE * 3) {
+          // Still need to decay bumps and filter broken bricks
+          if (t.Type == TileType.Brick && t.Hit) continue;
+          if (t.BumpY < 0) {
+            t.BumpY += BUMP_SPEED * dt;
+            if (t.BumpY > 0) t.BumpY = 0;
+          }
+          tilesOut.Add(t);
+          continue;
+        }
+
+        // AABB overlap
+        bool overlapX = px + MARIO_W > tx && px < tx + TILE;
+        bool overlapY = py + playerH > ty && py < ty + TILE;
+
+        if (overlapX && overlapY) {
+          float overlapLeft = (px + MARIO_W) - tx;
+          float overlapRight = (tx + TILE) - px;
+          float overlapTop = (py + playerH) - ty;
+          float overlapBottom = (ty + TILE) - py;
+
+          float minOverlapX2 = Math.Min(overlapLeft, overlapRight);
+          float minOverlapY2 = Math.Min(overlapTop, overlapBottom);
+
+          if (minOverlapY2 < minOverlapX2) {
+            if (overlapTop < overlapBottom) {
+              // Landing on top
+              py = ty - playerH;
+              vy = 0;
+              grounded = true;
+            } else {
+              // Hitting head — only break blocks if Mario's center is under the tile
+              py = ty + TILE;
+              vy = 0;
+              float marioCenter = px + MARIO_W * 0.5f;
+              bool centerUnderTile = marioCenter > tx + 4 && marioCenter < tx + TILE - 4;
+              if (centerUnderTile && !t.Hit && (t.Type == TileType.QuestionBlock || t.Type == TileType.Brick || t.Type == TileType.CoinBlock)) {
+                t.BumpY = BUMP_OFFSET;
+                if (t.Type == TileType.Brick) {
+                  // Bricks break — mark for removal
+                  t.Hit = true;
+                } else if (t.Type == TileType.CoinBlock) {
+                  // Coin blocks give coins on each hit up to max
+                  t.HitCount++;
+                  scoreAdd += COIN_SCORE;
+                  if (t.HitCount >= COIN_HITS_MAX) {
+                    t.Hit = true;
+                  }
+                } else {
+                  t.Hit = true;
+                }
+                hitTileCol = t.Col;
+                hitTileRow = t.Row;
+              }
+            }
+          } else {
+            if (overlapLeft < overlapRight) {
+              px = tx - MARIO_W;
+            } else {
+              px = tx + TILE;
+            }
+          }
+        }
+        // Broken bricks disappear
+        if (t.Type == TileType.Brick && t.Hit) continue;
+        // Decay bump animation
+        if (t.BumpY < 0) {
+          t.BumpY += BUMP_SPEED * dt;
+          if (t.BumpY > 0) t.BumpY = 0;
+        }
+        tilesOut.Add(t);
+      }
+
+      // Pit death
+      if (py > VIEWPORT_H + 64) {
+        p.Alive = false;
+      }
+
+      // Clamp to level bounds — can't go left past camera
+      float levelW = LEVEL_COLS * TILE;
+      if (px < s.CameraX) px = s.CameraX;
+      if (px > levelW - MARIO_W) px = levelW - MARIO_W;
+
+      // --- Flagpole win check ---
+      bool won = false;
+      int playerCol = (int)((px + MARIO_W * 0.5f) / TILE);
+      for (int i = 0; i < tilesOut.Count; i++) {
+        var ft = tilesOut[i];
+        if ((ft.Type == TileType.Flagpole || ft.Type == TileType.FlagpoleTop) && ft.Col == playerCol) {
+          won = true;
+          break;
+        }
+      }
+
+      // --- Animation ---
+      float animTimer = p.AnimTimer + dt;
+      int animFrame = p.AnimFrame;
+      if (grounded && Math.Abs(vx) > 10) {
+        if (animTimer >= ANIM_FRAME_TIME) {
+          animTimer = 0;
+          animFrame = (animFrame + 1) % 3;
+        }
+      } else if (grounded) {
+        animFrame = 0;
+        animTimer = 0;
+      }
+
+      var newPlayer = new PlayerState {
+        X = px, Y = py, Vx = vx, Vy = vy,
+        FacingRight = facingRight, Grounded = grounded, Ducking = ducking,
+        Alive = p.Alive, InvincibleTimer = invTimer,
+        AnimFrame = animFrame, AnimTimer = animTimer,
+      };
+
+      // --- Items ---
+      var items = s.Items;
+      var itemsOut = new List<ItemState>(items.Count);
+
+      for (int i = 0; i < items.Count; i++) {
+        var item = items[i];
+
+        // Spawn from question block
+        if (!item.Spawned && hitTileCol >= 0) {
+          if ((int)(item.X / TILE) == hitTileCol && (int)(item.Y / TILE) == hitTileRow) {
+            item.Spawned = true;
+            item.Y = hitTileRow * TILE - TILE;
+            item.Vx = ENEMY_SPEED; // Mushroom slides forward
+          }
+        }
+
+        // Skip if not spawned or already collected
+        if (!item.Spawned || item.Collected) {
+          itemsOut.Add(item);
+          continue;
+        }
+
+        // Move mushroom horizontally
+        item.X += item.Vx * dt;
+
+        // Mushroom gravity
+        item.Vy += GRAVITY * dt;
+        item.Y += item.Vy * dt;
+
+        // Mushroom tile collision (ground + walls)
+        for (int j = 0; j < tilesOut.Count; j++) {
+          var tt = tilesOut[j];
+          float ttx = tt.Col * TILE;
+          float tty = tt.Row * TILE;
+          bool ox = item.X + TILE > ttx && item.X < ttx + TILE;
+          bool oy = item.Y + TILE > tty && item.Y < tty + TILE;
+          if (ox && oy) {
+            float otop = (item.Y + TILE) - tty;
+            float obot = (tty + TILE) - item.Y;
+            float oleft = (item.X + TILE) - ttx;
+            float oright = (ttx + TILE) - item.X;
+            float mox = Math.Min(oleft, oright);
+            float moy = Math.Min(otop, obot);
+            if (moy < mox) {
+              if (otop < obot) { item.Y = tty - TILE; item.Vy = 0; }
+              else { item.Y = tty + TILE; item.Vy = 0; }
+            } else {
+              if (oleft < oright) { item.X = ttx - TILE; item.Vx = -item.Vx; }
+              else { item.X = ttx + TILE; item.Vx = -item.Vx; }
+            }
+          }
+        }
+
+        // Collect on overlap with player
+        float ix = item.X;
+        float iy = item.Y;
+        if (px + MARIO_W > ix && px < ix + TILE && py + playerH > iy && py < iy + TILE) {
+          item.Collected = true;
+          scoreAdd += 100;
+          big = true;
+          bigTimer = BIG_DURATION;
+        }
+
+        itemsOut.Add(item);
+      }
+
+      // --- Enemies ---
+      var enemies = s.Enemies;
+      var enemiesOut = new List<EnemyState>(enemies.Count);
+      bool playerDied = false;
+
+      for (int i = 0; i < enemies.Count; i++) {
+        var en = enemies[i];
+        if (!en.Alive) { enemiesOut.Add(en); continue; }
+
+        // Move enemy
+        en.X += en.Vx * dt;
+
+        // Enemy tile collision (simple ground check + wall bounce)
+        bool enemyGrounded = false;
+        for (int j = 0; j < tilesOut.Count; j++) {
+          var t = tilesOut[j];
+          float tx = t.Col * TILE;
+          float ty = t.Row * TILE;
+          // Ground below
+          if (en.X + TILE > tx && en.X < tx + TILE && Math.Abs((en.Y + TILE) - ty) < 4) {
+            enemyGrounded = true;
+          }
+          // Wall hit
+          if (en.Y + TILE > ty + 4 && en.Y < ty + TILE - 4) {
+            if (en.Vx < 0 && en.X < tx + TILE && en.X + TILE > tx + TILE && en.X > tx) {
+              en.Vx = -en.Vx;
+              en.X = tx + TILE;
+            } else if (en.Vx > 0 && en.X + TILE > tx && en.X < tx && en.X + TILE < tx + TILE) {
+              en.Vx = -en.Vx;
+              en.X = tx - TILE;
+            }
+          }
+        }
+
+        // Reverse at edges
+        if (en.X < 0) { en.X = 0; en.Vx = -en.Vx; }
+        if (en.X > levelW - TILE) { en.X = levelW - TILE; en.Vx = -en.Vx; }
+
+        // Player-enemy collision
+        bool overlapWithPlayer = px + MARIO_W > en.X + 4 && px < en.X + TILE - 4
+          && py + playerH > en.Y + 4 && py < en.Y + TILE - 4;
+
+        if (overlapWithPlayer && newPlayer.Alive) {
+          // Stomped from above
+          if (vy > 0 && py + playerH - en.Y < TILE * 0.6f) {
+            en.Alive = false;
+            scoreAdd += 100;
+            newPlayer.Vy = JUMP_VEL * 0.5f;
+            newPlayer.Grounded = false;
+          } else if (invTimer <= 0) {
+            // Not invincible — take damage
+            if (big) {
+              // Shrink instead of dying
+              big = false;
+              bigTimer = 0;
+              invTimer = INVINCIBLE_DURATION;
+            } else {
+              playerDied = true;
+            }
+          }
+        }
+
+        enemiesOut.Add(en);
+      }
+
+      if (playerDied) {
+        newPlayer.Alive = false;
+      }
+
+      // Apply Big state after items/enemies (mushroom collection sets big=true)
+      newPlayer.Big = big;
+      newPlayer.BigTimer = bigTimer;
+      newPlayer.InvincibleTimer = invTimer;
+
+      // Adjust position when becoming big so feet stay in place
+      if (big && !p.Big) {
+        newPlayer.Y -= (BIG_MARIO_H - MARIO_H);
+      }
+
+      // Camera follows player — one-way, only scrolls right
+      float camTarget = newPlayer.X - VIEWPORT_W * 0.4f;
+      float maxCam = levelW - VIEWPORT_W;
+      float newCamX = Math.Max(s.CameraX, Math.Max(0, Math.Min(camTarget, maxCam)));
+
+      var newState = new GameState {
+        Player = newPlayer,
+        Enemies = enemiesOut,
+        Items = itemsOut,
+        Tiles = tilesOut,
+        Score = s.Score + scoreAdd,
+        Lives = s.Lives,
+        CameraX = newCamX,
+        GameOver = !newPlayer.Alive,
+        Won = won,
+      };
+
+      stateRef.Current = newState;
+      setState(newState);
+    }).Every(16);
+
+    return () => {
+      el.UnregisterCallback(keyUpCb);
+      ticker.Pause();
+    };
+  }, new object[] { boardRef?.Current });
+
+  return (state, restart, onKeyDown);
+}

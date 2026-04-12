@@ -1,0 +1,101 @@
+@namespace Samples.MarioGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.MarioGame.MarioConstants
+
+component GameScreen(int restartVersion = 0, Action? onQuit = null) {
+  var boardRef = useRef<VisualElement?>(null);
+  var (state, restart, onKeyDown) = useMarioGame(boardRef);
+
+  var prevVersion = useRef(restartVersion);
+  if (prevVersion.Current != restartVersion) {
+    prevVersion.Current = restartVersion;
+    restart();
+  }
+
+  float cam = state.CameraX;
+
+  // Frustum cull — only render what's on screen
+  var visibleTiles = new List<LevelTile>();
+  foreach (var t in state.Tiles) {
+    float tx = t.Col * TILE - cam;
+    if (tx > -TILE && tx < VIEWPORT_W + TILE) visibleTiles.Add(t);
+  }
+  var visibleItems = new List<ItemState>();
+  foreach (var it in state.Items) {
+    float ix = it.X - cam;
+    if (ix > -TILE && ix < VIEWPORT_W + TILE) visibleItems.Add(it);
+  }
+  var visibleEnemies = new List<EnemyState>();
+  foreach (var en in state.Enemies) {
+    float ex = en.X - cam;
+    if (ex > -TILE && ex < VIEWPORT_W + TILE) visibleEnemies.Add(en);
+  }
+
+  return (
+    <VisualElement style={GameScreenStyles.Container}>
+      <HUD score={state.Score} lives={state.Lives} />
+      <VisualElement
+        ref={boardRef}
+        focusable={true}
+        tabIndex={0}
+        onKeyDownCapture={onKeyDown}
+        style={GameScreenStyles.Viewport}
+      >
+        @foreach (var tile in visibleTiles) {
+          return (
+            <Block key={$"t-{tile.Col}-{tile.Row}"} tile={tile} cameraX={cam} />
+          );
+        }
+        @foreach (var item in visibleItems) {
+          return (
+            <Mushroom key={$"i-{item.Id}"} item={item} cameraX={cam} />
+          );
+        }
+        @foreach (var enemy in visibleEnemies) {
+          return (
+            <Enemy key={$"e-{enemy.Id}"} enemy={enemy} cameraX={cam} />
+          );
+        }
+        <Mario key="mario" player={state.Player} cameraX={cam} />
+        @if (state.Won) {
+          return (
+            <VisualElement style={GameScreenStyles.GameOverOverlay}>
+              <Label text="YOU WIN!" style={GameScreenStyles.WinText} />
+              <Label text={$"FINAL SCORE: {state.Score}"} style={GameScreenStyles.GameOverText} />
+              <Button
+                text="Play Again"
+                onClick={_ => restart()}
+                style={GameScreenStyles.RestartButton}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => { if (onQuit != null) onQuit(); }}
+                style={GameScreenStyles.RestartButton}
+              />
+            </VisualElement>
+          );
+        }
+        @if (state.GameOver) {
+          return (
+            <VisualElement style={GameScreenStyles.GameOverOverlay}>
+              <Label text="GAME OVER" style={GameScreenStyles.GameOverText} />
+              <Button
+                text="Try Again"
+                onClick={_ => restart()}
+                style={GameScreenStyles.RestartButton}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => { if (onQuit != null) onQuit(); }}
+                style={GameScreenStyles.RestartButton}
+              />
+            </VisualElement>
+          );
+        }
+      </VisualElement>
+    </VisualElement>
+  );
+}

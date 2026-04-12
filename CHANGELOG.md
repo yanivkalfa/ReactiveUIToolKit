@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.6] - 2026-04-13
+
+### Added
+- **Procedurally generated Mario levels** — `LevelGenerator` produces 35-screen levels with 6 screen types (Flat, Pit, Pipes, Staircase, Floating, Final/Flagpole). Difficulty scales with progression. Smart block cluster placement avoids pipe/ground overlap and guarantees mushrooms in question blocks.
+- **Camera scrolling** — one-way horizontal camera follows Mario, clamped at level edges. Player cannot walk left past the camera (classic Mario behavior). Frustum culling skips rendering and collision for off-screen tiles.
+- **Pipe tiles** — 2-wide green solid pipe obstacles with varying heights (2–4 tiles)
+- **Flagpole win condition** — final screen has a staircase, flagpole, and castle. Touching the flagpole triggers "YOU WIN!" overlay with final score.
+- **Damage shield** — Big Mario hit by enemy shrinks instead of dying, with 3-second invincibility grace period. Mario blinks (opacity toggle) during invincibility.
+- **Coin blocks** — multi-hit blocks that give 50 points per hit (up to 5 hits)
+- **Block bump animation** — blocks nudge upward briefly when hit from below
+- **Mushroom power-up** — collecting a mushroom makes Mario grow (96px tall, 48px wide) for 10 seconds
+- **Ducking slide** — ducking on the ground applies friction-based deceleration instead of instant stop, creating a slide effect
+- **Multi-row block clusters** — 30% of generated block clusters have a second row 3 tiles above the first
+
+### Fixed
+- **HMR hook trampoline + using-static injection** — companion `.hooks.uitkx` files created during HMR sessions now emit public trampoline methods and inject `using static` into the component source
+- **Brick destruction** — bricks now break when hit from below and disappear from the level
+- **Mushroom physics** — mushrooms slide horizontally, fall with gravity, and bounce off walls
+- **Jump height** — increased `JUMP_VEL` from -500 to -620 so Mario can clear gaps and reach blocks
+- **Ducking mid-air** — ducking now works in the air (not grounded-only) and correctly reduces collision box
+- **Duck position snapping** — transitioning between duck/stand adjusts Y position to keep feet in place, preventing underground clipping and forward teleporting
+- **Side-hit brick breaking removed** — bricks only break from head-hits underneath, not side collisions. Center-of-head check prevents angled corner-clip breaks.
+- **Mushroom Big flag ordering** — Big/BigTimer now applied after Items loop so mushroom collection actually persists to player state
+- **Game start grounding** — player initial Y slightly overlaps ground so `grounded=true` on first frame (enables jumping immediately)
+- **Restart keyboard focus** — clicking "Try Again" re-focuses the game board so keyboard input works immediately
+
 ## [0.4.5] - 2026-04-12
 
 ### Fixed
