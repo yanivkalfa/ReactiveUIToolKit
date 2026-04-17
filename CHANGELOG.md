@@ -6,6 +6,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.7] - 2026-04-17
+
+### Added
+- **Children slot re-render detection** — components receiving `@(__children)` now correctly re-render when their children change, using reference-equality comparison on the children list
+
+### Fixed
+- **Directive body scoping** — `@if`, `@foreach`, `@for`, `@while`, and `@switch` bodies now emit as C# local functions, preventing variable scoping leaks and early-return issues between branches
+- **UITKX0009 coverage** — "loop element missing key" diagnostic now fires for `@for` and `@while` loops, not just `@foreach`
+- **Setup code JSX validation** — source generator validates JSX placement inside directive body setup code
+- **Hook alias runtime wrappers** — source generator emits correct wrapper methods for hook aliases
+- **Source map accuracy** — improved diagnostic line mapping for UITKX0014, UITKX0013, and CS0219
+- **HMR directive body support** — HMR emitter updated to match source generator's directive-body-as-function approach, including JSX splicing inside directive bodies
+
 ## [0.4.6] - 2026-04-13
 
 ### Added

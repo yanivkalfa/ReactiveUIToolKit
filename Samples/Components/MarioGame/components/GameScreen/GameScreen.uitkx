@@ -64,7 +64,10 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
           return (
             <VisualElement style={GameScreenStyles.GameOverOverlay}>
               <Label text="YOU WIN!" style={GameScreenStyles.WinText} />
-              <Label text={$"FINAL SCORE: {state.Score}"} style={GameScreenStyles.GameOverText} />
+              <Label
+                text={$"FINAL SCORE: {state.Score}"}
+                style={GameScreenStyles.GameOverText}
+              />
               <Button
                 text="Play Again"
                 onClick={_ => restart()}

@@ -197,6 +197,10 @@ public sealed class DiagnosticsPublisher
         var knownAttributes = BuildKnownAttributes(projectElements);
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes, text);
 
+        // Also run T2 analysis on setup code JSX (local functions, JSX variable assignments).
+        if (!setupJsxNodes.IsEmpty)
+            t2Diags = t2Diags.Concat(_analyzer.AnalyzeNodes(setupJsxNodes, projectElements, knownAttributes, text)).ToList();
+
         // ── T2v version-compatibility diagnostics ────────────────────────────
         // Check elements and style properties against the detected Unity version.
         // Only produces diagnostics when schema entries carry sinceUnity annotations.

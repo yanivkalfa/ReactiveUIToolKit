@@ -111,8 +111,6 @@ namespace Samples.MarioGame
             int enemyId = 1;
             int itemId = 1;
 
-            int totalCols = MarioConstants.NUM_SCREENS * MarioConstants.SCREEN_COLS;
-
             for (int screen = 0; screen < MarioConstants.NUM_SCREENS; screen++)
             {
                 int baseCol = screen * MarioConstants.SCREEN_COLS;

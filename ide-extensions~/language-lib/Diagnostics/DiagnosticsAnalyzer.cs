@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -14,18 +14,18 @@ namespace ReactiveUITK.Language.Diagnostics
     ///
     /// Tier 2 checks:
     /// <list type="bullet">
-    ///   <item>UITKX0013 — Hook called inside <c>@if</c> / <c>@else</c> branch</item>
-    ///   <item>UITKX0014 — Hook called inside <c>@foreach</c> / <c>@for</c> / <c>@while</c> loop</item>
-    ///   <item>UITKX0015 — Hook called inside <c>@switch</c> case</item>
-    ///   <item>UITKX0016 — Hook called inside event-handler attribute</item>
-    ///   <item>UITKX0103 — <c>component</c> name does not match filename</item>
-    ///   <item>UITKX0104 — Duplicate literal <c>key="…"</c> among siblings</item>
-    ///   <item>UITKX0105 — Unknown PascalCase element (when index available)</item>
-    ///   <item>UITKX0106 — Element inside <c>@foreach</c> body has no <c>key</c> (warning)</item>
-    ///   <item>UITKX0107 — Unreachable code after top-level <c>return</c> in component body</item>
-    ///   <item>UITKX0108 — Component has more than one root render node</item>
-    ///   <item>UITKX0109 — Unknown attribute on a known element (when attribute map available)</item>
-    ///   <item>UITKX0111 — Unused component parameter in function-style component</item>
+    ///   <item>UITKX0013 ΓÇö Hook called inside <c>@if</c> / <c>@else</c> branch</item>
+    ///   <item>UITKX0014 ΓÇö Hook called inside <c>@foreach</c> / <c>@for</c> / <c>@while</c> loop</item>
+    ///   <item>UITKX0015 ΓÇö Hook called inside <c>@switch</c> case</item>
+    ///   <item>UITKX0016 ΓÇö Hook called inside event-handler attribute</item>
+    ///   <item>UITKX0103 ΓÇö <c>component</c> name does not match filename</item>
+    ///   <item>UITKX0104 ΓÇö Duplicate literal <c>key="ΓÇª"</c> among siblings</item>
+    ///   <item>UITKX0105 ΓÇö Unknown PascalCase element (when index available)</item>
+    ///   <item>UITKX0106 ΓÇö Element inside <c>@foreach</c> body has no <c>key</c> (warning)</item>
+    ///   <item>UITKX0107 ΓÇö Unreachable code after top-level <c>return</c> in component body</item>
+    ///   <item>UITKX0108 ΓÇö Component has more than one root render node</item>
+    ///   <item>UITKX0109 ΓÇö Unknown attribute on a known element (when attribute map available)</item>
+    ///   <item>UITKX0111 ΓÇö Unused component parameter in function-style component</item>
     /// </list>
     ///
     /// Tier-1 (parser syntax) errors are already present in
@@ -40,7 +40,7 @@ namespace ReactiveUITK.Language.Diagnostics
         /// <param name="parseResult">The complete parse result (directives + AST + T1 errors).</param>
         /// <param name="filePath">
         /// Absolute or relative path of the source file, used for the filename-mismatch check.
-        /// May be empty or null — the check is simply skipped.
+        /// May be empty or null ΓÇö the check is simply skipped.
         /// </param>
         /// <param name="projectElements">
         /// Set of component names known in the project (suffix "Props" stripped).
@@ -48,7 +48,7 @@ namespace ReactiveUITK.Language.Diagnostics
         /// report every unrecognised PascalCase element as a warning.
         /// </param>
         /// <param name="knownAttributes">
-        /// Map of element name → set of valid attribute names for that element.
+        /// Map of element name ΓåÆ set of valid attribute names for that element.
         /// Pass <c>null</c> to skip the unknown-attribute check.
         /// </param>
         /// <param name="sourceText">
@@ -66,7 +66,7 @@ namespace ReactiveUITK.Language.Diagnostics
             var diags = new List<ParseDiagnostic>();
             var d = parseResult.Directives;
 
-            // ── T2: UITKX0103 — Filename / component-name mismatch ───────────
+            // ΓöÇΓöÇ T2: UITKX0103 ΓÇö Filename / component-name mismatch ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             if (!string.IsNullOrEmpty(filePath) && !string.IsNullOrEmpty(d.ComponentName))
             {
                 var stem = Path.GetFileNameWithoutExtension(filePath);
@@ -95,16 +95,16 @@ namespace ReactiveUITK.Language.Diagnostics
                 }
             }
 
-            // ── T2: UITKX0108 — Multiple render roots ────────────────────────
+            // ΓöÇΓöÇ T2: UITKX0108 ΓÇö Multiple render roots ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             CheckSingleRenderRoot(parseResult.RootNodes, diags);
 
-            // ── T2: AST walks ─────────────────────────────────────────────────
+            // ΓöÇΓöÇ T2: AST walks ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             WalkNodeList(parseResult.RootNodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, sourceText, diags);
 
-            // ── T2: Function-style unreachable-after-return ───────────────────
+            // ΓöÇΓöÇ T2: Function-style unreachable-after-return ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             if (d.IsFunctionStyle)
             {
-                // Site A — dim code between the render return's `;` and the
+                // Site A ΓÇö dim code between the render return's `;` and the
                 // component closing `}`, but never the `}` itself.
                 if (d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
                 {
@@ -125,7 +125,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     }
                 }
 
-                // Site B — early return in setup code (before the render return).
+                // Site B ΓÇö early return in setup code (before the render return).
                 // Dim from the line after the early return to the closing `}`.
                 if (!string.IsNullOrEmpty(sourceText) && d.FunctionSetupStartOffset >= 0
                     && d.FunctionReturnEndLine > 0 && d.FunctionBodyEndLine > 0)
@@ -155,13 +155,13 @@ namespace ReactiveUITK.Language.Diagnostics
 
             }
 
-            // ── T2: UITKX0111 — Unused component parameter ───────────────────
+            // ΓöÇΓöÇ T2: UITKX0111 ΓÇö Unused component parameter ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             if (d.IsFunctionStyle && !d.FunctionParams.IsDefaultOrEmpty)
             {
                 CheckUnusedParameters(d, parseResult.RootNodes, diags);
             }
 
-            // ── T2: UITKX0120 — Asset path not found ─────────────────────────
+            // ΓöÇΓöÇ T2: UITKX0120 ΓÇö Asset path not found ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             if (!string.IsNullOrEmpty(sourceText) && !string.IsNullOrEmpty(filePath))
             {
                 CheckAssetPaths(sourceText, filePath, diags);
@@ -170,12 +170,12 @@ namespace ReactiveUITK.Language.Diagnostics
             return diags;
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  RENDER-ROOT CHECK
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         /// <summary>
-        /// UITKX0108 — A component must have exactly one render root.
+        /// UITKX0108 ΓÇö A component must have exactly one render root.
         ///
         /// "Render root" is any node that contributes to the rendered output:
         /// <see cref="ElementNode"/>, <see cref="IfNode"/>, <see cref="ForeachNode"/>,
@@ -184,7 +184,7 @@ namespace ReactiveUITK.Language.Diagnostics
         ///
         /// Excluded from the count (they do not produce rendered output):
         /// <list type="bullet">
-        ///   <item><see cref="CommentNode"/> — comment, not rendered.</item>
+        ///   <item><see cref="CommentNode"/> ΓÇö comment, not rendered.</item>
         ///   <item>Whitespace-only <see cref="TextNode"/>.</item>
         /// </list>
         ///
@@ -202,7 +202,7 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 switch (node)
                 {
-                    // Non-rendering nodes — excluded from the count.
+                    // Non-rendering nodes ΓÇö excluded from the count.
                     case CommentNode:
                         continue;
                     case TextNode tn when string.IsNullOrWhiteSpace(tn.Content):
@@ -230,7 +230,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     MakeDiag(
                         DiagnosticCodes.MultipleRenderRoots,
                         ParseSeverity.Error,
-                        $"A component must have a single root element. '{label}' is an extra root — wrap all root nodes in a single container element.",
+                        $"A component must have a single root element. '{label}' is an extra root ΓÇö wrap all root nodes in a single container element.",
                         extra.SourceLine,
                         extra.SourceColumn,
                         endCol
@@ -264,19 +264,20 @@ namespace ReactiveUITK.Language.Diagnostics
         public IReadOnlyList<ParseDiagnostic> AnalyzeNodes(
             ImmutableArray<AstNode> nodes,
             HashSet<string>? projectElements,
-            IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes)
+            IReadOnlyDictionary<string, IReadOnlyCollection<string>>? knownAttributes,
+            string? sourceText = null)
         {
             var diags = new List<ParseDiagnostic>();
-            WalkNodeList(nodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, null, diags);
+            WalkNodeList(nodes, insideForeach: false, HookContext.TopLevel, projectElements, knownAttributes, sourceText, diags);
             return diags;
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  AST WALKER
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         /// <summary>
-        /// Hook-context tracking for Rules of Hooks validation (UITKX0013–0016).
+        /// Hook-context tracking for Rules of Hooks validation (UITKX0013ΓÇô0016).
         /// Mirrors <c>HooksValidator.HookContext</c> in the SourceGenerator.
         /// </summary>
         private enum HookContext
@@ -297,7 +298,7 @@ namespace ReactiveUITK.Language.Diagnostics
             List<ParseDiagnostic> diags
         )
         {
-            // UITKX0104 — Duplicate literal key among siblings at this level.
+            // UITKX0104 ΓÇö Duplicate literal key among siblings at this level.
             CheckDuplicateKeys(nodes, diags);
 
             for (int idx = 0; idx < nodes.Length; idx++)
@@ -330,32 +331,32 @@ namespace ReactiveUITK.Language.Diagnostics
                     foreach (var branch in ifn.Branches)
                     {
                         max = System.Math.Max(max, branch.SourceLine);
-                        foreach (var child in branch.Body)
-                            max = System.Math.Max(max, GetLastDescendantLine(child));
+                        if (branch.BodyCode != null)
+                            max = System.Math.Max(max, branch.BodyCodeLine + CountNewlines(branch.BodyCode));
                     }
                     break;
 
                 case ForeachNode fe:
-                    foreach (var child in fe.Body)
-                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    if (fe.BodyCode != null)
+                        max = System.Math.Max(max, fe.BodyCodeLine + CountNewlines(fe.BodyCode));
                     break;
 
                 case ForNode fo:
-                    foreach (var child in fo.Body)
-                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    if (fo.BodyCode != null)
+                        max = System.Math.Max(max, fo.BodyCodeLine + CountNewlines(fo.BodyCode));
                     break;
 
                 case WhileNode wh:
-                    foreach (var child in wh.Body)
-                        max = System.Math.Max(max, GetLastDescendantLine(child));
+                    if (wh.BodyCode != null)
+                        max = System.Math.Max(max, wh.BodyCodeLine + CountNewlines(wh.BodyCode));
                     break;
 
                 case SwitchNode sw:
                     foreach (var c in sw.Cases)
                     {
                         max = System.Math.Max(max, c.SourceLine);
-                        foreach (var child in c.Body)
-                            max = System.Math.Max(max, GetLastDescendantLine(child));
+                        if (c.BodyCode != null)
+                            max = System.Math.Max(max, c.BodyCodeLine + CountNewlines(c.BodyCode));
                     }
                     break;
             }
@@ -363,6 +364,14 @@ namespace ReactiveUITK.Language.Diagnostics
             // Add 1 to account for the closing brace/tag line that follows
             // the deepest child but isn't tracked in the AST.
             return max + 1;
+        }
+
+        private static int CountNewlines(string text)
+        {
+            int count = 0;
+            for (int i = 0; i < text.Length; i++)
+                if (text[i] == '\n') count++;
+            return count;
         }
 
         private static void WalkNode(
@@ -379,7 +388,7 @@ namespace ReactiveUITK.Language.Diagnostics
             {
                 case ElementNode el:
                     CheckElement(el, insideForeach, projectElements, knownAttributes, diags);
-                    // Check attribute values for hook calls — always wrong, even at top-level
+                    // Check attribute values for hook calls ΓÇö always wrong, even at top-level
                     CheckAttributeHooks(el, diags);
                     WalkNodeList(el.Children, insideForeach: false, hookCtx, projectElements, knownAttributes, sourceText, diags);
                     break;
@@ -387,41 +396,51 @@ namespace ReactiveUITK.Language.Diagnostics
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
                     {
-                        if (!string.IsNullOrWhiteSpace(branch.SetupCode))
-                            ScanCodeForHooks(branch.SetupCode!, branch.SetupCodeOffset,
-                                HookContext.Conditional, sourceText, diags);
-                        WalkNodeList(branch.Body, insideForeach, HookContext.Conditional, projectElements, knownAttributes, sourceText, diags);
+                        if (!string.IsNullOrWhiteSpace(branch.BodyCode))
+                            ScanCodeForHooks(branch.BodyCode!, branch.BodyCodeOffset,
+                                HookContext.Conditional, sourceText, diags,
+                                GetPreambleEnd(branch.BodyCode!, branch.BodyCodeOffset, branch.BodyMarkupRanges, branch.BodyBareJsxRanges));
+                        WalkNodeList(branch.Body, insideForeach: false, HookContext.Conditional,
+                            projectElements, knownAttributes, sourceText, diags);
                     }
                     break;
 
                 case ForeachNode fe:
-                    if (!string.IsNullOrWhiteSpace(fe.SetupCode))
-                        ScanCodeForHooks(fe.SetupCode!, fe.SetupCodeOffset,
-                            HookContext.Loop, sourceText, diags);
-                    WalkNodeList(fe.Body, insideForeach: true, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
+                    if (!string.IsNullOrWhiteSpace(fe.BodyCode))
+                        ScanCodeForHooks(fe.BodyCode!, fe.BodyCodeOffset,
+                            HookContext.Loop, sourceText, diags,
+                            GetPreambleEnd(fe.BodyCode!, fe.BodyCodeOffset, fe.BodyMarkupRanges, fe.BodyBareJsxRanges));
+                    WalkNodeList(fe.Body, insideForeach: true, HookContext.Loop,
+                        projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case ForNode fn:
-                    if (!string.IsNullOrWhiteSpace(fn.SetupCode))
-                        ScanCodeForHooks(fn.SetupCode!, fn.SetupCodeOffset,
-                            HookContext.Loop, sourceText, diags);
-                    WalkNodeList(fn.Body, insideForeach, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
+                    if (!string.IsNullOrWhiteSpace(fn.BodyCode))
+                        ScanCodeForHooks(fn.BodyCode!, fn.BodyCodeOffset,
+                            HookContext.Loop, sourceText, diags,
+                            GetPreambleEnd(fn.BodyCode!, fn.BodyCodeOffset, fn.BodyMarkupRanges, fn.BodyBareJsxRanges));
+                    WalkNodeList(fn.Body, insideForeach: true, HookContext.Loop,
+                        projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case WhileNode wh:
-                    if (!string.IsNullOrWhiteSpace(wh.SetupCode))
-                        ScanCodeForHooks(wh.SetupCode!, wh.SetupCodeOffset,
-                            HookContext.Loop, sourceText, diags);
-                    WalkNodeList(wh.Body, insideForeach, HookContext.Loop, projectElements, knownAttributes, sourceText, diags);
+                    if (!string.IsNullOrWhiteSpace(wh.BodyCode))
+                        ScanCodeForHooks(wh.BodyCode!, wh.BodyCodeOffset,
+                            HookContext.Loop, sourceText, diags,
+                            GetPreambleEnd(wh.BodyCode!, wh.BodyCodeOffset, wh.BodyMarkupRanges, wh.BodyBareJsxRanges));
+                    WalkNodeList(wh.Body, insideForeach: true, HookContext.Loop,
+                        projectElements, knownAttributes, sourceText, diags);
                     break;
 
                 case SwitchNode sw:
                     foreach (var sc in sw.Cases)
                     {
-                        if (!string.IsNullOrWhiteSpace(sc.SetupCode))
-                            ScanCodeForHooks(sc.SetupCode!, sc.SetupCodeOffset,
-                                HookContext.Switch, sourceText, diags);
-                        WalkNodeList(sc.Body, insideForeach, HookContext.Switch, projectElements, knownAttributes, sourceText, diags);
+                        if (!string.IsNullOrWhiteSpace(sc.BodyCode))
+                            ScanCodeForHooks(sc.BodyCode!, sc.BodyCodeOffset,
+                                HookContext.Switch, sourceText, diags,
+                                GetPreambleEnd(sc.BodyCode!, sc.BodyCodeOffset, sc.BodyMarkupRanges, sc.BodyBareJsxRanges));
+                        WalkNodeList(sc.Body, insideForeach: false, HookContext.Switch,
+                            projectElements, knownAttributes, sourceText, diags);
                     }
                     break;
 
@@ -430,16 +449,16 @@ namespace ReactiveUITK.Language.Diagnostics
                         CheckExpressionForHooks(ex.Expression, ex.SourceLine, hookCtx, diags);
                     break;
 
-                // TextNode — nothing to check.
+                // TextNode ΓÇö nothing to check.
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
-        //  RULES OF HOOKS (UITKX0013–0016)
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
+        //  RULES OF HOOKS (UITKX0013ΓÇô0016)
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         // Patterns that indicate a hook call.  Matches the SourceGenerator's
-        // HooksValidator.s_hookPatterns — qualified, bare, and camelCase forms.
+        // HooksValidator.s_hookPatterns ΓÇö qualified, bare, and camelCase forms.
         private static readonly string[] s_hookPatterns =
         {
             "Hooks.UseState(",
@@ -475,20 +494,48 @@ namespace ReactiveUITK.Language.Diagnostics
         };
 
         /// <summary>
-        /// Scans a control-block SetupCode string for hook calls (UITKX0013–0015).
-        /// Uses <paramref name="setupCodeOffset"/> + <paramref name="sourceText"/>
-        /// to compute exact source column positions for accurate squiggles.
+        /// Returns the end offset within <paramref name="bodyCode"/> marking the
+        /// boundary of the setup preamble — the minimum start of any JSX range.
+        /// Hooks found after this offset live inside nested directive bodies and
+        /// will be caught when the tree walk visits those nested nodes directly.
+        /// </summary>
+        private static int GetPreambleEnd(
+            string bodyCode,
+            int bodyCodeOffset,
+            ImmutableArray<(int Start, int End, int Line)> markupRanges,
+            ImmutableArray<(int Start, int End, int Line)> bareRanges)
+        {
+            int min = bodyCode.Length;
+            foreach (var (absStart, _, _) in markupRanges)
+            {
+                int rel = absStart - bodyCodeOffset;
+                if (rel >= 0 && rel < min) min = rel;
+            }
+            foreach (var (absStart, _, _) in bareRanges)
+            {
+                int rel = absStart - bodyCodeOffset;
+                if (rel >= 0 && rel < min) min = rel;
+            }
+            return min;
+        }
+
+        /// <summary>
+        /// Scans a control-block SetupCode string for hook calls (UITKX0013–
+        /// 0015).  Scans only up to <paramref name="scanEnd"/> characters to
+        /// avoid reporting a deeply-nested hook once per ancestor directive body.
         /// </summary>
         private static void ScanCodeForHooks(
             string code,
             int setupCodeOffset,
             HookContext ctx,
             string? sourceText,
-            List<ParseDiagnostic> diags)
+            List<ParseDiagnostic> diags,
+            int scanEnd = int.MaxValue)
         {
+            int limit = Math.Min(code.Length, scanEnd);
             foreach (var pattern in s_hookPatterns)
             {
-                int idx = code.IndexOf(pattern, StringComparison.Ordinal);
+                int idx = code.IndexOf(pattern, 0, limit, StringComparison.Ordinal);
                 if (idx < 0)
                     continue;
 
@@ -553,7 +600,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
         /// <summary>
         /// Checks an inline expression node for hook calls when inside a
-        /// control block (UITKX0013–0015).
+        /// control block (UITKX0013ΓÇô0015).
         /// </summary>
         private static void CheckExpressionForHooks(
             string code,
@@ -627,9 +674,9 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  ELEMENT CHECKS
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         private static void CheckElement(
             ElementNode el,
@@ -639,14 +686,14 @@ namespace ReactiveUITK.Language.Diagnostics
             List<ParseDiagnostic> diags
         )
         {
-            // UITKX0106 — Missing key inside @foreach.
+            // UITKX0106 ΓÇö Missing key inside a loop (@foreach / @for / @while).
             if (insideForeach && !HasKeyAttribute(el))
             {
                 diags.Add(
                     MakeDiag(
                         DiagnosticCodes.MissingKey,
                         ParseSeverity.Error,
-                        $"Element <{el.TagName}> inside @foreach should have a 'key' attribute to help with reconciliation.",
+                        $"Element <{el.TagName}> inside a loop should have a 'key' attribute to help with reconciliation.",
                         el.SourceLine,
                         el.SourceColumn,
                         el.SourceColumn + 1 + el.TagName.Length
@@ -654,7 +701,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 );
             }
 
-            // UITKX0105 — Unknown PascalCase element (custom component not in index).
+            // UITKX0105 ΓÇö Unknown PascalCase element (custom component not in index).
             bool isPascalCase = el.TagName.Length > 0 && char.IsUpper(el.TagName[0]);
             bool elementKnown = true; // assume known unless we have an index and it's missing
             if (isPascalCase && projectElements != null && !projectElements.Contains(el.TagName))
@@ -672,7 +719,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 );
             }
 
-            // UITKX0109 — Unknown attribute on a known element.
+            // UITKX0109 ΓÇö Unknown attribute on a known element.
             // Only check when the element is known (no double-error on unknown elements)
             // and we have attribute data for it.
             if (elementKnown
@@ -700,9 +747,9 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  DUPLICATE-KEY CHECK
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         private static void CheckDuplicateKeys(
             ImmutableArray<AstNode> siblings,
@@ -710,7 +757,7 @@ namespace ReactiveUITK.Language.Diagnostics
         )
         {
             // Collect elements that have a literal string key attribute.
-            // Map: key-value → first element that used it.
+            // Map: key-value ΓåÆ first element that used it.
             var seen = new Dictionary<string, ElementNode>(System.StringComparer.Ordinal);
 
             foreach (var node in siblings)
@@ -767,12 +814,12 @@ namespace ReactiveUITK.Language.Diagnostics
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  UNUSED PARAMETER CHECK
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         /// <summary>
-        /// UITKX0111 — For each function-style component parameter, check whether
+        /// UITKX0111 ΓÇö For each function-style component parameter, check whether
         /// its name appears in the setup code (with scope-aware shadowing) or
         /// the markup AST (expressions, attribute bindings, conditions).
         /// </summary>
@@ -842,7 +889,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
             var lines = setupCode.Replace("\r\n", "\n").Split('\n');
             int depth = 0;
-            // shadowAt[d] == true  ⇒  a local with this name was declared at depth d.
+            // shadowAt[d] == true  ΓçÆ  a local with this name was declared at depth d.
             // Shadows apply at depth d and all deeper levels until the scope exits.
             var shadowAt = new bool[128];
 
@@ -880,7 +927,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     if (!shadowed)
                     {
                         // If the line also has a declaration, the name after
-                        // "var/Type" is the declaration itself — remove it and
+                        // "var/Type" is the declaration itself ΓÇö remove it and
                         // re-check.  This way `var items = f(items)` still
                         // counts the RHS `items` as a parameter use.
                         string stripped = declRx.Replace(line, "");
@@ -929,23 +976,27 @@ namespace ReactiveUITK.Language.Diagnostics
                         {
                             if (br.Condition != null)
                                 sb.Append(' ').Append(br.Condition).Append(' ');
-                            CollectCSharpText(br.Body, sb);
+                            if (br.BodyCode != null)
+                                sb.Append(' ').Append(br.BodyCode).Append(' ');
                         }
                         break;
 
                     case ForeachNode fe:
                         sb.Append(' ').Append(fe.CollectionExpression).Append(' ');
-                        CollectCSharpText(fe.Body, sb);
+                        if (fe.BodyCode != null)
+                            sb.Append(' ').Append(fe.BodyCode).Append(' ');
                         break;
 
                     case ForNode fn:
                         sb.Append(' ').Append(fn.ForExpression).Append(' ');
-                        CollectCSharpText(fn.Body, sb);
+                        if (fn.BodyCode != null)
+                            sb.Append(' ').Append(fn.BodyCode).Append(' ');
                         break;
 
                     case WhileNode wh:
                         sb.Append(' ').Append(wh.Condition).Append(' ');
-                        CollectCSharpText(wh.Body, sb);
+                        if (wh.BodyCode != null)
+                            sb.Append(' ').Append(wh.BodyCode).Append(' ');
                         break;
 
                     case SwitchNode sw:
@@ -954,7 +1005,8 @@ namespace ReactiveUITK.Language.Diagnostics
                         {
                             if (sc.ValueExpression != null)
                                 sb.Append(' ').Append(sc.ValueExpression).Append(' ');
-                            CollectCSharpText(sc.Body, sb);
+                            if (sc.BodyCode != null)
+                                sb.Append(' ').Append(sc.BodyCode).Append(' ');
                         }
                         break;
                 }
@@ -981,9 +1033,9 @@ namespace ReactiveUITK.Language.Diagnostics
             CollectCSharpText(el.Children, sb);
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  HELPERS
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         private static bool HasKeyAttribute(ElementNode el) =>
             el.Attributes.Any(a =>
@@ -1010,7 +1062,7 @@ namespace ReactiveUITK.Language.Diagnostics
             };
 
         /// <summary>
-        /// Scans the setup code region for a top-level <c>return …;</c> statement
+        /// Scans the setup code region for a top-level <c>return ΓÇª;</c> statement
         /// that appears before the render return. Returns the 1-based line of the
         /// <c>;</c> ending that early return, or -1 if none found.
         /// </summary>
@@ -1044,7 +1096,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 {
                     if (i + 2 < source.Length && source[i + 1] == '"' && source[i + 2] == '"')
                     {
-                        // Raw string literal — skip to closing """
+                        // Raw string literal ΓÇö skip to closing """
                         i += 3;
                         while (i + 2 < source.Length)
                         {
@@ -1149,9 +1201,9 @@ namespace ReactiveUITK.Language.Diagnostics
             return -1;
         }
 
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
         //  ASSET PATH VALIDATION
-        // ═══════════════════════════════════════════════════════════════════════
+        // ΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉ
 
         private static readonly Regex s_assetCallRe = new Regex(
             @"(?:Asset|Ast)\s*<\s*(\w+)\s*>\s*\(\s*""([^""]+)""\s*\)",
@@ -1161,12 +1213,12 @@ namespace ReactiveUITK.Language.Diagnostics
             @"@uss\s+""([^""]+)""",
             RegexOptions.Compiled);
 
-        // ── Extension → valid requested types ─────────────────────────────────
+        // ΓöÇΓöÇ Extension ΓåÆ valid requested types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static readonly Dictionary<string, HashSet<string>> s_extensionValidTypes =
             new Dictionary<string, HashSet<string>>(System.StringComparer.OrdinalIgnoreCase)
             {
-                // Image files (TextureImporter) → Texture2D or Sprite
+                // Image files (TextureImporter) ΓåÆ Texture2D or Sprite
                 { ".png",  new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".jpg",  new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".jpeg", new HashSet<string> { "Texture2D", "Sprite" } },
@@ -1178,7 +1230,7 @@ namespace ReactiveUITK.Language.Diagnostics
                 { ".tiff", new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".exr",  new HashSet<string> { "Texture2D", "Sprite" } },
                 { ".hdr",  new HashSet<string> { "Texture2D", "Sprite" } },
-                // SVG → VectorImage
+                // SVG ΓåÆ VectorImage
                 { ".svg",  new HashSet<string> { "VectorImage" } },
                 // Audio
                 { ".wav",  new HashSet<string> { "AudioClip" } },
@@ -1196,7 +1248,7 @@ namespace ReactiveUITK.Language.Diagnostics
             };
 
         /// <summary>
-        /// UITKX0120 — Check that every <c>Asset&lt;T&gt;("path")</c>,
+        /// UITKX0120 ΓÇö Check that every <c>Asset&lt;T&gt;("path")</c>,
         /// <c>Ast&lt;T&gt;("path")</c>, and <c>@uss "path"</c> references
         /// a file that exists on disk.
         /// </summary>
@@ -1211,11 +1263,11 @@ namespace ReactiveUITK.Language.Diagnostics
             string? projectRoot = GetProjectRoot(filePath);
             if (projectRoot == null) return;
 
-            // @uss directives — path only, type is always StyleSheet
+            // @uss directives ΓÇö path only, type is always StyleSheet
             CheckAssetPathMatches(s_ussDirectiveRe, sourceText, uitkxDir, projectRoot, diags,
                 pathGroup: 1, typeGroup: -1, impliedType: "StyleSheet");
 
-            // Asset<T>/Ast<T> calls — type in group[1], path in group[2]
+            // Asset<T>/Ast<T> calls ΓÇö type in group[1], path in group[2]
             CheckAssetPathMatches(s_assetCallRe, sourceText, uitkxDir, projectRoot, diags,
                 pathGroup: 2, typeGroup: 1, impliedType: null);
         }
@@ -1238,7 +1290,7 @@ namespace ReactiveUITK.Language.Diagnostics
 
                 var pathCapture = m.Groups[pathGroup];
 
-                // UITKX0120 — file existence check
+                // UITKX0120 ΓÇö file existence check
                 if (!File.Exists(absolute))
                 {
                     int line = 1, col = 0;
@@ -1261,7 +1313,7 @@ namespace ReactiveUITK.Language.Diagnostics
                     continue; // no point checking type if file doesn't exist
                 }
 
-                // UITKX0121 — type mismatch check
+                // UITKX0121 ΓÇö type mismatch check
                 string requestedType = typeGroup >= 0 ? m.Groups[typeGroup].Value : impliedType!;
                 string ext = System.IO.Path.GetExtension(rawPath);
                 if (!string.IsNullOrEmpty(ext)
@@ -1346,7 +1398,7 @@ namespace ReactiveUITK.Language.Diagnostics
             int assetsIdx = normalized.IndexOf("/Assets/", System.StringComparison.OrdinalIgnoreCase);
             if (assetsIdx >= 0)
                 return normalized.Substring(0, assetsIdx);
-            // Relative path starting with "Assets/" — project root is CWD
+            // Relative path starting with "Assets/" ΓÇö project root is CWD
             if (normalized.StartsWith("Assets/", System.StringComparison.OrdinalIgnoreCase))
                 return ".";
             return null;

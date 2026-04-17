@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using ReactiveUITK.Language.Nodes;
@@ -38,8 +38,15 @@ namespace ReactiveUITK.Language.Parser
         // scanner after controlled lookahead (though current impl avoids it).
         private MarkupTokenizer _scanner;
         private readonly List<ParseDiagnostic> _diagnostics;
+        /// <summary>
+        /// 0 in a full-file parse. In a snippet mini-parse (source = substring),
+        /// set to <c>absoluteStartLine - 1</c> so that all <see cref="ReturnFinder.LineAtPos"/>
+        /// and <see cref="DirectiveParser.FindJsxBlockRanges"/> results are offset to
+        /// absolute file line numbers.
+        /// </summary>
+        private readonly int _lineOffset;
 
-        // ── Construction ──────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Construction ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private UitkxParser(
             string source,
@@ -47,7 +54,8 @@ namespace ReactiveUITK.Language.Parser
             int startPos,
             int startLine,
             int stopPosExclusive,
-            List<ParseDiagnostic> diagnostics
+            List<ParseDiagnostic> diagnostics,
+            int lineOffset = 0
         )
         {
             _source = source;
@@ -55,9 +63,10 @@ namespace ReactiveUITK.Language.Parser
             _stopPosExclusive = stopPosExclusive;
             _scanner = new MarkupTokenizer(source, startPos, startLine);
             _diagnostics = diagnostics;
+            _lineOffset = lineOffset;
         }
 
-        // ── Public entry point ────────────────────────────────────────────────
+        // ΓöÇΓöÇ Public entry point ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Parses the markup section (everything at or after
@@ -68,7 +77,8 @@ namespace ReactiveUITK.Language.Parser
             string filePath,
             DirectiveSet directives,
             List<ParseDiagnostic> diagnostics,
-            bool validateSingleRoot = false
+            bool validateSingleRoot = false,
+            int lineOffset = 0
         )
         {
             var parser = new UitkxParser(
@@ -77,7 +87,8 @@ namespace ReactiveUITK.Language.Parser
                 directives.MarkupStartIndex,
                 directives.MarkupStartLine,
                 directives.MarkupEndIndex,
-                diagnostics
+                diagnostics,
+                lineOffset
             );
 
             var nodes = parser
@@ -91,38 +102,57 @@ namespace ReactiveUITK.Language.Parser
             return nodes.ToImmutableArray();
         }
 
-        // ── Control block body parsing ───────────────────────────────────────
+        // ΓöÇΓöÇ Control block body parsing ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
-        /// Parsed result of a control block body that may contain
-        /// <c>setup-code; return (...markup...);</c>.
+        /// Parsed result of a control block body ΓÇö the entire body is kept as
+        /// raw C# code, with JSX ranges identified for later splicing.
         /// </summary>
         private readonly struct ControlBlockBody
         {
-            public readonly List<AstNode> Nodes;
-            public readonly string? SetupCode;
-            public readonly int SetupCodeOffset;
-            public readonly int SetupCodeLine;
+            /// <summary>Complete body code (C# with return statements at any depth).</summary>
+            public readonly string? BodyCode;
+
+            /// <summary>Absolute char offset in source where <see cref="BodyCode"/> begins.</summary>
+            public readonly int BodyCodeOffset;
+
+            /// <summary>1-based line number where <see cref="BodyCode"/> begins.</summary>
+            public readonly int BodyCodeLine;
+
+            /// <summary>Paren-wrapped JSX ranges (absolute positions) within source.</summary>
+            public readonly ImmutableArray<(int Start, int End, int Line)> BodyMarkupRanges;
+
+            /// <summary>Bare JSX ranges (absolute positions) within source.</summary>
+            public readonly ImmutableArray<(int Start, int End, int Line)> BodyBareJsxRanges;
+
+            /// <summary>
+            /// Parsed JSX elements from the body ranges, for IDE features
+            /// (semantic tokens, IntelliSense, diagnostics).
+            /// </summary>
+            public readonly ImmutableArray<AstNode> Body;
 
             public ControlBlockBody(
-                List<AstNode> nodes,
-                string? setupCode,
-                int setupCodeOffset,
-                int setupCodeLine
+                string? bodyCode,
+                int bodyCodeOffset,
+                int bodyCodeLine,
+                ImmutableArray<(int Start, int End, int Line)> bodyMarkupRanges,
+                ImmutableArray<(int Start, int End, int Line)> bodyBareJsxRanges,
+                ImmutableArray<AstNode> body
             )
             {
-                Nodes = nodes;
-                SetupCode = setupCode;
-                SetupCodeOffset = setupCodeOffset;
-                SetupCodeLine = setupCodeLine;
+                BodyCode = bodyCode;
+                BodyCodeOffset = bodyCodeOffset;
+                BodyCodeLine = bodyCodeLine;
+                BodyMarkupRanges = bodyMarkupRanges;
+                BodyBareJsxRanges = bodyBareJsxRanges;
+                Body = body;
             }
         }
 
         /// <summary>
         /// Parses a control block body: the text between <c>{</c> (already consumed)
-        /// and its matching <c>}</c>.  Looks for <c>return (...)</c> to split
-        /// setup code from markup.  If no <c>return</c> is found, emits a diagnostic
-        /// and falls back to parsing the body as pure markup (error recovery).
+        /// and its matching <c>}</c>.  Extracts the entire body as raw C# code
+        /// and identifies embedded JSX ranges for later splicing by the emitters.
         /// </summary>
         private ControlBlockBody ParseControlBlockBody(
             int openBracePos,
@@ -136,79 +166,191 @@ namespace ReactiveUITK.Language.Parser
             int closeBrace = ReturnFinder.FindMatchingBrace(_source, openBracePos, _source.Length);
             if (closeBrace < 0)
             {
-                // Unbalanced — fallback to old behaviour
-                var fallback = ParseContent(null, stopAtBrace: true, stopAtCase: stopAtCase);
+                // Unbalanced ΓÇö skip to best-effort end
+                while (!_scanner.IsEof && _scanner.Current != '}')
+                    _scanner.Advance();
                 _scanner.TryConsume('}');
-                return new ControlBlockBody(fallback, null, 0, 0);
+                return new ControlBlockBody(
+                    null, bodyStart, ReturnFinder.LineAtPos(_source, bodyStart) + _lineOffset,
+                    ImmutableArray<(int, int, int)>.Empty,
+                    ImmutableArray<(int, int, int)>.Empty,
+                    ImmutableArray<AstNode>.Empty
+                );
             }
 
             int bodyEnd = closeBrace; // exclusive: position of '}'
 
-            // Try to find return (...); at depth 0 within the body.
-            if (
-                ReturnFinder.TryFindTopLevelReturn(
-                    _source,
-                    bodyStart,
-                    bodyEnd,
-                    out int returnStart,
-                    out int returnOpenParen,
-                    out int returnCloseParen,
-                    out int returnStmtEnd,
-                    useLastReturn: false
-                )
-            )
+            // Extract the entire body as raw C# code
+            string bodyCode = _source.Substring(bodyStart, bodyEnd - bodyStart).TrimEnd();
+            int bodyCodeOffset = bodyStart;
+            int bodyCodeLine = ReturnFinder.LineAtPos(_source, bodyStart) + _lineOffset;
+
+            // Find paren-wrapped JSX ranges (absolute positions)
+            var markupRanges = DirectiveParser.FindJsxBlockRanges(_source, bodyStart, bodyEnd);
+
+            // Find bare JSX ranges (absolute positions)
+            var bareJsxRanges = DirectiveParser.FindBareJsxRanges(_source, bodyStart, bodyEnd);
+
+            // When parsing a snippet source (mini-parse from SpliceBodyCodeMarkup),
+            // LineAtPos results are relative to the snippet start. Offset them so that
+            // all BodyMarkupRanges.Line values are absolute file line numbers.
+            if (_lineOffset > 0)
             {
-                // Extract setup code (everything before 'return')
-                string? setupCode = null;
-                int setupCodeOffset = 0;
-                int setupCodeLine = 0;
-                string rawSetup = _source.Substring(bodyStart, returnStart - bodyStart).Trim();
-                if (rawSetup.Length > 0)
+                markupRanges = OffsetLineValues(markupRanges, _lineOffset);
+                bareJsxRanges = OffsetLineValues(bareJsxRanges, _lineOffset);
+            }
+
+            // Parse body content into AST nodes for IDE features (formatter,
+            // semantic tokens, IntelliSense). Uses TryFindTopLevelReturn to locate
+            // a depth-0 return statement, then ParseContent between its parens to
+            // produce the correct structural AST (including nested directives).
+            var bodyNodes = ParseBodyForIde(bodyCode, bodyStart, bodyEnd, bodyCodeLine);
+
+            // Advance scanner past the closing '}'
+            _scanner.AdvanceTo(closeBrace);
+            _scanner.TryConsume('}');
+
+            return new ControlBlockBody(
+                bodyCode, bodyCodeOffset, bodyCodeLine,
+                markupRanges, bareJsxRanges, bodyNodes
+            );
+        }
+
+        /// <summary>
+        /// Parses JSX content at the given source ranges into AST nodes.
+        /// Used to provide parsed children for IDE features while emitters
+        /// use the raw <c>BodyCode</c> string.
+        /// </summary>
+        private ImmutableArray<AstNode> ParseJsxFragments(
+            ImmutableArray<(int Start, int End, int Line)> markupRanges,
+            ImmutableArray<(int Start, int End, int Line)> bareJsxRanges
+        )
+        {
+            if (markupRanges.IsDefaultOrEmpty && bareJsxRanges.IsDefaultOrEmpty)
+                return ImmutableArray<AstNode>.Empty;
+
+            var result = ImmutableArray.CreateBuilder<AstNode>();
+
+            foreach (var (start, end, line) in markupRanges)
+            {
+                var parser = new UitkxParser(
+                    _source, _filePath, start, line, end, _diagnostics, _lineOffset);
+                var nodes = parser.ParseContent(
+                    stopTag: null, stopAtBrace: false, stopAtCase: false);
+                result.AddRange(nodes);
+            }
+
+            foreach (var (start, end, line) in bareJsxRanges)
+            {
+                var parser = new UitkxParser(
+                    _source, _filePath, start, line, end, _diagnostics, _lineOffset);
+                var nodes = parser.ParseContent(
+                    stopTag: null, stopAtBrace: false, stopAtCase: false);
+                result.AddRange(nodes);
+            }
+
+            return result.ToImmutable();
+        }
+
+        /// <summary>
+        /// Produces parsed <see cref="AstNode"/> children for a directive body,
+        /// used by the formatter, semantic tokens, and IntelliSense.
+        /// <para>
+        /// If a depth-0 <c>return (...)</c> is found, the content between the
+        /// parens is parsed with <see cref="ParseContent"/> so that nested
+        /// directives (like <c>@if</c> inside <c>@foreach</c>) appear as
+        /// structural AST nodes rather than flat text.
+        /// </para>
+        /// <para>
+        /// If no return is found but the body contains markup, the entire body
+        /// is parsed as content (bare JSX without <c>return</c>).
+        /// </para>
+        /// </summary>
+        private ImmutableArray<AstNode> ParseBodyForIde(
+            string bodyCode, int bodyStart, int bodyEnd, int bodyCodeLine)
+        {
+            // Try to find a depth-0 return statement in the body
+            if (ReturnFinder.TryFindTopLevelReturn(
+                    bodyCode, 0, bodyCode.Length,
+                    out int returnStart, out int openParen,
+                    out int closeParen, out _,
+                    useLastReturn: false))
+            {
+                if (openParen >= 0 && closeParen > openParen)
                 {
-                    setupCode = rawSetup;
-                    // Find the first non-whitespace character for accurate offset
-                    int firstNonWs = bodyStart;
-                    while (firstNonWs < returnStart && char.IsWhiteSpace(_source[firstNonWs]))
-                        firstNonWs++;
-                    setupCodeOffset = firstNonWs;
-                    setupCodeLine = ReturnFinder.LineAtPos(_source, firstNonWs);
+                    // Parse content between the return's parentheses
+                    int contentStart = bodyStart + openParen + 1;
+                    int contentEnd = bodyStart + closeParen;
+                    int contentLine = ReturnFinder.LineAtPos(_source, contentStart) + _lineOffset;
+                    var parser = new UitkxParser(
+                        _source, _filePath, contentStart, contentLine,
+                        contentEnd, _diagnostics, _lineOffset);
+                    var nodes = parser.ParseContent(
+                        stopTag: null, stopAtBrace: false, stopAtCase: false);
+                    return nodes.ToImmutableArray();
                 }
 
-                // Position scanner inside the return parens and parse markup
-                _scanner.AdvanceTo(returnOpenParen + 1); // past '('
-
-                int savedStop = _stopPosExclusive;
-                _stopPosExclusive = returnCloseParen;
-                var body = ParseContent(null, stopAtBrace: false, stopAtCase: false);
-                _stopPosExclusive = savedStop;
-
-                // Validate single root element
-                ValidateSingleRoot(body, blockName, returnStart, returnStmtEnd);
-
-                // Advance scanner past ');' and '}'
-                _scanner.AdvanceTo(closeBrace);
-                _scanner.TryConsume('}');
-
-                return new ControlBlockBody(body, setupCode, setupCodeOffset, setupCodeLine);
-            }
-            else
-            {
-                // No return() found — emit diagnostic and fall back to parsing as markup
-                _diagnostics.Add(
-                    new ParseDiagnostic
+                // return null; — first return is null.  The body may still have
+                // a subsequent 'return <JSX>' (e.g. guard clauses like
+                // 'if (cond) return null;'). Retry with useLastReturn: true to
+                // find the actual JSX return so Body is correctly populated for
+                // validators (UITKX0009 etc.) and IDE diagnostics.
+                if (openParen == -1)
+                {
+                    if (ReturnFinder.TryFindTopLevelReturn(
+                            bodyCode, 0, bodyCode.Length,
+                            out _, out int lp, out int lc, out _,
+                            useLastReturn: true))
                     {
-                        Code = "UITKX0024",
-                        Severity = ParseSeverity.Error,
-                        SourceLine = ReturnFinder.LineAtPos(_source, bodyStart),
-                        Message = $"Control block body ({blockName}) must contain 'return (...);'.",
+                        if (lp >= 0 && lc > lp)
+                        {
+                            // Paren-wrapped: return (<JSX>)
+                            int cs = bodyStart + lp + 1;
+                            int ce = bodyStart + lc;
+                            int cl = ReturnFinder.LineAtPos(_source, cs) + _lineOffset;
+                            var p3 = new UitkxParser(_source, _filePath, cs, cl, ce, _diagnostics, _lineOffset);
+                            return p3.ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false).ToImmutableArray();
+                        }
+                        if (lp >= 0 && lc >= lp)
+                        {
+                            // Bare JSX: return <Tag/>  (openParen = jsxStart-1, closeParen = jsxEnd)
+                            int js = bodyStart + lp + 1;
+                            int je = bodyStart + lc;
+                            int jl = ReturnFinder.LineAtPos(_source, js) + _lineOffset;
+                            var p4 = new UitkxParser(_source, _filePath, js, jl, je, _diagnostics, _lineOffset);
+                            return p4.ParseContent(stopTag: null, stopAtBrace: false, stopAtCase: false).ToImmutableArray();
+                        }
                     }
-                );
+                    return ImmutableArray<AstNode>.Empty;
+                }
 
-                // Error recovery: parse body as pure markup, same as before
-                var fallback = ParseContent(null, stopAtBrace: true, stopAtCase: stopAtCase);
-                _scanner.TryConsume('}');
-                return new ControlBlockBody(fallback, null, 0, 0);
+                // return <Tag/> ΓÇö bare JSX return, parse from the JSX start
+                int jsxStart = bodyStart + openParen + 1; // synthesized: openParen+1 == jsxStart
+                int jsxEnd = bodyStart + closeParen;      // synthesized: closeParen == jsxEnd
+                int jsxLine = ReturnFinder.LineAtPos(_source, jsxStart) + _lineOffset;
+                {
+                    var parser = new UitkxParser(
+                        _source, _filePath, jsxStart, jsxLine,
+                        jsxEnd, _diagnostics, _lineOffset);
+                    var nodes = parser.ParseContent(
+                        stopTag: null, stopAtBrace: false, stopAtCase: false);
+                    return nodes.ToImmutableArray();
+                }
             }
+
+            // No return found ΓÇö try parsing entire body as markup
+            // (handles bare <Element/> in body without explicit return)
+            if (bodyCode.IndexOf('<') >= 0)
+            {
+                var parser = new UitkxParser(
+                    _source, _filePath, bodyStart, bodyCodeLine,
+                    bodyEnd, _diagnostics, _lineOffset);
+                var nodes = parser.ParseContent(
+                    stopTag: null, stopAtBrace: false, stopAtCase: false);
+                return nodes.ToImmutableArray();
+            }
+
+            return ImmutableArray<AstNode>.Empty;
         }
 
         /// <summary>
@@ -263,7 +405,7 @@ namespace ReactiveUITK.Language.Parser
             }
         }
 
-        // ── Content loop ──────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Content loop ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Parses zero or more nodes until a stop condition is met.
@@ -290,11 +432,11 @@ namespace ReactiveUITK.Language.Parser
                 int positionBefore = _scanner.Pos;
                 char c = _scanner.Current;
 
-                // ── Stop: bare '}' ──────────────────────────────────────────
+                // ΓöÇΓöÇ Stop: bare '}' ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (stopAtBrace && c == '}')
                     break;
 
-                // ── Stop: @case / @default inside @switch content ───────────
+                // ΓöÇΓöÇ Stop: @case / @default inside @switch content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (stopAtCase && c == '@')
                 {
                     string? kw = PeekDirectiveKeyword();
@@ -302,7 +444,7 @@ namespace ReactiveUITK.Language.Parser
                         break;
                 }
 
-                // ── Stop: matching closing tag ──────────────────────────────
+                // ΓöÇΓöÇ Stop: matching closing tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (c == '<' && PeekChar(1) == '/')
                 {
                     string closing = PeekClosingTagName();
@@ -311,17 +453,17 @@ namespace ReactiveUITK.Language.Parser
                         || string.Equals(closing, stopTag, StringComparison.Ordinal)
                     )
                         break;
-                    // Closing tag does not match expected — emit error and skip '<'
+                    // Closing tag does not match expected ΓÇö emit error and skip '<'
                     _diagnostics.Add(ErrMismatchedTag(closing, stopTag ?? "?", _scanner.Line));
                     _scanner.Advance();
                     continue;
                 }
 
-                // ── HTML comment <!-- ... --> ───────────────────────────────
+                // ΓöÇΓöÇ HTML comment <!-- ... --> ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (_scanner.TrySkipHtmlComment())
                     continue;
 
-                // ── Line comment // ... or block comment /* ... */ ───────────
+                // ΓöÇΓöÇ Line comment // ... or block comment /* ... */ ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (c == '/')
                 {
                     int commentLine = _scanner.Line;
@@ -337,7 +479,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
-                // ── Child expression {expr} ─────────────────────────────────
+                // ΓöÇΓöÇ Child expression {expr} ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (c == '{')
                 {
                     int exprLine = _scanner.Line;
@@ -358,7 +500,7 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ── Opening element <Tag ────────────────────────────────────
+                // ΓöÇΓöÇ Opening element <Tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (c == '<' && PeekChar(1) != '/')
                 {
                     var elem = ParseElement();
@@ -367,7 +509,7 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ── Directive / control flow / inline @(expr) ───────────────
+                // ΓöÇΓöÇ Directive / control flow / inline @(expr) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (c == '@')
                 {
                     int atLine = _scanner.Line;
@@ -468,7 +610,7 @@ namespace ReactiveUITK.Language.Parser
                     continue;
                 }
 
-                // ── Text content ────────────────────────────────────────────
+                // ΓöÇΓöÇ Text content ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (c == '>')
                 {
                     _scanner.Advance(); // stray '>'
@@ -487,7 +629,7 @@ namespace ReactiveUITK.Language.Parser
             return nodes;
         }
 
-        // ── Element ───────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Element ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private ElementNode? ParseElement()
         {
@@ -496,7 +638,7 @@ namespace ReactiveUITK.Language.Parser
             _scanner.Advance(); // consume '<'
             _scanner.SkipInlineWhitespace();
 
-            // <></> short-hand fragment — empty tag name maps to V.Fragment in the emitter.
+            // <></> short-hand fragment ΓÇö empty tag name maps to V.Fragment in the emitter.
             if (_scanner.TryConsume('>'))
             {
                 var fragmentChildren = ParseContent(
@@ -599,7 +741,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ── Attributes ────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Attributes ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private ImmutableArray<AttributeNode> ParseAttributes()
         {
@@ -611,7 +753,7 @@ namespace ReactiveUITK.Language.Parser
                 if (_scanner.IsAt("/>") || _scanner.Current == '>' || _scanner.IsEof)
                     break;
 
-                // JSX block comment inside an attribute list: {/* … */}
+                // JSX block comment inside an attribute list: {/* ΓÇª */}
                 // Skip the entire comment so its contents are never interpreted as attributes.
                 if (_scanner.IsAt("{/*"))
                 {
@@ -623,7 +765,7 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 // A '@' or '<' at this level means a control-flow directive or child
-                // element — the opening '>' was never written.  Stop here so the caller
+                // element ΓÇö the opening '>' was never written.  Stop here so the caller
                 // continues parsing normally rather than consuming the rest of the file
                 // as attribute content.
                 if (_scanner.Current == '@' || _scanner.Current == '<')
@@ -721,7 +863,7 @@ namespace ReactiveUITK.Language.Parser
             return attrs.ToImmutableArray();
         }
 
-        // ── @if ───────────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ @if ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private IfNode? ParseIf(int startLine, int startCol)
         {
@@ -748,12 +890,15 @@ namespace ReactiveUITK.Language.Parser
             var firstResult = ParseControlBlockBody(firstBrace, stopAtCase: false, "@if");
             var branches = new List<IfBranch>
             {
-                new IfBranch(cond, firstResult.Nodes.ToImmutableArray(), firstLine)
+                new IfBranch(cond, firstLine)
                 {
                     ConditionOffset = condOffset,
-                    SetupCode = firstResult.SetupCode,
-                    SetupCodeOffset = firstResult.SetupCodeOffset,
-                    SetupCodeLine = firstResult.SetupCodeLine,
+                    BodyCode = firstResult.BodyCode,
+                    BodyCodeOffset = firstResult.BodyCodeOffset,
+                    BodyCodeLine = firstResult.BodyCodeLine,
+                    BodyMarkupRanges = firstResult.BodyMarkupRanges,
+                    BodyBareJsxRanges = firstResult.BodyBareJsxRanges,
+                    Body = firstResult.Body,
                 },
             };
 
@@ -796,12 +941,15 @@ namespace ReactiveUITK.Language.Parser
                         "@else if"
                     );
                     branches.Add(
-                        new IfBranch(elseCond, elseIfResult.Nodes.ToImmutableArray(), elseLine)
+                        new IfBranch(elseCond, elseLine)
                         {
                             ConditionOffset = elseCondOffset,
-                            SetupCode = elseIfResult.SetupCode,
-                            SetupCodeOffset = elseIfResult.SetupCodeOffset,
-                            SetupCodeLine = elseIfResult.SetupCodeLine,
+                            BodyCode = elseIfResult.BodyCode,
+                            BodyCodeOffset = elseIfResult.BodyCodeOffset,
+                            BodyCodeLine = elseIfResult.BodyCodeLine,
+                            BodyMarkupRanges = elseIfResult.BodyMarkupRanges,
+                            BodyBareJsxRanges = elseIfResult.BodyBareJsxRanges,
+                            Body = elseIfResult.Body,
                         }
                     );
                 }
@@ -816,11 +964,14 @@ namespace ReactiveUITK.Language.Parser
                     _scanner.Advance(); // consume '{'
                     var elseResult = ParseControlBlockBody(elseBrace, stopAtCase: false, "@else");
                     branches.Add(
-                        new IfBranch(null, elseResult.Nodes.ToImmutableArray(), elseLine)
+                        new IfBranch(null, elseLine)
                         {
-                            SetupCode = elseResult.SetupCode,
-                            SetupCodeOffset = elseResult.SetupCodeOffset,
-                            SetupCodeLine = elseResult.SetupCodeLine,
+                            BodyCode = elseResult.BodyCode,
+                            BodyCodeOffset = elseResult.BodyCodeOffset,
+                            BodyCodeLine = elseResult.BodyCodeLine,
+                            BodyMarkupRanges = elseResult.BodyMarkupRanges,
+                            BodyBareJsxRanges = elseResult.BodyBareJsxRanges,
+                            Body = elseResult.Body,
                         }
                     );
                     break; // @else terminates the chain
@@ -834,7 +985,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ── @for ──────────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ @for ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private ForNode? ParseFor(int startLine, int startCol)
         {
@@ -859,18 +1010,21 @@ namespace ReactiveUITK.Language.Parser
             _scanner.Advance(); // consume '{'
             var result = ParseControlBlockBody(openBrace, stopAtCase: false, "@for");
 
-            return new ForNode(forExpr, result.Nodes.ToImmutableArray(), startLine, _filePath)
+            return new ForNode(forExpr, startLine, _filePath)
             {
                 SourceColumn = startCol,
                 EndColumn = startCol + 4, // @for
                 ForExpressionOffset = forExprOffset,
-                SetupCode = result.SetupCode,
-                SetupCodeOffset = result.SetupCodeOffset,
-                SetupCodeLine = result.SetupCodeLine,
+                BodyCode = result.BodyCode,
+                BodyCodeOffset = result.BodyCodeOffset,
+                BodyCodeLine = result.BodyCodeLine,
+                BodyMarkupRanges = result.BodyMarkupRanges,
+                BodyBareJsxRanges = result.BodyBareJsxRanges,
+                Body = result.Body,
             };
         }
 
-        // ── @while ────────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ @while ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private WhileNode? ParseWhile(int startLine, int startCol)
         {
@@ -895,18 +1049,21 @@ namespace ReactiveUITK.Language.Parser
             _scanner.Advance(); // consume '{'
             var result = ParseControlBlockBody(openBrace, stopAtCase: false, "@while");
 
-            return new WhileNode(condition, result.Nodes.ToImmutableArray(), startLine, _filePath)
+            return new WhileNode(condition, startLine, _filePath)
             {
                 SourceColumn = startCol,
                 EndColumn = startCol + 6, // @while
                 ConditionOffset = conditionOffset,
-                SetupCode = result.SetupCode,
-                SetupCodeOffset = result.SetupCodeOffset,
-                SetupCodeLine = result.SetupCodeLine,
+                BodyCode = result.BodyCode,
+                BodyCodeOffset = result.BodyCodeOffset,
+                BodyCodeLine = result.BodyCodeLine,
+                BodyMarkupRanges = result.BodyMarkupRanges,
+                BodyBareJsxRanges = result.BodyBareJsxRanges,
+                Body = result.Body,
             };
         }
 
-        // ── @foreach ──────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ @foreach ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private ForeachNode? ParseForeach(int startLine, int startCol)
         {
@@ -944,7 +1101,6 @@ namespace ReactiveUITK.Language.Parser
             return new ForeachNode(
                 iteratorDecl,
                 collectionExpr,
-                result.Nodes.ToImmutableArray(),
                 startLine,
                 _filePath
             )
@@ -953,13 +1109,16 @@ namespace ReactiveUITK.Language.Parser
                 EndColumn = startCol + 8, // @foreach
                 ForeachExpression = foreachExpr,
                 ForeachExpressionOffset = foreachExprOffset,
-                SetupCode = result.SetupCode,
-                SetupCodeOffset = result.SetupCodeOffset,
-                SetupCodeLine = result.SetupCodeLine,
+                BodyCode = result.BodyCode,
+                BodyCodeOffset = result.BodyCodeOffset,
+                BodyCodeLine = result.BodyCodeLine,
+                BodyMarkupRanges = result.BodyMarkupRanges,
+                BodyBareJsxRanges = result.BodyBareJsxRanges,
+                Body = result.Body,
             };
         }
 
-        // ── @switch ───────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ @switch ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private SwitchNode? ParseSwitch(int startLine, int startCol)
         {
@@ -1027,10 +1186,9 @@ namespace ReactiveUITK.Language.Parser
                     }
                     _scanner.TryConsume(':');
 
-                    int caseBodyStart = _scanner.Pos;
-
-                    // Find the end of this case body — the next @case/@default at depth 0
+                    // Find the end of this case body ΓÇö the next @case/@default at depth 0
                     // or the switch closing brace.
+                    int caseBodyStart = _scanner.Pos;
                     int caseBodyEnd = switchCloseBrace >= 0 ? switchCloseBrace : _source.Length;
                     int searchPos = caseBodyStart;
                     int braceDepth = 0;
@@ -1070,75 +1228,31 @@ namespace ReactiveUITK.Language.Parser
                         searchPos++;
                     }
 
-                    // Now try to find return() in [caseBodyStart, searchPos)
-                    if (
-                        ReturnFinder.TryFindTopLevelReturn(
-                            _source,
-                            caseBodyStart,
-                            searchPos,
-                            out int retStart,
-                            out int retOpen,
-                            out int retClose,
-                            out int retEnd,
-                            useLastReturn: false
-                        )
-                    )
-                    {
-                        string? setupCode = null;
-                        int setupCodeOffset = 0;
-                        int setupCodeLine = 0;
-                        string rawSetup = _source
-                            .Substring(caseBodyStart, retStart - caseBodyStart)
-                            .Trim();
-                        if (rawSetup.Length > 0)
+                    // Extract the case body as raw C# code
+                    string bodyCode = _source.Substring(caseBodyStart, searchPos - caseBodyStart).TrimEnd();
+                    int bodyCodeLine = ReturnFinder.LineAtPos(_source, caseBodyStart);
+
+                    // Find JSX ranges within this case body
+                    var markupRanges = DirectiveParser.FindJsxBlockRanges(_source, caseBodyStart, searchPos);
+                    var bareJsxRanges = DirectiveParser.FindBareJsxRanges(_source, caseBodyStart, searchPos);
+
+                    // Parse JSX ranges into AST nodes for IDE features
+                    var bodyNodes = ParseBodyForIde(bodyCode, caseBodyStart, searchPos, bodyCodeLine);
+
+                    _scanner.AdvanceTo(searchPos);
+                    TryConsumeSwitchBreak();
+
+                    cases.Add(
+                        new SwitchCase(caseVal, caseLine)
                         {
-                            setupCode = rawSetup;
-                            int firstNonWs = caseBodyStart;
-                            while (firstNonWs < retStart && char.IsWhiteSpace(_source[firstNonWs]))
-                                firstNonWs++;
-                            setupCodeOffset = firstNonWs;
-                            setupCodeLine = ReturnFinder.LineAtPos(_source, firstNonWs);
+                            BodyCode = bodyCode,
+                            BodyCodeOffset = caseBodyStart,
+                            BodyCodeLine = bodyCodeLine,
+                            BodyMarkupRanges = markupRanges,
+                            BodyBareJsxRanges = bareJsxRanges,
+                            Body = bodyNodes,
                         }
-
-                        _scanner.AdvanceTo(retOpen + 1);
-                        int savedStop = _stopPosExclusive;
-                        _stopPosExclusive = retClose;
-                        var caseBody = ParseContent(null, stopAtBrace: false, stopAtCase: false);
-                        _stopPosExclusive = savedStop;
-
-                        // Validate single root element
-                        ValidateSingleRoot(caseBody, "@case", retStart, retEnd);
-
-                        _scanner.AdvanceTo(retEnd); // past ");
-                        TryConsumeSwitchBreak();
-                        cases.Add(
-                            new SwitchCase(caseVal, caseBody.ToImmutableArray(), caseLine)
-                            {
-                                SetupCode = setupCode,
-                                SetupCodeOffset = setupCodeOffset,
-                                SetupCodeLine = setupCodeLine,
-                            }
-                        );
-                    }
-                    else
-                    {
-                        _diagnostics.Add(
-                            new ParseDiagnostic
-                            {
-                                Code = "UITKX0024",
-                                Severity = ParseSeverity.Error,
-                                SourceLine = ReturnFinder.LineAtPos(_source, caseBodyStart),
-                                Message = $"Switch case body must contain 'return (...);'.",
-                            }
-                        );
-
-                        // Error recovery: parse as pure markup
-                        var fallbackBody = ParseContent(null, stopAtBrace: true, stopAtCase: true);
-                        TryConsumeSwitchBreak();
-                        cases.Add(
-                            new SwitchCase(caseVal, fallbackBody.ToImmutableArray(), caseLine)
-                        );
-                    }
+                    );
                 }
                 else
                 {
@@ -1164,7 +1278,7 @@ namespace ReactiveUITK.Language.Parser
             };
         }
 
-        // ── Single element parsing (used by VDG and semantic tokens) ──────
+        // ΓöÇΓöÇ Single element parsing (used by VDG and semantic tokens) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Parses a single element from an arbitrary position in <paramref name="source"/>
@@ -1200,6 +1314,21 @@ namespace ReactiveUITK.Language.Parser
             return line;
         }
 
+        /// <summary>
+        /// Offsets each <c>Line</c> field in <paramref name="ranges"/> by <paramref name="offset"/>.
+        /// Used to convert snippet-relative line numbers to absolute file line numbers.
+        /// </summary>
+        private static ImmutableArray<(int Start, int End, int Line)> OffsetLineValues(
+            ImmutableArray<(int Start, int End, int Line)> ranges, int offset)
+        {
+            if (offset == 0 || ranges.IsDefaultOrEmpty)
+                return ranges;
+            var builder = ImmutableArray.CreateBuilder<(int, int, int)>(ranges.Length);
+            foreach (var (s, e, l) in ranges)
+                builder.Add((s, e, l + offset));
+            return builder.ToImmutable();
+        }
+
         /// <summary>Returns the 0-based column for the given character offset in <c>_source</c>.</summary>
         private int ColAtPos(int pos)
         {
@@ -1209,7 +1338,7 @@ namespace ReactiveUITK.Language.Parser
             return col;
         }
 
-        // ── Peek / advance helpers ────────────────────────────────────────────
+        // ΓöÇΓöÇ Peek / advance helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Returns the character at <c>_scanner.Pos + offset</c> without advancing,
@@ -1255,7 +1384,7 @@ namespace ReactiveUITK.Language.Parser
 
         /// <summary>
         /// Returns the directive keyword immediately after a leading '@' at the
-        /// current scanner position — without consuming anything.
+        /// current scanner position ΓÇö without consuming anything.
         /// Returns <c>null</c> if the current char is not '@'.
         /// </summary>
         private string? PeekDirectiveKeyword()
@@ -1411,7 +1540,7 @@ namespace ReactiveUITK.Language.Parser
             ConsumeOptionalDirectiveTerminator();
         }
 
-        // ── ParseDiagnostic factory helpers ───────────────────────────────────
+        // ΓöÇΓöÇ ParseDiagnostic factory helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private ParseDiagnostic ErrUnexpectedToken(
             string got,

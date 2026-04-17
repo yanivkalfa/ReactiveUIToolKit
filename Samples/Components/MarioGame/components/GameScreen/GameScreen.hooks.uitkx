@@ -149,7 +149,6 @@ hook useMarioGame(
       grounded = false;
       var tiles = s.Tiles;
       var tilesOut = new List<LevelTile>(tiles.Count);
-      bool tileHitThisFrame = false;
       int hitTileCol = -1;
       int hitTileRow = -1;
       int scoreAdd = 0;
@@ -161,7 +160,7 @@ hook useMarioGame(
 
         // Skip tiles far from player (perf: ~4000 tiles total)
         if (tx < px - TILE * 3 || tx > px + MARIO_W + TILE * 3 ||
-            ty < py - TILE * 3 || ty > py + playerH + TILE * 3) {
+        ty < py - TILE * 3 || ty > py + playerH + TILE * 3) {
           // Still need to decay bumps and filter broken bricks
           if (t.Type == TileType.Brick && t.Hit) continue;
           if (t.BumpY < 0) {
@@ -354,15 +353,11 @@ hook useMarioGame(
         en.X += en.Vx * dt;
 
         // Enemy tile collision (simple ground check + wall bounce)
-        bool enemyGrounded = false;
         for (int j = 0; j < tilesOut.Count; j++) {
           var t = tilesOut[j];
           float tx = t.Col * TILE;
           float ty = t.Row * TILE;
-          // Ground below
-          if (en.X + TILE > tx && en.X < tx + TILE && Math.Abs((en.Y + TILE) - ty) < 4) {
-            enemyGrounded = true;
-          }
+
           // Wall hit
           if (en.Y + TILE > ty + 4 && en.Y < ty + TILE - 4) {
             if (en.Vx < 0 && en.X < tx + TILE && en.X + TILE > tx + TILE && en.X > tx) {
@@ -381,7 +376,7 @@ hook useMarioGame(
 
         // Player-enemy collision
         bool overlapWithPlayer = px + MARIO_W > en.X + 4 && px < en.X + TILE - 4
-          && py + playerH > en.Y + 4 && py < en.Y + TILE - 4;
+        && py + playerH > en.Y + 4 && py < en.Y + TILE - 4;
 
         if (overlapWithPlayer && newPlayer.Alive) {
           // Stomped from above

@@ -35,6 +35,29 @@ component TicTacToe {
           </VisualElement>
         );
       }
+      @if (gameStarted) {
+        return (
+          <VisualElement style={GameWrapperStyles}>
+            @for (int row = 0; row < 3; row++) {
+              return (
+                <VisualElement style={RowStyles} key={row.ToString()}>
+                  @for (int col = 0; col < 3; col++) {
+                    return (
+                      <VisualElement
+                        key={col.ToString()}
+                        style={ColumnStyles}
+                        onClick={handleColumnClick(row, col)}
+                      >
+                        <Label text={grid[row, col]} />
+                      </VisualElement>
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+          </VisualElement>
+        );
+      }
     </VisualElement>
   );
 }

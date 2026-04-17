@@ -6,36 +6,36 @@ component Block(LevelTile tile, float cameraX = 0) {
   Color color;
   switch (tile.Type) {
     case TileType.Ground:
-      color = new Color(0.55f, 0.27f, 0.07f, 1f); // brown
-      break;
+    color = new Color(0.55f, 0.27f, 0.07f, 1f); // brown
+    break;
     case TileType.Brick:
-      color = new Color(0.72f, 0.38f, 0.12f, 1f); // orange-brown
-      break;
+    color = new Color(0.72f, 0.38f, 0.12f, 1f); // orange-brown
+    break;
     case TileType.QuestionBlock:
-      color = tile.Hit
-        ? new Color(0.45f, 0.35f, 0.2f, 1f) // dark used
-        : new Color(0.9f, 0.75f, 0.1f, 1f); // gold
-      break;
+    color = tile.Hit
+    ? new Color(0.45f, 0.35f, 0.2f, 1f) // dark used
+    : new Color(0.9f, 0.75f, 0.1f, 1f); // gold
+    break;
     case TileType.CoinBlock:
-      color = tile.Hit
-        ? new Color(0.45f, 0.35f, 0.2f, 1f) // dark used
-        : new Color(0.85f, 0.65f, 0.05f, 1f); // darker gold
-      break;
+    color = tile.Hit
+    ? new Color(0.45f, 0.35f, 0.2f, 1f) // dark used
+    : new Color(0.85f, 0.65f, 0.05f, 1f); // darker gold
+    break;
     case TileType.Pipe:
-      color = new Color(0.1f, 0.6f, 0.15f, 1f); // green
-      break;
+    color = new Color(0.1f, 0.6f, 0.15f, 1f); // green
+    break;
     case TileType.Flagpole:
-      color = new Color(0.5f, 0.5f, 0.5f, 1f); // gray pole
-      break;
+    color = new Color(0.5f, 0.5f, 0.5f, 1f); // gray pole
+    break;
     case TileType.FlagpoleTop:
-      color = new Color(0.2f, 0.8f, 0.2f, 1f); // green flag
-      break;
+    color = new Color(0.2f, 0.8f, 0.2f, 1f); // green flag
+    break;
     case TileType.Castle:
-      color = new Color(0.6f, 0.6f, 0.6f, 1f); // stone gray
-      break;
+    color = new Color(0.6f, 0.6f, 0.6f, 1f); // stone gray
+    break;
     default:
-      color = Color.gray;
-      break;
+    color = Color.gray;
+    break;
   }
 
   string label = (tile.Type == TileType.QuestionBlock && !tile.Hit) ? "?"

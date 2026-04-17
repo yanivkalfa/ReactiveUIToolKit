@@ -1,0 +1,31 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System.Collections.Generic
+
+component WhileSection {
+  // Build Fibonacci sequence in component setup.
+  var fibs = new List<int>();
+  {
+    int a = 0, b = 1;
+    while (a < 100) { fibs.Add(a); var t = a; a = b; b = t + b; }
+  }
+
+  var idx = 0;
+
+  return (
+    <VisualElement>
+      <SectionHeading label="@while" />
+      <SectionBox>
+        <SectionNote label="4A — @while iterating a pre-built Fibonacci list" />
+        @while (idx < fibs.Count) {
+          var val = fibs[idx];
+          idx++;
+
+          return (
+            <Label key={idx.ToString()} text={$"Fib[{idx - 1}] = {val}"} />
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

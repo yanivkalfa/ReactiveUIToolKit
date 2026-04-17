@@ -1,0 +1,77 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System.Linq
+@using System.Collections.Generic
+
+component ForeachSection {
+  var fruits = new[] { "Apple", "Banana", "Cherry", "Date", "Elderberry" };
+
+  var palette = new Dictionary<string, Color> {
+    { "Apple", Color.red },
+    { "Banana", Color.yellow },
+    { "Cherry", new Color(0.8f, 0.1f, 0.3f) },
+    { "Date", new Color(0.7f, 0.5f, 0.2f) },
+    { "Elderberry", new Color(0.5f, 0.2f, 0.7f) },
+  };
+
+  return (
+    <VisualElement>
+      <SectionHeading label="@foreach" />
+      // 2A — simple list
+      <SectionBox>
+        <SectionNote label="2A — simple @foreach with key" />
+        @foreach (var fruit in fruits) {
+          return (
+            <Label
+              key={fruit}
+              text={$"• {fruit}"}
+              style={new Style { (StyleKeys.Color, palette[fruit]) }}
+            />
+          );
+        }
+      </SectionBox>
+      // 2B — with setup code
+      <SectionBox>
+        <SectionNote
+          label="2B — @foreach with setup code (index, formatting)"
+        />
+        @foreach (var fruit in fruits) {
+          var idx = System.Array.IndexOf(fruits, fruit);
+          var upper = fruit.ToUpperInvariant();
+          var isEven = idx % 2 == 0;
+          var rowBg = isEven
+            ? new Color(0.18f, 0.18f, 0.22f)
+            : new Color(0.14f, 0.14f, 0.18f);
+
+          return (
+            <VisualElement
+              key={fruit}
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.Padding, 4f), (StyleKeys.BackgroundColor, rowBg) }}
+            >
+              <Label
+                text={$"#{idx}"}
+                style={new Style { (StyleKeys.Width, 30f), (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)) }}
+              />
+              <Label
+                text={upper}
+                style={new Style { (StyleKeys.Color, palette[fruit]) }}
+              />
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+      // 2C — @foreach over computed collection
+      <SectionBox>
+        <SectionNote label="2C — @foreach over LINQ-derived collection" />
+        @foreach (var pair in fruits.Where(f => f.Length > 4).Select((f, i) => (f, i))) {
+          return (
+            <Label
+              key={pair.f}
+              text={$"{pair.i}: {pair.f} ({pair.f.Length} chars)"}
+            />
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}
