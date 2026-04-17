@@ -1,6 +1,21 @@
 {
   "entries": [
     {
+      "date": "2026-04-17",
+      "versions": {
+        "vscode": "1.1.3",
+        "vs2022": "1.1.3"
+      },
+      "shared": [
+        "Fix: VDG inline expression checks no longer cause false code dimming past directive boundaries",
+        "Fix: formatter handles deeply nested structures correctly (22 idempotency regressions resolved)",
+        "Fix: improved diagnostic line mapping for UITKX0014, UITKX0013, and CS0219"
+      ],
+      "vs2022": [
+        "Fix: workspace scan now discovers components when VS2022 provides no rootUri (fixes UITKX0105 false positives, go-to-definition, and F2 rename)"
+      ]
+    },
+    {
       "date": "2026-04-11",
       "versions": {
         "vscode": "1.1.2",

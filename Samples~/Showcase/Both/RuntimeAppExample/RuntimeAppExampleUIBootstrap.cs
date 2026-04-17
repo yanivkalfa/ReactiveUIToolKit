@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using Samples.StressTest;
+using Samples.MarioGame;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -33,7 +33,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             rootRenderer.Initialize(uiDocument.rootVisualElement);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
             rootRenderer.Render(
-                V.Host(hostProps, null, V.Func(StressTest.Render))
+                V.Host(hostProps, null, V.Func(MarioGame.Render))
             );
         }
     }

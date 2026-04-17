@@ -1,0 +1,30 @@
+@namespace Samples.MarioGame
+@using System
+@using UnityEngine
+
+component MarioGame {
+  var (route, setRoute) = useState(GameRoute.Menu);
+  var (restartVersion, setRestartVersion) = useState(0);
+
+  return (
+    <VisualElement style={Styles.Root}>
+      @if (route == GameRoute.Menu) {
+        return (
+          <MainMenu
+            onStartGame={() => {
+              setRestartVersion(v => v + 1);
+              setRoute(GameRoute.Game);
+            }}
+          />
+        );
+      } @else {
+        return (
+          <GameScreen
+            restartVersion={restartVersion}
+            onQuit={() => setRoute(GameRoute.Menu)}
+          />
+        );
+      }
+    </VisualElement>
+  );
+}

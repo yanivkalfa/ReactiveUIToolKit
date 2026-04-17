@@ -1237,6 +1237,156 @@ public sealed class FormatterSnapshotTests
     }
 
     // ════════════════════════════════════════════════════════════════════════════
+    //  B.12b+d  Bare JSX normalization inside directive bodies (setup code)
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void ForeachDirective_BareAssignSelfClosingJsx_NormalizedToParens()
+    {
+        // var badge = <Label /> inside @foreach setup code should get wrapped with ()
+        var source = N(
+            """
+            component Comp {
+              return (
+                <VisualElement>
+                  @foreach (var item in items) {
+                    var badge = <Label text={item} />;
+                    return (
+                      <Label key={item} text={item} />
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("var badge = (<Label text={item} />)", result);
+        var stable = Format(result);
+        Assert.Equal(stable, Format(stable)); // idempotent
+    }
+
+    [Fact]
+    public void ForeachDirective_BareAssignContainerJsx_NormalizedToParens()
+    {
+        // var badge = <Box>...</Box> inside @foreach setup code gets wrapped + expanded
+        var source = N(
+            """
+            component Comp {
+              return (
+                <VisualElement>
+                  @foreach (var item in items) {
+                    var badge = <Box>
+                      <Label text={item} />
+                    </Box>;
+                    return (
+                      <Label key={item} text={item} />
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("var badge = (", result);
+        Assert.Contains("<Box>", result);
+        Assert.Contains("<Label text={item} />", result);
+        Assert.Contains("</Box>", result);
+        var stable = Format(result);
+        Assert.Equal(stable, Format(stable)); // idempotent
+    }
+
+    [Fact]
+    public void IfDirective_BareAssignJsx_NormalizedToParens()
+    {
+        // var icon = <Label /> inside @if setup code
+        var source = N(
+            """
+            component Comp {
+              return (
+                <VisualElement>
+                  @if (flag) {
+                    var icon = <Label text="on" />;
+                    return (
+                      <Box>{icon}</Box>
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("var icon = (<Label text=\"on\" />)", result);
+        var stable = Format(result);
+        Assert.Equal(stable, Format(stable)); // idempotent
+    }
+
+    [Fact]
+    public void ForeachDirective_BareAssignAlreadyParenWrapped_Unchanged()
+    {
+        // Already paren-wrapped — must stay as-is (no double-wrapping)
+        var source = N(
+            """
+            component Comp {
+              return (
+                <VisualElement>
+                  @foreach (var item in items) {
+                    var badge = (<Label text={item} />);
+                    return (
+                      <Label key={item} text={item} />
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var result = Format(source);
+        // Should still have exactly one pair of parens around the JSX
+        Assert.Contains("var badge = (<Label text={item} />)", result);
+        Assert.DoesNotContain("var badge = ((<Label", result);
+        Assert.Equal(result, Format(result)); // idempotent
+    }
+
+    [Fact]
+    public void SwitchDirective_BareAssignJsx_NormalizedToParens()
+    {
+        // var x = <Label /> inside @switch case setup code
+        var source = N(
+            """
+            component Comp {
+              return (
+                <VisualElement>
+                  @switch (mode) {
+                    @case "a":
+                      var icon = <Label text="alpha" />;
+                      return (
+                        <Box>{icon}</Box>
+                      );
+                    @default:
+                      return (
+                        <Label text="other" />
+                      );
+                  }
+                </VisualElement>
+              );
+            }
+            """
+        );
+
+        var result = Format(source);
+        Assert.Contains("var icon = (<Label text=\"alpha\" />)", result);
+        var stable = Format(result);
+        Assert.Equal(stable, Format(stable)); // idempotent
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
     //  B.12c  JSX paren-blocks in deeply nested C# setup code
     // ════════════════════════════════════════════════════════════════════════════
 
@@ -8312,6 +8462,432 @@ public sealed class FormatterSnapshotTests
         Assert.Contains("\n  var c = x >= y;", result);
         Assert.Contains("\n  var d = x <= y;", result);
         Assert.Equal(result, Format(result));
+    }
+
+    // ════════════════════════════════════════════════════════════════════════════
+    //  X) DEEP NESTING — local functions with JSX, 4-level directives,
+    //     setup-code JSX variables, @() expression splicing
+    //
+    //  These tests cover the deep nesting patterns added to
+    //  UitkxTestFileDoNotTouch.uitkx: local functions returning JSX with
+    //  @foreach + @if inside, directive bodies with setup-code JSX variables,
+    //  and 4-level-deep directive nesting (@foreach → @for → @if/@else → @foreach).
+    // ════════════════════════════════════════════════════════════════════════════
+
+    [Fact]
+    public void DeepNest_LocalFunction_ForeachAndIf_Idempotent()
+    {
+        // Local function returning JSX with @foreach loop containing
+        // setup code + multi-attr elements, plus @if branch.
+        var source = N(
+            """
+            component C {
+              var items = new[] { "a", "b" };
+
+              VirtualNode PillBar(string[] opts, string selected) {
+                return (
+                  <VisualElement
+                    style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}
+                  >
+                    @foreach (var opt in opts) {
+                      var isActive = opt == selected;
+                      var bg = isActive ? Color.cyan : Color.gray;
+
+                      return (
+                        <Button
+                          key={opt}
+                          text={opt.ToUpper()}
+                          onClick={_ => Console.WriteLine(opt)}
+                          style={new Style {
+                            (StyleKeys.BackgroundColor, bg),
+                            (StyleKeys.Color, Color.white),
+                            (StyleKeys.BorderRadius, 10f),
+                            (StyleKeys.MarginRight, 4f),
+                          }}
+                        />
+                      );
+                    }
+                    @if (selected != "all") {
+                      return (
+                        <Label
+                          text={$"active: {selected}"}
+                          style={new Style { (StyleKeys.Color, Color.gray), (StyleKeys.FontSize, 10f) }}
+                        />
+                      );
+                    }
+                  </VisualElement>
+                );
+              }
+
+              return (
+                <VisualElement>
+                  @(PillBar(items, "a"))
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void DeepNest_LocalFunction_IfElse_Idempotent()
+    {
+        // Local function with @if / @else branches returning JSX.
+        var source = N(
+            """
+            component C {
+              var (active, setActive) = useState(true);
+
+              VirtualNode StatusBadge() {
+                return (
+                  <VisualElement style={new Style { (StyleKeys.MarginBottom, 6f) }}>
+                    @if (active) {
+                      return (
+                        <Label
+                          text="status ON"
+                          style={new Style { (StyleKeys.Color, Color.green), (StyleKeys.FontSize, 11f) }}
+                        />
+                      );
+                    } @else {
+                      return (
+                        <Label
+                          text="status OFF"
+                          style={new Style { (StyleKeys.Color, Color.gray), (StyleKeys.FontSize, 11f) }}
+                        />
+                      );
+                    }
+                  </VisualElement>
+                );
+              }
+
+              var statusNode = StatusBadge();
+
+              return (
+                <VisualElement>
+                  @(statusNode)
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void DeepNest_FourLevels_ForeachForIfForeach_Idempotent()
+    {
+        // 4-level nesting: @foreach → @for → @if/@else → @foreach
+        // with setup-code JSX variable (catBadge) inside directive body.
+        var source = N(
+            """
+            component C {
+              var categories = new[] { "A", "B" };
+              var tags = new[] { "x", "y" };
+              var (count, setCount) = useState(2);
+              var (mode, setMode) = useState("x");
+              var (mounted, setMounted) = useState(true);
+
+              return (
+                <VisualElement>
+                  @foreach (var cat in categories) {
+                    var catColor =
+                      cat == "A" ? Color.cyan :
+                    Color.yellow;
+                    var catBadge = (
+                      <VisualElement
+                        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 3f) }}
+                      >
+                        <Label
+                          text={$"cat = {cat}"}
+                          style={new Style { (StyleKeys.Color, catColor), (StyleKeys.FontSize, 12f) }}
+                        />
+                        @if (mounted) {
+                          return (
+                            <Label
+                              text={$"[mode={mode}]"}
+                              style={new Style { (StyleKeys.Color, Color.gray), (StyleKeys.FontSize, 10f) }}
+                            />
+                          );
+                        }
+                      </VisualElement>
+                    );
+
+                    return (
+                      <VisualElement
+                        key={cat}
+                        style={new Style {
+                          (StyleKeys.BackgroundColor, Color.black),
+                          (StyleKeys.Padding, 6f),
+                          (StyleKeys.MarginBottom, 4f),
+                        }}
+                      >
+                        @(catBadge)
+                        @for (int d = 0; d < count; d++) {
+                          var depthBg = new Color(0.12f, 0.12f, 0.2f);
+
+                          return (
+                            <VisualElement
+                              key={$"{cat}-{d}"}
+                              style={new Style {
+                                (StyleKeys.BackgroundColor, depthBg),
+                                (StyleKeys.Padding, 4f),
+                                (StyleKeys.MarginBottom, 2f),
+                              }}
+                            >
+                              <Label
+                                text={$"depth = {d}"}
+                                style={new Style { (StyleKeys.Color, Color.white) }}
+                              />
+                              @if (d % 2 == 0) {
+                                var label = $"even (cat={cat}, d={d}):";
+
+                                return (
+                                  <VisualElement
+                                    style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}
+                                  >
+                                    <Label
+                                      text={label}
+                                      style={new Style { (StyleKeys.Color, Color.cyan), (StyleKeys.FontSize, 10f) }}
+                                    />
+                                    @foreach (var tag in tags) {
+                                      if (tag == "y" && d == 0) {
+                                        return null;
+                                      }
+                                      var isActive = tag == mode;
+
+                                      return (
+                                        <Label
+                                          key={tag}
+                                          text={$"[{tag}]"}
+                                          style={new Style { (StyleKeys.Color, isActive ? Color.cyan : Color.gray), (StyleKeys.FontSize, 10f) }}
+                                        />
+                                      );
+                                    }
+                                  </VisualElement>
+                                );
+                              } @else {
+                                return (
+                                  <Label
+                                    text={$"odd depth (d={d})"}
+                                    style={new Style { (StyleKeys.Color, Color.gray), (StyleKeys.FontSize, 10f) }}
+                                  />
+                                );
+                              }
+                            </VisualElement>
+                          );
+                        }
+                      </VisualElement>
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void DeepNest_SetupCodeJsxVar_TernaryAssign_Idempotent()
+    {
+        // Ternary JSX variable in setup code: var node = cond ? (<JSX>) : null;
+        // Plus @() expression splicing in the return JSX.
+        var source = N(
+            """
+            component C {
+              var (active, setActive) = useState(true);
+
+              var controlsNode = active
+                ? (
+                  <VisualElement style={new Style { (StyleKeys.MarginBottom, 6f) }}>
+                    <Button text="click" onClick={_ => setActive(!active)} />
+                  </VisualElement>
+                )
+                : null;
+
+              return (
+                <VisualElement>
+                  @(controlsNode)
+                  <Label text="footer" />
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void DeepNest_SetupCodeJsxVar_DirectAssign_Idempotent()
+    {
+        // Direct JSX assignment with nested directives in setup code.
+        var source = N(
+            """
+            component C {
+              var (mounted, setMounted) = useState(true);
+
+              var headerNode = (
+                <VisualElement
+                  style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 8f) }}
+                >
+                  <Label text="Header" style={new Style { (StyleKeys.FlexGrow, 1f) }} />
+                  <Button text="Reset" onClick={_ => setMounted(true)} />
+                </VisualElement>
+              );
+
+              return (
+                <VisualElement>
+                  @(headerNode)
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void DeepNest_MixedLocalFunctions_And_DeepDirectives_Idempotent()
+    {
+        // Combines multiple local functions, setup-code JSX vars,
+        // expression splicing, and multi-level nesting in one component.
+        var source = N(
+            """
+            component C {
+              var (count, setCount) = useState(0);
+              var items = new[] { "A", "B" };
+
+              VirtualNode Badge(string text) {
+                return (
+                  <Label text={text} style={new Style { (StyleKeys.FontSize, 10f) }} />
+                );
+              }
+
+              var badge = Badge($"count={count}");
+
+              var footer = (
+                <VisualElement>
+                  <Label text="footer" />
+                </VisualElement>
+              );
+
+              return (
+                <VisualElement>
+                  @(badge)
+                  @foreach (var item in items) {
+                    return (
+                      <VisualElement key={item}>
+                        <Label text={item} />
+                        @if (count > 0) {
+                          return (
+                            <Label text={$"count={count}"} />
+                          );
+                        }
+                      </VisualElement>
+                    );
+                  }
+                  @(footer)
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
+    }
+
+    [Fact]
+    public void DeepNest_MessyIndent_NormalisedToCanonical()
+    {
+        // Messy indentation in deep nesting should normalize properly.
+        var source = N(
+            """
+            component C {
+                var items = new[] { "a", "b" };
+
+                  VirtualNode Fn() {
+                      return (
+                          <VisualElement>
+                              @if (true) {
+                                  return (
+                                      <Label text="yes" />
+                                  );
+                              }
+                          </VisualElement>
+                      );
+                  }
+
+                var node = Fn();
+
+                return (
+                    <VisualElement>
+                        @(node)
+                    </VisualElement>
+                );
+            }
+            """
+        );
+        var result = Format(source);
+        // Local function body indent normalized to 2sp from component indent
+        Assert.Contains("\n  VirtualNode Fn() {", result);
+        Assert.Contains("\n  var node = Fn();", result);
+        // JSX inside local function uses proper nesting
+        Assert.Contains("\n      <VisualElement>", result);
+        Assert.Contains("\n        @if (true) {", result);
+        Assert.Equal(result, Format(result));
+    }
+
+    [Fact]
+    public void DeepNest_DirectiveSetupCodeJsxVar_InsideForeach_Idempotent()
+    {
+        // JSX variable inside directive body setup code (var catBadge = (<JSX>))
+        // with nested @if. This tests the placeholder-based formatting path.
+        var source = N(
+            """
+            component C {
+              var cats = new[] { "A", "B" };
+              var (show, setShow) = useState(true);
+
+              return (
+                <VisualElement>
+                  @foreach (var cat in cats) {
+                    var badge = (
+                      <VisualElement>
+                        <Label text={cat} />
+                        @if (show) {
+                          return (
+                            <Label text="extra" />
+                          );
+                        }
+                      </VisualElement>
+                    );
+
+                    return (
+                      <VisualElement key={cat}>
+                        @(badge)
+                      </VisualElement>
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+
+            """
+        );
+        var result = Format(source);
+        Assert.Equal(source, result);
     }
 
     // ════════════════════════════════════════════════════════════════════════════

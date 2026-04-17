@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace ReactiveUITK.Language.Parser
 {
@@ -84,7 +84,7 @@ namespace ReactiveUITK.Language.Parser
                             }
                         }
 
-                        // ── Bare JSX: return <Tag .../>;  or  return <Tag>...</Tag>; ──
+                        // ΓöÇΓöÇ Bare JSX: return <Tag .../>;  or  return <Tag>...</Tag>; ΓöÇΓöÇ
                         // Treat as if the user wrote return (<JSX>);  by synthesising
                         // paren positions that the caller can use unchanged.
                         if (j < endExclusive && source[j] == '<'
@@ -110,6 +110,28 @@ namespace ReactiveUITK.Language.Parser
                                     i = stmtEndExclusive;
                                     continue;
                                 }
+                            }
+                        }
+
+                        // ΓöÇΓöÇ return null; ΓöÇΓöÇ
+                        // Sentinel values: openParen == -1, closeParen == -1
+                        // indicate a null return (no JSX body to parse).
+                        if (TryReadKeywordAt(source, j, "null"))
+                        {
+                            int k = j + 4;
+                            SkipWhitespace(source, ref k);
+                            if (k < endExclusive && source[k] == ';')
+                            {
+                                returnStart = candidateStart;
+                                openParen = -1;
+                                closeParen = -1;
+                                stmtEndExclusive = k + 1;
+
+                                if (!useLastReturn)
+                                    return true;
+
+                                i = stmtEndExclusive;
+                                continue;
                             }
                         }
 
@@ -175,7 +197,7 @@ namespace ReactiveUITK.Language.Parser
             return line;
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Read a balanced <c>(...)</c> span, skipping strings, comments, and nested

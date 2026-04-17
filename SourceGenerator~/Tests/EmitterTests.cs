@@ -1,4 +1,4 @@
-using System.Linq;
+﻿using System.Linq;
 using ReactiveUITK.SourceGenerator.Tests.Helpers;
 using Xunit;
 
@@ -14,7 +14,7 @@ public class EmitterTests
     private static string Wrap(string markup) =>
         "component MyComp {\n  return (\n" + markup + "\n  );\n}";
 
-    // ── Element emission ──────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Element emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void SimpleElement_GeneratesVCall()
@@ -56,7 +56,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("V.Label("), "Expected V.Label call inside box");
     }
 
-    // ── Namespace / class structure ──────────────────────────────────────────
+    // ΓöÇΓöÇ Namespace / class structure ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void Namespace_EmittedInGeneratedSource()
@@ -103,7 +103,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("Hooks.UseState(") || result.SourceContains("useState("));
     }
 
-    // ── Control flow ─────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Control flow ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void IfDirective_GeneratesConditionalExpression()
@@ -112,13 +112,15 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        // @if → ternary; the condition should appear in the generated source
+        // @if ΓåÆ IIFE; the condition should appear in the generated source
         Assert.True(result.SourceContains("flag"), "Condition should appear verbatim");
         Assert.True(
-            result.SourceContains("? ")
+            result.SourceContains("Func<VirtualNode>")
+                || result.SourceContains("Func<")
+                || result.SourceContains("? ")
                 || result.SourceContains("?V.")
                 || result.SourceContains("?("),
-            "Ternary operator expected for @if"
+            "IIFE or ternary expected for @if.\nGenerated:\n" + (result.GeneratedSource ?? "<null>")
         );
     }
 
@@ -129,8 +131,10 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        Assert.True(result.SourceContains(".Select("), "Expected .Select( for @foreach");
-        Assert.True(result.SourceContains(".ToArray()"), "Expected .ToArray() after .Select(");
+        // @foreach ΓåÆ IIFE with list-building loop or .Select()
+        Assert.True(
+            result.SourceContains(".Select(") || result.SourceContains("foreach"),
+            "Expected .Select( or foreach loop for @foreach");
     }
 
     [Fact]
@@ -183,7 +187,7 @@ public class EmitterTests
             "Expected generated source but got diagnostics:\n"
             + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
 
-        // Verify structure — IIFE brace balance must be correct
+        // Verify structure ΓÇö IIFE brace balance must be correct
         Assert.True(result.SourceContains("var prefix = \"[LOG] \""),
             "Expected foreach setup code in generated output.\nGenerated:\n" + (result.GeneratedSource ?? "<null>"));
 
@@ -195,7 +199,7 @@ public class EmitterTests
 
         // Verify no false UITKX0014 (hook in loop)
         Assert.False(result.HasDiagnostic("UITKX0014"),
-            "UITKX0014 should NOT fire — hooks are at component top level, not inside @foreach.\n"
+            "UITKX0014 should NOT fire ΓÇö hooks are at component top level, not inside @foreach.\n"
             + string.Join("\n", result.Diagnostics.Select(d => $"  {d.Id}: {d.GetMessage()}")));
     }
 
@@ -257,11 +261,11 @@ public class EmitterTests
         var result = GeneratorTestHelper.Run(src);
 
         Assert.True(result.SourceWasProduced);
-        Assert.True(result.SourceContains("switch"), "Expected switch expression");
-        // Emitter generates: _ => (global::ReactiveUITK.Core.VirtualNode)null,
+        Assert.True(result.SourceContains("switch"), "Expected switch statement");
+        // Emitter generates IIFE with switch statement
         Assert.True(
-            result.SourceContains("_ =>"),
-            "Expected _ => fallback arm in switch expression"
+            result.SourceContains("Func<") || result.SourceContains("_ =>"),
+            "Expected IIFE or switch expression pattern for @switch"
         );
     }
 
@@ -276,7 +280,7 @@ public class EmitterTests
         Assert.True(result.SourceContains(": null") || result.SourceContains("(VirtualNode)null"), "Missing @else should generate null fallback");
     }
 
-    // ── Key attribute ─────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Key attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void KeyAttribute_PassedAsSecondArgument()
@@ -286,7 +290,7 @@ public class EmitterTests
         Assert.True(result.SourceContains("my-key"), "key value should appear in generated source");
     }
 
-    // ── Line directives ───────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Line directives ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void GeneratedSource_ContainsLineDirectives()
@@ -311,7 +315,7 @@ public class EmitterTests
         );
     }
 
-    // ── [UitkxElement] attribute ─────────────────────────────────────────────
+    // ΓöÇΓöÇ [UitkxElement] attribute ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void GeneratedClass_HasUitkxElementAttribute()
@@ -444,7 +448,7 @@ public class EmitterTests
         );
     }
 
-    // ── ErrorBoundary emission ───────────────────────────────────────────────
+    // ΓöÇΓöÇ ErrorBoundary emission ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void ErrorBoundary_GeneratesVErrorBoundaryCall()
@@ -559,19 +563,19 @@ public class EmitterTests
         Assert.True(result.SourceContains("target"), "Expected target expression in V.Portal call");
     }
 
-    // ── Peer component props resolution ──────────────────────────────────────
+    // ΓöÇΓöÇ Peer component props resolution ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void PeerComponent_WithProps_EmitsTypedVFuncAndPassesAttributes()
     {
-        // ChildComp.uitkx — sub-component with a bool prop
+        // ChildComp.uitkx ΓÇö sub-component with a bool prop
         const string childSrc = """
             component ChildComp(bool active = false) {
                 return (<Label text="child" />);
             }
             """;
 
-        // ParentComp.uitkx — references ChildComp; its props type is peer-generated
+        // ParentComp.uitkx ΓÇö references ChildComp; its props type is peer-generated
         const string parentSrc = """
             component ParentComp {
                 var flag = true;
@@ -605,7 +609,7 @@ public class EmitterTests
         );
     }
 
-    // ── Nested Props class resolution (C# convention: TypeName.Props) ─────────
+    // ΓöÇΓöÇ Nested Props class resolution (C# convention: TypeName.Props) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void FuncComponent_WithNestedPropsClass_EmitsTypedVFuncAndPassesAttributes()
@@ -661,12 +665,12 @@ public class EmitterTests
         );
     }
 
-    // ── ref={x} routing on user (UITKX) components ────────────────────────────
+    // ΓöÇΓöÇ ref={x} routing on user (UITKX) components ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void UserComponent_SingleRefParam_RefAttrRoutedToMutableRefProp()
     {
-        // ChildComp.uitkx — declares a single Hooks.MutableRef parameter.
+        // ChildComp.uitkx ΓÇö declares a single Hooks.MutableRef parameter.
         const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef = null
@@ -675,7 +679,7 @@ public class EmitterTests
             }
             """;
 
-        // ParentComp.uitkx — uses ref={myRef} shorthand on ChildComp.
+        // ParentComp.uitkx ΓÇö uses ref={myRef} shorthand on ChildComp.
         const string parentSrc = """
             component ParentComp {
                 return (
@@ -714,7 +718,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_NoRefParam_RefAttrEmitsDiagnosticUITKX0020()
     {
-        // ChildComp.uitkx — no MutableRef parameter; ref={} cannot be routed.
+        // ChildComp.uitkx ΓÇö no MutableRef parameter; ref={} cannot be routed.
         const string childSrc = """
             component ChildComp(string? label = null) {
                 return (<Label text="child" />);
@@ -744,7 +748,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_MultipleRefParams_RefAttrEmitsDiagnosticUITKX0021()
     {
-        // ChildComp.uitkx — two MutableRef parameters; ref={} is ambiguous.
+        // ChildComp.uitkx ΓÇö two MutableRef parameters; ref={} is ambiguous.
         const string childSrc = """
             component ChildComp(
                 Hooks.MutableRef<object>? inputRef  = null,
@@ -777,7 +781,7 @@ public class EmitterTests
     [Fact]
     public void UserComponent_RefAttrAndOtherProps_CombineCorrectly()
     {
-        // ChildComp.uitkx — has a regular string prop + one MutableRef prop.
+        // ChildComp.uitkx ΓÇö has a regular string prop + one MutableRef prop.
         const string childSrc = """
             component ChildComp(
                 string? label = null,
@@ -787,7 +791,7 @@ public class EmitterTests
             }
             """;
 
-        // ParentComp.uitkx — passes both a regular attribute and ref={}.
+        // ParentComp.uitkx ΓÇö passes both a regular attribute and ref={}.
         const string parentSrc = """
             component ParentComp {
                 return (
@@ -912,7 +916,7 @@ public class EmitterTests
         Assert.False(result.HasDiagnostic("UITKX0021"), "Unexpected UITKX0021.");
     }
 
-    // ── Asset path resolution ─────────────────────────────────────────────────
+    // ΓöÇΓöÇ Asset path resolution ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
     [Fact]
     public void Asset_RelativePath_Resolved()
@@ -1059,4 +1063,36 @@ public class EmitterTests
             "Expected auto-injected CssHelpers using"
         );
     }
+
+    [Fact]
+    public void BareAssignWithNestedDirective_InsideDirectiveBody_JsxIsEmitted()
+    {
+        // bare = <Container>...@if...</Container> in @foreach setup code
+        // must not leave raw JSX in the generated source (range collision fix).
+        var src = """
+            component Comp {
+              return (
+                <Box>
+                  @foreach (var item in items) {
+                    var badge = <Box>
+                      <Label text={item} />
+                      @if (showX) {
+                        return (<Label text="extra" />);
+                      }
+                    </Box>;
+                    return (<Label text={item} />);
+                  }
+                </Box>
+              );
+            }
+            """;
+
+        var result = GeneratorTestHelper.Run(src, "Test.uitkx");
+        Assert.True(result.SourceWasProduced, "No source produced");
+        Assert.False(result.SourceContains("= <Box>"), "Raw bare JSX leaked into generated source");
+        Assert.True(result.SourceContains("V.Box("), "Expected V.Box() call from the bare assignment");
+        Assert.True(result.SourceContains("V.Label("), "Expected V.Label() inside the bare-assigned Box");
+    }
+
 }
+

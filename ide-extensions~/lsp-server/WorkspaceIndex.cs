@@ -122,18 +122,25 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
         string? root = null;
         try
         {
-            var rootUri = server.ClientSettings.RootUri?.ToString();
+            var rawUri = server.ClientSettings.RootUri;
+            var rootUri = rawUri?.ToString();
+            ServerLog.Log(
+                $"WorkspaceIndex.OnStarted: RootUri={rootUri ?? "(null)"}, "
+                + $"RootPath={server.ClientSettings.RootPath ?? "(null)"}");
             if (!string.IsNullOrEmpty(rootUri))
                 root = new Uri(rootUri).LocalPath;
         }
-        catch
-        { /* URI parse failure — fall through */
+        catch (Exception ex)
+        {
+            ServerLog.Log($"WorkspaceIndex.OnStarted: URI parse error: {ex.Message}");
         }
 
         if (string.IsNullOrEmpty(root))
             root = server.ClientSettings.RootPath;
 
         if (!string.IsNullOrEmpty(root))
+        {
+            ServerLog.Log($"WorkspaceIndex.OnStarted: starting scan from '{root}'");
             _ = Task.Run(
                 () =>
                 {
@@ -142,8 +149,32 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
                 },
                 cancellationToken
             );
+        }
+        else
+        {
+            ServerLog.Log("WorkspaceIndex.OnStarted: no root — scan deferred until EnsureScanned() is called");
+        }
 
         return Task.CompletedTask;
+    }
+
+    private volatile bool _hasScanned;
+
+    /// <summary>
+    /// Scans the workspace from <paramref name="rootPath"/> if no scan has
+    /// completed yet.  Called as a fallback by <see cref="Roslyn.RoslynHostStartup"/>
+    /// when VS2022 does not provide <c>rootUri</c> / <c>rootPath</c> via the
+    /// standard LSP <c>initialize</c> params but the workspace root is known
+    /// through other means (e.g. the Roslyn host startup sequence).
+    /// </summary>
+    public void EnsureScanned(string rootPath)
+    {
+        if (_hasScanned || string.IsNullOrEmpty(rootPath))
+            return;
+
+        ServerLog.Log($"WorkspaceIndex.EnsureScanned: deferred scan from '{rootPath}'");
+        ScanDirectory(rootPath);
+        ScanCompleted?.Invoke();
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -296,7 +327,7 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     {
         try
         {
-            ServerLog.Log($"WorkspaceIndex: scanning '{rootPath}' for *.cs and *.uitkx filesâ€¦");
+            ServerLog.Log($"WorkspaceIndex: scanning '{rootPath}' for *.cs and *.uitkx files…");
             int count = 0;
             foreach (
                 var file in Directory.EnumerateFiles(rootPath, "*.cs", SearchOption.AllDirectories)
@@ -328,6 +359,8 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
             ServerLog.Log(
                 $"WorkspaceIndex: indexed {uitkxCount} .uitkx file(s) → {_elements.Count} total element name(s)."
             );
+
+            _hasScanned = true;
         }
         catch (Exception ex)
         {

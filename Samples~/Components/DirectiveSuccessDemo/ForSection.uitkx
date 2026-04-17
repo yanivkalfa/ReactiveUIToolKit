@@ -1,0 +1,65 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component ForSection {
+  var (rows, setRows) = useState(4);
+
+  return (
+    <VisualElement>
+      <SectionHeading label="@for" />
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 8f) }}
+      >
+        <Button
+          text="−"
+          onClick={_ => setRows(Mathf.Max(0, rows - 1))}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Label text={$"rows = {rows}"} />
+        <Button
+          text="+"
+          onClick={_ => setRows(rows + 1)}
+          style={new Style { (StyleKeys.MarginLeft, 6f) }}
+        />
+      </VisualElement>
+      // 3A — simple
+      <SectionBox>
+        <SectionNote label="3A — simple @for" />
+        @for (int index = 0; index < rows; index++) {
+          return (
+            <Label text={$"Row {index}"} key={index.ToString()} />
+          );
+        }
+      </SectionBox>
+      // 3B — setup code with computed styles
+      <SectionBox>
+        <SectionNote label="3B — @for with computed progress bars" />
+        @for (int i = 0; i < rows; i++) {
+          var t = rows > 1 ? (float)i / (rows - 1) : 0f;
+          var barColor = Color.Lerp(Color.red, Color.green, t);
+          var barWidth = 40f + t * 200f;
+          var key = i.ToString();
+
+          return (
+            <VisualElement
+              key={key}
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 2f) }}
+            >
+              <Label
+                text={$"{i}:"}
+                style={new Style { (StyleKeys.Width, 28f) }}
+              />
+              <VisualElement
+                style={new Style { (StyleKeys.Width, barWidth), (StyleKeys.Height, 14f), (StyleKeys.BackgroundColor, barColor), (StyleKeys.BorderRadius, 3f) }}
+              />
+              <Label
+                text={$" {(t * 100f):F0}%"}
+                style={new Style { (StyleKeys.MarginLeft, 6f), (StyleKeys.FontSize, 11f) }}
+              />
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

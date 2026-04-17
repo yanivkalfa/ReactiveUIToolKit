@@ -1,0 +1,15 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component SectionHeading(string label) {
+  return (
+    <Label
+      text={label}
+      style={new Style {
+        (StyleKeys.FontSize, 16f),
+        (StyleKeys.Color, new Color(0.4f, 0.8f, 1f)),
+        (StyleKeys.MarginBottom, 8f),
+      }}
+    />
+  );
+}
