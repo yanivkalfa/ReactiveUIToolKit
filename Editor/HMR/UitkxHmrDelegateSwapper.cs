@@ -312,6 +312,11 @@ namespace ReactiveUITK.EditorSupport.HMR
                     FullResetComponentState(fiber);
                 }
 
+                // Save current delegate for crash rollback in the reconciler.
+                // The reconciler's BeginWork catch block will restore this if the
+                // new delegate throws during render.
+                fiber.HmrPreviousRender = fiber.TypedRender;
+
                 // Swap the render delegate
                 fiber.TypedRender = newDelegate;
 
