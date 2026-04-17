@@ -17,16 +17,15 @@ component DeepNestedSection {
         style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap"), (StyleKeys.MarginBottom, 6f) }}
       >
         @foreach (var opt in opts) {
-          var s = useState(0);
           var isActive = opt == selected;
           var bg = isActive ? new Color(0.3f, 0.6f, 1f) : new Color(0.22f, 0.22f, 0.3f);
           // bare return <JSX> (no parens) — both forms supported in directive bodies
 
           return (
             <Button
+              key={opt.ToString()}
               text={opt.ToUpper()}
               onClick={_ => {
-                var s = useState(0);
                 setActiveTag(opt);
               }}
               style={new Style { (StyleKeys.BackgroundColor, bg), (StyleKeys.Color, Color.white), (StyleKeys.BorderRadius, 10f), (StyleKeys.MarginRight, 4f), (StyleKeys.MarginBottom, 4f) }}
@@ -34,9 +33,6 @@ component DeepNestedSection {
           );
         }
         @if (showExtras) {
-          var s = useState(0);
-          // bare return <JSX> (no parens)
-
           return (
             <Label
               text={$"active: {selected}"}
@@ -101,7 +97,6 @@ component DeepNestedSection {
           text={showExtras ? "Hide extras" : "Show extras"}
           onClick={_ => {
             setShowExtras(!showExtras);
-            var s = useState(0);
           }}
         />
       </VisualElement>
@@ -145,6 +140,7 @@ component DeepNestedSection {
 
           return (
             <VisualElement
+              key={cat.ToString()}
               style={new Style {
                 (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.15f)),
                 (StyleKeys.Padding, 6f),
@@ -156,11 +152,13 @@ component DeepNestedSection {
               @(catBadge)
               // Level 2 ── @for over depth
               @for (int d = 0; d < depth; d++) {
+                var key = d.ToString();
                 var depthFrac = depth > 1 ? (float)d / (depth - 1) : 0f;
                 var depthBg = new Color(0.12f + depthFrac * 0.08f, 0.12f, 0.2f - depthFrac * 0.08f);
 
                 return (
                   <VisualElement
+                    key={key}
                     style={new Style {
                       (StyleKeys.BackgroundColor, depthBg),
                       (StyleKeys.Padding, 4f),
@@ -187,8 +185,6 @@ component DeepNestedSection {
                           // Level 4 ── @foreach over pills
                           // Returns null for "z" when d == 0 (skip rendering)
                           @foreach (var tag in pills) {
-                            var s = useState(0);
-
                             if (tag == "z" && d == 0) {
                               return null;
                             }
@@ -199,6 +195,7 @@ component DeepNestedSection {
 
                             return (
                               <Label
+                                key={tag.ToString()}
                                 text={$"[{tag}]"}
                                 style={new Style { (StyleKeys.Color, isActive ? Color.cyan : new Color(0.6f, 0.6f, 0.6f)), (StyleKeys.FontSize, 10f), (StyleKeys.MarginRight, 4f) }}
                               />

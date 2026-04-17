@@ -126,6 +126,16 @@ namespace ReactiveUITK.Core.Fiber
         /// Flag indicating this fiber reads from Context and cannot safely bail out based on props alone
         /// </summary>
         public bool ReadsContext;
+
+#if UNITY_EDITOR
+        // ==== HMR Rollback ====
+        /// <summary>
+        /// Previous render delegate saved by HMR before a delegate swap.
+        /// Used to rollback if the new delegate crashes during render.
+        /// Cleared after a successful commit.
+        /// </summary>
+        internal Func<IProps, IReadOnlyList<VirtualNode>, VirtualNode> HmrPreviousRender;
+#endif
     }
 
     /// <summary>

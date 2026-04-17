@@ -542,6 +542,13 @@ namespace ReactiveUITK.Language.Roslyn
             // are valid C# ΓÇö a void method can't return a value.
             b.Scaffold("        private object __uitkx_render()\n        {\n");
 
+            // __children is always available in every component's render scope
+            // (the SG emits it as a parameter: IReadOnlyList<VirtualNode> __children).
+            // Declare it here so @(__children) expressions don't produce CS0103.
+            // Uses dynamic so member access (.Count etc.) compiles without the
+            // ReactiveUITK assembly and without false-positive CS1061.
+            b.Scaffold("            dynamic __children = null!;\n");
+
             // Setup code ΓÇö emitted in segments so that JSX paren blocks
             // (e.g. `var x = (<Box>...</Box>)`) are replaced with a valid C#
             // placeholder and never seen by Roslyn as markup.

@@ -161,6 +161,14 @@ public sealed class WorkspaceIndex : IOnLanguageServerStarted
     private volatile bool _hasScanned;
 
     /// <summary>
+    /// Returns <c>true</c> once the initial background workspace scan has
+    /// completed.  Before this point the element index is incomplete and
+    /// element-existence checks (UITKX0105) should be suppressed to avoid
+    /// transient false-positives.
+    /// </summary>
+    public bool HasCompletedInitialScan => _hasScanned;
+
+    /// <summary>
     /// Scans the workspace from <paramref name="rootPath"/> if no scan has
     /// completed yet.  Called as a fallback by <see cref="Roslyn.RoslynHostStartup"/>
     /// when VS2022 does not provide <c>rootUri</c> / <c>rootPath</c> via the
