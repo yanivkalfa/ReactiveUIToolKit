@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-04-18",
+      "versions": {
+        "vscode": "1.1.4",
+        "vs2022": "1.1.4"
+      },
+      "shared": [
+        "Fix: UITKX0105 false positives eliminated — unknown-element diagnostics suppressed until workspace scan completes",
+        "Fix: @(__children) no longer produces CS0103 in function-style components"
+      ]
+    },
+    {
       "date": "2026-04-17",
       "versions": {
         "vscode": "1.1.3",
