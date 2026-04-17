@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
@@ -45,7 +45,7 @@ namespace ReactiveUITK.Language.Parser
             "inject",
         };
 
-        // ── Public API ────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Public API ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Parses all top-level directives from <paramref name="source"/> and
@@ -132,7 +132,7 @@ namespace ReactiveUITK.Language.Parser
             );
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static bool TryParseFunctionStyle(
             string source,
@@ -180,7 +180,7 @@ namespace ReactiveUITK.Language.Parser
                 }
             } while (parsedPreambleLine);
 
-            // ── Keyword dispatch: component / hook / module ─────────────────
+            // ΓöÇΓöÇ Keyword dispatch: component / hook / module ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             if (TryReadKeywordAt(source, i, "hook") || TryReadKeywordAt(source, i, "module"))
             {
                 return TryParseHookModuleFile(
@@ -196,7 +196,7 @@ namespace ReactiveUITK.Language.Parser
             int componentLine = line;
 
             SkipSpaces(source, ref i);
-            int nameStartI = i; // column anchor — position of first char of component name
+            int nameStartI = i; // column anchor ΓÇö position of first char of component name
             if (!TryReadIdentifier(source, ref i, out string componentName))
             {
                 diagnosticBag.Add(new ParseDiagnostic
@@ -223,7 +223,7 @@ namespace ReactiveUITK.Language.Parser
             string functionNamespace = inlineNamespace ?? InferFunctionStyleNamespace(filePath);
             int componentNameCol = ColAtPos(source, nameStartI);
 
-            // ── Optional typed-props parameter list ───────────────────────────
+            // ΓöÇΓöÇ Optional typed-props parameter list ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             // Supports: component Name(Type param = default, ...)
             SkipSpaces(source, ref i);
             var functionParams = ImmutableArray<FunctionParam>.Empty;
@@ -397,7 +397,7 @@ namespace ReactiveUITK.Language.Parser
                     bodyStart,       returnStart,
                     returnStmtEndExclusive, bodyEndExclusive);
 
-            // Scan setup code ranges for @(expr) — emit UITKX0306 per occurrence,
+            // Scan setup code ranges for @(expr) ΓÇö emit UITKX0306 per occurrence,
             // but skip @( inside embedded JSX markup where it is valid syntax.
             ScanAtExprInSetupCode(source, bodyStart, returnStart, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
             ScanAtExprInSetupCode(source, returnStmtEndExclusive, bodyEndExclusive, diagnosticBag, setupMarkupRanges2, bareJsxRanges2);
@@ -457,7 +457,7 @@ namespace ReactiveUITK.Language.Parser
             return true;
         }
 
-        // ── Hook / Module file parser ─────────────────────────────────────────
+        // ΓöÇΓöÇ Hook / Module file parser ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Parses a .uitkx file containing one or more <c>hook</c> and/or
@@ -762,7 +762,7 @@ namespace ReactiveUITK.Language.Parser
             i = bodyCloseExclusive; // advance past '}'
         }
 
-        // ── Arrow return type reader ──────────────────────────────────────────
+        // ΓöÇΓöÇ Arrow return type reader ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Reads an optional <c>-&gt; ReturnType</c> after a hook parameter list.
@@ -809,7 +809,7 @@ namespace ReactiveUITK.Language.Parser
             return returnType.Length > 0 ? returnType : null;
         }
 
-        // ── Generic params reader ─────────────────────────────────────────────
+        // ΓöÇΓöÇ Generic params reader ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Reads generic type parameters including angle brackets from the current
@@ -834,7 +834,7 @@ namespace ReactiveUITK.Language.Parser
             return source.Substring(start, i - start);
         }
 
-        // ── Function param-list parser ────────────────────────────────────────
+        // ΓöÇΓöÇ Function param-list parser ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Parses a comma-separated parameter list that follows a function-style
@@ -931,7 +931,7 @@ namespace ReactiveUITK.Language.Parser
 
         /// <summary>
         /// Reads a C# type name, including optional generic type arguments
-        /// (balanced &lt; … &gt; pairs), arrays (<c>[]</c>), and nullable markers
+        /// (balanced &lt; ΓÇª &gt; pairs), arrays (<c>[]</c>), and nullable markers
         /// (<c>?</c>).  Does NOT handle tuple types or complex pointer types.
         /// </summary>
         private static bool TryReadTypeName(
@@ -1189,7 +1189,7 @@ namespace ReactiveUITK.Language.Parser
             int savedI = i;
             int savedLine = line;
 
-            // Allow leading spaces/tabs — newlines are already consumed by trivia before each call.
+            // Allow leading spaces/tabs ΓÇö newlines are already consumed by trivia before each call.
             while (i < source.Length && (source[i] == ' ' || source[i] == '\t'))
                 i++;
 
@@ -1896,7 +1896,7 @@ namespace ReactiveUITK.Language.Parser
             return start;
         }
 
-        // ── @(expr) scanner ──────────────────────────────────────────────────
+        // ΓöÇΓöÇ @(expr) scanner ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Scans <paramref name="source"/> between <paramref name="rangeStart"/> and
@@ -1978,7 +1978,7 @@ namespace ReactiveUITK.Language.Parser
                 // Detect @(
                 if (ch == '@' && i + 1 < rangeEnd && source[i + 1] == '(')
                 {
-                    // @(expr) is valid inside embedded JSX markup — skip those.
+                    // @(expr) is valid inside embedded JSX markup ΓÇö skip those.
                     if (!IsInsideJsxRange(i, jsxRanges) && !IsInsideJsxRange(i, bareJsxRanges))
                     {
                         diagnosticBag.Add(new ParseDiagnostic
@@ -2032,7 +2032,7 @@ namespace ReactiveUITK.Language.Parser
 
         private static bool IsNewline(char c) => c == '\r' || c == '\n';
 
-        // ── JSX block range finder ────────────────────────────────────────────
+        // ΓöÇΓöÇ JSX block range finder ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// For each paren-wrapped JSX block, checks whether a semicolon follows the
@@ -2046,7 +2046,7 @@ namespace ReactiveUITK.Language.Parser
             if (ranges.IsDefaultOrEmpty) return;
             foreach (var (start, end, _) in ranges)
             {
-                // Only check paren-wrapped blocks — the char before Start is '('.
+                // Only check paren-wrapped blocks ΓÇö the char before Start is '('.
                 if (start <= 0 || source[start - 1] != '(') continue;
 
                 // 'end' is position of ')'. Scan past whitespace and comments.
@@ -2059,7 +2059,7 @@ namespace ReactiveUITK.Language.Parser
                 }
 
                 char next = source[pos];
-                // Valid continuations after ')' — operators, ternary, comma, braces, etc.
+                // Valid continuations after ')' ΓÇö operators, ternary, comma, braces, etc.
                 if (next == ';' || next == ':' || next == ',' || next == ')' ||
                     next == '.' || next == '?' || next == '!' || next == '[' ||
                     next == '}' || next == '{' ||
@@ -2089,7 +2089,7 @@ namespace ReactiveUITK.Language.Parser
                 {
                     if (source[pos + 1] == '/')
                     {
-                        // Line comment — skip to end of line
+                        // Line comment ΓÇö skip to end of line
                         pos += 2;
                         while (pos < source.Length && source[pos] != '\n')
                             pos++;
@@ -2097,7 +2097,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                     if (source[pos + 1] == '*')
                     {
-                        // Block comment — skip to */
+                        // Block comment ΓÇö skip to */
                         pos += 2;
                         while (pos + 1 < source.Length &&
                                !(source[pos] == '*' && source[pos + 1] == '/'))
@@ -2135,7 +2135,7 @@ namespace ReactiveUITK.Language.Parser
         /// <c>Line</c>  = 1-based source line of <c>Start</c>.
         /// </para>
         /// </summary>
-        private static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
+        internal static ImmutableArray<(int Start, int End, int Line)> FindJsxBlockRanges(
             string source, int rangeStart, int rangeEnd)
         {
             var result = ImmutableArray.CreateBuilder<(int, int, int)>();
@@ -2153,7 +2153,7 @@ namespace ReactiveUITK.Language.Parser
                 if (TrySkipStringOrCharLiteral(source, rangeEnd, ref i))
                     continue;
 
-                // ── Bare arrow: => <Tag ──────────────────────────────────
+                // ΓöÇΓöÇ Bare arrow: => <Tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (source[i] == '=' && i + 1 < rangeEnd && source[i + 1] == '>')
                 {
                     int peek = i + 2;
@@ -2176,21 +2176,25 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
-                // ── Paren-wrapped: ( <Tag ────────────────────────────────
+                // ΓöÇΓöÇ Paren-wrapped: ( <Tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (source[i] != '(')
                 {
                     i++;
                     continue;
                 }
 
-                // Peek past whitespace / newlines to see if the next token is '<'
+                // Peek past whitespace / newlines to see if the next token is '<' or '@directive'
                 int peek2 = i + 1;
                 while (peek2 < rangeEnd &&
                        (source[peek2] == ' '  || source[peek2] == '\t' ||
                         source[peek2] == '\r' || source[peek2] == '\n'))
                     peek2++;
 
-                if (peek2 >= rangeEnd || source[peek2] != '<')
+                bool isJsx = peek2 < rangeEnd && source[peek2] == '<';
+                bool isDirective = !isJsx && peek2 < rangeEnd && source[peek2] == '@'
+                    && StartsWithDirectiveKeyword(source, peek2 + 1, rangeEnd);
+
+                if (!isJsx && !isDirective)
                 {
                     i++;
                     continue;
@@ -2211,17 +2215,45 @@ namespace ReactiveUITK.Language.Parser
                 if (depth == 0)
                 {
                     int blockStart = i + 1;   // content starts after '('
-                    int blockEnd   = j - 1;   // exclusive — at the ')'
+                    int blockEnd   = j - 1;   // exclusive ΓÇö at the ')'
                     int blockLine  = LineAtPos(source, blockStart);
                     result.Add((blockStart, blockEnd, blockLine));
                     i = j; // hop past the entire block
                 }
                 else
                 {
-                    i++; // unbalanced — skip
+                    i++; // unbalanced ΓÇö skip
                 }
             }
             return result.ToImmutable();
+        }
+
+        /// <summary>
+        /// Returns true if <paramref name="source"/> at <paramref name="pos"/>
+        /// starts with a UITKX directive keyword (if, foreach, for, while, switch)
+        /// followed by a non-identifier character.
+        /// </summary>
+        private static bool StartsWithDirectiveKeyword(string source, int pos, int end)
+        {
+            // Ordered longest-first to avoid "for" matching "foreach"
+            ReadOnlySpan<char> text = source.AsSpan();
+            return MatchKeyword(text, pos, end, "switch")
+                || MatchKeyword(text, pos, end, "foreach")
+                || MatchKeyword(text, pos, end, "while")
+                || MatchKeyword(text, pos, end, "for")
+                || MatchKeyword(text, pos, end, "if");
+        }
+
+        private static bool MatchKeyword(ReadOnlySpan<char> source, int pos, int end, string keyword)
+        {
+            if (pos + keyword.Length > end)
+                return false;
+            for (int k = 0; k < keyword.Length; k++)
+                if (source[pos + k] != keyword[k])
+                    return false;
+            // Must be followed by a non-identifier char (or EOF) to avoid partial matches
+            return pos + keyword.Length >= end
+                || !char.IsLetterOrDigit(source[pos + keyword.Length]);
         }
 
         /// <summary>
@@ -2248,7 +2280,7 @@ namespace ReactiveUITK.Language.Parser
         /// stored separately to avoid breaking the formatter's block-index
         /// alignment.
         /// </summary>
-        private static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
+        internal static ImmutableArray<(int Start, int End, int Line)> FindBareJsxRanges(
             string source, int rangeStart, int rangeEnd)
         {
             var result = ImmutableArray.CreateBuilder<(int, int, int)>();
@@ -2274,7 +2306,7 @@ namespace ReactiveUITK.Language.Parser
                 if (TrySkipStringOrCharLiteral(source, rangeEnd, ref i))
                     continue;
 
-                // ── Bare return: return <Tag ─────────────────────────────
+                // ΓöÇΓöÇ Bare return: return <Tag ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (source[i] == 'r' && i + 5 < rangeEnd
                     && source.Substring(i, 6) == "return"
                     && (i == 0 || !(char.IsLetterOrDigit(source[i - 1]) || source[i - 1] == '_'))
@@ -2300,7 +2332,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
-                // ── Ternary true branch: ? <Tag  (but NOT ?. or ??) ─────
+                // ΓöÇΓöÇ Ternary true branch: ? <Tag  (but NOT ?. or ??) ΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (source[i] == '?' && i + 1 < rangeEnd
                     && source[i + 1] != '.' && source[i + 1] != '?')
                 {
@@ -2324,7 +2356,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
-                // ── Ternary false branch: : <Tag  (but NOT ::) ──────────
+                // ΓöÇΓöÇ Ternary false branch: : <Tag  (but NOT ::) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
                 if (source[i] == ':' && i + 1 < rangeEnd
                     && source[i + 1] != ':')
                 {
@@ -2348,7 +2380,7 @@ namespace ReactiveUITK.Language.Parser
                     }
                 }
 
-                // ── Bare assignment: = <Tag  (but NOT ==, =>, !=, <=, >=)
+                // ΓöÇΓöÇ Bare assignment: = <Tag  (but NOT ==, =>, !=, <=, >=)
                 if (source[i] == '=' && i + 1 < rangeEnd
                     && source[i + 1] != '=' && source[i + 1] != '>'
                     && (i == 0 || (source[i - 1] != '!' && source[i - 1] != '<' && source[i - 1] != '>')))
@@ -2423,7 +2455,7 @@ namespace ReactiveUITK.Language.Parser
             if (i >= rangeEnd) return false;
             char c0 = source[i];
 
-            // ── Char literal '...' ─────────────────────────────────────────
+            // ΓöÇΓöÇ Char literal '...' ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             if (c0 == '\'')
             {
                 int j = i + 1;
@@ -2437,7 +2469,7 @@ namespace ReactiveUITK.Language.Parser
                 return true;
             }
 
-            // ── Detect string kind ─────────────────────────────────────────
+            // ΓöÇΓöÇ Detect string kind ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             bool isVerbatim = false;
             bool isInterpolated = false;
             int quotePos = -1;
@@ -2477,7 +2509,7 @@ namespace ReactiveUITK.Language.Parser
 
             if (quotePos < 0) return false;
 
-            // ── Scan to end of string ──────────────────────────────────────
+            // ΓöÇΓöÇ Scan to end of string ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             int k = quotePos + 1;
             int braceDepth = 0;
 
@@ -2485,7 +2517,7 @@ namespace ReactiveUITK.Language.Parser
             {
                 char ch = source[k];
 
-                // Inside an interpolation hole — track braces, skip nested strings
+                // Inside an interpolation hole ΓÇö track braces, skip nested strings
                 if (isInterpolated && braceDepth > 0)
                 {
                     if (ch == '{') { braceDepth++; k++; continue; }
@@ -2552,7 +2584,7 @@ namespace ReactiveUITK.Language.Parser
                 k++;
             }
 
-            // Unterminated — advance to end
+            // Unterminated ΓÇö advance to end
             i = rangeEnd;
             return true;
         }

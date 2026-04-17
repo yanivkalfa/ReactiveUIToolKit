@@ -40,7 +40,20 @@ const CONTROL_FLOW_EXAMPLE = `<VisualElement>
   }
 
   @foreach (var item in items) {
-    return (<Label key={item.Id} text={item.Name} />);
+    // Setup code — C# statements before return
+    var label = item.Name.ToUpper();
+    var bg = item.IsActive ? Color.green : Color.gray;
+
+    return (
+      <Label key={item.Id} text={label}
+        style={new Style { (StyleKeys.Color, bg) }} />
+    );
+  }
+
+  @for (int i = 0; i < count; i++) {
+    if (i % 2 != 0) return null; // skip odd — renders nothing
+
+    return (<Label key={i} text={$"Even: {i}"} />);
   }
 
   @switch (mode) {
@@ -212,6 +225,14 @@ export const UitkxReferencePage: FC = () => (
       </Table>
     </TableContainer>
     <CodeBlock language="jsx" code={CONTROL_FLOW_EXAMPLE} />
+    <Typography variant="body2" paragraph sx={{ mt: 2 }}>
+      Each directive body is a <strong>C# function body</strong>: arbitrary statements
+      (variable declarations, conditionals, LINQ) followed by{' '}
+      <code>return (&lt;JSX /&gt;);</code>. Use <code>return null;</code> to skip
+      rendering for a particular iteration or branch. JSX can also be assigned to
+      variables in setup code: <code>var x = (&lt;Label text="hi" /&gt;);</code> and
+      rendered inline with <code>@(x)</code>.
+    </Typography>
 
     {/* ── Expressions & Values ───────────────────────────────────────────── */}
     <Typography variant="h5" component="h2" sx={Styles.section}>
@@ -293,7 +314,7 @@ var dict = new Dictionary<string, VirtualNode> { { "header", (<Label text="Title
     <Typography component="ul" variant="body2">
       <li><code>@namespace</code> must appear before <code>@component</code> in directive-header form.</li>
       <li>Hook calls must be unconditional at component top level — not inside <code>@if</code>, <code>@foreach</code>, etc.</li>
-      <li>Each control block body must wrap its markup in <code>return (...);</code>. Setup code (variable declarations, computations) goes before <code>return</code>.</li>
+      <li>Each control block body must wrap its markup in <code>return (...);</code>. Setup code (variable declarations, computations) goes before <code>return</code>. Use <code>return null;</code> to skip rendering.</li>
       <li>Direct children of <code>@foreach</code> need a <code>key</code> attribute for stable reconciliation.</li>
       <li>Components must have a single root element.</li>
       <li>Component names must match the filename (e.g. <code>MyButton.uitkx</code> defines <code>component MyButton</code>).</li>

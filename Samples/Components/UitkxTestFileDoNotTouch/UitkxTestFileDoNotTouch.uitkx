@@ -260,13 +260,6 @@ component UitkxTestFileDoNotTouch(
     });
   }
 
-  return (
-    <Box>
-      <Label text="This is a TabView demo." />
-    </Box>
-  );
-
-
    // â”€â”€ MultiColumnTreeView actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   void MctvSetChild()
   {
@@ -298,12 +291,6 @@ component UitkxTestFileDoNotTouch(
 
   void MctvDeleteLast()
   {
-    {/* var bla = (
-      <VisualElement>
-        <Button text="-5" onClick={_ => setCount(count - 5)} />
-        <Button text="+5" onClick={_ => setCount(count + 5)} />
-      </VisualElement>
-    ); */}
     setMctvRows(prev =>
     {
       return prev;
@@ -338,13 +325,6 @@ component UitkxTestFileDoNotTouch(
     },
     Style = new Style { (StyleKeys.Height, 160f) },
   };
-
-  {/* return (
-    <VisualElement>
-      <Button text="-5" onClick={_ => setCount(count - 5)} />
-      <Button text="+5" onClick={_ => setCount(count + 5)} />
-    </VisualElement>
-  ); */}
 
 
   // â”€â”€ var: simple Style initializer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -443,6 +423,73 @@ component UitkxTestFileDoNotTouch(
   var optionsText = options.Count == 0
     ? "No options"
     : string.Join(", ", options);
+
+
+  // ── local function: JSX with @foreach + @if ────────────────────────────
+  var deepCategories = new[] { "A", "B", "C" };
+  var deepPills = new[] { "x", "y", "z" };
+
+  VirtualNode DeepPillBar(string[] opts, string selected) {
+    return (
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap"), (StyleKeys.MarginBottom, 6f) }}
+      >
+        @foreach (var opt in opts) {
+          var isActive = opt == selected;
+          var bg = isActive ? new Color(0.3f, 0.6f, 1f) : new Color(0.22f, 0.22f, 0.3f);
+
+          return (
+            <Button
+              key={opt}
+              text={opt.ToUpper()}
+              onClick={_ => setMode(opt)}
+              style={new Style {
+                (StyleKeys.BackgroundColor, bg),
+                (StyleKeys.Color, Color.white),
+                (StyleKeys.BorderRadius, 10f),
+                (StyleKeys.MarginRight, 4f),
+                (StyleKeys.MarginBottom, 4f),
+              }}
+            />
+          );
+        }
+        @if (selected != "all") {
+          return (
+            <Label
+              text={$"active: {selected}"}
+              style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)), (StyleKeys.FontSize, 10f) }}
+            />
+          );
+        }
+      </VisualElement>
+    );
+  }
+
+  // ── local function: JSX with @if / @else ───────────────────────────────
+  VirtualNode DeepStatusBadge() {
+    return (
+      <VisualElement style={new Style { (StyleKeys.MarginBottom, 6f) }}>
+        @if (mounted) {
+          return (
+            <Label
+              text={$"mode = {mode}   |   mounted ON"}
+              style={new Style { (StyleKeys.Color, new Color(0.4f, 0.9f, 0.6f)), (StyleKeys.FontSize, 11f) }}
+            />
+          );
+        } @else {
+          return (
+            <Label
+              text="mounted OFF"
+              style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)), (StyleKeys.FontSize, 11f) }}
+            />
+          );
+        }
+      </VisualElement>
+    );
+  }
+
+  // ── setup-code JSX from local function call ────────────────────────────
+  var deepStatusNode = DeepStatusBadge();
 
   return (
     <ScrollView style={containerStyle}>
@@ -628,6 +675,103 @@ component UitkxTestFileDoNotTouch(
       <UitkxTestSubFileDoNotTouch
         message="UitkxCounterFunc â€” Go-to-definition test"
       />
+      // ── deep nesting: @foreach → @for → @if/@else → @foreach (4 levels) ──
+      @(DeepPillBar(deepPills, mode))
+      @(deepStatusNode)
+      @foreach (var cat in deepCategories) {
+        var catColor =
+          cat == "A" ? Color.cyan :
+          cat == "B" ? Color.yellow :
+        new Color(1f, 0.5f, 0.8f);
+        var catBadge = (
+          <VisualElement
+            style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.AlignItems, "center"), (StyleKeys.MarginBottom, 3f) }}
+          >
+            <Label
+              text={$"cat = {cat}"}
+              style={new Style { (StyleKeys.Color, catColor), (StyleKeys.FontSize, 12f), (StyleKeys.MarginRight, 6f) }}
+            />
+            @if (mounted) {
+              return (
+                <Label
+                  text={$"[mode={mode}]"}
+                  style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)), (StyleKeys.FontSize, 10f) }}
+                />
+              );
+            }
+          </VisualElement>
+        );
+
+        return (
+          <VisualElement
+            key={cat}
+            style={new Style {
+              (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.15f)),
+              (StyleKeys.Padding, 6f),
+              (StyleKeys.MarginBottom, 4f),
+              (StyleKeys.BorderRadius, 4f),
+            }}
+          >
+            @(catBadge)
+            @for (int d = 0; d < count; d++) {
+              var depthFrac = count > 1 ? (float)d / (count - 1) : 0f;
+              var depthBg = new Color(0.12f + depthFrac * 0.08f, 0.12f, 0.2f - depthFrac * 0.08f);
+
+              return (
+                <VisualElement
+                  key={$"{cat}-{d}"}
+                  style={new Style {
+                    (StyleKeys.BackgroundColor, depthBg),
+                    (StyleKeys.Padding, 4f),
+                    (StyleKeys.MarginBottom, 2f),
+                    (StyleKeys.BorderRadius, 3f),
+                  }}
+                >
+                  <Label
+                    text={$"  depth = {d}"}
+                    style={new Style { (StyleKeys.Color, Color.white), (StyleKeys.FontSize, 11f) }}
+                  />
+                  @if (d % 2 == 0) {
+                    var slotLabel = $"even (cat={cat}, d={d}):";
+
+                    return (
+                      <VisualElement
+                        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}
+                      >
+                        <Label
+                          text={slotLabel}
+                          style={new Style { (StyleKeys.Color, new Color(0.5f, 0.8f, 1f)), (StyleKeys.FontSize, 10f), (StyleKeys.MarginRight, 6f) }}
+                        />
+                        @foreach (var tag in deepPills) {
+                          if (tag == "z" && d == 0) {
+                            return null;
+                          }
+                          var isActive = tag == mode;
+
+                          return (
+                            <Label
+                              key={tag}
+                              text={$"[{tag}]"}
+                              style={new Style { (StyleKeys.Color, isActive ? Color.cyan : new Color(0.6f, 0.6f, 0.6f)), (StyleKeys.FontSize, 10f), (StyleKeys.MarginRight, 4f) }}
+                            />
+                          );
+                        }
+                      </VisualElement>
+                    );
+                  } @else {
+                    return (
+                      <Label
+                        text={$" odd depth (d={d})"}
+                        style={new Style { (StyleKeys.Color, new Color(0.55f, 0.55f, 0.55f)), (StyleKeys.FontSize, 10f) }}
+                      />
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+          </VisualElement>
+        );
+      }
     </ScrollView>
   );
 }

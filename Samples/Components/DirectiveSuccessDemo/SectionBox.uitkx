@@ -1,0 +1,17 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component SectionBox {
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.Padding, 10f),
+        (StyleKeys.MarginBottom, 10f),
+        (StyleKeys.BackgroundColor, new Color(0.14f, 0.14f, 0.17f, 0.95f)),
+        (StyleKeys.BorderRadius, 6f),
+      }}
+    >
+      @(__children)
+    </VisualElement>
+  );
+}

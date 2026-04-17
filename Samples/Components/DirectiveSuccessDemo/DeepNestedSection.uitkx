@@ -1,0 +1,228 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component DeepNestedSection {
+  var (depth, setDepth) = useState(2);
+  var (showExtras, setShowExtras) = useState(true);
+  var (activeTag, setActiveTag) = useState("x");
+  var categories = new[] { "A", "B", "C" };
+  var pills = new[] { "x", "y", "z" };
+
+
+  // Local function: returns JSX — has @foreach + @if inside.
+  // Used at the top via @(PillBar(pills, activeTag)).
+  VirtualNode PillBar(string[] opts, string selected) {
+    return (
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap"), (StyleKeys.MarginBottom, 6f) }}
+      >
+        @foreach (var opt in opts) {
+          var s = useState(0);
+          var isActive = opt == selected;
+          var bg = isActive ? new Color(0.3f, 0.6f, 1f) : new Color(0.22f, 0.22f, 0.3f);
+          // bare return <JSX> (no parens) — both forms supported in directive bodies
+
+          return (
+            <Button
+              text={opt.ToUpper()}
+              onClick={_ => {
+                var s = useState(0);
+                setActiveTag(opt);
+              }}
+              style={new Style { (StyleKeys.BackgroundColor, bg), (StyleKeys.Color, Color.white), (StyleKeys.BorderRadius, 10f), (StyleKeys.MarginRight, 4f), (StyleKeys.MarginBottom, 4f) }}
+            />
+          );
+        }
+        @if (showExtras) {
+          var s = useState(0);
+          // bare return <JSX> (no parens)
+
+          return (
+            <Label
+              text={$"active: {selected}"}
+              style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)), (StyleKeys.FontSize, 10f) }}
+            />
+          );
+        }
+      </VisualElement>
+    );
+  }
+
+  // Local function: returns JSX with @if inside.
+  // Its result is assigned to statusNode below and used via @() inside nested children.
+  VirtualNode StatusBadge() {
+    return (
+      <VisualElement style={new Style { (StyleKeys.MarginBottom, 6f) }}>
+        @if (showExtras) {
+          // bare return <JSX> inside @if branch
+
+          return (
+            <Label
+              text={$"activeTag = {activeTag}   |   extras ON"}
+              style={new Style { (StyleKeys.Color, new Color(0.4f, 0.9f, 0.6f)), (StyleKeys.FontSize, 11f) }}
+            />
+          );
+        } @else {
+          // bare return <JSX> inside @else branch
+
+          return (
+            <Label
+              text="extras OFF"
+              style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)), (StyleKeys.FontSize, 11f) }}
+            />
+          );
+        }
+      </VisualElement>
+    );
+  }
+
+  // Variable that holds the JSX produced by StatusBadge (itself contains @if).
+  // Used inside nested children via @(statusNode).
+  var statusNode = StatusBadge();
+
+  return (
+    <VisualElement>
+      <SectionHeading label="Deep nested (4 levels)" />
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 8f) }}
+      >
+        <Button
+          text="−"
+          onClick={_ => setDepth(Mathf.Max(1, depth - 1))}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Label text={$"depth = {depth}"} />
+        <Button
+          text="+"
+          onClick={_ => setDepth(Mathf.Min(4, depth + 1))}
+          style={new Style { (StyleKeys.MarginLeft, 6f), (StyleKeys.MarginRight, 12f) }}
+        />
+        <Button
+          text={showExtras ? "Hide extras" : "Show extras"}
+          onClick={_ => {
+            setShowExtras(!showExtras);
+            var s = useState(0);
+          }}
+        />
+      </VisualElement>
+      // PillBar rendered via @() — the function itself contains @foreach + @if
+      @(PillBar(pills, activeTag))
+      <SectionBox>
+        <SectionNote
+          label="@foreach → @for → @if → @foreach  (level-4 skips 'z' at d=0 via return null)"
+        />
+        // statusNode variable (holds JSX with @if) rendered via @() inside the nested tree
+        @(statusNode)
+        // Level 1 ── @foreach over categories
+        @foreach (var cat in categories) {
+          var catColor =
+            cat == "A" ? Color.cyan :
+            cat == "B" ? Color.yellow :
+          new Color(1f, 0.5f, 0.8f);
+
+          // Variable holding a JSX node with a nested @if inside — used below via @(catBadge)
+          // bare = <JSX> assignment (no parens)
+          var catBadge = (
+            <VisualElement
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.AlignItems, "center"), (StyleKeys.MarginBottom, 3f) }}
+            >
+              <Label
+                text={$"cat = {cat}"}
+                style={new Style { (StyleKeys.Color, catColor), (StyleKeys.FontSize, 12f), (StyleKeys.MarginRight, 6f) }}
+              />
+              @if (showExtras) {
+                // bare return <JSX> inside nested @if (inside directive setup code)
+
+                return (
+                  <Label
+                    text={$"[active={activeTag}]"}
+                    style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)), (StyleKeys.FontSize, 10f) }}
+                  />
+                );
+              }
+            </VisualElement>
+          );
+
+          return (
+            <VisualElement
+              style={new Style {
+                (StyleKeys.BackgroundColor, new Color(0.1f, 0.1f, 0.15f)),
+                (StyleKeys.Padding, 6f),
+                (StyleKeys.MarginBottom, 4f),
+                (StyleKeys.BorderRadius, 4f),
+              }}
+            >
+              // catBadge: variable defined in directive setup code (holds JSX with nested @if)
+              @(catBadge)
+              // Level 2 ── @for over depth
+              @for (int d = 0; d < depth; d++) {
+                var depthFrac = depth > 1 ? (float)d / (depth - 1) : 0f;
+                var depthBg = new Color(0.12f + depthFrac * 0.08f, 0.12f, 0.2f - depthFrac * 0.08f);
+
+                return (
+                  <VisualElement
+                    style={new Style {
+                      (StyleKeys.BackgroundColor, depthBg),
+                      (StyleKeys.Padding, 4f),
+                      (StyleKeys.MarginBottom, 2f),
+                      (StyleKeys.BorderRadius, 3f),
+                    }}
+                  >
+                    <Label
+                      text={$"  depth = {d}"}
+                      style={new Style { (StyleKeys.Color, Color.white), (StyleKeys.FontSize, 11f) }}
+                    />
+                    // Level 3 ── @if even / odd depth
+                    @if (d % 2 == 0) {
+                      var slotLabel = $"    even (cat={cat}, d={d}):";
+
+                      return (
+                        <VisualElement
+                          style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.FlexWrap, "wrap") }}
+                        >
+                          <Label
+                            text={slotLabel}
+                            style={new Style { (StyleKeys.Color, new Color(0.5f, 0.8f, 1f)), (StyleKeys.FontSize, 10f), (StyleKeys.MarginRight, 6f) }}
+                          />
+                          // Level 4 ── @foreach over pills
+                          // Returns null for "z" when d == 0 (skip rendering)
+                          @foreach (var tag in pills) {
+                            var s = useState(0);
+
+                            if (tag == "z" && d == 0) {
+                              return null;
+                            }
+
+                            var isActive = tag == activeTag;
+
+                            // bare return <JSX> at level 4 (deepest)
+
+                            return (
+                              <Label
+                                text={$"[{tag}]"}
+                                style={new Style { (StyleKeys.Color, isActive ? Color.cyan : new Color(0.6f, 0.6f, 0.6f)), (StyleKeys.FontSize, 10f), (StyleKeys.MarginRight, 4f) }}
+                              />
+                            );
+                          }
+                        </VisualElement>
+                      );
+                    } @else {
+                      // bare return <JSX> in @else at level 3
+
+                      return (
+                        <Label
+                          text={$"    odd depth (d={d})"}
+                          style={new Style { (StyleKeys.Color, new Color(0.55f, 0.55f, 0.55f)), (StyleKeys.FontSize, 10f) }}
+                        />
+                      );
+                    }
+                  </VisualElement>
+                );
+              }
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

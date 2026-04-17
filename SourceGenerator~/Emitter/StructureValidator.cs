@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using ReactiveUITK.Language.Nodes;
 using ReactiveUITK.Language.Parser;
 
@@ -11,9 +12,10 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     /// <summary>
     /// Validates structural properties of the parsed UITKX AST:
     ///
-    ///   UITKX0017 — More than one root element (component must return a single root)
-    ///   UITKX0018 — <c>UseEffect</c> called with only a callback; dependency array is missing
-    ///   UITKX0019 — The loop iterator variable is used directly as the <c>key</c> attribute
+    ///   UITKX0009 ΓÇö Element inside @foreach lacking a key attribute (reconciler stability)
+    ///   UITKX0017 ΓÇö More than one root element (component must return a single root)
+    ///   UITKX0018 ΓÇö <c>UseEffect</c> called with only a callback; dependency array is missing
+    ///   UITKX0019 ΓÇö The loop iterator variable is used directly as the <c>key</c> attribute
     ///               inside a <c>@foreach</c> body (index-as-key anti-pattern)
     /// </summary>
     internal static class StructureValidator
@@ -28,10 +30,29 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             CheckMultipleRoots(rootNodes, filePath, diagnostics);
             CheckUseEffectInSetupCode(directives, filePath, diagnostics);
             ScanControlBlockSetupCodes(rootNodes, filePath, diagnostics);
+            WalkForeachForMissingKey(rootNodes, filePath, diagnostics);
             WalkForeachForIndexKey(rootNodes, filePath, diagnostics);
         }
 
-        // ── UITKX0017 — multiple root elements ───────────────────────────────
+        /// <summary>
+        /// Runs the node-level structural checks (missing key, index key,
+        /// control-block setup codes) on an arbitrary set of AST nodes — e.g.
+        /// markup embedded in setup-code local functions.  Skips whole-file
+        /// checks (multiple roots, UseEffect in setup code) that only apply
+        /// to the main render root.
+        /// </summary>
+        public static void ValidateNodes(
+            ImmutableArray<AstNode> nodes,
+            string filePath,
+            IList<Diagnostic> diagnostics
+        )
+        {
+            ScanControlBlockSetupCodes(nodes, filePath, diagnostics);
+            WalkForeachForMissingKey(nodes, filePath, diagnostics);
+            WalkForeachForIndexKey(nodes, filePath, diagnostics);
+        }
+
+        // ΓöÇΓöÇ UITKX0017 ΓÇö multiple root elements ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static void CheckMultipleRoots(
             ImmutableArray<AstNode> rootNodes,
@@ -47,14 +68,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             // Emit one diagnostic for every extra root beyond the first
             for (int i = 1; i < elementRoots.Length; i++)
             {
-                var loc = Location.Create(filePath, default, default);
+                var loc = MakeLoc(filePath, elementRoots[i].SourceLine);
                 diagnostics.Add(
                     Diagnostic.Create(UitkxDiagnostics.MultipleRootElements, loc, filePath)
                 );
             }
         }
 
-        // ── UITKX0018 — UseEffect missing dependency array ───────────────────
+        // ΓöÇΓöÇ UITKX0018 ΓÇö UseEffect missing dependency array ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static void CheckUseEffectInSetupCode(
             DirectiveSet directives,
@@ -73,7 +94,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
         }
 
-        // ── UITKX0018 — UseEffect missing deps in control-block SetupCode ────
+        // ΓöÇΓöÇ UITKX0018 ΓÇö UseEffect missing deps in control-block SetupCode ΓöÇΓöÇΓöÇΓöÇ
 
         /// <summary>
         /// Recursively walks the AST and scans every control-block's SetupCode
@@ -92,34 +113,34 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     case IfNode ifn:
                         foreach (var branch in ifn.Branches)
                         {
-                            if (!string.IsNullOrWhiteSpace(branch.SetupCode))
+                            if (!string.IsNullOrWhiteSpace(branch.BodyCode))
                                 ScanUseEffectMissingDeps(
-                                    branch.SetupCode, branch.SetupCodeLine,
+                                    branch.BodyCode, branch.BodyCodeLine,
                                     filePath, diagnostics);
                             ScanControlBlockSetupCodes(branch.Body, filePath, diagnostics);
                         }
                         break;
 
                     case ForeachNode forn:
-                        if (!string.IsNullOrWhiteSpace(forn.SetupCode))
+                        if (!string.IsNullOrWhiteSpace(forn.BodyCode))
                             ScanUseEffectMissingDeps(
-                                forn.SetupCode, forn.SetupCodeLine,
+                                forn.BodyCode, forn.BodyCodeLine,
                                 filePath, diagnostics);
                         ScanControlBlockSetupCodes(forn.Body, filePath, diagnostics);
                         break;
 
                     case ForNode forNode:
-                        if (!string.IsNullOrWhiteSpace(forNode.SetupCode))
+                        if (!string.IsNullOrWhiteSpace(forNode.BodyCode))
                             ScanUseEffectMissingDeps(
-                                forNode.SetupCode, forNode.SetupCodeLine,
+                                forNode.BodyCode, forNode.BodyCodeLine,
                                 filePath, diagnostics);
                         ScanControlBlockSetupCodes(forNode.Body, filePath, diagnostics);
                         break;
 
                     case WhileNode wn:
-                        if (!string.IsNullOrWhiteSpace(wn.SetupCode))
+                        if (!string.IsNullOrWhiteSpace(wn.BodyCode))
                             ScanUseEffectMissingDeps(
-                                wn.SetupCode, wn.SetupCodeLine,
+                                wn.BodyCode, wn.BodyCodeLine,
                                 filePath, diagnostics);
                         ScanControlBlockSetupCodes(wn.Body, filePath, diagnostics);
                         break;
@@ -127,9 +148,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     case SwitchNode sw:
                         foreach (var c in sw.Cases)
                         {
-                            if (!string.IsNullOrWhiteSpace(c.SetupCode))
+                            if (!string.IsNullOrWhiteSpace(c.BodyCode))
                                 ScanUseEffectMissingDeps(
-                                    c.SetupCode, c.SetupCodeLine,
+                                    c.BodyCode, c.BodyCodeLine,
                                     filePath, diagnostics);
                             ScanControlBlockSetupCodes(c.Body, filePath, diagnostics);
                         }
@@ -164,7 +185,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 {
                     // Approximate absolute line number by counting newlines before the match
                     int approxLine = blockStartLine + CountNewlines(code, 0, idx);
-                    var loc = Location.Create(filePath, default, default);
+                    var loc = MakeLoc(filePath, approxLine);
                     diagnostics.Add(
                         Diagnostic.Create(
                             UitkxDiagnostics.UseEffectMissingDeps,
@@ -223,7 +244,81 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             return count;
         }
 
-        // ── UITKX0019 — loop iterator variable used as key ───────────────────
+        // ΓöÇΓöÇ UITKX0009 ΓÇö @foreach child missing key ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+        /// <summary>
+        /// Recursively walks every loop node (@foreach, @for, @while) and emits UITKX0009 for
+        /// any direct element child that has no <c>key</c> attribute.
+        /// </summary>
+        private static void WalkForeachForMissingKey(
+            ImmutableArray<AstNode> nodes,
+            string filePath,
+            IList<Diagnostic> diagnostics
+        )
+        {
+            foreach (var node in nodes)
+            {
+                switch (node)
+                {
+                    case ForeachNode forn:
+                        CheckDirectChildrenForMissingKey(forn.Body, forn.SourceLine, filePath, diagnostics);
+                        WalkForeachForMissingKey(forn.Body, filePath, diagnostics);
+                        break;
+                    case ForNode fon:
+                        CheckDirectChildrenForMissingKey(fon.Body, fon.SourceLine, filePath, diagnostics);
+                        WalkForeachForMissingKey(fon.Body, filePath, diagnostics);
+                        break;
+                    case WhileNode whn:
+                        CheckDirectChildrenForMissingKey(whn.Body, whn.SourceLine, filePath, diagnostics);
+                        WalkForeachForMissingKey(whn.Body, filePath, diagnostics);
+                        break;
+                    case ElementNode el:
+                        WalkForeachForMissingKey(el.Children, filePath, diagnostics);
+                        break;
+                    case IfNode ifn:
+                        foreach (var branch in ifn.Branches)
+                            WalkForeachForMissingKey(branch.Body, filePath, diagnostics);
+                        break;
+                    case SwitchNode sw:
+                        foreach (var c in sw.Cases)
+                            WalkForeachForMissingKey(c.Body, filePath, diagnostics);
+                        break;
+                }
+            }
+        }
+
+        private static void CheckDirectChildrenForMissingKey(
+            ImmutableArray<AstNode> body,
+            int foreachLine,
+            string filePath,
+            IList<Diagnostic> diagnostics
+        )
+        {
+            foreach (var node in body)
+            {
+                if (node is not ElementNode el)
+                    continue;
+
+                bool hasKey = el.Attributes.Any(a =>
+                    string.Equals(a.Name, "key", StringComparison.OrdinalIgnoreCase));
+
+                if (!hasKey)
+                {
+                    var loc = MakeLoc(filePath, el.SourceLine);
+                    diagnostics.Add(
+                        Diagnostic.Create(
+                            UitkxDiagnostics.ForeachMissingKey,
+                            loc,
+                            el.TagName,
+                            foreachLine,
+                            filePath
+                        )
+                    );
+                }
+            }
+        }
+
+        // ΓöÇΓöÇ UITKX0019 ΓÇö loop iterator variable used as key ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static void WalkForeachForIndexKey(
             ImmutableArray<AstNode> nodes,
@@ -239,16 +334,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     {
                         string? loopVar = ExtractLoopVarName(forn.IteratorDeclaration);
                         if (loopVar != null)
-                            CheckDirectChildrenForIndexKey(
-                                forn.Body,
-                                loopVar,
-                                filePath,
-                                diagnostics
-                            );
-                        // Recurse into the foreach body for nested constructs
+                            CheckDirectChildrenForIndexKey(forn.Body, loopVar, filePath, diagnostics);
                         WalkForeachForIndexKey(forn.Body, filePath, diagnostics);
                         break;
                     }
+                    case ForNode fon:
+                        WalkForeachForIndexKey(fon.Body, filePath, diagnostics);
+                        break;
+                    case WhileNode whn:
+                        WalkForeachForIndexKey(whn.Body, filePath, diagnostics);
+                        break;
                     case ElementNode el:
                         WalkForeachForIndexKey(el.Children, filePath, diagnostics);
                         break;
@@ -283,14 +378,14 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 // Flag when the key expression is exactly the bare loop variable AND the
                 // variable name looks like a positional index ("i", "j", "idx", ...).  
                 // Descriptive names like 'entry' or 'item' indicate the loop variable IS
-                // the item identity — using it directly as a key is correct and intentional.
+                // the item identity ΓÇö using it directly as a key is correct and intentional.
                 if (
                     keyAttr.Value is CSharpExpressionValue kv
                     && string.Equals(kv.Expression.Trim(), loopVar, StringComparison.Ordinal)
                     && IsPositionalIndexVar(loopVar)
                 )
                 {
-                    var loc = Location.Create(filePath, default, default);
+                    var loc = MakeLoc(filePath, el.SourceLine);
                     diagnostics.Add(
                         Diagnostic.Create(
                             UitkxDiagnostics.IndexAsKey,
@@ -312,6 +407,13 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// like <c>entry</c>, <c>item</c>, or <c>link</c>, where using the variable
         /// directly as a key is correct because it represents the item's identity.
         /// </summary>
+        private static Location MakeLoc(string filePath, int sourceLine)
+        {
+            int line0 = Math.Max(0, sourceLine - 1);
+            var pos = new LinePosition(line0, 0);
+            return Location.Create(filePath, default, new LinePositionSpan(pos, pos));
+        }
+
         private static bool IsPositionalIndexVar(string name) =>
             name.Length <= 2
             || string.Equals(name, "index",    StringComparison.OrdinalIgnoreCase)
@@ -323,7 +425,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// Extracts the loop variable name from an iterator declaration.
         /// Returns <c>null</c> for tuple-destructuring patterns (e.g. <c>(int i, string s)</c>)
         /// where simple detection isn't reliable.
-        /// Examples: <c>var item</c> → <c>item</c>, <c>int i</c> → <c>i</c>.
+        /// Examples: <c>var item</c> ΓåÆ <c>item</c>, <c>int i</c> ΓåÆ <c>i</c>.
         /// </summary>
         private static string? ExtractLoopVarName(string iteratorDecl)
         {

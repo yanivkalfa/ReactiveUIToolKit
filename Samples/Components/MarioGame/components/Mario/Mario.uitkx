@@ -1,0 +1,47 @@
+@namespace Samples.MarioGame
+@using UnityEngine
+@using static Samples.MarioGame.MarioConstants
+
+component Mario(PlayerState player, float cameraX = 0) {
+  var idle = Asset<Texture2D>("../../sprites/mario-idle.png");
+  var walk1 = Asset<Texture2D>("../../sprites/mario-walk-1.png");
+  var walk2 = Asset<Texture2D>("../../sprites/mario-walk-2.png");
+  var walk3 = Asset<Texture2D>("../../sprites/mario-walk-3.png");
+  var jump = Asset<Texture2D>("../../sprites/mario-jump.png");
+  var duck = Asset<Texture2D>("../../sprites/mario-duck.png");
+
+  Texture2D sprite = idle;
+  int h = player.Big ? BIG_MARIO_H : MARIO_H;
+  int w = player.Big ? MARIO_W + 16 : MARIO_W;
+
+  if (player.Ducking) {
+    sprite = duck;
+    h = player.Big ? MARIO_H : MARIO_DUCK_H;
+  } else if (!player.Grounded) {
+    sprite = jump;
+  } else if (Math.Abs(player.Vx) > 10) {
+    var frames = new[] { walk1, walk2, walk3 };
+    sprite = frames[player.AnimFrame % 3];
+  }
+
+  // Blink when invincible (alternate opacity every 0.1s)
+  float opacity = 1f;
+  if (player.InvincibleTimer > 0) {
+    opacity = ((int)(player.InvincibleTimer * 10) % 2 == 0) ? 0.3f : 1f;
+  }
+
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.Position, "absolute"),
+        (StyleKeys.Left, player.X - cameraX),
+        (StyleKeys.Top, player.Y),
+        (StyleKeys.Width, (float)w),
+        (StyleKeys.Height, (float)h),
+        (StyleKeys.BackgroundImage, sprite),
+        (StyleKeys.Scale, player.FacingRight ? new[] { 1f, 1f } : new[] { -1f, 1f }),
+        (StyleKeys.Opacity, opacity),
+      }}
+    />
+  );
+}
