@@ -248,19 +248,16 @@ jobs:
         run: npx vsce package --no-dependencies -o uitkx.vsix
 
       - name: Publish to VS Marketplace
+        id: publish
         if: steps.check.outputs.skip == 'false'
         working-directory: ide-extensions~/vscode
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          npx vsce publish --no-dependencies --pat "$VSCE_PAT" || {
-            EXIT_CODE=$?
-            # Tolerate 'already exists' — not an error if marketplace already has this version
-            echo "::warning::vsce publish exited with code $EXIT_CODE — version may already exist on marketplace"
-          }
+          npx vsce publish --no-dependencies --pat "$VSCE_PAT"
 
       - name: Tag published version
-        if: steps.check.outputs.skip == 'false'
+        if: steps.check.outputs.skip == 'false' && steps.publish.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -385,6 +382,7 @@ jobs:
           echo "VSIX_PATH=$found" >> $env:GITHUB_OUTPUT
 
       - name: Publish to VS Marketplace
+        id: publish
         if: steps.check.outputs.skip == 'false'
         shell: pwsh
         working-directory: ide-extensions~/visual-studio/UitkxVsix
@@ -407,11 +405,12 @@ jobs:
             '-personalAccessToken', $env:MARKETPLACE_TOKEN
           ) -Wait -PassThru -NoNewWindow
           if ($proc.ExitCode -ne 0) {
-            Write-Host "::warning::VsixPublisher exited with code $($proc.ExitCode) — version may already exist on marketplace"
+            Write-Host "::error::VsixPublisher failed with exit code $($proc.ExitCode)"
+            exit $proc.ExitCode
           }
 
       - name: Tag published version
-        if: steps.check.outputs.skip == 'false'
+        if: steps.check.outputs.skip == 'false' && steps.publish.outcome == 'success'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
