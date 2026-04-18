@@ -1,0 +1,206 @@
+@namespace Samples.GalagaGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.GalagaGame.GalagaTypes
+@using static Samples.GalagaGame.GalagaTypes.C
+@using static Samples.GalagaGame.SpriteAtlas
+
+component GameScreen(int restartVersion = 0, Action? onQuit = null) {
+  var boardRef = useRef<VisualElement?>(null);
+  var spriteSheet = Asset<Texture2D>("../../sprites/spritemap.png");
+  var (state, restart, onKeyDown) = useGalagaGame(boardRef);
+
+  var prevVersion = useRef(restartVersion);
+  if (prevVersion.Current != restartVersion) {
+    prevVersion.Current = restartVersion;
+    restart();
+  }
+
+  // Pre-compute tractor beam data outside markup to avoid parser issues
+  EnemyState? beamCmd = null;
+  if (state.TractorBeamActive) {
+    for (int i = 0; i < state.Enemies.Count; i++) {
+      if (state.Enemies[i].Id == state.TractorBeamCommanderId
+          && state.Enemies[i].TractorPhase == 1) {
+        beamCmd = state.Enemies[i];
+        break;
+      }
+    }
+  }
+
+  return (
+    <VisualElement style={GameScreenStyles.Container}>
+      <HUD spriteSheet={spriteSheet} score={state.Score} lives={state.Lives} wave={state.Wave} />
+      <VisualElement style={GameScreenStyles.TopBar}>
+        <Button
+          text="Quit"
+          onClick={_ => { if (onQuit != null) onQuit(); }}
+          style={GameScreenStyles.QuitButton}
+        />
+      </VisualElement>
+      <VisualElement
+        ref={boardRef}
+        focusable={true}
+        tabIndex={0}
+        onKeyDownCapture={onKeyDown}
+        style={GameScreenStyles.Viewport}
+      >
+        @if (state.Phase == GamePhase.WaveIntro) {
+          return (
+            <VisualElement style={GameScreenStyles.Overlay}>
+              <Label text={$"WAVE {state.Wave}"} style={GameScreenStyles.WaveText} />
+              <Label text="GET READY!" style={GameScreenStyles.ReadyText} />
+            </VisualElement>
+          );
+        }
+
+        @foreach (var enemy in state.Enemies) {
+          if (enemy.Phase == EnemyPhase.Dead || enemy.Phase == EnemyPhase.Waiting || enemy.EnterDelay > 0) {
+            return (<VisualElement key={$"e-{enemy.Id}"} />);
+          }
+          SpriteFrame eFrame;
+          float esx, esy;
+          if (enemy.Phase == EnemyPhase.Formation) {
+            (eFrame, esx, esy) = GetFormationSprite(enemy.Type, enemy.Health, enemy.AnimFrame);
+          } else if (enemy.Phase == EnemyPhase.Diving || enemy.Phase == EnemyPhase.Entering || enemy.Phase == EnemyPhase.TractorBeam) {
+            float angle = enemy.DivePath != null && enemy.DivePath.Length >= 4
+              ? Paths.AngleFromPath(enemy.DivePath, Mathf.Clamp01(enemy.Phase == EnemyPhase.Entering ? enemy.EnterT : enemy.DiveT))
+              : enemy.EnterPath != null && enemy.EnterPath.Length >= 4
+                ? Paths.AngleFromPath(enemy.EnterPath, Mathf.Clamp01(enemy.EnterT))
+                : Mathf.PI;
+            (eFrame, esx, esy) = GetEnemySprite(enemy.Type, enemy.Health, angle);
+          } else {
+            (eFrame, esx, esy) = GetFormationSprite(enemy.Type, enemy.Health, enemy.AnimFrame);
+          }
+          return (
+            <VisualElement
+              key={$"e-{enemy.Id}"}
+              style={MakeSpriteStyle(spriteSheet, eFrame, enemy.X, enemy.Y, esx, esy)}
+            />
+          );
+        }
+
+        @foreach (var enemy in state.Enemies) {
+          if (!enemy.HasCapturedShip || enemy.Phase == EnemyPhase.Dead) {
+            return (<VisualElement key={$"cap-{enemy.Id}"} />);
+          }
+          return (
+            <VisualElement
+              key={$"cap-{enemy.Id}"}
+              style={MakeSpriteStyle(spriteSheet, PlayerShipRed,
+                enemy.X, enemy.Y - ENTITY_SIZE, 1f, 1f)}
+            />
+          );
+        }
+
+        @if (beamCmd != null) {
+          var cmd = beamCmd.Value;
+          var beamFrame = TractorBeam[cmd.TractorBeamFrame % 3];
+          int beamW = beamFrame.W * SPRITE_SCALE;
+          int beamH = beamFrame.H * SPRITE_SCALE;
+          float beamX = cmd.X + ENTITY_SIZE * 0.5f - beamW * 0.5f;
+          float beamY = cmd.Y + ENTITY_SIZE;
+          return (
+            <VisualElement
+              key="tractor-beam"
+              style={MakeSpriteStyle(spriteSheet, beamFrame, beamX, beamY, 1f, 1f)}
+            />
+          );
+        }
+
+        @foreach (var exp in state.Explosions) {
+          var expFrames = exp.IsPlayer ? PlayerExplosion : EnemyExplosion;
+          int fi = Mathf.Clamp(exp.Frame, 0, expFrames.Length - 1);
+          return (
+            <VisualElement
+              key={$"x-{exp.Id}"}
+              style={MakeSpriteStyle(spriteSheet, expFrames[fi], exp.X, exp.Y, 1f, 1f)}
+            />
+          );
+        }
+
+        @foreach (var bullet in state.Bullets) {
+          if (!bullet.Active) {
+            return (<VisualElement key={$"b-{bullet.Id}"} />);
+          }
+          var bulletFrame = bullet.Owner == BulletOwner.Player ? MissileUp : MissileDown;
+          return (
+            <VisualElement
+              key={$"b-{bullet.Id}"}
+              style={MakeSpriteStyle(spriteSheet, bulletFrame,
+                bullet.X - ENTITY_SIZE * 0.5f, bullet.Y - ENTITY_SIZE * 0.5f, 1f, 1f)}
+            />
+          );
+        }
+
+        @if (state.Player.Alive) {
+          return (
+            <VisualElement
+              key="player"
+              style={MakeSpriteStyle(spriteSheet, PlayerShip,
+                state.Player.X, state.Player.Y, 1f, 1f)}
+            />
+          );
+        }
+
+        @if (state.Player.DualShip && state.Player.Alive) {
+          return (
+            <VisualElement
+              key="dual-ship"
+              style={MakeSpriteStyle(spriteSheet, PlayerShip,
+                state.Player.DualShipX, state.Player.Y, 1f, 1f)}
+            />
+          );
+        }
+
+        @if (state.Phase == GamePhase.GameOver) {
+          return (
+            <VisualElement style={GameScreenStyles.Overlay}>
+              <Label text="GAME OVER" style={GameScreenStyles.GameOverText} />
+              <Label text={$"FINAL SCORE: {state.Score}"} style={GameScreenStyles.ScoreText} />
+              <Button
+                text="Try Again"
+                onClick={_ => restart()}
+                style={GameScreenStyles.OverlayButton}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => { if (onQuit != null) onQuit(); }}
+                style={GameScreenStyles.OverlayButton}
+              />
+            </VisualElement>
+          );
+        }
+
+        @if (state.Phase == GamePhase.Victory) {
+          return (
+            <VisualElement style={GameScreenStyles.Overlay}>
+              <Label text="VICTORY!" style={GameScreenStyles.VictoryText} />
+              <Label text={$"FINAL SCORE: {state.Score}"} style={GameScreenStyles.ScoreText} />
+              <Button
+                text="Play Again"
+                onClick={_ => restart()}
+                style={GameScreenStyles.OverlayButton}
+              />
+              <Button
+                text="Main Menu"
+                onClick={_ => { if (onQuit != null) onQuit(); }}
+                style={GameScreenStyles.OverlayButton}
+              />
+            </VisualElement>
+          );
+        }
+
+        @if (state.Phase == GamePhase.WaveCleared) {
+          return (
+            <VisualElement style={GameScreenStyles.Overlay}>
+              <Label text="WAVE CLEARED!" style={GameScreenStyles.WaveText} />
+            </VisualElement>
+          );
+        }
+      </VisualElement>
+    </VisualElement>
+  );
+}

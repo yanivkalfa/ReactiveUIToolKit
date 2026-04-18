@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.9] - 2026-04-18
+
+### Added
+- **Galaga game demo** — full arcade-style Galaga game sample built entirely in UITKX. Features sprite-sheet rendering, entry wave formations with configurable delays, dive attacks with enemy shooting, tractor beam capture/release mechanics, dual-ship mode, multi-wave progression, and game-over/restart flow
+
 ## [0.4.8] - 2026-04-18
 
 ### Added
