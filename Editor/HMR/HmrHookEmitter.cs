@@ -56,7 +56,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// The container class name in the project assembly (e.g. "CounterHooks").
         /// Used as the class name in the HMR assembly so the swapper can find methods.
         /// </param>
-        public static string Emit(object directives, string filePath, string containerClassName)
+        public static string Emit(object directives, string filePath, string containerClassName,
+            bool withTrampoline = false)
         {
             string ns = (string)GetProp(directives, "Namespace") ?? "ReactiveUITK.Generated";
             var hookDecls = GetProp(directives, "HookDeclarations");
@@ -123,7 +124,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             foreach (var hook in hookList)
             {
-                EmitSingleHookBody(sb, hook, linePath);
+                EmitSingleHookBody(sb, hook, linePath, withTrampoline);
             }
 
             sb.AppendLine("    }");
@@ -216,7 +217,8 @@ namespace ReactiveUITK.EditorSupport.HMR
 
         // ── Single hook body ──────────────────────────────────────────────────
 
-        private static void EmitSingleHookBody(StringBuilder sb, object hook, string linePath)
+        private static void EmitSingleHookBody(StringBuilder sb, object hook, string linePath,
+            bool withTrampoline = false)
         {
             string name = (string)GetProp(hook, "Name");
             string genericParams = (string)GetProp(hook, "GenericParams");
@@ -231,6 +233,7 @@ namespace ReactiveUITK.EditorSupport.HMR
 
             // Read params via reflection (ImmutableArray<FunctionParam>)
             string paramList = BuildParamListFromReflection(hook);
+            string paramNames = BuildParamNamesFromReflection(hook);
             string transformedBody = ApplyHookAliases(body);
 
             sb.AppendLine();
@@ -240,6 +243,23 @@ namespace ReactiveUITK.EditorSupport.HMR
             sb.AppendLine($"            {transformedBody}");
             sb.AppendLine("#line hidden");
             sb.AppendLine("        }");
+
+            // When emitting as a companion of a component (not for hot-swap),
+            // also emit the public trampoline so the component can call
+            // useXxx() directly via using-static.
+            if (withTrampoline)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        public static {retType} {name}{genericSuffix}({paramList})");
+                if (isVoid)
+                {
+                    sb.AppendLine($"            => {bodyMethodName}{genericSuffix}({paramNames});");
+                }
+                else
+                {
+                    sb.AppendLine($"            => {bodyMethodName}{genericSuffix}({paramNames});");
+                }
+            }
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
@@ -267,6 +287,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (defaultVal != null)
                     sb.Append(" = ").Append(defaultVal);
 
+                idx++;
+            }
+            return sb.ToString();
+        }
+
+        private static string BuildParamNamesFromReflection(object hook)
+        {
+            var paramsObj = GetProp(hook, "Params");
+            if (paramsObj == null)
+                return string.Empty;
+
+            if (paramsObj is not IEnumerable enumerable)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+            int idx = 0;
+            foreach (var p in enumerable)
+            {
+                if (idx > 0) sb.Append(", ");
+                sb.Append((string)GetProp(p, "Name"));
                 idx++;
             }
             return sb.ToString();
@@ -321,14 +361,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         internal static string DeriveContainerClassName(string filePath)
         {
             string fileName = Path.GetFileNameWithoutExtension(filePath);
-            foreach (var suffix in new[] { ".hooks", ".utils", ".styles" })
-            {
-                if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    fileName = fileName.Substring(0, fileName.Length - suffix.Length);
-                    break;
-                }
-            }
+            // Strip any dot-suffix (e.g. .hooks, .style, .whatever) — the
+            // file type is determined by content, not filename convention.
+            int dot = fileName.IndexOf('.');
+            if (dot > 0)
+                fileName = fileName.Substring(0, dot);
 
             if (fileName.Length > 0 && char.IsLower(fileName[0]))
                 fileName = char.ToUpper(fileName[0]) + fileName.Substring(1);

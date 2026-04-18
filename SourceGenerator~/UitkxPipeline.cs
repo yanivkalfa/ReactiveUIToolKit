@@ -117,6 +117,13 @@ namespace ReactiveUITK.SourceGenerator
                 filePath
             );
 
+            // ── Stage 2c: Parse setup-code JSX ───────────────────────────────
+            // Local functions (e.g. PillBar, StatusBadge) and JSX variable
+            // assignments contain embedded markup that isn't part of the main
+            // render root AST.  Parse those ranges into nodes so validators
+            // (hooks, missing key) can check them too.
+            var setupJsxNodes = ParseSetupCodeJsx(source, filePath, directives, parseDiags);
+
             // Bridge: convert Roslyn-free ParseDiagnostic → Roslyn Diagnostic
             // so the rest of the pipeline (validators, emitter) keep their
             // existing List<Diagnostic> API and nothing else needs to change.
@@ -209,9 +216,13 @@ namespace ReactiveUITK.SourceGenerator
 
             // ── Stage 3b: Rules-of-Hooks validation ───────────────────────────
             HooksValidator.Validate(rootNodes, filePath, diagnostics);
+            if (!setupJsxNodes.IsEmpty)
+                HooksValidator.Validate(setupJsxNodes, filePath, diagnostics);
 
             // ── Stage 3c: Structural validation ───────────────────────────────
             StructureValidator.Validate(rootNodes, filePath, diagnostics, directives);
+            if (!setupJsxNodes.IsEmpty)
+                StructureValidator.ValidateNodes(setupJsxNodes, filePath, diagnostics);
 
             ct.ThrowIfCancellationRequested();
 
@@ -334,6 +345,46 @@ namespace ReactiveUITK.SourceGenerator
                     return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Parses JSX ranges embedded in function-style setup code (local
+        /// functions, variable assignments with JSX) into AST nodes so that
+        /// hook and structural validators can inspect them.
+        /// </summary>
+        private static ImmutableArray<AstNode> ParseSetupCodeJsx(
+            string source,
+            string filePath,
+            DirectiveSet directives,
+            List<ParseDiagnostic> parseDiags)
+        {
+            var allRanges = directives.SetupCodeMarkupRanges;
+            if (!directives.SetupCodeBareJsxRanges.IsDefaultOrEmpty)
+            {
+                allRanges = allRanges.IsDefaultOrEmpty
+                    ? directives.SetupCodeBareJsxRanges
+                    : allRanges.AddRange(directives.SetupCodeBareJsxRanges);
+            }
+            if (allRanges.IsDefaultOrEmpty)
+                return ImmutableArray<AstNode>.Empty;
+
+            var builder = ImmutableArray.CreateBuilder<AstNode>();
+            foreach (var (jsxStart, jsxEnd, jsxLine) in allRanges)
+            {
+                var jsxDirectives = directives with
+                {
+                    MarkupStartIndex = jsxStart,
+                    MarkupEndIndex = jsxEnd,
+                    MarkupStartLine = jsxLine,
+                };
+                // Use a separate diag list so parse warnings from setup JSX
+                // don't duplicate or interfere with the main parse diags that
+                // have already been bridged to Roslyn Diagnostic objects.
+                var jsxDiags = new List<ParseDiagnostic>();
+                var jsxNodes = UitkxParser.Parse(source, filePath, jsxDirectives, jsxDiags);
+                builder.AddRange(jsxNodes);
+            }
+            return builder.ToImmutable();
         }
 
         private static Diagnostic ParseDiagToRoslyn(ParseDiagnostic pd)

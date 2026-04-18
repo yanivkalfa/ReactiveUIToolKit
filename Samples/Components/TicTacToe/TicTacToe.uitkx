@@ -1,0 +1,63 @@
+@namespace Samples.TicTacToe
+
+component TicTacToe {
+  var (gameStarted, playerTurn, grid, winnerMessage, movesLeft, handleStartGame, handleRestartGame, handleColumnClick) = useTestHomeState();
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Label text="Welcome to Tic Tac Toe!" />
+      <Button
+        text="Start Game"
+        style={ButtonStyles}
+        onClick={handleStartGame}
+      />
+      @if (gameStarted) {
+        return (
+          <VisualElement style={DetailsStyles}>
+            <VisualElement style={PlayerTurnStyles}>
+              <Label text="Player turn:" />
+              <Label text={playerTurn} style={PlayerTurnLabelStyles} />
+            </VisualElement>
+            @if (winnerMessage != "") {
+              return (
+                <Label text={winnerMessage} />
+              );
+            }
+            <VisualElement style={PlayerTurnStyles}>
+              <Label text="Moves Left:" />
+              <Label text={movesLeft} style={PlayerTurnLabelStyles} />
+            </VisualElement>
+            <Button
+              text="Restart Game"
+              style={ButtonStyles}
+              onClick={handleRestartGame}
+            />
+          </VisualElement>
+        );
+      }
+      @if (gameStarted) {
+        return (
+          <VisualElement style={GameWrapperStyles}>
+            @for (int row = 0; row < 3; row++) {
+              return (
+                <VisualElement style={RowStyles} key={row.ToString()}>
+                  @for (int col = 0; col < 3; col++) {
+                    return (
+                      <VisualElement
+                        key={col.ToString()}
+                        style={ColumnStyles}
+                        onClick={handleColumnClick(row, col)}
+                      >
+                        <Label text={grid[row, col]} />
+                      </VisualElement>
+                    );
+                  }
+                </VisualElement>
+              );
+            }
+          </VisualElement>
+        );
+      }
+    </VisualElement>
+  );
+}

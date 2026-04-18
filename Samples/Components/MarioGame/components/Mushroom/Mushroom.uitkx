@@ -1,0 +1,23 @@
+@namespace Samples.MarioGame
+@using UnityEngine
+@using static Samples.MarioGame.MarioConstants
+
+component Mushroom(ItemState item, float cameraX = 0) {
+  if (!item.Spawned || item.Collected) {
+    return (<VisualElement />);
+  }
+
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.Position, "absolute"),
+        (StyleKeys.Left, item.X - cameraX),
+        (StyleKeys.Top, item.Y),
+        (StyleKeys.Width, (float)TILE),
+        (StyleKeys.Height, (float)TILE),
+        (StyleKeys.BackgroundColor, new Color(0.8f, 0.15f, 0.15f, 1f)),
+        (StyleKeys.BorderRadius, 16f),
+      }}
+    />
+  );
+}

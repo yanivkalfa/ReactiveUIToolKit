@@ -1,0 +1,15 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component SectionNote(string label) {
+  return (
+    <Label
+      text={label}
+      style={new Style {
+        (StyleKeys.FontSize, 11f),
+        (StyleKeys.Color, new Color(0.55f, 0.55f, 0.55f)),
+        (StyleKeys.MarginBottom, 6f),
+      }}
+    />
+  );
+}

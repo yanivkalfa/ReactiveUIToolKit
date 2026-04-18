@@ -1,5 +1,5 @@
 using ReactiveUITK.Core;
-using ReactiveUITK.Samples.FunctionalComponents;
+using ReactiveUITK.Samples.UITKXComponents;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -25,7 +25,7 @@ namespace ReactiveUITK.Samples.Showcase.Runtime
             }
 
             rootRenderer.Initialize(uiDocument.rootVisualElement);
-            rootRenderer.Render(V.Func(LatestFeaturesDemoFunc.LatestFeaturesDemo));
+            rootRenderer.Render(V.Func(LatestFeaturesDemoFunc.Render));
         }
     }
 }

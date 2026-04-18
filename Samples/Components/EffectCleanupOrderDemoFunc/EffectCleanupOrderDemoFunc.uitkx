@@ -1,0 +1,87 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using System.Collections.Generic
+@using UnityEngine
+
+component EffectCleanupOrderDemoFunc {
+  var (generation, setGeneration) = useState(0);
+  // Shared mutable log stored in a ref (mutations don't re-trigger renders).
+  var logRef = useRef<List<string>>(new List<string>());
+
+  // Snapshot log for display (freeze at render time).
+  var displayLog = new List<string>(logRef.Current);
+  displayLog.Reverse();
+
+  var containerStyle = new Style {
+    (StyleKeys.Padding, 14f),
+    (StyleKeys.FlexDirection, "column"),
+    (StyleKeys.FlexGrow, 1f),
+  };
+
+  var logBoxStyle = new Style {
+    (StyleKeys.MarginTop, 10f),
+    (StyleKeys.Padding, 8f),
+    (StyleKeys.BackgroundColor, new Color(0.08f, 0.08f, 0.1f, 0.9f)),
+    (StyleKeys.BorderRadius, 4f),
+  };
+
+  var sectionStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.MarginTop, 10f),
+  };
+
+  return (
+    <VisualElement style={containerStyle}>
+      <Text text="Effect Cleanup Order â€” Step 2 Test" />
+      <Label
+        text="All CLEANUPS must appear before any SETUPS within the same generation."
+        style={new Style { (StyleKeys.MarginTop, 4f), (StyleKeys.Color, new Color(0.75f, 0.75f, 0.75f, 1f)) }}
+      />
+      <VisualElement style={sectionStyle}>
+        <Button
+          text="Next Generation (triggers both effects)"
+          onClick={_ => { logRef.Current.Add($"â”€â”€ generation {generation + 1} â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€"); setGeneration(g => g + 1); }}
+        />
+        <Button
+          text="Clear Log"
+          onClick={_ => { logRef.Current.Clear(); setGeneration(g => g); }}
+          style={new Style { (StyleKeys.MarginLeft, 8f) }}
+        />
+      </VisualElement>
+      <Label
+        text={$"Current generation: {generation}"}
+        style={new Style { (StyleKeys.MarginTop, 6f) }}
+      />
+      <EffectPanel
+        label="Panel A"
+        generation={generation}
+        log={logRef.Current}
+      />
+      <EffectPanel
+        label="Panel B"
+        generation={generation}
+        log={logRef.Current}
+      />
+      <VisualElement style={logBoxStyle}>
+        @if (displayLog.Count == 0) {
+          return (
+            <Text text="Log is empty â€” click 'Next Generation' to start." />
+          );
+        } @else {
+          return (
+            <VisualElement>
+              @foreach (var entry in displayLog) {
+                return (
+                  <Label
+                    text={entry}
+                    key={entry}
+                    style={new Style { (StyleKeys.Color, entry.Contains("cleanup") ? new Color(0.9f, 0.55f, 0.2f, 1f) : new Color(0.3f, 0.85f, 0.45f, 1f)), (StyleKeys.FontSize, 11f) }}
+                  />
+                );
+              }
+            </VisualElement>
+          );
+        }
+      </VisualElement>
+    </VisualElement>
+  );
+}

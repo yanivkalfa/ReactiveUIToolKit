@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using ReactiveUITK.Bench;
 using ReactiveUITK.Core;
-using ReactiveUITK.Samples.Shared;
+using ReactiveUITK.Samples.UITKXComponents;
 using UnityEngine;
 
 namespace ReactiveUITK.Benchmark
@@ -14,7 +14,7 @@ namespace ReactiveUITK.Benchmark
         {
             try
             {
-                BenchSharedHost.SharedDemoRenderer = () => V.Func(SharedDemoPage.Render);
+                BenchSharedHost.SharedDemoRenderer = () => V.Func(ShowcaseDemoPage.Render);
                 Debug.Log("[BenchEditorHost] SharedDemo hook set.");
             }
             catch (Exception e)

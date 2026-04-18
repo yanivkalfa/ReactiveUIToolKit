@@ -1,0 +1,19 @@
+@namespace Samples.MarioGame
+@using System
+@using UnityEngine
+
+component MainMenu(Action onStartGame) {
+  return (
+    <VisualElement style={MainMenuStyles.Container}>
+      <VisualElement style={MainMenuStyles.MenuBox}>
+        <Label text="SUPER MARIO" style={MainMenuStyles.Title} />
+        <Label text="ReactiveUITK Edition" style={MainMenuStyles.Subtitle} />
+        <Button
+          text="New Game"
+          onClick={_ => onStartGame()}
+          style={MainMenuStyles.MenuButton}
+        />
+      </VisualElement>
+    </VisualElement>
+  );
+}

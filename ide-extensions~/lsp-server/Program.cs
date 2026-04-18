@@ -86,7 +86,7 @@ var server = await LanguageServer.From(options =>
                     var diagnostics = sp.GetRequiredService<DiagnosticsPublisher>();
                     diagnostics.SetRoslynHost(roslynHost);
 
-                    return new RoslynHostStartup(roslynHost);
+                    return new RoslynHostStartup(roslynHost, sp.GetRequiredService<WorkspaceIndex>());
                 });
         })
 );

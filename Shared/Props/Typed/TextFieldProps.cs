@@ -19,6 +19,7 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> TextElement { get; set; }
 
         public ChangeEventHandler<string> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChangeCapture { get; set; }
 
         public string LabelText { get; set; }
 
@@ -56,6 +57,10 @@ namespace ReactiveUITK.Props.Typed
             if (OnChange != null)
             {
                 dict["onChange"] = OnChange;
+            }
+            if (OnChangeCapture != null)
+            {
+                dict["onChangeCapture"] = OnChangeCapture;
             }
             if (!string.IsNullOrEmpty(LabelText))
             {

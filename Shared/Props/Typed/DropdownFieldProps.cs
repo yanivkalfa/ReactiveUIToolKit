@@ -11,6 +11,7 @@ namespace ReactiveUITK.Props.Typed
         public int? SelectedIndex { get; set; }
 
         public ChangeEventHandler<string> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChangeCapture { get; set; }
 
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
@@ -33,6 +34,10 @@ namespace ReactiveUITK.Props.Typed
             if (OnChange != null)
             {
                 dict["onChange"] = OnChange;
+            }
+            if (OnChangeCapture != null)
+            {
+                dict["onChangeCapture"] = OnChangeCapture;
             }
             if (Label != null)
             {

@@ -1,0 +1,33 @@
+@namespace Samples.MarioGame
+@using UnityEngine
+@using static Samples.MarioGame.MarioConstants
+
+component Enemy(EnemyState enemy, float cameraX = 0) {
+  if (!enemy.Alive) {
+    return (<VisualElement />);
+  }
+
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.Position, "absolute"),
+        (StyleKeys.Left, enemy.X - cameraX),
+        (StyleKeys.Top, enemy.Y),
+        (StyleKeys.Width, (float)TILE),
+        (StyleKeys.Height, (float)TILE),
+        (StyleKeys.BackgroundColor, new Color(0.6f, 0.2f, 0.1f, 1f)),
+        (StyleKeys.BorderRadius, 4f),
+      }}
+    >
+      <Label
+        text="G"
+        style={new Style {
+          (StyleKeys.Color, Color.white),
+          (StyleKeys.FontSize, 18f),
+          (StyleKeys.AlignSelf, "center"),
+          (StyleKeys.MarginTop, 4f),
+        }}
+      />
+    </VisualElement>
+  );
+}

@@ -255,7 +255,36 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return;
             }
 
+            // If this is a companion .uitkx file (e.g. Foo.style.uitkx),
+            // redirect to compile the parent component file (Foo.uitkx)
+            // so the companion's module/hook members are included.
+            uitkxPath = ResolveParentComponentFile(uitkxPath);
+
             ProcessFileChange(uitkxPath);
+        }
+
+        /// <summary>
+        /// If <paramref name="uitkxPath"/> is a companion file (e.g. Foo.style.uitkx,
+        /// Foo.hooks.uitkx), returns the parent component file path (Foo.uitkx).
+        /// Otherwise returns the original path unchanged.
+        /// </summary>
+        private static string ResolveParentComponentFile(string uitkxPath)
+        {
+            // Companion files have double extensions: ComponentName.suffix.uitkx
+            var fileName = Path.GetFileName(uitkxPath);       // "Foo.style.uitkx"
+            var withoutExt = Path.GetFileNameWithoutExtension(fileName); // "Foo.style"
+
+            // If the base name still contains a dot, it's a companion
+            int dotIdx = withoutExt.IndexOf('.');
+            if (dotIdx > 0)
+            {
+                string componentName = withoutExt.Substring(0, dotIdx); // "Foo"
+                string dir = Path.GetDirectoryName(uitkxPath);
+                string parentPath = Path.Combine(dir, componentName + ".uitkx");
+                if (File.Exists(parentPath))
+                    return parentPath;
+            }
+            return uitkxPath;
         }
 
         private void ProcessFileChange(string uitkxPath)
