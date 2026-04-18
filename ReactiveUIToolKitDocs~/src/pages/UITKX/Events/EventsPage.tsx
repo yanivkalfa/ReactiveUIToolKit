@@ -22,6 +22,7 @@ import {
   EVENTS_KEYBOARD_EXAMPLE,
   EVENTS_POINTER_EXAMPLE,
   EVENTS_PROPAGATION_EXAMPLE,
+  EVENTS_CAPTURE_EXAMPLE,
 } from './EventsPage.example'
 
 const styles = {
@@ -351,6 +352,27 @@ export const EventsPage: FC = () => (
         <code>e.StopPropagation()</code> to stop bubbling.
       </Typography>
       <CodeBlock language="jsx" code={EVENTS_PROPAGATION_EXAMPLE} />
+    </Box>
+
+    {/* ── Capture-phase events ─────────────────────────────────── */}
+    <Box sx={styles.section}>
+      <Typography variant="h5" component="h2" gutterBottom>
+        Capture-phase events
+      </Typography>
+      <Typography variant="body1" paragraph>
+        Every bubble-phase event handler has a capture-phase counterpart with
+        a <code>Capture</code> suffix (e.g.{' '}
+        <code>onClickCapture</code>, <code>onKeyDownCapture</code>,{' '}
+        <code>onChangeCapture</code>). Capture handlers fire during the
+        trickle-down phase — before the target&apos;s own handler — letting
+        ancestors intercept or inspect events early.
+      </Typography>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Lifecycle events (<code>onGeometryChanged</code>,{' '}
+        <code>onAttachToPanel</code>, <code>onDetachFromPanel</code>) do not
+        have capture variants because they do not propagate.
+      </Alert>
+      <CodeBlock language="jsx" code={EVENTS_CAPTURE_EXAMPLE} />
     </Box>
 
     {/* ── Editor-only drag events ──────────────────────────────── */}

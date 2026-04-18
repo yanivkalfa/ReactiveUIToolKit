@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text.RegularExpressions;
 using ReactiveUITK.Language.Nodes;
@@ -61,6 +62,9 @@ namespace ReactiveUITK.Language.SemanticTokens
             // 2. AST markup nodes
             foreach (var node in parseResult.RootNodes)
                 CollectNodeTokens(node, source, lineStarts, tokens, knownElements);
+
+            // 3. Setup code JSX (local functions, variable assignments with JSX)
+            CollectSetupCodeJsxTokens(parseResult, source, lineStarts, tokens, knownElements);
 
             return NormalizeTokenConflicts(tokens)
                 .OrderBy(t => t.Line)
@@ -176,6 +180,48 @@ namespace ReactiveUITK.Language.SemanticTokens
                     SemanticTokenTypes.DirectiveName,
                     s_noMods
                 );
+            }
+        }
+
+        // ── Setup code JSX tokens ────────────────────────────────────────────
+
+        /// <summary>
+        /// Parses JSX ranges embedded in function-style setup code (local
+        /// functions, variable assignments) and collects semantic tokens for
+        /// the markup inside them.
+        /// </summary>
+        private static void CollectSetupCodeJsxTokens(
+            ParseResult parseResult,
+            string source,
+            int[] lineStarts,
+            List<SemanticTokenData> tokens,
+            HashSet<string>? knownElements
+        )
+        {
+            var d = parseResult.Directives;
+            var allRanges = d.SetupCodeMarkupRanges;
+            if (!d.SetupCodeBareJsxRanges.IsDefaultOrEmpty)
+            {
+                allRanges = allRanges.IsDefaultOrEmpty
+                    ? d.SetupCodeBareJsxRanges
+                    : allRanges.AddRange(d.SetupCodeBareJsxRanges);
+            }
+            if (allRanges.IsDefaultOrEmpty)
+                return;
+
+            var diags = new List<ParseDiagnostic>();
+            foreach (var (jsxStart, jsxEnd, jsxLine) in allRanges)
+            {
+                var jsxDirectives = d with
+                {
+                    MarkupStartIndex = jsxStart,
+                    MarkupEndIndex = jsxEnd,
+                    MarkupStartLine = jsxLine,
+                };
+                diags.Clear();
+                var jsxNodes = UitkxParser.Parse(source, "", jsxDirectives, diags);
+                foreach (var n in jsxNodes)
+                    CollectNodeTokens(n, source, lineStarts, tokens, knownElements);
             }
         }
 

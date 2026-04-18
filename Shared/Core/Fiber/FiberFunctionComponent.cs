@@ -62,8 +62,23 @@ namespace ReactiveUITK.Core.Fiber
             bool propsEqual = cp != null && (ReferenceEquals(tp, cp) || tp.Equals(cp));
             bool contextUnchanged = !wipFiber.ReadsContext || !Hooks.HasContextChanged(wipFiber);
 
-            // Bailout check: if no state update and props match AND context unchanged, we can skip rendering
-            if (!wipFiber.HasPendingStateUpdate && contextUnchanged && propsEqual)
+            // Children equality check: if the parent passed different children (e.g. @(__children)
+            // slot pattern), we must re-render even if props are equal. Compare by reference —
+            // every render produces a new __C(...) array, so a changed count or different reference
+            // means the parent re-evaluated its children and we must too.
+            var prevChildren = wipFiber.Alternate?.Children;
+            var nextChildren = wipFiber.Children;
+            bool childrenChanged =
+                !ReferenceEquals(prevChildren, nextChildren)
+                && !ChildrenListEqual(prevChildren, nextChildren);
+
+            // Bailout check: if no state update and props match AND context unchanged AND children unchanged, skip rendering
+            if (
+                !wipFiber.HasPendingStateUpdate
+                && contextUnchanged
+                && propsEqual
+                && !childrenChanged
+            )
             {
                 // If the subtree has updates, we still need to clone the children but skip *this* component's render logic
                 if (wipFiber.SubtreeHasUpdates)
@@ -127,7 +142,8 @@ namespace ReactiveUITK.Core.Fiber
                 // Guard against infinite render loops caused by unconditional setState during render
                 if (s_renderDepth > MaxRenderDepth)
                 {
-                    var componentName = wipFiber.ElementType
+                    var componentName =
+                        wipFiber.ElementType
                         ?? wipFiber.TypedRender?.Method.DeclaringType?.Name
                         ?? "Unknown";
                     UnityEngine.Debug.LogError(
@@ -266,10 +282,14 @@ namespace ReactiveUITK.Core.Fiber
                         return false;
 
                     // All function components now use TypedRender.
-                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null) return false;
-                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender)) return true;
-                    if (fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
-                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target)
+                    if (fiber.TypedRender == null || vnode.TypedFunctionRender == null)
+                        return false;
+                    if (ReferenceEquals(fiber.TypedRender, vnode.TypedFunctionRender))
+                        return true;
+                    if (
+                        fiber.TypedRender.Method == vnode.TypedFunctionRender.Method
+                        && fiber.TypedRender.Target == vnode.TypedFunctionRender.Target
+                    )
                         return true;
 
 #if UNITY_EDITOR
@@ -279,9 +299,13 @@ namespace ReactiveUITK.Core.Fiber
                     {
                         var fiberType = fiber.TypedRender.Method.DeclaringType;
                         var vnodeType = vnode.TypedFunctionRender.Method.DeclaringType;
-                        if (fiberType != null && vnodeType != null
+                        if (
+                            fiberType != null
+                            && vnodeType != null
                             && fiberType.Name == vnodeType.Name
-                            && fiber.TypedRender.Method.Name == vnode.TypedFunctionRender.Method.Name)
+                            && fiber.TypedRender.Method.Name
+                                == vnode.TypedFunctionRender.Method.Name
+                        )
                         {
                             return true;
                         }
@@ -545,6 +569,28 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>
         /// Check if dependencies changed
         /// </summary>
+        /// <summary>
+        /// Returns true if two children lists are considered equal (same count and same
+        /// VirtualNode references in each position). VirtualNodes are created fresh on
+        /// every parent render, so reference equality is the correct comparison here.
+        /// </summary>
+        private static bool ChildrenListEqual(
+            IReadOnlyList<VirtualNode> prev,
+            IReadOnlyList<VirtualNode> next
+        )
+        {
+            if (prev == null && next == null)
+                return true;
+            if (prev == null || next == null)
+                return false;
+            if (prev.Count != next.Count)
+                return false;
+            for (int i = 0; i < prev.Count; i++)
+                if (!ReferenceEquals(prev[i], next[i]))
+                    return false;
+            return true;
+        }
+
         private static bool DepsChanged(object[] oldDeps, object[] newDeps)
         {
             if (oldDeps == null || newDeps == null)

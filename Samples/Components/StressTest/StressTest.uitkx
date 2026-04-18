@@ -1,0 +1,111 @@
+@namespace Samples.StressTest
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+
+component StressTest {
+  var areaRef = useRef<VisualElement?>(null);
+  var (areaSize, setAreaSize) = useState(Vector2.zero);
+  var measured = useRef(false);
+  var (boxCount, setBoxCount) = useState(300);
+  var (inputText, setInputText) = useState("300");
+  var (version, setVersion) = useState(0);
+
+  var (boxes, fps, elapsed) = useStressTestLoop(areaRef, areaSize, boxCount, version);
+
+  useEffect(() => {
+    var el = areaRef?.Current;
+    if (el == null) return null;
+
+    IVisualElementScheduledItem poller = el.schedule.Execute(() => {
+      if (measured.Current) return;
+      float w = el.resolvedStyle.width;
+      float h = el.resolvedStyle.height;
+      if (w > 0 && h > 0) {
+        measured.Current = true;
+        setAreaSize(new Vector2(w, h));
+      }
+    }).Every(50);
+
+    return () => poller.Pause();
+  }, new object[] { areaRef?.Current });
+
+  return (
+    <VisualElement
+      style={new Style {
+        (StyleKeys.Display, "flex"),
+        (StyleKeys.FlexGrow, 1f),
+        (StyleKeys.FlexDirection, "column"),
+        (StyleKeys.BackgroundColor, new Color(0.08f, 0.08f, 0.1f, 1f))
+      }}
+    >
+      <VisualElement
+        style={new Style {
+          (StyleKeys.Display, "flex"),
+          (StyleKeys.FlexDirection, "row"),
+          (StyleKeys.Padding, 8f),
+          (StyleKeys.FlexShrink, 0f),
+          (StyleKeys.AlignItems, "center")
+        }}
+      >
+        <Label
+          text={$"Stress Test — {boxes.Count} boxes @ 16ms tick | FPS: {fps:F0} | Elapsed: {elapsed:F1}s"}
+          style={new Style { (StyleKeys.Color, Color.white), (StyleKeys.FontSize, 16f) }}
+        />
+        <TextField
+          value={inputText}
+          onInput={v => setInputText(v)}
+          style={new Style { (StyleKeys.Width, 80f), (StyleKeys.MarginLeft, 12f) }}
+        />
+        <Button
+          text="Set"
+          onClick={_ => {
+            if (int.TryParse(inputText, out int n) && n > 0 && n <= 5000) {
+              setBoxCount(n);
+              setVersion(v => v + 1);
+            }
+          }}
+          style={new Style { (StyleKeys.MarginLeft, 4f), (StyleKeys.Height, 24f), (StyleKeys.Width, 50f) }}
+        />
+      </VisualElement>
+      <VisualElement
+        ref={areaRef}
+        style={new Style {
+          (StyleKeys.Display, "flex"),
+          (StyleKeys.FlexGrow, 1f),
+          (StyleKeys.Position, "relative")
+        }}
+      >
+        @if (areaSize.x > 0) {
+          return (
+            <VisualElement
+              style={new Style {
+                (StyleKeys.Position, "absolute"),
+                (StyleKeys.Width, areaSize.x),
+                (StyleKeys.Height, areaSize.y)
+              }}
+            >
+              @foreach (var box in boxes) {
+                return (
+                  <VisualElement
+                    key={box.id}
+                    style={new Style {
+                      (StyleKeys.Position, "absolute"),
+                      (StyleKeys.Left, box.x),
+                      (StyleKeys.Top, box.y),
+                      (StyleKeys.Width, box.size),
+                      (StyleKeys.Height, box.size),
+                      (StyleKeys.BackgroundColor, box.color),
+                      (StyleKeys.BorderRadius, box.size * 0.15f)
+                    }}
+                  />
+                );
+              }
+            </VisualElement>
+          );
+        }
+      </VisualElement>
+    </VisualElement>
+  );
+}

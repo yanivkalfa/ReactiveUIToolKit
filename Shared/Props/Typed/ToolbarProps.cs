@@ -28,6 +28,7 @@ namespace ReactiveUITK.Props.Typed
         public string Text { get; set; }
         public bool? Value { get; set; }
         public ChangeEventHandler<bool> OnChange { get; set; }
+        public ChangeEventHandler<bool> OnChangeCapture { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -38,6 +39,8 @@ namespace ReactiveUITK.Props.Typed
                 map["value"] = Value.Value;
             if (OnChange != null)
                 map["onChange"] = OnChange;
+            if (OnChangeCapture != null)
+                map["onChangeCapture"] = OnChangeCapture;
             return map;
         }
     }
@@ -78,6 +81,7 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Value { get; set; }
         public ChangeEventHandler<string> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChangeCapture { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -86,6 +90,8 @@ namespace ReactiveUITK.Props.Typed
                 map["value"] = Value;
             if (OnChange != null)
                 map["onChange"] = OnChange;
+            if (OnChangeCapture != null)
+                map["onChangeCapture"] = OnChangeCapture;
             return map;
         }
     }
@@ -94,6 +100,7 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Value { get; set; }
         public ChangeEventHandler<string> OnChange { get; set; }
+        public ChangeEventHandler<string> OnChangeCapture { get; set; }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -102,6 +109,8 @@ namespace ReactiveUITK.Props.Typed
                 map["value"] = Value;
             if (OnChange != null)
                 map["onChange"] = OnChange;
+            if (OnChangeCapture != null)
+                map["onChangeCapture"] = OnChangeCapture;
             return map;
         }
     }

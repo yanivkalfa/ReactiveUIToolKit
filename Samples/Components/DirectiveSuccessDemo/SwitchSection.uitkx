@@ -1,0 +1,99 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component SwitchSection {
+  var modes = new[] { "normal", "squared", "doubled", "unknown" };
+  var (modeIdx, setModeIdx) = useState(0);
+  var mode = modes[modeIdx % modes.Length];
+  var (value, setValue) = useState(3);
+
+  return (
+    <VisualElement>
+      <SectionHeading label="@switch / @case / @default" />
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 8f) }}
+      >
+        <Button
+          text="Next mode"
+          onClick={_ => setModeIdx(modeIdx + 1)}
+          style={new Style { (StyleKeys.MarginRight, 8f) }}
+        />
+        <Label text={$"mode = \"{mode}\"  |  value = {value}"} />
+        <Button
+          text="+"
+          onClick={_ => setValue(value + 1)}
+          style={new Style { (StyleKeys.MarginLeft, 8f) }}
+        />
+      </VisualElement>
+      // 5A — basic switch
+      <SectionBox>
+        <SectionNote label="5A — @switch with @case and @default" />
+        @switch (mode) {
+          @case "normal":
+            return (
+              <Label
+                text={$"Normal: {value}"}
+                style={new Style { (StyleKeys.Color, new Color(0.7f, 0.7f, 0.7f)) }}
+              />
+            );
+          @case "squared":
+            return (
+              <Label
+                text={$"Squared: {value * value}"}
+                style={new Style { (StyleKeys.Color, new Color(0.4f, 0.8f, 1f)) }}
+              />
+            );
+          @case "doubled":
+            return (
+              <Label
+                text={$"Doubled: {value * 2}"}
+                style={new Style { (StyleKeys.Color, new Color(0.9f, 0.8f, 0.2f)) }}
+              />
+            );
+          @default:
+            return (
+              <Label
+                text={$"Unknown mode: \"{mode}\""}
+                style={new Style { (StyleKeys.Color, new Color(0.9f, 0.3f, 0.3f)) }}
+              />
+            );
+        }
+      </SectionBox>
+      // 5B — switch with setup code
+      <SectionBox>
+        <SectionNote label="5B — @switch with setup code in case body" />
+        @switch (mode) {
+          @case "normal":
+            var nLabel = $"Value is {value}";
+
+            return (
+              <VisualElement>
+                <Label text={nLabel} />
+                <Label
+                  text="(plain mode)"
+                  style={new Style { (StyleKeys.FontSize, 10f), (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)) }}
+                />
+              </VisualElement>
+            );
+          @case "squared":
+            var sq = value * value;
+            var sqLabel = $"{value}² = {sq}";
+
+            return (
+              <VisualElement>
+                <Label text={sqLabel} />
+                <Label
+                  text={$"digits: {sq.ToString().Length}"}
+                  style={new Style { (StyleKeys.FontSize, 10f), (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)) }}
+                />
+              </VisualElement>
+            );
+          @default:
+            return (
+              <Label text={$"\"{mode}\" has no special handling"} />
+            );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

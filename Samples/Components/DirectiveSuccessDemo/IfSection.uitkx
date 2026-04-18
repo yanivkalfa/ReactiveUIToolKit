@@ -1,0 +1,113 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component IfSection {
+  var (count, setCount) = useState(0);
+  var rowStyle = new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 6f) };
+
+  return (
+    <VisualElement>
+      <SectionHeading label="@if / @else if / @else" />
+      <VisualElement style={rowStyle}>
+        <Button
+          text="−"
+          onClick={_ => setCount(count - 1)}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Label text={$"count = {count}"} />
+        <Button
+          text="+"
+          onClick={_ => setCount(count + 1)}
+          style={new Style { (StyleKeys.MarginLeft, 6f) }}
+        />
+      </VisualElement>
+      // 1A — bare @if (no else)
+      <SectionBox>
+        <SectionNote label="1A — bare @if: only renders when count > 0" />
+        @if (count > 0) {
+          return (
+            <Label
+              text={$"✓ Positive: {count}"}
+              style={new Style { (StyleKeys.Color, new Color(0.3f, 0.9f, 0.3f)) }}
+            />
+          );
+        }
+      </SectionBox>
+      // 1B — @if / @else
+      <SectionBox>
+        <SectionNote label="1B — @if / @else" />
+        @if (count >= 0) {
+          return (
+            <Label
+              text={$"≥ 0 → {count}"}
+              style={new Style { (StyleKeys.Color, new Color(0.3f, 0.9f, 0.3f)) }}
+            />
+          );
+        } @else {
+          return (
+            <Label
+              text={$"< 0 → {count}"}
+              style={new Style { (StyleKeys.Color, new Color(0.9f, 0.3f, 0.3f)) }}
+            />
+          );
+        }
+      </SectionBox>
+      // 1C — full chain
+      <SectionBox>
+        <SectionNote label="1C — @if / @else if / @else if / @else chain" />
+        @if (count < -5) {
+          return (
+            <Label
+              text="Way below zero!"
+              style={new Style { (StyleKeys.Color, new Color(0.9f, 0.2f, 0.2f)) }}
+            />
+          );
+        } @else if (count < 0) {
+          return (
+            <Label
+              text="Slightly negative"
+              style={new Style { (StyleKeys.Color, new Color(0.9f, 0.6f, 0.2f)) }}
+            />
+          );
+        } @else if (count == 0) {
+          return (
+            <Label
+              text="Exactly zero"
+              style={new Style { (StyleKeys.Color, new Color(0.6f, 0.6f, 0.6f)) }}
+            />
+          );
+        } @else if (count <= 5) {
+          return (
+            <Label
+              text="Small positive"
+              style={new Style { (StyleKeys.Color, new Color(0.5f, 0.9f, 0.3f)) }}
+            />
+          );
+        } @else {
+          return (
+            <Label
+              text={$"Large positive: {count}"}
+              style={new Style { (StyleKeys.Color, new Color(0.3f, 0.9f, 0.3f)) }}
+            />
+          );
+        }
+      </SectionBox>
+      // 1D — @if with setup code
+      <SectionBox>
+        <SectionNote label="1D — @if with setup code in body" />
+        @if (count != 0) {
+          var abs = Mathf.Abs(count);
+          var label = count > 0 ? $"+{count} (abs={abs})" : $"{count} (abs={abs})";
+          var color = count > 0 ? new Color(0.3f, 0.9f, 0.3f) : new Color(0.9f, 0.3f, 0.3f);
+
+          return (
+            <Label
+              text={label}
+              style={new Style { (StyleKeys.Color, color) }}
+            />
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

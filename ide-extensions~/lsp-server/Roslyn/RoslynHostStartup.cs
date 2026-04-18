@@ -14,10 +14,12 @@ namespace UitkxLanguageServer.Roslyn;
 internal sealed class RoslynHostStartup : IOnLanguageServerStarted
 {
     private readonly RoslynHost _host;
+    private readonly WorkspaceIndex _index;
 
-    public RoslynHostStartup(RoslynHost host)
+    public RoslynHostStartup(RoslynHost host, WorkspaceIndex index)
     {
         _host = host;
+        _index = index;
     }
 
     public Task OnStarted(ILanguageServer server, CancellationToken cancellationToken)
@@ -53,6 +55,12 @@ internal sealed class RoslynHostStartup : IOnLanguageServerStarted
                 root is null
                     ? "[RoslynHostStartup] No workspace root received — Roslyn reference discovery limited to BCL."
                     : $"[RoslynHostStartup] Workspace root set to: {root}");
+
+            // Fallback: if WorkspaceIndex.OnStarted didn't manage to scan
+            // (e.g. VS2022 sends null rootUri/rootPath for custom content types),
+            // trigger the scan now using the root we resolved here.
+            if (root is not null)
+                _index.EnsureScanned(root);
         }
         catch (Exception ex)
         {

@@ -1,0 +1,143 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System.Linq
+
+component SetupCodeSection {
+  var (count, setCount) = useState(3);
+  var animals = new[] { "Cat", "Dog", "Fox", "Owl", "Bee" };
+
+  return (
+    <VisualElement>
+      <SectionHeading label="Setup code in directive bodies" />
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 8f) }}
+      >
+        <Button
+          text="−"
+          onClick={_ => setCount(Mathf.Max(1, count - 1))}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Label text={$"count = {count}"} />
+        <Button
+          text="+"
+          onClick={_ => setCount(count + 1)}
+          style={new Style { (StyleKeys.MarginLeft, 6f) }}
+        />
+      </VisualElement>
+      // 7A — local variables in @for setup
+      <SectionBox>
+        <SectionNote
+          label="7A — variables, math, string formatting in @for body"
+        />
+        @for (int i = 0; i < count; i++) {
+          var pct = count > 1 ? (float)i / (count - 1) : 0f;
+          var hue = pct * 0.8f;
+          var label = $"Item {i}: {(pct * 100f):F0}% — hue {hue:F2}";
+          var key = i.ToString();
+
+          return (
+            <Label key={key} text={label} />
+          );
+        }
+      </SectionBox>
+      // 7B — helper lambda in @foreach setup
+      <SectionBox>
+        <SectionNote label="7B — helper lambda in @foreach setup" />
+        @foreach (var animal in animals) {
+          System.Func<string, string> decorate = (s) => $"【{s}】";
+          var decorated = decorate(animal);
+          var reversed = new string(animal.Reverse().ToArray());
+
+          return (
+            <VisualElement
+              key={animal}
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 2f) }}
+            >
+              <Label
+                text={decorated}
+                style={new Style { (StyleKeys.Width, 80f) }}
+              />
+              <Label
+                text={$"reversed: {reversed}"}
+                style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)) }}
+              />
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+      // 7C — early return (return null) to skip items
+      <SectionBox>
+        <SectionNote
+          label="7C — return null to skip rendering for some items"
+        />
+        @for (int i = 0; i < count * 2; i++) {
+          var key = i.ToString();
+          if (i % 3 == 0) {
+            return null;
+          }
+
+          return (
+            <Label key={key} text={$"Item {i} (multiples of 3 skipped)"} />
+          );
+        }
+      </SectionBox>
+      // 7D — conditional return in @if setup
+      <SectionBox>
+        <SectionNote label="7D — C# if/else inside directive setup code" />
+        @if (count > 0) {
+          string message;
+          if (count == 1)
+          {
+            message = "Exactly one";
+          }
+          else if (count < 5)
+          {
+            message = $"A few ({count})";
+          }
+
+          else
+          {
+            message = $"Many ({count})";
+          }
+
+          return (
+            <Label
+              text={message}
+              style={new Style { (StyleKeys.Color, new Color(0.4f, 0.8f, 0.4f)) }}
+            />
+          );
+        }
+      </SectionBox>
+      // 7E — complex multi-statement setup
+      <SectionBox>
+        <SectionNote label="7E — complex multi-statement setup in @foreach" />
+        @foreach (var animal in animals) {
+          var vowels = animal.Count(c => "aeiouAEIOU".Contains(c));
+          var consonants = animal.Length - vowels;
+          var ratio = animal.Length > 0 ? (float)vowels / animal.Length : 0f;
+          var barWidth = 30f + ratio * 150f;
+          var barColor = Color.Lerp(new Color(0.3f, 0.3f, 0.3f), new Color(0.2f, 0.8f, 0.4f), ratio);
+
+          return (
+            <VisualElement
+              key={animal}
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 3f) }}
+            >
+              <Label
+                text={$"{animal}"}
+                style={new Style { (StyleKeys.Width, 50f) }}
+              />
+              <VisualElement
+                style={new Style { (StyleKeys.Width, barWidth), (StyleKeys.Height, 14f), (StyleKeys.BackgroundColor, barColor), (StyleKeys.BorderRadius, 3f) }}
+              />
+              <Label
+                text={$" V:{vowels} C:{consonants}"}
+                style={new Style { (StyleKeys.MarginLeft, 6f), (StyleKeys.FontSize, 10f), (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)) }}
+              />
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

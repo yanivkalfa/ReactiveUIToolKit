@@ -429,6 +429,42 @@ namespace ReactiveUITK.Core.Fiber
             }
             catch (Exception ex)
             {
+#if UNITY_EDITOR
+                // HMR rollback: if a hot-reloaded delegate crashed, revert to
+                // the previous working delegate and retry the render once.
+                if (fiber.HmrPreviousRender != null)
+                {
+                    var oldDelegate = fiber.HmrPreviousRender;
+                    fiber.HmrPreviousRender = null;
+                    fiber.TypedRender = oldDelegate;
+
+                    // Also update the committed tree so the next render cycle
+                    // picks up the rolled-back delegate, not the broken one.
+                    if (fiber.Alternate != null)
+                    {
+                        fiber.Alternate.TypedRender = oldDelegate;
+                        fiber.Alternate.HmrPreviousRender = null;
+                    }
+
+                    // Reset hook state — partially-executed hooks from the
+                    // crashing delegate may have corrupted slot values.
+                    ResetComponentStateForHmrRollback(fiber);
+
+                    UnityEngine.Debug.LogWarning(
+                        $"[HMR] Render crashed — rolled back to previous version: {ex.Message}"
+                    );
+
+                    try
+                    {
+                        return UpdateFunctionComponent(fiber);
+                    }
+                    catch
+                    {
+                        // Old delegate also failed — fall through to ErrorBoundary.
+                    }
+                }
+#endif
+
                 var boundary = FindNearestErrorBoundary(fiber);
                 var boundaryVNode = boundary?.LastRenderedVNode;
 
@@ -1353,6 +1389,12 @@ namespace ReactiveUITK.Core.Fiber
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;
 
+#if UNITY_EDITOR
+            // Clear HMR rollback delegate after successful commit —
+            // the new delegate rendered and committed without crashing.
+            fiber.HmrPreviousRender = null;
+#endif
+
             // Recursively process children
             var child = fiber.Child;
             while (child != null)
@@ -1361,5 +1403,55 @@ namespace ReactiveUITK.Core.Fiber
                 child = child.Sibling;
             }
         }
+
+#if UNITY_EDITOR
+        /// <summary>
+        /// Resets hook/effect state after an HMR rollback so the restored
+        /// delegate re-initializes cleanly. Mirrors the cleanup in
+        /// UitkxHmrDelegateSwapper.FullResetComponentState.
+        /// </summary>
+        private static void ResetComponentStateForHmrRollback(FiberNode fiber)
+        {
+            var state = fiber.ComponentState;
+            if (state == null)
+                return;
+
+            if (state.FunctionEffects != null)
+            {
+                for (int i = 0; i < state.FunctionEffects.Count; i++)
+                {
+                    try
+                    {
+                        state.FunctionEffects[i].cleanup?.Invoke();
+                    }
+                    catch { }
+                }
+                state.FunctionEffects.Clear();
+            }
+
+            if (state.FunctionLayoutEffects != null)
+            {
+                for (int i = 0; i < state.FunctionLayoutEffects.Count; i++)
+                {
+                    try
+                    {
+                        state.FunctionLayoutEffects[i].cleanup?.Invoke();
+                    }
+                    catch { }
+                }
+                state.FunctionLayoutEffects.Clear();
+            }
+
+            Hooks.DisposeSignalSubscriptions(state);
+
+            state.HookStates.Clear();
+            state.HookOrderSignatures?.Clear();
+            state.HookOrderPrimed = false;
+            state.HookStateQueues?.Clear();
+            state.PendingHookStatePreviews?.Clear();
+            state.StateSetterDelegateCache?.Clear();
+            state.ContextDependencies?.Clear();
+        }
+#endif
     }
 }

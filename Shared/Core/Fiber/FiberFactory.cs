@@ -107,6 +107,9 @@ namespace ReactiveUITK.Core.Fiber
             clone.ElementType = current.ElementType;
             clone.Key = current.Key;
             clone.TypedRender = current.TypedRender;
+#if UNITY_EDITOR
+            clone.HmrPreviousRender = current.HmrPreviousRender;
+#endif
 
             // === Props ===
             clone.TypedProps = current.TypedProps;

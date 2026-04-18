@@ -74,8 +74,8 @@ export const UitkxDiagnosticsPage: FC = () => (
           <TableRow>
             <TableCell><Chip label="UITKX0009" size="small" color="warning" variant="outlined" /></TableCell>
             <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
-            <TableCell>@foreach child missing key</TableCell>
-            <TableCell>Add a <code>key</code> attribute with a stable unique identifier from the item.</TableCell>
+            <TableCell>Loop element missing key</TableCell>
+            <TableCell>Add a <code>key</code> attribute with a stable unique identifier. Applies to all loop types: <code>@foreach</code>, <code>@for</code>, <code>@while</code>.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0010" size="small" color="warning" variant="outlined" /></TableCell>
@@ -144,22 +144,16 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Use an explicit prop name (e.g. <code>inputRef={'{x}'}</code>) instead of <code>ref</code>.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0022" size="small" color="warning" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell><Chip label="UITKX0022" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Asset file not found</TableCell>
             <TableCell>Check the asset path — it must be relative to the <code>.uitkx</code> file or an absolute project path.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0023" size="small" color="warning" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Warning" size="small" color="warning" /></TableCell>
+            <TableCell><Chip label="UITKX0023" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Asset type mismatch</TableCell>
             <TableCell>The asset at the given path is a different type than the requested <code>Asset&lt;T&gt;</code>. Verify the generic type parameter.</TableCell>
-          </TableRow>
-          <TableRow>
-            <TableCell><Chip label="UITKX0024" size="small" color="error" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Control block body missing <code>return</code></TableCell>
-            <TableCell>Each control block body (<code>@if</code>, <code>@for</code>, <code>@foreach</code>, <code>@while</code>, <code>@switch</code>) must contain a <code>return (...);</code> statement wrapping its markup.</TableCell>
           </TableRow>
         </TableBody>
       </Table>
@@ -217,8 +211,8 @@ export const UitkxDiagnosticsPage: FC = () => (
           <TableRow>
             <TableCell><Chip label="UITKX0106" size="small" color="error" variant="outlined" /></TableCell>
             <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
-            <TableCell>Element inside @foreach missing key</TableCell>
-            <TableCell>Add a <code>key</code> attribute for reconciliation.</TableCell>
+            <TableCell>Loop element missing key</TableCell>
+            <TableCell>Add a <code>key</code> attribute for reconciliation. Applies to <code>@foreach</code>, <code>@for</code>, <code>@while</code>.</TableCell>
           </TableRow>
           <TableRow>
             <TableCell><Chip label="UITKX0107" size="small" color="info" variant="outlined" /></TableCell>
@@ -245,8 +239,8 @@ export const UitkxDiagnosticsPage: FC = () => (
             <TableCell>Remove the unused parameter or use it in the component body.</TableCell>
           </TableRow>
           <TableRow>
-            <TableCell><Chip label="UITKX0112" size="small" color="info" variant="outlined" /></TableCell>
-            <TableCell><Chip label="Hint" size="small" color="info" /></TableCell>
+            <TableCell><Chip label="UITKX0112" size="small" color="error" variant="outlined" /></TableCell>
+            <TableCell><Chip label="Error" size="small" color="error" /></TableCell>
             <TableCell>Unused variable in setup code</TableCell>
             <TableCell>Remove the unused variable or use it in the component.</TableCell>
           </TableRow>

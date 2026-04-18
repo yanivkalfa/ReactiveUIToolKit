@@ -302,20 +302,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         /// <summary>
         /// Derives the container class name from the .uitkx filename:
         /// <c>useCounter.uitkx</c> → <c>UseCounterHooks</c>,
-        /// <c>Counter.hooks.uitkx</c> → <c>CounterHooks</c>.
+        /// <c>Counter.hooks.uitkx</c> → <c>CounterHooks</c>,
+        /// <c>Counter.anything.uitkx</c> → <c>CounterHooks</c>.
         /// </summary>
         internal static string DeriveContainerClassName(string filePath)
         {
             string fileName = Path.GetFileNameWithoutExtension(filePath);
-            // Strip .hooks/.utils/.styles suffixes
-            foreach (var suffix in new[] { ".hooks", ".utils", ".styles" })
-            {
-                if (fileName.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
-                {
-                    fileName = fileName.Substring(0, fileName.Length - suffix.Length);
-                    break;
-                }
-            }
+            // Strip any dot-suffix (e.g. .hooks, .style, .whatever) — the
+            // file type is determined by content, not filename convention.
+            int dot = fileName.IndexOf('.');
+            if (dot > 0)
+                fileName = fileName.Substring(0, dot);
 
             // PascalCase the first letter
             if (fileName.Length > 0 && char.IsLower(fileName[0]))

@@ -193,9 +193,22 @@ public sealed class DiagnosticsPublisher
         // Seed projectElements with the component declared in this file so that
         // self-referencing components (e.g. recursive <DeepNode />) and sibling
         // components not yet reached by the async scan are never falsely flagged.
-        var projectElements = BuildProjectElements(directives.ComponentName);
-        var knownAttributes = BuildKnownAttributes(projectElements);
+        //
+        // When the workspace index hasn't completed its initial scan, pass null
+        // for both projectElements and knownAttributes.  This suppresses
+        // UITKX0105 (unknown element) and UITKX0109 (unknown attribute) until
+        // the scan finishes and ScanCompleted triggers RevalidateOpenDocuments.
+        var projectElements = _index.HasCompletedInitialScan
+            ? BuildProjectElements(directives.ComponentName)
+            : null;
+        var knownAttributes = projectElements != null
+            ? BuildKnownAttributes(projectElements)
+            : null;
         var t2Diags = _analyzer.Analyze(parseResult, localPath, projectElements, knownAttributes, text);
+
+        // Also run T2 analysis on setup code JSX (local functions, JSX variable assignments).
+        if (!setupJsxNodes.IsEmpty)
+            t2Diags = t2Diags.Concat(_analyzer.AnalyzeNodes(setupJsxNodes, projectElements, knownAttributes, text)).ToList();
 
         // ── T2v version-compatibility diagnostics ────────────────────────────
         // Check elements and style properties against the detected Unity version.

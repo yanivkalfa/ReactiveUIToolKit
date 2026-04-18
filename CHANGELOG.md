@@ -6,6 +6,70 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [0.4.8] - 2026-04-18
+
+### Added
+- **HMR delegate rollback guard** — if a hot-reloaded delegate crashes during render, the reconciler automatically rolls back to the previous working version, resets hook/effect state, and retries before falling through to the ErrorBoundary
+
+## [0.4.7] - 2026-04-17
+
+### Added
+- **Children slot re-render detection** — components receiving `@(__children)` now correctly re-render when their children change, using reference-equality comparison on the children list
+
+### Fixed
+- **Directive body scoping** — `@if`, `@foreach`, `@for`, `@while`, and `@switch` bodies now emit as C# local functions, preventing variable scoping leaks and early-return issues between branches
+- **UITKX0009 coverage** — "loop element missing key" diagnostic now fires for `@for` and `@while` loops, not just `@foreach`
+- **Setup code JSX validation** — source generator validates JSX placement inside directive body setup code
+- **Hook alias runtime wrappers** — source generator emits correct wrapper methods for hook aliases
+- **Source map accuracy** — improved diagnostic line mapping for UITKX0014, UITKX0013, and CS0219
+- **HMR directive body support** — HMR emitter updated to match source generator's directive-body-as-function approach, including JSX splicing inside directive bodies
+
+## [0.4.6] - 2026-04-13
+
+### Added
+- **Procedurally generated Mario levels** — `LevelGenerator` produces 35-screen levels with 6 screen types (Flat, Pit, Pipes, Staircase, Floating, Final/Flagpole). Difficulty scales with progression. Smart block cluster placement avoids pipe/ground overlap and guarantees mushrooms in question blocks.
+- **Camera scrolling** — one-way horizontal camera follows Mario, clamped at level edges. Player cannot walk left past the camera (classic Mario behavior). Frustum culling skips rendering and collision for off-screen tiles.
+- **Pipe tiles** — 2-wide green solid pipe obstacles with varying heights (2–4 tiles)
+- **Flagpole win condition** — final screen has a staircase, flagpole, and castle. Touching the flagpole triggers "YOU WIN!" overlay with final score.
+- **Damage shield** — Big Mario hit by enemy shrinks instead of dying, with 3-second invincibility grace period. Mario blinks (opacity toggle) during invincibility.
+- **Coin blocks** — multi-hit blocks that give 50 points per hit (up to 5 hits)
+- **Block bump animation** — blocks nudge upward briefly when hit from below
+- **Mushroom power-up** — collecting a mushroom makes Mario grow (96px tall, 48px wide) for 10 seconds
+- **Ducking slide** — ducking on the ground applies friction-based deceleration instead of instant stop, creating a slide effect
+- **Multi-row block clusters** — 30% of generated block clusters have a second row 3 tiles above the first
+
+### Fixed
+- **HMR hook trampoline + using-static injection** — companion `.hooks.uitkx` files created during HMR sessions now emit public trampoline methods and inject `using static` into the component source
+- **Brick destruction** — bricks now break when hit from below and disappear from the level
+- **Mushroom physics** — mushrooms slide horizontally, fall with gravity, and bounce off walls
+- **Jump height** — increased `JUMP_VEL` from -500 to -620 so Mario can clear gaps and reach blocks
+- **Ducking mid-air** — ducking now works in the air (not grounded-only) and correctly reduces collision box
+- **Duck position snapping** — transitioning between duck/stand adjusts Y position to keep feet in place, preventing underground clipping and forward teleporting
+- **Side-hit brick breaking removed** — bricks only break from head-hits underneath, not side collisions. Center-of-head check prevents angled corner-clip breaks.
+- **Mushroom Big flag ordering** — Big/BigTimer now applied after Items loop so mushroom collection actually persists to player state
+- **Game start grounding** — player initial Y slightly overlaps ground so `grounded=true` on first frame (enables jumping immediately)
+- **Restart keyboard focus** — clicking "Try Again" re-focuses the game board so keyboard input works immediately
+
+## [0.4.5] - 2026-04-12
+
+### Fixed
+- **HMR hook companion trampoline** — companion `.hooks.uitkx` files discovered during HMR now emit public trampoline methods (e.g. `useXxx()`) in addition to the private body, and inject `using static Ns.XxxHooks;` into the component source. Previously only the private `__useXxx_body` was emitted, causing `CS0103` when a hook file was created during an HMR session.
+
+## [0.4.4] - 2026-04-12
+
+### Fixed
+- **HMR companion `.uitkx` discovery** — HMR now discovers and compiles companion `.uitkx` files (`.style.uitkx`, `.hooks.uitkx`, `.utils.uitkx`) alongside the parent component, so module/hook members are available in the compilation unit. Previously only companion `.cs` files were included, causing `CS0103` errors for module-defined symbols like style constants.
+- **HMR companion change redirection** — saving a companion `.uitkx` file now triggers recompilation of the parent component file, ensuring changes to styles/hooks/utils are immediately hot-reloaded.
+
+## [0.4.3] - 2026-04-12
+
+### Fixed
+- **`onInput` event handler dispatch** — `onInput` handlers with `Action<string>` signature now correctly receive the field's text (`InputEvent.newData`) instead of `null`. Added `Action<InputEvent>` fast-path dispatch to avoid `DynamicInvoke` fallback.
+
+### Added
+- **Editor demo windows** — added `ReactiveUITK/Demos/Stress Test`, `Snake Game`, and `Tic Tac Toe` menu items for launching sample games in editor windows
+- **Stress Test sample** — moved stress test to its own `Samples/Components/StressTest/` folder with configurable box count via UI input
+
 ## [0.4.0] - 2026-04-10
 
 ### Added

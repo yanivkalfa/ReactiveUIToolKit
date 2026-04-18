@@ -1,0 +1,110 @@
+@namespace Samples.StressTest
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+
+hook useStressTestLoop(
+  Ref<VisualElement?> areaRef,
+  Vector2 areaSize,
+  int boxCount,
+  int version
+) -> (
+  List<(string id, float x, float y, float size, float vx, float vy, Color color)> boxes,
+  float fps,
+  float elapsed
+) {
+  var emptyBoxes = new List<(string id, float x, float y, float size, float vx, float vy, Color color)>();
+  var (boxes, setBoxes) = useState(emptyBoxes);
+
+  var (fps, setFps) = useState(0f);
+  var (elapsed, setElapsed) = useState(0f);
+  var frameCount = useRef(0);
+  var fpsTimer = useRef(0f);
+  var lastTime = useRef(-1f);
+  var boxCountRef = useRef(boxCount);
+  var versionRef = useRef(version);
+  var needsRegen = useRef(true);
+
+  if (boxCountRef.Current != boxCount || versionRef.Current != version) {
+    boxCountRef.Current = boxCount;
+    versionRef.Current = version;
+    needsRegen.Current = true;
+  }
+
+  var boxesRef = useRef<List<(string id, float x, float y, float size, float vx, float vy, Color color)>>(emptyBoxes);
+
+  useEffect(() => {
+    var el = areaRef?.Current;
+    if (el == null) return null;
+    if (areaSize.x <= 0 || areaSize.y <= 0) return null;
+
+    float w = areaSize.x;
+    float h = areaSize.y;
+    lastTime.Current = -1f;
+    frameCount.Current = 0;
+    fpsTimer.Current = 0f;
+    needsRegen.Current = true;
+
+    IVisualElementScheduledItem ticker = el.schedule.Execute(() => {
+      // Regenerate boxes if needed
+      if (needsRegen.Current) {
+        needsRegen.Current = false;
+        int count = boxCountRef.Current;
+        var rng2 = new System.Random(42);
+        var fresh = new List<(string id, float x, float y, float size, float vx, float vy, Color color)>(count);
+        for (int j = 0; j < count; j++) {
+          float fs = 8f + (float)(rng2.NextDouble() * 16.0);
+          float fh = (float)rng2.NextDouble();
+          Color fc = Color.HSVToRGB(fh, 0.7f, 0.9f);
+          fresh.Add(($"b{j}", (float)(rng2.NextDouble() * 600.0), (float)(rng2.NextDouble() * 400.0), fs, 60f + (float)(rng2.NextDouble() * 120.0) * (rng2.NextDouble() > 0.5 ? 1f : -1f), 60f + (float)(rng2.NextDouble() * 120.0) * (rng2.NextDouble() > 0.5 ? 1f : -1f), fc));
+        }
+        boxesRef.Current = fresh;
+        setBoxes(fresh);
+        setElapsed(0f);
+        setFps(0f);
+        lastTime.Current = -1f;
+        frameCount.Current = 0;
+        fpsTimer.Current = 0f;
+        return;
+      }
+
+      float now = Time.realtimeSinceStartup;
+      if (lastTime.Current < 0) { lastTime.Current = now; return; }
+      float dt = now - lastTime.Current;
+      lastTime.Current = now;
+
+      frameCount.Current++;
+      fpsTimer.Current += dt;
+      if (fpsTimer.Current >= 0.5f) {
+        setFps(frameCount.Current / fpsTimer.Current);
+        frameCount.Current = 0;
+        fpsTimer.Current = 0f;
+      }
+      setElapsed(e => e + dt);
+
+      var current = boxesRef.Current;
+      var next = new List<(string id, float x, float y, float size, float vx, float vy, Color color)>(current.Count);
+      for (int i = 0; i < current.Count; i++) {
+        var b = current[i];
+        float nx = b.x + b.vx * dt;
+        float ny = b.y + b.vy * dt;
+        float nvx = b.vx;
+        float nvy = b.vy;
+
+        if (nx < 0) { nx = 0; nvx = -nvx; }
+        else if (nx + b.size > w) { nx = w - b.size; nvx = -nvx; }
+        if (ny < 0) { ny = 0; nvy = -nvy; }
+        else if (ny + b.size > h) { ny = h - b.size; nvy = -nvy; }
+
+        next.Add((b.id, nx, ny, b.size, nvx, nvy, b.color));
+      }
+      boxesRef.Current = next;
+      setBoxes(next);
+    }).Every(16);
+
+    return () => ticker.Pause();
+  }, new object[] { areaRef?.Current, areaSize });
+
+  return (boxes, fps, elapsed);
+}

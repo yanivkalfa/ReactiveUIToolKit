@@ -156,11 +156,11 @@ namespace ReactiveUITK.SourceGenerator
             description: "The attribute does not match any public settable property on the Props type."
         );
 
-        /// <summary>UITKX0009 — A direct element child of @foreach lacks a key attribute.</summary>
+        /// <summary>UITKX0009 — A direct element child of a loop (@foreach/@for/@while) lacks a key attribute.</summary>
         public static readonly DiagnosticDescriptor ForeachMissingKey = new DiagnosticDescriptor(
             id: "UITKX0009",
-            title: "Element inside @foreach missing key",
-            messageFormat: "Element <{0}> inside '@foreach' at line {1} in '{2}' should have a 'key' attribute for stable reconciliation",
+            title: "Element inside loop missing key",
+            messageFormat: "Element <{0}> inside a loop at line {1} in '{2}' should have a 'key' attribute for stable reconciliation",
             category: Category,
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true,

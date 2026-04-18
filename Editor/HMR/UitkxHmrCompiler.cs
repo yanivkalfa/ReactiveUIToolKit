@@ -196,7 +196,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── 2. Parse AST ─────────────────────────────────────────────
                 var astNodes = _uitkxParse.Invoke(
                     null,
-                    new object[] { source, uitkxPath, directives, diagList }
+                    new object[] { source, uitkxPath, directives, diagList, false }
                 );
                 stepSw.Stop();
                 result.ParseMs = stepSw.Elapsed.TotalMilliseconds;
@@ -217,7 +217,7 @@ namespace ReactiveUITK.EditorSupport.HMR
                     var miniDir = _directiveParse.Invoke(
                         null, new object[] { synthetic, path, miniDiags, false });
                     var nodes = _uitkxParse.Invoke(
-                        null, new object[] { synthetic, path, miniDir, miniDiags });
+                        null, new object[] { synthetic, path, miniDir, miniDiags, false });
                     return GetItems(nodes);
                 };
 
@@ -228,6 +228,26 @@ namespace ReactiveUITK.EditorSupport.HMR
                 // ── 4. Compile ───────────────────────────────────────────────
                 stepSw = Stopwatch.StartNew();
                 var sources = new List<string> { csharp };
+
+                // Include companion .uitkx files (.style, .hooks, .utils) as
+                // partial-class sources so module/hook members are available
+                // to the component in the same compilation unit.
+                // Also collects hook container class names so we can inject
+                // `using static Ns.XxxHooks;` into the component source.
+                var hookContainerFqns = new List<string>();
+                EmitCompanionUitkxSources(uitkxPath, componentName, ns, sources, hookContainerFqns);
+
+                // Inject using-static for peer hook containers so the component
+                // can call hook methods (e.g. useXxx()) without qualification —
+                // mirrors SG's Stage 3d peer-hook-container injection.
+                if (hookContainerFqns.Count > 0)
+                {
+                    var usingLines = new System.Text.StringBuilder();
+                    foreach (var fqn in hookContainerFqns)
+                        usingLines.AppendLine($"using static {fqn};");
+                    sources[0] = usingLines.ToString() + sources[0];
+                }
+
                 if (companionCsFiles != null)
                 {
                     foreach (var csFile in companionCsFiles)
@@ -336,6 +356,64 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Discovers companion .uitkx files (e.g. Foo.style.uitkx, Foo.hooks.uitkx)
+        /// beside the component file, parses their directives, emits C# for their
+        /// module/hook bodies, and appends the generated sources to the list so they
+        /// are compiled together as partial-class fragments.
+        /// Also collects fully-qualified hook container class names (e.g. "Ns.FooHooks")
+        /// so the caller can inject <c>using static</c> directives into the component source.
+        /// </summary>
+        private void EmitCompanionUitkxSources(
+            string uitkxPath, string componentName, string componentNs,
+            List<string> sources, List<string> hookContainerFqns)
+        {
+            var dir = Path.GetDirectoryName(uitkxPath);
+            if (dir == null) return;
+
+            // Pattern: ComponentName.*.uitkx  (e.g. TicTacToe.style.uitkx)
+            string prefix = componentName + ".";
+            foreach (var file in Directory.GetFiles(dir, prefix + "*.uitkx"))
+            {
+                // Skip the component file itself
+                if (string.Equals(file, uitkxPath, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                try
+                {
+                    string companionSource = File.ReadAllText(file);
+                    var diagList = CreateDiagnosticList();
+                    var companionDir = _directiveParse.Invoke(
+                        null, new object[] { companionSource, file, diagList, true });
+                    if (companionDir == null) continue;
+
+                    // Emit module bodies (style constants, utility methods, etc.)
+                    string moduleCSharp = HmrHookEmitter.EmitModules(companionDir, file);
+                    if (!string.IsNullOrEmpty(moduleCSharp))
+                        sources.Add(moduleCSharp);
+
+                    // Emit hook bodies if the companion also defines custom hooks
+                    string containerClass = HmrHookEmitter.DeriveContainerClassName(file);
+                    string hookCSharp = HmrHookEmitter.Emit(
+                        companionDir, file, containerClass, withTrampoline: true);
+                    if (!string.IsNullOrEmpty(hookCSharp))
+                    {
+                        sources.Add(hookCSharp);
+
+                        // Collect FQN so caller can inject using-static
+                        string hookNs = (string)GetProp(companionDir, "Namespace");
+                        if (string.IsNullOrEmpty(hookNs))
+                            hookNs = componentNs ?? "ReactiveUITK.Generated";
+                        hookContainerFqns.Add($"{hookNs}.{containerClass}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[HMR] Failed to process companion {Path.GetFileName(file)}: {ex.Message}");
+                }
+            }
         }
 
         /// <summary>

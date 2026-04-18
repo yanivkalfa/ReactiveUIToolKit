@@ -1,5 +1,5 @@
 using ReactiveUITK.Core;
-using ReactiveUITK.Samples.FunctionalComponents;
+using ReactiveUITK.Samples.UITKXComponents;
 using UnityEngine;
 using UnityEngine.UIElements;
 

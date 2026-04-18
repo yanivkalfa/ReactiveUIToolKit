@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.UIElements;
 using ReactiveUITK.Core;
 using ReactiveUITK.EditorSupport;
-using ReactiveUITK.Samples.Shared;
+using ReactiveUITK.Samples.UITKXComponents;
 using ReactiveUITK.Props.Typed;
 using static ReactiveUITK.Props.Typed.StyleKeys;
 using UColor = UnityEngine.Color;
@@ -269,7 +269,7 @@ namespace ReactiveUITK.Bench
         {
             try
             {
-                BenchSharedHost.SharedDemoRenderer = () => V.Func(SharedDemoPage.Render);
+                BenchSharedHost.SharedDemoRenderer = () => V.Func(ShowcaseDemoPage.Render);
             }
             catch { }
         }

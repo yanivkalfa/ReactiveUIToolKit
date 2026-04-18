@@ -1,0 +1,21 @@
+@namespace Samples.SnakeGame
+@using ReactiveUITK.Router
+
+component WelcomeScreen {
+  var navigate = RouterHooks.UseNavigate();
+
+  return (
+    <VisualElement style={WelcomeStyles.Container}>
+      <Label text="Welcome to Snake!" style={WelcomeStyles.Title} />
+      <Label
+        text="Use arrow keys to control the snake. Eat food to grow. Don't hit the walls or yourself!"
+        style={WelcomeStyles.Description}
+      />
+      <Button
+        text="Start New Game"
+        onClick={_ => navigate("/game", null)}
+        style={WelcomeStyles.StartButton}
+      />
+    </VisualElement>
+  );
+}

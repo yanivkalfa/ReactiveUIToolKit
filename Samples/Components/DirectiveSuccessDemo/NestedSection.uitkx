@@ -1,0 +1,163 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+
+component NestedSection {
+  var (size, setSize) = useState(3);
+  var items = new[] { "Alpha", "Beta", "Gamma", "Delta", "Epsilon" };
+
+  return (
+    <VisualElement>
+      <SectionHeading label="Nested directives" />
+      <VisualElement
+        style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 8f) }}
+      >
+        <Button
+          text="−"
+          onClick={_ => setSize(Mathf.Max(1, size - 1))}
+          style={new Style { (StyleKeys.MarginRight, 6f) }}
+        />
+        <Label text={$"grid = {size}×{size}"} />
+        <Button
+          text="+"
+          onClick={_ => setSize(Mathf.Min(6, size + 1))}
+          style={new Style { (StyleKeys.MarginLeft, 6f) }}
+        />
+      </VisualElement>
+      // 6A — @for inside @for (grid)
+      <SectionBox>
+        <SectionNote label="6A — nested @for loops (grid)" />
+        @for (int row = 0; row < size; row++) {
+          return (
+            <VisualElement
+              key={row.ToString()}
+              style={new Style { (StyleKeys.FlexDirection, "row") }}
+            >
+              @for (int col = 0; col < size; col++) {
+                var bright = (float)(row * size + col) / (size * size);
+                var cellColor = new Color(bright, 0.3f, 1f - bright, 1f);
+
+                return (
+                  <VisualElement
+                    key={col.ToString()}
+                    style={new Style {
+                      (StyleKeys.Width, 36f), (StyleKeys.Height, 24f),
+                      (StyleKeys.BackgroundColor, cellColor),
+                      (StyleKeys.MarginRight, 2f), (StyleKeys.MarginBottom, 2f),
+                      (StyleKeys.BorderRadius, 3f),
+                    }}
+                  >
+                    <Label
+                      text={$"{row},{col}"}
+                      style={new Style { (StyleKeys.FontSize, 9f), (StyleKeys.Color, Color.white) }}
+                    />
+                  </VisualElement>
+                );
+              }
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+      // 6B — @if inside @foreach
+      <SectionBox>
+        <SectionNote
+          label="6B — @if inside @foreach (conditional rendering per item)"
+        />
+        @foreach (var item in items) {
+          var len = item.Length;
+
+          return (
+            <VisualElement
+              key={item}
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 2f) }}
+            >
+              <Label
+                text={$"{item}: "}
+                style={new Style { (StyleKeys.Width, 70f) }}
+              />
+              @if (len > 4) {
+                return (
+                  <Label
+                    text={$"long ({len} chars)"}
+                    style={new Style { (StyleKeys.Color, new Color(0.9f, 0.6f, 0.2f)) }}
+                  />
+                );
+              } @else {
+                return (
+                  <Label
+                    text={$"short ({len} chars)"}
+                    style={new Style { (StyleKeys.Color, new Color(0.5f, 0.5f, 0.5f)) }}
+                  />
+                );
+              }
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+      // 6C — @for returning @if (single-node directive inside return)
+      <SectionBox>
+        <SectionNote label="6C — @for where each iteration returns an @if" />
+        @for (int i = 0; i < size; i++) {
+          return (
+            @if (i % 2 == 0) {
+              return (
+                <Label
+                  text={$"Even: {i}"}
+                  style={new Style { (StyleKeys.Color, new Color(0.4f, 0.8f, 1f)) }}
+                />
+              );
+            } @else {
+              return (
+                <Label
+                  text={$"Odd: {i}"}
+                  style={new Style { (StyleKeys.Color, new Color(0.9f, 0.5f, 0.2f)) }}
+                />
+              );
+            }
+          );
+        }
+      </SectionBox>
+      // 6D — @switch inside @foreach
+      <SectionBox>
+        <SectionNote label="6D — @switch inside @foreach" />
+        @foreach (var item in items) {
+          var category = item.Length <= 4 ? "short" : item.Length <= 5 ? "medium" : "long";
+
+          return (
+            <VisualElement
+              key={item}
+              style={new Style { (StyleKeys.FlexDirection, "row"), (StyleKeys.MarginBottom, 2f) }}
+            >
+              <Label
+                text={$"{item} → "}
+                style={new Style { (StyleKeys.Width, 80f) }}
+              />
+              @switch (category) {
+                @case "short":
+                  return (
+                    <Label
+                      text="SHORT"
+                      style={new Style { (StyleKeys.Color, Color.green) }}
+                    />
+                  );
+                @case "medium":
+                  return (
+                    <Label
+                      text="MEDIUM"
+                      style={new Style { (StyleKeys.Color, Color.yellow) }}
+                    />
+                  );
+                @default:
+                  return (
+                    <Label
+                      text="LONG"
+                      style={new Style { (StyleKeys.Color, Color.red) }}
+                    />
+                  );
+              }
+            </VisualElement>
+          );
+        }
+      </SectionBox>
+    </VisualElement>
+  );
+}

@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Text;
 using ReactiveUITK.Language.Nodes;
 
 namespace ReactiveUITK.SourceGenerator.Emitter
@@ -9,9 +10,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
     /// <summary>
     /// Walks the AST and enforces ReactiveUITK's Rules of Hooks:
     ///
-    ///   UITKX0013 — Hook called inside @if / @else branch
-    ///   UITKX0014 — Hook called inside @foreach loop
-    ///   UITKX0015 — Hook called inside @switch case
+    ///   UITKX0013 ΓÇö Hook called inside @if / @else branch
+    ///   UITKX0014 ΓÇö Hook called inside @foreach loop
+    ///   UITKX0015 ΓÇö Hook called inside @switch case
     ///
     /// Detection is text-based: any <see cref="ExpressionNode"/> whose
     /// content contains a call matching
@@ -32,7 +33,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 WalkNode(node, HookContext.TopLevel, filePath, diagnostics);
         }
 
-        // ── Context tracking ──────────────────────────────────────────────────
+        // ΓöÇΓöÇ Context tracking ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private enum HookContext
         {
@@ -42,7 +43,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             Switch,
         }
 
-        // ── Tree walker ───────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Tree walker ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static void WalkNode(
             AstNode node,
@@ -56,46 +57,51 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 case IfNode ifn:
                     foreach (var branch in ifn.Branches)
                     {
-                        if (!string.IsNullOrWhiteSpace(branch.SetupCode))
-                            ScanCodeForHooks(branch.SetupCode, branch.SetupCodeLine,
-                                HookContext.Conditional, filePath, diagnostics);
+                        if (!string.IsNullOrWhiteSpace(branch.BodyCode))
+                            ScanCodeForHooks(branch.BodyCode, branch.BodyCodeLine,
+                                HookContext.Conditional, filePath, diagnostics,
+                                GetPreambleEnd(branch.BodyCode, branch.BodyCodeOffset, branch.BodyMarkupRanges, branch.BodyBareJsxRanges));
                         WalkBody(branch.Body, HookContext.Conditional, filePath, diagnostics);
                     }
                     break;
 
                 case ForeachNode forn:
-                    if (!string.IsNullOrWhiteSpace(forn.SetupCode))
-                        ScanCodeForHooks(forn.SetupCode, forn.SetupCodeLine,
-                            HookContext.Loop, filePath, diagnostics);
+                    if (!string.IsNullOrWhiteSpace(forn.BodyCode))
+                        ScanCodeForHooks(forn.BodyCode, forn.BodyCodeLine,
+                            HookContext.Loop, filePath, diagnostics,
+                            GetPreambleEnd(forn.BodyCode, forn.BodyCodeOffset, forn.BodyMarkupRanges, forn.BodyBareJsxRanges));
                     WalkBody(forn.Body, HookContext.Loop, filePath, diagnostics);
                     break;
 
                 case ForNode forNode:
-                    if (!string.IsNullOrWhiteSpace(forNode.SetupCode))
-                        ScanCodeForHooks(forNode.SetupCode, forNode.SetupCodeLine,
-                            HookContext.Loop, filePath, diagnostics);
+                    if (!string.IsNullOrWhiteSpace(forNode.BodyCode))
+                        ScanCodeForHooks(forNode.BodyCode, forNode.BodyCodeLine,
+                            HookContext.Loop, filePath, diagnostics,
+                            GetPreambleEnd(forNode.BodyCode, forNode.BodyCodeOffset, forNode.BodyMarkupRanges, forNode.BodyBareJsxRanges));
                     WalkBody(forNode.Body, HookContext.Loop, filePath, diagnostics);
                     break;
 
                 case WhileNode wn:
-                    if (!string.IsNullOrWhiteSpace(wn.SetupCode))
-                        ScanCodeForHooks(wn.SetupCode, wn.SetupCodeLine,
-                            HookContext.Loop, filePath, diagnostics);
+                    if (!string.IsNullOrWhiteSpace(wn.BodyCode))
+                        ScanCodeForHooks(wn.BodyCode, wn.BodyCodeLine,
+                            HookContext.Loop, filePath, diagnostics,
+                            GetPreambleEnd(wn.BodyCode, wn.BodyCodeOffset, wn.BodyMarkupRanges, wn.BodyBareJsxRanges));
                     WalkBody(wn.Body, HookContext.Loop, filePath, diagnostics);
                     break;
 
                 case SwitchNode sw:
                     foreach (var c in sw.Cases)
                     {
-                        if (!string.IsNullOrWhiteSpace(c.SetupCode))
-                            ScanCodeForHooks(c.SetupCode, c.SetupCodeLine,
-                                HookContext.Switch, filePath, diagnostics);
+                        if (!string.IsNullOrWhiteSpace(c.BodyCode))
+                            ScanCodeForHooks(c.BodyCode, c.BodyCodeLine,
+                                HookContext.Switch, filePath, diagnostics,
+                                GetPreambleEnd(c.BodyCode, c.BodyCodeOffset, c.BodyMarkupRanges, c.BodyBareJsxRanges));
                         WalkBody(c.Body, HookContext.Switch, filePath, diagnostics);
                     }
                     break;
 
                 case ElementNode el:
-                    // Check attribute values for hook calls — always wrong, even at top-level
+                    // Check attribute values for hook calls ΓÇö always wrong, even at top-level
                     // (covers onClick={() => UseState(0)}, text={UseState(0).value}, etc.)
                     foreach (var attr in el.Attributes)
                     {
@@ -122,7 +128,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                         );
                     break;
 
-                // TextNode — nothing to check
+                // TextNode ΓÇö nothing to check
             }
         }
 
@@ -137,9 +143,9 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 WalkNode(n, ctx, filePath, diagnostics);
         }
 
-        // ── Hook detection ────────────────────────────────────────────────────
+        // ΓöÇΓöÇ Hook detection ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
-        // Patterns that indicate a hook call. We match on the call site name only —
+        // Patterns that indicate a hook call. We match on the call site name only ΓÇö
         // the leading `Hooks.` prefix is optional so hand-written using-aliases work too.
         private static readonly string[] s_hookPatterns =
         {
@@ -177,7 +183,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             "useTransition(",
         };
 
-        // ── UITKX0016 — hook inside attribute expression ─────────────────────
+        // ΓöÇΓöÇ UITKX0016 ΓÇö hook inside attribute expression ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
         private static void CheckAttributeForHooks(
             string code,
@@ -192,7 +198,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     continue;
 
                 string hookName = pattern.TrimEnd('(');
-                var loc = Location.Create(filePath, default, default);
+                var loc = MakeLoc(filePath, sourceLine);
                 diagnostics.Add(
                     Diagnostic.Create(
                         UitkxDiagnostics.HookInEventHandler,
@@ -205,24 +211,57 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             }
         }
 
-        // ── Hook in SetupCode (control-block body preamble) ─────────────────
+        // ΓöÇΓöÇ Hook in SetupCode (control-block body preamble) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+
+        /// <summary>
+        /// Returns the end offset within <paramref name="bodyCode"/> that is the
+        /// start of the first JSX range (paren-wrapped or bare).  This is the
+        /// "setup preamble" boundary — the point after which content belongs to
+        /// the JSX expression and to nested directive bodies, which the tree walk
+        /// will visit directly.  Limiting <see cref="ScanCodeForHooks"/> to this
+        /// boundary prevents the same hook from being reported once per nesting level.
+        /// </summary>
+        private static int GetPreambleEnd(
+            string bodyCode,
+            int bodyCodeOffset,
+            ImmutableArray<(int Start, int End, int Line)> markupRanges,
+            ImmutableArray<(int Start, int End, int Line)> bareRanges
+        )
+        {
+            int min = bodyCode.Length;
+            foreach (var (absStart, _, _) in markupRanges)
+            {
+                int rel = absStart - bodyCodeOffset;
+                if (rel >= 0 && rel < min) min = rel;
+            }
+            foreach (var (absStart, _, _) in bareRanges)
+            {
+                int rel = absStart - bodyCodeOffset;
+                if (rel >= 0 && rel < min) min = rel;
+            }
+            return min;
+        }
 
         /// <summary>
         /// Scans a control-block SetupCode string for hook calls.
         /// Uses the same hook patterns as expression/attribute scanning, but reports
         /// with approximate line numbers derived from the block's starting line.
+        /// <paramref name="scanEnd"/> limits the scan to the setup preamble
+        /// (before the first JSX range) so nested bodies are not double-counted.
         /// </summary>
         private static void ScanCodeForHooks(
             string code,
             int blockStartLine,
             HookContext ctx,
             string filePath,
-            IList<Diagnostic> diagnostics
+            IList<Diagnostic> diagnostics,
+            int scanEnd = int.MaxValue
         )
         {
+            int limit = Math.Min(code.Length, scanEnd);
             foreach (var pattern in s_hookPatterns)
             {
-                int idx = code.IndexOf(pattern, StringComparison.Ordinal);
+                int idx = code.IndexOf(pattern, 0, limit, StringComparison.Ordinal);
                 if (idx < 0)
                     continue;
 
@@ -245,7 +284,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (code[i] == '\n')
                         approxLine++;
 
-                var loc = Location.Create(filePath, default, default);
+                var loc = MakeLoc(filePath, approxLine);
                 diagnostics.Add(Diagnostic.Create(descriptor, loc, hookName, approxLine));
                 break; // one diagnostic per SetupCode block is enough
             }
@@ -280,12 +319,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 if (descriptor == null)
                     continue;
 
-                var loc = Location.Create(filePath, default, default);
+                var loc = MakeLoc(filePath, sourceLine);
                 diagnostics.Add(Diagnostic.Create(descriptor, loc, hookName, sourceLine));
 
                 // One diagnostic per pattern per expression is enough
                 break;
             }
+        }
+        private static Location MakeLoc(string filePath, int sourceLine)
+        {
+            int line0 = Math.Max(0, sourceLine - 1);
+            var pos = new LinePosition(line0, 0);
+            return Location.Create(filePath, default, new LinePositionSpan(pos, pos));
         }
     }
 }

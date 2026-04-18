@@ -100,3 +100,26 @@ component DragTarget {
       }} />
   );
 }`
+
+export const EVENTS_CAPTURE_EXAMPLE = `// Capture-phase handler fires BEFORE the target's bubble handler.
+// Useful for intercepting events before children process them.
+component CaptureDemo {
+  var (log, setLog) = useState("");
+
+  return (
+    <VisualElement
+      onClickCapture={e => setLog("Capture on parent")}
+      onClick={_ => setLog(log + " → Bubble on parent")}>
+      <Button text="Click me"
+              onClick={e => {
+                setLog(log + " → Bubble on button");
+                e.StopPropagation();
+              }} />
+      <Label text={log} />
+    </VisualElement>
+  );
+
+  // Clicking the button logs: "Capture on parent → Bubble on button"
+  // The parent's bubble handler is skipped because StopPropagation()
+  // only stops further bubbling — capture already ran.
+}`

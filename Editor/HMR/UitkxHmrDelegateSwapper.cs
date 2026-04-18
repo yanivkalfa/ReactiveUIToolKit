@@ -21,7 +21,11 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// all matching fibers across all active renderers.
         /// </summary>
         /// <returns>Number of fiber instances swapped.</returns>
-        public static int SwapAll(Assembly hmrAssembly, string componentName, string uitkxFilePath = null)
+        public static int SwapAll(
+            Assembly hmrAssembly,
+            string componentName,
+            string uitkxFilePath = null
+        )
         {
             // ── 1. Find the generated type via [UitkxElement] attribute ──────
             var newDelegate = ExtractRenderDelegate(hmrAssembly, componentName);
@@ -72,10 +76,7 @@ namespace ReactiveUITK.EditorSupport.HMR
         /// global re-render on all active fiber trees.
         /// </summary>
         /// <returns>Number of hooks swapped.</returns>
-        public static int SwapHooks(
-            Assembly hmrAssembly,
-            string containerClassName,
-            string ns)
+        public static int SwapHooks(Assembly hmrAssembly, string containerClassName, string ns)
         {
             // ── 1. Find the container class in the project assemblies ────────
             string fullName = string.IsNullOrEmpty(ns)
@@ -95,7 +96,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (projectContainer == null)
             {
                 Debug.LogWarning(
-                    $"[HMR] Could not find hook container '{fullName}' in loaded assemblies.");
+                    $"[HMR] Could not find hook container '{fullName}' in loaded assemblies."
+                );
                 return 0;
             }
 
@@ -104,7 +106,8 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (hmrContainer == null)
             {
                 Debug.LogWarning(
-                    $"[HMR] Could not find hook container '{fullName}' in HMR assembly.");
+                    $"[HMR] Could not find hook container '{fullName}' in HMR assembly."
+                );
                 return 0;
             }
 
@@ -125,15 +128,16 @@ namespace ReactiveUITK.EditorSupport.HMR
                 if (field.FieldType == typeof(MethodInfo))
                 {
                     // ── Generic hook: swap MethodInfo + clear cache ──────
-                    var newMethod = hmrContainer.GetMethod(
-                        bodyMethodName, bindingFlags);
+                    var newMethod = hmrContainer.GetMethod(bodyMethodName, bindingFlags);
                     if (newMethod != null)
                     {
                         field.SetValue(null, newMethod);
                         swapped++;
 
                         var cacheField = projectContainer.GetField(
-                            field.Name + "_cache", bindingFlags);
+                            field.Name + "_cache",
+                            bindingFlags
+                        );
                         if (cacheField?.GetValue(null) is System.Collections.IDictionary dict)
                             dict.Clear();
                     }
@@ -141,21 +145,20 @@ namespace ReactiveUITK.EditorSupport.HMR
                 else if (typeof(Delegate).IsAssignableFrom(field.FieldType))
                 {
                     // ── Non-generic hook: swap Func/Action delegate ──────
-                    var newMethod = hmrContainer.GetMethod(
-                        bodyMethodName, bindingFlags);
+                    var newMethod = hmrContainer.GetMethod(bodyMethodName, bindingFlags);
                     if (newMethod != null)
                     {
                         try
                         {
-                            var newDel = Delegate.CreateDelegate(
-                                field.FieldType, newMethod);
+                            var newDel = Delegate.CreateDelegate(field.FieldType, newMethod);
                             field.SetValue(null, newDel);
                             swapped++;
                         }
                         catch (Exception ex)
                         {
                             Debug.LogWarning(
-                                $"[HMR] Failed to swap hook '{hookName}': {ex.Message}");
+                                $"[HMR] Failed to swap hook '{hookName}': {ex.Message}"
+                            );
                         }
                     }
                 }
@@ -198,8 +201,13 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return;
             if (fiber.Tag == FiberTag.FunctionComponent)
             {
-                try { fiber.ComponentState?.OnStateUpdated?.Invoke(); }
-                catch { /* best effort */ }
+                try
+                {
+                    fiber.ComponentState?.OnStateUpdated?.Invoke();
+                }
+                catch
+                { /* best effort */
+                }
             }
             ScheduleFullTreeUpdate(fiber.Child);
             ScheduleFullTreeUpdate(fiber.Sibling);
@@ -261,7 +269,14 @@ namespace ReactiveUITK.EditorSupport.HMR
         )
         {
             int count = 0;
-            WalkFiber(root.Current, root.Reconciler, componentName, newDelegate, uitkxFilePath, ref count);
+            WalkFiber(
+                root.Current,
+                root.Reconciler,
+                componentName,
+                newDelegate,
+                uitkxFilePath,
+                ref count
+            );
             return count;
         }
 
@@ -277,7 +292,10 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (fiber == null)
                 return;
 
-            if (fiber.Tag == FiberTag.FunctionComponent && IsMatch(fiber, componentName, uitkxFilePath))
+            if (
+                fiber.Tag == FiberTag.FunctionComponent
+                && IsMatch(fiber, componentName, uitkxFilePath)
+            )
             {
                 // ── Proactive hook signature check ───────────────────────
                 // Compare [HookSignature] attributes from old and new types.
@@ -290,11 +308,14 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (signatureChanged)
                 {
-                    Debug.Log(
-                        $"[HMR] Hook signature changed in {componentName} — resetting state"
-                    );
+                    Debug.Log($"[HMR] Hook signature changed in {componentName} — resetting state");
                     FullResetComponentState(fiber);
                 }
+
+                // Save current delegate for crash rollback in the reconciler.
+                // The reconciler's BeginWork catch block will restore this if the
+                // new delegate throws during render.
+                fiber.HmrPreviousRender = fiber.TypedRender;
 
                 // Swap the render delegate
                 fiber.TypedRender = newDelegate;
@@ -327,8 +348,22 @@ namespace ReactiveUITK.EditorSupport.HMR
             }
 
             // Recurse: first child, then sibling
-            WalkFiber(fiber.Child, reconciler, componentName, newDelegate, uitkxFilePath, ref count);
-            WalkFiber(fiber.Sibling, reconciler, componentName, newDelegate, uitkxFilePath, ref count);
+            WalkFiber(
+                fiber.Child,
+                reconciler,
+                componentName,
+                newDelegate,
+                uitkxFilePath,
+                ref count
+            );
+            WalkFiber(
+                fiber.Sibling,
+                reconciler,
+                componentName,
+                newDelegate,
+                uitkxFilePath,
+                ref count
+            );
         }
 
         private static bool IsMatch(FiberNode fiber, string componentName, string uitkxFilePath)
@@ -355,9 +390,14 @@ namespace ReactiveUITK.EditorSupport.HMR
             if (uitkxFilePath != null)
             {
                 var sourceAttr = declaringType.GetCustomAttribute<UitkxSourceAttribute>();
-                if (sourceAttr != null
-                    && string.Equals(sourceAttr.SourcePath, uitkxFilePath,
-                        StringComparison.OrdinalIgnoreCase))
+                if (
+                    sourceAttr != null
+                    && string.Equals(
+                        sourceAttr.SourcePath,
+                        uitkxFilePath,
+                        StringComparison.OrdinalIgnoreCase
+                    )
+                )
                     return true;
             }
 

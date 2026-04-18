@@ -1,0 +1,80 @@
+@namespace ReactiveUITK.Samples.UITKXComponents
+@using UnityEngine
+@using System.Collections.Generic
+
+component DirectiveSuccessDemo {
+  var (tab, setTab) = useState("if");
+  var tabs = new[] { "if", "foreach", "for", "while", "switch", "nested", "setup", "deep" };
+
+  var containerStyle = new Style {
+    (StyleKeys.Padding, 16f),
+    (StyleKeys.FlexGrow, 1f),
+  };
+
+  var tabBarStyle = new Style {
+    (StyleKeys.FlexDirection, "row"),
+    (StyleKeys.FlexWrap, "wrap"),
+    (StyleKeys.MarginBottom, 10f),
+  };
+
+  return (
+    <ScrollView style={containerStyle}>
+      <Label
+        text="Directive Success Demo"
+        style={new Style { (StyleKeys.FontSize, 22f), (StyleKeys.Color, Color.white), (StyleKeys.MarginBottom, 4f) }}
+      />
+      <Label
+        text="Each directive body = setup code → return (<JSX/>)"
+        style={new Style { (StyleKeys.FontSize, 12f), (StyleKeys.Color, new Color(0.6f, 0.6f, 0.6f)), (StyleKeys.MarginBottom, 12f) }}
+      />
+      <VisualElement style={tabBarStyle}>
+        @foreach (var tabItem in tabs) {
+          var active = tabItem == tab;
+          var bg = active ? new Color(0.3f, 0.6f, 1f) : new Color(0.25f, 0.25f, 0.25f);
+
+          return (
+            <Button
+              key={tabItem}
+              text={tabItem.ToUpper()}
+              onClick={_ => setTab(tabItem)}
+              style={new Style { (StyleKeys.MarginRight, 4f), (StyleKeys.MarginBottom, 4f), (StyleKeys.BackgroundColor, bg), (StyleKeys.Color, Color.white), (StyleKeys.BorderRadius, 4f) }}
+            />
+          );
+        }
+      </VisualElement>
+      @if (tab == "if") {
+        return (
+          <IfSection />
+        );
+      } @else if (tab == "foreach") {
+        return (
+          <ForeachSection />
+        );
+      } @else if (tab == "for") {
+        return (
+          <ForSection />
+        );
+      } @else if (tab == "while") {
+        return (
+          <WhileSection />
+        );
+      } @else if (tab == "switch") {
+        return (
+          <SwitchSection />
+        );
+      } @else if (tab == "nested") {
+        return (
+          <NestedSection />
+        );
+      } @else if (tab == "setup") {
+        return (
+          <SetupCodeSection />
+        );
+      } @else if (tab == "deep") {
+        return (
+          <DeepNestedSection />
+        );
+      }
+    </ScrollView>
+  );
+}
