@@ -53,6 +53,12 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>The actual VisualElement (only for host nodes)</summary>
         public VisualElement HostElement;
 
+        /// <summary>Committed typed host props from last render (typed pipeline).</summary>
+        public Props.Typed.BaseProps HostProps;
+
+        /// <summary>Pending typed host props for next render (typed pipeline).</summary>
+        public Props.Typed.BaseProps PendingHostProps;
+
         // ==== Props and State ====
         /// <summary>Current props</summary>
         public IReadOnlyDictionary<string, object> Props;
@@ -85,14 +91,14 @@ namespace ReactiveUITK.Core.Fiber
         /// <summary>For Portal nodes</summary>
         public VisualElement PortalTarget;
 
-        /// <summary>For tracking rendered output</summary>
-        public VirtualNode LastRenderedVNode;
-
         // ==== Error Boundary State ====
         public bool ErrorBoundaryActive;
         public bool ErrorBoundaryShowingFallback;
         public Exception ErrorBoundaryLastException;
         public string ErrorBoundaryResetKey;
+        public VirtualNode ErrorBoundaryFallback;
+        public ErrorEventHandler ErrorBoundaryHandler;
+        public IReadOnlyList<VirtualNode> ErrorBoundaryChildren;
 
         // ==== Lifecycle ====
         /// <summary>List of layout effects to run</summary>

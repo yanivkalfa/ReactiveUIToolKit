@@ -39,13 +39,13 @@ module GameLogic {
     public static GameState Update(GameState s, float dt, bool left, bool right, bool shoot, System.Random rng) {
       switch (s.Phase) {
         case GamePhase.WaveIntro:
-          return TickWaveIntro(s, dt);
+        return TickWaveIntro(s, dt);
         case GamePhase.Battle:
-          return TickBattle(s, dt, left, right, shoot, rng);
+        return TickBattle(s, dt, left, right, shoot, rng);
         case GamePhase.WaveCleared:
-          return TickWaveCleared(s, dt);
+        return TickWaveCleared(s, dt);
         default:
-          return s;
+        return s;
       }
     }
 
@@ -174,7 +174,7 @@ module GameLogic {
         var cmds = new List<int>();
         for (int i = 0; i < s.Enemies.Count; i++) {
           if (s.Enemies[i].Type == EnemyType.Commander && s.Enemies[i].Phase == EnemyPhase.Formation
-              && !s.Enemies[i].HasCapturedShip) {
+          && !s.Enemies[i].HasCapturedShip) {
             cmds.Add(i);
           }
         }
@@ -405,7 +405,7 @@ module GameLogic {
           if (e.Phase != EnemyPhase.Diving) continue;
 
           if (GCollision.Overlaps(s.Player.X, s.Player.Y, ENTITY_SIZE, ENTITY_SIZE,
-                                 e.X, e.Y, ENTITY_SIZE, ENTITY_SIZE)) {
+          e.X, e.Y, ENTITY_SIZE, ENTITY_SIZE)) {
             e.Phase = EnemyPhase.Dead;
             s.Explosions.Add(new ExplosionState {
               Id = s.NextExplosionId++,

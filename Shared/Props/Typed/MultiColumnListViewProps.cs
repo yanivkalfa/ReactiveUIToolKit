@@ -23,6 +23,39 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, int> ColumnDisplayIndex { get; set; }
         public ColumnLayoutEventHandler ColumnLayoutChanged { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not MultiColumnListViewProps o)
+                return false;
+            if (!ReferenceEquals(Items, o.Items))
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (FixedItemHeight != o.FixedItemHeight)
+                return false;
+            if (Selection != o.Selection)
+                return false;
+            if (!ReferenceEquals(Columns, o.Columns))
+                return false;
+            if (!ReferenceEquals(SortedColumns, o.SortedColumns))
+                return false;
+            if (!ReferenceEquals(SortingMode, o.SortingMode))
+                return false;
+            if (ColumnSortingChanged != o.ColumnSortingChanged)
+                return false;
+            if (!ReferenceEquals(ColumnWidths, o.ColumnWidths))
+                return false;
+            if (!ReferenceEquals(ColumnVisibility, o.ColumnVisibility))
+                return false;
+            if (!ReferenceEquals(ColumnDisplayIndex, o.ColumnDisplayIndex))
+                return false;
+            if (ColumnLayoutChanged != o.ColumnLayoutChanged)
+                return false;
+            return true;
+        }
+
         public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
             public string Name { get; set; }
@@ -140,6 +173,27 @@ namespace ReactiveUITK.Props.Typed
                 dict["columnLayoutChanged"] = ColumnLayoutChanged;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Items = null;
+            SelectedIndex = null;
+            FixedItemHeight = null;
+            Selection = null;
+            Columns = null;
+            SortedColumns = null;
+            SortingMode = null;
+            ColumnSortingChanged = null;
+            ColumnWidths = null;
+            ColumnVisibility = null;
+            ColumnDisplayIndex = null;
+            ColumnLayoutChanged = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<MultiColumnListViewProps>.Return(this);
         }
     }
 }

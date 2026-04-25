@@ -4,7 +4,6 @@
 @using UnityEngine
 
 module GalagaTypes {
-
   // ───── Enums ─────
 
   public enum EnemyType { Zako, Goei, Commander }
@@ -105,7 +104,7 @@ module GalagaTypes {
     public const int VIEWPORT_W = 450;
     public const int VIEWPORT_H = 700;
     public const int SPRITE_SCALE = 2;
-    public const int ENTITY_SIZE = 16 * SPRITE_SCALE;  // 32
+    public const int ENTITY_SIZE = 16 * SPRITE_SCALE; // 32
     public const int EXPLOSION_SIZE = 32 * SPRITE_SCALE; // 64
 
     public const float PLAYER_SPEED = 175f;
@@ -193,8 +192,8 @@ module GalagaTypes {
 
     public static Vec2 GetFormationPos(int row, int col) {
       return new Vec2(
-        C.FORMATION_LEFT + col * C.FORMATION_COL_SPACING,
-        C.FORMATION_TOP + row * C.FORMATION_ROW_SPACING
+      C.FORMATION_LEFT + col * C.FORMATION_COL_SPACING,
+      C.FORMATION_TOP + row * C.FORMATION_ROW_SPACING
       );
     }
   }
@@ -209,8 +208,8 @@ module GalagaTypes {
       float tt = t * t;
       float ttt = tt * t;
       return new Vec2(
-        uuu * p0.X + 3 * uu * t * p1.X + 3 * u * tt * p2.X + ttt * p3.X,
-        uuu * p0.Y + 3 * uu * t * p1.Y + 3 * u * tt * p2.Y + ttt * p3.Y
+      uuu * p0.X + 3 * uu * t * p1.X + 3 * u * tt * p2.X + ttt * p3.X,
+      uuu * p0.Y + 3 * uu * t * p1.Y + 3 * u * tt * p2.Y + ttt * p3.Y
       );
     }
 
@@ -351,14 +350,14 @@ module GalagaTypes {
 
   public static class Collision {
     public static bool Overlaps(float ax, float ay, float aw, float ah,
-                                float bx, float by, float bw, float bh) {
+    float bx, float by, float bw, float bh) {
       return ax + aw > bx && ax < bx + bw && ay + ah > by && ay < by + bh;
     }
 
     public static bool BulletHitsEntity(BulletState b, float ex, float ey, int size) {
       float margin = size * 0.15f;
       return Overlaps(b.X - 4, b.Y - 4, 8, 8,
-                      ex + margin, ey + margin, size - margin * 2, size - margin * 2);
+      ex + margin, ey + margin, size - margin * 2, size - margin * 2);
     }
   }
 }

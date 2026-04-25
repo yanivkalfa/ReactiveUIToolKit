@@ -1,0 +1,15 @@
+@namespace Samples.DoomGame
+@using UnityEngine
+
+module DoomGame {
+  public static class Styles {
+    public static readonly Style Root = new Style {
+      (StyleKeys.Display, "flex"),
+      (StyleKeys.FlexGrow, 1f),
+      (StyleKeys.FlexDirection, "column"),
+      (StyleKeys.BackgroundColor, new Color(0.02f, 0.02f, 0.02f, 1f)),
+      (StyleKeys.AlignItems, "center"),
+      (StyleKeys.JustifyContent, "center"),
+    };
+  }
+}

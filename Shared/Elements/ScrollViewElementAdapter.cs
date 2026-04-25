@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -173,6 +174,66 @@ namespace ReactiveUITK.Elements
         {
             var sv = element as ScrollView;
             return sv != null ? sv.contentContainer : element;
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is ScrollView sv && props is ScrollViewProps tp)
+            {
+                if (!string.IsNullOrEmpty(tp.Mode))
+                {
+                    var ms = tp.Mode.ToLowerInvariant();
+                    sv.mode = ms switch
+                    {
+                        "vertical" => ScrollViewMode.Vertical,
+                        "horizontal" => ScrollViewMode.Horizontal,
+                        "verticalandhorizontal" or "both" => ScrollViewMode.VerticalAndHorizontal,
+                        _ => ScrollViewMode.Vertical,
+                    };
+                }
+                if (tp.VerticalScrollerVisibility.HasValue)
+                    sv.verticalScrollerVisibility = tp.VerticalScrollerVisibility.Value;
+                if (tp.HorizontalScrollerVisibility.HasValue)
+                    sv.horizontalScrollerVisibility = tp.HorizontalScrollerVisibility.Value;
+                if (tp.ScrollOffset.HasValue)
+                    sv.scrollOffset = tp.ScrollOffset.Value;
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is ScrollView sv
+                && prev is ScrollViewProps tp
+                && next is ScrollViewProps tn
+            )
+            {
+                if (tp.Mode != tn.Mode && !string.IsNullOrEmpty(tn.Mode))
+                {
+                    var ms = tn.Mode.ToLowerInvariant();
+                    sv.mode = ms switch
+                    {
+                        "vertical" => ScrollViewMode.Vertical,
+                        "horizontal" => ScrollViewMode.Horizontal,
+                        "verticalandhorizontal" or "both" => ScrollViewMode.VerticalAndHorizontal,
+                        _ => ScrollViewMode.Vertical,
+                    };
+                }
+                if (
+                    tp.VerticalScrollerVisibility != tn.VerticalScrollerVisibility
+                    && tn.VerticalScrollerVisibility.HasValue
+                )
+                    sv.verticalScrollerVisibility = tn.VerticalScrollerVisibility.Value;
+                if (
+                    tp.HorizontalScrollerVisibility != tn.HorizontalScrollerVisibility
+                    && tn.HorizontalScrollerVisibility.HasValue
+                )
+                    sv.horizontalScrollerVisibility = tn.HorizontalScrollerVisibility.Value;
+                if (tp.ScrollOffset != tn.ScrollOffset && tn.ScrollOffset.HasValue)
+                    sv.scrollOffset = tn.ScrollOffset.Value;
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

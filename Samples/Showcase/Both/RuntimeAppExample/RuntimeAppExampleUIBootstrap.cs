@@ -1,7 +1,7 @@
 using ReactiveUITK;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props.Typed;
-using Samples.MarioGame;
+using Samples.StressTest;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -15,6 +15,8 @@ namespace ReactiveUITK.Samples.FunctionalComponents
 
         private void Awake()
         {
+            Application.targetFrameRate = -1;
+            QualitySettings.vSyncCount = 0;
             rootRenderer = GetComponent<RootRenderer>();
             if (rootRenderer == null)
             {
@@ -32,9 +34,7 @@ namespace ReactiveUITK.Samples.FunctionalComponents
             }
             rootRenderer.Initialize(uiDocument.rootVisualElement);
             var hostProps = new VisualElementProps { PickingMode = PickingMode.Ignore };
-            rootRenderer.Render(
-                V.Host(hostProps, null, V.Func(MarioGame.Render))
-            );
+            rootRenderer.Render(V.Host(hostProps, null, V.Func(StressTest.Render)));
         }
     }
 }

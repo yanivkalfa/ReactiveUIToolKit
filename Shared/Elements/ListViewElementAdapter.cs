@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Core;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -179,11 +180,18 @@ namespace ReactiveUITK.Elements
                     listView.unbindItem = (ve, i) =>
                     {
                         var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
-                        if (parts.BoundKeyByIndex.TryGetValue(i, out var key)
+                        if (
+                            parts.BoundKeyByIndex.TryGetValue(i, out var key)
                             && parts.Pool.TryGetValue(key, out var entry)
-                            && entry.mount != null && entry.mount.parent == ve)
+                            && entry.mount != null
+                            && entry.mount.parent == ve
+                        )
                         {
-                            try { entry.mount.RemoveFromHierarchy(); } catch { }
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
                         }
                         parts.BoundKeyByIndex.Remove(i);
                     };
@@ -309,11 +317,18 @@ namespace ReactiveUITK.Elements
                     listView.unbindItem = (ve, i) =>
                     {
                         var parts = cachedPartsByList.GetValue(listView, _ => new CachedParts());
-                        if (parts.BoundKeyByIndex.TryGetValue(i, out var key)
+                        if (
+                            parts.BoundKeyByIndex.TryGetValue(i, out var key)
                             && parts.Pool.TryGetValue(key, out var entry)
-                            && entry.mount != null && entry.mount.parent == ve)
+                            && entry.mount != null
+                            && entry.mount.parent == ve
+                        )
                         {
-                            try { entry.mount.RemoveFromHierarchy(); } catch { }
+                            try
+                            {
+                                entry.mount.RemoveFromHierarchy();
+                            }
+                            catch { }
                         }
                         parts.BoundKeyByIndex.Remove(i);
                     };
@@ -354,6 +369,23 @@ namespace ReactiveUITK.Elements
             ApplySlotsDiff(listView, previous, next);
             PropsApplier.ApplyDiff(element, previous, next);
             parts.ScrollTracker.Reapply(listView, parts, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            var dict = props.ToDictionary();
+            if (dict != null && dict.Count > 0)
+                ApplyProperties(element, dict);
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            var prevDict = prev.ToDictionary();
+            var nextDict = next.ToDictionary();
+            if (nextDict != null && nextDict.Count > 0)
+                ApplyPropertiesDiff(element, prevDict, nextDict);
+            base.ApplyTypedDiff(element, prev, next);
         }
 
         private static void ApplySlots(
@@ -439,16 +471,14 @@ namespace ReactiveUITK.Elements
         {
             var f = t.GetField(
                 "Id",
-                System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.Public
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
             );
             if (f?.FieldType == typeof(string))
                 return obj => f.GetValue(obj) as string;
 
             var p = t.GetProperty(
                 "Id",
-                System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.Public
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
             );
             if (p?.PropertyType == typeof(string))
                 return obj => p.GetValue(obj) as string;

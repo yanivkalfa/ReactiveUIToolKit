@@ -4,6 +4,7 @@ using System.Reflection;
 using ReactiveUITK.Core;
 using ReactiveUITK.Elements.Trackers;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -112,6 +113,23 @@ namespace ReactiveUITK.Elements
                     tracker.SyncFromView(tabView, selectionState);
                 }
             }
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            var dict = props.ToDictionary();
+            if (dict != null && dict.Count > 0)
+                ApplyProperties(element, dict);
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            var prevDict = prev.ToDictionary();
+            var nextDict = next.ToDictionary();
+            if (nextDict != null && nextDict.Count > 0)
+                ApplyPropertiesDiff(element, prevDict, nextDict);
+            base.ApplyTypedDiff(element, prev, next);
         }
 
         private static void ApplyTabs(

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -50,6 +51,26 @@ namespace ReactiveUITK.Elements
                 );
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is Label label && props is LabelProps lp)
+            {
+                if (lp.Text != null)
+                    label.text = lp.Text;
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (element is Label label && prev is LabelProps lp && next is LabelProps ln)
+            {
+                if (lp.Text != ln.Text)
+                    label.text = ln.Text ?? string.Empty;
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }

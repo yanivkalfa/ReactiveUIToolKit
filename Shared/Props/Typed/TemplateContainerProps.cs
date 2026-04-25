@@ -5,6 +5,18 @@ namespace ReactiveUITK.Props.Typed
 {
     public sealed class TemplateContainerProps : BaseProps
     {
+        public override bool ShallowEquals(BaseProps other)
+        {
+            return base.ShallowEquals(other) && other is TemplateContainerProps;
+        }
+
         public override Dictionary<string, object> ToDictionary() => base.ToDictionary();
+
+        internal override void __ResetFields() { }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TemplateContainerProps>.Return(this);
+        }
     }
 }

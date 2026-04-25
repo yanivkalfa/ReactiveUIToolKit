@@ -1,0 +1,134 @@
+@namespace Samples.DoomGame
+@using UnityEngine
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTypes.C
+
+module DoomGameScreen {
+  // ───── Wall colors by type ─────
+  public static Color WallColor(int wallType, float brightness, bool hitVertical) {
+    Color baseColor = wallType switch {
+      1 => new Color(0.6f, 0.15f, 0.1f, 1f), // red brick
+      2 => new Color(0.2f, 0.35f, 0.6f, 1f), // blue stone
+      3 => new Color(0.15f, 0.5f, 0.2f, 1f), // green tech
+      4 => new Color(0.5f, 0.45f, 0.3f, 1f), // tan/brown
+      _ => new Color(0.4f, 0.4f, 0.4f, 1f), // gray
+    };
+    return new Color(
+    baseColor.r * brightness,
+    baseColor.g * brightness,
+    baseColor.b * brightness,
+    1f
+    );
+  }
+
+  public static class GameScreenStyles {
+    public static readonly Style Container = new Style {
+      (StyleKeys.Display, "flex"),
+      (StyleKeys.FlexGrow, 1f),
+      (StyleKeys.FlexDirection, "column"),
+      (StyleKeys.AlignItems, "center"),
+      (StyleKeys.JustifyContent, "center"),
+    };
+
+    public static readonly Style Viewport = new Style {
+      (StyleKeys.Display, "flex"),
+      (StyleKeys.Width, (float)VIEWPORT_W),
+      (StyleKeys.Height, (float)VIEWPORT_H),
+      (StyleKeys.Position, "relative"),
+      (StyleKeys.Overflow, "hidden"),
+    };
+
+    public static readonly Style CeilingFloor = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Width, (float)VIEWPORT_W),
+      (StyleKeys.Height, (float)(VIEWPORT_H / 2)),
+      (StyleKeys.Left, 0f),
+    };
+
+    public static readonly Style QuitButton = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Right, 4f),
+      (StyleKeys.Top, 4f),
+      (StyleKeys.Width, 50f),
+      (StyleKeys.Height, 22f),
+      (StyleKeys.FontSize, 11f),
+      (StyleKeys.Color, Color.white),
+      (StyleKeys.BackgroundColor, new Color(0.4f, 0.1f, 0.1f, 0.7f)),
+      (StyleKeys.BorderRadius, 3f),
+      (StyleKeys.BorderWidth, 0f),
+    };
+
+    public static readonly Style Overlay = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Width, (float)VIEWPORT_W),
+      (StyleKeys.Height, (float)VIEWPORT_H),
+      (StyleKeys.Left, 0f),
+      (StyleKeys.Top, 0f),
+      (StyleKeys.Display, "flex"),
+      (StyleKeys.AlignItems, "center"),
+      (StyleKeys.JustifyContent, "center"),
+      (StyleKeys.BackgroundColor, new Color(0f, 0f, 0f, 0.7f)),
+    };
+
+    public static readonly Style OverlayTitle = new Style {
+      (StyleKeys.FontSize, 48f),
+      (StyleKeys.Color, new Color(0.9f, 0.15f, 0.1f, 1f)),
+      (StyleKeys.MarginBottom, 16f),
+    };
+
+    public static readonly Style OverlaySubtitle = new Style {
+      (StyleKeys.FontSize, 20f),
+      (StyleKeys.Color, Color.white),
+      (StyleKeys.MarginBottom, 24f),
+    };
+
+    public static readonly Style OverlayButton = new Style {
+      (StyleKeys.Width, 160f),
+      (StyleKeys.Height, 36f),
+      (StyleKeys.FontSize, 16f),
+      (StyleKeys.Color, Color.white),
+      (StyleKeys.BackgroundColor, new Color(0.6f, 0.1f, 0.05f, 1f)),
+      (StyleKeys.BorderRadius, 4f),
+      (StyleKeys.BorderWidth, 0f),
+      (StyleKeys.MarginBottom, 8f),
+    };
+
+    // Crosshair
+    public static readonly Style Crosshair = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Left, (float)(VIEWPORT_W / 2 - 1)),
+      (StyleKeys.Top, (float)(VIEWPORT_H / 2 - 8)),
+      (StyleKeys.Width, 2f),
+      (StyleKeys.Height, 16f),
+      (StyleKeys.BackgroundColor, new Color(1f, 1f, 1f, 0.6f)),
+    };
+
+    public static readonly Style CrosshairH = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Left, (float)(VIEWPORT_W / 2 - 8)),
+      (StyleKeys.Top, (float)(VIEWPORT_H / 2 - 1)),
+      (StyleKeys.Width, 16f),
+      (StyleKeys.Height, 2f),
+      (StyleKeys.BackgroundColor, new Color(1f, 1f, 1f, 0.6f)),
+    };
+
+    // Enemy sprite placeholder (colored rectangle)
+    public static readonly Style EnemySprite = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.BackgroundColor, new Color(0.8f, 0.2f, 0.1f, 1f)),
+    };
+
+    // Minimap styles
+    public static readonly Style MinimapContainer = new Style {
+      (StyleKeys.Position, "absolute"),
+      (StyleKeys.Right, 8f),
+      (StyleKeys.Top, 8f),
+      (StyleKeys.Width, 96f),
+      (StyleKeys.Height, 96f),
+      (StyleKeys.BackgroundColor, new Color(0f, 0f, 0f, 0.6f)),
+      (StyleKeys.BorderWidth, 1f),
+      (StyleKeys.BorderColor, new Color(0.4f, 0.4f, 0.4f, 0.5f)),
+      (StyleKeys.Overflow, "hidden"),
+    };
+  }
+}

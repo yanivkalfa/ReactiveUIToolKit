@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -184,6 +185,74 @@ namespace ReactiveUITK.Elements
                 return parts.Label;
             }
             return null;
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is RadioButton rb && props is RadioButtonProps tp)
+            {
+                if (tp.Value.HasValue)
+                    rb.value = tp.Value.Value;
+                if (tp.Text != null)
+                    rb.text = tp.Text;
+                if (tp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", tp.OnChange);
+                if (tp.OnChangeCapture != null)
+                    PropsApplier.ApplySingle(element, null, "onChangeCapture", tp.OnChangeCapture);
+                if (tp.Label != null)
+                {
+                    var labelEl = ResolveSlotElement(rb, "label");
+                    if (labelEl != null)
+                        PropsApplier.Apply(labelEl, tp.Label);
+                }
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is RadioButton rb
+                && prev is RadioButtonProps tp
+                && next is RadioButtonProps tn
+            )
+            {
+                if (tp.Value != tn.Value && tn.Value.HasValue)
+                    rb.value = tn.Value.Value;
+                if (tp.Text != tn.Text)
+                    rb.text = tn.Text ?? string.Empty;
+                if (tp.OnChange != tn.OnChange)
+                {
+                    if (tn.OnChange != null)
+                        PropsApplier.ApplySingle(element, tp.OnChange, "onChange", tn.OnChange);
+                    else if (tp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", tp.OnChange);
+                }
+                if (tp.OnChangeCapture != tn.OnChangeCapture)
+                {
+                    if (tn.OnChangeCapture != null)
+                        PropsApplier.ApplySingle(
+                            element,
+                            tp.OnChangeCapture,
+                            "onChangeCapture",
+                            tn.OnChangeCapture
+                        );
+                    else if (tp.OnChangeCapture != null)
+                        PropsApplier.RemoveProp(element, "onChangeCapture", tp.OnChangeCapture);
+                }
+                if (!ReferenceEquals(tp.Label, tn.Label))
+                {
+                    var labelEl = ResolveSlotElement(rb, "label");
+                    if (labelEl != null)
+                    {
+                        if (tp.Label != null && tn.Label != null)
+                            PropsApplier.ApplyDiff(labelEl, tp.Label, tn.Label);
+                        else if (tn.Label != null)
+                            PropsApplier.Apply(labelEl, tn.Label);
+                    }
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
     }
 }
