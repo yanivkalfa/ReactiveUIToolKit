@@ -395,8 +395,6 @@ namespace ReactiveUITK.Core.Fiber
                     break;
             }
 
-            // All fields extracted — schedule VNode for pool return.
-            VirtualNode.__ScheduleReturn(vnode);
             return fiber;
         }
 

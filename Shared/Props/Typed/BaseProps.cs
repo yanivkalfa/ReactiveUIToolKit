@@ -18,6 +18,13 @@ namespace ReactiveUITK.Props.Typed
         // ═══════════════════════════════════════════════════════════════════
         internal uint _generation;
 
+        // Idempotent return guard: true when this instance is currently in the
+        // s_pendingReturn list waiting to be moved to the pool. Prevents the
+        // same instance from being scheduled twice in one flush window
+        // (which would push it into the pool twice and let two future Rents
+        // hand out the same instance — the cross-wired "disco" style bug).
+        internal bool _isPendingReturn;
+
         // --- Identity / structure ---
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -845,6 +852,7 @@ namespace ReactiveUITK.Props.Typed
                 if (gen == 0)
                     gen = s_nextGeneration++; // skip 0 on overflow
                 p._generation = gen;
+                p._isPendingReturn = false; // safety: ensure rented instances are not flagged as pending
                 return p;
             }
 
@@ -870,11 +878,16 @@ namespace ReactiveUITK.Props.Typed
         /// <summary>
         /// Schedule a BaseProps for return to pool on next flush.
         /// Props with generation 0 (user-created) are ignored.
+        /// Idempotent: a single instance can only sit in the pending-return
+        /// list once per flush window. Subsequent calls are no-ops.
         /// </summary>
         internal static void __ScheduleReturn(BaseProps p)
         {
             if (p == null || p._generation == 0)
                 return;
+            if (p._isPendingReturn)
+                return;
+            p._isPendingReturn = true;
             s_pendingReturn.Add(p);
         }
 
@@ -887,6 +900,7 @@ namespace ReactiveUITK.Props.Typed
             for (int i = 0; i < s_pendingReturn.Count; i++)
             {
                 var p = s_pendingReturn[i];
+                p._isPendingReturn = false;
                 __ReturnToTypedPool(p);
             }
             s_pendingReturn.Clear();

@@ -197,6 +197,10 @@ namespace ReactiveUITK.Elements
                     sv.horizontalScrollerVisibility = tp.HorizontalScrollerVisibility.Value;
                 if (tp.ScrollOffset.HasValue)
                     sv.scrollOffset = tp.ScrollOffset.Value;
+
+                // Apply contentContainer styling (typed path mirror of ApplySlots)
+                if (props.ContentContainer is Dictionary<string, object> ccMap)
+                    PropsApplier.Apply(sv.contentContainer, ccMap);
             }
             base.ApplyTypedFull(element, props);
         }
@@ -232,6 +236,13 @@ namespace ReactiveUITK.Elements
                     sv.horizontalScrollerVisibility = tn.HorizontalScrollerVisibility.Value;
                 if (tp.ScrollOffset != tn.ScrollOffset && tn.ScrollOffset.HasValue)
                     sv.scrollOffset = tn.ScrollOffset.Value;
+
+                // Apply contentContainer styling diff (typed path mirror of ApplySlotsDiff)
+                if (
+                    !ReferenceEquals(prev.ContentContainer, next.ContentContainer)
+                    && next.ContentContainer is Dictionary<string, object> ccMap
+                )
+                    PropsApplier.Apply(sv.contentContainer, ccMap);
             }
             base.ApplyTypedDiff(element, prev, next);
         }

@@ -114,8 +114,18 @@ namespace ReactiveUITK.Core.Fiber
 
             _root = root;
 
-            // Schedule initial render
-            ScheduleUpdateOnFiber(rootFiber, vnode);
+            // Synchronous initial render: run the work loop immediately so all
+            // elements are created and placed before CreateRoot returns.  This
+            // prevents a visible flash where the container is empty for one
+            // frame between Clear() and the first CommitRoot.
+            //
+            // Passive effects are still deferred via the scheduler (the normal
+            // async path) — only the render + commit phase is synchronous.
+            // This mirrors React 18's createRoot().render() behaviour: the
+            // initial mount is always synchronous; time-slicing is reserved
+            // for subsequent state-driven updates.
+            ScheduleUpdateOnFiber(rootFiber, vnode, scheduleWork: false);
+            WorkLoop();
 
             return root;
         }
@@ -339,9 +349,11 @@ namespace ReactiveUITK.Core.Fiber
             {
                 float startMs = Time.realtimeSinceStartup * 1000f;
                 bool yielded = false;
+                int unitsThisSlice = 0;
                 while (_nextUnitOfWork != null)
                 {
                     _nextUnitOfWork = PerformUnitOfWork(_nextUnitOfWork);
+                    unitsThisSlice++;
 
                     float nowMs = Time.realtimeSinceStartup * 1000f;
                     if (nowMs - startMs >= TimeSliceMs)
@@ -378,6 +390,15 @@ namespace ReactiveUITK.Core.Fiber
 
             // BeginWork: reconcile this fiber's children
             var next = BeginWork(unitOfWork);
+
+            // OPT-26 fix: Track deletions recorded during BeginWork from ANY source.
+            // The ReconcileChildren wrapper only covers host/portal/error-boundary paths.
+            // Function components (ReconcileSingleChild, null-return deletion) and
+            // fragments (direct FiberChildReconciliation call) also record deletions
+            // on the fiber but bypass the wrapper. Checking here is the single
+            // universal point that covers every BeginWork code path.
+            if (unitOfWork.Deletions != null)
+                _hasDeletions = true;
 
             if (next != null)
             {
@@ -540,19 +561,20 @@ namespace ReactiveUITK.Core.Fiber
                     )
                     {
                         // Props are equal but the rented object is a different instance.
-                        // It won't be committed, so return it to the pool now to avoid
-                        // leaking one allocation per unchanged element per frame.
-                        if (
-                            fiber.PendingHostProps.Style != null
-                            && !ReferenceEquals(
-                                fiber.PendingHostProps.Style,
-                                fiber.HostProps?.Style
-                            )
-                        )
-                        {
-                            Props.Typed.Style.__ScheduleReturn(fiber.PendingHostProps.Style);
-                        }
-                        Props.Typed.BaseProps.__ScheduleReturn(fiber.PendingHostProps);
+                        // We do NOT return PendingHostProps to the pool here: this runs
+                        // in the render phase, and the source VNode (`vnode._hostProps`)
+                        // still holds a live reference to it. If the render is interrupted
+                        // and restarted (passive effect / setState during render), the same
+                        // VNode reference is re-encountered and the same BaseProps would be
+                        // re-scheduled — double-return — and worse, if it has already been
+                        // returned and re-rented elsewhere, two fibers end up sharing one
+                        // mutable BaseProps instance (the cross-wired "disco" style bug).
+                        //
+                        // The leak is bounded: when the owning function component eventually
+                        // re-renders, the VNode subtree becomes garbage and the unused
+                        // BaseProps is collected by the CLR. Pool returns only happen in the
+                        // commit phase from CommitUpdate / CommitDeletion, when the OLD
+                        // HostProps is provably no longer referenced by the new tree.
                         fiber.PendingHostProps = fiber.HostProps;
                     }
                     break;
@@ -668,7 +690,6 @@ namespace ReactiveUITK.Core.Fiber
                     CommitWork(effect);
                     effect = effect.NextEffect;
                 }
-
                 // Swap current and work-in-progress
                 _root.Current = finishedWork;
 
@@ -684,7 +705,6 @@ namespace ReactiveUITK.Core.Fiber
                 // an object that's being returned to the pool.
                 Props.Typed.Style.__FlushReturns();
                 Props.Typed.BaseProps.__FlushReturns();
-                VirtualNode.__FlushReturns();
 
                 // Flush passive effects in two passes: all cleanups first, then all setups.
                 // This preserves React's invariant that no component's setup runs before all
@@ -1194,8 +1214,7 @@ namespace ReactiveUITK.Core.Fiber
             }
             else if (fiber.Alternate?.Child != null)
             {
-                // Bailout: Children is null (cleared after previous commit to prevent
-                // stale VNode pool references). Clone existing child fibers instead.
+                // Bailout: Children cleared after commit. Clone existing child fibers.
                 FiberFactory.CloneChildrenForBailout(fiber);
             }
 
@@ -1219,9 +1238,9 @@ namespace ReactiveUITK.Core.Fiber
             {
                 ReconcileChildren(fiber, fiber.Children);
             }
-            else if (fiber.Children == null && fiber.Alternate?.Child != null)
+            else if (fiber.Alternate?.Child != null)
             {
-                // Bailout: Children is null (cleared after previous commit).
+                // Bailout: Children cleared after commit.
                 FiberFactory.CloneChildrenForBailout(fiber);
             }
 
@@ -1241,6 +1260,16 @@ namespace ReactiveUITK.Core.Fiber
                 fiber.ErrorBoundaryActive = false;
                 fiber.ErrorBoundaryShowingFallback = false;
                 fiber.ErrorBoundaryLastException = null;
+
+                // Mark the reset as consumed by syncing the alternate's key. If a child
+                // throws now, the catch path re-invokes UpdateErrorBoundary on this same
+                // fiber — without this sync, resetRequested would still be true on the
+                // re-entry, clearing ErrorBoundaryActive again and re-rendering the
+                // children → throw → catch → reset → infinite loop.
+                if (fiber.Alternate != null)
+                {
+                    fiber.Alternate.ErrorBoundaryResetKey = fiber.ErrorBoundaryResetKey;
+                }
             }
 
             IReadOnlyList<VirtualNode> targetChildren;
@@ -1496,12 +1525,6 @@ namespace ReactiveUITK.Core.Fiber
 
             // Clear remaining flags (HasPendingStateUpdate already cleared in bailout check)
             fiber.SubtreeHasUpdates = false;
-
-            // OPT-18: Clear VNode references to prevent stale pool data.
-            // After commit, VNodes are flushed to pool and may be re-rented.
-            // If fiber.Children still references them, the next render's bailout
-            // path would read corrupted VNode data.
-            fiber.Children = null;
 
 #if UNITY_EDITOR
             // Clear HMR rollback delegate after successful commit —

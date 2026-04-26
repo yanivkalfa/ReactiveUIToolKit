@@ -113,6 +113,11 @@ namespace ReactiveUITK.Props.Typed
         // ═══════════════════════════════════════════════════════════════════
         internal uint _generation;
 
+        // Idempotent return guard: true when this instance is currently in the
+        // s_pendingReturn list waiting to be moved to the pool. Prevents the
+        // same instance from being scheduled twice in one flush window.
+        internal bool _isPendingReturn;
+
         // ═══════════════════════════════════════════════════════════════════
         //  Typed backing fields
         // ═══════════════════════════════════════════════════════════════════
@@ -183,8 +188,8 @@ namespace ReactiveUITK.Props.Typed
         internal TextAutoSizeMode _unityTextAutoSize;
 
         // ── float ────────────────────────────────────────────────────────
-        internal float _rotate,
-            _scale;
+        internal float _rotate;
+        internal UnityEngine.UIElements.Scale _scale;
 
         // ── Compound structs ─────────────────────────────────────────────
         internal BackgroundRepeat _backgroundRepeat;
@@ -262,17 +267,23 @@ namespace ReactiveUITK.Props.Typed
             if (gen == 0)
                 gen = s_nextGeneration++; // skip 0 on overflow
             s._generation = gen;
+            s._isPendingReturn = false; // safety: rented instances must not be flagged as pending
             return s;
         }
 
         /// <summary>
         /// Schedule a Style for return to pool on next flush.
         /// Styles with generation 0 (user-created) are ignored.
+        /// Idempotent: a single instance can only sit in the pending-return
+        /// list once per flush window. Subsequent calls are no-ops.
         /// </summary>
         internal static void __ScheduleReturn(Style s)
         {
             if (s == null || s._generation == 0)
                 return;
+            if (s._isPendingReturn)
+                return;
+            s._isPendingReturn = true;
             s_pendingReturn.Add(s);
         }
 
@@ -284,9 +295,10 @@ namespace ReactiveUITK.Props.Typed
         {
             for (int i = 0; i < s_pendingReturn.Count; i++)
             {
+                var s = s_pendingReturn[i];
+                s._isPendingReturn = false;
                 if (s_pool.Count < PoolCapacity)
-                    s_pool.Push(s_pendingReturn[i]);
-                // else: drop — pool is full, let GC collect
+                    s_pool.Push(s);
             }
             s_pendingReturn.Clear();
         }
@@ -965,7 +977,7 @@ namespace ReactiveUITK.Props.Typed
                 _setBits1 |= (1UL << (BIT_ROTATE - 64));
             }
         }
-        public float Scale
+        public UnityEngine.UIElements.Scale Scale
         {
             get => _scale;
             set
@@ -1276,7 +1288,7 @@ namespace ReactiveUITK.Props.Typed
                 case BIT_ROTATE:
                     return _rotate == other._rotate;
                 case BIT_SCALE:
-                    return _scale == other._scale;
+                    return _scale.Equals(other._scale);
                 // Compound structs
                 case BIT_TRANSLATE:
                     return _translate.Equals(other._translate);
@@ -1780,7 +1792,39 @@ namespace ReactiveUITK.Props.Typed
                     Rotate = PropsApplier.ConvertToFloat(value);
                     break;
                 case "scale":
-                    Scale = PropsApplier.ConvertToFloat(value);
+                    if (value is UnityEngine.UIElements.Scale sVal)
+                        Scale = sVal;
+                    else if (value is float uni)
+                        Scale = new UnityEngine.UIElements.Scale(
+                            new UnityEngine.Vector3(uni, uni, 1)
+                        );
+                    else if (value is System.Collections.IEnumerable seq)
+                    {
+                        float sx = 1,
+                            sy = 1;
+                        int si = 0;
+                        foreach (var o in seq)
+                        {
+                            if (si == 0)
+                                sx = PropsApplier.ConvertToFloat(o);
+                            else if (si == 1)
+                                sy = PropsApplier.ConvertToFloat(o);
+                            si++;
+                            if (si > 1)
+                                break;
+                        }
+                        Scale = new UnityEngine.UIElements.Scale(
+                            new UnityEngine.Vector3(sx, sy, 1)
+                        );
+                    }
+                    else
+                        Scale = new UnityEngine.UIElements.Scale(
+                            new UnityEngine.Vector3(
+                                PropsApplier.ConvertToFloat(value),
+                                PropsApplier.ConvertToFloat(value),
+                                1
+                            )
+                        );
                     break;
                 // Compound structs
                 case "translate":
@@ -1979,7 +2023,7 @@ namespace ReactiveUITK.Props.Typed
                 case "rotate":
                     return HasBit(BIT_ROTATE) ? (object)_rotate : null;
                 case "scale":
-                    return HasBit(BIT_SCALE) ? (object)_scale : null;
+                    return HasBit(BIT_SCALE) ? (object)_scale : null; // returns Scale struct
                 case "translate":
                     return HasBit(BIT_TRANSLATE) ? (object)_translate : null;
                 case "backgroundRepeat":

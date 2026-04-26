@@ -155,8 +155,8 @@ namespace ReactiveUITK.Core.Fiber
                 }
 
                 // Call the render function (typed IProps path — all function components).
-                // OPT-18: Children may be null (cleared after commit to prevent stale
-                // VNode pool references). Fall back to empty list for safety.
+                // Children may be null on the very first render before parent sets them.
+                // Fall back to empty list for safety.
                 childVNode = wipFiber.TypedRender(
                     wipFiber.TypedPendingProps ?? EmptyProps.Instance,
                     wipFiber.Children ?? VirtualNode.EmptyChildren

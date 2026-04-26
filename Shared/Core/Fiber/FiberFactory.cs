@@ -90,8 +90,7 @@ namespace ReactiveUITK.Core.Fiber
                     break;
             }
 
-            // All fields extracted — schedule VNode for pool return.
-            VirtualNode.__ScheduleReturn(vnode);
+            // All fields extracted — VNode data lives on the fiber now.
             return fiber;
         }
 
@@ -146,7 +145,23 @@ namespace ReactiveUITK.Core.Fiber
                 clone.TypedProps = current.TypedProps;
                 clone.TypedPendingProps = newVNode?.TypedProps ?? current.TypedPendingProps;
                 clone.ComponentState = current.ComponentState; // CRITICAL: Share, don't clone!
-                clone.PortalTarget = current.PortalTarget;
+                // Refresh PortalTarget from the new VNode so a `<Portal target={x}>` whose
+                // target prop changes between renders points at the new container instead
+                // of the stale committed one. Mirror the change into HostElement (they
+                // alias for portals — see FiberFactory.CreateNew / FiberChildReconciliation.CreateFiber).
+                if (
+                    current.Tag == FiberTag.HostPortal
+                    && newVNode != null
+                    && newVNode.NodeType == VirtualNodeType.Portal
+                )
+                {
+                    clone.PortalTarget = newVNode.PortalTarget;
+                    clone.HostElement = newVNode.PortalTarget;
+                }
+                else
+                {
+                    clone.PortalTarget = current.PortalTarget;
+                }
                 clone.ReadsContext = current.ReadsContext;
 
                 // === Context ===
@@ -158,7 +173,12 @@ namespace ReactiveUITK.Core.Fiber
                 clone.ErrorBoundaryActive = current.ErrorBoundaryActive;
                 clone.ErrorBoundaryShowingFallback = current.ErrorBoundaryShowingFallback;
                 clone.ErrorBoundaryLastException = current.ErrorBoundaryLastException;
-                clone.ErrorBoundaryResetKey = current.ErrorBoundaryResetKey;
+                // Refresh resetKey from the new VNode so UpdateErrorBoundary can detect
+                // a change vs. the previous fiber (clone.Alternate == current). If we
+                // copy from current here, the clone always equals current and the
+                // reset is never observed, leaving the boundary stuck on its fallback.
+                clone.ErrorBoundaryResetKey =
+                    newVNode != null ? newVNode.ErrorResetToken : current.ErrorBoundaryResetKey;
                 clone.ErrorBoundaryFallback =
                     newVNode?.ErrorFallback ?? current.ErrorBoundaryFallback;
                 clone.ErrorBoundaryHandler = newVNode?.ErrorHandler ?? current.ErrorBoundaryHandler;
@@ -188,8 +208,6 @@ namespace ReactiveUITK.Core.Fiber
             clone.Alternate = current;
             current.Alternate = clone;
 
-            // All fields extracted — schedule VNode for pool return.
-            VirtualNode.__ScheduleReturn(newVNode);
             return clone;
         }
 

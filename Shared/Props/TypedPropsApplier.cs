@@ -645,9 +645,7 @@ namespace ReactiveUITK.Props
                 case Style.BIT_SCALE:
                     try
                     {
-                        el.style.scale = new UnityEngine.UIElements.Scale(
-                            new UnityEngine.Vector3(style._scale, style._scale, 1)
-                        );
+                        el.style.scale = style._scale;
                     }
                     catch { }
                     break;

@@ -123,15 +123,6 @@ namespace ReactiveUITK.Elements
             base.ApplyTypedFull(element, props);
         }
 
-        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
-        {
-            var prevDict = prev.ToDictionary();
-            var nextDict = next.ToDictionary();
-            if (nextDict != null && nextDict.Count > 0)
-                ApplyPropertiesDiff(element, prevDict, nextDict);
-            base.ApplyTypedDiff(element, prev, next);
-        }
-
         private static void ApplyTabs(
             TabView tabView,
             TabViewSelectionTracker tracker,
