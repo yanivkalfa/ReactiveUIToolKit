@@ -157,6 +157,17 @@ namespace ReactiveUITK.Props.Typed
     {
         public List<AnimateTrack> Tracks { get; set; }
         public bool Autoplay { get; set; } = true;
+
+        internal override void __ResetFields()
+        {
+            Tracks = null;
+            Autoplay = false;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<AnimateProps>.Return(this);
+        }
     }
 }`,BaseProps:`using System;
 using System.Collections.Generic;
@@ -171,6 +182,20 @@ namespace ReactiveUITK.Props.Typed
     /// </summary>
     public abstract class BaseProps : global::ReactiveUITK.Core.IProps
     {
+        // ═══════════════════════════════════════════════════════════════════
+        //  Pool generation stamp
+        //  0 = user-created via new — never pooled
+        //  >0 = rented from pool via __Rent<T>()
+        // ═══════════════════════════════════════════════════════════════════
+        internal uint _generation;
+
+        // Idempotent return guard: true when this instance is currently in the
+        // s_pendingReturn list waiting to be moved to the pool. Prevents the
+        // same instance from being scheduled twice in one flush window
+        // (which would push it into the pool twice and let two future Rents
+        // hand out the same instance — the cross-wired "disco" style bug).
+        internal bool _isPendingReturn;
+
         // --- Identity / structure ---
         public string Name { get; set; }
         public string ClassName { get; set; }
@@ -195,62 +220,517 @@ namespace ReactiveUITK.Props.Typed
         // --- Locale ---
         public LanguageDirection? LanguageDirection { get; set; }
 
+        // ═══════════════════════════════════════════════════════════════════
+        //  Event handler fields + fast "has any event?" flag
+        //
+        //  _hasEvents is set to true by any event property setter when a
+        //  non-null handler is assigned. It is monotonic: once true, it stays
+        //  true until pool reset. This allows TypedPropsApplier.ApplyDiff to
+        //  skip the entire 43-call DiffEvent block when both prev and next
+        //  have _hasEvents == false (meaning all event fields are null).
+        // ═══════════════════════════════════════════════════════════════════
+        internal bool _hasEvents;
+
+        // --- Pointer event backing fields ---
+        private PointerEventHandler _onClick;
+        private PointerEventHandler _onClickCapture;
+        private PointerEventHandler _onPointerDown;
+        private PointerEventHandler _onPointerDownCapture;
+        private PointerEventHandler _onPointerUp;
+        private PointerEventHandler _onPointerUpCapture;
+        private PointerEventHandler _onPointerMove;
+        private PointerEventHandler _onPointerMoveCapture;
+        private PointerEventHandler _onPointerEnter;
+        private PointerEventHandler _onPointerEnterCapture;
+        private PointerEventHandler _onPointerLeave;
+        private PointerEventHandler _onPointerLeaveCapture;
+        private WheelEventHandler _onWheel;
+        private WheelEventHandler _onWheelCapture;
+        private WheelEventHandler _onScroll;
+        private WheelEventHandler _onScrollCapture;
+
+        // --- Drag event backing fields (editor-only) ---
+#if UNITY_EDITOR
+        private DragEventHandler _onDragEnter;
+        private DragEventHandler _onDragEnterCapture;
+        private DragEventHandler _onDragLeave;
+        private DragEventHandler _onDragLeaveCapture;
+        private DragEventHandler _onDragUpdated;
+        private DragEventHandler _onDragUpdatedCapture;
+        private DragEventHandler _onDragPerform;
+        private DragEventHandler _onDragPerformCapture;
+        private DragEventHandler _onDragExited;
+        private DragEventHandler _onDragExitedCapture;
+#endif
+
+        // --- Focus event backing fields ---
+        private FocusEventHandler _onFocus;
+        private FocusEventHandler _onFocusCapture;
+        private FocusEventHandler _onBlur;
+        private FocusEventHandler _onBlurCapture;
+        private FocusEventHandler _onFocusIn;
+        private FocusEventHandler _onFocusInCapture;
+        private FocusEventHandler _onFocusOut;
+        private FocusEventHandler _onFocusOutCapture;
+
+        // --- Keyboard event backing fields ---
+        private KeyboardEventHandler _onKeyDown;
+        private KeyboardEventHandler _onKeyDownCapture;
+        private KeyboardEventHandler _onKeyUp;
+        private KeyboardEventHandler _onKeyUpCapture;
+
+        // --- Input event backing fields ---
+        private InputEventHandler _onInput;
+        private InputEventHandler _onInputCapture;
+
+        // --- Lifecycle event backing fields ---
+        private GeometryChangedEventHandler _onGeometryChanged;
+        private PanelLifecycleEventHandler _onAttachToPanel;
+        private PanelLifecycleEventHandler _onDetachFromPanel;
+
         // --- Pointer events ---
-        public PointerEventHandler OnClick { get; set; }
-        public PointerEventHandler OnClickCapture { get; set; }
-        public PointerEventHandler OnPointerDown { get; set; }
-        public PointerEventHandler OnPointerDownCapture { get; set; }
-        public PointerEventHandler OnPointerUp { get; set; }
-        public PointerEventHandler OnPointerUpCapture { get; set; }
-        public PointerEventHandler OnPointerMove { get; set; }
-        public PointerEventHandler OnPointerMoveCapture { get; set; }
-        public PointerEventHandler OnPointerEnter { get; set; }
-        public PointerEventHandler OnPointerEnterCapture { get; set; }
-        public PointerEventHandler OnPointerLeave { get; set; }
-        public PointerEventHandler OnPointerLeaveCapture { get; set; }
-        public WheelEventHandler OnWheel { get; set; }
-        public WheelEventHandler OnWheelCapture { get; set; }
-        public WheelEventHandler OnScroll { get; set; }
-        public WheelEventHandler OnScrollCapture { get; set; }
+        public PointerEventHandler OnClick
+        {
+            get => _onClick;
+            set
+            {
+                _onClick = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnClickCapture
+        {
+            get => _onClickCapture;
+            set
+            {
+                _onClickCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerDown
+        {
+            get => _onPointerDown;
+            set
+            {
+                _onPointerDown = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerDownCapture
+        {
+            get => _onPointerDownCapture;
+            set
+            {
+                _onPointerDownCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerUp
+        {
+            get => _onPointerUp;
+            set
+            {
+                _onPointerUp = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerUpCapture
+        {
+            get => _onPointerUpCapture;
+            set
+            {
+                _onPointerUpCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerMove
+        {
+            get => _onPointerMove;
+            set
+            {
+                _onPointerMove = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerMoveCapture
+        {
+            get => _onPointerMoveCapture;
+            set
+            {
+                _onPointerMoveCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerEnter
+        {
+            get => _onPointerEnter;
+            set
+            {
+                _onPointerEnter = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerEnterCapture
+        {
+            get => _onPointerEnterCapture;
+            set
+            {
+                _onPointerEnterCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerLeave
+        {
+            get => _onPointerLeave;
+            set
+            {
+                _onPointerLeave = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PointerEventHandler OnPointerLeaveCapture
+        {
+            get => _onPointerLeaveCapture;
+            set
+            {
+                _onPointerLeaveCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public WheelEventHandler OnWheel
+        {
+            get => _onWheel;
+            set
+            {
+                _onWheel = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public WheelEventHandler OnWheelCapture
+        {
+            get => _onWheelCapture;
+            set
+            {
+                _onWheelCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public WheelEventHandler OnScroll
+        {
+            get => _onScroll;
+            set
+            {
+                _onScroll = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public WheelEventHandler OnScrollCapture
+        {
+            get => _onScrollCapture;
+            set
+            {
+                _onScrollCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
 
         // --- Drag events (editor-only) ---
 #if UNITY_EDITOR
-        public DragEventHandler OnDragEnter { get; set; }
-        public DragEventHandler OnDragEnterCapture { get; set; }
-        public DragEventHandler OnDragLeave { get; set; }
-        public DragEventHandler OnDragLeaveCapture { get; set; }
-        public DragEventHandler OnDragUpdated { get; set; }
-        public DragEventHandler OnDragUpdatedCapture { get; set; }
-        public DragEventHandler OnDragPerform { get; set; }
-        public DragEventHandler OnDragPerformCapture { get; set; }
-        public DragEventHandler OnDragExited { get; set; }
-        public DragEventHandler OnDragExitedCapture { get; set; }
+        public DragEventHandler OnDragEnter
+        {
+            get => _onDragEnter;
+            set
+            {
+                _onDragEnter = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragEnterCapture
+        {
+            get => _onDragEnterCapture;
+            set
+            {
+                _onDragEnterCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragLeave
+        {
+            get => _onDragLeave;
+            set
+            {
+                _onDragLeave = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragLeaveCapture
+        {
+            get => _onDragLeaveCapture;
+            set
+            {
+                _onDragLeaveCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragUpdated
+        {
+            get => _onDragUpdated;
+            set
+            {
+                _onDragUpdated = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragUpdatedCapture
+        {
+            get => _onDragUpdatedCapture;
+            set
+            {
+                _onDragUpdatedCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragPerform
+        {
+            get => _onDragPerform;
+            set
+            {
+                _onDragPerform = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragPerformCapture
+        {
+            get => _onDragPerformCapture;
+            set
+            {
+                _onDragPerformCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragExited
+        {
+            get => _onDragExited;
+            set
+            {
+                _onDragExited = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public DragEventHandler OnDragExitedCapture
+        {
+            get => _onDragExitedCapture;
+            set
+            {
+                _onDragExitedCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
 #endif
 
         // --- Focus events ---
-        public FocusEventHandler OnFocus { get; set; }
-        public FocusEventHandler OnFocusCapture { get; set; }
-        public FocusEventHandler OnBlur { get; set; }
-        public FocusEventHandler OnBlurCapture { get; set; }
-        public FocusEventHandler OnFocusIn { get; set; }
-        public FocusEventHandler OnFocusInCapture { get; set; }
-        public FocusEventHandler OnFocusOut { get; set; }
-        public FocusEventHandler OnFocusOutCapture { get; set; }
+        public FocusEventHandler OnFocus
+        {
+            get => _onFocus;
+            set
+            {
+                _onFocus = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnFocusCapture
+        {
+            get => _onFocusCapture;
+            set
+            {
+                _onFocusCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnBlur
+        {
+            get => _onBlur;
+            set
+            {
+                _onBlur = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnBlurCapture
+        {
+            get => _onBlurCapture;
+            set
+            {
+                _onBlurCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnFocusIn
+        {
+            get => _onFocusIn;
+            set
+            {
+                _onFocusIn = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnFocusInCapture
+        {
+            get => _onFocusInCapture;
+            set
+            {
+                _onFocusInCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnFocusOut
+        {
+            get => _onFocusOut;
+            set
+            {
+                _onFocusOut = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public FocusEventHandler OnFocusOutCapture
+        {
+            get => _onFocusOutCapture;
+            set
+            {
+                _onFocusOutCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
 
         // --- Keyboard events ---
-        public KeyboardEventHandler OnKeyDown { get; set; }
-        public KeyboardEventHandler OnKeyDownCapture { get; set; }
-        public KeyboardEventHandler OnKeyUp { get; set; }
-        public KeyboardEventHandler OnKeyUpCapture { get; set; }
+        public KeyboardEventHandler OnKeyDown
+        {
+            get => _onKeyDown;
+            set
+            {
+                _onKeyDown = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public KeyboardEventHandler OnKeyDownCapture
+        {
+            get => _onKeyDownCapture;
+            set
+            {
+                _onKeyDownCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public KeyboardEventHandler OnKeyUp
+        {
+            get => _onKeyUp;
+            set
+            {
+                _onKeyUp = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public KeyboardEventHandler OnKeyUpCapture
+        {
+            get => _onKeyUpCapture;
+            set
+            {
+                _onKeyUpCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
 
         // --- Input event (fires on every keystroke) ---
-        public InputEventHandler OnInput { get; set; }
-        public InputEventHandler OnInputCapture { get; set; }
+        public InputEventHandler OnInput
+        {
+            get => _onInput;
+            set
+            {
+                _onInput = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public InputEventHandler OnInputCapture
+        {
+            get => _onInputCapture;
+            set
+            {
+                _onInputCapture = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
 
         // --- Lifecycle events (no capture — target-only) ---
-        public GeometryChangedEventHandler OnGeometryChanged { get; set; }
-        public PanelLifecycleEventHandler OnAttachToPanel { get; set; }
-        public PanelLifecycleEventHandler OnDetachFromPanel { get; set; }
+        public GeometryChangedEventHandler OnGeometryChanged
+        {
+            get => _onGeometryChanged;
+            set
+            {
+                _onGeometryChanged = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PanelLifecycleEventHandler OnAttachToPanel
+        {
+            get => _onAttachToPanel;
+            set
+            {
+                _onAttachToPanel = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
+        public PanelLifecycleEventHandler OnDetachFromPanel
+        {
+            get => _onDetachFromPanel;
+            set
+            {
+                _onDetachFromPanel = value;
+                if (value != null)
+                    _hasEvents = true;
+            }
+        }
 
         // --- Escape hatch for non-standard / custom prop keys ---
         /// <summary>
@@ -259,6 +739,367 @@ namespace ReactiveUITK.Props.Typed
         /// that are not covered by the typed properties above.
         /// </summary>
         public Dictionary<string, object> ExtraProps { get; set; }
+
+        /// <summary>
+        /// Field-by-field equality check for host element bailout.
+        /// Compares all BaseProps fields. Subclasses MUST override to compare
+        /// their own fields and call <c>base.ShallowEquals(other)</c>.
+        /// </summary>
+        public virtual bool ShallowEquals(BaseProps other)
+        {
+            if (other == null)
+                return false;
+            if (ReferenceEquals(this, other))
+                return true;
+            if (GetType() != other.GetType())
+                return false;
+
+            // --- Identity / structure ---
+            if (Name != other.Name)
+                return false;
+            if (ClassName != other.ClassName)
+                return false;
+            if (!Style.SameInstance(Style, other.Style) && !StyleEquals(Style, other.Style))
+                return false;
+            if (!ReferenceEquals(Ref, other.Ref))
+                return false;
+            if (!ReferenceEquals(ContentContainer, other.ContentContainer))
+                return false;
+
+            // --- Visibility / enabled ---
+            if (Visible != other.Visible)
+                return false;
+            if (Enabled != other.Enabled)
+                return false;
+
+            // --- Tooltip / persistence ---
+            if (Tooltip != other.Tooltip)
+                return false;
+            if (ViewDataKey != other.ViewDataKey)
+                return false;
+
+            // --- Focus / interaction ---
+            if (PickingMode != other.PickingMode)
+                return false;
+            if (Focusable != other.Focusable)
+                return false;
+            if (TabIndex != other.TabIndex)
+                return false;
+            if (DelegatesFocus != other.DelegatesFocus)
+                return false;
+
+            // --- Locale ---
+            if (LanguageDirection != other.LanguageDirection)
+                return false;
+
+            // --- Event handlers (skip all 43 comparisons when neither side has events) ---
+            if (_hasEvents || other._hasEvents)
+            {
+                // --- Pointer events (reference equality) ---
+                if (OnClick != other.OnClick)
+                    return false;
+                if (OnClickCapture != other.OnClickCapture)
+                    return false;
+                if (OnPointerDown != other.OnPointerDown)
+                    return false;
+                if (OnPointerDownCapture != other.OnPointerDownCapture)
+                    return false;
+                if (OnPointerUp != other.OnPointerUp)
+                    return false;
+                if (OnPointerUpCapture != other.OnPointerUpCapture)
+                    return false;
+                if (OnPointerMove != other.OnPointerMove)
+                    return false;
+                if (OnPointerMoveCapture != other.OnPointerMoveCapture)
+                    return false;
+                if (OnPointerEnter != other.OnPointerEnter)
+                    return false;
+                if (OnPointerEnterCapture != other.OnPointerEnterCapture)
+                    return false;
+                if (OnPointerLeave != other.OnPointerLeave)
+                    return false;
+                if (OnPointerLeaveCapture != other.OnPointerLeaveCapture)
+                    return false;
+                if (OnWheel != other.OnWheel)
+                    return false;
+                if (OnWheelCapture != other.OnWheelCapture)
+                    return false;
+                if (OnScroll != other.OnScroll)
+                    return false;
+                if (OnScrollCapture != other.OnScrollCapture)
+                    return false;
+
+                // --- Drag events (editor-only) ---
+#if UNITY_EDITOR
+                if (OnDragEnter != other.OnDragEnter)
+                    return false;
+                if (OnDragEnterCapture != other.OnDragEnterCapture)
+                    return false;
+                if (OnDragLeave != other.OnDragLeave)
+                    return false;
+                if (OnDragLeaveCapture != other.OnDragLeaveCapture)
+                    return false;
+                if (OnDragUpdated != other.OnDragUpdated)
+                    return false;
+                if (OnDragUpdatedCapture != other.OnDragUpdatedCapture)
+                    return false;
+                if (OnDragPerform != other.OnDragPerform)
+                    return false;
+                if (OnDragPerformCapture != other.OnDragPerformCapture)
+                    return false;
+                if (OnDragExited != other.OnDragExited)
+                    return false;
+                if (OnDragExitedCapture != other.OnDragExitedCapture)
+                    return false;
+#endif
+
+                // --- Focus events ---
+                if (OnFocus != other.OnFocus)
+                    return false;
+                if (OnFocusCapture != other.OnFocusCapture)
+                    return false;
+                if (OnBlur != other.OnBlur)
+                    return false;
+                if (OnBlurCapture != other.OnBlurCapture)
+                    return false;
+                if (OnFocusIn != other.OnFocusIn)
+                    return false;
+                if (OnFocusInCapture != other.OnFocusInCapture)
+                    return false;
+                if (OnFocusOut != other.OnFocusOut)
+                    return false;
+                if (OnFocusOutCapture != other.OnFocusOutCapture)
+                    return false;
+
+                // --- Keyboard events ---
+                if (OnKeyDown != other.OnKeyDown)
+                    return false;
+                if (OnKeyDownCapture != other.OnKeyDownCapture)
+                    return false;
+                if (OnKeyUp != other.OnKeyUp)
+                    return false;
+                if (OnKeyUpCapture != other.OnKeyUpCapture)
+                    return false;
+
+                // --- Input event ---
+                if (OnInput != other.OnInput)
+                    return false;
+                if (OnInputCapture != other.OnInputCapture)
+                    return false;
+
+                // --- Lifecycle events ---
+                if (OnGeometryChanged != other.OnGeometryChanged)
+                    return false;
+                if (OnAttachToPanel != other.OnAttachToPanel)
+                    return false;
+                if (OnDetachFromPanel != other.OnDetachFromPanel)
+                    return false;
+            }
+
+            // --- ExtraProps ---
+            if (!ReferenceEquals(ExtraProps, other.ExtraProps))
+                return false;
+
+            return true;
+        }
+
+        private static bool StyleEquals(Style a, Style b)
+        {
+            if (a == null && b == null)
+                return true;
+            if (a == null || b == null)
+                return false;
+            return a.TypedEquals(b);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════
+        //  Object pool — rent/return lifecycle
+        // ═══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Called by pool to clear all derived-class fields to default.
+        /// Subclasses MUST override and clear their own fields, then call
+        /// <c>base.__ResetFields()</c>.
+        /// </summary>
+        internal virtual void __ResetFields() { }
+
+        /// <summary>
+        /// Clears all BaseProps fields to default values.
+        /// Called internally by the pool before handing out a rented instance.
+        /// </summary>
+        private void __ResetBase()
+        {
+            Name = null;
+            ClassName = null;
+            Style = null;
+            Ref = null;
+            ContentContainer = null;
+            Visible = null;
+            Enabled = null;
+            Tooltip = null;
+            ViewDataKey = null;
+            PickingMode = null;
+            Focusable = null;
+            TabIndex = null;
+            DelegatesFocus = null;
+            LanguageDirection = null;
+            _hasEvents = false;
+            _onClick = null;
+            _onClickCapture = null;
+            _onPointerDown = null;
+            _onPointerDownCapture = null;
+            _onPointerUp = null;
+            _onPointerUpCapture = null;
+            _onPointerMove = null;
+            _onPointerMoveCapture = null;
+            _onPointerEnter = null;
+            _onPointerEnterCapture = null;
+            _onPointerLeave = null;
+            _onPointerLeaveCapture = null;
+            _onWheel = null;
+            _onWheelCapture = null;
+            _onScroll = null;
+            _onScrollCapture = null;
+#if UNITY_EDITOR
+            _onDragEnter = null;
+            _onDragEnterCapture = null;
+            _onDragLeave = null;
+            _onDragLeaveCapture = null;
+            _onDragUpdated = null;
+            _onDragUpdatedCapture = null;
+            _onDragPerform = null;
+            _onDragPerformCapture = null;
+            _onDragExited = null;
+            _onDragExitedCapture = null;
+#endif
+            _onFocus = null;
+            _onFocusCapture = null;
+            _onBlur = null;
+            _onBlurCapture = null;
+            _onFocusIn = null;
+            _onFocusInCapture = null;
+            _onFocusOut = null;
+            _onFocusOutCapture = null;
+            _onKeyDown = null;
+            _onKeyDownCapture = null;
+            _onKeyUp = null;
+            _onKeyUpCapture = null;
+            _onInput = null;
+            _onInputCapture = null;
+            _onGeometryChanged = null;
+            _onAttachToPanel = null;
+            _onDetachFromPanel = null;
+            ExtraProps = null;
+        }
+
+        /// <summary>
+        /// Per-type pool with a fixed cap. Each concrete BaseProps subclass
+        /// (e.g. LabelProps, ButtonProps) gets its own pool via the generic parameter.
+        /// </summary>
+        internal static class Pool<T>
+            where T : BaseProps, new()
+        {
+            private const int Capacity = 4096;
+
+            private static readonly Stack<T> s_pool = new Stack<T>(256);
+            private static uint s_nextGeneration = 1;
+
+            internal static T Rent()
+            {
+                T p;
+                if (s_pool.Count > 0)
+                {
+                    p = s_pool.Pop();
+                    // Only reset fields when reusing from pool — new objects
+                    // are already zero-initialized by the CLR.
+                    p.__ResetBase();
+                    p.__ResetFields();
+                }
+                else
+                {
+                    p = new T();
+                }
+                uint gen = s_nextGeneration++;
+                if (gen == 0)
+                    gen = s_nextGeneration++; // skip 0 on overflow
+                p._generation = gen;
+                p._isPendingReturn = false; // safety: ensure rented instances are not flagged as pending
+                return p;
+            }
+
+            internal static void Return(T p)
+            {
+                if (s_pool.Count < Capacity)
+                    s_pool.Push(p);
+            }
+        }
+
+        /// <summary>
+        /// Convenience wrapper to rent a pooled Props instance.
+        /// Only called by generated code.
+        /// </summary>
+        public static T __Rent<T>()
+            where T : BaseProps, new()
+        {
+            return Pool<T>.Rent();
+        }
+
+        private static readonly List<BaseProps> s_pendingReturn = new List<BaseProps>(2048);
+
+        /// <summary>
+        /// Schedule a BaseProps for return to pool on next flush.
+        /// Props with generation 0 (user-created) are ignored.
+        /// Idempotent: a single instance can only sit in the pending-return
+        /// list once per flush window. Subsequent calls are no-ops.
+        /// </summary>
+        internal static void __ScheduleReturn(BaseProps p)
+        {
+            if (p == null || p._generation == 0)
+                return;
+            if (p._isPendingReturn)
+                return;
+            p._isPendingReturn = true;
+            s_pendingReturn.Add(p);
+        }
+
+        /// <summary>
+        /// Move all pending returns into their type-specific pools.
+        /// Called once per frame after the full commit tree walk.
+        /// </summary>
+        internal static void __FlushReturns()
+        {
+            for (int i = 0; i < s_pendingReturn.Count; i++)
+            {
+                var p = s_pendingReturn[i];
+                p._isPendingReturn = false;
+                __ReturnToTypedPool(p);
+            }
+            s_pendingReturn.Clear();
+        }
+
+        /// <summary>
+        /// Dispatches a BaseProps instance to its concrete Pool&lt;T&gt;.Return().
+        /// Subclasses override this to call Pool&lt;ConcreteType&gt;.Return(this).
+        /// </summary>
+        internal virtual void __ReturnToPool() { }
+
+        private static void __ReturnToTypedPool(BaseProps p)
+        {
+            p.__ReturnToPool();
+        }
+
+        /// <summary>
+        /// Identity check safe across pool cycles.
+        /// Returns true only when both point to the same object with the same generation.
+        /// </summary>
+        internal static bool SameInstance(BaseProps a, BaseProps b)
+        {
+            if (a == null && b == null)
+                return true;
+            if (a == null || b == null)
+                return false;
+            return ReferenceEquals(a, b) && a._generation == b._generation;
+        }
 
         public virtual Dictionary<string, object> ToDictionary()
         {
@@ -399,6 +1240,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not BoundsFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -409,6 +1265,18 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<BoundsFieldProps>.Return(this);
         }
     }
 }`,BoundsIntFieldProps:`using System.Collections.Generic;
@@ -423,6 +1291,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not BoundsIntFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -434,6 +1317,18 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<BoundsIntFieldProps>.Return(this);
+        }
     }
 }`,BoxProps:`using System.Collections.Generic;
 using UnityEngine.UIElements;
@@ -442,7 +1337,19 @@ namespace ReactiveUITK.Props.Typed
 {
     public sealed class BoxProps : BaseProps
     {
+        public override bool ShallowEquals(BaseProps other)
+        {
+            return base.ShallowEquals(other) && other is BoxProps;
+        }
+
         public override Dictionary<string, object> ToDictionary() => base.ToDictionary();
+
+        internal override void __ResetFields() { }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<BoxProps>.Return(this);
+        }
     }
 }`,ButtonProps:`using System.Collections.Generic;
 
@@ -452,6 +1359,17 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ButtonProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var dict = base.ToDictionary();
@@ -460,6 +1378,16 @@ namespace ReactiveUITK.Props.Typed
                 dict["text"] = Text;
             }
             return dict;
+        }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ButtonProps>.Return(this);
         }
     }
 }`,ColorFieldProps:`using System;
@@ -478,6 +1406,25 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ColorFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -492,6 +1439,20 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ColorFieldProps>.Return(this);
         }
     }
 }`,DoubleFieldProps:`using System;
@@ -509,6 +1470,25 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not DoubleFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -523,6 +1503,20 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<DoubleFieldProps>.Return(this);
         }
     }
 }`,DropdownFieldProps:`using System;
@@ -542,6 +1536,29 @@ namespace ReactiveUITK.Props.Typed
 
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not DropdownFieldProps o)
+                return false;
+            if (!ReferenceEquals(Choices, o.Choices))
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -576,6 +1593,22 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Choices = null;
+            Value = null;
+            SelectedIndex = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<DropdownFieldProps>.Return(this);
+        }
     }
 }`,EnumFieldProps:`using System;
 using System.Collections.Generic;
@@ -590,6 +1623,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not EnumFieldProps o)
+                return false;
+            if (!object.Equals(Value, o.Value))
+                return false;
+            if (EnumType != o.EnumType)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -602,6 +1652,19 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            EnumType = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<EnumFieldProps>.Return(this);
         }
     }
 }`,EnumFlagsFieldProps:`using System;
@@ -616,6 +1679,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not EnumFlagsFieldProps o)
+                return false;
+            if (!object.Equals(Value, o.Value))
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -626,6 +1704,18 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<EnumFlagsFieldProps>.Return(this);
         }
     }
 }`,ErrorBoundaryProps:`using System;
@@ -654,6 +1744,25 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not FloatFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -669,6 +1778,20 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<FloatFieldProps>.Return(this);
+        }
     }
 }`,FoldoutProps:`using System;
 using System.Collections.Generic;
@@ -683,6 +1806,25 @@ namespace ReactiveUITK.Props.Typed
         public ChangeEventHandler<bool> OnChange { get; set; }
         public ChangeEventHandler<bool> OnChangeCapture { get; set; }
         public Dictionary<string, object> Header { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not FoldoutProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Header, o.Header))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -709,6 +1851,20 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Header = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<FoldoutProps>.Return(this);
+        }
     }
 }`,GroupBoxProps:`using System.Collections.Generic;
 
@@ -718,6 +1874,19 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
         public Dictionary<string, object> Label { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not GroupBoxProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -732,6 +1901,17 @@ namespace ReactiveUITK.Props.Typed
             }
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+            Label = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<GroupBoxProps>.Return(this);
+        }
     }
 }`,Hash128FieldProps:`using System.Collections.Generic;
 using UnityEngine;
@@ -745,6 +1925,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not Hash128FieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -756,6 +1951,18 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<Hash128FieldProps>.Return(this);
+        }
     }
 }`,HelpBoxProps:`using System.Collections.Generic;
 
@@ -765,6 +1972,19 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
         public string MessageType { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not HelpBoxProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (MessageType != o.MessageType)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -779,6 +1999,17 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+            MessageType = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<HelpBoxProps>.Return(this);
+        }
     }
 }`,IMGUIContainerProps:`using System;
 using System.Collections.Generic;
@@ -790,12 +2021,33 @@ namespace ReactiveUITK.Props.Typed
     {
         public Action OnGUI { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not IMGUIContainerProps o)
+                return false;
+            if (OnGUI != o.OnGUI)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
             if (OnGUI != null)
                 map["onGUI"] = OnGUI;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            OnGUI = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<IMGUIContainerProps>.Return(this);
         }
     }
 }`,ImageProps:`using System.Collections.Generic;
@@ -808,6 +2060,21 @@ namespace ReactiveUITK.Props.Typed
         public Texture2D Texture { get; set; }
         public Sprite Sprite { get; set; }
         public string ScaleMode { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ImageProps o)
+                return false;
+            if (Texture != o.Texture)
+                return false;
+            if (Sprite != o.Sprite)
+                return false;
+            if (ScaleMode != o.ScaleMode)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -826,6 +2093,18 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Texture = null;
+            Sprite = null;
+            ScaleMode = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ImageProps>.Return(this);
+        }
     }
 }`,IntegerFieldProps:`using System;
 using System.Collections.Generic;
@@ -842,6 +2121,25 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not IntegerFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -857,6 +2155,20 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<IntegerFieldProps>.Return(this);
+        }
     }
 }`,LabelProps:`using System.Collections.Generic;
 
@@ -866,6 +2178,17 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not LabelProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             Dictionary<string, object> map = base.ToDictionary();
@@ -874,6 +2197,16 @@ namespace ReactiveUITK.Props.Typed
                 map["text"] = Text;
             }
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<LabelProps>.Return(this);
         }
     }
 }`,ListViewProps:`using System;
@@ -897,6 +2230,33 @@ namespace ReactiveUITK.Props.Typed
         public SelectionType? Selection { get; set; }
 
         public Dictionary<string, object> ScrollView { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ListViewProps o)
+                return false;
+            if (!ReferenceEquals(Items, o.Items))
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (FixedItemHeight != o.FixedItemHeight)
+                return false;
+            if (MakeItem != o.MakeItem)
+                return false;
+            if (BindItem != o.BindItem)
+                return false;
+            if (UnbindItem != o.UnbindItem)
+                return false;
+            if (Row != o.Row)
+                return false;
+            if (Selection != o.Selection)
+                return false;
+            if (!ReferenceEquals(ScrollView, o.ScrollView))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -939,6 +2299,24 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Items = null;
+            SelectedIndex = null;
+            FixedItemHeight = null;
+            MakeItem = null;
+            BindItem = null;
+            UnbindItem = null;
+            Row = null;
+            Selection = null;
+            ScrollView = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ListViewProps>.Return(this);
+        }
     }
 }`,LongFieldProps:`using System;
 using System.Collections.Generic;
@@ -955,6 +2333,25 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not LongFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -970,6 +2367,20 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<LongFieldProps>.Return(this);
+        }
     }
 }`,MinMaxSliderProps:`using System.Collections.Generic;
 using UnityEngine.UIElements;
@@ -983,6 +2394,23 @@ namespace ReactiveUITK.Props.Typed
         public float? LowLimit { get; set; }
         public float? HighLimit { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not MinMaxSliderProps o)
+                return false;
+            if (MinValue != o.MinValue)
+                return false;
+            if (MaxValue != o.MaxValue)
+                return false;
+            if (LowLimit != o.LowLimit)
+                return false;
+            if (HighLimit != o.HighLimit)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -995,6 +2423,19 @@ namespace ReactiveUITK.Props.Typed
             if (HighLimit.HasValue)
                 map["highLimit"] = HighLimit.Value;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            MinValue = null;
+            MaxValue = null;
+            LowLimit = null;
+            HighLimit = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<MinMaxSliderProps>.Return(this);
         }
     }
 }`,MultiColumnListViewProps:`using System;
@@ -1021,6 +2462,39 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, bool> ColumnVisibility { get; set; }
         public Dictionary<string, int> ColumnDisplayIndex { get; set; }
         public ColumnLayoutEventHandler ColumnLayoutChanged { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not MultiColumnListViewProps o)
+                return false;
+            if (!ReferenceEquals(Items, o.Items))
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (FixedItemHeight != o.FixedItemHeight)
+                return false;
+            if (Selection != o.Selection)
+                return false;
+            if (!ReferenceEquals(Columns, o.Columns))
+                return false;
+            if (!ReferenceEquals(SortedColumns, o.SortedColumns))
+                return false;
+            if (!ReferenceEquals(SortingMode, o.SortingMode))
+                return false;
+            if (ColumnSortingChanged != o.ColumnSortingChanged)
+                return false;
+            if (!ReferenceEquals(ColumnWidths, o.ColumnWidths))
+                return false;
+            if (!ReferenceEquals(ColumnVisibility, o.ColumnVisibility))
+                return false;
+            if (!ReferenceEquals(ColumnDisplayIndex, o.ColumnDisplayIndex))
+                return false;
+            if (ColumnLayoutChanged != o.ColumnLayoutChanged)
+                return false;
+            return true;
+        }
 
         public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
@@ -1100,6 +2574,27 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Items = null;
+            SelectedIndex = null;
+            FixedItemHeight = null;
+            Selection = null;
+            Columns = null;
+            SortedColumns = null;
+            SortingMode = null;
+            ColumnSortingChanged = null;
+            ColumnWidths = null;
+            ColumnVisibility = null;
+            ColumnDisplayIndex = null;
+            ColumnLayoutChanged = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<MultiColumnListViewProps>.Return(this);
+        }
     }
 }`,MultiColumnTreeViewProps:`using System;
 using System.Collections;
@@ -1125,6 +2620,43 @@ namespace ReactiveUITK.Props.Typed
         public object SortingMode { get; set; }
         public ColumnSortEventHandler ColumnSortingChanged { get; set; }
         public ColumnLayoutEventHandler ColumnLayoutChanged { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not MultiColumnTreeViewProps o)
+                return false;
+            if (!ReferenceEquals(RootItems, o.RootItems))
+                return false;
+            if (FixedItemHeight != o.FixedItemHeight)
+                return false;
+            if (Selection != o.Selection)
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (!ReferenceEquals(Columns, o.Columns))
+                return false;
+            if (!ReferenceEquals(ExpandedItemIds, o.ExpandedItemIds))
+                return false;
+            if (StopTrackingUserChange != o.StopTrackingUserChange)
+                return false;
+            if (!ReferenceEquals(ColumnWidths, o.ColumnWidths))
+                return false;
+            if (!ReferenceEquals(ColumnVisibility, o.ColumnVisibility))
+                return false;
+            if (!ReferenceEquals(ColumnDisplayIndex, o.ColumnDisplayIndex))
+                return false;
+            if (!ReferenceEquals(SortedColumns, o.SortedColumns))
+                return false;
+            if (!ReferenceEquals(SortingMode, o.SortingMode))
+                return false;
+            if (ColumnSortingChanged != o.ColumnSortingChanged)
+                return false;
+            if (ColumnLayoutChanged != o.ColumnLayoutChanged)
+                return false;
+            return true;
+        }
 
         public sealed class ColumnDef : global::ReactiveUITK.Core.IProps
         {
@@ -1212,6 +2744,29 @@ namespace ReactiveUITK.Props.Typed
             }
             return d;
         }
+
+        internal override void __ResetFields()
+        {
+            RootItems = null;
+            FixedItemHeight = null;
+            Selection = null;
+            SelectedIndex = null;
+            Columns = null;
+            ExpandedItemIds = null;
+            StopTrackingUserChange = null;
+            ColumnWidths = null;
+            ColumnVisibility = null;
+            ColumnDisplayIndex = null;
+            SortedColumns = null;
+            SortingMode = null;
+            ColumnSortingChanged = null;
+            ColumnLayoutChanged = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<MultiColumnTreeViewProps>.Return(this);
+        }
     }
 }`,ObjectFieldProps:`using System.Collections.Generic;
 using UnityEngine;
@@ -1226,6 +2781,25 @@ namespace ReactiveUITK.Props.Typed
         public bool? AllowSceneObjects { get; set; }
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ObjectFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (ObjectType != o.ObjectType)
+                return false;
+            if (AllowSceneObjects != o.AllowSceneObjects)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1242,6 +2816,20 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            ObjectType = null;
+            AllowSceneObjects = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ObjectFieldProps>.Return(this);
+        }
     }
 }`,ProgressBarProps:`using System.Collections.Generic;
 
@@ -1253,6 +2841,23 @@ namespace ReactiveUITK.Props.Typed
         public string Title { get; set; }
         public Dictionary<string, object> Progress { get; set; }
         public Dictionary<string, object> TitleElement { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ProgressBarProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Title != o.Title)
+                return false;
+            if (!ReferenceEquals(Progress, o.Progress))
+                return false;
+            if (!ReferenceEquals(TitleElement, o.TitleElement))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1275,6 +2880,19 @@ namespace ReactiveUITK.Props.Typed
             }
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Title = null;
+            Progress = null;
+            TitleElement = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ProgressBarProps>.Return(this);
+        }
     }
 }`,PropertyInspectorProps:`using System.Collections.Generic;
 using UnityEngine;
@@ -1288,6 +2906,21 @@ namespace ReactiveUITK.Props.Typed
         public string BindingPath { get; set; }
         public string Label { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not PropertyFieldProps o)
+                return false;
+            if (Target != o.Target)
+                return false;
+            if (BindingPath != o.BindingPath)
+                return false;
+            if (Label != o.Label)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -1299,11 +2932,34 @@ namespace ReactiveUITK.Props.Typed
                 map["label"] = Label;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Target = null;
+            BindingPath = null;
+            Label = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<PropertyFieldProps>.Return(this);
+        }
     }
 
     public sealed class InspectorElementProps : BaseProps
     {
         public Object Target { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not InspectorElementProps o)
+                return false;
+            if (Target != o.Target)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1311,6 +2967,16 @@ namespace ReactiveUITK.Props.Typed
             if (Target != null)
                 map["target"] = Target;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Target = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<InspectorElementProps>.Return(this);
         }
     }
 }`,RadioButtonGroupProps:`using System.Collections.Generic;
@@ -1325,6 +2991,25 @@ namespace ReactiveUITK.Props.Typed
         public int? Index { get; set; }
         public ChangeEventHandler<int> OnChange { get; set; }
         public ChangeEventHandler<int> OnChangeCapture { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not RadioButtonGroupProps o)
+                return false;
+            if (!ReferenceEquals(Choices, o.Choices))
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Index != o.Index)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1351,6 +3036,20 @@ namespace ReactiveUITK.Props.Typed
             }
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Choices = null;
+            Value = null;
+            Index = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<RadioButtonGroupProps>.Return(this);
+        }
     }
 }`,RadioButtonProps:`using System.Collections.Generic;
 using ReactiveUITK.Core;
@@ -1365,6 +3064,25 @@ namespace ReactiveUITK.Props.Typed
         public ChangeEventHandler<bool> OnChange { get; set; }
         public ChangeEventHandler<bool> OnChangeCapture { get; set; }
         public Dictionary<string, object> Label { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not RadioButtonProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1391,6 +3109,20 @@ namespace ReactiveUITK.Props.Typed
             }
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Text = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            Label = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<RadioButtonProps>.Return(this);
+        }
     }
 }`,RectFieldProps:`using System.Collections.Generic;
 using UnityEngine;
@@ -1404,6 +3136,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not RectFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -1414,6 +3161,18 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<RectFieldProps>.Return(this);
         }
     }
 }`,RectIntFieldProps:`using System.Collections.Generic;
@@ -1428,6 +3187,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not RectIntFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -1439,6 +3213,18 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<RectIntFieldProps>.Return(this);
+        }
     }
 }`,RepeatButtonProps:`using System.Collections.Generic;
 
@@ -1448,6 +3234,17 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not RepeatButtonProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             Dictionary<string, object> map = base.ToDictionary();
@@ -1456,6 +3253,16 @@ namespace ReactiveUITK.Props.Typed
                 map["text"] = Text;
             }
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<RepeatButtonProps>.Return(this);
         }
     }
 }`,ScrollViewProps:`using System.Collections.Generic;
@@ -1470,6 +3277,23 @@ namespace ReactiveUITK.Props.Typed
         public ScrollerVisibility? VerticalScrollerVisibility { get; set; }
         public ScrollerVisibility? HorizontalScrollerVisibility { get; set; }
         public Vector2? ScrollOffset { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ScrollViewProps o)
+                return false;
+            if (Mode != o.Mode)
+                return false;
+            if (VerticalScrollerVisibility != o.VerticalScrollerVisibility)
+                return false;
+            if (HorizontalScrollerVisibility != o.HorizontalScrollerVisibility)
+                return false;
+            if (ScrollOffset != o.ScrollOffset)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1492,6 +3316,19 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Mode = null;
+            VerticalScrollerVisibility = null;
+            HorizontalScrollerVisibility = null;
+            ScrollOffset = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ScrollViewProps>.Return(this);
+        }
     }
 }`,ScrollerProps:`using System.Collections.Generic;
 using UnityEngine.UIElements;
@@ -1504,6 +3341,21 @@ namespace ReactiveUITK.Props.Typed
         public float? HighValue { get; set; }
         public float? Value { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ScrollerProps o)
+                return false;
+            if (LowValue != o.LowValue)
+                return false;
+            if (HighValue != o.HighValue)
+                return false;
+            if (Value != o.Value)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -1514,6 +3366,18 @@ namespace ReactiveUITK.Props.Typed
             if (Value.HasValue)
                 map["value"] = Value.Value;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            LowValue = null;
+            HighValue = null;
+            Value = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ScrollerProps>.Return(this);
         }
     }
 }`,SliderIntProps:`using System;
@@ -1532,6 +3396,27 @@ namespace ReactiveUITK.Props.Typed
 
         public ChangeEventHandler<int> OnChange { get; set; }
         public ChangeEventHandler<int> OnChangeCapture { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not SliderIntProps o)
+                return false;
+            if (LowValue != o.LowValue)
+                return false;
+            if (HighValue != o.HighValue)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Direction != o.Direction)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1562,6 +3447,21 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            LowValue = null;
+            HighValue = null;
+            Value = null;
+            Direction = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<SliderIntProps>.Return(this);
+        }
     }
 }`,SliderProps:`using System;
 using System.Collections.Generic;
@@ -1588,6 +3488,37 @@ namespace ReactiveUITK.Props.Typed
 
         public ChangeEventHandler<float> OnChange { get; set; }
         public ChangeEventHandler<float> OnChangeCapture { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not SliderProps o)
+                return false;
+            if (LowValue != o.LowValue)
+                return false;
+            if (HighValue != o.HighValue)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Direction != o.Direction)
+                return false;
+            if (!ReferenceEquals(Input, o.Input))
+                return false;
+            if (!ReferenceEquals(Track, o.Track))
+                return false;
+            if (!ReferenceEquals(DragContainer, o.DragContainer))
+                return false;
+            if (!ReferenceEquals(Handle, o.Handle))
+                return false;
+            if (!ReferenceEquals(HandleBorder, o.HandleBorder))
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1638,6 +3569,26 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            LowValue = null;
+            HighValue = null;
+            Value = null;
+            Direction = null;
+            Input = null;
+            Track = null;
+            DragContainer = null;
+            Handle = null;
+            HandleBorder = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<SliderProps>.Return(this);
+        }
     }
 }`,TabProps:`using System.Collections.Generic;
 
@@ -1647,6 +3598,17 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TabProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var d = base.ToDictionary();
@@ -1655,6 +3617,16 @@ namespace ReactiveUITK.Props.Typed
                 d["text"] = Text;
             }
             return d;
+        }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TabProps>.Return(this);
         }
     }
 }`,TabViewProps:`using System;
@@ -1671,6 +3643,25 @@ namespace ReactiveUITK.Props.Typed
         public List<TabDef> Tabs { get; set; }
         public TabIndexEventHandler SelectedIndexChanged { get; set; }
         public TabChangedEventHandler ActiveTabChanged { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TabViewProps o)
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (SelectedTabIndex != o.SelectedTabIndex)
+                return false;
+            if (!ReferenceEquals(Tabs, o.Tabs))
+                return false;
+            if (SelectedIndexChanged != o.SelectedIndexChanged)
+                return false;
+            if (ActiveTabChanged != o.ActiveTabChanged)
+                return false;
+            return true;
+        }
 
         public sealed class TabDef : global::ReactiveUITK.Core.IProps
         {
@@ -1708,6 +3699,20 @@ namespace ReactiveUITK.Props.Typed
             }
             return d;
         }
+
+        internal override void __ResetFields()
+        {
+            SelectedIndex = null;
+            SelectedTabIndex = null;
+            Tabs = null;
+            SelectedIndexChanged = null;
+            ActiveTabChanged = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TabViewProps>.Return(this);
+        }
     }
 }`,TemplateContainerProps:`using System.Collections.Generic;
 using UnityEngine.UIElements;
@@ -1716,7 +3721,19 @@ namespace ReactiveUITK.Props.Typed
 {
     public sealed class TemplateContainerProps : BaseProps
     {
+        public override bool ShallowEquals(BaseProps other)
+        {
+            return base.ShallowEquals(other) && other is TemplateContainerProps;
+        }
+
         public override Dictionary<string, object> ToDictionary() => base.ToDictionary();
+
+        internal override void __ResetFields() { }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TemplateContainerProps>.Return(this);
+        }
     }
 }`,TextElementProps:`using System.Collections.Generic;
 using UnityEngine.UIElements;
@@ -1727,12 +3744,33 @@ namespace ReactiveUITK.Props.Typed
     {
         public string Text { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TextElementProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
             if (!string.IsNullOrEmpty(Text))
                 map["text"] = Text;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TextElementProps>.Return(this);
         }
     }
 }`,TextFieldProps:`using System.Collections.Generic;
@@ -1759,6 +3797,41 @@ namespace ReactiveUITK.Props.Typed
         public ChangeEventHandler<string> OnChangeCapture { get; set; }
 
         public string LabelText { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TextFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Multiline != o.Multiline)
+                return false;
+            if (Password != o.Password)
+                return false;
+            if (ReadOnly != o.ReadOnly)
+                return false;
+            if (MaxLength != o.MaxLength)
+                return false;
+            if (Placeholder != o.Placeholder)
+                return false;
+            if (HidePlaceholderOnFocus != o.HidePlaceholderOnFocus)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(Input, o.Input))
+                return false;
+            if (!ReferenceEquals(TextElement, o.TextElement))
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            if (LabelText != o.LabelText)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1817,6 +3890,28 @@ namespace ReactiveUITK.Props.Typed
             }
             return dict;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Multiline = null;
+            Password = null;
+            ReadOnly = null;
+            MaxLength = null;
+            Placeholder = null;
+            HidePlaceholderOnFocus = null;
+            Label = null;
+            Input = null;
+            TextElement = null;
+            OnChange = null;
+            OnChangeCapture = null;
+            LabelText = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TextFieldProps>.Return(this);
+        }
     }
 }`,ToggleButtonGroupProps:`using System.Collections.Generic;
 using UnityEngine.UIElements;
@@ -1827,12 +3922,33 @@ namespace ReactiveUITK.Props.Typed
     {
         public int? Value { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToggleButtonGroupProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
             if (Value.HasValue)
                 map["value"] = Value.Value;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToggleButtonGroupProps>.Return(this);
         }
     }
 }`,ToggleProps:`using System.Collections.Generic;
@@ -1849,6 +3965,27 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> Input { get; set; }
         public Dictionary<string, object> Checkmark { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToggleProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(Input, o.Input))
+                return false;
+            if (!ReferenceEquals(Checkmark, o.Checkmark))
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1879,6 +4016,21 @@ namespace ReactiveUITK.Props.Typed
             }
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Text = null;
+            OnChange = null;
+            Label = null;
+            Input = null;
+            Checkmark = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToggleProps>.Return(this);
+        }
     }
 }`,ToolbarProps:`using System;
 using System.Collections.Generic;
@@ -1889,12 +4041,35 @@ namespace ReactiveUITK.Props.Typed
 {
     public sealed class ToolbarProps : BaseProps
     {
+        public override bool ShallowEquals(BaseProps other)
+        {
+            return base.ShallowEquals(other) && other is ToolbarProps;
+        }
+
         public override Dictionary<string, object> ToDictionary() => base.ToDictionary();
+
+        internal override void __ResetFields() { }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarProps>.Return(this);
+        }
     }
 
     public sealed class ToolbarButtonProps : BaseProps
     {
         public string Text { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToolbarButtonProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1902,6 +4077,16 @@ namespace ReactiveUITK.Props.Typed
             if (!string.IsNullOrEmpty(Text))
                 map["text"] = Text;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarButtonProps>.Return(this);
         }
     }
 
@@ -1911,6 +4096,23 @@ namespace ReactiveUITK.Props.Typed
         public bool? Value { get; set; }
         public ChangeEventHandler<bool> OnChange { get; set; }
         public ChangeEventHandler<bool> OnChangeCapture { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToolbarToggleProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1925,12 +4127,38 @@ namespace ReactiveUITK.Props.Typed
                 map["onChangeCapture"] = OnChangeCapture;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarToggleProps>.Return(this);
+        }
     }
 
     public sealed class ToolbarMenuProps : BaseProps
     {
         public string Text { get; set; }
         public MenuBuilderHandler PopulateMenu { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToolbarMenuProps o)
+                return false;
+            if (Text != o.Text)
+                return false;
+            if (PopulateMenu != o.PopulateMenu)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1941,12 +4169,36 @@ namespace ReactiveUITK.Props.Typed
                 map["populateMenu"] = PopulateMenu;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Text = null;
+            PopulateMenu = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarMenuProps>.Return(this);
+        }
     }
 
     public sealed class ToolbarBreadcrumbsProps : BaseProps
     {
         public IEnumerable<string> Items { get; set; }
         public Action<int> OnItem { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToolbarBreadcrumbsProps o)
+                return false;
+            if (!ReferenceEquals(Items, o.Items))
+                return false;
+            if (OnItem != o.OnItem)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1957,6 +4209,17 @@ namespace ReactiveUITK.Props.Typed
                 map["onItem"] = OnItem;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Items = null;
+            OnItem = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarBreadcrumbsProps>.Return(this);
+        }
     }
 
     public sealed class ToolbarPopupSearchFieldProps : BaseProps
@@ -1964,6 +4227,21 @@ namespace ReactiveUITK.Props.Typed
         public string Value { get; set; }
         public ChangeEventHandler<string> OnChange { get; set; }
         public ChangeEventHandler<string> OnChangeCapture { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToolbarPopupSearchFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -1975,6 +4253,18 @@ namespace ReactiveUITK.Props.Typed
             if (OnChangeCapture != null)
                 map["onChangeCapture"] = OnChangeCapture;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarPopupSearchFieldProps>.Return(this);
         }
     }
 
@@ -1984,6 +4274,21 @@ namespace ReactiveUITK.Props.Typed
         public ChangeEventHandler<string> OnChange { get; set; }
         public ChangeEventHandler<string> OnChangeCapture { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not ToolbarSearchFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (OnChangeCapture != o.OnChangeCapture)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -1995,11 +4300,35 @@ namespace ReactiveUITK.Props.Typed
                 map["onChangeCapture"] = OnChangeCapture;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            OnChangeCapture = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarSearchFieldProps>.Return(this);
+        }
     }
 
     public sealed class ToolbarSpacerProps : BaseProps
     {
+        public override bool ShallowEquals(BaseProps other)
+        {
+            return base.ShallowEquals(other) && other is ToolbarSpacerProps;
+        }
+
         public override Dictionary<string, object> ToDictionary() => base.ToDictionary();
+
+        internal override void __ResetFields() { }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<ToolbarSpacerProps>.Return(this);
+        }
     }
 }`,TreeViewProps:`using System;
 using System.Collections;
@@ -2019,6 +4348,31 @@ namespace ReactiveUITK.Props.Typed
         public IList<int> ExpandedItemIds { get; set; }
         public bool? StopTrackingUserChange { get; set; }
         public TreeExpansionEventHandler ItemExpandedChanged { get; set; }
+
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TreeViewProps o)
+                return false;
+            if (!ReferenceEquals(RootItems, o.RootItems))
+                return false;
+            if (FixedItemHeight != o.FixedItemHeight)
+                return false;
+            if (Selection != o.Selection)
+                return false;
+            if (SelectedIndex != o.SelectedIndex)
+                return false;
+            if (Row != o.Row)
+                return false;
+            if (!ReferenceEquals(ExpandedItemIds, o.ExpandedItemIds))
+                return false;
+            if (StopTrackingUserChange != o.StopTrackingUserChange)
+                return false;
+            if (ItemExpandedChanged != o.ItemExpandedChanged)
+                return false;
+            return true;
+        }
 
         public override Dictionary<string, object> ToDictionary()
         {
@@ -2057,6 +4411,23 @@ namespace ReactiveUITK.Props.Typed
             }
             return d;
         }
+
+        internal override void __ResetFields()
+        {
+            RootItems = null;
+            FixedItemHeight = null;
+            Selection = null;
+            SelectedIndex = null;
+            Row = null;
+            ExpandedItemIds = null;
+            StopTrackingUserChange = null;
+            ItemExpandedChanged = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TreeViewProps>.Return(this);
+        }
     }
 }`,TwoPaneSplitViewProps:`#if UNITY_EDITOR
 using System.Collections.Generic;
@@ -2070,6 +4441,21 @@ namespace ReactiveUITK.Props.Typed
         public int? FixedPaneIndex { get; set; }
         public float? FixedPaneInitialDimension { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not TwoPaneSplitViewProps o)
+                return false;
+            if (Orientation != o.Orientation)
+                return false;
+            if (FixedPaneIndex != o.FixedPaneIndex)
+                return false;
+            if (FixedPaneInitialDimension != o.FixedPaneInitialDimension)
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2080,6 +4466,18 @@ namespace ReactiveUITK.Props.Typed
             if (FixedPaneInitialDimension.HasValue)
                 map["fixedPaneInitialDimension"] = FixedPaneInitialDimension.Value;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Orientation = null;
+            FixedPaneIndex = null;
+            FixedPaneInitialDimension = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<TwoPaneSplitViewProps>.Return(this);
         }
     }
 }
@@ -2097,6 +4495,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not UnsignedIntegerFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2109,6 +4524,19 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<UnsignedIntegerFieldProps>.Return(this);
         }
     }
 }`,UnsignedLongFieldProps:`using System;
@@ -2125,6 +4553,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not UnsignedLongFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2137,6 +4582,19 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<UnsignedLongFieldProps>.Return(this);
         }
     }
 }`,Vector2FieldProps:`using System;
@@ -2154,6 +4612,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not Vector2FieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2166,6 +4641,19 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<Vector2FieldProps>.Return(this);
         }
     }
 }`,Vector2IntFieldProps:`using System;
@@ -2181,6 +4669,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not Vector2IntFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2191,6 +4694,18 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<Vector2IntFieldProps>.Return(this);
         }
     }
 }`,Vector3FieldProps:`using System;
@@ -2208,6 +4723,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not Vector3FieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2220,6 +4752,19 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<Vector3FieldProps>.Return(this);
         }
     }
 }`,Vector3IntFieldProps:`using System;
@@ -2235,6 +4780,21 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not Vector3IntFieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2245,6 +4805,18 @@ namespace ReactiveUITK.Props.Typed
             if (VisualInput != null)
                 map["visualInput"] = VisualInput;
             return map;
+        }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<Vector3IntFieldProps>.Return(this);
         }
     }
 }`,Vector4FieldProps:`using System;
@@ -2262,6 +4834,23 @@ namespace ReactiveUITK.Props.Typed
         public Dictionary<string, object> Label { get; set; }
         public Dictionary<string, object> VisualInput { get; set; }
 
+        public override bool ShallowEquals(BaseProps other)
+        {
+            if (!base.ShallowEquals(other))
+                return false;
+            if (other is not Vector4FieldProps o)
+                return false;
+            if (Value != o.Value)
+                return false;
+            if (OnChange != o.OnChange)
+                return false;
+            if (!ReferenceEquals(Label, o.Label))
+                return false;
+            if (!ReferenceEquals(VisualInput, o.VisualInput))
+                return false;
+            return true;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             var map = base.ToDictionary();
@@ -2275,6 +4864,19 @@ namespace ReactiveUITK.Props.Typed
                 map["visualInput"] = VisualInput;
             return map;
         }
+
+        internal override void __ResetFields()
+        {
+            Value = null;
+            OnChange = null;
+            Label = null;
+            VisualInput = null;
+        }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<Vector4FieldProps>.Return(this);
+        }
     }
 }`,VisualElementProps:`using System.Collections.Generic;
 
@@ -2285,12 +4887,24 @@ namespace ReactiveUITK.Props.Typed
     /// </summary>
     public sealed class VisualElementProps : BaseProps
     {
+        public override bool ShallowEquals(BaseProps other)
+        {
+            return base.ShallowEquals(other) && other is VisualElementProps;
+        }
+
         public override Dictionary<string, object> ToDictionary()
         {
             return base.ToDictionary();
         }
+
+        internal override void __ResetFields() { }
+
+        internal override void __ReturnToPool()
+        {
+            Pool<VisualElementProps>.Return(this);
+        }
     }
-}`},yx={AnimateProps:[{name:`Tracks`,type:`List<AnimateTrack>`,inherited:!1},{name:`Autoplay`,type:`bool`,inherited:!1}],BaseProps:[{name:`Name`,type:`string`,inherited:!0},{name:`ClassName`,type:`string`,inherited:!0},{name:`Style`,type:`Style`,inherited:!0},{name:`Ref`,type:`object`,inherited:!0},{name:`ContentContainer`,type:`Dictionary<string, object>`,inherited:!0},{name:`Visible`,type:`bool?`,inherited:!0},{name:`Enabled`,type:`bool?`,inherited:!0},{name:`Tooltip`,type:`string`,inherited:!0},{name:`ViewDataKey`,type:`string`,inherited:!0},{name:`PickingMode`,type:`PickingMode?`,inherited:!0},{name:`Focusable`,type:`bool?`,inherited:!0},{name:`TabIndex`,type:`int?`,inherited:!0},{name:`DelegatesFocus`,type:`bool?`,inherited:!0},{name:`LanguageDirection`,type:`LanguageDirection?`,inherited:!0},{name:`OnClick`,type:`PointerEventHandler`,inherited:!0},{name:`OnClickCapture`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerDown`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerDownCapture`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerUp`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerUpCapture`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerMove`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerMoveCapture`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerEnter`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerEnterCapture`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerLeave`,type:`PointerEventHandler`,inherited:!0},{name:`OnPointerLeaveCapture`,type:`PointerEventHandler`,inherited:!0},{name:`OnWheel`,type:`WheelEventHandler`,inherited:!0},{name:`OnWheelCapture`,type:`WheelEventHandler`,inherited:!0},{name:`OnScroll`,type:`WheelEventHandler`,inherited:!0},{name:`OnScrollCapture`,type:`WheelEventHandler`,inherited:!0},{name:`OnDragEnter`,type:`DragEventHandler`,inherited:!0},{name:`OnDragEnterCapture`,type:`DragEventHandler`,inherited:!0},{name:`OnDragLeave`,type:`DragEventHandler`,inherited:!0},{name:`OnDragLeaveCapture`,type:`DragEventHandler`,inherited:!0},{name:`OnDragUpdated`,type:`DragEventHandler`,inherited:!0},{name:`OnDragUpdatedCapture`,type:`DragEventHandler`,inherited:!0},{name:`OnDragPerform`,type:`DragEventHandler`,inherited:!0},{name:`OnDragPerformCapture`,type:`DragEventHandler`,inherited:!0},{name:`OnDragExited`,type:`DragEventHandler`,inherited:!0},{name:`OnDragExitedCapture`,type:`DragEventHandler`,inherited:!0},{name:`OnFocus`,type:`FocusEventHandler`,inherited:!0},{name:`OnFocusCapture`,type:`FocusEventHandler`,inherited:!0},{name:`OnBlur`,type:`FocusEventHandler`,inherited:!0},{name:`OnBlurCapture`,type:`FocusEventHandler`,inherited:!0},{name:`OnFocusIn`,type:`FocusEventHandler`,inherited:!0},{name:`OnFocusInCapture`,type:`FocusEventHandler`,inherited:!0},{name:`OnFocusOut`,type:`FocusEventHandler`,inherited:!0},{name:`OnFocusOutCapture`,type:`FocusEventHandler`,inherited:!0},{name:`OnKeyDown`,type:`KeyboardEventHandler`,inherited:!0},{name:`OnKeyDownCapture`,type:`KeyboardEventHandler`,inherited:!0},{name:`OnKeyUp`,type:`KeyboardEventHandler`,inherited:!0},{name:`OnKeyUpCapture`,type:`KeyboardEventHandler`,inherited:!0},{name:`OnInput`,type:`InputEventHandler`,inherited:!0},{name:`OnInputCapture`,type:`InputEventHandler`,inherited:!0},{name:`OnGeometryChanged`,type:`GeometryChangedEventHandler`,inherited:!0},{name:`OnAttachToPanel`,type:`PanelLifecycleEventHandler`,inherited:!0},{name:`OnDetachFromPanel`,type:`PanelLifecycleEventHandler`,inherited:!0},{name:`ExtraProps`,type:`Dictionary<string, object>`,inherited:!0}],BoundsFieldProps:[{name:`Value`,type:`Bounds?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],BoundsIntFieldProps:[{name:`Value`,type:`BoundsInt?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],ButtonProps:[{name:`Text`,type:`string`,inherited:!1}],ColorFieldProps:[{name:`Value`,type:`Color?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Color>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<Color>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],DoubleFieldProps:[{name:`Value`,type:`double?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<double>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<double>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],DropdownFieldProps:[{name:`Choices`,type:`List<string>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],EnumFieldProps:[{name:`Value`,type:`Enum`,inherited:!1},{name:`EnumType`,type:`string`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],EnumFlagsFieldProps:[{name:`Value`,type:`Enum`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],ErrorBoundaryProps:[{name:`Fallback`,type:`VirtualNode`,inherited:!1},{name:`OnError`,type:`ErrorEventHandler`,inherited:!1},{name:`ResetKey`,type:`string`,inherited:!1}],FloatFieldProps:[{name:`Value`,type:`float?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<float>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<float>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],FoldoutProps:[{name:`Text`,type:`string`,inherited:!1},{name:`Value`,type:`bool?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Header`,type:`Dictionary<string, object>`,inherited:!1}],GroupBoxProps:[{name:`Text`,type:`string`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1}],Hash128FieldProps:[{name:`Value`,type:`Hash128?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],HelpBoxProps:[{name:`Text`,type:`string`,inherited:!1},{name:`MessageType`,type:`string`,inherited:!1}],IMGUIContainerProps:[{name:`OnGUI`,type:`Action`,inherited:!1}],ImageProps:[{name:`Texture`,type:`Texture2D`,inherited:!1},{name:`Sprite`,type:`Sprite`,inherited:!1},{name:`ScaleMode`,type:`string`,inherited:!1}],IntegerFieldProps:[{name:`Value`,type:`int?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],LabelProps:[{name:`Text`,type:`string`,inherited:!1}],ListViewProps:[{name:`Items`,type:`IList`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`MakeItem`,type:`ItemFactory`,inherited:!1},{name:`BindItem`,type:`ItemBinder`,inherited:!1},{name:`UnbindItem`,type:`ItemBinder`,inherited:!1},{name:`Row`,type:`RowRenderer`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`ScrollView`,type:`Dictionary<string, object>`,inherited:!1}],LongFieldProps:[{name:`Value`,type:`long?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<long>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<long>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],MinMaxSliderProps:[{name:`MinValue`,type:`float?`,inherited:!1},{name:`MaxValue`,type:`float?`,inherited:!1},{name:`LowLimit`,type:`float?`,inherited:!1},{name:`HighLimit`,type:`float?`,inherited:!1}],MultiColumnListViewProps:[{name:`Items`,type:`IList`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`Columns`,type:`List<ColumnDef>`,inherited:!1},{name:`SortedColumns`,type:`List<SortedColumnDef>`,inherited:!1},{name:`SortingMode`,type:`object`,inherited:!1},{name:`ColumnSortingChanged`,type:`ColumnSortEventHandler`,inherited:!1},{name:`ColumnWidths`,type:`Dictionary<string, float>`,inherited:!1},{name:`ColumnVisibility`,type:`Dictionary<string, bool>`,inherited:!1},{name:`ColumnDisplayIndex`,type:`Dictionary<string, int>`,inherited:!1},{name:`ColumnLayoutChanged`,type:`ColumnLayoutEventHandler`,inherited:!1},{name:`Name`,type:`string`,inherited:!0},{name:`Title`,type:`string`,inherited:!1},{name:`Width`,type:`float?`,inherited:!1},{name:`MinWidth`,type:`float?`,inherited:!1},{name:`MaxWidth`,type:`float?`,inherited:!1},{name:`Resizable`,type:`bool?`,inherited:!1},{name:`Stretchable`,type:`bool?`,inherited:!1},{name:`Sortable`,type:`bool?`,inherited:!1},{name:`Cell`,type:`RowRenderer`,inherited:!1}],MultiColumnTreeViewProps:[{name:`RootItems`,type:`IList`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`Columns`,type:`List<ColumnDef>`,inherited:!1},{name:`ExpandedItemIds`,type:`IList<int>`,inherited:!1},{name:`StopTrackingUserChange`,type:`bool?`,inherited:!1},{name:`ColumnWidths`,type:`Dictionary<string, float>`,inherited:!1},{name:`ColumnVisibility`,type:`Dictionary<string, bool>`,inherited:!1},{name:`ColumnDisplayIndex`,type:`Dictionary<string, int>`,inherited:!1},{name:`SortedColumns`,type:`List<SortedColumnDef>`,inherited:!1},{name:`SortingMode`,type:`object`,inherited:!1},{name:`ColumnSortingChanged`,type:`ColumnSortEventHandler`,inherited:!1},{name:`ColumnLayoutChanged`,type:`ColumnLayoutEventHandler`,inherited:!1},{name:`Name`,type:`string`,inherited:!0},{name:`Title`,type:`string`,inherited:!1},{name:`Width`,type:`float?`,inherited:!1},{name:`MinWidth`,type:`float?`,inherited:!1},{name:`MaxWidth`,type:`float?`,inherited:!1},{name:`Resizable`,type:`bool?`,inherited:!1},{name:`Stretchable`,type:`bool?`,inherited:!1},{name:`Sortable`,type:`bool?`,inherited:!1},{name:`Cell`,type:`RowRenderer`,inherited:!1}],ObjectFieldProps:[{name:`Value`,type:`UnityEngine.Object`,inherited:!1},{name:`ObjectType`,type:`string`,inherited:!1},{name:`AllowSceneObjects`,type:`bool?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],ProgressBarProps:[{name:`Value`,type:`float?`,inherited:!1},{name:`Title`,type:`string`,inherited:!1},{name:`Progress`,type:`Dictionary<string, object>`,inherited:!1},{name:`TitleElement`,type:`Dictionary<string, object>`,inherited:!1}],PropertyInspectorProps:[{name:`Target`,type:`Object`,inherited:!1},{name:`BindingPath`,type:`string`,inherited:!1},{name:`Label`,type:`string`,inherited:!1},{name:`Target`,type:`Object`,inherited:!1}],RadioButtonGroupProps:[{name:`Choices`,type:`IList<string>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`Index`,type:`int?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<int>`,inherited:!1}],RadioButtonProps:[{name:`Value`,type:`bool?`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1}],RectFieldProps:[{name:`Value`,type:`Rect?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],RectIntFieldProps:[{name:`Value`,type:`RectInt?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],RepeatButtonProps:[{name:`Text`,type:`string`,inherited:!1}],ScrollViewProps:[{name:`Mode`,type:`string`,inherited:!1},{name:`VerticalScrollerVisibility`,type:`ScrollerVisibility?`,inherited:!1},{name:`HorizontalScrollerVisibility`,type:`ScrollerVisibility?`,inherited:!1},{name:`ScrollOffset`,type:`Vector2?`,inherited:!1}],ScrollerProps:[{name:`LowValue`,type:`float?`,inherited:!1},{name:`HighValue`,type:`float?`,inherited:!1},{name:`Value`,type:`float?`,inherited:!1}],SliderIntProps:[{name:`LowValue`,type:`int?`,inherited:!1},{name:`HighValue`,type:`int?`,inherited:!1},{name:`Value`,type:`int?`,inherited:!1},{name:`Direction`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<int>`,inherited:!1}],SliderProps:[{name:`LowValue`,type:`float?`,inherited:!1},{name:`HighValue`,type:`float?`,inherited:!1},{name:`Value`,type:`float?`,inherited:!1},{name:`Direction`,type:`string`,inherited:!1},{name:`Input`,type:`Dictionary<string, object>`,inherited:!1},{name:`Track`,type:`Dictionary<string, object>`,inherited:!1},{name:`DragContainer`,type:`Dictionary<string, object>`,inherited:!1},{name:`Handle`,type:`Dictionary<string, object>`,inherited:!1},{name:`HandleBorder`,type:`Dictionary<string, object>`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<float>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<float>`,inherited:!1}],TabProps:[{name:`Text`,type:`string`,inherited:!1}],TabViewProps:[{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`SelectedTabIndex`,type:`int?`,inherited:!1},{name:`Tabs`,type:`List<TabDef>`,inherited:!1},{name:`SelectedIndexChanged`,type:`TabIndexEventHandler`,inherited:!1},{name:`ActiveTabChanged`,type:`TabChangedEventHandler`,inherited:!1},{name:`Title`,type:`string`,inherited:!1},{name:`Content`,type:`ContentRenderer`,inherited:!1},{name:`StaticContent`,type:`VirtualNode`,inherited:!1}],TextElementProps:[{name:`Text`,type:`string`,inherited:!1}],TextFieldProps:[{name:`Value`,type:`string`,inherited:!1},{name:`Multiline`,type:`bool?`,inherited:!1},{name:`Password`,type:`bool?`,inherited:!1},{name:`ReadOnly`,type:`bool?`,inherited:!1},{name:`MaxLength`,type:`int?`,inherited:!1},{name:`Placeholder`,type:`string`,inherited:!1},{name:`HidePlaceholderOnFocus`,type:`bool?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`Input`,type:`Dictionary<string, object>`,inherited:!1},{name:`TextElement`,type:`Dictionary<string, object>`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`LabelText`,type:`string`,inherited:!1}],ToggleButtonGroupProps:[{name:`Value`,type:`int?`,inherited:!1}],ToggleProps:[{name:`Value`,type:`bool?`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`Input`,type:`Dictionary<string, object>`,inherited:!1},{name:`Checkmark`,type:`Dictionary<string, object>`,inherited:!1}],ToolbarProps:[{name:`Text`,type:`string`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`Value`,type:`bool?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`PopulateMenu`,type:`MenuBuilderHandler`,inherited:!1},{name:`Items`,type:`IEnumerable<string>`,inherited:!1},{name:`OnItem`,type:`Action<int>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1}],TreeViewProps:[{name:`RootItems`,type:`IList`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`Row`,type:`RowRenderer`,inherited:!1},{name:`ExpandedItemIds`,type:`IList<int>`,inherited:!1},{name:`StopTrackingUserChange`,type:`bool?`,inherited:!1},{name:`ItemExpandedChanged`,type:`TreeExpansionEventHandler`,inherited:!1}],TwoPaneSplitViewProps:[{name:`Orientation`,type:`string`,inherited:!1},{name:`FixedPaneIndex`,type:`int?`,inherited:!1},{name:`FixedPaneInitialDimension`,type:`float?`,inherited:!1}],UnsignedIntegerFieldProps:[{name:`Value`,type:`uint?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<uint>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],UnsignedLongFieldProps:[{name:`Value`,type:`ulong?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<ulong>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector2FieldProps:[{name:`Value`,type:`Vector2?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Vector2>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector2IntFieldProps:[{name:`Value`,type:`Vector2Int?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector3FieldProps:[{name:`Value`,type:`Vector3?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Vector3>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector3IntFieldProps:[{name:`Value`,type:`Vector3Int?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector4FieldProps:[{name:`Value`,type:`Vector4?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Vector4>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}]},bx=e=>vx[e]??``,xx=e=>yx[e]??[];var Sx={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const Cx=(e,t)=>`https://docs.unity3d.com/${t}/Documentation/Manual/UIE-uxml-element-${e}.html`,wx={BoundsField:{unityElement:`BoundsField`},BoundsIntField:{unityElement:`BoundsIntField`},Box:{unityElement:`Box`},Button:{unityElement:`Button`},ColorField:{unityElement:`ColorField`},DoubleField:{unityElement:`DoubleField`},DropdownField:{unityElement:`DropdownField`},EnumField:{unityElement:`EnumField`},EnumFlagsField:{unityElement:`EnumFlagsField`},FloatField:{unityElement:`FloatField`},Foldout:{unityElement:`Foldout`},GroupBox:{unityElement:`GroupBox`},Hash128Field:{unityElement:`Hash128Field`},HelpBox:{unityElement:`HelpBox`},IMGUIContainer:{unityElement:`IMGUIContainer`},Image:{unityElement:`Image`},IntegerField:{unityElement:`IntegerField`},Label:{unityElement:`Label`},ListView:{unityElement:`ListView`},LongField:{unityElement:`LongField`},MinMaxSlider:{unityElement:`MinMaxSlider`},MultiColumnListView:{unityElement:`MultiColumnListView`},MultiColumnTreeView:{unityElement:`MultiColumnTreeView`},ObjectField:{unityElement:`ObjectField`},ProgressBar:{unityElement:`ProgressBar`},PropertyInspector:{unityElement:`InspectorElement`,label:`InspectorElement entry`,note:`ReactiveUITK.PropertyInspector wraps Unity’s InspectorElement to embed serialized-object inspectors.`},RadioButton:{unityElement:`RadioButton`},RadioButtonGroup:{unityElement:`RadioButtonGroup`},RectField:{unityElement:`RectField`},RectIntField:{unityElement:`RectIntField`},RepeatButton:{unityElement:`RepeatButton`},ScrollView:{unityElement:`ScrollView`},Scroller:{unityElement:`Scroller`},Slider:{unityElement:`Slider`},SliderInt:{unityElement:`SliderInt`},Tab:{unityElement:`Tab`},TabView:{unityElement:`TabView`},TemplateContainer:{unityElement:`TemplateContainer`},TextElement:{unityElement:`TextElement`},TextField:{unityElement:`TextField`},Toggle:{unityElement:`Toggle`},ToggleButtonGroup:{unityElement:`ToggleButtonGroup`},Toolbar:{unityElement:`Toolbar`},TreeView:{unityElement:`TreeView`},TwoPaneSplitView:{unityElement:`TwoPaneSplitView`},UnsignedIntegerField:{unityElement:`UnsignedIntegerField`},UnsignedLongField:{unityElement:`UnsignedLongField`},Vector2Field:{unityElement:`Vector2Field`},Vector2IntField:{unityElement:`Vector2IntField`},Vector3Field:{unityElement:`Vector3Field`},Vector3IntField:{unityElement:`Vector3IntField`},Vector4Field:{unityElement:`Vector4Field`},VisualElement:{unityElement:`VisualElement`}},Tx=[{version:`6000.2`,label:`6.2`},{version:`6000.3`,label:`6.3`}],Ex=Tx[0],Dx=Tx[Tx.length-1],Ox={aspectRatio:{sinceUnity:`6000.3`},filter:{sinceUnity:`6000.3`},unityMaterial:{sinceUnity:`6000.3`}},kx={FilterBlur:{sinceUnity:`6000.3`},FilterGrayscale:{sinceUnity:`6000.3`},FilterContrast:{sinceUnity:`6000.3`},FilterHueRotate:{sinceUnity:`6000.3`},FilterInvert:{sinceUnity:`6000.3`},FilterOpacity:{sinceUnity:`6000.3`},FilterSepia:{sinceUnity:`6000.3`},FilterTint:{sinceUnity:`6000.3`}},Ax={};function jx(e,t){let n=e.split(`.`).map(Number),r=t.split(`.`).map(Number);for(let e=0;e<Math.max(n.length,r.length);e++){let t=(n[e]??0)-(r[e]??0);if(t!==0)return t}return 0}function Mx(e,t){return e?!(jx(e.sinceUnity,t)>0||e.removedIn&&jx(e.removedIn,t)<=0):!0}const Nx={aspectRatio:{sinceUnity:`6000.3`,type:`StyleRatio`,description:`Sets the preferred aspect ratio (width\xA0/\xA0height) for the element. The layout engine uses this when one dimension is auto.`,example:[`new Style {`,`    AspectRatio = new StyleRatio(new Ratio(16, 9)),`,`}`].join(`
+}`},yx={AnimateProps:[{name:`Tracks`,type:`List<AnimateTrack>`,inherited:!1},{name:`Autoplay`,type:`bool`,inherited:!1}],BaseProps:[{name:`Name`,type:`string`,inherited:!0},{name:`ClassName`,type:`string`,inherited:!0},{name:`Style`,type:`Style`,inherited:!0},{name:`Ref`,type:`object`,inherited:!0},{name:`ContentContainer`,type:`Dictionary<string, object>`,inherited:!0},{name:`Visible`,type:`bool?`,inherited:!0},{name:`Enabled`,type:`bool?`,inherited:!0},{name:`Tooltip`,type:`string`,inherited:!0},{name:`ViewDataKey`,type:`string`,inherited:!0},{name:`PickingMode`,type:`PickingMode?`,inherited:!0},{name:`Focusable`,type:`bool?`,inherited:!0},{name:`TabIndex`,type:`int?`,inherited:!0},{name:`DelegatesFocus`,type:`bool?`,inherited:!0},{name:`LanguageDirection`,type:`LanguageDirection?`,inherited:!0},{name:`ExtraProps`,type:`Dictionary<string, object>`,inherited:!0}],BoundsFieldProps:[{name:`Value`,type:`Bounds?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],BoundsIntFieldProps:[{name:`Value`,type:`BoundsInt?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],ButtonProps:[{name:`Text`,type:`string`,inherited:!1}],ColorFieldProps:[{name:`Value`,type:`Color?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Color>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<Color>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],DoubleFieldProps:[{name:`Value`,type:`double?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<double>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<double>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],DropdownFieldProps:[{name:`Choices`,type:`List<string>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],EnumFieldProps:[{name:`Value`,type:`Enum`,inherited:!1},{name:`EnumType`,type:`string`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],EnumFlagsFieldProps:[{name:`Value`,type:`Enum`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],ErrorBoundaryProps:[{name:`Fallback`,type:`VirtualNode`,inherited:!1},{name:`OnError`,type:`ErrorEventHandler`,inherited:!1},{name:`ResetKey`,type:`string`,inherited:!1}],FloatFieldProps:[{name:`Value`,type:`float?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<float>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<float>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],FoldoutProps:[{name:`Text`,type:`string`,inherited:!1},{name:`Value`,type:`bool?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Header`,type:`Dictionary<string, object>`,inherited:!1}],GroupBoxProps:[{name:`Text`,type:`string`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1}],Hash128FieldProps:[{name:`Value`,type:`Hash128?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],HelpBoxProps:[{name:`Text`,type:`string`,inherited:!1},{name:`MessageType`,type:`string`,inherited:!1}],IMGUIContainerProps:[{name:`OnGUI`,type:`Action`,inherited:!1}],ImageProps:[{name:`Texture`,type:`Texture2D`,inherited:!1},{name:`Sprite`,type:`Sprite`,inherited:!1},{name:`ScaleMode`,type:`string`,inherited:!1}],IntegerFieldProps:[{name:`Value`,type:`int?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],LabelProps:[{name:`Text`,type:`string`,inherited:!1}],ListViewProps:[{name:`Items`,type:`IList`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`MakeItem`,type:`ItemFactory`,inherited:!1},{name:`BindItem`,type:`ItemBinder`,inherited:!1},{name:`UnbindItem`,type:`ItemBinder`,inherited:!1},{name:`Row`,type:`RowRenderer`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`ScrollView`,type:`Dictionary<string, object>`,inherited:!1}],LongFieldProps:[{name:`Value`,type:`long?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<long>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<long>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],MinMaxSliderProps:[{name:`MinValue`,type:`float?`,inherited:!1},{name:`MaxValue`,type:`float?`,inherited:!1},{name:`LowLimit`,type:`float?`,inherited:!1},{name:`HighLimit`,type:`float?`,inherited:!1}],MultiColumnListViewProps:[{name:`Items`,type:`IList`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`Columns`,type:`List<ColumnDef>`,inherited:!1},{name:`SortedColumns`,type:`List<SortedColumnDef>`,inherited:!1},{name:`SortingMode`,type:`object`,inherited:!1},{name:`ColumnSortingChanged`,type:`ColumnSortEventHandler`,inherited:!1},{name:`ColumnWidths`,type:`Dictionary<string, float>`,inherited:!1},{name:`ColumnVisibility`,type:`Dictionary<string, bool>`,inherited:!1},{name:`ColumnDisplayIndex`,type:`Dictionary<string, int>`,inherited:!1},{name:`ColumnLayoutChanged`,type:`ColumnLayoutEventHandler`,inherited:!1},{name:`Name`,type:`string`,inherited:!0},{name:`Title`,type:`string`,inherited:!1},{name:`Width`,type:`float?`,inherited:!1},{name:`MinWidth`,type:`float?`,inherited:!1},{name:`MaxWidth`,type:`float?`,inherited:!1},{name:`Resizable`,type:`bool?`,inherited:!1},{name:`Stretchable`,type:`bool?`,inherited:!1},{name:`Sortable`,type:`bool?`,inherited:!1},{name:`Cell`,type:`RowRenderer`,inherited:!1}],MultiColumnTreeViewProps:[{name:`RootItems`,type:`IList`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`Columns`,type:`List<ColumnDef>`,inherited:!1},{name:`ExpandedItemIds`,type:`IList<int>`,inherited:!1},{name:`StopTrackingUserChange`,type:`bool?`,inherited:!1},{name:`ColumnWidths`,type:`Dictionary<string, float>`,inherited:!1},{name:`ColumnVisibility`,type:`Dictionary<string, bool>`,inherited:!1},{name:`ColumnDisplayIndex`,type:`Dictionary<string, int>`,inherited:!1},{name:`SortedColumns`,type:`List<SortedColumnDef>`,inherited:!1},{name:`SortingMode`,type:`object`,inherited:!1},{name:`ColumnSortingChanged`,type:`ColumnSortEventHandler`,inherited:!1},{name:`ColumnLayoutChanged`,type:`ColumnLayoutEventHandler`,inherited:!1},{name:`Name`,type:`string`,inherited:!0},{name:`Title`,type:`string`,inherited:!1},{name:`Width`,type:`float?`,inherited:!1},{name:`MinWidth`,type:`float?`,inherited:!1},{name:`MaxWidth`,type:`float?`,inherited:!1},{name:`Resizable`,type:`bool?`,inherited:!1},{name:`Stretchable`,type:`bool?`,inherited:!1},{name:`Sortable`,type:`bool?`,inherited:!1},{name:`Cell`,type:`RowRenderer`,inherited:!1}],ObjectFieldProps:[{name:`Value`,type:`UnityEngine.Object`,inherited:!1},{name:`ObjectType`,type:`string`,inherited:!1},{name:`AllowSceneObjects`,type:`bool?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],ProgressBarProps:[{name:`Value`,type:`float?`,inherited:!1},{name:`Title`,type:`string`,inherited:!1},{name:`Progress`,type:`Dictionary<string, object>`,inherited:!1},{name:`TitleElement`,type:`Dictionary<string, object>`,inherited:!1}],PropertyInspectorProps:[{name:`Target`,type:`Object`,inherited:!1},{name:`BindingPath`,type:`string`,inherited:!1},{name:`Label`,type:`string`,inherited:!1},{name:`Target`,type:`Object`,inherited:!1}],RadioButtonGroupProps:[{name:`Choices`,type:`IList<string>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`Index`,type:`int?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<int>`,inherited:!1}],RadioButtonProps:[{name:`Value`,type:`bool?`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1}],RectFieldProps:[{name:`Value`,type:`Rect?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],RectIntFieldProps:[{name:`Value`,type:`RectInt?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],RepeatButtonProps:[{name:`Text`,type:`string`,inherited:!1}],ScrollViewProps:[{name:`Mode`,type:`string`,inherited:!1},{name:`VerticalScrollerVisibility`,type:`ScrollerVisibility?`,inherited:!1},{name:`HorizontalScrollerVisibility`,type:`ScrollerVisibility?`,inherited:!1},{name:`ScrollOffset`,type:`Vector2?`,inherited:!1}],ScrollerProps:[{name:`LowValue`,type:`float?`,inherited:!1},{name:`HighValue`,type:`float?`,inherited:!1},{name:`Value`,type:`float?`,inherited:!1}],SliderIntProps:[{name:`LowValue`,type:`int?`,inherited:!1},{name:`HighValue`,type:`int?`,inherited:!1},{name:`Value`,type:`int?`,inherited:!1},{name:`Direction`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<int>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<int>`,inherited:!1}],SliderProps:[{name:`LowValue`,type:`float?`,inherited:!1},{name:`HighValue`,type:`float?`,inherited:!1},{name:`Value`,type:`float?`,inherited:!1},{name:`Direction`,type:`string`,inherited:!1},{name:`Input`,type:`Dictionary<string, object>`,inherited:!1},{name:`Track`,type:`Dictionary<string, object>`,inherited:!1},{name:`DragContainer`,type:`Dictionary<string, object>`,inherited:!1},{name:`Handle`,type:`Dictionary<string, object>`,inherited:!1},{name:`HandleBorder`,type:`Dictionary<string, object>`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<float>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<float>`,inherited:!1}],TabProps:[{name:`Text`,type:`string`,inherited:!1}],TabViewProps:[{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`SelectedTabIndex`,type:`int?`,inherited:!1},{name:`Tabs`,type:`List<TabDef>`,inherited:!1},{name:`SelectedIndexChanged`,type:`TabIndexEventHandler`,inherited:!1},{name:`ActiveTabChanged`,type:`TabChangedEventHandler`,inherited:!1},{name:`Title`,type:`string`,inherited:!1},{name:`Content`,type:`ContentRenderer`,inherited:!1},{name:`StaticContent`,type:`VirtualNode`,inherited:!1}],TextElementProps:[{name:`Text`,type:`string`,inherited:!1}],TextFieldProps:[{name:`Value`,type:`string`,inherited:!1},{name:`Multiline`,type:`bool?`,inherited:!1},{name:`Password`,type:`bool?`,inherited:!1},{name:`ReadOnly`,type:`bool?`,inherited:!1},{name:`MaxLength`,type:`int?`,inherited:!1},{name:`Placeholder`,type:`string`,inherited:!1},{name:`HidePlaceholderOnFocus`,type:`bool?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`Input`,type:`Dictionary<string, object>`,inherited:!1},{name:`TextElement`,type:`Dictionary<string, object>`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`LabelText`,type:`string`,inherited:!1}],ToggleButtonGroupProps:[{name:`Value`,type:`int?`,inherited:!1}],ToggleProps:[{name:`Value`,type:`bool?`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`Input`,type:`Dictionary<string, object>`,inherited:!1},{name:`Checkmark`,type:`Dictionary<string, object>`,inherited:!1}],ToolbarProps:[{name:`Text`,type:`string`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`Value`,type:`bool?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<bool>`,inherited:!1},{name:`Text`,type:`string`,inherited:!1},{name:`PopulateMenu`,type:`MenuBuilderHandler`,inherited:!1},{name:`Items`,type:`IEnumerable<string>`,inherited:!1},{name:`OnItem`,type:`Action<int>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`Value`,type:`string`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<string>`,inherited:!1},{name:`OnChangeCapture`,type:`ChangeEventHandler<string>`,inherited:!1}],TreeViewProps:[{name:`RootItems`,type:`IList`,inherited:!1},{name:`FixedItemHeight`,type:`float?`,inherited:!1},{name:`Selection`,type:`SelectionType?`,inherited:!1},{name:`SelectedIndex`,type:`int?`,inherited:!1},{name:`Row`,type:`RowRenderer`,inherited:!1},{name:`ExpandedItemIds`,type:`IList<int>`,inherited:!1},{name:`StopTrackingUserChange`,type:`bool?`,inherited:!1},{name:`ItemExpandedChanged`,type:`TreeExpansionEventHandler`,inherited:!1}],TwoPaneSplitViewProps:[{name:`Orientation`,type:`string`,inherited:!1},{name:`FixedPaneIndex`,type:`int?`,inherited:!1},{name:`FixedPaneInitialDimension`,type:`float?`,inherited:!1}],UnsignedIntegerFieldProps:[{name:`Value`,type:`uint?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<uint>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],UnsignedLongFieldProps:[{name:`Value`,type:`ulong?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<ulong>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector2FieldProps:[{name:`Value`,type:`Vector2?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Vector2>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector2IntFieldProps:[{name:`Value`,type:`Vector2Int?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector3FieldProps:[{name:`Value`,type:`Vector3?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Vector3>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector3IntFieldProps:[{name:`Value`,type:`Vector3Int?`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}],Vector4FieldProps:[{name:`Value`,type:`Vector4?`,inherited:!1},{name:`OnChange`,type:`ChangeEventHandler<Vector4>`,inherited:!1},{name:`Label`,type:`Dictionary<string, object>`,inherited:!1},{name:`VisualInput`,type:`Dictionary<string, object>`,inherited:!1}]},bx=e=>vx[e]??``,xx=e=>yx[e]??[];var Sx={root:{display:`flex`,flexDirection:`column`,gap:2},section:{mt:2}};const Cx=(e,t)=>`https://docs.unity3d.com/${t}/Documentation/Manual/UIE-uxml-element-${e}.html`,wx={BoundsField:{unityElement:`BoundsField`},BoundsIntField:{unityElement:`BoundsIntField`},Box:{unityElement:`Box`},Button:{unityElement:`Button`},ColorField:{unityElement:`ColorField`},DoubleField:{unityElement:`DoubleField`},DropdownField:{unityElement:`DropdownField`},EnumField:{unityElement:`EnumField`},EnumFlagsField:{unityElement:`EnumFlagsField`},FloatField:{unityElement:`FloatField`},Foldout:{unityElement:`Foldout`},GroupBox:{unityElement:`GroupBox`},Hash128Field:{unityElement:`Hash128Field`},HelpBox:{unityElement:`HelpBox`},IMGUIContainer:{unityElement:`IMGUIContainer`},Image:{unityElement:`Image`},IntegerField:{unityElement:`IntegerField`},Label:{unityElement:`Label`},ListView:{unityElement:`ListView`},LongField:{unityElement:`LongField`},MinMaxSlider:{unityElement:`MinMaxSlider`},MultiColumnListView:{unityElement:`MultiColumnListView`},MultiColumnTreeView:{unityElement:`MultiColumnTreeView`},ObjectField:{unityElement:`ObjectField`},ProgressBar:{unityElement:`ProgressBar`},PropertyInspector:{unityElement:`InspectorElement`,label:`InspectorElement entry`,note:`ReactiveUITK.PropertyInspector wraps Unity’s InspectorElement to embed serialized-object inspectors.`},RadioButton:{unityElement:`RadioButton`},RadioButtonGroup:{unityElement:`RadioButtonGroup`},RectField:{unityElement:`RectField`},RectIntField:{unityElement:`RectIntField`},RepeatButton:{unityElement:`RepeatButton`},ScrollView:{unityElement:`ScrollView`},Scroller:{unityElement:`Scroller`},Slider:{unityElement:`Slider`},SliderInt:{unityElement:`SliderInt`},Tab:{unityElement:`Tab`},TabView:{unityElement:`TabView`},TemplateContainer:{unityElement:`TemplateContainer`},TextElement:{unityElement:`TextElement`},TextField:{unityElement:`TextField`},Toggle:{unityElement:`Toggle`},ToggleButtonGroup:{unityElement:`ToggleButtonGroup`},Toolbar:{unityElement:`Toolbar`},TreeView:{unityElement:`TreeView`},TwoPaneSplitView:{unityElement:`TwoPaneSplitView`},UnsignedIntegerField:{unityElement:`UnsignedIntegerField`},UnsignedLongField:{unityElement:`UnsignedLongField`},Vector2Field:{unityElement:`Vector2Field`},Vector2IntField:{unityElement:`Vector2IntField`},Vector3Field:{unityElement:`Vector3Field`},Vector3IntField:{unityElement:`Vector3IntField`},Vector4Field:{unityElement:`Vector4Field`},VisualElement:{unityElement:`VisualElement`}},Tx=[{version:`6000.2`,label:`6.2`},{version:`6000.3`,label:`6.3`}],Ex=Tx[0],Dx=Tx[Tx.length-1],Ox={aspectRatio:{sinceUnity:`6000.3`},filter:{sinceUnity:`6000.3`},unityMaterial:{sinceUnity:`6000.3`}},kx={FilterBlur:{sinceUnity:`6000.3`},FilterGrayscale:{sinceUnity:`6000.3`},FilterContrast:{sinceUnity:`6000.3`},FilterHueRotate:{sinceUnity:`6000.3`},FilterInvert:{sinceUnity:`6000.3`},FilterOpacity:{sinceUnity:`6000.3`},FilterSepia:{sinceUnity:`6000.3`},FilterTint:{sinceUnity:`6000.3`}},Ax={};function jx(e,t){let n=e.split(`.`).map(Number),r=t.split(`.`).map(Number);for(let e=0;e<Math.max(n.length,r.length);e++){let t=(n[e]??0)-(r[e]??0);if(t!==0)return t}return 0}function Mx(e,t){return e?!(jx(e.sinceUnity,t)>0||e.removedIn&&jx(e.removedIn,t)<=0):!0}const Nx={aspectRatio:{sinceUnity:`6000.3`,type:`StyleRatio`,description:`Sets the preferred aspect ratio (width\xA0/\xA0height) for the element. The layout engine uses this when one dimension is auto.`,example:[`new Style {`,`    AspectRatio = new StyleRatio(new Ratio(16, 9)),`,`}`].join(`
 `)},filter:{sinceUnity:`6000.3`,type:`StyleList<FilterFunction>`,description:`Applies one or more graphical filter effects to the element’s rendering. Multiple filters can be chained in a single list.`,example:[`using static ReactiveUITK.Props.Typed.CssHelpers;`,``,`new Style {`,`    Filter = new StyleList<FilterFunction>(`,`        new List<FilterFunction> { FilterBlur(4), FilterGrayscale(0.5f) }`,`    ),`,`}`].join(`
 `),relatedHelpers:[`FilterBlur`,`FilterGrayscale`,`FilterContrast`,`FilterHueRotate`,`FilterInvert`,`FilterOpacity`,`FilterSepia`,`FilterTint`]},unityMaterial:{sinceUnity:`6000.3`,type:`StyleMaterialDefinition`,description:`Assigns a Unity Material (Shader Graph or built-in) for custom rendering of the element. Useful for shader-driven UI effects.`,example:[`new Style {`,`    UnityMaterial = new StyleMaterialDefinition(`,`        new MaterialDefinition(myMaterial)`,`    ),`,`}`].join(`
 `)}};function Px(e){let t=[];for(let[n,r]of Object.entries(Ox))if(Mx(r,e)){t.push(n);let e=Nx[n];e&&(t.push(e.type,e.description),e.relatedHelpers&&t.push(...e.relatedHelpers))}for(let[n,r]of Object.entries(kx))Mx(r,e)&&t.push(n);return t.join(` `)}var Fx=`ruitk-selected-unity-version`;function Ix(){try{let e=localStorage.getItem(Fx);if(e&&Tx.some(t=>t.version===e))return e}catch{}return Dx.version}var Lx=(0,x.createContext)({selectedVersion:Dx.version,setSelectedVersion:()=>{}});const Rx=({children:e})=>{let[t,n]=(0,x.useState)(Ix),r=(0,x.useCallback)(e=>{n(e);try{localStorage.setItem(Fx,e)}catch{}},[]);return(0,I.jsx)(Lx.Provider,{value:{selectedVersion:t,setSelectedVersion:r},children:e})},zx=()=>(0,x.useContext)(Lx),Bx=({componentName:e})=>{let t=wx[e],{selectedVersion:n}=zx();if(!t)return null;let r=t.label??`${e} entry`,i=Cx(t.unityElement,n);return(0,I.jsxs)(K,{sx:{mt:2},children:[(0,I.jsx)(W,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Unity docs`}),(0,I.jsxs)(W,{variant:`body1`,paragraph:!0,children:[`Review the`,` `,(0,I.jsx)(B_,{href:i,target:`_blank`,rel:`noreferrer`,children:r}),` `,`in the Unity manual for the official UI Toolkit reference.`]}),t.note&&(0,I.jsx)(W,{variant:`body2`,color:`text.secondary`,paragraph:!0,children:t.note})]})},Vx=()=>(0,I.jsxs)(K,{sx:Sx.root,children:[(0,I.jsx)(W,{variant:`h4`,component:`h1`,gutterBottom:!0,children:`BoundsField`}),(0,I.jsxs)(W,{variant:`body1`,paragraph:!0,children:[(0,I.jsx)(`code`,{children:`V.BoundsField`}),` wraps the Unity `,(0,I.jsx)(`code`,{children:`BoundsField`}),` control using`,` `,(0,I.jsx)(`code`,{children:`BoundsFieldProps`}),`. It is useful for editing `,(0,I.jsx)(`code`,{children:`Bounds`}),` values in both runtime UI and editor tools.`]}),(0,I.jsxs)(K,{sx:Sx.section,children:[(0,I.jsx)(W,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Props`}),(0,I.jsx)($,{language:`jsx`,code:bx(`BoundsFieldProps`)})]}),(0,I.jsxs)(K,{sx:Sx.section,children:[(0,I.jsx)(W,{variant:`h5`,component:`h2`,gutterBottom:!0,children:`Basic usage`}),(0,I.jsxs)(W,{variant:`body1`,paragraph:!0,children:[`Pass a `,(0,I.jsx)(`code`,{children:`BoundsFieldProps`}),` instance to `,(0,I.jsx)(`code`,{children:`V.BoundsField`}),`. The`,` `,(0,I.jsx)(`code`,{children:`Value`}),` property controls the current bounds.`]}),(0,I.jsx)($,{language:`jsx`,code:`// Example namespace: ReactiveUITK.Samples.Components
@@ -6297,4 +8911,4 @@ IElementAdapter adapter = defaultRegistry.Resolve("Button");`}),(0,I.jsxs)(Ef,{s
 //   Fallback         — for Suspense/ErrorBoundary nodes
 
 // Typically you never construct VirtualNode directly.
-// Use V.Button(...), V.Label(...), V.Func(...) etc.`})]})]}),OT=[{id:`intro`,title:`Introduction`,pages:[{id:`introduction`,canonicalId:`introduction`,title:`Introduction`,path:`/`,keywords:[`introduction`,`markup`,`unity ui toolkit`],searchContent:`reactiveuitoolkit react-like ui toolkit runtime unity uitkx authoring language function-style components .uitkx hooks state effects reconcile visualelement c# component countercard usestate return text button onclick highlights reactive diffing batched updates router signals utilities generated c# output production builds no runtime codegen var count setcount`,element:()=>(0,I.jsx)(Tw,{})}]},{id:`getting-started`,title:`Getting Started`,pages:[{id:`getting-started-page`,canonicalId:`install`,title:`Install & Setup`,path:`/getting-started`,keywords:[`install`,`setup`,`component`,`partial`],searchContent:`getting started reactiveuitoolkit function-style .uitkx components source generator produces complete class no boilerplate install via unity package manager open package manager add package from git url create a uitkx component setup code returned markup generator emits render mount rootrenderer V.Func EditorRootRendererUtility.Mount editor window one component per file filename must match component name auto-discovers assets directory @namespace MyGame.UI component HelloWorld var count setCount useState return VisualElement Text Hello ReactiveUITK Button Increment onClick setCount count + 1 companion files optional hook module styles types utils`,element:()=>(0,I.jsx)(Sw,{})}]},{id:`companion-files`,title:`Companion Files`,pages:[{id:`companion-files-page`,canonicalId:`companion-files`,title:`Companion Files`,path:`/companion-files`,keywords:[`companion`,`hook`,`module`,`styles`,`types`,`utils`],searchContent:`companion files optional .uitkx hook module keyword styles types utils naming conventions directory layout source generator produces complete class no boilerplate needed MyComponent.hooks.uitkx custom hooks reusable state logic MyComponent.style.uitkx style constants helpers colours sizes MyComponent.types.uitkx enums structs DTOs MyComponent.utils.uitkx pure helper formatting functions hmr support editing hook triggers hmr delegate swap module changes standalone modules`,element:()=>(0,I.jsx)(uw,{})}]},{id:`styling`,title:`Styling`,pages:[{id:`styling-page`,canonicalId:`styling`,title:`Styling`,path:`/styling`,keywords:[`style`,`css`,`typed`,`CssHelpers`,`StyleKeys`,`layout`,`colors`,`flexbox`],searchContent:`styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px StyleAuto StyleNone StyleInitial length units color helpers Hex Rgba enum shortcuts FlexDirection FlexRow FlexColumn JustifyContent JustifyCenter AlignItems AlignCenter AlignStretch JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly Position PosAbsolute PosRelative Display DisplayFlex DisplayNone Visibility VisHidden VisVisible Overflow OverflowHidden WhiteSpace WsNowrap WsNormal TextOverflow TextClip TextEllipsis TextAnchor FontStyle FontBold FontNormal StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor Color BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BgRepeatNone BgRepeatBoth BackgroundSize BgSizeCover BgSizeContain BackgroundPosition BgPosCenter TransformOrigin OriginCenter Origin Rotate Scale Translate Xlate EasingFunction Ease EaseInOut typed properties tuple syntax escape hatch StyleKeys backward compatible property reference compound struct factories`,element:()=>(0,I.jsx)(Gw,{})}]},{id:`assets`,title:`Assets & Stylesheets`,pages:[{id:`assets-page`,canonicalId:`assets`,title:`Assets & Stylesheets`,path:`/assets`,keywords:[`asset`,`texture`,`sprite`,`uss`,`stylesheet`,`image`,`audio`,`font`,`material`],searchContent:`asset loading Asset<T> Ast<T> shorthand texture sprite audioclip font material stylesheet uss @uss directive relative path resolve compile time diagnostics UITKX0022 UITKX0023 UITKX0120 UITKX0121 file not found type mismatch auto-import texture importer asset registry scriptableobject editor sync hmr hot-reload supported file types png jpg wav mp3 ttf otf mat prefab`,element:()=>(0,I.jsx)(qw,{})}]},{id:`components-overview`,title:`Components Overview`,pages:[{id:`components-overview-page`,canonicalId:`uitkx-components-overview`,title:`Components Overview`,path:`/components`,keywords:[`components`,`intrinsic tags`,`custom components`],searchContent:`components overview categorized catalog intrinsic tags visualelement button text router tags custom components pascalcase names native element consumers containers layout display buttons toggles text input vector fields pickers selectors data views editor toolbar framework Animate ErrorBoundary Portal Suspense Fragment BaseProps common props name className style ref visible enabled pickingMode focusable tabIndex tooltip viewDataKey languageDirection extraProps editor-only runtime authoring guidelines one component per file`,element:()=>(0,I.jsx)(cw,{})}]},{id:`component-reference`,title:`Components`,pages:(WC.find(e=>e.id===`components`)?.pages??[]).map(e=>({id:e.id,canonicalId:e.id,title:e.title,path:e.path,keywords:e.keywords,group:e.group,sinceUnity:e.sinceUnity,element:()=>(0,I.jsx)(iw,{title:e.title})}))},{id:`concepts`,title:`Concepts & Environment`,pages:[{id:`concepts-page`,canonicalId:`concepts-and-environment`,title:`Concepts & Environment`,path:`/concepts`,keywords:[`concepts`,`environment`,`defines`],searchContent:`concepts and environment react-like component model unity ui toolkit components hooks markup reconciliation scheduling authoring rules intrinsic tag names reserved custom components distinct names function-style components setup code first single returned markup tree state setters called directly as functions setcount(count + 1) three file types component hook module companion uitkx files environment defines compile-time scripting define symbols env_dev env_staging env_prod environment labeling ruitk_trace_verbose ruitk_trace_basic ruitk_diff_tracing runtime diagnostics editor-only diagnostic helpers development symbols behavior summary trace level resolution priority hostcontext rendering pipeline component lifecycle mount update unmount BaseProps common props event handlers onClick onPointerDown onKeyDown visible enabled className ref`,element:()=>(0,I.jsx)(fw,{})}]},{id:`differences`,title:`Different from React`,pages:[{id:`differences-page`,canonicalId:`different-from-react`,title:`Different from React`,path:`/differences`,keywords:[`react`,`hooks`,`rendering`,`state`],searchContent:`different from react component-and-hooks mental model unity ui toolkit c# runtime visualelement system scheduling model state updates usestate setter value updater function statesetter delegate statesetterextensions fluent ToValueAction rendering model fiber reconciler synchronous mode per frame no starttransition no concurrent rendering scheduler defer passive effects slice render work unity runtime constraints interop controls styles events apis differ from browser react conventions UseCallback Func UseStableCallback UseStableAction UseStableFunc`,element:()=>(0,I.jsx)(xw,{})}]},{id:`tooling`,title:`Tooling`,pages:[{id:`router-page`,canonicalId:`router`,title:`Router`,path:`/tooling/router`,keywords:[`router`,`routes`,`navigation`],searchContent:`router lightweight in-memory router inspired by react router routing authored directly in markup Router Route links routed child components Router establishes routing context subtree Route matches paths render elements RouterHooks setup code imperative navigation history IRouterHistory MemoryHistory custom history UseNavigate pushes replaces locations UseGo UseCanGo back forward UseLocationInfo UseParams UseQuery UseNavigationState UseRouteMatch UseNavigationBase expose active routed data UseBlocker intercept transitions unsaved guarded state nested routes relative paths outlets parent match declarative route composition imperative helpers RouterNavLink Link vs RouterNavLink`,element:()=>(0,I.jsx)(Mw,{})},{id:`signals-page`,canonicalId:`signals`,title:`Signals`,path:`/tooling/signals`,keywords:[`signals`,`shared state`,`reactive`],searchContent:`signals lightweight named reactive values process-wide registry observable store single source of truth global registry keyed by string SignalFactory.Get Signal Subscribe useSignal Dispatch updates event handlers SignalsRuntime.EnsureInitialized selector overloads useSignal signal selector comparer project slice custom equality useMemo SignalCounterDemo counterSignal count Increment Reset Style StyleKeys.FlexDirection row thread safety lock-based synchronization`,element:()=>(0,I.jsx)(Pw,{})},{id:`hmr-page`,canonicalId:`hmr`,title:`Hot Module Replacement`,path:`/tooling/hmr`,keywords:[`hmr`,`hot reload`,`live editing`,`instant preview`],searchContent:`hot module replacement hmr edit .uitkx files changes instantly unity editor without domain reload component state quick start open reactiveuitk hmr mode start edit save updates in-place hook state counters refs effects preserved assembly reloads filesystemwatcher detects parsed emitted compiled in-process roslyn microsoft.codeanalysis.csharp csc.dll fallback assembly.load render delegate swapped rootrenderer instances re-render hooks state preservation usestate useref useeffect usememo usecallback usecontext companion hook module .uitkx files custom hooks delegate swap styles types create new hook module auto-detected new component support cs0103 dependency auto-discovery cross-component assembly registry hmr window stats swap count error timing parse emit compile keyboard shortcuts toggle start stop lifecycle limitations old assemblies memory mono unload 10-30 kb per swap first compile jit warmup nuget cache troubleshooting console errors`,element:()=>(0,I.jsx)(zw,{})},{id:`portal-page`,canonicalId:`portal`,title:`Portal`,path:`/tooling/portal`,keywords:[`portal`,`modal`,`overlay`,`tooltip`],searchContent:`portal render children different visualelement target outside component hierarchy modals tooltips overlays clipping stacking context V.Portal portalTargetElement PortalContextKeys ModalRoot TooltipRoot OverlayRoot provideContext useContext`,element:()=>(0,I.jsx)(Fw,{})},{id:`suspense-page`,canonicalId:`suspense`,title:`Suspense`,path:`/tooling/suspense`,keywords:[`suspense`,`loading`,`async`,`fallback`],searchContent:`suspense loading fallback async await task isReady V.Suspense fallbackNode pendingTask SuspendUntil callback mode task mode loading state pattern`,element:()=>(0,I.jsx)(Iw,{})}]},{id:`guides`,title:`Guides`,pages:[{id:`events-page`,canonicalId:`events`,title:`Events & Input Handling`,path:`/guides/events`,keywords:[`events`,`input`,`click`,`pointer`,`keyboard`,`focus`,`drag`],searchContent:`events input handling onClick onPointerDown onPointerUp onPointerMove onPointerEnter onPointerLeave onWheel onScroll onFocus onBlur onFocusIn onFocusOut onKeyDown onKeyUp onInput onGeometryChanged onAttachToPanel onDetachFromPanel onDragEnter onDragLeave onDragUpdated onDragPerform onDragExited ReactivePointerEvent ReactiveWheelEvent ReactiveKeyboardEvent ReactiveFocusEvent ReactiveDragEvent ReactiveGeometryEvent ReactivePanelEvent PointerEventHandler WheelEventHandler KeyboardEventHandler FocusEventHandler DragEventHandler GeometryChangedEventHandler PanelLifecycleEventHandler ChangeEventHandler InputEventHandler StopPropagation PreventDefault Position DeltaPosition Button ClickCount KeyCode Character modifier keys AltKey CtrlKey ShiftKey CommandKey Pressure Radius Delta RelatedTarget OldRect NewRect event bubbling propagation editor-only drag BaseProps delegate signatures`,element:()=>(0,I.jsx)(iT,{})},{id:`hooks-guide-page`,canonicalId:`hooks-guide`,title:`Hooks Guide`,path:`/guides/hooks`,keywords:[`hooks`,`useState`,`useEffect`,`useRef`,`useMemo`,`useReducer`],searchContent:`hooks guide useState useReducer useEffect useLayoutEffect useMemo useCallback useRef useContext provideContext useDeferredValue useImperativeHandle useStableFunc useStableAction useStableCallback state setter functional updater StateUpdate reducer dispatch dependency array cleanup mount unmount synchronous before paint memoization stable callback identity mutable ref container element ref context provider consumer shadowing deferred value imperative handle hook configuration EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign hook rules unconditional top level`,element:()=>(0,I.jsx)(oT,{})},{id:`context-page`,canonicalId:`context`,title:`Context API`,path:`/guides/context`,keywords:[`context`,`provider`,`consumer`,`useContext`,`provideContext`],searchContent:`context api useContext provideContext provider consumer string key type-safe generics nested provider shadowing subtree data dependency injection PortalContextKeys ModalRoot TooltipRoot OverlayRoot context vs signals scope lifetime dynamic context value re-render when value changes object.Equals`,element:()=>(0,I.jsx)(cT,{})},{id:`ref-guide-page`,canonicalId:`ref-guide`,title:`Refs Guide`,path:`/guides/refs`,keywords:[`ref`,`useRef`,`useImperativeHandle`,`element ref`],searchContent:`refs guide useRef element ref mutable value container Ref Current persists across renders no re-render on change VisualElement ref focus auto-focus pattern useImperativeHandle imperative handle expose custom API render counter previous value tracking`,element:()=>(0,I.jsx)(bT,{})},{id:`key-guide-page`,canonicalId:`key-guide`,title:`Keys Guide`,path:`/guides/keys`,keywords:[`key`,`list`,`reconciler`,`reorder`,`identity`],searchContent:`keys guide key prop reconciler identity dynamic list foreach for loop stable unique identifier reorder move elements index antipattern reset state unmount remount siblings performance correctness preserve component state hooks refs`,element:()=>(0,I.jsx)(ST,{})}]},{id:`api`,title:`API`,pages:[{id:`api-page`,canonicalId:`api-reference`,title:`API Reference`,path:`/api`,keywords:[`api`,`hooks`,`runtime`,`namespaces`],searchContent:`api reference map namespaces types core V V.Func VirtualNode Hooks UseState UseReducer UseEffect UseLayoutEffect UseMemo UseCallback UseRef UseContext ProvideContext UseDeferredValue UseImperativeHandle UseStableFunc UseStableAction UseStableCallback UseSignal StateSetterExtensions ToValueAction RootRenderer RenderScheduler EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign props typed ButtonProps LabelProps ListViewProps ScrollViewProps Style StyleKeys Router RouterHooks UseRouter UseLocation UseLocationInfo UseParams UseQuery UseNavigationState UseNavigate UseGo UseCanGo UseBlocker IRouterHistory MemoryHistory RouterLocation RouterPath RouteMatch SignalFactory Signal Subscribe Set Dispatch SignalsRuntime animation UseAnimate UseTweenFloat AnimateTrack safe area UseSafeArea SafeAreaInsets VisualElementSafe editor EditorRootRendererUtility EditorRenderScheduler elements ElementRegistry ElementRegistryProvider`,element:()=>(0,I.jsx)(XC,{})},{id:`hooks-api-page`,canonicalId:`hooks-api`,title:`Hooks API Reference`,path:`/api/hooks`,keywords:[`hooks`,`api`,`signatures`,`StateSetter`,`StateUpdate`,`Ref`],searchContent:`hooks api reference exact signatures useState useReducer useEffect useLayoutEffect useMemo useCallback useDeferredValue useRef useImperativeHandle useContext provideContext useStableFunc useStableAction useStableCallback useSignal useAnimate useTweenFloat useSafeArea StateSetter StateUpdate Ref SafeAreaInsets EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign StateSetterExtensions ToValueAction Set functional updater params object dependencies`,element:()=>(0,I.jsx)(pT,{})},{id:`csshelpers-ref-page`,canonicalId:`csshelpers-reference`,title:`CssHelpers Reference`,path:`/api/csshelpers`,keywords:[`CssHelpers`,`Pct`,`Px`,`Hex`,`Rgba`,`FlexRow`,`easing`],searchContent:`csshelpers reference static shortcuts Pct Px StyleAuto StyleNone StyleInitial FlexRow FlexColumn FlexRowReverse FlexColumnReverse JustifyStart JustifyEnd JustifyCenter JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly AlignStart AlignEnd AlignCenter AlignStretch WrapOn WrapOff WrapReverse PosRelative PosAbsolute DisplayFlex DisplayNone VisVisible VisHidden OverflowVisible OverflowHidden WsNormal WsNowrap WsPre WsPreWrap TextClip TextEllipsis TextUpperLeft TextMiddleCenter TextLowerRight TextOverflowStart TextOverflowMiddle TextOverflowEnd AutoSizeNone AutoSizeBestFit FontBold FontItalic FontNormal PickPosition PickIgnore SelectNone SelectSingle SelectMultiple ScrollerAuto ScrollerVisible ScrollerHidden DirInherit DirLTR DirRTL SliderHorizontal SliderVertical ColorTransparent ColorWhite ColorBlack ColorRed ColorGreen ColorBlue Hex Rgba BgRepeatNone BgRepeatBoth BgPosCenter BgSizeCover BgSizeContain Origin OriginCenter Xlate EaseDefault EaseLinear EaseIn EaseOut EaseInOut EaseInSine EaseOutSine EaseInCubic EaseOutCubic EaseInOutCubic EaseInCirc EaseOutCirc EaseInElastic EaseOutElastic EaseInBack EaseOutBack EaseInBounce EaseOutBounce EaseInOutBounce FilterBlur FilterGrayscale FilterContrast FilterHueRotate FilterInvert FilterOpacity FilterSepia FilterTint`,element:()=>(0,I.jsx)(vT,{})},{id:`advanced-api-page`,canonicalId:`advanced-api`,title:`Advanced API Reference`,path:`/api/advanced`,keywords:[`PropTypes`,`HostContext`,`IScheduler`,`FlushSync`,`SnapshotAssert`,`ElementRegistry`,`VirtualNode`],searchContent:`advanced api reference PropTypes PropTypeDefinition PropTypeValidator WithPropTypes String Int Float Bool Object Class factory methods validation HostContext SetContextValue ResolveContext Environment initialization IScheduler Priority High Normal Low Idle Enqueue BeginBatch EndBatch PumpNow scheduling FlushSync synchronous flush state batching SnapshotAssert Compare AssertEqual testing snapshot diff ElementRegistry Register Resolve GetDefaultRegistry CreateFilteredRegistry element adapters VirtualNode VirtualNodeType Intrinsic Component Fragment Portal Text ErrorBoundary NodeType Properties Children error handling patterns ErrorBoundary fallback render depth guard MaxRenderDepth 25 infinite loop detection`,element:()=>(0,I.jsx)(DT,{})}]},{id:`reference-guides`,title:`Reference & Guides`,pages:[{id:`language-reference`,canonicalId:`language-reference`,title:`Language Reference`,path:`/reference`,keywords:[`directives`,`syntax`,`control flow`,`expressions`],searchContent:`uitkx language reference directives syntax control flow expressions header directives @namespace My.Game.UI c# namespace generated class @component MyButton component class name must match filename @using System.Collections.Generic adds using directive generated file @props MyButtonProps props type consumed by the component @key root-key static key root element @inject ILogger logger dependency-injected field function-style components component keyword preamble declaration parameters typed optional default @using UnityEngine component Counter string label Count var count setCount useState return VisualElement Label text Button onClick setCount conditional rendering @if @else @foreach @switch @case @for @while @(expr) render component expression inline markup children {expr} c# expression attribute value literal plain string attribute // line comment /* block comment */ standard c-style comments fragment <> </> invisible wrapper rules gotchas hook calls must be unconditional component top level single root element component names must match filename reconciliation setup code return() switch expression jsx in setup code bare jsx assignment ternary paren-wrapped collection initializer array list dictionary new VirtualNode[]`,element:()=>(0,I.jsx)(Aw,{})},{id:`diagnostics`,canonicalId:`diagnostics`,title:`Diagnostics`,path:`/diagnostics`,keywords:[`diagnostics`,`errors`,`warnings`,`codes`],searchContent:`diagnostics reference diagnostic code source generator language server severity meaning fix compile time roslyn processing .uitkx files uitkx0001 uitkx0002 uitkx0005 uitkx0006 uitkx0008 uitkx0009 uitkx0010 uitkx0012 uitkx0013 uitkx0014 uitkx0015 uitkx0016 uitkx0017 uitkx0018 uitkx0019 uitkx0020 uitkx0021 uitkx0022 uitkx0023 uitkx0024 structural diagnostics language server real time squiggly underlines editor uitkx0101 uitkx0102 uitkx0103 uitkx0104 uitkx0105 uitkx0106 uitkx0107 uitkx0108 uitkx0109 uitkx0111 uitkx0112 uitkx0120 uitkx0121 uitkx0200 parser diagnostics uitkx0300 uitkx0301 uitkx0302 uitkx0303 uitkx0304 uitkx0305 uitkx0306 function-style component diagnostics uitkx2100 uitkx2101 uitkx2102 uitkx2104 uitkx2105 uitkx2106`,element:()=>(0,I.jsx)(yw,{})},{id:`config`,canonicalId:`configuration`,title:`Configuration`,path:`/config`,keywords:[`config`,`settings`,`vscode`,`extension`],searchContent:`configuration reference options editor extensions formatter vs code extension settings uitkx.server.path uitkx.server.dotnetpath uitkx.trace.server editor defaults editor.defaultformatter reactiveuitk.uitkx editor.formatonsave editor.tabsize editor.insertspaces editor.bracketpaircolorization semantic tokens`,element:()=>(0,I.jsx)(hw,{})},{id:`debugging`,canonicalId:`debugging`,title:`Debugging Guide`,path:`/debugging`,keywords:[`debugging`,`troubleshooting`,`logs`,`generated code`],searchContent:`debugging guide diagnose fix common issues inspecting generated code .uitkx .uitkx.g.cs roslyn source generator vs code definition f12 generatedfiles analyzers #line directives breakpoint stack trace ui toolkit debugger lsp server logs trace level uitkx.trace.server verbose output panel json-rpc missing completions stale diagnostics crashes formatter issues format-on-save reporting bugs`,element:()=>(0,I.jsx)(vw,{})}]},{id:`faq`,title:`FAQ`,pages:[{id:`faq-page`,canonicalId:`faq-page`,title:`FAQ`,path:`/faq`,keywords:[`faq`,`frequently asked questions`,`help`],searchContent:`frequently asked questions what is uitkx markup language authoring unity ui toolkit components react-like model .uitkx jsx-style hooks control flow roslyn source generator which unity versions supported unity 6.2 does uitkx work with existing ui toolkit code visualelement runtime overhead reconciliation scheduler per-frame cost aot-compatible production builds plain c# which editors supported vs code visual studio 2022 jetbrains rider .net version language server .net 8 dotnet directive-header form function-style components hmr hot module replacement hooks top level unconditional burst assembly-csharp-editor completions hover stopped working debugging guide`,element:()=>(0,I.jsx)(Vw,{})}]},{id:`known-issues`,title:`Known Issues`,pages:[{id:`known-issues-page`,canonicalId:`known-issues-page`,title:`Known Issues`,path:`/known-issues`,keywords:[`issues`,`limitations`,`known issues`],searchContent:`known issues runtime multicolumnlistview briefly jump snap scrolling large data sets burst aot assembly resolution mono.cecil.assemblyresolutionexception failed resolve assembly assembly-csharp-editor project settings burst aot exclusion list HMR limitations memory leak assembly unloading mono domain reload JIT warmup roslyn first compile new file detection render depth guard MaxRenderDepth 25 infinite loop detection component tree depth hook constraints unconditional ordering thread safety main thread editor vs runtime differences EditorRenderScheduler RuntimeRenderScheduler drag events editor-only components PropertyInspector IMGUIContainer`,element:()=>(0,I.jsx)(KC,{})}]},{id:`roadmap`,title:`Roadmap`,pages:[{id:`roadmap-page`,canonicalId:`roadmap-page`,title:`Roadmap`,path:`/roadmap`,keywords:[`roadmap`,`future`,`plans`],searchContent:`roadmap planned features v0.3.0 function-style components control block bodies switch expressions CssHelpers expansion portal suspense fragment vs code visual studio rider extensions performance profiling testing utilities refactoring actions animation transitions PropTypes element adapter registration`,element:()=>(0,I.jsx)(JC,{})}]}],kT=OT.flatMap(e=>{if(e.title===`Components`){let t=e.pages.filter(e=>e.group===`basic`),n=e.pages.filter(e=>e.group===`advanced`||!e.group);return[...t,...n]}return e.pages});var AT=(e,t)=>{if(e.sinceUnity)return jx(e.sinceUnity,t)<=0;let n=Ax[e.canonicalId];return Mx(n,t)};const jT=e=>OT.map(t=>({...t,pages:t.pages.filter(t=>AT(t,e))})).filter(e=>e.pages.length>0),MT=e=>jT(e).flatMap(e=>{if(e.title===`Components`){let t=e.pages.filter(e=>e.group===`basic`),n=e.pages.filter(e=>e.group===`advanced`||!e.group);return[...t,...n]}return e.pages});var NT=Il((0,I.jsx)(`path`,{d:`M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14`}),`Search`),PT=Il((0,I.jsx)(`path`,{d:`M12 1.27a11 11 0 00-3.48 21.46c.55.09.73-.28.73-.55v-1.84c-3.03.64-3.67-1.46-3.67-1.46-.55-1.29-1.28-1.65-1.28-1.65-.92-.65.1-.65.1-.65 1.1 0 1.73 1.1 1.73 1.1.92 1.65 2.57 1.2 3.21.92a2 2 0 01.64-1.47c-2.47-.27-5.04-1.19-5.04-5.5 0-1.1.46-2.1 1.2-2.84a3.76 3.76 0 010-2.93s.91-.28 3.11 1.1c1.8-.49 3.7-.49 5.5 0 2.1-1.38 3.02-1.1 3.02-1.1a3.76 3.76 0 010 2.93c.83.74 1.2 1.74 1.2 2.94 0 4.21-2.57 5.13-5.04 5.4.45.37.82.92.82 2.02v3.03c0 .27.1.64.73.55A11 11 0 0012 1.27`}),`GitHub`),FT={appBar:{borderBottom:1,borderColor:`divider`},toolbar:{display:`flex`,alignItems:`center`,gap:2},left:{display:`flex`,alignItems:`center`,gap:1.25},logo:{width:28,height:28,borderRadius:1},titleLink:{display:`flex`,alignItems:`center`,gap:.75,color:`inherit`,textDecoration:`none`},title:{fontWeight:600,letterSpacing:.3},center:{flex:1,display:`flex`,justifyContent:`center`},searchPaper:{p:`2px 8px`,display:`flex`,alignItems:`center`,gap:1,width:360,cursor:`text`},inputFlex:{flex:1},right:{ml:1,display:`flex`,alignItems:`center`,gap:1},versionSelect:{minWidth:120,fontSize:`0.8125rem`}};const IT=({onOpenSearch:e})=>{let{selectedVersion:t,setSelectedVersion:n}=zx();return(0,I.jsx)(Rf,{position:`sticky`,color:`default`,elevation:0,sx:FT.appBar,children:(0,I.jsxs)(ub,{sx:FT.toolbar,children:[(0,I.jsxs)(K,{sx:FT.left,children:[(0,I.jsxs)(B_,{component:tn,to:`/`,underline:`none`,sx:FT.titleLink,children:[(0,I.jsx)(K,{component:`img`,src:`/logo.png`,alt:`ReactiveUIToolKit logo`,sx:FT.logo}),(0,I.jsx)(W,{variant:`h6`,sx:FT.title,children:`ReactiveUIToolKit`})]}),(0,I.jsx)(G,{label:`v0.4.8`,size:`small`})]}),(0,I.jsx)(K,{sx:FT.center,children:(0,I.jsxs)(id,{sx:FT.searchPaper,variant:`outlined`,onClick:e,children:[(0,I.jsx)(NT,{fontSize:`small`}),(0,I.jsx)(xh,{placeholder:`Search documentation`,sx:FT.inputFlex,readOnly:!0,autoFocus:!0})]})}),(0,I.jsxs)(K,{sx:FT.right,children:[(0,I.jsx)(xy,{value:t,onChange:e=>n(e.target.value),size:`small`,sx:FT.versionSelect,children:Tx.map(e=>(0,I.jsxs)(Bv,{value:e.version,children:[`Unity `,e.label,`+`]},e.version))}),(0,I.jsx)(mf,{component:B_,href:`https://github.com/yanivkalfa/ReactiveUIToolKit.git`,target:`_blank`,rel:`noreferrer`,children:(0,I.jsx)(PT,{})})]})]})})};var LT=Il((0,I.jsx)(`path`,{d:`m12 8-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z`}),`ExpandLess`),RT={root:{width:280,borderRight:1,borderColor:`divider`,height:`100%`,overflow:`auto`,"&::-webkit-scrollbar":{width:8},"&::-webkit-scrollbar-track":{backgroundColor:`transparent`},"&::-webkit-scrollbar-thumb":{backgroundColor:`rgba(25,118,210,0.4)`,borderRadius:999,border:`2px solid transparent`,backgroundClip:`padding-box`},"&::-webkit-scrollbar-thumb:hover":{backgroundColor:`rgba(25,118,210,0.7)`},scrollbarWidth:`thin`,scrollbarColor:`rgba(25,118,210,0.6) transparent`},childItem:{pl:4},sectionTitle:{fontWeight:700},subgroupHeader:{pl:4,pt:1,pb:.5,fontSize:11,textTransform:`uppercase`,letterSpacing:.5,color:`text.secondary`},subgroupDivider:{mt:.5,mb:.5,opacity:.4}};const zT=()=>{let e=Ve(),{selectedVersion:t}=zx(),n=(0,x.useMemo)(()=>jT(t),[t]).flatMap(e=>e.title===`Components`&&e.pages.some(e=>e.group)?[{...e,id:`components-common`,title:`Common Components`,pages:e.pages.filter(e=>e.group===`basic`)},{...e,id:`components-uncommon`,title:`Uncommon Components`,pages:e.pages.filter(e=>e.group===`advanced`||!e.group)}]:[e]),[r,i]=(0,x.useState)(()=>{let e={};return n.forEach((t,n)=>e[t.id]=n===0),e});return(0,I.jsxs)(K,{sx:RT.root,children:[(0,I.jsx)(K,{sx:{px:2,py:1.5},children:(0,I.jsx)(W,{variant:`overline`,color:`text.secondary`,children:`Docs`})}),(0,I.jsx)(q,{disablePadding:!0,children:n.map(t=>{let n=!!r[t.id],a=t.pages.length===1,o=t.pages[0];return a?(0,I.jsxs)(K,{children:[(0,I.jsx)(Z_,{component:tn,to:o.path,selected:e.pathname===o.path,children:(0,I.jsx)(Y,{primary:(0,I.jsx)(W,{sx:RT.sectionTitle,children:t.title})})}),(0,I.jsx)(Qg,{})]},t.id):(0,I.jsxs)(K,{children:[(0,I.jsxs)(Z_,{onClick:()=>i({...r,[t.id]:!r[t.id]}),children:[(0,I.jsx)(Y,{primary:(0,I.jsx)(W,{sx:RT.sectionTitle,children:t.title})}),n?(0,I.jsx)(LT,{}):(0,I.jsx)(ZC,{})]}),(0,I.jsx)(ed,{in:n,timeout:`auto`,unmountOnExit:!0,children:(0,I.jsx)(q,{disablePadding:!0,children:t.pages.map(t=>(0,I.jsx)(Z_,{component:tn,to:t.path,selected:e.pathname===t.path,sx:RT.childItem,children:(0,I.jsx)(Y,{primary:t.title})},t.id))})}),(0,I.jsx)(Qg,{})]},t.id)})})]})};var BT={root:{display:`flex`,justifyContent:`space-between`,borderTop:1,borderColor:`divider`,mt:4,pt:2}};const VT=()=>{let e=We(),{pathname:t}=Ve(),n=(0,x.useMemo)(()=>kT.findIndex(e=>e.path===t),[t]),r=n>0?kT[n-1]:void 0,i=n>=0&&n<kT.length-1?kT[n+1]:void 0;return(0,I.jsxs)(K,{sx:BT.root,children:[(0,I.jsx)(`span`,{children:r&&(0,I.jsxs)(qh,{onClick:()=>e(r.path),variant:`text`,children:[`←`,` `,r.title]})}),(0,I.jsx)(`span`,{children:i&&(0,I.jsxs)(qh,{onClick:()=>e(i.path),variant:`text`,children:[i.title,` `,`→`]})})]})};var HT=Il((0,I.jsx)(`path`,{d:`M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z`}),`Close`),UT=new Map,WT=[`children`,`code`,`codeRuntime`,`codeEditor`,`text`,`primary`,`secondary`,`label`,`title`,`placeholder`,`description`];function GT(e,t,n){if(e==null||typeof e==`boolean`)return;if(typeof e==`string`){t.push(e);return}if(typeof e==`number`){t.push(String(e));return}if(Array.isArray(e)){for(let r of e)GT(r,t,n);return}if(typeof e!=`object`)return;let r=e;if(r.props){if(typeof r.type==`function`&&n<8)try{GT(r.type(r.props),t,n+1);return}catch{}for(let e of WT){let i=r.props[e];i!=null&&GT(i,t,n)}}}function KT(e){let t=UT.get(e.id);if(t!==void 0)return t;let n=[];try{GT(e.element(),n,0)}catch{}let r=n.join(` `).toLowerCase();return UT.set(e.id,r),r}var qT={header:{display:`flex`,alignItems:`center`,gap:1,mb:1},inputPaper:{p:1,display:`flex`,alignItems:`center`,gap:1,flex:1},noResults:{p:2},content:{pt:1}};const JT=({open:e,onClose:t})=>{let n=We(),{selectedVersion:r}=zx(),i=(0,x.useMemo)(()=>MT(r),[r]),[a,o]=(0,x.useState)(``),[s,c]=(0,x.useState)(0),l=(0,x.useRef)(null);(0,x.useEffect)(()=>{if(e){let e=setTimeout(()=>l.current?.focus(),50);return()=>clearTimeout(e)}},[e]);let u=()=>{o(``),c(0),t()},d=(0,x.useMemo)(()=>Px(r),[r]),f=(0,x.useMemo)(()=>{let e=a.trim().toLowerCase();if(!e)return[];let t=e.split(/\s+/).filter(Boolean);return i.filter(e=>{let n=e.canonicalId===`styling`?d:``,r=[e.title,(e.keywords||[]).join(` `),e.searchContent||``,KT(e),n].join(` `).toLowerCase();return t.every(e=>r.includes(e))})},[i,a,d]);return(0,x.useEffect)(()=>c(0),[f]),(0,I.jsx)(Bg,{open:e,onClose:u,fullWidth:!0,maxWidth:`md`,children:(0,I.jsxs)(Gg,{sx:qT.content,children:[(0,I.jsxs)(K,{sx:qT.header,children:[(0,I.jsxs)(id,{sx:qT.inputPaper,variant:`outlined`,children:[(0,I.jsx)(NT,{}),(0,I.jsx)(xh,{inputRef:l,placeholder:`Search documentation`,value:a,onChange:e=>o(e.target.value),onKeyDown:e=>{e.key===`Escape`&&u(),e.key===`ArrowDown`&&(e.preventDefault(),c(e=>Math.min(e+1,f.length-1))),e.key===`ArrowUp`&&(e.preventDefault(),c(e=>Math.max(e-1,0))),e.key===`Enter`&&f[s]&&(u(),n(f[s].path))},sx:{flex:1}})]}),(0,I.jsx)(mf,{onClick:u,"aria-label":`Close search`,children:(0,I.jsx)(HT,{})})]}),(0,I.jsxs)(q,{children:[f.map((e,t)=>(0,I.jsx)(Z_,{selected:t===s,onClick:()=>{u(),n(e.path)},children:(0,I.jsx)(Y,{primary:e.title,secondary:(e.keywords||[]).join(`, `)})},e.id)),a&&f.length===0&&(0,I.jsx)(W,{sx:qT.noResults,color:`text.secondary`,children:`No results`})]})]})})};var YT={shell:{display:`grid`,gridTemplateRows:`auto 1fr`,height:`100vh`},grid:{display:`grid`,gridTemplateColumns:`280px 1fr`,minHeight:0},content:{p:3,overflow:`auto`},main:{maxWidth:980}};const XT=pl({palette:{mode:`dark`,background:{default:`#181c26`,paper:`#202532`},divider:`#343a4c`,primary:{main:`#4cc2ff`},text:{primary:`#e5e9f5`,secondary:`#a0a8c0`}},shape:{borderRadius:8},typography:{fontSize:14,body1:{lineHeight:1.3,color:`#a0a8c0`},body2:{lineHeight:1.3,color:`#a0a8c0`},h4:{fontSize:28,fontWeight:600,letterSpacing:.2,color:`#e5e9f5`},h5:{fontSize:20,fontWeight:600,letterSpacing:.15,marginTop:16,color:`#e5e9f5`}},components:{MuiCssBaseline:{styleOverrides:{code:{fontFamily:`ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`,backgroundColor:`#202532`,borderRadius:4,padding:`2px 6px`,border:`1px solid #343a4c`,fontSize:`0.85em`}}}}});(0,Po.createRoot)(document.getElementById(`root`)).render((0,I.jsx)(x.StrictMode,{children:(0,I.jsx)(Qt,{children:(0,I.jsx)(Rx,{children:(0,I.jsx)(()=>{let[e,t]=(0,x.useState)(!1);return(0,I.jsxs)(Tl,{theme:XT,children:[(0,I.jsx)(ng,{}),(0,I.jsxs)(K,{sx:YT.shell,children:[(0,I.jsx)(IT,{onOpenSearch:()=>t(!0)}),(0,I.jsxs)(K,{sx:YT.grid,children:[(0,I.jsx)(zT,{}),(0,I.jsx)(K,{sx:YT.content,children:(0,I.jsxs)(ht,{children:[kT.map(e=>(0,I.jsx)(pt,{path:e.path,element:(0,I.jsxs)(K,{component:`main`,sx:YT.main,children:[e.element(),(0,I.jsx)(VT,{})]})},e.id)),(0,I.jsx)(pt,{path:`*`,element:(0,I.jsxs)(I.Fragment,{children:[(0,I.jsx)(W,{variant:`h5`,gutterBottom:!0,children:`Not Found`}),(0,I.jsx)(B_,{component:tn,to:`/`,children:`Go to Introduction`})]})})]})})]})]}),(0,I.jsx)(JT,{open:e,onClose:()=>t(!1)})]})},{})})})}));
+// Use V.Button(...), V.Label(...), V.Func(...) etc.`})]})]}),OT=[{id:`intro`,title:`Introduction`,pages:[{id:`introduction`,canonicalId:`introduction`,title:`Introduction`,path:`/`,keywords:[`introduction`,`markup`,`unity ui toolkit`],searchContent:`reactiveuitoolkit react-like ui toolkit runtime unity uitkx authoring language function-style components .uitkx hooks state effects reconcile visualelement c# component countercard usestate return text button onclick highlights reactive diffing batched updates router signals utilities generated c# output production builds no runtime codegen var count setcount`,element:()=>(0,I.jsx)(Tw,{})}]},{id:`getting-started`,title:`Getting Started`,pages:[{id:`getting-started-page`,canonicalId:`install`,title:`Install & Setup`,path:`/getting-started`,keywords:[`install`,`setup`,`component`,`partial`],searchContent:`getting started reactiveuitoolkit function-style .uitkx components source generator produces complete class no boilerplate install via unity package manager open package manager add package from git url create a uitkx component setup code returned markup generator emits render mount rootrenderer V.Func EditorRootRendererUtility.Mount editor window one component per file filename must match component name auto-discovers assets directory @namespace MyGame.UI component HelloWorld var count setCount useState return VisualElement Text Hello ReactiveUITK Button Increment onClick setCount count + 1 companion files optional hook module styles types utils`,element:()=>(0,I.jsx)(Sw,{})}]},{id:`companion-files`,title:`Companion Files`,pages:[{id:`companion-files-page`,canonicalId:`companion-files`,title:`Companion Files`,path:`/companion-files`,keywords:[`companion`,`hook`,`module`,`styles`,`types`,`utils`],searchContent:`companion files optional .uitkx hook module keyword styles types utils naming conventions directory layout source generator produces complete class no boilerplate needed MyComponent.hooks.uitkx custom hooks reusable state logic MyComponent.style.uitkx style constants helpers colours sizes MyComponent.types.uitkx enums structs DTOs MyComponent.utils.uitkx pure helper formatting functions hmr support editing hook triggers hmr delegate swap module changes standalone modules`,element:()=>(0,I.jsx)(uw,{})}]},{id:`styling`,title:`Styling`,pages:[{id:`styling-page`,canonicalId:`styling`,title:`Styling`,path:`/styling`,keywords:[`style`,`css`,`typed`,`CssHelpers`,`StyleKeys`,`layout`,`colors`,`flexbox`],searchContent:`styling typed style class compile-time checked properties inline style system CssHelpers static helpers Pct Px StyleAuto StyleNone StyleInitial length units color helpers Hex Rgba enum shortcuts FlexDirection FlexRow FlexColumn JustifyContent JustifyCenter AlignItems AlignCenter AlignStretch JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly Position PosAbsolute PosRelative Display DisplayFlex DisplayNone Visibility VisHidden VisVisible Overflow OverflowHidden WhiteSpace WsNowrap WsNormal TextOverflow TextClip TextEllipsis TextAnchor FontStyle FontBold FontNormal StyleLength StyleFloat StyleKeyword Width Height Margin Padding BorderRadius BackgroundColor Color BorderColor FlexGrow FlexShrink Opacity FontSize LetterSpacing BackgroundRepeat BgRepeatNone BgRepeatBoth BackgroundSize BgSizeCover BgSizeContain BackgroundPosition BgPosCenter TransformOrigin OriginCenter Origin Rotate Scale Translate Xlate EasingFunction Ease EaseInOut typed properties tuple syntax escape hatch StyleKeys backward compatible property reference compound struct factories`,element:()=>(0,I.jsx)(Gw,{})}]},{id:`assets`,title:`Assets & Stylesheets`,pages:[{id:`assets-page`,canonicalId:`assets`,title:`Assets & Stylesheets`,path:`/assets`,keywords:[`asset`,`texture`,`sprite`,`uss`,`stylesheet`,`image`,`audio`,`font`,`material`],searchContent:`asset loading Asset<T> Ast<T> shorthand texture sprite audioclip font material stylesheet uss @uss directive relative path resolve compile time diagnostics UITKX0022 UITKX0023 UITKX0120 UITKX0121 file not found type mismatch auto-import texture importer asset registry scriptableobject editor sync hmr hot-reload supported file types png jpg wav mp3 ttf otf mat prefab`,element:()=>(0,I.jsx)(qw,{})}]},{id:`components-overview`,title:`Components Overview`,pages:[{id:`components-overview-page`,canonicalId:`uitkx-components-overview`,title:`Components Overview`,path:`/components`,keywords:[`components`,`intrinsic tags`,`custom components`],searchContent:`components overview categorized catalog intrinsic tags visualelement button text router tags custom components pascalcase names native element consumers containers layout display buttons toggles text input vector fields pickers selectors data views editor toolbar framework Animate ErrorBoundary Portal Suspense Fragment BaseProps common props name className style ref visible enabled pickingMode focusable tabIndex tooltip viewDataKey languageDirection extraProps editor-only runtime authoring guidelines one component per file`,element:()=>(0,I.jsx)(cw,{})}]},{id:`component-reference`,title:`Components`,pages:(WC.find(e=>e.id===`components`)?.pages??[]).map(e=>({id:e.id,canonicalId:e.id,title:e.title,path:e.path,keywords:e.keywords,group:e.group,sinceUnity:e.sinceUnity,element:()=>(0,I.jsx)(iw,{title:e.title})}))},{id:`concepts`,title:`Concepts & Environment`,pages:[{id:`concepts-page`,canonicalId:`concepts-and-environment`,title:`Concepts & Environment`,path:`/concepts`,keywords:[`concepts`,`environment`,`defines`],searchContent:`concepts and environment react-like component model unity ui toolkit components hooks markup reconciliation scheduling authoring rules intrinsic tag names reserved custom components distinct names function-style components setup code first single returned markup tree state setters called directly as functions setcount(count + 1) three file types component hook module companion uitkx files environment defines compile-time scripting define symbols env_dev env_staging env_prod environment labeling ruitk_trace_verbose ruitk_trace_basic ruitk_diff_tracing runtime diagnostics editor-only diagnostic helpers development symbols behavior summary trace level resolution priority hostcontext rendering pipeline component lifecycle mount update unmount BaseProps common props event handlers onClick onPointerDown onKeyDown visible enabled className ref`,element:()=>(0,I.jsx)(fw,{})}]},{id:`differences`,title:`Different from React`,pages:[{id:`differences-page`,canonicalId:`different-from-react`,title:`Different from React`,path:`/differences`,keywords:[`react`,`hooks`,`rendering`,`state`],searchContent:`different from react component-and-hooks mental model unity ui toolkit c# runtime visualelement system scheduling model state updates usestate setter value updater function statesetter delegate statesetterextensions fluent ToValueAction rendering model fiber reconciler synchronous mode per frame no starttransition no concurrent rendering scheduler defer passive effects slice render work unity runtime constraints interop controls styles events apis differ from browser react conventions UseCallback Func UseStableCallback UseStableAction UseStableFunc`,element:()=>(0,I.jsx)(xw,{})}]},{id:`tooling`,title:`Tooling`,pages:[{id:`router-page`,canonicalId:`router`,title:`Router`,path:`/tooling/router`,keywords:[`router`,`routes`,`navigation`],searchContent:`router lightweight in-memory router inspired by react router routing authored directly in markup Router Route links routed child components Router establishes routing context subtree Route matches paths render elements RouterHooks setup code imperative navigation history IRouterHistory MemoryHistory custom history UseNavigate pushes replaces locations UseGo UseCanGo back forward UseLocationInfo UseParams UseQuery UseNavigationState UseRouteMatch UseNavigationBase expose active routed data UseBlocker intercept transitions unsaved guarded state nested routes relative paths outlets parent match declarative route composition imperative helpers RouterNavLink Link vs RouterNavLink`,element:()=>(0,I.jsx)(Mw,{})},{id:`signals-page`,canonicalId:`signals`,title:`Signals`,path:`/tooling/signals`,keywords:[`signals`,`shared state`,`reactive`],searchContent:`signals lightweight named reactive values process-wide registry observable store single source of truth global registry keyed by string SignalFactory.Get Signal Subscribe useSignal Dispatch updates event handlers SignalsRuntime.EnsureInitialized selector overloads useSignal signal selector comparer project slice custom equality useMemo SignalCounterDemo counterSignal count Increment Reset Style StyleKeys.FlexDirection row thread safety lock-based synchronization`,element:()=>(0,I.jsx)(Pw,{})},{id:`hmr-page`,canonicalId:`hmr`,title:`Hot Module Replacement`,path:`/tooling/hmr`,keywords:[`hmr`,`hot reload`,`live editing`,`instant preview`],searchContent:`hot module replacement hmr edit .uitkx files changes instantly unity editor without domain reload component state quick start open reactiveuitk hmr mode start edit save updates in-place hook state counters refs effects preserved assembly reloads filesystemwatcher detects parsed emitted compiled in-process roslyn microsoft.codeanalysis.csharp csc.dll fallback assembly.load render delegate swapped rootrenderer instances re-render hooks state preservation usestate useref useeffect usememo usecallback usecontext companion hook module .uitkx files custom hooks delegate swap styles types create new hook module auto-detected new component support cs0103 dependency auto-discovery cross-component assembly registry hmr window stats swap count error timing parse emit compile keyboard shortcuts toggle start stop lifecycle limitations old assemblies memory mono unload 10-30 kb per swap first compile jit warmup nuget cache troubleshooting console errors`,element:()=>(0,I.jsx)(zw,{})},{id:`portal-page`,canonicalId:`portal`,title:`Portal`,path:`/tooling/portal`,keywords:[`portal`,`modal`,`overlay`,`tooltip`],searchContent:`portal render children different visualelement target outside component hierarchy modals tooltips overlays clipping stacking context V.Portal portalTargetElement PortalContextKeys ModalRoot TooltipRoot OverlayRoot provideContext useContext`,element:()=>(0,I.jsx)(Fw,{})},{id:`suspense-page`,canonicalId:`suspense`,title:`Suspense`,path:`/tooling/suspense`,keywords:[`suspense`,`loading`,`async`,`fallback`],searchContent:`suspense loading fallback async await task isReady V.Suspense fallbackNode pendingTask SuspendUntil callback mode task mode loading state pattern`,element:()=>(0,I.jsx)(Iw,{})}]},{id:`guides`,title:`Guides`,pages:[{id:`events-page`,canonicalId:`events`,title:`Events & Input Handling`,path:`/guides/events`,keywords:[`events`,`input`,`click`,`pointer`,`keyboard`,`focus`,`drag`],searchContent:`events input handling onClick onPointerDown onPointerUp onPointerMove onPointerEnter onPointerLeave onWheel onScroll onFocus onBlur onFocusIn onFocusOut onKeyDown onKeyUp onInput onGeometryChanged onAttachToPanel onDetachFromPanel onDragEnter onDragLeave onDragUpdated onDragPerform onDragExited ReactivePointerEvent ReactiveWheelEvent ReactiveKeyboardEvent ReactiveFocusEvent ReactiveDragEvent ReactiveGeometryEvent ReactivePanelEvent PointerEventHandler WheelEventHandler KeyboardEventHandler FocusEventHandler DragEventHandler GeometryChangedEventHandler PanelLifecycleEventHandler ChangeEventHandler InputEventHandler StopPropagation PreventDefault Position DeltaPosition Button ClickCount KeyCode Character modifier keys AltKey CtrlKey ShiftKey CommandKey Pressure Radius Delta RelatedTarget OldRect NewRect event bubbling propagation editor-only drag BaseProps delegate signatures`,element:()=>(0,I.jsx)(iT,{})},{id:`hooks-guide-page`,canonicalId:`hooks-guide`,title:`Hooks Guide`,path:`/guides/hooks`,keywords:[`hooks`,`useState`,`useEffect`,`useRef`,`useMemo`,`useReducer`],searchContent:`hooks guide useState useReducer useEffect useLayoutEffect useMemo useCallback useRef useContext provideContext useDeferredValue useImperativeHandle useStableFunc useStableAction useStableCallback state setter functional updater StateUpdate reducer dispatch dependency array cleanup mount unmount synchronous before paint memoization stable callback identity mutable ref container element ref context provider consumer shadowing deferred value imperative handle hook configuration EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign hook rules unconditional top level`,element:()=>(0,I.jsx)(oT,{})},{id:`context-page`,canonicalId:`context`,title:`Context API`,path:`/guides/context`,keywords:[`context`,`provider`,`consumer`,`useContext`,`provideContext`],searchContent:`context api useContext provideContext provider consumer string key type-safe generics nested provider shadowing subtree data dependency injection PortalContextKeys ModalRoot TooltipRoot OverlayRoot context vs signals scope lifetime dynamic context value re-render when value changes object.Equals`,element:()=>(0,I.jsx)(cT,{})},{id:`ref-guide-page`,canonicalId:`ref-guide`,title:`Refs Guide`,path:`/guides/refs`,keywords:[`ref`,`useRef`,`useImperativeHandle`,`element ref`],searchContent:`refs guide useRef element ref mutable value container Ref Current persists across renders no re-render on change VisualElement ref focus auto-focus pattern useImperativeHandle imperative handle expose custom API render counter previous value tracking`,element:()=>(0,I.jsx)(bT,{})},{id:`key-guide-page`,canonicalId:`key-guide`,title:`Keys Guide`,path:`/guides/keys`,keywords:[`key`,`list`,`reconciler`,`reorder`,`identity`],searchContent:`keys guide key prop reconciler identity dynamic list foreach for loop stable unique identifier reorder move elements index antipattern reset state unmount remount siblings performance correctness preserve component state hooks refs`,element:()=>(0,I.jsx)(ST,{})}]},{id:`api`,title:`API`,pages:[{id:`api-page`,canonicalId:`api-reference`,title:`API Reference`,path:`/api`,keywords:[`api`,`hooks`,`runtime`,`namespaces`],searchContent:`api reference map namespaces types core V V.Func VirtualNode Hooks UseState UseReducer UseEffect UseLayoutEffect UseMemo UseCallback UseRef UseContext ProvideContext UseDeferredValue UseImperativeHandle UseStableFunc UseStableAction UseStableCallback UseSignal StateSetterExtensions ToValueAction RootRenderer RenderScheduler EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign props typed ButtonProps LabelProps ListViewProps ScrollViewProps Style StyleKeys Router RouterHooks UseRouter UseLocation UseLocationInfo UseParams UseQuery UseNavigationState UseNavigate UseGo UseCanGo UseBlocker IRouterHistory MemoryHistory RouterLocation RouterPath RouteMatch SignalFactory Signal Subscribe Set Dispatch SignalsRuntime animation UseAnimate UseTweenFloat AnimateTrack safe area UseSafeArea SafeAreaInsets VisualElementSafe editor EditorRootRendererUtility EditorRenderScheduler elements ElementRegistry ElementRegistryProvider`,element:()=>(0,I.jsx)(XC,{})},{id:`hooks-api-page`,canonicalId:`hooks-api`,title:`Hooks API Reference`,path:`/api/hooks`,keywords:[`hooks`,`api`,`signatures`,`StateSetter`,`StateUpdate`,`Ref`],searchContent:`hooks api reference exact signatures useState useReducer useEffect useLayoutEffect useMemo useCallback useDeferredValue useRef useImperativeHandle useContext provideContext useStableFunc useStableAction useStableCallback useSignal useAnimate useTweenFloat useSafeArea StateSetter StateUpdate Ref SafeAreaInsets EnableHookValidation EnableStrictDiagnostics EnableHookAutoRealign StateSetterExtensions ToValueAction Set functional updater params object dependencies`,element:()=>(0,I.jsx)(pT,{})},{id:`csshelpers-ref-page`,canonicalId:`csshelpers-reference`,title:`CssHelpers Reference`,path:`/api/csshelpers`,keywords:[`CssHelpers`,`Pct`,`Px`,`Hex`,`Rgba`,`FlexRow`,`easing`],searchContent:`csshelpers reference static shortcuts Pct Px StyleAuto StyleNone StyleInitial FlexRow FlexColumn FlexRowReverse FlexColumnReverse JustifyStart JustifyEnd JustifyCenter JustifySpaceBetween JustifySpaceAround JustifySpaceEvenly AlignStart AlignEnd AlignCenter AlignStretch WrapOn WrapOff WrapReverse PosRelative PosAbsolute DisplayFlex DisplayNone VisVisible VisHidden OverflowVisible OverflowHidden WsNormal WsNowrap WsPre WsPreWrap TextClip TextEllipsis TextUpperLeft TextMiddleCenter TextLowerRight TextOverflowStart TextOverflowMiddle TextOverflowEnd AutoSizeNone AutoSizeBestFit FontBold FontItalic FontNormal PickPosition PickIgnore SelectNone SelectSingle SelectMultiple ScrollerAuto ScrollerVisible ScrollerHidden DirInherit DirLTR DirRTL SliderHorizontal SliderVertical ColorTransparent ColorWhite ColorBlack ColorRed ColorGreen ColorBlue Hex Rgba BgRepeatNone BgRepeatBoth BgPosCenter BgSizeCover BgSizeContain Origin OriginCenter Xlate EaseDefault EaseLinear EaseIn EaseOut EaseInOut EaseInSine EaseOutSine EaseInCubic EaseOutCubic EaseInOutCubic EaseInCirc EaseOutCirc EaseInElastic EaseOutElastic EaseInBack EaseOutBack EaseInBounce EaseOutBounce EaseInOutBounce FilterBlur FilterGrayscale FilterContrast FilterHueRotate FilterInvert FilterOpacity FilterSepia FilterTint`,element:()=>(0,I.jsx)(vT,{})},{id:`advanced-api-page`,canonicalId:`advanced-api`,title:`Advanced API Reference`,path:`/api/advanced`,keywords:[`PropTypes`,`HostContext`,`IScheduler`,`FlushSync`,`SnapshotAssert`,`ElementRegistry`,`VirtualNode`],searchContent:`advanced api reference PropTypes PropTypeDefinition PropTypeValidator WithPropTypes String Int Float Bool Object Class factory methods validation HostContext SetContextValue ResolveContext Environment initialization IScheduler Priority High Normal Low Idle Enqueue BeginBatch EndBatch PumpNow scheduling FlushSync synchronous flush state batching SnapshotAssert Compare AssertEqual testing snapshot diff ElementRegistry Register Resolve GetDefaultRegistry CreateFilteredRegistry element adapters VirtualNode VirtualNodeType Intrinsic Component Fragment Portal Text ErrorBoundary NodeType Properties Children error handling patterns ErrorBoundary fallback render depth guard MaxRenderDepth 25 infinite loop detection`,element:()=>(0,I.jsx)(DT,{})}]},{id:`reference-guides`,title:`Reference & Guides`,pages:[{id:`language-reference`,canonicalId:`language-reference`,title:`Language Reference`,path:`/reference`,keywords:[`directives`,`syntax`,`control flow`,`expressions`],searchContent:`uitkx language reference directives syntax control flow expressions header directives @namespace My.Game.UI c# namespace generated class @component MyButton component class name must match filename @using System.Collections.Generic adds using directive generated file @props MyButtonProps props type consumed by the component @key root-key static key root element @inject ILogger logger dependency-injected field function-style components component keyword preamble declaration parameters typed optional default @using UnityEngine component Counter string label Count var count setCount useState return VisualElement Label text Button onClick setCount conditional rendering @if @else @foreach @switch @case @for @while @(expr) render component expression inline markup children {expr} c# expression attribute value literal plain string attribute // line comment /* block comment */ standard c-style comments fragment <> </> invisible wrapper rules gotchas hook calls must be unconditional component top level single root element component names must match filename reconciliation setup code return() switch expression jsx in setup code bare jsx assignment ternary paren-wrapped collection initializer array list dictionary new VirtualNode[]`,element:()=>(0,I.jsx)(Aw,{})},{id:`diagnostics`,canonicalId:`diagnostics`,title:`Diagnostics`,path:`/diagnostics`,keywords:[`diagnostics`,`errors`,`warnings`,`codes`],searchContent:`diagnostics reference diagnostic code source generator language server severity meaning fix compile time roslyn processing .uitkx files uitkx0001 uitkx0002 uitkx0005 uitkx0006 uitkx0008 uitkx0009 uitkx0010 uitkx0012 uitkx0013 uitkx0014 uitkx0015 uitkx0016 uitkx0017 uitkx0018 uitkx0019 uitkx0020 uitkx0021 uitkx0022 uitkx0023 uitkx0024 structural diagnostics language server real time squiggly underlines editor uitkx0101 uitkx0102 uitkx0103 uitkx0104 uitkx0105 uitkx0106 uitkx0107 uitkx0108 uitkx0109 uitkx0111 uitkx0112 uitkx0120 uitkx0121 uitkx0200 parser diagnostics uitkx0300 uitkx0301 uitkx0302 uitkx0303 uitkx0304 uitkx0305 uitkx0306 function-style component diagnostics uitkx2100 uitkx2101 uitkx2102 uitkx2104 uitkx2105 uitkx2106`,element:()=>(0,I.jsx)(yw,{})},{id:`config`,canonicalId:`configuration`,title:`Configuration`,path:`/config`,keywords:[`config`,`settings`,`vscode`,`extension`],searchContent:`configuration reference options editor extensions formatter vs code extension settings uitkx.server.path uitkx.server.dotnetpath uitkx.trace.server editor defaults editor.defaultformatter reactiveuitk.uitkx editor.formatonsave editor.tabsize editor.insertspaces editor.bracketpaircolorization semantic tokens`,element:()=>(0,I.jsx)(hw,{})},{id:`debugging`,canonicalId:`debugging`,title:`Debugging Guide`,path:`/debugging`,keywords:[`debugging`,`troubleshooting`,`logs`,`generated code`],searchContent:`debugging guide diagnose fix common issues inspecting generated code .uitkx .uitkx.g.cs roslyn source generator vs code definition f12 generatedfiles analyzers #line directives breakpoint stack trace ui toolkit debugger lsp server logs trace level uitkx.trace.server verbose output panel json-rpc missing completions stale diagnostics crashes formatter issues format-on-save reporting bugs`,element:()=>(0,I.jsx)(vw,{})}]},{id:`faq`,title:`FAQ`,pages:[{id:`faq-page`,canonicalId:`faq-page`,title:`FAQ`,path:`/faq`,keywords:[`faq`,`frequently asked questions`,`help`],searchContent:`frequently asked questions what is uitkx markup language authoring unity ui toolkit components react-like model .uitkx jsx-style hooks control flow roslyn source generator which unity versions supported unity 6.2 does uitkx work with existing ui toolkit code visualelement runtime overhead reconciliation scheduler per-frame cost aot-compatible production builds plain c# which editors supported vs code visual studio 2022 jetbrains rider .net version language server .net 8 dotnet directive-header form function-style components hmr hot module replacement hooks top level unconditional burst assembly-csharp-editor completions hover stopped working debugging guide`,element:()=>(0,I.jsx)(Vw,{})}]},{id:`known-issues`,title:`Known Issues`,pages:[{id:`known-issues-page`,canonicalId:`known-issues-page`,title:`Known Issues`,path:`/known-issues`,keywords:[`issues`,`limitations`,`known issues`],searchContent:`known issues runtime multicolumnlistview briefly jump snap scrolling large data sets burst aot assembly resolution mono.cecil.assemblyresolutionexception failed resolve assembly assembly-csharp-editor project settings burst aot exclusion list HMR limitations memory leak assembly unloading mono domain reload JIT warmup roslyn first compile new file detection render depth guard MaxRenderDepth 25 infinite loop detection component tree depth hook constraints unconditional ordering thread safety main thread editor vs runtime differences EditorRenderScheduler RuntimeRenderScheduler drag events editor-only components PropertyInspector IMGUIContainer`,element:()=>(0,I.jsx)(KC,{})}]},{id:`roadmap`,title:`Roadmap`,pages:[{id:`roadmap-page`,canonicalId:`roadmap-page`,title:`Roadmap`,path:`/roadmap`,keywords:[`roadmap`,`future`,`plans`],searchContent:`roadmap planned features v0.3.0 function-style components control block bodies switch expressions CssHelpers expansion portal suspense fragment vs code visual studio rider extensions performance profiling testing utilities refactoring actions animation transitions PropTypes element adapter registration`,element:()=>(0,I.jsx)(JC,{})}]}],kT=OT.flatMap(e=>{if(e.title===`Components`){let t=e.pages.filter(e=>e.group===`basic`),n=e.pages.filter(e=>e.group===`advanced`||!e.group);return[...t,...n]}return e.pages});var AT=(e,t)=>{if(e.sinceUnity)return jx(e.sinceUnity,t)<=0;let n=Ax[e.canonicalId];return Mx(n,t)};const jT=e=>OT.map(t=>({...t,pages:t.pages.filter(t=>AT(t,e))})).filter(e=>e.pages.length>0),MT=e=>jT(e).flatMap(e=>{if(e.title===`Components`){let t=e.pages.filter(e=>e.group===`basic`),n=e.pages.filter(e=>e.group===`advanced`||!e.group);return[...t,...n]}return e.pages});var NT=Il((0,I.jsx)(`path`,{d:`M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14`}),`Search`),PT=Il((0,I.jsx)(`path`,{d:`M12 1.27a11 11 0 00-3.48 21.46c.55.09.73-.28.73-.55v-1.84c-3.03.64-3.67-1.46-3.67-1.46-.55-1.29-1.28-1.65-1.28-1.65-.92-.65.1-.65.1-.65 1.1 0 1.73 1.1 1.73 1.1.92 1.65 2.57 1.2 3.21.92a2 2 0 01.64-1.47c-2.47-.27-5.04-1.19-5.04-5.5 0-1.1.46-2.1 1.2-2.84a3.76 3.76 0 010-2.93s.91-.28 3.11 1.1c1.8-.49 3.7-.49 5.5 0 2.1-1.38 3.02-1.1 3.02-1.1a3.76 3.76 0 010 2.93c.83.74 1.2 1.74 1.2 2.94 0 4.21-2.57 5.13-5.04 5.4.45.37.82.92.82 2.02v3.03c0 .27.1.64.73.55A11 11 0 0012 1.27`}),`GitHub`),FT={appBar:{borderBottom:1,borderColor:`divider`},toolbar:{display:`flex`,alignItems:`center`,gap:2},left:{display:`flex`,alignItems:`center`,gap:1.25},logo:{width:28,height:28,borderRadius:1},titleLink:{display:`flex`,alignItems:`center`,gap:.75,color:`inherit`,textDecoration:`none`},title:{fontWeight:600,letterSpacing:.3},center:{flex:1,display:`flex`,justifyContent:`center`},searchPaper:{p:`2px 8px`,display:`flex`,alignItems:`center`,gap:1,width:360,cursor:`text`},inputFlex:{flex:1},right:{ml:1,display:`flex`,alignItems:`center`,gap:1},versionSelect:{minWidth:120,fontSize:`0.8125rem`}};const IT=({onOpenSearch:e})=>{let{selectedVersion:t,setSelectedVersion:n}=zx();return(0,I.jsx)(Rf,{position:`sticky`,color:`default`,elevation:0,sx:FT.appBar,children:(0,I.jsxs)(ub,{sx:FT.toolbar,children:[(0,I.jsxs)(K,{sx:FT.left,children:[(0,I.jsxs)(B_,{component:tn,to:`/`,underline:`none`,sx:FT.titleLink,children:[(0,I.jsx)(K,{component:`img`,src:`/logo.png`,alt:`ReactiveUIToolKit logo`,sx:FT.logo}),(0,I.jsx)(W,{variant:`h6`,sx:FT.title,children:`ReactiveUIToolKit`})]}),(0,I.jsx)(G,{label:`v0.4.10`,size:`small`})]}),(0,I.jsx)(K,{sx:FT.center,children:(0,I.jsxs)(id,{sx:FT.searchPaper,variant:`outlined`,onClick:e,children:[(0,I.jsx)(NT,{fontSize:`small`}),(0,I.jsx)(xh,{placeholder:`Search documentation`,sx:FT.inputFlex,readOnly:!0,autoFocus:!0})]})}),(0,I.jsxs)(K,{sx:FT.right,children:[(0,I.jsx)(xy,{value:t,onChange:e=>n(e.target.value),size:`small`,sx:FT.versionSelect,children:Tx.map(e=>(0,I.jsxs)(Bv,{value:e.version,children:[`Unity `,e.label,`+`]},e.version))}),(0,I.jsx)(mf,{component:B_,href:`https://github.com/yanivkalfa/ReactiveUIToolKit.git`,target:`_blank`,rel:`noreferrer`,children:(0,I.jsx)(PT,{})})]})]})})};var LT=Il((0,I.jsx)(`path`,{d:`m12 8-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z`}),`ExpandLess`),RT={root:{width:280,borderRight:1,borderColor:`divider`,height:`100%`,overflow:`auto`,"&::-webkit-scrollbar":{width:8},"&::-webkit-scrollbar-track":{backgroundColor:`transparent`},"&::-webkit-scrollbar-thumb":{backgroundColor:`rgba(25,118,210,0.4)`,borderRadius:999,border:`2px solid transparent`,backgroundClip:`padding-box`},"&::-webkit-scrollbar-thumb:hover":{backgroundColor:`rgba(25,118,210,0.7)`},scrollbarWidth:`thin`,scrollbarColor:`rgba(25,118,210,0.6) transparent`},childItem:{pl:4},sectionTitle:{fontWeight:700},subgroupHeader:{pl:4,pt:1,pb:.5,fontSize:11,textTransform:`uppercase`,letterSpacing:.5,color:`text.secondary`},subgroupDivider:{mt:.5,mb:.5,opacity:.4}};const zT=()=>{let e=Ve(),{selectedVersion:t}=zx(),n=(0,x.useMemo)(()=>jT(t),[t]).flatMap(e=>e.title===`Components`&&e.pages.some(e=>e.group)?[{...e,id:`components-common`,title:`Common Components`,pages:e.pages.filter(e=>e.group===`basic`)},{...e,id:`components-uncommon`,title:`Uncommon Components`,pages:e.pages.filter(e=>e.group===`advanced`||!e.group)}]:[e]),[r,i]=(0,x.useState)(()=>{let e={};return n.forEach((t,n)=>e[t.id]=n===0),e});return(0,I.jsxs)(K,{sx:RT.root,children:[(0,I.jsx)(K,{sx:{px:2,py:1.5},children:(0,I.jsx)(W,{variant:`overline`,color:`text.secondary`,children:`Docs`})}),(0,I.jsx)(q,{disablePadding:!0,children:n.map(t=>{let n=!!r[t.id],a=t.pages.length===1,o=t.pages[0];return a?(0,I.jsxs)(K,{children:[(0,I.jsx)(Z_,{component:tn,to:o.path,selected:e.pathname===o.path,children:(0,I.jsx)(Y,{primary:(0,I.jsx)(W,{sx:RT.sectionTitle,children:t.title})})}),(0,I.jsx)(Qg,{})]},t.id):(0,I.jsxs)(K,{children:[(0,I.jsxs)(Z_,{onClick:()=>i({...r,[t.id]:!r[t.id]}),children:[(0,I.jsx)(Y,{primary:(0,I.jsx)(W,{sx:RT.sectionTitle,children:t.title})}),n?(0,I.jsx)(LT,{}):(0,I.jsx)(ZC,{})]}),(0,I.jsx)(ed,{in:n,timeout:`auto`,unmountOnExit:!0,children:(0,I.jsx)(q,{disablePadding:!0,children:t.pages.map(t=>(0,I.jsx)(Z_,{component:tn,to:t.path,selected:e.pathname===t.path,sx:RT.childItem,children:(0,I.jsx)(Y,{primary:t.title})},t.id))})}),(0,I.jsx)(Qg,{})]},t.id)})})]})};var BT={root:{display:`flex`,justifyContent:`space-between`,borderTop:1,borderColor:`divider`,mt:4,pt:2}};const VT=()=>{let e=We(),{pathname:t}=Ve(),n=(0,x.useMemo)(()=>kT.findIndex(e=>e.path===t),[t]),r=n>0?kT[n-1]:void 0,i=n>=0&&n<kT.length-1?kT[n+1]:void 0;return(0,I.jsxs)(K,{sx:BT.root,children:[(0,I.jsx)(`span`,{children:r&&(0,I.jsxs)(qh,{onClick:()=>e(r.path),variant:`text`,children:[`←`,` `,r.title]})}),(0,I.jsx)(`span`,{children:i&&(0,I.jsxs)(qh,{onClick:()=>e(i.path),variant:`text`,children:[i.title,` `,`→`]})})]})};var HT=Il((0,I.jsx)(`path`,{d:`M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z`}),`Close`),UT=new Map,WT=[`children`,`code`,`codeRuntime`,`codeEditor`,`text`,`primary`,`secondary`,`label`,`title`,`placeholder`,`description`];function GT(e,t,n){if(e==null||typeof e==`boolean`)return;if(typeof e==`string`){t.push(e);return}if(typeof e==`number`){t.push(String(e));return}if(Array.isArray(e)){for(let r of e)GT(r,t,n);return}if(typeof e!=`object`)return;let r=e;if(r.props){if(typeof r.type==`function`&&n<8)try{GT(r.type(r.props),t,n+1);return}catch{}for(let e of WT){let i=r.props[e];i!=null&&GT(i,t,n)}}}function KT(e){let t=UT.get(e.id);if(t!==void 0)return t;let n=[];try{GT(e.element(),n,0)}catch{}let r=n.join(` `).toLowerCase();return UT.set(e.id,r),r}var qT={header:{display:`flex`,alignItems:`center`,gap:1,mb:1},inputPaper:{p:1,display:`flex`,alignItems:`center`,gap:1,flex:1},noResults:{p:2},content:{pt:1}};const JT=({open:e,onClose:t})=>{let n=We(),{selectedVersion:r}=zx(),i=(0,x.useMemo)(()=>MT(r),[r]),[a,o]=(0,x.useState)(``),[s,c]=(0,x.useState)(0),l=(0,x.useRef)(null);(0,x.useEffect)(()=>{if(e){let e=setTimeout(()=>l.current?.focus(),50);return()=>clearTimeout(e)}},[e]);let u=()=>{o(``),c(0),t()},d=(0,x.useMemo)(()=>Px(r),[r]),f=(0,x.useMemo)(()=>{let e=a.trim().toLowerCase();if(!e)return[];let t=e.split(/\s+/).filter(Boolean);return i.filter(e=>{let n=e.canonicalId===`styling`?d:``,r=[e.title,(e.keywords||[]).join(` `),e.searchContent||``,KT(e),n].join(` `).toLowerCase();return t.every(e=>r.includes(e))})},[i,a,d]);return(0,x.useEffect)(()=>c(0),[f]),(0,I.jsx)(Bg,{open:e,onClose:u,fullWidth:!0,maxWidth:`md`,children:(0,I.jsxs)(Gg,{sx:qT.content,children:[(0,I.jsxs)(K,{sx:qT.header,children:[(0,I.jsxs)(id,{sx:qT.inputPaper,variant:`outlined`,children:[(0,I.jsx)(NT,{}),(0,I.jsx)(xh,{inputRef:l,placeholder:`Search documentation`,value:a,onChange:e=>o(e.target.value),onKeyDown:e=>{e.key===`Escape`&&u(),e.key===`ArrowDown`&&(e.preventDefault(),c(e=>Math.min(e+1,f.length-1))),e.key===`ArrowUp`&&(e.preventDefault(),c(e=>Math.max(e-1,0))),e.key===`Enter`&&f[s]&&(u(),n(f[s].path))},sx:{flex:1}})]}),(0,I.jsx)(mf,{onClick:u,"aria-label":`Close search`,children:(0,I.jsx)(HT,{})})]}),(0,I.jsxs)(q,{children:[f.map((e,t)=>(0,I.jsx)(Z_,{selected:t===s,onClick:()=>{u(),n(e.path)},children:(0,I.jsx)(Y,{primary:e.title,secondary:(e.keywords||[]).join(`, `)})},e.id)),a&&f.length===0&&(0,I.jsx)(W,{sx:qT.noResults,color:`text.secondary`,children:`No results`})]})]})})};var YT={shell:{display:`grid`,gridTemplateRows:`auto 1fr`,height:`100vh`},grid:{display:`grid`,gridTemplateColumns:`280px 1fr`,minHeight:0},content:{p:3,overflow:`auto`},main:{maxWidth:980}};const XT=pl({palette:{mode:`dark`,background:{default:`#181c26`,paper:`#202532`},divider:`#343a4c`,primary:{main:`#4cc2ff`},text:{primary:`#e5e9f5`,secondary:`#a0a8c0`}},shape:{borderRadius:8},typography:{fontSize:14,body1:{lineHeight:1.3,color:`#a0a8c0`},body2:{lineHeight:1.3,color:`#a0a8c0`},h4:{fontSize:28,fontWeight:600,letterSpacing:.2,color:`#e5e9f5`},h5:{fontSize:20,fontWeight:600,letterSpacing:.15,marginTop:16,color:`#e5e9f5`}},components:{MuiCssBaseline:{styleOverrides:{code:{fontFamily:`ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`,backgroundColor:`#202532`,borderRadius:4,padding:`2px 6px`,border:`1px solid #343a4c`,fontSize:`0.85em`}}}}});(0,Po.createRoot)(document.getElementById(`root`)).render((0,I.jsx)(x.StrictMode,{children:(0,I.jsx)(Qt,{children:(0,I.jsx)(Rx,{children:(0,I.jsx)(()=>{let[e,t]=(0,x.useState)(!1);return(0,I.jsxs)(Tl,{theme:XT,children:[(0,I.jsx)(ng,{}),(0,I.jsxs)(K,{sx:YT.shell,children:[(0,I.jsx)(IT,{onOpenSearch:()=>t(!0)}),(0,I.jsxs)(K,{sx:YT.grid,children:[(0,I.jsx)(zT,{}),(0,I.jsx)(K,{sx:YT.content,children:(0,I.jsxs)(ht,{children:[kT.map(e=>(0,I.jsx)(pt,{path:e.path,element:(0,I.jsxs)(K,{component:`main`,sx:YT.main,children:[e.element(),(0,I.jsx)(VT,{})]})},e.id)),(0,I.jsx)(pt,{path:`*`,element:(0,I.jsxs)(I.Fragment,{children:[(0,I.jsx)(W,{variant:`h5`,gutterBottom:!0,children:`Not Found`}),(0,I.jsx)(B_,{component:tn,to:`/`,children:`Go to Introduction`})]})})]})})]})]}),(0,I.jsx)(JT,{open:e,onClose:()=>t(!1)})]})},{})})})}));
