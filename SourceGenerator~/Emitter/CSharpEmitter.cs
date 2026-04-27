@@ -74,6 +74,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
         private StringBuilder _rentBuffer = new StringBuilder();
         private int _poolVarId;
 
+        // ── OPT-V2-2 Phase A: Static-Style Hoisting ────────────────────
+        // Collects class-level `private static readonly Style __sty_N = new Style {...};`
+        // declarations for `style={new Style{...}}` initializers whose every value is
+        // a compile-time constant (literals + named-static dotted refs + new Color(literals)).
+        // Flushed into the class body just before the closing brace.
+        // The hoisted instance is created with `new Style { ... }` (generation == 0),
+        // so Style.__ScheduleReturn short-circuits, the diff walk bails on SameInstance,
+        // and no pool churn occurs across renders.
+        private readonly StringBuilder _hoistedStyleFields = new StringBuilder();
+        private int _hoistCounter;
+
         // Indent constants
         private const string I2 = "        "; // 8sp ΓÇö class member level
         private const string I3 = "            "; // 12sp ΓÇö method body level
@@ -355,6 +366,16 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                 EmitFunctionPropsClass();
             }
 
+            // OPT-V2-2 Phase A: emit any hoisted static Style fields collected
+            // during the render-body walk. Placed at class scope, after Render and
+            // any auto-generated props class, before the partial class closing brace.
+            if (_hoistedStyleFields.Length > 0)
+            {
+                L("");
+                L($"{I2}// ── Hoisted static styles (OPT-V2-2) ──");
+                _sb.Append(_hoistedStyleFields.ToString());
+            }
+
             L("    }"); // close class
             L("}"); // close namespace
 
@@ -585,23 +606,107 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitHelperMethod()
         {
-            // Generates a child-array builder that:
-            //   ΓÇó skips null VirtualNode entries (from @if without @else)
-            //   ΓÇó flattens VirtualNode[] arrays (from @foreach ΓåÆ .Select().ToArray())
+            // Generates a child-array builder (used only for the dynamic JSX path:
+            // children that contain @if / @for / @foreach / @while / @switch / @(expr)).
+            //
+            //   * skips null VirtualNode entries (from @if without @else)
+            //   * flattens VirtualNode[] / IReadOnlyList<VirtualNode> / IEnumerable<VirtualNode>
+            //     (from @foreach -> .Select().ToArray() and from @(__children) slot
+            //     pass-through, where __children has compile-time type
+            //     IReadOnlyList<VirtualNode>)
+            //
+            // Two-pass count-then-fill into a single freshly-allocated VirtualNode[count].
+            // No transient List<VirtualNode> + ToArray() copy.
+            //
+            // For elements whose children are 100% statically simple (only ElementNode /
+            // TextNode / CommentNode), the source generator bypasses this helper entirely
+            // and passes children directly to the container's `params VirtualNode[]`
+            // parameter -- see TryClassifySimpleChildren.
             L($"{I2}private static {QVNode}[] __C(params object[] items)");
             L($"{I2}{{");
-            L($"{I3}var list = new global::System.Collections.Generic.List<{QVNode}>();");
-            L($"{I3}foreach (var __ci in items)");
+            L($"{I3}// Pass 1: count valid VNodes.");
+            L($"{I3}int __count = 0;");
+            L($"{I3}for (int __i = 0; __i < items.Length; __i++)");
             L($"{I3}{{");
-            L($"{I4}if (__ci is {QVNode} __vn) {{ if (__vn != null) list.Add(__vn); }}");
+            L($"{I4}var __ci = items[__i];");
+            L($"{I4}if (__ci is {QVNode} __vn) {{ if (__vn != null) __count++; }}");
+            L(
+                $"{I4}else if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros)"
+            );
+            L($"{I4}{{");
+            L($"{I4}    int __rn = __ros.Count;");
+            L($"{I4}    for (int __j = 0; __j < __rn; __j++) if (__ros[__j] != null) __count++;");
+            L($"{I4}}}");
             L(
                 $"{I4}else if (__ci is global::System.Collections.Generic.IEnumerable<{QVNode}> __seq)"
             );
-            L($"{I4}    foreach (var __sn in __seq) {{ if (__sn != null) list.Add(__sn); }}");
+            L($"{I4}    foreach (var __sn in __seq) if (__sn != null) __count++;");
             L($"{I3}}}");
-            L($"{I3}return list.ToArray();");
+            L($"{I3}if (__count == 0) return global::System.Array.Empty<{QVNode}>();");
+            L("");
+            L($"{I3}// Pass 2: fill into pre-sized array.");
+            L($"{I3}var __result = new {QVNode}[__count];");
+            L($"{I3}int __k = 0;");
+            L($"{I3}for (int __i = 0; __i < items.Length; __i++)");
+            L($"{I3}{{");
+            L($"{I4}var __ci = items[__i];");
+            L($"{I4}if (__ci is {QVNode} __vn) {{ if (__vn != null) __result[__k++] = __vn; }}");
+            L(
+                $"{I4}else if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros)"
+            );
+            L($"{I4}{{");
+            L($"{I4}    int __rn = __ros.Count;");
+            L($"{I4}    for (int __j = 0; __j < __rn; __j++)");
+            L($"{I4}    {{");
+            L($"{I4}        var __sn = __ros[__j];");
+            L($"{I4}        if (__sn != null) __result[__k++] = __sn;");
+            L($"{I4}    }}");
+            L($"{I4}}}");
+            L(
+                $"{I4}else if (__ci is global::System.Collections.Generic.IEnumerable<{QVNode}> __seq)"
+            );
+            L($"{I4}    foreach (var __sn in __seq) if (__sn != null) __result[__k++] = __sn;");
+            L($"{I3}}}");
+            L($"{I3}return __result;");
             L($"{I2}}}");
             L("");
+        }
+
+        // ============================================================
+        //  Phase A children classifier
+        // ============================================================
+        //
+        // Returns true when *every* non-comment child is statically guaranteed to
+        // produce exactly one non-null VirtualNode (i.e. only ElementNode and
+        // TextNode), AND there is at least one such child.  When true, callers may
+        // bypass `__C(...)` and emit the children directly into the container
+        // method's `params VirtualNode[] children` parameter -- saving the
+        // `params object[]` boxing allocation and the `__C` array copy.
+        //
+        // IfNode / ForNode / ForeachNode / WhileNode / SwitchNode / ExpressionNode
+        // all return false: they may yield null (IfNode without @else) or
+        // IEnumerable<VirtualNode> (loops, slot pass-through), which __C must
+        // null-filter and flatten.
+        //
+        // Returns false if there are no effective (non-comment) children -- in that
+        // case the caller must still take the __C path so that EmitChildArgs has
+        // something to emit between the parens (otherwise we'd produce a syntax
+        // error like "V.Box(props, key: k, )").
+        private static bool TryClassifySimpleChildren(ImmutableArray<AstNode> children)
+        {
+            int effectiveCount = 0;
+            foreach (var c in children)
+            {
+                if (c is CommentNode)
+                    continue;
+                if (c is ElementNode || c is TextNode)
+                {
+                    effectiveCount++;
+                    continue;
+                }
+                return false;
+            }
+            return effectiveCount > 0;
         }
 
         /// <summary>
@@ -863,7 +968,7 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     $"var {propsVar} = global::ReactiveUITK.Props.Typed.BaseProps.__Rent<{res.PropsTypeName}>(); "
                 );
 
-                // Check for style attribute — try to pool it
+                // Check for style attribute — try to hoist (Phase A) or pool it
                 string? styleVarName = null;
                 foreach (var attr in attrs)
                 {
@@ -872,7 +977,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
                     if (string.Equals(ToPropName(attr.Name), "Style", StringComparison.Ordinal))
                     {
                         string val = AttrVal(attr.Value);
-                        if (TryExtractNewStyleInit(val, out string? body))
+
+                        // ── OPT-V2-2 Phase A: try to hoist all-literal styles ──
+                        // Handles BOTH `new Style { Width = 5f, ... }` (setter form,
+                        // currently goes through pool rent) AND
+                        // `new Style { (StyleKeys.Width, 5f), ... }` (tuple form,
+                        // currently allocates a fresh `new Style` per render).
+                        if (TryHoistStaticStyle(val, out string? hoistedName))
+                        {
+                            styleVarName = hoistedName;
+                        }
+                        else if (TryExtractNewStyleInit(val, out string? body))
                         {
                             int sId = _poolVarId++;
                             styleVarName = $"__s_{sId}";
@@ -922,9 +1037,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (res.AcceptsChildren && !children.IsEmpty)
             {
-                _sb.Append(", __C(");
-                EmitChildArgs(children);
-                _sb.Append(")");
+                if (TryClassifySimpleChildren(children))
+                {
+                    // Phase A bypass: emit children directly into params VirtualNode[]
+                    _sb.Append(", ");
+                    EmitChildArgs(children);
+                }
+                else
+                {
+                    _sb.Append(", __C(");
+                    EmitChildArgs(children);
+                    _sb.Append(")");
+                }
             }
 
             _sb.Append(")");
@@ -979,9 +1103,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (!children.IsEmpty)
             {
-                _sb.Append(", __C(");
-                EmitChildArgs(children);
-                _sb.Append(")");
+                if (TryClassifySimpleChildren(children))
+                {
+                    _sb.Append(", ");
+                    EmitChildArgs(children);
+                }
+                else
+                {
+                    _sb.Append(", __C(");
+                    EmitChildArgs(children);
+                    _sb.Append(")");
+                }
             }
 
             _sb.Append(")");
@@ -1096,9 +1228,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (!children.IsEmpty)
             {
-                _sb.Append(", children: __C(");
-                EmitChildArgs(children);
-                _sb.Append(")");
+                if (TryClassifySimpleChildren(children))
+                {
+                    // Phase A bypass: V.Func<P>(R, props, key: k, child1, child2, ...)
+                    _sb.Append(", ");
+                    EmitChildArgs(children);
+                }
+                else
+                {
+                    _sb.Append(", children: __C(");
+                    EmitChildArgs(children);
+                    _sb.Append(")");
+                }
             }
 
             _sb.Append(")");
@@ -1250,6 +1391,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (children.IsEmpty)
             {
                 _sb.Append($"V.Fragment(key: {keyExpr})");
+            }
+            else if (TryClassifySimpleChildren(children))
+            {
+                _sb.Append($"V.Fragment(key: {keyExpr}, ");
+                EmitChildArgs(children);
+                _sb.Append(")");
             }
             else
             {
@@ -2395,6 +2542,399 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (body[0] == '(')
                 return false;
 
+            return true;
+        }
+
+        // ── OPT-V2-2 Phase A: static-style hoisting classifier ──────────────
+
+        /// <summary>
+        /// Whitelisted unqualified type names for `new T(literal-args...)` ctors
+        /// that are safe to evaluate once at class load (pure value-type ctors).
+        /// </summary>
+        private static readonly HashSet<string> s_literalCtorTypes = new HashSet<string>(
+            StringComparer.Ordinal
+        )
+        {
+            "Color",
+            "Color32",
+            "Vector2",
+            "Vector3",
+            "Vector4",
+            "Vector2Int",
+            "Vector3Int",
+            "Length",
+            "TimeValue",
+            "Rect",
+            "Quaternion",
+        };
+
+        /// <summary>
+        /// Returns <c>true</c> iff <paramref name="val"/> is a `new Style { ... }`
+        /// literal whose every initializer value is a compile-time constant.
+        /// On success, allocates a class-level static field name, appends the
+        /// `private static readonly Style __sty_N = ...;` declaration to
+        /// <see cref="_hoistedStyleFields"/>, and returns the field name in
+        /// <paramref name="hoistName"/>.
+        /// Handles BOTH property-setter syntax (<c>Width = 5f</c>) and tuple
+        /// syntax (<c>(StyleKeys.Width, 5f)</c>).
+        /// </summary>
+        private bool TryHoistStaticStyle(string val, out string? hoistName)
+        {
+            hoistName = null;
+            if (string.IsNullOrEmpty(val))
+                return false;
+
+            string trimmed = val.Trim();
+            // Must be exactly `new Style { ... }` (no trailing chained members,
+            // no surrounding ternary, no other expression).
+            int idx;
+            if (trimmed.StartsWith("new Style{", StringComparison.Ordinal))
+                idx = "new Style".Length;
+            else if (trimmed.StartsWith("new Style {", StringComparison.Ordinal))
+                idx = "new Style ".Length;
+            else
+                return false;
+
+            int braceOpen = trimmed.IndexOf('{', idx);
+            if (braceOpen < 0)
+                return false;
+
+            int depth = 0;
+            int braceClose = -1;
+            for (int i = braceOpen; i < trimmed.Length; i++)
+            {
+                char c = trimmed[i];
+                if (c == '{')
+                    depth++;
+                else if (c == '}')
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        braceClose = i;
+                        break;
+                    }
+                }
+            }
+            if (braceClose < 0)
+                return false;
+
+            // Nothing significant after the closing brace.
+            string after = trimmed.Substring(braceClose + 1).Trim();
+            if (after.Length > 0)
+                return false;
+
+            string body = trimmed.Substring(braceOpen + 1, braceClose - braceOpen - 1).Trim();
+
+            // Empty initializer ({}): not worth hoisting (Phase C — EmptyStyle).
+            if (body.Length == 0)
+                return false;
+
+            // Validate every initializer is hoist-safe.
+            if (!IsHoistableInitializerBody(body))
+                return false;
+
+            // Allocate the field name and emit the field declaration.
+            int hid = _hoistCounter++;
+            hoistName = $"__sty_{hid}";
+            _hoistedStyleFields.Append(I2);
+            _hoistedStyleFields.Append(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style "
+            );
+            _hoistedStyleFields.Append(hoistName);
+            _hoistedStyleFields.Append(" = new global::ReactiveUITK.Props.Typed.Style { ");
+            _hoistedStyleFields.Append(body);
+            _hoistedStyleFields.AppendLine(" };");
+            return true;
+        }
+
+        /// <summary>
+        /// Validates that every comma-separated initializer in the body of a
+        /// `new Style { ... }` expression is composed entirely of literal /
+        /// named-static expressions. Accepts both setter form and tuple form.
+        /// </summary>
+        private static bool IsHoistableInitializerBody(string body)
+        {
+            var parts = SplitTopLevelCommas(body);
+            foreach (var raw in parts)
+            {
+                string part = raw.Trim();
+                if (part.Length == 0)
+                    continue;
+
+                if (part[0] == '(')
+                {
+                    // Tuple form: ( KeyExpr , ValueExpr )
+                    if (part[part.Length - 1] != ')')
+                        return false;
+                    string inner = part.Substring(1, part.Length - 2);
+                    var tupleArgs = SplitTopLevelCommas(inner);
+                    if (tupleArgs.Count != 2)
+                        return false;
+                    if (!IsLiteralExpression(tupleArgs[0].Trim()))
+                        return false;
+                    if (!IsLiteralExpression(tupleArgs[1].Trim()))
+                        return false;
+                }
+                else
+                {
+                    // Setter form: PropName = ValueExpr
+                    int eq = FindTopLevelEquals(part);
+                    if (eq < 0)
+                        return false;
+                    string lhs = part.Substring(0, eq).Trim();
+                    string rhs = part.Substring(eq + 1).Trim();
+                    if (!IsSimpleIdentifier(lhs))
+                        return false;
+                    if (!IsLiteralExpression(rhs))
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Returns the index of the first top-level <c>=</c> in <paramref name="s"/>
+        /// that is a single assignment-equals (not <c>==</c>, <c>!=</c>, <c>&lt;=</c>,
+        /// <c>&gt;=</c>, <c>=&gt;</c>) and not nested inside any bracket/paren/brace.
+        /// </summary>
+        private static int FindTopLevelEquals(string s)
+        {
+            int depth = 0;
+            for (int i = 0; i < s.Length; i++)
+            {
+                char c = s[i];
+                if (c == '(' || c == '{' || c == '[')
+                    depth++;
+                else if (c == ')' || c == '}' || c == ']')
+                    depth--;
+                else if (c == '=' && depth == 0)
+                {
+                    if (i + 1 < s.Length && s[i + 1] == '=')
+                    {
+                        i++;
+                        continue;
+                    }
+                    if (i > 0 && (s[i - 1] == '!' || s[i - 1] == '<' || s[i - 1] == '>'))
+                        continue;
+                    if (i + 1 < s.Length && s[i + 1] == '>')
+                    {
+                        i++;
+                        continue;
+                    }
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>
+        /// Returns true iff <paramref name="expr"/> is a compile-time-constant
+        /// expression safe to evaluate at class-load (static field initializer).
+        /// Whitelist:
+        /// numeric/hex literals (with optional sign + suffix), boolean, null,
+        /// string literals, named-static dotted refs (`StyleKeys.Width`,
+        /// `Position.Absolute`, `Color.red`), and `new T(literal-args...)` for
+        /// a small whitelist of pure value-type ctors.
+        /// </summary>
+        private static bool IsLiteralExpression(string expr)
+        {
+            if (string.IsNullOrEmpty(expr))
+                return false;
+            expr = expr.Trim();
+            if (expr.Length == 0)
+                return false;
+
+            if (expr == "null" || expr == "true" || expr == "false")
+                return true;
+
+            // String literal (no embedded unescaped quote, no interpolation).
+            if (expr[0] == '"' && expr[expr.Length - 1] == '"' && expr.Length >= 2)
+            {
+                for (int i = 1; i < expr.Length - 1; i++)
+                {
+                    if (expr[i] == '"' && expr[i - 1] != '\\')
+                        return false;
+                }
+                return true;
+            }
+            if (
+                expr.Length >= 3
+                && expr[0] == '@'
+                && expr[1] == '"'
+                && expr[expr.Length - 1] == '"'
+            )
+            {
+                // Verbatim string — be strict: no embedded quote at all.
+                for (int i = 2; i < expr.Length - 1; i++)
+                    if (expr[i] == '"')
+                        return false;
+                return true;
+            }
+
+            // Char literal: 'x' or '\x'
+            if (expr[0] == '\'' && expr[expr.Length - 1] == '\'')
+                return true;
+
+            if (IsNumericLiteral(expr))
+                return true;
+            if (IsHexLiteral(expr))
+                return true;
+            if (IsDottedReference(expr))
+                return true;
+            if (TryParseLiteralCtor(expr))
+                return true;
+
+            return false;
+        }
+
+        private static bool IsNumericLiteral(string s)
+        {
+            int i = 0;
+            if (s[i] == '-' || s[i] == '+')
+                i++;
+            if (i >= s.Length)
+                return false;
+            bool seenDigit = false;
+            bool seenDot = false;
+            while (i < s.Length && (char.IsDigit(s[i]) || s[i] == '.'))
+            {
+                if (s[i] == '.')
+                {
+                    if (seenDot)
+                        return false;
+                    seenDot = true;
+                }
+                else
+                {
+                    seenDigit = true;
+                }
+                i++;
+            }
+            if (!seenDigit)
+                return false;
+            // Optional suffix(es): f F d D m M u U l L
+            while (i < s.Length)
+            {
+                char c = s[i];
+                if (
+                    c == 'f'
+                    || c == 'F'
+                    || c == 'd'
+                    || c == 'D'
+                    || c == 'm'
+                    || c == 'M'
+                    || c == 'u'
+                    || c == 'U'
+                    || c == 'l'
+                    || c == 'L'
+                )
+                {
+                    i++;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private static bool IsHexLiteral(string s)
+        {
+            int i = 0;
+            if (s[i] == '-' || s[i] == '+')
+                i++;
+            if (i + 2 > s.Length)
+                return false;
+            if (s[i] != '0' || (s[i + 1] != 'x' && s[i + 1] != 'X'))
+                return false;
+            i += 2;
+            bool seenDigit = false;
+            while (i < s.Length && IsHexDigit(s[i]))
+            {
+                seenDigit = true;
+                i++;
+            }
+            if (!seenDigit)
+                return false;
+            while (i < s.Length)
+            {
+                char c = s[i];
+                if (c == 'u' || c == 'U' || c == 'l' || c == 'L')
+                    i++;
+                else
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool IsHexDigit(char c) =>
+            (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+
+        /// <summary>
+        /// True iff <paramref name="s"/> is one or more dot-separated simple identifiers
+        /// AND the first segment starts with an uppercase letter (C# naming convention
+        /// for type / enum / static class names, e.g. <c>StyleKeys.Width</c>,
+        /// <c>Color.red</c>, <c>UnityEngine.UIElements.Position.Absolute</c>).
+        /// Rejects instance-member access on locals like <c>box.size</c> or
+        /// <c>areaSize.x</c> which would not exist at class-load time.
+        /// </summary>
+        private static bool IsDottedReference(string s)
+        {
+            if (s.IndexOf('.') < 0)
+                return false;
+            // Reject method-call form (parentheses anywhere).
+            if (s.IndexOf('(') >= 0 || s.IndexOf('[') >= 0)
+                return false;
+            var parts = s.Split('.');
+            // First segment must start uppercase (type/enum/static-class convention).
+            // Locals/parameters/fields are camelCase by convention and are rejected.
+            if (parts.Length == 0 || parts[0].Length == 0 || !char.IsUpper(parts[0][0]))
+                return false;
+            foreach (var p in parts)
+            {
+                if (!IsSimpleIdentifier(p))
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool IsSimpleIdentifier(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return false;
+            if (!(char.IsLetter(s[0]) || s[0] == '_'))
+                return false;
+            for (int i = 1; i < s.Length; i++)
+            {
+                if (!(char.IsLetterOrDigit(s[i]) || s[i] == '_'))
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool TryParseLiteralCtor(string s)
+        {
+            if (!s.StartsWith("new ", StringComparison.Ordinal))
+                return false;
+            int parenOpen = s.IndexOf('(');
+            if (parenOpen < 0)
+                return false;
+            if (s[s.Length - 1] != ')')
+                return false;
+            string typeName = s.Substring(4, parenOpen - 4).Trim();
+            if (!s_literalCtorTypes.Contains(typeName))
+                return false;
+            string args = s.Substring(parenOpen + 1, s.Length - parenOpen - 2);
+            if (args.Trim().Length == 0)
+                return true; // parameterless ctor of whitelisted type
+            var parts = SplitTopLevelCommas(args);
+            foreach (var p in parts)
+            {
+                if (!IsLiteralExpression(p.Trim()))
+                    return false;
+            }
             return true;
         }
 

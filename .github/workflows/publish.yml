@@ -407,6 +407,13 @@ jobs:
           $uploaded = $output -match 'Uploaded'
           if ($uploaded) {
             Write-Host "Marketplace upload confirmed"
+            # VsixPublisher 17.14.2120 crashes during telemetry shutdown after a
+            # successful upload (System.Runtime.CompilerServices.Unsafe version
+            # mismatch in the VS telemetry stack), leaving $LASTEXITCODE = 1.
+            # Since the marketplace confirmed the upload, force a clean exit so
+            # GitHub Actions does not mark this step as failed.
+            $global:LASTEXITCODE = 0
+            exit 0
           } elseif ($exitCode -ne 0) {
             Write-Host "::error::VsixPublisher failed (exit code $exitCode) and no upload confirmation found"
             exit $exitCode

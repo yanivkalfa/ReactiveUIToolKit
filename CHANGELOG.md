@@ -8,6 +8,27 @@ For IDE extension changelogs (VS Code, Visual Studio 2022), see
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-04-28
+
+### Performance
+
+- **OPT-V2-1 — JSX children fast-path.** Source generator now emits child
+  arguments directly into `params VirtualNode[]` instead of allocating a
+  transient `__C(...)` wrapper array when the children list is statically
+  simple (no spreads, no conditional fragments, no `@foreach`/`@for`/`@while`
+  collectors). Eliminates one allocation per element on the hot render path.
+- **OPT-V2-2 — Static-style hoisting.** Source generator now hoists
+  `style={new Style{...}}` literals to class-level `static readonly Style`
+  fields whenever every initializer value is a compile-time constant. Handles
+  both setter form (`Width = 5f`) and tuple form (`(StyleKeys.Width, 5f)`).
+  Whitelist covers literals, named-static dotted refs (`StyleKeys.X`,
+  `Color.red`, `Position.Absolute`), and `new T(literal-args)` for
+  `Color`/`Color32`/`Vector*`/`Length`/`TimeValue`/`Rect`/`Quaternion`. The
+  reconciler's existing `SameInstance` check makes the diff walk a no-op when
+  the same hoisted instance is supplied across renders. Falls back to the
+  existing pool-rent path for any non-literal value (state-derived, captures,
+  method calls, instance-member access on locals).
+
 ## [0.4.10] - 2026-04-27
 
 ### Performance
