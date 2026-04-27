@@ -102,6 +102,8 @@ namespace ReactiveUITK.EditorSupport.HMR
         private sealed class EmitCtx
         {
             private readonly StringBuilder _sb = new StringBuilder(4096);
+            private StringBuilder _rentBuffer = new StringBuilder();
+            private int _poolVarId;
             private readonly object _directives;
             private readonly string _filePath;
             private readonly string _displayName;
@@ -300,9 +302,28 @@ namespace ReactiveUITK.EditorSupport.HMR
                 else if (markupNodes.Count == 1)
                 {
                     int srcLine = GP<int>(markupNodes[0], "SourceLine");
+
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
+
+                    int mark = _sb.Length;
+                    EmitNode(markupNodes[0]);
+                    string expr = _sb.ToString(mark, _sb.Length - mark);
+                    _sb.Length = mark;
+
+                    // Emit pool-rent statements before return
+                    if (_rentBuffer.Length > 0)
+                    {
+                        L($"#line hidden");
+                        _sb.Append("            ");
+                        _sb.AppendLine(_rentBuffer.ToString());
+                        L($"#line default");
+                    }
+                    _rentBuffer = savedRent;
+
                     L($"#line {srcLine} \"{_linePath}\"");
                     _sb.Append("            return ");
-                    EmitNode(markupNodes[0]);
+                    _sb.Append(expr);
                     _sb.AppendLine(";");
                 }
                 else
@@ -379,6 +400,10 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     if (nodes != null && nodes.Count > 0)
                     {
+                        // Save rent buffer — inline JSX may produce rent statements
+                        var savedRent = _rentBuffer;
+                        _rentBuffer = new StringBuilder();
+
                         int savedLen = _sb.Length;
                         if (nodes.Count == 1)
                             EmitNode(nodes[0]);
@@ -390,6 +415,24 @@ namespace ReactiveUITK.EditorSupport.HMR
                         }
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
+
+                        // Insert rent statements at the last statement boundary
+                        string inlineRent = _rentBuffer.ToString();
+                        _rentBuffer = savedRent;
+                        if (inlineRent.Length > 0)
+                        {
+                            int insertPos = 0;
+                            for (int si = spliced.Length - 1; si >= 0; si--)
+                            {
+                                char ch = spliced[si];
+                                if (ch == ';' || ch == '}')
+                                {
+                                    insertPos = si + 1;
+                                    break;
+                                }
+                            }
+                            spliced.Insert(insertPos, inlineRent);
+                        }
                         spliced.Append(emittedCs.Trim());
                     }
                     else
@@ -501,6 +544,10 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                     if (nodes != null && nodes.Count > 0)
                     {
+                        // Save rent buffer — inline JSX may produce rent statements
+                        var savedRent = _rentBuffer;
+                        _rentBuffer = new StringBuilder();
+
                         int savedLen = _sb.Length;
                         if (nodes.Count == 1)
                         {
@@ -523,6 +570,28 @@ namespace ReactiveUITK.EditorSupport.HMR
                             );
                         string emittedCs = _sb.ToString(savedLen, _sb.Length - savedLen);
                         _sb.Length = savedLen;
+
+                        // Inline rent statements before the expression at the splice point
+                        string inlineRent = _rentBuffer.ToString();
+                        _rentBuffer = savedRent;
+                        if (inlineRent.Length > 0)
+                        {
+                            // Find the last statement boundary in the accumulated text.
+                            // Rent statements must appear as standalone statements, not
+                            // after 'return' or 'yield return'. Insert right after the
+                            // last ';' or '}', or at position 0 if none found.
+                            int insertPos = 0;
+                            for (int si = spliced.Length - 1; si >= 0; si--)
+                            {
+                                char ch = spliced[si];
+                                if (ch == ';' || ch == '}')
+                                {
+                                    insertPos = si + 1;
+                                    break;
+                                }
+                            }
+                            spliced.Insert(insertPos, inlineRent);
+                        }
                         spliced.Append(emittedCs.Trim());
                     }
                     else
@@ -710,27 +779,91 @@ namespace ReactiveUITK.EditorSupport.HMR
             {
                 var filteredAttrs = FilterAttrs(attrs, "key");
 
-                _sb.Append($"V.{res.MethodName}(new {res.PropsType} {{ ");
-                bool first = true;
-                foreach (var attr in filteredAttrs)
+                // ErrorBoundaryProps extends IProps (not BaseProps) — cannot be pooled
+                bool skipPooling = res.PropsType == "ErrorBoundaryProps";
+
+                if (skipPooling)
                 {
-                    string name = GP<string>(attr, "Name") ?? "";
-                    string val = AttrToExpr(attr);
-                    string propName = ToPascal(name);
-                    if (!first)
-                        _sb.Append(", ");
-                    _sb.Append($"{propName} = {val}");
-                    first = false;
+                    _sb.Append($"V.{res.MethodName}(new {res.PropsType} {{ ");
+                    bool first = true;
+                    foreach (var attr in filteredAttrs)
+                    {
+                        string name = GP<string>(attr, "Name") ?? "";
+                        string val = AttrToExpr(attr);
+                        string propName = ToPascal(name);
+                        if (!first)
+                            _sb.Append(", ");
+                        _sb.Append($"{propName} = {val}");
+                        first = false;
+                    }
+                    if (injectUssKeys)
+                    {
+                        if (!first)
+                            _sb.Append(", ");
+                        _sb.Append(
+                            "ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                        );
+                    }
+                    _sb.Append($" }}, key: {keyExpr}");
                 }
-                if (injectUssKeys)
+                else
                 {
-                    if (!first)
-                        _sb.Append(", ");
-                    _sb.Append(
-                        "ExtraProps = new Dictionary<string, object> { { \"__ussKeys\", __uitkx_ussKeys } }"
+                    // ── Pool-rent emission ──
+                    int pId = _poolVarId++;
+                    string propsVar = $"__p_{pId}";
+                    _rentBuffer.Append(
+                        $"var {propsVar} = global::ReactiveUITK.Props.Typed.BaseProps.__Rent<{res.PropsType}>(); "
                     );
-                }
-                _sb.Append($" }}, key: {keyExpr}");
+
+                    string styleVarName = null;
+                    foreach (var attr in filteredAttrs)
+                    {
+                        string name = GP<string>(attr, "Name") ?? "";
+                        if (string.Equals(ToPascal(name), "Style", StringComparison.Ordinal))
+                        {
+                            string val = AttrToExpr(attr);
+                            if (TryExtractNewStyleInit(val, out string body))
+                            {
+                                int sId = _poolVarId++;
+                                styleVarName = $"__s_{sId}";
+                                _rentBuffer.Append(
+                                    $"var {styleVarName} = global::ReactiveUITK.Props.Typed.Style.__Rent(); "
+                                );
+                                var inits = SplitTopLevelCommas(body);
+                                foreach (var init in inits)
+                                {
+                                    string trimmed = init.Trim();
+                                    if (trimmed.Length > 0)
+                                        _rentBuffer.Append($"{styleVarName}.{trimmed}; ");
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    foreach (var attr in filteredAttrs)
+                    {
+                        string name = GP<string>(attr, "Name") ?? "";
+                        string propName = ToPascal(name);
+                        string val;
+                        if (
+                            string.Equals(propName, "Style", StringComparison.Ordinal)
+                            && styleVarName != null
+                        )
+                            val = styleVarName;
+                        else
+                            val = AttrToExpr(attr);
+                        _rentBuffer.Append($"{propsVar}.{propName} = {val}; ");
+                    }
+                    if (injectUssKeys)
+                    {
+                        _rentBuffer.Append(
+                            $"{propsVar}.ExtraProps = new Dictionary<string, object> {{ {{ \"__ussKeys\", __uitkx_ussKeys }} }}; "
+                        );
+                    }
+
+                    _sb.Append($"V.{res.MethodName}({propsVar}, key: {keyExpr}");
+                } // end else (!skipPooling)
 
                 if (res.Kind == TagKind.TypedC && children.Count > 0)
                 {
@@ -928,12 +1061,19 @@ namespace ReactiveUITK.EditorSupport.HMR
                         _sb.Append(" else { ");
                     }
 
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
                     string bodyCode = TransformBodyCode(branch);
+                    string rentStmts = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
+
                     if (!string.IsNullOrEmpty(bodyCode))
                     {
                         _sb.Append(bodyCode);
                         _sb.Append(" ");
                     }
+                    if (rentStmts.Length > 0)
+                        _sb.Append(rentStmts);
                     _sb.Append("}");
                 }
                 _sb.Append($" return ({QVNode})null; }}))()");
@@ -944,55 +1084,65 @@ namespace ReactiveUITK.EditorSupport.HMR
                 string iterDecl = GP<string>(node, "IteratorDeclaration") ?? "var item";
                 string collExpr = GP<string>(node, "CollectionExpression") ?? "new object[0]";
 
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 string bodyCode = TransformBodyCode(node);
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
 
-                // IIFE with nested IIFE per iteration
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
                 _sb.Append($"foreach ({iterDecl} in {collExpr}) {{ ");
-                if (!string.IsNullOrEmpty(bodyCode))
+                if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                 {
-                    _sb.Append(
-                        $"__items.Add(((Func<{QVNode}>)(() => {{ {bodyCode} return ({QVNode})null; }}))());"
-                    );
+                    string inlined = RewriteReturnsForInline(bodyCode, "__items");
+                    _sb.Append($"{rentStmts}{inlined} ");
                 }
-                _sb.Append(" } ");
+                _sb.Append("} ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
             }
 
             private void EmitFor(object node)
             {
                 string forExpr = GP<string>(node, "ForExpression") ?? "";
+
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 string bodyCode = TransformBodyCode(node);
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
 
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
                 _sb.Append($"for ({forExpr}) {{ ");
-                if (!string.IsNullOrEmpty(bodyCode))
+                if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                 {
-                    _sb.Append(
-                        $"__items.Add(((Func<{QVNode}>)(() => {{ {bodyCode} return ({QVNode})null; }}))());"
-                    );
+                    string inlined = RewriteReturnsForInline(bodyCode, "__items");
+                    _sb.Append($"{rentStmts}{inlined} ");
                 }
-                _sb.Append(" } ");
+                _sb.Append("} ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
             }
 
             private void EmitWhile(object node)
             {
                 string cond = GP<string>(node, "Condition") ?? "false";
+
+                var savedRent = _rentBuffer;
+                _rentBuffer = new StringBuilder();
                 string bodyCode = TransformBodyCode(node);
+                string rentStmts = _rentBuffer.ToString();
+                _rentBuffer = savedRent;
 
                 _sb.Append("((Func<" + QVNode + ">)(() => { ");
                 _sb.Append($"var __items = new List<{QVNode}>(); ");
                 _sb.Append($"while ({cond}) {{ ");
-                if (!string.IsNullOrEmpty(bodyCode))
+                if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                 {
-                    _sb.Append(
-                        $"__items.Add(((Func<{QVNode}>)(() => {{ {bodyCode} return ({QVNode})null; }}))());"
-                    );
+                    string inlined = RewriteReturnsForInline(bodyCode, "__items");
+                    _sb.Append($"{rentStmts}{inlined} ");
                 }
-                _sb.Append(" } ");
+                _sb.Append("} ");
                 _sb.Append("return V.Fragment(key: null, __items.ToArray()); }))()");
             }
 
@@ -1008,11 +1158,18 @@ namespace ReactiveUITK.EditorSupport.HMR
                     string val = GP<string>(c, "ValueExpression");
                     _sb.Append(val != null ? $"case {val}: " : "default: ");
 
+                    var savedRent = _rentBuffer;
+                    _rentBuffer = new StringBuilder();
                     string bodyCode = TransformBodyCode(c);
-                    if (!string.IsNullOrEmpty(bodyCode))
+                    string rentStmts = _rentBuffer.ToString();
+                    _rentBuffer = savedRent;
+
+                    if (!string.IsNullOrEmpty(bodyCode) || rentStmts.Length > 0)
                     {
                         _sb.Append("{ ");
                         _sb.Append(bodyCode);
+                        if (rentStmts.Length > 0)
+                            _sb.Append(" ").Append(rentStmts);
                         _sb.Append(" } ");
                     }
                 }
@@ -1158,6 +1315,60 @@ namespace ReactiveUITK.EditorSupport.HMR
                 return null;
             }
 
+            private static bool TryExtractNewStyleInit(string expr, out string body)
+            {
+                body = null;
+                if (expr == null)
+                    return false;
+                int idx = expr.IndexOf("new Style {", StringComparison.Ordinal);
+                if (idx < 0)
+                    idx = expr.IndexOf("new Style{", StringComparison.Ordinal);
+                if (idx < 0)
+                    return false;
+                int braceStart = expr.IndexOf('{', idx);
+                if (braceStart < 0)
+                    return false;
+                int depth = 1;
+                int i = braceStart + 1;
+                while (i < expr.Length && depth > 0)
+                {
+                    if (expr[i] == '{')
+                        depth++;
+                    else if (expr[i] == '}')
+                        depth--;
+                    i++;
+                }
+                if (depth != 0)
+                    return false;
+                body = expr.Substring(braceStart + 1, i - braceStart - 2).Trim();
+                if (body.Length > 0 && body[0] == '(')
+                    return false; // tuple, not initializer
+                return true;
+            }
+
+            private static List<string> SplitTopLevelCommas(string text)
+            {
+                var parts = new List<string>();
+                int start = 0;
+                int depth = 0;
+                for (int i = 0; i < text.Length; i++)
+                {
+                    char c = text[i];
+                    if (c == '(' || c == '{' || c == '[')
+                        depth++;
+                    else if (c == ')' || c == '}' || c == ']')
+                        depth--;
+                    else if (c == ',' && depth == 0)
+                    {
+                        parts.Add(text.Substring(start, i - start));
+                        start = i + 1;
+                    }
+                }
+                if (start < text.Length)
+                    parts.Add(text.Substring(start));
+                return parts;
+            }
+
             private string AttrToExpr(object attr)
             {
                 var val = UitkxHmrCompiler.GetProp(attr, "Value");
@@ -1292,6 +1503,382 @@ namespace ReactiveUITK.EditorSupport.HMR
             @"(?:Asset|Ast)\s*<\s*\w+\s*>\s*\(\s*""([^""]+)""\s*\)",
             RegexOptions.Compiled
         );
+
+        /// <summary>
+        /// Rewrites top-level <c>return EXPR;</c> statements in transformed body code
+        /// so the code can be inlined directly inside a loop body instead of an IIFE lambda.
+        /// <list type="bullet">
+        ///   <item><c>return null;</c> becomes <c>continue;</c></item>
+        ///   <item><c>return EXPR;</c> becomes <c>listVar.Add(EXPR); continue;</c></item>
+        /// </list>
+        /// Returns inside nested lambda bodies (<c>=&gt; { ... }</c>) are left untouched.
+        /// </summary>
+        private static string RewriteReturnsForInline(string code, string listVar)
+        {
+            if (string.IsNullOrEmpty(code))
+                return code;
+
+            var result = new StringBuilder(code.Length + 64);
+            int len = code.Length;
+            int lambdaDepth = 0;
+
+            var braceIsLambda = new Stack<bool>();
+
+            int i = 0;
+            while (i < len)
+            {
+                char c = code[i];
+
+                // Skip string literals
+                if (c == '"')
+                {
+                    if (i > 0 && code[i - 1] == '@')
+                    {
+                        result.Append(c);
+                        i++;
+                        while (i < len)
+                        {
+                            result.Append(code[i]);
+                            if (code[i] == '"')
+                            {
+                                if (i + 1 < len && code[i + 1] == '"')
+                                {
+                                    result.Append(code[i + 1]);
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    i++;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                i++;
+                            }
+                        }
+                        continue;
+                    }
+                    result.Append(c);
+                    i++;
+                    while (i < len)
+                    {
+                        result.Append(code[i]);
+                        if (code[i] == '\\')
+                        {
+                            i++;
+                            if (i < len)
+                            {
+                                result.Append(code[i]);
+                                i++;
+                            }
+                        }
+                        else if (code[i] == '"')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                if (c == '\'')
+                {
+                    result.Append(c);
+                    i++;
+                    while (i < len)
+                    {
+                        result.Append(code[i]);
+                        if (code[i] == '\\')
+                        {
+                            i++;
+                            if (i < len)
+                            {
+                                result.Append(code[i]);
+                                i++;
+                            }
+                        }
+                        else if (code[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+
+                if (c == '/' && i + 1 < len && code[i + 1] == '/')
+                {
+                    while (i < len && code[i] != '\n')
+                    {
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (c == '/' && i + 1 < len && code[i + 1] == '*')
+                {
+                    result.Append(code[i]);
+                    result.Append(code[i + 1]);
+                    i += 2;
+                    while (i < len)
+                    {
+                        if (code[i] == '*' && i + 1 < len && code[i + 1] == '/')
+                        {
+                            result.Append(code[i]);
+                            result.Append(code[i + 1]);
+                            i += 2;
+                            break;
+                        }
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    continue;
+                }
+
+                // Track => { for lambda body detection
+                if (c == '=' && i + 1 < len && code[i + 1] == '>')
+                {
+                    result.Append('=');
+                    result.Append('>');
+                    i += 2;
+                    while (
+                        i < len
+                        && (code[i] == ' ' || code[i] == '\t' || code[i] == '\r' || code[i] == '\n')
+                    )
+                    {
+                        result.Append(code[i]);
+                        i++;
+                    }
+                    if (i < len && code[i] == '{')
+                    {
+                        braceIsLambda.Push(true);
+                        lambdaDepth++;
+                        result.Append('{');
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (c == '{')
+                {
+                    braceIsLambda.Push(false);
+                    result.Append(c);
+                    i++;
+                    continue;
+                }
+                if (c == '}')
+                {
+                    if (braceIsLambda.Count > 0 && braceIsLambda.Pop())
+                        lambdaDepth--;
+                    result.Append(c);
+                    i++;
+                    continue;
+                }
+
+                // Detect 'return' keyword at lambda depth 0
+                if (
+                    lambdaDepth == 0
+                    && c == 'r'
+                    && i + 5 < len
+                    && code[i + 1] == 'e'
+                    && code[i + 2] == 't'
+                    && code[i + 3] == 'u'
+                    && code[i + 4] == 'r'
+                    && code[i + 5] == 'n'
+                    && (i + 6 >= len || !char.IsLetterOrDigit(code[i + 6]) && code[i + 6] != '_')
+                )
+                {
+                    if (i > 0 && (char.IsLetterOrDigit(code[i - 1]) || code[i - 1] == '_'))
+                    {
+                        result.Append(c);
+                        i++;
+                        continue;
+                    }
+
+                    int afterReturn = i + 6;
+                    int exprStart = afterReturn;
+                    while (
+                        exprStart < len
+                        && (
+                            code[exprStart] == ' '
+                            || code[exprStart] == '\t'
+                            || code[exprStart] == '\r'
+                            || code[exprStart] == '\n'
+                        )
+                    )
+                        exprStart++;
+
+                    // Case 1: return null;
+                    if (
+                        exprStart + 4 <= len
+                        && code[exprStart] == 'n'
+                        && code[exprStart + 1] == 'u'
+                        && code[exprStart + 2] == 'l'
+                        && code[exprStart + 3] == 'l'
+                    )
+                    {
+                        int afterNull = exprStart + 4;
+                        while (
+                            afterNull < len
+                            && (
+                                code[afterNull] == ' '
+                                || code[afterNull] == '\t'
+                                || code[afterNull] == '\r'
+                                || code[afterNull] == '\n'
+                            )
+                        )
+                            afterNull++;
+                        if (afterNull < len && code[afterNull] == ';')
+                        {
+                            result.Append("continue;");
+                            i = afterNull + 1;
+                            continue;
+                        }
+                    }
+
+                    // Case 2/3: return EXPR; or return (EXPR);
+                    int semi = FindStatementEnd(code, exprStart);
+                    if (semi >= 0)
+                    {
+                        string expr = code.Substring(exprStart, semi - exprStart).Trim();
+                        if (expr.Length >= 2 && expr[0] == '(')
+                        {
+                            int matchClose = FindMatchingClose(expr, 0, '(', ')');
+                            if (matchClose == expr.Length - 1)
+                                expr = expr.Substring(1, expr.Length - 2).Trim();
+                        }
+                        result.Append(listVar).Append(".Add(").Append(expr).Append("); continue;");
+                        i = semi + 1;
+                        continue;
+                    }
+                }
+
+                result.Append(c);
+                i++;
+            }
+
+            return result.ToString();
+        }
+
+        private static int FindStatementEnd(string code, int start)
+        {
+            int depth = 0;
+            int i = start;
+            int len = code.Length;
+            while (i < len)
+            {
+                char c = code[i];
+                if (c == '"')
+                {
+                    if (i > 0 && code[i - 1] == '@')
+                    {
+                        i++;
+                        while (i < len)
+                        {
+                            if (code[i] == '"')
+                            {
+                                if (i + 1 < len && code[i + 1] == '"')
+                                {
+                                    i += 2;
+                                }
+                                else
+                                {
+                                    i++;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                i++;
+                            }
+                        }
+                        continue;
+                    }
+                    i++;
+                    while (i < len)
+                    {
+                        if (code[i] == '\\')
+                        {
+                            i += 2;
+                        }
+                        else if (code[i] == '"')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    i++;
+                    while (i < len)
+                    {
+                        if (code[i] == '\\')
+                        {
+                            i += 2;
+                        }
+                        else if (code[i] == '\'')
+                        {
+                            i++;
+                            break;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    continue;
+                }
+                if (c == '(' || c == '{' || c == '[')
+                {
+                    depth++;
+                    i++;
+                    continue;
+                }
+                if (c == ')' || c == '}' || c == ']')
+                {
+                    depth--;
+                    i++;
+                    continue;
+                }
+                if (c == ';' && depth == 0)
+                    return i;
+                i++;
+            }
+            return -1;
+        }
+
+        private static int FindMatchingClose(string s, int start, char open, char close)
+        {
+            int depth = 0;
+            for (int i = start; i < s.Length; i++)
+            {
+                if (s[i] == open)
+                    depth++;
+                else if (s[i] == close)
+                {
+                    depth--;
+                    if (depth == 0)
+                        return i;
+                }
+            }
+            return -1;
+        }
 
         private static string ApplyHookAliases(string code)
         {

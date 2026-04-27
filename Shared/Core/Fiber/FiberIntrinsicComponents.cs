@@ -9,10 +9,14 @@ namespace ReactiveUITK.Core.Fiber
 {
     /// <summary>
     /// Typed props wrapper for Suspense intrinsic nodes.
+    /// Stores extracted data from the VirtualNode so the VNode can be returned to pool.
     /// </summary>
     internal sealed class SuspenseProps : global::ReactiveUITK.Core.IProps
     {
-        public VirtualNode Node { get; set; }
+        public Func<bool> SuspenseReady { get; set; }
+        public Task SuspenseReadyTask { get; set; }
+        public VirtualNode Fallback { get; set; }
+        public IReadOnlyList<VirtualNode> Children { get; set; }
     }
 
     /// <summary>
@@ -34,9 +38,9 @@ namespace ReactiveUITK.Core.Fiber
             IReadOnlyList<VirtualNode> children
         )
         {
-            var suspenseNode = (rawProps as SuspenseProps)?.Node;
+            var suspenseProps = rawProps as SuspenseProps;
 
-            if (suspenseNode == null)
+            if (suspenseProps == null)
             {
                 // Fallback: behave like a fragment over the children.
                 return WrapChildrenAsFragment(children);
@@ -50,10 +54,10 @@ namespace ReactiveUITK.Core.Fiber
             bool readyEvaluatorProvided = false;
             try
             {
-                if (suspenseNode.SuspenseReady != null)
+                if (suspenseProps.SuspenseReady != null)
                 {
                     readyEvaluatorProvided = true;
-                    ready = suspenseNode.SuspenseReady();
+                    ready = suspenseProps.SuspenseReady();
                 }
             }
             catch (Exception ex)
@@ -66,7 +70,7 @@ namespace ReactiveUITK.Core.Fiber
                 catch { }
             }
 
-            Task suspenderTask = suspenseNode.SuspenseReadyTask;
+            Task suspenderTask = suspenseProps.SuspenseReadyTask;
             if (suspenderTask == null && state?.SuspensePendingTask != null)
             {
                 suspenderTask = state.SuspensePendingTask;
@@ -108,9 +112,9 @@ namespace ReactiveUITK.Core.Fiber
 
             if (renderFallback)
             {
-                if (suspenseNode.Fallback != null)
+                if (suspenseProps.Fallback != null)
                 {
-                    return suspenseNode.Fallback;
+                    return suspenseProps.Fallback;
                 }
 
                 // No explicit fallback - render nothing.
@@ -118,7 +122,7 @@ namespace ReactiveUITK.Core.Fiber
             }
 
             // Ready -> render primary children.
-            return WrapChildrenAsFragment(suspenseNode.Children);
+            return WrapChildrenAsFragment(suspenseProps.Children);
         }
 
         private static bool EvaluateSuspenseTaskResult(Task suspenderTask)
@@ -290,7 +294,13 @@ namespace ReactiveUITK.Core.Fiber
 
         internal static SuspenseProps CreateSuspenseProps(VirtualNode suspenseNode)
         {
-            return new SuspenseProps { Node = suspenseNode };
+            return new SuspenseProps
+            {
+                SuspenseReady = suspenseNode.SuspenseReady,
+                SuspenseReadyTask = suspenseNode.SuspenseReadyTask,
+                Fallback = suspenseNode.Fallback,
+                Children = suspenseNode.Children,
+            };
         }
     }
 }

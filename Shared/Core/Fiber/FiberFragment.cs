@@ -23,6 +23,11 @@ namespace ReactiveUITK.Core.Fiber
                     wipFiber.Children
                 );
             }
+            else if (wipFiber.Alternate?.Child != null)
+            {
+                // Bailout: Children cleared after commit. Clone existing child fibers.
+                FiberFactory.CloneChildrenForBailout(wipFiber);
+            }
 
             return wipFiber.Child;
         }

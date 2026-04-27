@@ -12,14 +12,17 @@ namespace ReactiveUITK.Props
     {
         private static readonly Dictionary<
             VisualElement,
-            Dictionary<string, object>
+            IDictionary<string, object>
         > previousStyles = new();
 
         private static readonly IReadOnlyDictionary<string, object> s_emptyReadOnlyProps =
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, object>(
-                new Dictionary<string, object>(0));
-        private static readonly IDictionary<string, object> s_emptyMutableProps =
-            new Dictionary<string, object>(0);
+                new Dictionary<string, object>(0)
+            );
+        internal static readonly IDictionary<string, object> s_emptyMutableProps = new Dictionary<
+            string,
+            object
+        >(0);
 
         private static readonly char[] s_classNameSeparators = { ' ', '\t', '\n', '\r' };
         private static readonly HashSet<string> s_oldClassSet = new();
@@ -72,8 +75,10 @@ namespace ReactiveUITK.Props
             };
             styleSetters["flexWrap"] = (e, v) =>
             {
-                if (v is Wrap w) e.style.flexWrap = w;
-                else e.style.flexWrap = v is string fw && fw == "wrap" ? Wrap.Wrap : Wrap.NoWrap;
+                if (v is Wrap w)
+                    e.style.flexWrap = w;
+                else
+                    e.style.flexWrap = v is string fw && fw == "wrap" ? Wrap.Wrap : Wrap.NoWrap;
             };
             styleSetters["flexBasis"] = (e, v) =>
             {
@@ -98,9 +103,11 @@ namespace ReactiveUITK.Props
 
             styleSetters["position"] = (e, v) =>
             {
-                if (v is Position p) e.style.position = p;
-                else e.style.position =
-                    v is string s && s == "absolute" ? Position.Absolute : Position.Relative;
+                if (v is Position p)
+                    e.style.position = p;
+                else
+                    e.style.position =
+                        v is string s && s == "absolute" ? Position.Absolute : Position.Relative;
             };
             styleSetters["left"] = (e, v) =>
             {
@@ -121,21 +128,27 @@ namespace ReactiveUITK.Props
 
             styleSetters["display"] = (e, v) =>
             {
-                if (v is DisplayStyle d) e.style.display = d;
-                else e.style.display =
-                    v is string ds && ds == "none" ? DisplayStyle.None : DisplayStyle.Flex;
+                if (v is DisplayStyle d)
+                    e.style.display = d;
+                else
+                    e.style.display =
+                        v is string ds && ds == "none" ? DisplayStyle.None : DisplayStyle.Flex;
             };
             styleSetters["visibility"] = (e, v) =>
             {
-                if (v is Visibility vis2) e.style.visibility = vis2;
-                else e.style.visibility =
-                    v is string vis && vis == "hidden" ? Visibility.Hidden : Visibility.Visible;
+                if (v is Visibility vis2)
+                    e.style.visibility = vis2;
+                else
+                    e.style.visibility =
+                        v is string vis && vis == "hidden" ? Visibility.Hidden : Visibility.Visible;
             };
             styleSetters["overflow"] = (e, v) =>
             {
-                if (v is Overflow ov2) e.style.overflow = ov2;
-                else e.style.overflow =
-                    v is string ov && ov == "hidden" ? Overflow.Hidden : Overflow.Visible;
+                if (v is Overflow ov2)
+                    e.style.overflow = ov2;
+                else
+                    e.style.overflow =
+                        v is string ov && ov == "hidden" ? Overflow.Hidden : Overflow.Visible;
             };
             styleSetters["opacity"] = (e, v) =>
             {
@@ -143,9 +156,11 @@ namespace ReactiveUITK.Props
             };
             styleSetters["whiteSpace"] = (e, v) =>
             {
-                if (v is WhiteSpace ws2) e.style.whiteSpace = ws2;
-                else e.style.whiteSpace =
-                    v is string ws && ws == "nowrap" ? WhiteSpace.NoWrap : WhiteSpace.Normal;
+                if (v is WhiteSpace ws2)
+                    e.style.whiteSpace = ws2;
+                else
+                    e.style.whiteSpace =
+                        v is string ws && ws == "nowrap" ? WhiteSpace.NoWrap : WhiteSpace.Normal;
             };
 
             styleSetters["fontSize"] = (e, v) =>
@@ -154,7 +169,10 @@ namespace ReactiveUITK.Props
             };
             styleSetters["textAlign"] = (e, v) =>
             {
-                if (v is TextAnchor ta2) { e.style.unityTextAlign = ta2; }
+                if (v is TextAnchor ta2)
+                {
+                    e.style.unityTextAlign = ta2;
+                }
                 else if (v is string ta && ta == "center")
                 {
                     e.style.unityTextAlign = TextAnchor.MiddleCenter;
@@ -173,7 +191,10 @@ namespace ReactiveUITK.Props
             };
             styleSetters["unityFontStyle"] = (e, v) =>
             {
-                if (v is FontStyle fs2) { e.style.unityFontStyleAndWeight = fs2; }
+                if (v is FontStyle fs2)
+                {
+                    e.style.unityFontStyleAndWeight = fs2;
+                }
                 else if (v is string fs && fs == "bold")
                 {
                     e.style.unityFontStyleAndWeight = FontStyle.Bold;
@@ -203,7 +224,10 @@ namespace ReactiveUITK.Props
             {
                 try
                 {
-                    if (v is TextOverflow to2) { e.style.textOverflow = to2; }
+                    if (v is TextOverflow to2)
+                    {
+                        e.style.textOverflow = to2;
+                    }
                     else if (v is string ovf)
                     {
                         e.style.textOverflow =
@@ -232,7 +256,11 @@ namespace ReactiveUITK.Props
             {
                 if (v is TextOverflowPosition tp)
                 {
-                    try { e.style.unityTextOverflowPosition = tp; } catch { }
+                    try
+                    {
+                        e.style.unityTextOverflowPosition = tp;
+                    }
+                    catch { }
                 }
                 else if (v is string pos)
                 {
@@ -252,7 +280,13 @@ namespace ReactiveUITK.Props
             {
                 if (v is TextAutoSizeMode mode)
                 {
-                    try { e.style.unityTextAutoSize = new StyleTextAutoSize(new TextAutoSize(mode, default, default)); } catch { }
+                    try
+                    {
+                        e.style.unityTextAutoSize = new StyleTextAutoSize(
+                            new TextAutoSize(mode, default, default)
+                        );
+                    }
+                    catch { }
                 }
                 else if (v is string s)
                 {
@@ -263,7 +297,9 @@ namespace ReactiveUITK.Props
                             "best-fit" => TextAutoSizeMode.BestFit,
                             _ => TextAutoSizeMode.None,
                         };
-                        e.style.unityTextAutoSize = new StyleTextAutoSize(new TextAutoSize(m, default, default));
+                        e.style.unityTextAutoSize = new StyleTextAutoSize(
+                            new TextAutoSize(m, default, default)
+                        );
                     }
                     catch { }
                 }
@@ -522,9 +558,9 @@ namespace ReactiveUITK.Props
                         var r = s switch
                         {
                             "no-repeat" => Repeat.NoRepeat,
-                            "space"     => Repeat.Space,
-                            "round"     => Repeat.Round,
-                            _           => Repeat.Repeat,
+                            "space" => Repeat.Space,
+                            "round" => Repeat.Round,
+                            _ => Repeat.Repeat,
                         };
                         e.style.backgroundRepeat = new BackgroundRepeat(r, r);
                     }
@@ -541,9 +577,9 @@ namespace ReactiveUITK.Props
                     {
                         e.style.backgroundPositionX = s switch
                         {
-                            "left"  => new BackgroundPosition(BackgroundPositionKeyword.Left),
+                            "left" => new BackgroundPosition(BackgroundPositionKeyword.Left),
                             "right" => new BackgroundPosition(BackgroundPositionKeyword.Right),
-                            _       => new BackgroundPosition(BackgroundPositionKeyword.Center),
+                            _ => new BackgroundPosition(BackgroundPositionKeyword.Center),
                         };
                     }
                 }
@@ -559,9 +595,9 @@ namespace ReactiveUITK.Props
                     {
                         e.style.backgroundPositionY = s switch
                         {
-                            "top"    => new BackgroundPosition(BackgroundPositionKeyword.Top),
+                            "top" => new BackgroundPosition(BackgroundPositionKeyword.Top),
                             "bottom" => new BackgroundPosition(BackgroundPositionKeyword.Bottom),
-                            _        => new BackgroundPosition(BackgroundPositionKeyword.Center),
+                            _ => new BackgroundPosition(BackgroundPositionKeyword.Center),
                         };
                     }
                 }
@@ -577,9 +613,9 @@ namespace ReactiveUITK.Props
                     {
                         e.style.backgroundSize = s switch
                         {
-                            "cover"   => new BackgroundSize(BackgroundSizeType.Cover),
+                            "cover" => new BackgroundSize(BackgroundSizeType.Cover),
                             "contain" => new BackgroundSize(BackgroundSizeType.Contain),
-                            _         => new BackgroundSize(BackgroundSizeType.Length),
+                            _ => new BackgroundSize(BackgroundSizeType.Length),
                         };
                     }
                 }
@@ -661,7 +697,10 @@ namespace ReactiveUITK.Props
                 {
                     var mode = ConvertToEasingMode(s);
                     e.style.transitionTimingFunction = new StyleList<EasingFunction>(
-                        new System.Collections.Generic.List<EasingFunction> { new EasingFunction(mode) }
+                        new System.Collections.Generic.List<EasingFunction>
+                        {
+                            new EasingFunction(mode),
+                        }
                     );
                 }
             };
@@ -1088,12 +1127,8 @@ namespace ReactiveUITK.Props
             next.TryGetValue("style", out var nextStyleObj);
             if (prevStyleObj != null || nextStyleObj != null)
             {
-                var prevMap =
-                    prevStyleObj as IDictionary<string, object>
-                    ?? s_emptyMutableProps;
-                var nextMap =
-                    nextStyleObj as IDictionary<string, object>
-                    ?? s_emptyMutableProps;
+                var prevMap = prevStyleObj as IDictionary<string, object> ?? s_emptyMutableProps;
+                var nextMap = nextStyleObj as IDictionary<string, object> ?? s_emptyMutableProps;
                 foreach (KeyValuePair<string, object> previousStyle in prevMap)
                 {
                     if (!nextMap.ContainsKey(previousStyle.Key))
@@ -1117,7 +1152,7 @@ namespace ReactiveUITK.Props
             }
         }
 
-        private static void ApplySingle(
+        internal static void ApplySingle(
             VisualElement element,
             object oldValue,
             string propertyName,
@@ -1242,7 +1277,8 @@ namespace ReactiveUITK.Props
                 {
                     // Fast-path: both are single-token class names (no whitespace)
                     bool oldIsSingle = oldClasses.IndexOfAny(s_classNameSeparators) < 0;
-                    bool newIsSingle = newClasses != null && newClasses.IndexOfAny(s_classNameSeparators) < 0;
+                    bool newIsSingle =
+                        newClasses != null && newClasses.IndexOfAny(s_classNameSeparators) < 0;
                     if (oldIsSingle && newIsSingle)
                     {
                         if (!string.Equals(oldClasses, newClasses, StringComparison.Ordinal))
@@ -1260,9 +1296,19 @@ namespace ReactiveUITK.Props
                         // General diff with reusable static HashSets
                         s_oldClassSet.Clear();
                         s_newClassSet.Clear();
-                        foreach (var token in (oldClasses ?? string.Empty).Split(s_classNameSeparators, StringSplitOptions.RemoveEmptyEntries))
+                        foreach (
+                            var token in (oldClasses ?? string.Empty).Split(
+                                s_classNameSeparators,
+                                StringSplitOptions.RemoveEmptyEntries
+                            )
+                        )
                             s_oldClassSet.Add(token);
-                        foreach (var token in (newClasses ?? string.Empty).Split(s_classNameSeparators, StringSplitOptions.RemoveEmptyEntries))
+                        foreach (
+                            var token in (newClasses ?? string.Empty).Split(
+                                s_classNameSeparators,
+                                StringSplitOptions.RemoveEmptyEntries
+                            )
+                        )
                             s_newClassSet.Add(token);
 
                         foreach (var cls in s_oldClassSet)
@@ -1288,7 +1334,12 @@ namespace ReactiveUITK.Props
                         }
                         else
                         {
-                            foreach (var cls in newClasses.Split(s_classNameSeparators, StringSplitOptions.RemoveEmptyEntries))
+                            foreach (
+                                var cls in newClasses.Split(
+                                    s_classNameSeparators,
+                                    StringSplitOptions.RemoveEmptyEntries
+                                )
+                            )
                                 element.AddToClassList(cls);
                         }
                     }
@@ -1338,7 +1389,7 @@ namespace ReactiveUITK.Props
             }
         }
 
-        private static void RemoveProp(VisualElement element, string propertyName, object oldValue)
+        internal static void RemoveProp(VisualElement element, string propertyName, object oldValue)
         {
             if (propertyName == "ref")
             {
@@ -1445,7 +1496,7 @@ namespace ReactiveUITK.Props
             }
         }
 
-        private static void ApplyStyle(VisualElement element, string styleKey, object value)
+        internal static void ApplyStyle(VisualElement element, string styleKey, object value)
         {
             styleKey = Canonicalize(styleKey);
             if (!previousStyles.TryGetValue(element, out var prevMap))
@@ -1463,7 +1514,7 @@ namespace ReactiveUITK.Props
             return;
         }
 
-        private static void ResetStyle(VisualElement element, string styleKey)
+        internal static void ResetStyle(VisualElement element, string styleKey)
         {
             styleKey = Canonicalize(styleKey);
             if (styleResetters.TryGetValue(styleKey, out var reset))
@@ -1793,7 +1844,7 @@ namespace ReactiveUITK.Props
             }
         }
 
-        private static Color ConvertToColor(object value)
+        internal static Color ConvertToColor(object value)
         {
             if (value is Color c)
             {
@@ -1928,81 +1979,272 @@ namespace ReactiveUITK.Props
             }
 
             // ── Pointer events ─────────────────────────────────────────────
-            if (eventPropName == "onClick") { RegisterEvent<ClickEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onClickCapture") { RegisterEvent<ClickEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onPointerDown") { RegisterEvent<PointerDownEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onPointerDownCapture") { RegisterEvent<PointerDownEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onPointerUp") { RegisterEvent<PointerUpEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onPointerUpCapture") { RegisterEvent<PointerUpEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onPointerMove") { RegisterEvent<PointerMoveEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onPointerMoveCapture") { RegisterEvent<PointerMoveEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onPointerEnter") { RegisterEvent<PointerEnterEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onPointerEnterCapture") { RegisterEvent<PointerEnterEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onPointerLeave") { RegisterEvent<PointerLeaveEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onPointerLeaveCapture") { RegisterEvent<PointerLeaveEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onClick")
+            {
+                RegisterEvent<ClickEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onClickCapture")
+            {
+                RegisterEvent<ClickEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onPointerDown")
+            {
+                RegisterEvent<PointerDownEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onPointerDownCapture")
+            {
+                RegisterEvent<PointerDownEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onPointerUp")
+            {
+                RegisterEvent<PointerUpEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onPointerUpCapture")
+            {
+                RegisterEvent<PointerUpEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onPointerMove")
+            {
+                RegisterEvent<PointerMoveEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onPointerMoveCapture")
+            {
+                RegisterEvent<PointerMoveEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onPointerEnter")
+            {
+                RegisterEvent<PointerEnterEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onPointerEnterCapture")
+            {
+                RegisterEvent<PointerEnterEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onPointerLeave")
+            {
+                RegisterEvent<PointerLeaveEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onPointerLeaveCapture")
+            {
+                RegisterEvent<PointerLeaveEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
 
             // ── Scroll / wheel ─────────────────────────────────────────────
-            if (eventPropName == "onWheel") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onWheelCapture") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onScroll") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onScrollCapture") { RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onWheel")
+            {
+                RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onWheelCapture")
+            {
+                RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onScroll")
+            {
+                RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onScrollCapture")
+            {
+                RegisterEvent<WheelEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
 
             // ── Focus ──────────────────────────────────────────────────────
-            if (eventPropName == "onFocus") { RegisterEvent<FocusEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onFocusCapture") { RegisterEvent<FocusEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onBlur") { RegisterEvent<BlurEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onBlurCapture") { RegisterEvent<BlurEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onFocusIn") { RegisterEvent<FocusInEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onFocusInCapture") { RegisterEvent<FocusInEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onFocusOut") { RegisterEvent<FocusOutEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onFocusOutCapture") { RegisterEvent<FocusOutEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onFocus")
+            {
+                RegisterEvent<FocusEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onFocusCapture")
+            {
+                RegisterEvent<FocusEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onBlur")
+            {
+                RegisterEvent<BlurEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onBlurCapture")
+            {
+                RegisterEvent<BlurEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onFocusIn")
+            {
+                RegisterEvent<FocusInEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onFocusInCapture")
+            {
+                RegisterEvent<FocusInEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onFocusOut")
+            {
+                RegisterEvent<FocusOutEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onFocusOutCapture")
+            {
+                RegisterEvent<FocusOutEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
 
             // ── Keyboard ───────────────────────────────────────────────────
-            if (eventPropName == "onKeyDown") { RegisterEvent<KeyDownEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onKeyDownCapture") { RegisterEvent<KeyDownEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onKeyUp") { RegisterEvent<KeyUpEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onKeyUpCapture") { RegisterEvent<KeyUpEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onKeyDown")
+            {
+                RegisterEvent<KeyDownEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onKeyDownCapture")
+            {
+                RegisterEvent<KeyDownEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onKeyUp")
+            {
+                RegisterEvent<KeyUpEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onKeyUpCapture")
+            {
+                RegisterEvent<KeyUpEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
 
             // ── onChange — polymorphic on element type ──────────────────────
             if (eventPropName == "onChange" || eventPropName == "onChangeCapture")
             {
                 bool capture = eventPropName == "onChangeCapture";
-                if (element is UnityEngine.UIElements.Toggle or UnityEngine.UIElements.RadioButton or UnityEngine.UIElements.Foldout)
+                if (
+                    element
+                    is UnityEngine.UIElements.Toggle
+                        or UnityEngine.UIElements.RadioButton
+                        or UnityEngine.UIElements.Foldout
+                )
                     RegisterEvent<ChangeEvent<bool>>(element, meta, eventPropName, newSig, capture);
-                else if (element is UnityEngine.UIElements.SliderInt or UnityEngine.UIElements.RadioButtonGroup)
+                else if (
+                    element
+                    is UnityEngine.UIElements.SliderInt
+                        or UnityEngine.UIElements.RadioButtonGroup
+                )
                     RegisterEvent<ChangeEvent<int>>(element, meta, eventPropName, newSig, capture);
                 else if (element is UnityEngine.UIElements.Slider)
-                    RegisterEvent<ChangeEvent<float>>(element, meta, eventPropName, newSig, capture);
+                    RegisterEvent<ChangeEvent<float>>(
+                        element,
+                        meta,
+                        eventPropName,
+                        newSig,
+                        capture
+                    );
                 else
-                    RegisterEvent<ChangeEvent<string>>(element, meta, eventPropName, newSig, capture);
+                    RegisterEvent<ChangeEvent<string>>(
+                        element,
+                        meta,
+                        eventPropName,
+                        newSig,
+                        capture
+                    );
                 return;
             }
 
             // ── onInput ────────────────────────────────────────────────────
             if (eventPropName == "onInput" || eventPropName == "onInputCapture")
             {
-                RegisterEvent<InputEvent>(element, meta, eventPropName, newSig, eventPropName == "onInputCapture");
+                RegisterEvent<InputEvent>(
+                    element,
+                    meta,
+                    eventPropName,
+                    newSig,
+                    eventPropName == "onInputCapture"
+                );
                 return;
             }
 
             // ── Drag events (editor-only) ──────────────────────────────────
 #if UNITY_EDITOR
-            if (eventPropName == "onDragEnter") { RegisterEvent<DragEnterEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onDragEnterCapture") { RegisterEvent<DragEnterEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onDragLeave") { RegisterEvent<DragLeaveEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onDragLeaveCapture") { RegisterEvent<DragLeaveEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onDragUpdated") { RegisterEvent<DragUpdatedEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onDragUpdatedCapture") { RegisterEvent<DragUpdatedEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onDragPerform") { RegisterEvent<DragPerformEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onDragPerformCapture") { RegisterEvent<DragPerformEvent>(element, meta, eventPropName, newSig, true); return; }
-            if (eventPropName == "onDragExited") { RegisterEvent<DragExitedEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onDragExitedCapture") { RegisterEvent<DragExitedEvent>(element, meta, eventPropName, newSig, true); return; }
+            if (eventPropName == "onDragEnter")
+            {
+                RegisterEvent<DragEnterEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onDragEnterCapture")
+            {
+                RegisterEvent<DragEnterEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onDragLeave")
+            {
+                RegisterEvent<DragLeaveEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onDragLeaveCapture")
+            {
+                RegisterEvent<DragLeaveEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onDragUpdated")
+            {
+                RegisterEvent<DragUpdatedEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onDragUpdatedCapture")
+            {
+                RegisterEvent<DragUpdatedEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onDragPerform")
+            {
+                RegisterEvent<DragPerformEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onDragPerformCapture")
+            {
+                RegisterEvent<DragPerformEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
+            if (eventPropName == "onDragExited")
+            {
+                RegisterEvent<DragExitedEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onDragExitedCapture")
+            {
+                RegisterEvent<DragExitedEvent>(element, meta, eventPropName, newSig, true);
+                return;
+            }
 #endif
 
             // ── Lifecycle (no capture variants — target-only events) ───────
-            if (eventPropName == "onGeometryChanged") { RegisterEvent<GeometryChangedEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onAttachToPanel") { RegisterEvent<AttachToPanelEvent>(element, meta, eventPropName, newSig, false); return; }
-            if (eventPropName == "onDetachFromPanel") { RegisterEvent<DetachFromPanelEvent>(element, meta, eventPropName, newSig, false); return; }
+            if (eventPropName == "onGeometryChanged")
+            {
+                RegisterEvent<GeometryChangedEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onAttachToPanel")
+            {
+                RegisterEvent<AttachToPanelEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
+            if (eventPropName == "onDetachFromPanel")
+            {
+                RegisterEvent<DetachFromPanelEvent>(element, meta, eventPropName, newSig, false);
+                return;
+            }
         }
 
         // ── RemoveEvent ────────────────────────────────────────────────────
@@ -2020,32 +2262,89 @@ namespace ReactiveUITK.Props
             }
 
             // ── Pointer events ─────────────────────────────────────────────
-            if (eventPropName == "onClick" || eventPropName == "onClickCapture") { UnregisterEvent<ClickEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onPointerDown" || eventPropName == "onPointerDownCapture") { UnregisterEvent<PointerDownEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onPointerUp" || eventPropName == "onPointerUpCapture") { UnregisterEvent<PointerUpEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onPointerMove" || eventPropName == "onPointerMoveCapture") { UnregisterEvent<PointerMoveEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onPointerEnter" || eventPropName == "onPointerEnterCapture") { UnregisterEvent<PointerEnterEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onPointerLeave" || eventPropName == "onPointerLeaveCapture") { UnregisterEvent<PointerLeaveEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onClick" || eventPropName == "onClickCapture")
+            {
+                UnregisterEvent<ClickEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onPointerDown" || eventPropName == "onPointerDownCapture")
+            {
+                UnregisterEvent<PointerDownEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onPointerUp" || eventPropName == "onPointerUpCapture")
+            {
+                UnregisterEvent<PointerUpEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onPointerMove" || eventPropName == "onPointerMoveCapture")
+            {
+                UnregisterEvent<PointerMoveEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onPointerEnter" || eventPropName == "onPointerEnterCapture")
+            {
+                UnregisterEvent<PointerEnterEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onPointerLeave" || eventPropName == "onPointerLeaveCapture")
+            {
+                UnregisterEvent<PointerLeaveEvent>(element, meta, eventPropName);
+                return;
+            }
 
             // ── Scroll / wheel ─────────────────────────────────────────────
-            if (eventPropName == "onWheel" || eventPropName == "onWheelCapture") { UnregisterEvent<WheelEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onScroll" || eventPropName == "onScrollCapture") { UnregisterEvent<WheelEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onWheel" || eventPropName == "onWheelCapture")
+            {
+                UnregisterEvent<WheelEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onScroll" || eventPropName == "onScrollCapture")
+            {
+                UnregisterEvent<WheelEvent>(element, meta, eventPropName);
+                return;
+            }
 
             // ── Focus ──────────────────────────────────────────────────────
-            if (eventPropName == "onFocus" || eventPropName == "onFocusCapture") { UnregisterEvent<FocusEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onBlur" || eventPropName == "onBlurCapture") { UnregisterEvent<BlurEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onFocusIn" || eventPropName == "onFocusInCapture") { UnregisterEvent<FocusInEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onFocusOut" || eventPropName == "onFocusOutCapture") { UnregisterEvent<FocusOutEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onFocus" || eventPropName == "onFocusCapture")
+            {
+                UnregisterEvent<FocusEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onBlur" || eventPropName == "onBlurCapture")
+            {
+                UnregisterEvent<BlurEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onFocusIn" || eventPropName == "onFocusInCapture")
+            {
+                UnregisterEvent<FocusInEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onFocusOut" || eventPropName == "onFocusOutCapture")
+            {
+                UnregisterEvent<FocusOutEvent>(element, meta, eventPropName);
+                return;
+            }
 
             // ── Keyboard ───────────────────────────────────────────────────
-            if (eventPropName == "onKeyDown" || eventPropName == "onKeyDownCapture") { UnregisterEvent<KeyDownEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onKeyUp" || eventPropName == "onKeyUpCapture") { UnregisterEvent<KeyUpEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onKeyDown" || eventPropName == "onKeyDownCapture")
+            {
+                UnregisterEvent<KeyDownEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onKeyUp" || eventPropName == "onKeyUpCapture")
+            {
+                UnregisterEvent<KeyUpEvent>(element, meta, eventPropName);
+                return;
+            }
 
             // ── onChange — try all possible ChangeEvent<T> types ───────────
             if (eventPropName == "onChange" || eventPropName == "onChangeCapture")
             {
                 // Short-circuit: first matching type wins
-                _ = UnregisterEvent<ChangeEvent<bool>>(element, meta, eventPropName)
+                _ =
+                    UnregisterEvent<ChangeEvent<bool>>(element, meta, eventPropName)
                     || UnregisterEvent<ChangeEvent<int>>(element, meta, eventPropName)
                     || UnregisterEvent<ChangeEvent<float>>(element, meta, eventPropName)
                     || UnregisterEvent<ChangeEvent<string>>(element, meta, eventPropName);
@@ -2053,21 +2352,57 @@ namespace ReactiveUITK.Props
             }
 
             // ── onInput ────────────────────────────────────────────────────
-            if (eventPropName == "onInput" || eventPropName == "onInputCapture") { UnregisterEvent<InputEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onInput" || eventPropName == "onInputCapture")
+            {
+                UnregisterEvent<InputEvent>(element, meta, eventPropName);
+                return;
+            }
 
             // ── Drag events (editor-only) ──────────────────────────────────
 #if UNITY_EDITOR
-            if (eventPropName == "onDragEnter" || eventPropName == "onDragEnterCapture") { UnregisterEvent<DragEnterEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onDragLeave" || eventPropName == "onDragLeaveCapture") { UnregisterEvent<DragLeaveEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onDragUpdated" || eventPropName == "onDragUpdatedCapture") { UnregisterEvent<DragUpdatedEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onDragPerform" || eventPropName == "onDragPerformCapture") { UnregisterEvent<DragPerformEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onDragExited" || eventPropName == "onDragExitedCapture") { UnregisterEvent<DragExitedEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onDragEnter" || eventPropName == "onDragEnterCapture")
+            {
+                UnregisterEvent<DragEnterEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onDragLeave" || eventPropName == "onDragLeaveCapture")
+            {
+                UnregisterEvent<DragLeaveEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onDragUpdated" || eventPropName == "onDragUpdatedCapture")
+            {
+                UnregisterEvent<DragUpdatedEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onDragPerform" || eventPropName == "onDragPerformCapture")
+            {
+                UnregisterEvent<DragPerformEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onDragExited" || eventPropName == "onDragExitedCapture")
+            {
+                UnregisterEvent<DragExitedEvent>(element, meta, eventPropName);
+                return;
+            }
 #endif
 
             // ── Lifecycle (no capture variants) ────────────────────────────
-            if (eventPropName == "onGeometryChanged") { UnregisterEvent<GeometryChangedEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onAttachToPanel") { UnregisterEvent<AttachToPanelEvent>(element, meta, eventPropName); return; }
-            if (eventPropName == "onDetachFromPanel") { UnregisterEvent<DetachFromPanelEvent>(element, meta, eventPropName); return; }
+            if (eventPropName == "onGeometryChanged")
+            {
+                UnregisterEvent<GeometryChangedEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onAttachToPanel")
+            {
+                UnregisterEvent<AttachToPanelEvent>(element, meta, eventPropName);
+                return;
+            }
+            if (eventPropName == "onDetachFromPanel")
+            {
+                UnregisterEvent<DetachFromPanelEvent>(element, meta, eventPropName);
+                return;
+            }
 
             // ── Fallback: try to remove by stored handler ──────────────────
             if (meta.EventHandlers.TryGetValue(eventPropName, out var stored))
@@ -2143,56 +2478,217 @@ namespace ReactiveUITK.Props
             {
                 // ── Fast typed dispatch — covers 95%+ of real-world handlers ──
                 // Action (zero-arg) — already the #1 path
-                if (del is Action action) { action(); return; }
+                if (del is Action action)
+                {
+                    action();
+                    return;
+                }
 
                 // Common single-event-type handlers
-                if (del is Action<ClickEvent> clickH) { clickH(evt as ClickEvent); return; }
-                if (del is Action<PointerDownEvent> ptrDown) { ptrDown(evt as PointerDownEvent); return; }
-                if (del is Action<PointerUpEvent> ptrUp) { ptrUp(evt as PointerUpEvent); return; }
-                if (del is Action<PointerMoveEvent> ptrMove) { ptrMove(evt as PointerMoveEvent); return; }
-                if (del is Action<PointerEnterEvent> ptrEnter) { ptrEnter(evt as PointerEnterEvent); return; }
-                if (del is Action<PointerLeaveEvent> ptrLeave) { ptrLeave(evt as PointerLeaveEvent); return; }
-                if (del is Action<PointerOverEvent> ptrOver) { ptrOver(evt as PointerOverEvent); return; }
-                if (del is Action<PointerOutEvent> ptrOut) { ptrOut(evt as PointerOutEvent); return; }
-                if (del is Action<MouseDownEvent> mouseDown) { mouseDown(evt as MouseDownEvent); return; }
-                if (del is Action<MouseUpEvent> mouseUp) { mouseUp(evt as MouseUpEvent); return; }
-                if (del is Action<MouseMoveEvent> mouseMove) { mouseMove(evt as MouseMoveEvent); return; }
-                if (del is Action<MouseEnterEvent> mouseEnter) { mouseEnter(evt as MouseEnterEvent); return; }
-                if (del is Action<MouseLeaveEvent> mouseLeave) { mouseLeave(evt as MouseLeaveEvent); return; }
-                if (del is Action<MouseOverEvent> mouseOver) { mouseOver(evt as MouseOverEvent); return; }
-                if (del is Action<MouseOutEvent> mouseOut) { mouseOut(evt as MouseOutEvent); return; }
-                if (del is Action<WheelEvent> wheel) { wheel(evt as WheelEvent); return; }
-                if (del is Action<FocusEvent> focus) { focus(evt as FocusEvent); return; }
-                if (del is Action<BlurEvent> blur) { blur(evt as BlurEvent); return; }
-                if (del is Action<FocusInEvent> focusIn) { focusIn(evt as FocusInEvent); return; }
-                if (del is Action<FocusOutEvent> focusOut) { focusOut(evt as FocusOutEvent); return; }
-                if (del is Action<KeyDownEvent> keyDown) { keyDown(evt as KeyDownEvent); return; }
-                if (del is Action<KeyUpEvent> keyUp) { keyUp(evt as KeyUpEvent); return; }
-                if (del is Action<NavigationSubmitEvent> navSubmit) { navSubmit(evt as NavigationSubmitEvent); return; }
-                if (del is Action<NavigationCancelEvent> navCancel) { navCancel(evt as NavigationCancelEvent); return; }
-                if (del is Action<NavigationMoveEvent> navMove) { navMove(evt as NavigationMoveEvent); return; }
-                if (del is Action<GeometryChangedEvent> geom) { geom(evt as GeometryChangedEvent); return; }
-                if (del is Action<AttachToPanelEvent> attach) { attach(evt as AttachToPanelEvent); return; }
-                if (del is Action<DetachFromPanelEvent> detach) { detach(evt as DetachFromPanelEvent); return; }
-                if (del is Action<TooltipEvent> tooltip) { tooltip(evt as TooltipEvent); return; }
-                if (del is Action<TransitionEndEvent> transEnd) { transEnd(evt as TransitionEndEvent); return; }
-                if (del is Action<InputEvent> inputH) { inputH(evt as InputEvent); return; }
+                if (del is Action<ClickEvent> clickH)
+                {
+                    clickH(evt as ClickEvent);
+                    return;
+                }
+                if (del is Action<PointerDownEvent> ptrDown)
+                {
+                    ptrDown(evt as PointerDownEvent);
+                    return;
+                }
+                if (del is Action<PointerUpEvent> ptrUp)
+                {
+                    ptrUp(evt as PointerUpEvent);
+                    return;
+                }
+                if (del is Action<PointerMoveEvent> ptrMove)
+                {
+                    ptrMove(evt as PointerMoveEvent);
+                    return;
+                }
+                if (del is Action<PointerEnterEvent> ptrEnter)
+                {
+                    ptrEnter(evt as PointerEnterEvent);
+                    return;
+                }
+                if (del is Action<PointerLeaveEvent> ptrLeave)
+                {
+                    ptrLeave(evt as PointerLeaveEvent);
+                    return;
+                }
+                if (del is Action<PointerOverEvent> ptrOver)
+                {
+                    ptrOver(evt as PointerOverEvent);
+                    return;
+                }
+                if (del is Action<PointerOutEvent> ptrOut)
+                {
+                    ptrOut(evt as PointerOutEvent);
+                    return;
+                }
+                if (del is Action<MouseDownEvent> mouseDown)
+                {
+                    mouseDown(evt as MouseDownEvent);
+                    return;
+                }
+                if (del is Action<MouseUpEvent> mouseUp)
+                {
+                    mouseUp(evt as MouseUpEvent);
+                    return;
+                }
+                if (del is Action<MouseMoveEvent> mouseMove)
+                {
+                    mouseMove(evt as MouseMoveEvent);
+                    return;
+                }
+                if (del is Action<MouseEnterEvent> mouseEnter)
+                {
+                    mouseEnter(evt as MouseEnterEvent);
+                    return;
+                }
+                if (del is Action<MouseLeaveEvent> mouseLeave)
+                {
+                    mouseLeave(evt as MouseLeaveEvent);
+                    return;
+                }
+                if (del is Action<MouseOverEvent> mouseOver)
+                {
+                    mouseOver(evt as MouseOverEvent);
+                    return;
+                }
+                if (del is Action<MouseOutEvent> mouseOut)
+                {
+                    mouseOut(evt as MouseOutEvent);
+                    return;
+                }
+                if (del is Action<WheelEvent> wheel)
+                {
+                    wheel(evt as WheelEvent);
+                    return;
+                }
+                if (del is Action<FocusEvent> focus)
+                {
+                    focus(evt as FocusEvent);
+                    return;
+                }
+                if (del is Action<BlurEvent> blur)
+                {
+                    blur(evt as BlurEvent);
+                    return;
+                }
+                if (del is Action<FocusInEvent> focusIn)
+                {
+                    focusIn(evt as FocusInEvent);
+                    return;
+                }
+                if (del is Action<FocusOutEvent> focusOut)
+                {
+                    focusOut(evt as FocusOutEvent);
+                    return;
+                }
+                if (del is Action<KeyDownEvent> keyDown)
+                {
+                    keyDown(evt as KeyDownEvent);
+                    return;
+                }
+                if (del is Action<KeyUpEvent> keyUp)
+                {
+                    keyUp(evt as KeyUpEvent);
+                    return;
+                }
+                if (del is Action<NavigationSubmitEvent> navSubmit)
+                {
+                    navSubmit(evt as NavigationSubmitEvent);
+                    return;
+                }
+                if (del is Action<NavigationCancelEvent> navCancel)
+                {
+                    navCancel(evt as NavigationCancelEvent);
+                    return;
+                }
+                if (del is Action<NavigationMoveEvent> navMove)
+                {
+                    navMove(evt as NavigationMoveEvent);
+                    return;
+                }
+                if (del is Action<GeometryChangedEvent> geom)
+                {
+                    geom(evt as GeometryChangedEvent);
+                    return;
+                }
+                if (del is Action<AttachToPanelEvent> attach)
+                {
+                    attach(evt as AttachToPanelEvent);
+                    return;
+                }
+                if (del is Action<DetachFromPanelEvent> detach)
+                {
+                    detach(evt as DetachFromPanelEvent);
+                    return;
+                }
+                if (del is Action<TooltipEvent> tooltip)
+                {
+                    tooltip(evt as TooltipEvent);
+                    return;
+                }
+                if (del is Action<TransitionEndEvent> transEnd)
+                {
+                    transEnd(evt as TransitionEndEvent);
+                    return;
+                }
+                if (del is Action<InputEvent> inputH)
+                {
+                    inputH(evt as InputEvent);
+                    return;
+                }
 
                 // ChangeEvent<T> typed handlers
-                if (del is Action<ChangeEvent<string>> ceStr) { ceStr(evt as ChangeEvent<string>); return; }
-                if (del is Action<ChangeEvent<bool>> ceBool) { ceBool(evt as ChangeEvent<bool>); return; }
-                if (del is Action<ChangeEvent<int>> ceInt) { ceInt(evt as ChangeEvent<int>); return; }
-                if (del is Action<ChangeEvent<float>> ceFloat) { ceFloat(evt as ChangeEvent<float>); return; }
-                if (del is Action<ChangeEvent<double>> ceDouble) { ceDouble(evt as ChangeEvent<double>); return; }
-                if (del is Action<ChangeEvent<long>> ceLong) { ceLong(evt as ChangeEvent<long>); return; }
-                if (del is Action<ChangeEvent<Enum>> ceEnum) { ceEnum(evt as ChangeEvent<Enum>); return; }
-                if (del is Action<ChangeEvent<UnityEngine.Object>> ceObj) { ceObj(evt as ChangeEvent<UnityEngine.Object>); return; }
+                if (del is Action<ChangeEvent<string>> ceStr)
+                {
+                    ceStr(evt as ChangeEvent<string>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<bool>> ceBool)
+                {
+                    ceBool(evt as ChangeEvent<bool>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<int>> ceInt)
+                {
+                    ceInt(evt as ChangeEvent<int>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<float>> ceFloat)
+                {
+                    ceFloat(evt as ChangeEvent<float>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<double>> ceDouble)
+                {
+                    ceDouble(evt as ChangeEvent<double>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<long>> ceLong)
+                {
+                    ceLong(evt as ChangeEvent<long>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<Enum>> ceEnum)
+                {
+                    ceEnum(evt as ChangeEvent<Enum>);
+                    return;
+                }
+                if (del is Action<ChangeEvent<UnityEngine.Object>> ceObj)
+                {
+                    ceObj(evt as ChangeEvent<UnityEngine.Object>);
+                    return;
+                }
 
                 // ReactiveEvent handler
                 if (del is Action<ReactiveEvent> reactiveH)
                 {
                     var synth = ReactiveEvent.Create(evt);
-                    if (synth != null) synth.CurrentTarget = evt?.currentTarget as VisualElement;
+                    if (synth != null)
+                        synth.CurrentTarget = evt?.currentTarget as VisualElement;
                     reactiveH(synth);
                     return;
                 }
@@ -2202,10 +2698,15 @@ namespace ReactiveUITK.Props
                 if (evt != null)
                 {
                     var evtType = evt.GetType();
-                    if (evtType.IsGenericType
-                        && evtType.Name.StartsWith("ChangeEvent`", StringComparison.Ordinal))
+                    if (
+                        evtType.IsGenericType
+                        && evtType.Name.StartsWith("ChangeEvent`", StringComparison.Ordinal)
+                    )
                     {
-                        try { newValue = evtType.GetProperty("newValue")?.GetValue(evt); }
+                        try
+                        {
+                            newValue = evtType.GetProperty("newValue")?.GetValue(evt);
+                        }
                         catch { }
                     }
                     else if (evt is InputEvent inputEvt)
@@ -2215,16 +2716,48 @@ namespace ReactiveUITK.Props
                 }
 
                 // Value-shorthand handlers: Action<string>, Action<bool>, etc.
-                if (del is Action<string> strH) { strH(newValue as string); return; }
-                if (del is Action<bool> boolH && newValue is bool bv) { boolH(bv); return; }
-                if (del is Action<int> intH && newValue is int iv) { intH(iv); return; }
-                if (del is Action<float> floatH && newValue is float fv) { floatH(fv); return; }
-                if (del is Action<double> doubleH && newValue is double dv) { doubleH(dv); return; }
-                if (del is Action<long> longH && newValue is long lv) { longH(lv); return; }
-                if (del is Action<object> objH) { objH(newValue ?? (object)evt); return; }
+                if (del is Action<string> strH)
+                {
+                    strH(newValue as string);
+                    return;
+                }
+                if (del is Action<bool> boolH && newValue is bool bv)
+                {
+                    boolH(bv);
+                    return;
+                }
+                if (del is Action<int> intH && newValue is int iv)
+                {
+                    intH(iv);
+                    return;
+                }
+                if (del is Action<float> floatH && newValue is float fv)
+                {
+                    floatH(fv);
+                    return;
+                }
+                if (del is Action<double> doubleH && newValue is double dv)
+                {
+                    doubleH(dv);
+                    return;
+                }
+                if (del is Action<long> longH && newValue is long lv)
+                {
+                    longH(lv);
+                    return;
+                }
+                if (del is Action<object> objH)
+                {
+                    objH(newValue ?? (object)evt);
+                    return;
+                }
 
                 // EventBase base type
-                if (del is Action<EventBase> evtH) { evtH(evt); return; }
+                if (del is Action<EventBase> evtH)
+                {
+                    evtH(evt);
+                    return;
+                }
 
                 // ── Slow fallback — DynamicInvoke for unknown signatures ──
                 var method = del.Method;
@@ -2278,8 +2811,15 @@ namespace ReactiveUITK.Props
                         args[0] = newValue;
                     else
                     {
-                        try { if (newValue != null) args[0] = System.Convert.ChangeType(newValue, p0); }
-                        catch { args[0] = null; }
+                        try
+                        {
+                            if (newValue != null)
+                                args[0] = System.Convert.ChangeType(newValue, p0);
+                        }
+                        catch
+                        {
+                            args[0] = null;
+                        }
                     }
                     del.DynamicInvoke(args);
                 }
@@ -2290,7 +2830,7 @@ namespace ReactiveUITK.Props
             }
         }
 
-        private static float ConvertToFloat(object value)
+        internal static float ConvertToFloat(object value)
         {
             if (value is float f)
             {
@@ -2310,7 +2850,7 @@ namespace ReactiveUITK.Props
             return 0f;
         }
 
-        private static StyleFloat ConvertToStyleFloat(object value)
+        internal static StyleFloat ConvertToStyleFloat(object value)
         {
             if (TryConvertToStyleKeyword(value, out var keyword))
             {
@@ -2320,7 +2860,7 @@ namespace ReactiveUITK.Props
             return new StyleFloat(ConvertToFloat(value));
         }
 
-        private static StyleLength ConvertToStyleLength(object value)
+        internal static StyleLength ConvertToStyleLength(object value)
         {
             if (value is StyleLength styleLength)
             {
@@ -2447,9 +2987,10 @@ namespace ReactiveUITK.Props
             return new Length(0f, LengthUnit.Pixel);
         }
 
-        private static FlexDirection ConvertToFlexDirection(object value)
+        internal static FlexDirection ConvertToFlexDirection(object value)
         {
-            if (value is FlexDirection fd) return fd;
+            if (value is FlexDirection fd)
+                return fd;
             if (value is string s)
             {
                 if (s == "row")
@@ -2466,9 +3007,10 @@ namespace ReactiveUITK.Props
             return FlexDirection.Row;
         }
 
-        private static Justify ConvertToJustify(object value)
+        internal static Justify ConvertToJustify(object value)
         {
-            if (value is Justify j) return j;
+            if (value is Justify j)
+                return j;
             if (value is string s)
             {
                 if (s == "center")
@@ -2500,9 +3042,10 @@ namespace ReactiveUITK.Props
             return Justify.FlexStart;
         }
 
-        private static Align ConvertToAlign(object value)
+        internal static Align ConvertToAlign(object value)
         {
-            if (value is Align a) return a;
+            if (value is Align a)
+                return a;
             if (value is string s)
             {
                 if (s == "center")
@@ -2529,32 +3072,139 @@ namespace ReactiveUITK.Props
             return Align.Stretch;
         }
 
-        private static EasingMode ConvertToEasingMode(string s) => s switch
+        internal static Wrap ConvertToWrap(object value)
         {
-            "linear"              => EasingMode.Linear,
-            "ease-in"             => EasingMode.EaseIn,
-            "ease-out"            => EasingMode.EaseOut,
-            "ease-in-out"         => EasingMode.EaseInOut,
-            "ease-in-sine"        => EasingMode.EaseInSine,
-            "ease-out-sine"       => EasingMode.EaseOutSine,
-            "ease-in-out-sine"    => EasingMode.EaseInOutSine,
-            "ease-in-cubic"       => EasingMode.EaseInCubic,
-            "ease-out-cubic"      => EasingMode.EaseOutCubic,
-            "ease-in-out-cubic"   => EasingMode.EaseInOutCubic,
-            "ease-in-circ"        => EasingMode.EaseInCirc,
-            "ease-out-circ"       => EasingMode.EaseOutCirc,
-            "ease-in-out-circ"    => EasingMode.EaseInOutCirc,
-            "ease-in-elastic"     => EasingMode.EaseInElastic,
-            "ease-out-elastic"    => EasingMode.EaseOutElastic,
-            "ease-in-out-elastic" => EasingMode.EaseInOutElastic,
-            "ease-in-back"        => EasingMode.EaseInBack,
-            "ease-out-back"       => EasingMode.EaseOutBack,
-            "ease-in-out-back"    => EasingMode.EaseInOutBack,
-            "ease-in-bounce"      => EasingMode.EaseInBounce,
-            "ease-out-bounce"     => EasingMode.EaseOutBounce,
-            "ease-in-out-bounce"  => EasingMode.EaseInOutBounce,
-            _                     => EasingMode.Ease,
-        };
+            if (value is Wrap w)
+                return w;
+            if (value is string s && s == "wrap")
+                return Wrap.Wrap;
+            return Wrap.NoWrap;
+        }
+
+        internal static Position ConvertToPosition(object value)
+        {
+            if (value is Position p)
+                return p;
+            if (value is string s && s == "absolute")
+                return Position.Absolute;
+            return Position.Relative;
+        }
+
+        internal static DisplayStyle ConvertToDisplayStyle(object value)
+        {
+            if (value is DisplayStyle d)
+                return d;
+            if (value is string s && s == "none")
+                return DisplayStyle.None;
+            return DisplayStyle.Flex;
+        }
+
+        internal static Visibility ConvertToVisibility(object value)
+        {
+            if (value is Visibility v)
+                return v;
+            if (value is string s && s == "hidden")
+                return Visibility.Hidden;
+            return Visibility.Visible;
+        }
+
+        internal static Overflow ConvertToOverflow(object value)
+        {
+            if (value is Overflow o)
+                return o;
+            if (value is string s && s == "hidden")
+                return Overflow.Hidden;
+            return Overflow.Visible;
+        }
+
+        internal static WhiteSpace ConvertToWhiteSpace(object value)
+        {
+            if (value is WhiteSpace ws)
+                return ws;
+            if (value is string s && s == "nowrap")
+                return WhiteSpace.NoWrap;
+            return WhiteSpace.Normal;
+        }
+
+        internal static TextAnchor ConvertToTextAnchor(object value)
+        {
+            if (value is TextAnchor ta)
+                return ta;
+            if (value is string s && s == "center")
+                return TextAnchor.MiddleCenter;
+            return TextAnchor.UpperLeft;
+        }
+
+        internal static TextOverflow ConvertToTextOverflow(object value)
+        {
+            if (value is TextOverflow to)
+                return to;
+            if (value is string s && s == "ellipsis")
+                return TextOverflow.Ellipsis;
+            return TextOverflow.Clip;
+        }
+
+        internal static FontStyle ConvertToFontStyle(object value)
+        {
+            if (value is FontStyle fs)
+                return fs;
+            if (value is string s && s == "bold")
+                return FontStyle.Bold;
+            return FontStyle.Normal;
+        }
+
+        internal static TextOverflowPosition ConvertToTextOverflowPosition(object value)
+        {
+            if (value is TextOverflowPosition tp)
+                return tp;
+            if (value is string s)
+            {
+                return s switch
+                {
+                    "middle" => TextOverflowPosition.Middle,
+                    "end" => TextOverflowPosition.End,
+                    _ => TextOverflowPosition.Start,
+                };
+            }
+            return TextOverflowPosition.Start;
+        }
+
+        internal static TextAutoSizeMode ConvertToTextAutoSizeMode(object value)
+        {
+            if (value is TextAutoSizeMode m)
+                return m;
+            if (value is string s && s == "best-fit")
+                return TextAutoSizeMode.BestFit;
+            return TextAutoSizeMode.None;
+        }
+
+        private static EasingMode ConvertToEasingMode(string s) =>
+            s switch
+            {
+                "linear" => EasingMode.Linear,
+                "ease-in" => EasingMode.EaseIn,
+                "ease-out" => EasingMode.EaseOut,
+                "ease-in-out" => EasingMode.EaseInOut,
+                "ease-in-sine" => EasingMode.EaseInSine,
+                "ease-out-sine" => EasingMode.EaseOutSine,
+                "ease-in-out-sine" => EasingMode.EaseInOutSine,
+                "ease-in-cubic" => EasingMode.EaseInCubic,
+                "ease-out-cubic" => EasingMode.EaseOutCubic,
+                "ease-in-out-cubic" => EasingMode.EaseInOutCubic,
+                "ease-in-circ" => EasingMode.EaseInCirc,
+                "ease-out-circ" => EasingMode.EaseOutCirc,
+                "ease-in-out-circ" => EasingMode.EaseInOutCirc,
+                "ease-in-elastic" => EasingMode.EaseInElastic,
+                "ease-out-elastic" => EasingMode.EaseOutElastic,
+                "ease-in-out-elastic" => EasingMode.EaseInOutElastic,
+                "ease-in-back" => EasingMode.EaseInBack,
+                "ease-out-back" => EasingMode.EaseOutBack,
+                "ease-in-out-back" => EasingMode.EaseInOutBack,
+                "ease-in-bounce" => EasingMode.EaseInBounce,
+                "ease-out-bounce" => EasingMode.EaseOutBounce,
+                "ease-in-out-bounce" => EasingMode.EaseInOutBounce,
+                _ => EasingMode.Ease,
+            };
 
         public static void NotifyElementRemoved(VisualElement element)
         {

@@ -274,17 +274,11 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold($"    partial class {className}\n    {{\n");
             b.Scaffold("#line hidden\n");
 
-            // ΓöÇΓöÇ Scaffold Ref<T> stand-in ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-            // Provides member completions for useRef<T>() return values (e.g.
-            // allowNextRef.Current) without requiring the ReactiveUITK assembly
-            // to be loaded. Current and Value mirror the real Ref<T> API.
-            b.Scaffold(
-                "        private sealed class __UitkxRef__<T>\n"
-                    + "        {\n"
-                    + "            public T Current { get; set; } = default!;\n"
-                    + "            public T Value { get => Current; set => Current = value; }\n"
-                    + "        }\n"
-            );
+            // Ref<T> resolves to the workspace-shared canonical type:
+            //   - real ReactiveUITK.Core.Ref<T> when the runtime DLL is loaded
+            //   - the polyfill stub in __UitkxPolyfill__.g.cs otherwise
+            // Both share the same fully-qualified name so cross-document calls
+            // (e.g. component → peer hook(Ref<T>)) bind to a single nominal type.
 
             EmitFunctionStyleBody(b, parseResult, source, escapedPath, propsTypes);
 
@@ -328,14 +322,8 @@ namespace ReactiveUITK.Language.Roslyn
             b.Scaffold($"    static partial class {containerClass}\n    {{\n");
             b.Scaffold("#line hidden\n");
 
-            // ΓöÇΓöÇ Scaffold Ref<T> stand-in ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-            b.Scaffold(
-                "        private sealed class __UitkxRef__<T>\n"
-                    + "        {\n"
-                    + "            public T Current { get; set; } = default!;\n"
-                    + "            public T Value { get => Current; set => Current = value; }\n"
-                    + "        }\n"
-            );
+            // Ref<T> resolves to the workspace-shared canonical type
+            // (see component-document scaffold for details).
 
             // ΓöÇΓöÇ Hook stubs (same as component stubs) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
             b.Scaffold(
@@ -350,7 +338,7 @@ namespace ReactiveUITK.Language.Roslyn
                     + "        private static void useEffect(\n"
                     + "            global::System.Func<global::System.Action> effectFactory,\n"
                     + "            params object[] deps) { }\n"
-                    + "        private static __UitkxRef__<T> useRef<T>(T initial = default) => new();\n"
+                    + "        private static global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => new();\n"
                     + "        private static global::UnityEngine.UIElements.VisualElement useRef() => null!;\n"
                     + "        private static global::System.Func<T> useCallback<T>(\n"
                     + "            global::System.Func<T> callback, params object[] deps) => callback!;\n"
@@ -497,8 +485,9 @@ namespace ReactiveUITK.Language.Roslyn
             // int to Func<int,int>); this is suppressed in RoslynDiagnosticMapper
             // by checking for the state-setter pattern in the error message.
             //
-            // __UitkxRef__<T>: scaffold so .Current completions always work,
-            //   even before the ReactiveUITK assembly is loaded by Roslyn.
+            // useRef<T>() returns the workspace-shared global::ReactiveUITK.Core.Ref<T>
+            //   (real DLL when loaded, polyfill stub otherwise) so cross-document
+            //   calls bind to one nominal type and .Current completions work.
             b.Scaffold(
                 "\n"
                     + "        // ΓöÇΓöÇ Roslyn-only hook stubs (never called at runtime) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ\n"
@@ -511,7 +500,7 @@ namespace ReactiveUITK.Language.Roslyn
                     + "        private void useEffect(\n"
                     + "            global::System.Func<global::System.Action> effectFactory,\n"
                     + "            params object[] deps) { }\n"
-                    + "        private __UitkxRef__<T> useRef<T>(T initial = default) => new();\n"
+                    + "        private global::ReactiveUITK.Core.Ref<T> useRef<T>(T initial = default) => new();\n"
                     + "        private global::UnityEngine.UIElements.VisualElement useRef() => null!;\n"
                     + "        private global::System.Func<T> useCallback<T>(\n"
                     + "            global::System.Func<T> callback, params object[] deps) => callback!;\n"

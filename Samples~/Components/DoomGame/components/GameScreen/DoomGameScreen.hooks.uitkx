@@ -1,0 +1,151 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+@using UnityEngine.UIElements
+@using static Samples.DoomGame.DoomTypes
+@using static Samples.DoomGame.DoomTypes.C
+@using static Samples.DoomGame.GameLogic
+
+hook useDoomGame(
+  Ref<VisualElement?> viewRef
+) -> (
+  GameState state,
+  float fps,
+  Action restart,
+  KeyboardEventHandler onKeyDown
+) {
+  var initialState = useMemo(() => Tick.CreateInitialState(), 0);
+  var (state, setState) = useState<GameState>(initialState);
+  var stateRef = useRef<GameState>(initialState);
+
+  var (fps, setFps) = useState(0f);
+  var frameCount = useRef(0);
+  var fpsTimer = useRef(0f);
+
+  var fwdHeld = useRef(false);
+  var backHeld = useRef(false);
+  var leftHeld = useRef(false);
+  var rightHeld = useRef(false);
+  var turnLeftHeld = useRef(false);
+  var turnRightHeld = useRef(false);
+  var shootHeld = useRef(false);
+  var lastTime = useRef(-1f);
+  var rng = useRef(new System.Random());
+  var restartPending = useRef(0);
+  var mapRef = useRef(DoomMaps.Level1());
+
+  Action restart = () => {
+    restartPending.Current = 2;
+  };
+
+  KeyboardEventHandler onKeyDown = e => {
+    switch (e.KeyCode) {
+      case KeyCode.W: case KeyCode.UpArrow: fwdHeld.Current = true; break;
+      case KeyCode.S: case KeyCode.DownArrow: backHeld.Current = true; break;
+      case KeyCode.A: leftHeld.Current = true; break;
+      case KeyCode.D: rightHeld.Current = true; break;
+      case KeyCode.LeftArrow: turnLeftHeld.Current = true; break;
+      case KeyCode.RightArrow: turnRightHeld.Current = true; break;
+      case KeyCode.Space: shootHeld.Current = true; break;
+      case KeyCode.Alpha1: {
+        var p = stateRef.Current.Player;
+        p.Weapon = WeaponType.Pistol;
+        var s = stateRef.Current;
+        s.Player = p;
+        stateRef.Current = s;
+        break;
+      }
+      case KeyCode.Alpha2: {
+        var p = stateRef.Current.Player;
+        if (p.AmmoShotgun > 0) p.Weapon = WeaponType.Shotgun;
+        var s = stateRef.Current;
+        s.Player = p;
+        stateRef.Current = s;
+        break;
+      }
+      case KeyCode.Alpha3: {
+        var p = stateRef.Current.Player;
+        if (p.AmmoChaingun > 0) p.Weapon = WeaponType.Chaingun;
+        var s = stateRef.Current;
+        s.Player = p;
+        stateRef.Current = s;
+        break;
+      }
+    }
+    e.StopPropagation();
+  };
+
+  useEffect(() => {
+    var el = viewRef?.Current;
+    if (el == null) return null;
+
+    el.schedule.Execute(() => el.Focus());
+
+    EventCallback<KeyUpEvent> keyUpCb = e => {
+      switch (e.keyCode) {
+        case KeyCode.W: case KeyCode.UpArrow: fwdHeld.Current = false; break;
+        case KeyCode.S: case KeyCode.DownArrow: backHeld.Current = false; break;
+        case KeyCode.A: leftHeld.Current = false; break;
+        case KeyCode.D: rightHeld.Current = false; break;
+        case KeyCode.LeftArrow: turnLeftHeld.Current = false; break;
+        case KeyCode.RightArrow: turnRightHeld.Current = false; break;
+        case KeyCode.Space: shootHeld.Current = false; break;
+      }
+      e.StopPropagation();
+    };
+    el.RegisterCallback(keyUpCb);
+
+    IVisualElementScheduledItem ticker = el.schedule.Execute(() => {
+      if (restartPending.Current > 0) {
+        restartPending.Current--;
+        if (restartPending.Current == 0) {
+          var fresh = Tick.CreateInitialState();
+          stateRef.Current = fresh;
+          mapRef.Current = DoomMaps.Level1();
+          lastTime.Current = -1f;
+          frameCount.Current = 0;
+          fpsTimer.Current = 0f;
+          setState(fresh);
+          setFps(0f);
+          el.schedule.Execute(() => el.Focus());
+          return;
+        }
+      }
+
+      float now = Time.realtimeSinceStartup;
+      if (lastTime.Current < 0) { lastTime.Current = now; return; }
+      float dt = now - lastTime.Current;
+      lastTime.Current = now;
+      if (dt > 0.1f) dt = 0.1f; // clamp large dt
+
+      frameCount.Current++;
+      fpsTimer.Current += dt;
+      if (fpsTimer.Current >= 0.5f) {
+        setFps(frameCount.Current / fpsTimer.Current);
+        frameCount.Current = 0;
+        fpsTimer.Current = 0f;
+      }
+
+      var cur = stateRef.Current;
+      var next = Tick.Update(
+      cur, dt,
+      fwdHeld.Current, backHeld.Current,
+      leftHeld.Current, rightHeld.Current,
+      turnLeftHeld.Current, turnRightHeld.Current,
+      shootHeld.Current,
+      mapRef.Current,
+      rng.Current
+      );
+      stateRef.Current = next;
+      setState(next);
+    }).Every(16);
+
+    return () => {
+      ticker.Pause();
+      el.UnregisterCallback(keyUpCb);
+    };
+  }, new object[] { viewRef?.Current });
+
+  return (state, fps, restart, onKeyDown);
+}

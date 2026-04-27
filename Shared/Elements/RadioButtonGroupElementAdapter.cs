@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using ReactiveUITK.Props;
+using ReactiveUITK.Props.Typed;
 using UnityEngine.UIElements;
 
 namespace ReactiveUITK.Elements
@@ -138,6 +139,75 @@ namespace ReactiveUITK.Elements
                 DiffSlot(groupElement, previous, next, "contentContainer");
             }
             PropsApplier.ApplyDiff(element, previous, next);
+        }
+
+        public override void ApplyTypedFull(VisualElement element, BaseProps props)
+        {
+            if (element is RadioButtonGroup groupElement && props is RadioButtonGroupProps tp)
+            {
+                if (tp.Choices != null)
+                    groupElement.choices = tp.Choices;
+                if (tp.Value != null)
+                {
+                    int resolved = ResolveIndex(groupElement.choices, tp.Value);
+                    if (resolved >= 0)
+                        groupElement.value = resolved;
+                }
+                if (tp.Index.HasValue)
+                {
+                    int clamped = ClampIndex(groupElement.choices, tp.Index.Value);
+                    groupElement.value = clamped;
+                }
+                if (tp.OnChange != null)
+                    PropsApplier.ApplySingle(element, null, "onChange", tp.OnChange);
+                if (tp.OnChangeCapture != null)
+                    PropsApplier.ApplySingle(element, null, "onChangeCapture", tp.OnChangeCapture);
+            }
+            base.ApplyTypedFull(element, props);
+        }
+
+        public override void ApplyTypedDiff(VisualElement element, BaseProps prev, BaseProps next)
+        {
+            if (
+                element is RadioButtonGroup groupElement
+                && prev is RadioButtonGroupProps tp
+                && next is RadioButtonGroupProps tn
+            )
+            {
+                if (!ReferenceEquals(tp.Choices, tn.Choices) && tn.Choices != null)
+                    groupElement.choices = tn.Choices;
+                if (tp.Value != tn.Value && tn.Value != null)
+                {
+                    int resolved = ResolveIndex(groupElement.choices, tn.Value);
+                    if (resolved >= 0)
+                        groupElement.value = resolved;
+                }
+                if (tp.Index != tn.Index && tn.Index.HasValue)
+                {
+                    int clamped = ClampIndex(groupElement.choices, tn.Index.Value);
+                    groupElement.value = clamped;
+                }
+                if (tp.OnChange != tn.OnChange)
+                {
+                    if (tn.OnChange != null)
+                        PropsApplier.ApplySingle(element, tp.OnChange, "onChange", tn.OnChange);
+                    else if (tp.OnChange != null)
+                        PropsApplier.RemoveProp(element, "onChange", tp.OnChange);
+                }
+                if (tp.OnChangeCapture != tn.OnChangeCapture)
+                {
+                    if (tn.OnChangeCapture != null)
+                        PropsApplier.ApplySingle(
+                            element,
+                            tp.OnChangeCapture,
+                            "onChangeCapture",
+                            tn.OnChangeCapture
+                        );
+                    else if (tp.OnChangeCapture != null)
+                        PropsApplier.RemoveProp(element, "onChangeCapture", tp.OnChangeCapture);
+                }
+            }
+            base.ApplyTypedDiff(element, prev, next);
         }
 
         private static void ApplySlots(

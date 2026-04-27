@@ -1,0 +1,34 @@
+@namespace Samples.DoomGame
+@using System
+@using static Samples.DoomGame.DoomTypes
+
+component DoomGame {
+  var (screen, setScreen) = useState(GameScreen.MainMenu);
+  var (restartVersion, setRestartVersion) = useState(0);
+
+  Action handleNewGame = () => {
+    setRestartVersion(v => v + 1);
+    setScreen(GameScreen.Game);
+  };
+
+  Action handleReturnToMenu = () => {
+    setScreen(GameScreen.MainMenu);
+  };
+
+  return (
+    <VisualElement style={Styles.Root}>
+      @if (screen == GameScreen.MainMenu) {
+        return (
+          <DoomMainMenu onNewGame={handleNewGame} />
+        );
+      } @else {
+        return (
+          <DoomGameScreen
+            restartVersion={restartVersion}
+            onQuit={handleReturnToMenu}
+          />
+        );
+      }
+    </VisualElement>
+  );
+}

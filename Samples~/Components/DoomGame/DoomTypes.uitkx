@@ -1,0 +1,136 @@
+@namespace Samples.DoomGame
+@using System
+@using System.Collections.Generic
+@using UnityEngine
+
+module DoomTypes {
+  // ───── Enums ─────
+
+  public enum GameScreen { MainMenu, Game }
+  public enum CellType { Empty, Wall1, Wall2, Wall3, Wall4, Door }
+  public enum EnemyKind { Imp, Demon, Baron }
+  public enum EnemyAI { Idle, Chasing, Attacking, Dying, Dead }
+  public enum WeaponType { Pistol, Shotgun, Chaingun }
+  public enum PickupType { Health, Armor, Ammo, Shotgun, Chaingun }
+
+  // ───── Map ─────
+
+  public struct MapDef {
+    public int Width;
+    public int Height;
+    public CellType[] Cells;
+
+    public CellType At(int x, int y) {
+      if (x < 0 || x >= Width || y < 0 || y >= Height) return CellType.Wall1;
+      return Cells[y * Width + x];
+    }
+
+    public bool IsWall(int x, int y) {
+      return At(x, y) != CellType.Empty;
+    }
+  }
+
+  // ───── Structs ─────
+
+  public struct PlayerState {
+    public float X;
+    public float Y;
+    public float Angle; // radians
+    public int Health;
+    public int Armor;
+    public WeaponType Weapon;
+    public int AmmoPistol;
+    public int AmmoShotgun;
+    public int AmmoChaingun;
+    public float ShootCooldown;
+    public float BobTimer;
+    public bool Alive;
+  }
+
+  public struct EnemyState {
+    public int Id;
+    public EnemyKind Kind;
+    public EnemyAI AI;
+    public float X;
+    public float Y;
+    public int Health;
+    public float AttackCooldown;
+    public float DieTimer;
+    public float DistToPlayer; // computed each frame for sorting
+  }
+
+  public struct PickupState {
+    public int Id;
+    public PickupType Type;
+    public float X;
+    public float Y;
+    public bool Collected;
+  }
+
+  // ───── Column strip for rendering ─────
+
+  public struct WallStrip {
+    public float Height; // projected wall height in pixels
+    public float Brightness; // 0..1, based on distance
+    public int WallType; // which wall color
+    public bool HitVertical; // N/S vs E/W face for shading
+    public float Distance; // raw distance for sprite clipping
+  }
+
+  // ───── Frame data (output of raycaster) ─────
+
+  public struct FrameData {
+    public WallStrip[] Strips;
+    public float Fps;
+    public float Elapsed;
+  }
+
+  public struct GameState {
+    public PlayerState Player;
+    public List<EnemyState> Enemies;
+    public List<PickupState> Pickups;
+    public FrameData Frame;
+    public int Score;
+    public int Level;
+    public bool GameOver;
+    public bool Victory;
+    public float PhaseTimer;
+  }
+
+  // ───── Constants ─────
+
+  public static class C {
+    public const int VIEW_W = 320; // number of raycasting columns
+    public const int VIEW_H = 200; // viewport height in pixels
+    public const int VIEWPORT_W = 640; // rendered viewport width
+    public const int VIEWPORT_H = 400; // rendered viewport height
+    public const float STRIP_W = 2f; // pixel width of each strip (640/320)
+    public const float FOV = 1.0472f; // 60 degrees in radians
+    public const float HALF_FOV = FOV / 2f;
+    public const float MOVE_SPEED = 3.0f;
+    public const float STRAFE_SPEED = 2.5f;
+    public const float TURN_SPEED = 2.5f;
+    public const float PLAYER_RADIUS = 0.25f;
+    public const float SHOOT_COOLDOWN_PISTOL = 0.4f;
+    public const float SHOOT_COOLDOWN_SHOTGUN = 0.8f;
+    public const float SHOOT_COOLDOWN_CHAINGUN = 0.12f;
+    public const int PISTOL_DAMAGE = 15;
+    public const int SHOTGUN_DAMAGE = 60;
+    public const int CHAINGUN_DAMAGE = 12;
+    public const float ENEMY_SPEED = 1.5f;
+    public const float ENEMY_ATTACK_RANGE = 1.5f;
+    public const float ENEMY_ATTACK_COOLDOWN = 1.0f;
+    public const int IMP_HEALTH = 40;
+    public const int DEMON_HEALTH = 80;
+    public const int BARON_HEALTH = 200;
+    public const int IMP_DAMAGE = 10;
+    public const int DEMON_DAMAGE = 20;
+    public const int BARON_DAMAGE = 40;
+    public const int SCORE_IMP = 100;
+    public const int SCORE_DEMON = 200;
+    public const int SCORE_BARON = 500;
+    public const int START_HEALTH = 100;
+    public const int START_ARMOR = 0;
+    public const int START_AMMO_PISTOL = 50;
+  }
+}
