@@ -1240,4 +1240,288 @@ public class EmitterTests
         );
         Assert.Equal("__items.Add(V.Box()); continue;", result);
     }
+
+    // ── OPT-V2-2 Phase A: static-style hoisting ────────────────────────────
+    //
+    // These tests verify the SG hoists `style={new Style { ... }}` initializers
+    // to class-level `static readonly Style __sty_N = ...;` fields when every
+    // initializer value is a compile-time constant, and falls back to per-render
+    // pool rent (or raw allocation for tuple form) otherwise.
+
+    [Fact]
+    public void StyleHoist_TupleSyntaxAllLiterals_HoistedToStaticField()
+    {
+        const string src = """
+            component HoistTuple {
+                return (
+                    <Box style={new Style { (StyleKeys.Width, 100f), (StyleKeys.Height, 50f) }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "HoistTuple.uitkx");
+
+        Assert.True(
+            result.SourceWasProduced,
+            $"No source produced. Diagnostics: {string.Join(", ", result.Diagnostics.Select(d => d.GetMessage()))}"
+        );
+        Assert.True(
+            result.SourceContains(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+            ),
+            $"Expected hoisted static field __sty_0. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("__sty_0"),
+            "Expected the hoisted style to be referenced at the call site"
+        );
+        Assert.False(
+            result.SourceContains("Style.__Rent()"),
+            "Hoisted styles must not call Style.__Rent()"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_SetterSyntaxAllLiterals_HoistedToStaticField()
+    {
+        const string src = """
+            component HoistSetter {
+                return (
+                    <Box style={new Style { Width = 100f, Height = 50f }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "HoistSetter.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+            ),
+            $"Expected hoisted static field. Got:\n{result.GeneratedSource}"
+        );
+        Assert.False(
+            result.SourceContains("Style.__Rent()"),
+            "Setter-form all-literal style must not call __Rent()"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_DynamicValue_StaysOnRentPath()
+    {
+        const string src = """
+            component DynamicStyle {
+                var w = 100f;
+                return (
+                    <Box style={new Style { Width = w }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "DynamicStyle.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Style with non-literal value must NOT be hoisted. Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Style.__Rent()"),
+            "Dynamic style must still rent from the pool"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_NewColorWithLiteralArgs_Hoists()
+    {
+        const string src = """
+            component ColorLiteral {
+                return (
+                    <Box style={new Style { (StyleKeys.BackgroundColor, new Color(0.15f, 0.15f, 0.15f, 0.9f)) }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "ColorLiteral.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains(
+                "private static readonly global::ReactiveUITK.Props.Typed.Style __sty_0"
+            ),
+            $"new Color(literal-args) must be hoist-safe. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_DottedEnumRef_Hoists()
+    {
+        const string src = """
+            component EnumRef {
+                return (
+                    <Box style={new Style { (StyleKeys.FlexDirection, "column") }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "EnumRef.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(
+            result.SourceContains("__sty_0"),
+            $"Tuple with string-literal value must hoist. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_MultipleSiblings_GetUniqueIds()
+    {
+        const string src = """
+            component TwoStatics {
+                return (
+                    <Box>
+                        <Label text="a" style={new Style { (StyleKeys.Width, 10f) }} />
+                        <Label text="b" style={new Style { (StyleKeys.Width, 20f) }} />
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "TwoStatics.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("__sty_0"), "Expected __sty_0");
+        Assert.True(result.SourceContains("__sty_1"), "Expected __sty_1 for second hoist");
+    }
+
+    [Fact]
+    public void StyleHoist_EmptyStyleBody_NotHoisted()
+    {
+        const string src = """
+            component EmptyStyle {
+                return (
+                    <Box style={new Style { }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "EmptyStyle.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            "Empty-body Style is deferred to a future EmptyStyle singleton; must not hoist"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_MixedStaticAndDynamic_HoistsOnlyStatic()
+    {
+        const string src = """
+            component Mixed {
+                var sz = 50f;
+                return (
+                    <Box>
+                        <Label text="a" style={new Style { (StyleKeys.Width, 10f) }} />
+                        <Label text="b" style={new Style { Width = sz }} />
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "Mixed.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.True(result.SourceContains("__sty_0"), "Static style must hoist");
+        Assert.True(result.SourceContains("Style.__Rent()"), "Dynamic style must still rent");
+        Assert.False(result.SourceContains("__sty_1"), "Only one hoist expected");
+    }
+
+    [Fact]
+    public void StyleHoist_TupleWithVariableValue_NotHoisted()
+    {
+        const string src = """
+            component TupleDynamic {
+                var w = 100f;
+                return (
+                    <Box style={new Style { (StyleKeys.Width, w) }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "TupleDynamic.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Tuple with bare-identifier value must NOT hoist. Got:\n{result.GeneratedSource}"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_NonStyleAttributeUnaffected()
+    {
+        const string src = """
+            component PlainBox {
+                return (
+                    <Box>
+                        <Label text="hi" />
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "PlainBox.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(result.SourceContains("__sty_"), "No style attribute → no hoist");
+    }
+
+    [Fact]
+    public void StyleHoist_InstanceMemberOnLocal_NotHoisted()
+    {
+        // Regression: `areaSize.x` is a local-variable member access, NOT a static
+        // reference. Must not be hoisted to a class-level field (where the local
+        // would be out of scope, causing CS0103). The classifier requires the
+        // first dotted segment to start uppercase (PascalCase = type/enum/static
+        // class convention) — locals are camelCase and are correctly rejected.
+        const string src = """
+            component AreaBox {
+                var areaSize = new UnityEngine.Vector2(100f, 50f);
+                return (
+                    <Box style={new Style { Width = areaSize.x, Height = areaSize.y }} />
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "AreaBox.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Instance-member access on local must NOT hoist (would cause CS0103). Got:\n{result.GeneratedSource}"
+        );
+        Assert.True(
+            result.SourceContains("Style.__Rent()"),
+            "Local-derived style must still rent from the pool"
+        );
+    }
+
+    [Fact]
+    public void StyleHoist_InstanceMemberInTuple_NotHoisted()
+    {
+        // Same regression in tuple form: (StyleKeys.Width, box.size) — `box.size`
+        // is a local foreach-variable member access; must not hoist.
+        const string src = """
+            component Boxes {
+                var boxes = new[] { new { size = 5f } };
+                return (
+                    <Box>
+                        @foreach (var box in boxes) {
+                            return (
+                                <Label text="x" style={new Style { (StyleKeys.Width, box.size) }} />
+                            );
+                        }
+                    </Box>
+                );
+            }
+            """;
+        var result = GeneratorTestHelper.Run(src, "Boxes.uitkx");
+
+        Assert.True(result.SourceWasProduced);
+        Assert.False(
+            result.SourceContains("__sty_"),
+            $"Instance-member on loop local must NOT hoist. Got:\n{result.GeneratedSource}"
+        );
+    }
 }

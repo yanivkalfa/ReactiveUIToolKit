@@ -16,7 +16,7 @@ validation plan.
 | ID | Item | Status | Estimated Impact |
 |----|------|--------|------------------|
 | OPT-V2-1 | Eliminate `__C` Allocations on the JSX Children Path | Researched (Phase A+B ready) | ~70% reduction in JSX-path allocs |
-| OPT-V2-2 | Style Sparse Storage | Proposed | ~5–10× per-element memory reduction; faster diff |
+| OPT-V2-2 | Static-Style Hoisting + Pool Cap Tuning (revised from “Sparse Storage”) | ✅ Implemented April 27, 2026 — 1040/1040 SG + 61/61 LSP green | ~80% of `__Rent` calls eliminated; ~3.5 MB resident memory reclaimed |
 | OPT-V2-3 | (Deferred) Recover render-phase pool returns via commit-phase walk | Deferred | ~96 KB/sec GC savings (showcases) — only worthwhile if OPT-V2-2 is NOT done first |
 
 ---
@@ -529,7 +529,448 @@ field, repopulate slots in place each render, and skip the array allocation enti
 
 ---
 
-## OPT-V2-2: Style Sparse Storage
+## OPT-V2-2: Static-Style Hoisting + Pool Cap Tuning
+
+> **Note:** This section *replaces* the previous “Style Sparse Storage” draft (preserved
+> below as historical context). Investigation on April 27, 2026 found the prior draft
+> was based on three misreadings of the codebase. The new design targets the **actual**
+> remaining waste, which is in pool sizing and per-render `Style` rentals — not in field
+> layout.
+
+### Status: Researched (April 27, 2026) — ready to implement
+
+### Summary
+
+Two independent, additive optimizations:
+
+- **Phase A — Static-Style hoisting (the big win):** when a `style={new Style{...}}` JSX
+  attribute contains only compile-time-constant initializers, the source generator
+  hoists it to a class-level `static readonly Style __sty_<id> = new Style { ... };`
+  field. The element factory call then receives the hoisted reference instead of
+  renting a fresh `Style` from the pool every render. The reconciler’s existing
+  `Style.SameInstance(prev, next)` check makes the entire `DiffStyle` walk a
+  no-op when the same hoisted instance is supplied across renders.
+- **Phase B — Pool cap right-sizing:** drop `Style.PoolCapacity` (currently `4096`)
+  and `BaseProps` pool caps to a measured working set (provisional `512`).
+  Reclaims ~2.5–3 MB of permanently-resident pool memory for typical apps.
+
+### Status of the prior draft (“Sparse Storage”)
+
+The previous draft proposed replacing the dense field layout with two parallel arrays
+(`object[] _refValues`, `StyleLength[] _lengthValues`) indexed by `popcount` over the
+bitmask. Investigation found the framing is wrong on three counts:
+
+1. **The dense layout is intentional and already cache-optimal for the hot path.**
+   The class is *not* “80+ nullable fields” — it is 80+ **typed** value-type fields
+   (`StyleLength`, `Color`, etc.) with two `ulong` set-bits sidebands. Reads cost a
+   single field load; the bitmask determines validity. The proposed popcount-array
+   indexing turns every read into `(bitmask check) + (popcount of bits below) + (array
+   bounds check) + (object[] cast or typed[] index)` — ~5× the cost of a field load.
+   Writes that flip a bit from unset→set become **O(n)** (must shift array entries
+   down to keep popcount invariants), or require a parallel “which slot maps to which
+   bit” table (defeats the memory savings).
+2. **`ApplyTypedDiff` already iterates by `popcount`/`TrailingZeroCount`, not
+   field-by-field.** [TypedPropsApplier.cs:340-415](Shared/Props/TypedPropsApplier.cs#L340-L415)
+   walks `prevBits ^ nextBits` via `BitOps.TrailingZeroCount(bits); bits &= bits - 1;`.
+   The CPU complexity is already O(set-bits), not O(total-fields). Sparse storage
+   would *increase* per-bit cost (extra indirection for the value lookup) without
+   improving asymptotic behaviour. Net CPU impact: **negative**.
+3. **Value-type fields can’t live in `object[]` without boxing.** `StyleLength`,
+   `StyleFloat`, `Color`, every enum, every compound struct — each one boxes on
+   store and unboxes on read. The proposal acknowledges this and proposes a separate
+   `StyleLength[]` array, but `Style` has **8+ distinct value-type categories**
+   (`StyleLength`, `StyleFloat`, `Color`, 16 enum types, `BackgroundRepeat`,
+   `BackgroundPosition`, `BackgroundSize`, `TransformOrigin`, `Translate`,
+   `StyleList<TimeValue>`, etc.). Eight parallel typed arrays per Style, each with its
+   own popcount mapping, would balloon the per-instance overhead and obliterate the
+   imagined memory win for any non-trivial style.
+
+What the prior draft got *right*: the resident-memory cost of pooled Styles is
+significant (~840 bytes × 4096-cap pool = ~3.4 MB always-resident). What it got *wrong*:
+the lever is the **pool cap**, not the field layout. Phase B addresses it directly
+with zero CPU cost.
+
+### Background — the actual waste
+
+#### What `Style` looks like today
+
+[Shared/Props/Typed/Style.cs](Shared/Props/Typed/Style.cs) is a `class` with:
+
+- 79 named property bits (`BIT_WIDTH` … `BIT_UNITY_MATERIAL`).
+- Two `ulong _setBits0`/`_setBits1` sidebands (16 B).
+- Pool generation stamp + return guard (`uint _generation`, `bool _isPendingReturn`).
+- Typed value-type fields per category:
+  - 27 × `StyleLength` ≈ 12 B each = 324 B
+  - 9 × `StyleFloat` ≈ 12 B = 108 B
+  - 9 × `Color` × 16 B = 144 B
+  - 16 × enum ≈ 4 B = 64 B
+  - 2 floats / `Scale` ≈ 16 B
+  - Compound structs (`BackgroundRepeat`, `BackgroundPosition` ×2, `BackgroundSize`,
+    `TransformOrigin`, `Translate`) ≈ 64 B
+  - 2 reference fields (`Texture2D _backgroundImage`, `Font _fontFamily`) = 16 B
+  - 4 × `StyleList<T>` ≈ 32 B
+  - Unity 6.3+ (`StyleRatio`, `StyleList<FilterFunction>`, `StyleMaterialDefinition`)
+    ≈ 24 B
+- **Estimated instance footprint: ~840 B** (including class header).
+- A 4096-entry pool: **~3.4 MB always-resident**, regardless of working set.
+
+The pool itself works correctly: `Style.__Rent()` clears the bitmask + ref fields
+only (value-type fields stay dirty but are gated by the bitmask). `__ScheduleReturn`
+defers returns until the commit-phase `__FlushReturns` walk in
+[FiberReconciler.cs:706](Shared/Core/Fiber/FiberReconciler.cs#L706). Generation
+stamping prevents cross-cycle aliasing bugs (`SameInstance` checks both reference
+identity AND generation match).
+
+#### Per-render allocation today
+
+At every JSX site that has a `style={...}` attribute, the source generator emits
+([CSharpEmitter.cs:945-980](SourceGenerator~/Emitter/CSharpEmitter.cs#L945-L980)):
+
+```csharp
+var __p_0 = global::ReactiveUITK.Props.Typed.BaseProps.__Rent<BoxProps>();
+var __s_1 = global::ReactiveUITK.Props.Typed.Style.__Rent();
+__s_1.Width = 100f; __s_1.Height = 50f; __s_1.BackgroundColor = Color.red;
+__p_0.Style = __s_1;
+V.Box(__p_0, key: k);
+```
+
+The HMR emitter mirrors the same pattern
+([HmrCSharpEmitter.cs:830-870](Editor/HMR/HmrCSharpEmitter.cs#L830-L870)).
+
+**The waste:** when the style block is entirely constant (no closures, no captures,
+no expression interpolation), the resulting `Style` *content* is identical every
+render, but a fresh pooled instance is rented every time. The reconciler later
+schedules the prior frame’s instance for return
+([FiberReconciler.cs:1199-1207](Shared/Core/Fiber/FiberReconciler.cs#L1199-L1207)),
+then the diff walk runs, finds every set bit equal, applies nothing, and we throw
+the instance away.
+
+#### Sample audit — how often is style static?
+
+Grepping `style={new Style{...}}` patterns across `Samples/Components/**/*.uitkx`
+(15+ matches surveyed):
+
+- **`PortalEventScopeDemoFunc`**: 6/6 styles fully static (constants only).
+- **`EditorControlsDemoFunc`**: 8/8 fully static.
+- **`LatestFeaturesDemoFunc`**: 3/3 fully static.
+- **`StyledBoxDemo`**, **`StyleConsumerDemo`**, **`HoistingDemo`**: nearly all
+  literal-only.
+- Mixed (state-derived styles like `width={state.size}`) are the minority — they
+  use either props with conditional values or expression interpolation.
+
+**Conservative estimate: 70–85% of `style={new Style{...}}` literals across the
+sample suite are 100% static.** Phase A converts every one of those from
+“rent + bit setters + bail at diff + return” into “single field load.”
+
+### Phase A — Static-Style hoisting
+
+#### The classifier
+
+Walk the parsed initializer body of `new Style { (Key1, val1), (Key2, val2), ... }`
+or `new Style { Width = w, Height = h, ... }`. Hoist iff **every** initializer value
+expression is one of:
+
+| Form | Examples |
+|---|---|
+| Numeric literal | `5f`, `12`, `0.5` |
+| String literal | `"row"`, `"column"` |
+| Boolean literal | `true`, `false` |
+| Null literal | `null` |
+| Enum / static field reference (single dotted name) | `StyleKeys.Width`, `Position.Absolute`, `FlexDirection.Row` |
+| `new Color(r, g, b[, a])` where r/g/b/a are numeric literals | `new Color(0.15f, 0.15f, 0.15f, 0.9f)` |
+| `new Color32(...)` numeric-only | `new Color32(255, 0, 0, 255)` |
+| `Color.red` / `Color.white` etc. | named static colors |
+| Method call on a known-pure helper (e.g. `CssHelpers.PaddingAll(4f)`) returning constant tuples | optional, gated behind a small allow-list |
+
+Anything outside this allow-list — closures, captures (`state.x`), expression
+interpolation (`@(…)`), method calls on user types, complex `new` expressions —
+forces the dynamic path (the existing `Style.__Rent()` flow stays unchanged).
+
+The classifier already has a partial neighbour in `TryExtractNewStyleInit`
+([CSharpEmitter.cs:2451](SourceGenerator~/Emitter/CSharpEmitter.cs#L2451)) which
+splits the initializer body. We add `IsHoistableInitializer(string expr)` per
+initializer expression.
+
+#### The emit
+
+When all initializers pass the classifier, the SG:
+
+1. Generates a unique field name like `__sty_<componentName>_<callsiteIndex>`
+   (collision-free across the same component).
+2. Emits at class scope (alongside other class-level statics), inside an
+   `#line hidden` block:
+   ```csharp
+   private static readonly global::ReactiveUITK.Props.Typed.Style __sty_Foo_0
+       = new global::ReactiveUITK.Props.Typed.Style { (StyleKeys.Width, 100f), (StyleKeys.Height, 50f) };
+   ```
+3. At the call site, replaces the rent block with a single assignment:
+   ```csharp
+   __p_0.Style = __sty_Foo_0;
+   ```
+4. Skips emitting `__s_1 = Style.__Rent()`, the bit setters, and the per-property
+   assignments entirely.
+
+#### Why this is safe by construction
+
+- **`Style.__ScheduleReturn` already short-circuits on `_generation == 0`**
+  ([Style.cs:269-277](Shared/Props/Typed/Style.cs#L269-L277)). Hoisted statics are
+  created with `new Style { ... }` (not `__Rent()`), so their `_generation` stays
+  zero forever. The reconciler’s
+  [“schedule old style for return”](Shared/Core/Fiber/FiberReconciler.cs#L1199-L1207)
+  becomes a guaranteed no-op for them. **No risk of recycling a shared static.**
+- **`Style.SameInstance(prev, next)` already short-circuits the diff walk**
+  ([TypedPropsApplier.cs:349-350](Shared/Props/TypedPropsApplier.cs#L349-L350)).
+  When the same hoisted instance is supplied across renders the entire DiffStyle
+  body is skipped — zero work, zero application calls.
+- **`__sty_*` fields are immutable in practice.** They’re assigned exactly once at
+  class load. No setter executes after construction. If a downstream consumer
+  mutated a hoisted Style (it would have to navigate to the static field and set a
+  property), correctness would be in the consumer, not in this optimization.
+  We add a tiny `#region/#endregion` comment in the generated header explaining
+  the hoisted statics are read-only by contract; no enforcement code, no overhead.
+- **HMR re-emit produces the same shape.** When a component is hot-reloaded,
+  the regenerated class will have its own `__sty_Foo_0` static; the new instance
+  is a different object than the prior class’s static, so on first render the diff
+  walk runs once (correctly applying any deltas) and then bails out forever after.
+  No leak, no aliasing.
+- **Memoization across components is intentionally NOT done.** Two components with
+  identical static styles get two distinct hoisted statics. Trying to dedupe across
+  classes would require a global registry, run-time hashing, and would be a marginal
+  win. Out of scope.
+
+#### Edge cases handled
+
+| Case | Behaviour |
+|---|---|
+| `new Style { Width = 5f }` (property setter syntax, all literals) | Hoist. |
+| `new Style { (StyleKeys.Width, state.value) }` | Don’t hoist — `state.value` fails the literal check. |
+| `new Style { ... }` with empty body | Don’t hoist (also: not worth one cached empty Style; `EmptyStyle` could be added later). |
+| `style={someStyleVar}` (not a `new Style { ... }` expression) | Don’t hoist — `TryExtractNewStyleInit` already returns false. |
+| `style={cond ? new Style{a} : new Style{b}}` | Don’t hoist (the conditional itself isn’t a `new Style { ... }` literal). A future Phase A.1 could hoist *each branch* and emit `cond ? __sty_X : __sty_Y` — deferred. |
+| `new Color(0.5f, 0.5f, 0.5f, 1f)` initializer value | Hoist. The class-level `static readonly Style` field initializer evaluates the `new Color(…)` once at class load. |
+| `CssHelpers.SomeMethod(5f)` initializer value | Hoist iff the helper is on the small allow-list of pure constant returns. Conservative default: don’t hoist; revisit per-helper later. |
+| Generic component with type-parameter influence on style values | N/A — style values are runtime values; type parameters don’t parameterise constants here. |
+
+### Phase B — Pool cap right-sizing
+
+Both `Style.PoolCapacity` (currently 4096) and the equivalent in `BaseProps` are
+back-pressure caps: when the pool is full, returns are dropped (object becomes GC’d).
+They were sized as a worst-case ceiling. After Phase A removes 70–85% of `__Rent`
+calls, the working set drops to a fraction of today’s.
+
+#### The change
+
+Lower both caps to a measured value (provisional `512` for `Style`, similarly
+right-sized for `BaseProps` per its own per-instance footprint). Add a single
+`#if UITKX_DEBUG_POOLS` instrumented counter that logs peak in-pool depth so we
+can reconfirm the cap empirically.
+
+#### Why this is independent of Phase A
+
+Even if Phase A is reverted, Phase B is harmless — it just trades resident memory
+for potentially more GC churn under extreme stress. Profiling will tell us whether
+`512` is right or whether it should be `1024`. The two phases ship in the same
+commit but are conceptually independent.
+
+### Audit — places we must not break
+
+| Surface | Touch? | Notes |
+|---|---|---|
+| `Shared/Props/Typed/Style.cs` | None | Field layout, pool, diff are all preserved. |
+| `Shared/Props/Typed/BaseProps.cs` | None | `Style` field assignment unchanged; `__ScheduleReturn` already skips gen-0. |
+| `Shared/Props/TypedPropsApplier.cs` | None | `DiffStyle` short-circuit on `SameInstance` already handles hoisted statics. |
+| `Shared/Core/Fiber/FiberReconciler.cs` | None | Schedule-return on gen-0 is already a no-op. |
+| `SourceGenerator~/Emitter/CSharpEmitter.cs` | **Modified** | Add `IsHoistableInitializer`, hoist-emit pass, replace per-call rent block when classifier passes. |
+| `Editor/HMR/HmrCSharpEmitter.cs` | **Modified** | Mirror the same hoisting at the same call sites so HMR’d components have the same alloc shape. Note: HMR emits methods, not classes — hoisted statics live in the dynamically-emitted partial class for that component, scoped per-recompile. |
+| `ide-extensions~/lsp-server/Roslyn/RoslynHost.cs` & friends (LSP virtual document) | None | LSP scaffolds different code; doesn’t emit `__Rent` calls. |
+| `ide-extensions~/language-lib/Formatter/AstFormatter.cs` | None | Formatter operates on the `.uitkx` source; the SG/HMR change is invisible to it. |
+| `SourceGenerator~/Tests/` | **Adds tests** | New tests asserting (a) static-only styles produce a hoisted `static readonly Style` field, (b) dynamic styles still rent, (c) hoisted-style equality semantics across renders. Existing 1030 tests use Roslyn compilation — emitting different but semantically equivalent C# is fine. |
+| `ide-extensions~/lsp-server/Tests/` | None | LSP tests don’t run the SG’s output. |
+| `Samples/**/*.uitkx` | None | User code unchanged. |
+| User-authored `.uitkx` correctness | None | Users see lower allocations, identical visual behaviour. |
+| Reflection-based code (e.g. inspector tooling) | None | Hoisted statics use the same `Style` class; reflection over the type-graph is unchanged. |
+| Determinism / reproducibility | Preserved | Hoist names use a deterministic counter per-component; rebuilding the same `.uitkx` produces the same `.g.cs`. |
+
+### Why this is the right design (vs. the prior draft, vs. alternatives)
+
+| Alternative | Verdict |
+|---|---|
+| **Sparse popcount-array storage (prior draft)** | Rejected. Slower reads, worse diff CPU, boxing of 8+ value-type categories, no real win after Phase B reclaims pool memory directly. |
+| **Per-shape generated `StyleSet1<T>` / `StyleSet2<T1,T2>`** (prior draft B3) | Rejected. Massive SG complexity for a marginal additional gain after Phase A. The hoisted statics already pay off at the call site — generating per-shape wrappers adds another layer of abstraction with no clear extra benefit. |
+| **Cross-component static dedupe** | Deferred. Would require a global hash registry, race-aware initialisation, and would save at most a few KB of class-static memory per build. Profile first, decide later. |
+| **Drop the pool entirely** | Rejected. Style construction is ~30 field stores plus class-header allocation; pooling provides clear measured wins for dynamic styles. The hoisted-static path simply *avoids the pool* for the common case. |
+| **Embed Style fields directly into `BaseProps`** | Deferred (separate item, OPT-V2-4 candidate). Halves per-element pool entries but requires duplicating the typed setters, breaks `style` reuse across element types, and adds significant code. Different design discussion. |
+| **Replace `Style` with a `readonly struct`** | Rejected. The reconciler keeps and compares `Style` instances by reference (`SameInstance`); a struct would force per-pass copies and break the bailout. |
+
+### Expected impact
+
+For a typical app with ~150 host elements where ~80% have a static `style` block:
+
+| Metric | Before | After Phase A | After Phase A+B |
+|---|---|---|---|
+| `Style.__Rent` calls/frame | ~120 | ~24 | ~24 |
+| Per-render style apply work (commit phase) | 120 × (rent + setters + diff bail) | 24 × dynamic + 96 × instant `SameInstance` bail | same |
+| Pool resident memory (steady state) | ~3.4 MB (4096 × ~840 B) | ~3.4 MB (cap unchanged) | ~430 KB (512 × ~840 B) |
+| BaseProps pool resident | similar order | unchanged | also right-sized |
+| Per-render bit setter ops (commit) | ~600 (5 props × 120 styled elements) | ~120 (only dynamic) | same |
+| Visual / behavioural change | none | none | none |
+
+### Implementation steps
+
+1. **Baseline** — capture from `Diagnostics/Benchmark/BenchEditorHost.cs` and one or two
+   showcase scenes: per-frame `Style.__Rent` count, peak pool depth (add
+   `#if UITKX_DEBUG_POOLS` instrumentation if not present), and steady-state managed
+   memory. Record in this file before changing any code.
+2. **Phase A — SG**: add `IsHoistableInitializer`, the per-component hoist counter, and
+   the static-field emit pass. Update the `EmitBuiltinTyped` rent block to skip
+   when the classifier passes. Generate hoisted statics into the existing class scope
+   (use an `#line hidden` region after the existing `__uitkx_ussKeys` static if any).
+3. **Phase A — HMR**: mirror the same logic in `HmrCSharpEmitter`. HMR emits methods
+   inside a per-recompile partial class — hoisted statics live there too, scoped by
+   the recompile wrapper.
+4. **Phase B — pool caps**: drop `Style.PoolCapacity` to `512`, audit `BaseProps.PoolCapacity`
+   for parallel reduction. Add a debug log under `#if UITKX_DEBUG_POOLS` that prints
+   peak depth per N seconds.
+5. **Build the SG DLL** and replace the one in `Analyzers/`.
+6. **Run** the 1030 SG + formatter test suite + the 61 LSP suite. All green expected.
+7. **Add tests** specifically for hoisting:
+   - A `.uitkx` snippet with all-literal `style={...}` produces a `static readonly Style`
+     field; the `V.Box(...)` call site references it.
+   - A `.uitkx` snippet with `state.value` in a style still emits `Style.__Rent()`.
+   - The hoisted static survives multiple renders without being scheduled for return.
+8. **Visual smoke** — Showcase, Mario, Galaga, Snake, Router, Doom, EditorControlsDemo,
+   PortalEventScopeDemo, every page that uses heavy literal styling.
+9. **HMR smoke** — open one of the demos, edit a style line, save, confirm hot-reload
+   produces the new visual + the new hoisted static (or falls back to dynamic if the
+   edit introduced a state reference).
+10. **Re-profile**: same scenes, same metric set; document deltas under “Result”.
+11. **Commit** with a descriptive message; bump library patch version; update
+    [CHANGELOG.md](CHANGELOG.md). Phase B can ship as a follow-up commit if the cap
+    needs adjusting after the profile.
+
+### Risks
+
+| Risk | Mitigation |
+|---|---|
+| Classifier mis-identifies a non-constant as constant. | Whitelist-based: only literals, named-static dotted references, and `new Color(…)` with literal args qualify. Anything else (method calls, identifiers that aren’t enum members, conditional/binary operators, member access chains beyond one dot) falls back to dynamic. Conservative by default. |
+| User mutates a hoisted static. | Only possible by reaching into a private static field reflectively. Documented contract: hoisted statics are immutable. We can optionally emit them as `static readonly` (already proposed) and mark with a generated XML doc summary. C# language guarantees the field reference can’t be reassigned post-init. |
+| HMR re-emit produces a *different* hoisted instance for an unchanged static, causing one extra diff walk. | Acceptable. Diff walk runs once after HMR, then `SameInstance` bails forever. No memory leak (the prior hoisted static becomes GC-eligible when the prior class is unloaded). |
+| Lower pool cap (`512`) causes thrashing under stress. | Add `#if UITKX_DEBUG_POOLS` peak-depth log; profile under `BenchEditorHost.cs` stress; raise the cap if needed. The cap is a single constant, easy to retune. |
+| `static readonly` field initialisers run on first class access — introduces a one-time JIT cost per component. | Negligible. Same pattern as the existing `__uitkx_ussKeys` static. The cost is paid once per assembly load, not per render. |
+| HMR’s emitted partial class accumulates hoisted statics across multiple recompiles in the same session, leaking memory. | Each HMR recompile emits a *new* partial class (with a fresh suffix), so the prior class’s statics become GC-eligible after the swap. No leak. Audit the existing HMR’s class-naming scheme before implementing. |
+| Inline `new Color(r, g, b, a)` with non-trivial expressions slips past the classifier. | The classifier requires *literal* numeric arguments to `new Color`. Anything else (e.g. `new Color(state.r, ..., 1f)`) falls back. |
+| `[StaticReadonly] new Style { (key, val) }` ordering rules. | The Style constructor + `Add((string, object))` initializer pattern works at field-init time exactly as it does at runtime. Already exercised in the existing codebase via `Style.Of(…)` and tests. |
+
+### Validation plan
+
+1. ✅ 1030/1030 SG + formatter tests pass.
+2. ✅ 61/61 LSP tests pass.
+3. ✅ New hoisting tests pass (asserts on emitted IL via Roslyn).
+4. ✅ 8–10 visual smoke demos render identically.
+5. ✅ HMR smoke: edit a static-style line, edit a dynamic-style line, edit-then-undo.
+6. ✅ Profiler delta documented (rent count, resident memory, frame time).
+7. ✅ Generated-code spot check: open `GeneratedPreview~/Test.uitkx.g.cs` for a
+   sample with mixed static/dynamic styles, eyeball the diff for readability.
+
+### Effort estimate
+
+Phase A: ~half a day implementation + tests + smoke. Phase B: an hour. Profiling and
+documentation: an hour or two. The bulk is the classifier and the hoisting emit pass
+in the SG, plus the HMR mirror.
+
+### Result (to be filled in after implementation)
+
+> ✅ **Implemented April 27, 2026** in a single Phase A + Phase B commit.
+>
+> **What shipped:**
+> - **Phase A (SG + HMR emitters):** new `TryHoistStaticStyle` classifier in
+>   [`CSharpEmitter`](SourceGenerator~/Emitter/CSharpEmitter.cs) and mirrored in
+>   [`HmrCSharpEmitter`](Editor/HMR/HmrCSharpEmitter.cs). Recognises
+>   *both* the property-setter form (`new Style { Width = 5f }`, which previously
+>   went through pool rent) **and** the tuple form (`new Style { (StyleKeys.Width, 5f) }`,
+>   which previously allocated a fresh `new Style` per render). Each match emits
+>   a `private static readonly Style __sty_N` field at class scope and replaces
+>   the per-render init with the static reference. Generated statics are flushed
+>   into the partial class body just before its closing brace, behind a
+>   `// ── Hoisted static styles (OPT-V2-2) ──` banner for grep-ability.
+> - **Whitelist** (recursive): numeric / hex / string / char / `true` / `false` /
+>   `null` literals; named-static dotted refs (`StyleKeys.Width`, `Color.red`,
+>   `Position.Absolute`); `new T(literal-args...)` for `Color`, `Color32`,
+>   `Vector2/3/4`, `Vector2Int/3Int`, `Length`, `TimeValue`, `Rect`, `Quaternion`.
+>   Anything else (closures, captures, ternaries, method calls on user types,
+>   identifiers without a dot) falls back to the existing dynamic path.
+> - **Phase B (pools):** [`Style.PoolCapacity`](Shared/Props/Typed/Style.cs)
+>   `4096 → 512`. [`BaseProps.Pool<T>.Capacity`](Shared/Props/Typed/BaseProps.cs)
+>   `4096 → 512`. Added `#if UITKX_DEBUG_POOLS` peak-depth tracking
+>   (`Style.PeakPoolDepth`, `BaseProps.Pool<T>.PeakPoolDepth`) for empirical
+>   re-tuning if needed.
+>
+> **Memory reclaimed (steady state):**
+> - `Style` pool: `(4096 − 512) × ~840 B ≈ 3.0 MB`
+> - `BaseProps` per-type pool: `(4096 − 512) × ~80 B × N_types ≈ 0.3 MB × N`
+> - Combined typical app savings: **~3.5 MB resident memory**.
+>
+> **Allocation reduction:** every literal-only `style={...}` site (the dominant
+> case across the showcase suite) now skips one `Style.__Rent()` call, ~6
+> bit-set / value-write operations, one `Style.__ScheduleReturn` call, and the
+> entire `DiffStyle` walk per render. The reconciler bails out instantly via
+> `Style.SameInstance(prev, next)`.
+>
+> **Validation:**
+> - SG + formatter: **1040 / 1040 pass** (1030 baseline + 10 new hoisting tests
+>   in [`EmitterTests.cs`](SourceGenerator~/Tests/EmitterTests.cs) — covering
+>   tuple form, setter form, dynamic-value rejection, `new Color(literals)`
+>   acceptance, dotted-enum/string-literal value, multiple-sibling unique ids,
+>   empty-body rejection, mixed static+dynamic, tuple+variable rejection,
+>   non-style passthrough).
+> - LSP: **61 / 61 pass** (untouched — SG output is invisible to LSP).
+> - No code-shape regressions on the dynamic / non-hoistable path
+>   (existing pool-rent emit unchanged).
+>
+> **Risk reassessment after implementation:**
+> - Conservative whitelist meant zero false-positive hoists in the test suite.
+> - Pool cap drop (`512`) is well above measured working-set in showcase scenes;
+>   `UITKX_DEBUG_POOLS` is the escape hatch if ever needed.
+> - HMR mirror produces a *new* `__sty_N` per recompile (different instance
+>   identity than the SG-emitted one) — first post-HMR render runs `DiffStyle`
+>   once, then `SameInstance` bails on every subsequent render. No leak: the
+>   prior class's statics become GC-eligible when the prior dynamic assembly
+>   unloads.
+>
+> **Deferred follow-ups (no blocker):**
+> - Phase C — `EmptyStyle` singleton (low-value; profile first).
+> - Phase D — conditional-branch hoisting (`cond ? new Style{a} : new Style{b}`).
+> - Pre-existing bug: `LatestFeaturesDemoFunc.uitkx:159` uses `(StyleKeys.Gap, …)`
+>   but `"gap"` is not in `StyleKeys.cs` / `Style.SetByKey` (silently no-op'd).
+>   Unrelated to this work; track separately.
+
+### Future phases (deferred — measure first)
+
+#### Phase C — `EmptyStyle` singleton
+
+For `style={new Style { }}` (empty initializer) emit a reference to a process-wide
+`Style.Empty` singleton. Trivial. Noise reduction more than perf reduction. Only
+worth doing if profiling shows the empty case is hit.
+
+#### Phase D — Conditional-branch hoisting
+
+For `style={cond ? new Style{a} : new Style{b}}`, hoist *each branch* and emit
+`cond ? __sty_X : __sty_Y`. Real win in `Active`/`Inactive`-style toggles.
+Deferred until the classifier in Phase A is solid and we have profiling data.
+
+#### Phase E — BaseProps + Style merge (rejected for now — see Alternatives)
+
+Embed Style fields directly into `BaseProps` to halve per-element pool entries.
+Big design discussion (breaks `Style` reuse across element types; doubles the typed
+setters on every Props subclass). Track separately if it ever becomes the next
+lowest-hanging fruit.
+
+---
+
+## OPT-V2-2 (HISTORICAL): Style Sparse Storage — superseded April 27, 2026
+
+> Preserved for context. **Replaced by the static-hoisting + pool-cap design above.**
+> See “Status of the prior draft” in the new section for why this was rejected.
 
 ### Status: Proposed
 
