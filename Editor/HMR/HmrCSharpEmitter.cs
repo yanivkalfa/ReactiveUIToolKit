@@ -756,9 +756,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Fragment(key: {keyExpr}");
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -867,9 +875,17 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (res.Kind == TagKind.TypedC && children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -924,9 +940,17 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -969,9 +993,18 @@ namespace ReactiveUITK.EditorSupport.HMR
 
                 if (children.Count > 0)
                 {
-                    _sb.Append(", children: __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        // Phase A bypass: V.Func<P>(R, props, key: k, child1, child2, ...)
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", children: __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -1015,9 +1048,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Suspense({isReady}, {fallback}, key: {keyExpr}");
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -1028,9 +1069,17 @@ namespace ReactiveUITK.EditorSupport.HMR
                 _sb.Append($"V.Portal({target}, key: {keyExpr}");
                 if (children.Count > 0)
                 {
-                    _sb.Append(", __C(");
-                    EmitChildArgs(children);
-                    _sb.Append(")");
+                    if (TryClassifySimpleChildren(children))
+                    {
+                        _sb.Append(", ");
+                        EmitChildArgs(children);
+                    }
+                    else
+                    {
+                        _sb.Append(", __C(");
+                        EmitChildArgs(children);
+                        _sb.Append(")");
+                    }
                 }
                 _sb.Append(")");
             }
@@ -1194,27 +1243,92 @@ namespace ReactiveUITK.EditorSupport.HMR
                 }
             }
 
+            // ============================================================
+            //  Phase A children classifier (mirrors CSharpEmitter)
+            // ============================================================
+            //
+            // Returns true when *every* non-comment child is statically guaranteed
+            // to produce exactly one non-null VirtualNode (only ElementNode and
+            // TextNode), AND there is at least one such child.  Caller may then
+            // bypass `__C(...)` and pass children directly into the container's
+            // `params VirtualNode[] children` parameter.  Must be kept in lock-step
+            // with CSharpEmitter.TryClassifySimpleChildren so HMR'd components have
+            // the same alloc shape as their source-gen'd counterparts.
+            private static bool TryClassifySimpleChildren(IList children)
+            {
+                int effectiveCount = 0;
+                for (int i = 0; i < children.Count; i++)
+                {
+                    string n = children[i].GetType().Name;
+                    if (n == "CommentNode")
+                        continue;
+                    if (n == "ElementNode" || n == "TextNode")
+                    {
+                        effectiveCount++;
+                        continue;
+                    }
+                    return false;
+                }
+                return effectiveCount > 0;
+            }
+
             private void EmitHelper()
             {
+                // Two-pass count-then-fill into a single fresh VirtualNode[count].
+                // Mirrors CSharpEmitter.EmitHelperMethod's Phase B body.
+                //
+                //   * skips null VNodes (from @if without @else)
+                //   * fast path for VirtualNode[] (the common case after Phase A)
+                //   * fast path for IReadOnlyList<VirtualNode> (slot pass-through:
+                //     @(__children) where __children has compile-time type
+                //     IReadOnlyList<VirtualNode>)
+                //   * fallback to non-generic IEnumerable for anything else
                 L($"        private static {QVNode}[] __C(params object[] items)");
                 L("        {");
-                L(
-                    $"            var result = new System.Collections.Generic.List<{QVNode}>(items.Length);"
-                );
-                L("            for (int i = 0; i < items.Length; i++)");
+                L("            // Pass 1: count valid VNodes.");
+                L("            int __count = 0;");
+                L("            for (int __i = 0; __i < items.Length; __i++)");
                 L("            {");
-                L("                var item = items[i];");
-                L("                if (item == null) continue;");
-                L($"                if (item is {QVNode} v) {{ result.Add(v); continue; }}");
+                L("                var __ci = items[__i];");
+                L("                if (__ci == null) continue;");
                 L(
-                    $"                if (item is {QVNode}[] arr) {{ result.AddRange(arr); continue; }}"
+                    $"                if (__ci is {QVNode} __vn) {{ if (__vn != null) __count++; continue; }}"
                 );
-                L("                if (item is System.Collections.IEnumerable seq)");
                 L(
-                    $"                    foreach (var child in seq) if (child is {QVNode} cv) result.Add(cv);"
+                    $"                if (__ci is {QVNode}[] __arr) {{ for (int __j = 0; __j < __arr.Length; __j++) if (__arr[__j] != null) __count++; continue; }}"
+                );
+                L(
+                    $"                if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros) {{ int __rn = __ros.Count; for (int __j = 0; __j < __rn; __j++) if (__ros[__j] != null) __count++; continue; }}"
+                );
+                L("                if (__ci is System.Collections.IEnumerable __seq)");
+                L(
+                    $"                    foreach (var __sn in __seq) if (__sn is {QVNode} __cv && __cv != null) __count++;"
                 );
                 L("            }");
-                L("            return result.ToArray();");
+                L($"            if (__count == 0) return global::System.Array.Empty<{QVNode}>();");
+                L("");
+                L("            // Pass 2: fill into pre-sized array.");
+                L($"            var __result = new {QVNode}[__count];");
+                L("            int __k = 0;");
+                L("            for (int __i = 0; __i < items.Length; __i++)");
+                L("            {");
+                L("                var __ci = items[__i];");
+                L("                if (__ci == null) continue;");
+                L(
+                    $"                if (__ci is {QVNode} __vn) {{ if (__vn != null) __result[__k++] = __vn; continue; }}"
+                );
+                L(
+                    $"                if (__ci is {QVNode}[] __arr) {{ for (int __j = 0; __j < __arr.Length; __j++) {{ var __sn = __arr[__j]; if (__sn != null) __result[__k++] = __sn; }} continue; }}"
+                );
+                L(
+                    $"                if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros) {{ int __rn = __ros.Count; for (int __j = 0; __j < __rn; __j++) {{ var __sn = __ros[__j]; if (__sn != null) __result[__k++] = __sn; }} continue; }}"
+                );
+                L("                if (__ci is System.Collections.IEnumerable __seq)");
+                L(
+                    $"                    foreach (var __sn in __seq) if (__sn is {QVNode} __cv && __cv != null) __result[__k++] = __cv;"
+                );
+                L("            }");
+                L("            return __result;");
                 L("        }");
                 L("");
 

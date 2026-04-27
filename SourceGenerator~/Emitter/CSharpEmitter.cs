@@ -585,23 +585,107 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
         private void EmitHelperMethod()
         {
-            // Generates a child-array builder that:
-            //   ΓÇó skips null VirtualNode entries (from @if without @else)
-            //   ΓÇó flattens VirtualNode[] arrays (from @foreach ΓåÆ .Select().ToArray())
+            // Generates a child-array builder (used only for the dynamic JSX path:
+            // children that contain @if / @for / @foreach / @while / @switch / @(expr)).
+            //
+            //   * skips null VirtualNode entries (from @if without @else)
+            //   * flattens VirtualNode[] / IReadOnlyList<VirtualNode> / IEnumerable<VirtualNode>
+            //     (from @foreach -> .Select().ToArray() and from @(__children) slot
+            //     pass-through, where __children has compile-time type
+            //     IReadOnlyList<VirtualNode>)
+            //
+            // Two-pass count-then-fill into a single freshly-allocated VirtualNode[count].
+            // No transient List<VirtualNode> + ToArray() copy.
+            //
+            // For elements whose children are 100% statically simple (only ElementNode /
+            // TextNode / CommentNode), the source generator bypasses this helper entirely
+            // and passes children directly to the container's `params VirtualNode[]`
+            // parameter -- see TryClassifySimpleChildren.
             L($"{I2}private static {QVNode}[] __C(params object[] items)");
             L($"{I2}{{");
-            L($"{I3}var list = new global::System.Collections.Generic.List<{QVNode}>();");
-            L($"{I3}foreach (var __ci in items)");
+            L($"{I3}// Pass 1: count valid VNodes.");
+            L($"{I3}int __count = 0;");
+            L($"{I3}for (int __i = 0; __i < items.Length; __i++)");
             L($"{I3}{{");
-            L($"{I4}if (__ci is {QVNode} __vn) {{ if (__vn != null) list.Add(__vn); }}");
+            L($"{I4}var __ci = items[__i];");
+            L($"{I4}if (__ci is {QVNode} __vn) {{ if (__vn != null) __count++; }}");
+            L(
+                $"{I4}else if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros)"
+            );
+            L($"{I4}{{");
+            L($"{I4}    int __rn = __ros.Count;");
+            L($"{I4}    for (int __j = 0; __j < __rn; __j++) if (__ros[__j] != null) __count++;");
+            L($"{I4}}}");
             L(
                 $"{I4}else if (__ci is global::System.Collections.Generic.IEnumerable<{QVNode}> __seq)"
             );
-            L($"{I4}    foreach (var __sn in __seq) {{ if (__sn != null) list.Add(__sn); }}");
+            L($"{I4}    foreach (var __sn in __seq) if (__sn != null) __count++;");
             L($"{I3}}}");
-            L($"{I3}return list.ToArray();");
+            L($"{I3}if (__count == 0) return global::System.Array.Empty<{QVNode}>();");
+            L("");
+            L($"{I3}// Pass 2: fill into pre-sized array.");
+            L($"{I3}var __result = new {QVNode}[__count];");
+            L($"{I3}int __k = 0;");
+            L($"{I3}for (int __i = 0; __i < items.Length; __i++)");
+            L($"{I3}{{");
+            L($"{I4}var __ci = items[__i];");
+            L($"{I4}if (__ci is {QVNode} __vn) {{ if (__vn != null) __result[__k++] = __vn; }}");
+            L(
+                $"{I4}else if (__ci is global::System.Collections.Generic.IReadOnlyList<{QVNode}> __ros)"
+            );
+            L($"{I4}{{");
+            L($"{I4}    int __rn = __ros.Count;");
+            L($"{I4}    for (int __j = 0; __j < __rn; __j++)");
+            L($"{I4}    {{");
+            L($"{I4}        var __sn = __ros[__j];");
+            L($"{I4}        if (__sn != null) __result[__k++] = __sn;");
+            L($"{I4}    }}");
+            L($"{I4}}}");
+            L(
+                $"{I4}else if (__ci is global::System.Collections.Generic.IEnumerable<{QVNode}> __seq)"
+            );
+            L($"{I4}    foreach (var __sn in __seq) if (__sn != null) __result[__k++] = __sn;");
+            L($"{I3}}}");
+            L($"{I3}return __result;");
             L($"{I2}}}");
             L("");
+        }
+
+        // ============================================================
+        //  Phase A children classifier
+        // ============================================================
+        //
+        // Returns true when *every* non-comment child is statically guaranteed to
+        // produce exactly one non-null VirtualNode (i.e. only ElementNode and
+        // TextNode), AND there is at least one such child.  When true, callers may
+        // bypass `__C(...)` and emit the children directly into the container
+        // method's `params VirtualNode[] children` parameter -- saving the
+        // `params object[]` boxing allocation and the `__C` array copy.
+        //
+        // IfNode / ForNode / ForeachNode / WhileNode / SwitchNode / ExpressionNode
+        // all return false: they may yield null (IfNode without @else) or
+        // IEnumerable<VirtualNode> (loops, slot pass-through), which __C must
+        // null-filter and flatten.
+        //
+        // Returns false if there are no effective (non-comment) children -- in that
+        // case the caller must still take the __C path so that EmitChildArgs has
+        // something to emit between the parens (otherwise we'd produce a syntax
+        // error like "V.Box(props, key: k, )").
+        private static bool TryClassifySimpleChildren(ImmutableArray<AstNode> children)
+        {
+            int effectiveCount = 0;
+            foreach (var c in children)
+            {
+                if (c is CommentNode)
+                    continue;
+                if (c is ElementNode || c is TextNode)
+                {
+                    effectiveCount++;
+                    continue;
+                }
+                return false;
+            }
+            return effectiveCount > 0;
         }
 
         /// <summary>
@@ -922,9 +1006,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (res.AcceptsChildren && !children.IsEmpty)
             {
-                _sb.Append(", __C(");
-                EmitChildArgs(children);
-                _sb.Append(")");
+                if (TryClassifySimpleChildren(children))
+                {
+                    // Phase A bypass: emit children directly into params VirtualNode[]
+                    _sb.Append(", ");
+                    EmitChildArgs(children);
+                }
+                else
+                {
+                    _sb.Append(", __C(");
+                    EmitChildArgs(children);
+                    _sb.Append(")");
+                }
             }
 
             _sb.Append(")");
@@ -979,9 +1072,17 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (!children.IsEmpty)
             {
-                _sb.Append(", __C(");
-                EmitChildArgs(children);
-                _sb.Append(")");
+                if (TryClassifySimpleChildren(children))
+                {
+                    _sb.Append(", ");
+                    EmitChildArgs(children);
+                }
+                else
+                {
+                    _sb.Append(", __C(");
+                    EmitChildArgs(children);
+                    _sb.Append(")");
+                }
             }
 
             _sb.Append(")");
@@ -1096,9 +1197,18 @@ namespace ReactiveUITK.SourceGenerator.Emitter
 
             if (!children.IsEmpty)
             {
-                _sb.Append(", children: __C(");
-                EmitChildArgs(children);
-                _sb.Append(")");
+                if (TryClassifySimpleChildren(children))
+                {
+                    // Phase A bypass: V.Func<P>(R, props, key: k, child1, child2, ...)
+                    _sb.Append(", ");
+                    EmitChildArgs(children);
+                }
+                else
+                {
+                    _sb.Append(", children: __C(");
+                    EmitChildArgs(children);
+                    _sb.Append(")");
+                }
             }
 
             _sb.Append(")");
@@ -1250,6 +1360,12 @@ namespace ReactiveUITK.SourceGenerator.Emitter
             if (children.IsEmpty)
             {
                 _sb.Append($"V.Fragment(key: {keyExpr})");
+            }
+            else if (TryClassifySimpleChildren(children))
+            {
+                _sb.Append($"V.Fragment(key: {keyExpr}, ");
+                EmitChildArgs(children);
+                _sb.Append(")");
             }
             else
             {
