@@ -1,6 +1,17 @@
 {
   "entries": [
     {
+      "date": "2026-04-28",
+      "versions": {
+        "vscode": "1.1.6",
+        "vs2022": "1.1.6"
+      },
+      "shared": [
+        "Perf: source generator now hoists `style={new Style{...}}` literals to class-level static fields, eliminating per-render Style allocations and diff-walks for static styles. Handles both setter form (`Width = 5f`) and tuple form (`(StyleKeys.Width, 5f)`). Whitelist-based; falls back to existing pool-rent path for any non-literal value (state/captures/method calls).",
+        "Perf: source generator emits child arguments directly into `params VirtualNode[]` instead of allocating a transient `__C(...)` array when the JSX children list is statically simple (no spreads, no conditional fragments). Cuts per-frame allocations on the children path."
+      ]
+    },
+    {
       "date": "2026-04-27",
       "versions": {
         "vscode": "1.1.5",
