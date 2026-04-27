@@ -1215,8 +1215,25 @@ namespace ReactiveUITK.Language.Formatter
             // The stack holds the TOTAL column (including IndentStr) at which
             // the content of each open block should appear.
             var blockStack = new System.Collections.Generic.Stack<int>();
+            // Records the paren-depth that was active when each block on
+            // blockStack was opened.  A line is treated as a paren continuation
+            // only when parenDepth > peek of this stack (i.e., the open `(` was
+            // started AFTER the current block was entered).  Without this guard,
+            // `useEffect(() => { body }, ...)` would falsely mark `body` as a
+            // continuation of the outer call's argument list.
+            var blockParenBaseStack = new System.Collections.Generic.Stack<int>();
             int lastStatementInputIndent = -1; // input lead of most-recent depth-0 statement opener
             bool prevWasStatementStarter = false;
+
+            // Open-paren continuation tracking. When a line opens a `(` that
+            // does not close on the same line AND no enclosing block intervenes,
+            // subsequent lines are paren continuations whose indent must be
+            // preserved RELATIVE to the opener line's input indent (e.g. `&&`
+            // arms of a multi-line `if (...)` stay at +4sp from the `if`).
+            int parenDepth = 0;
+            int parenOpenLineEmitted = -1;     // emitted-column anchor of opener line
+            int parenOpenLineInputIndent = -1; // input lead-spaces of opener line
+            int parenOpenAtBlockDepth = -1;    // blockStack.Count when opener fired
 
             for (int li = 0; li <= lastMeaningful; li++)
             {
@@ -1241,21 +1258,46 @@ namespace ReactiveUITK.Language.Formatter
                 while (leadClose < stripped.Length && stripped[leadClose] == '}')
                     leadClose++;
                 for (int p = 0; p < leadClose; p++)
+                {
                     if (blockStack.Count > 0)
                         blockStack.Pop();
+                    if (blockParenBaseStack.Count > 0)
+                        blockParenBaseStack.Pop();
+                }
 
                 // Compute the indentation for this line and emit it.
                 int emittedTotal; // total column position of the emitted line content
+                int blockTargetForPush; // logical block target (used when pushing a new block)
+                int currentBlockParenBase =
+                    blockParenBaseStack.Count > 0 ? blockParenBaseStack.Peek() : 0;
+                bool isParenContinuation =
+                    parenDepth > currentBlockParenBase
+                    && parenOpenLineEmitted >= 0
+                    && parenOpenLineInputIndent >= 0
+                    && parenOpenAtBlockDepth == blockStack.Count;
+                var expRaw = raw.Replace("\t", tabExp);
+                int leadRaw = expRaw.Length - expRaw.TrimStart().Length;
+
                 if (blockStack.Count == 0)
                 {
                     // Depth-0: statement-opening lines are always at indentSpaces (rel=0).
                     // Continuation/closure tokens anchor to the most-recent statement's
                     // INPUT indent so relative offsets survive mixed-corruption files
                     // (e.g. some lines at 2sp, others at 4sp or 12sp due to CSharpier).
-                    var expL = raw.Replace("\t", tabExp);
-                    int leadL = expL.Length - expL.TrimStart().Length;
+                    int leadL = leadRaw;
                     int rel;
-                    if (li == 0 || IsStatementStarter(stripped))
+                    if (isParenContinuation)
+                    {
+                        // Inside an open `(` from a previous depth-0 line: preserve
+                        // the relative offset from the opener's input indent so
+                        // multi-line `if (...)` / call-arg continuations keep their
+                        // visible column. Do NOT update lastStatementInputIndent
+                        // because this line is not a statement opener.
+                        int relOpener = System.Math.Max(0, leadL - parenOpenLineInputIndent);
+                        emittedTotal = parenOpenLineEmitted + relOpener;
+                        rel = System.Math.Max(0, emittedTotal - indentSpaces);
+                    }
+                    else if (li == 0 || IsStatementStarter(stripped))
                     {
                         rel = 0;
                         // li==0 is Trim()'d by the caller so its leadL is 0 regardless of
@@ -1263,39 +1305,114 @@ namespace ReactiveUITK.Language.Formatter
                         // non-starter lines.  Only record the input indent for li > 0.
                         if (li > 0)
                             lastStatementInputIndent = leadL;
+                        emittedTotal = indentSpaces;
                     }
                     else if (stripped == "{" && prevWasStatementStarter)
                     {
                         // Allman-style block opener after a statement: always at rel=0.
                         rel = 0;
+                        emittedTotal = indentSpaces;
                     }
                     else
                     {
                         int anchor =
                             lastStatementInputIndent >= 0 ? lastStatementInputIndent : baseSpaces;
                         rel = System.Math.Max(0, leadL - anchor);
+                        emittedTotal = indentSpaces + rel;
                     }
                     string relPrefix = rel > 0 ? new string(' ', rel) : string.Empty;
                     Ln(relPrefix + stripped);
-                    emittedTotal = indentSpaces + rel;
 
-                    prevWasStatementStarter = IsStatementStarter(stripped) || li == 0;
+                    // For pushing a new block, the LOGICAL anchor is indentSpaces
+                    // (the statement column), not the continuation column.
+                    blockTargetForPush = isParenContinuation ? indentSpaces : emittedTotal;
+
+                    if (!isParenContinuation)
+                        prevWasStatementStarter = IsStatementStarter(stripped) || li == 0;
                 }
                 else
                 {
                     // Inside a block: normalise to the block's expected indentation.
                     int blockTarget = blockStack.Peek();
-                    int prefixSpaces = System.Math.Max(0, blockTarget - indentSpaces);
+                    if (isParenContinuation)
+                    {
+                        // Paren-continuation inside a block: preserve the relative
+                        // offset from the opener line so e.g. `&&` arms of a
+                        // multi-line `if (...)` stay at +4sp from the `if`.
+                        int relOpener = System.Math.Max(0, leadRaw - parenOpenLineInputIndent);
+                        emittedTotal = parenOpenLineEmitted + relOpener;
+                    }
+                    else
+                    {
+                        emittedTotal = blockTarget;
+                    }
+                    int prefixSpaces = System.Math.Max(0, emittedTotal - indentSpaces);
                     string blockPrefix =
                         prefixSpaces > 0 ? new string(' ', prefixSpaces) : string.Empty;
                     Ln(blockPrefix + stripped);
-                    emittedTotal = blockTarget;
+
+                    // For pushing a new block, the LOGICAL anchor is the block
+                    // target (the statement column inside this block), not the
+                    // continuation column.
+                    blockTargetForPush = blockTarget;
+                }
+
+                // Update paren-depth tracking BEFORE the trailing-{ push so that a
+                // line which both opens a `(` and ends with `{` correctly anchors
+                // future inside-block continuations (the `(` becomes the block's
+                // own base paren-depth, NOT a continuation context).
+                ScanParens(stripped, out int opens, out int closes);
+                int prevParenDepth = parenDepth;
+                parenDepth = System.Math.Max(0, parenDepth + opens - closes);
+
+                // If a paren that started on a previous line just closed, drop
+                // the anchors. Re-open if a fresh `(` opened on this line and
+                // is still open at end-of-line.
+                if (parenDepth <= currentBlockParenBase)
+                {
+                    parenOpenLineEmitted = -1;
+                    parenOpenLineInputIndent = -1;
+                    parenOpenAtBlockDepth = -1;
+                }
+                if (parenDepth > prevParenDepth && li > 0)
+                {
+                    // A new `(` opened on this line and at least one is still
+                    // unclosed at end-of-line. Anchor to this line so future
+                    // continuations can preserve their relative offset.
+                    // li==0 is Trim()'d by the caller so its leadRaw=0
+                    // regardless of the original source indent ΓÇö skip
+                    // anchoring to avoid blowing up the offset on next line.
+                    parenOpenLineEmitted = emittedTotal;
+                    parenOpenLineInputIndent = leadRaw;
+                    parenOpenAtBlockDepth = blockStack.Count;
                 }
 
                 // Push for a trailing '{' ΓÇö next lines should be one tabExp deeper.
                 string tail = stripped.TrimEnd();
                 if (tail.Length > 0 && tail[tail.Length - 1] == '{')
-                    blockStack.Push(emittedTotal + _opts.IndentSize);
+                {
+                    // Distinguish bare-brace initializers (`{` alone, opens at
+                    // the brace's actual column) from statement-body braces
+                    // (content before `{`, opens at the surrounding logical
+                    // block column).  Only paren-continuation statement bodies
+                    // need the logical-column re-anchor; bare braces always
+                    // anchor to their own emitted column.
+                    bool isBareBrace = stripped == "{";
+                    int pushBase = (isParenContinuation && !isBareBrace)
+                        ? blockTargetForPush
+                        : emittedTotal;
+                    blockStack.Push(pushBase + _opts.IndentSize);
+                    // The new block's "base paren depth" is the current
+                    // parenDepth (post-update). Parens opened inside the block
+                    // count as continuations; parens from outside do not.
+                    blockParenBaseStack.Push(parenDepth);
+                    // Block opener resets paren-anchor scope: any pending
+                    // anchor belongs to an OUTER scope and must not leak into
+                    // the new block.
+                    parenOpenLineEmitted = -1;
+                    parenOpenLineInputIndent = -1;
+                    parenOpenAtBlockDepth = -1;
+                }
             }
         }
 
@@ -1363,6 +1480,124 @@ namespace ReactiveUITK.Language.Formatter
                 return true;
 
             return false;
+        }
+
+        /// <summary>
+        /// Counts unmatched <c>(</c> and <c>)</c> in a single line of C# source,
+        /// skipping over string literals (regular, verbatim, interpolated),
+        /// character literals, and <c>// line</c> / <c>/* block */</c> comments.
+        /// Used by <see cref="EmitSetupCodeNormalized"/> to track open-paren
+        /// depth across consecutive lines so multi-line <c>(...)</c> expressions
+        /// preserve their relative indentation.
+        /// </summary>
+        private static void ScanParens(string line, out int opens, out int closes)
+        {
+            opens = 0;
+            closes = 0;
+            bool inStr = false;
+            bool verbatim = false;
+            bool inChar = false;
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (inStr)
+                {
+                    if (verbatim)
+                    {
+                        if (c == '"')
+                        {
+                            if (i + 1 < line.Length && line[i + 1] == '"')
+                                i++; // doubled-quote escape
+                            else
+                                inStr = false;
+                        }
+                    }
+                    else
+                    {
+                        if (c == '\\' && i + 1 < line.Length)
+                            i++; // escape
+                        else if (c == '"')
+                            inStr = false;
+                    }
+                    continue;
+                }
+
+                if (inChar)
+                {
+                    if (c == '\\' && i + 1 < line.Length)
+                        i++;
+                    else if (c == '\'')
+                        inChar = false;
+                    continue;
+                }
+
+                // Line comment ΓÇö rest of line is non-code.
+                if (c == '/' && i + 1 < line.Length && line[i + 1] == '/')
+                    break;
+
+                // Block comment ΓÇö skip to closing */.
+                if (c == '/' && i + 1 < line.Length && line[i + 1] == '*')
+                {
+                    i += 2;
+                    while (i + 1 < line.Length && !(line[i] == '*' && line[i + 1] == '/'))
+                        i++;
+                    i++; // consume the '/' of */
+                    continue;
+                }
+
+                // Detect verbatim @"..." or interpolated $"..." (and $@", @$").
+                if (c == '@' && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    inStr = true;
+                    verbatim = true;
+                    i++;
+                    continue;
+                }
+                if (c == '$' && i + 1 < line.Length)
+                {
+                    if (line[i + 1] == '"')
+                    {
+                        inStr = true;
+                        verbatim = false;
+                        i++;
+                        continue;
+                    }
+                    if (
+                        line[i + 1] == '@'
+                        && i + 2 < line.Length
+                        && line[i + 2] == '"'
+                    )
+                    {
+                        inStr = true;
+                        verbatim = true;
+                        i += 2;
+                        continue;
+                    }
+                }
+                if (c == '"')
+                {
+                    inStr = true;
+                    verbatim = false;
+                    continue;
+                }
+                if (c == '\'')
+                {
+                    inChar = true;
+                    continue;
+                }
+
+                if (c == '(')
+                    opens++;
+                else if (c == ')')
+                {
+                    if (opens > 0)
+                        opens--; // pair with same-line open
+                    else
+                        closes++;
+                }
+            }
         }
 
         private static readonly string[] s_statementKeywords =

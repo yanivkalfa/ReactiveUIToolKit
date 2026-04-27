@@ -6,6 +6,136 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 For IDE extension changelogs (VS Code, Visual Studio 2022), see
 `ide-extensions~/changelog.json` — the single source of truth for extension releases.
 
+## [Unreleased]
+
+## [0.4.10] - 2026-04-27
+
+### Performance
+
+- **Major reconciler & props pipeline optimization pass.** Brought UITKX from
+  ~1.7× overhead vs. native UIToolkit (28 FPS / 47 FPS at the 3000-box stress
+  benchmark) up to ~78% of native (36–38 FPS). Real apps with partial updates
+  will be much closer to native still. Notable items:
+  - **Typed Props Pipeline** — eliminated ~6,000 dictionary allocations/frame
+    on the props plumbing path (component → reconciler → element adapter).
+  - **Typed Style Pipeline** — eliminated ~21,000 boxing + dictionary
+    allocations/frame; styles now flow through a flat backing-field struct
+    instead of `Dictionary<string, object>`.
+  - **Style & BaseProps object pooling (OPT-16)** — removed ~6,000 object
+    allocations/frame; pool runs at ~99% hit rate at steady state.
+  - **`@foreach` / `@for` / `@while` IIFE closure elimination (OPT-10)** —
+    `return` inside loop bodies rewritten to `__r.Add(...); continue;` so each
+    iteration no longer allocates a delegate closure (~3,000 closures/frame
+    eliminated). Also fixes a pre-existing `break`/`continue` semantics bug in
+    `@for`/`@while` bodies.
+  - **Event handler diff fast-path (OPT-22)** — `_hasEvents` flag on `BaseProps`
+    skips ~43 `DiffEvent` calls per element when neither the previous nor next
+    props carry any handler. ~+2 FPS at 3000 boxes.
+  - **Quick-wins batch (OPT-4/5/7/11/23/24/25/26)** — small per-element wins
+    across BaseProps equality, fragment fast-paths, fiber bailout, deletion
+    tracking, and adapter dispatch.
+
+### Added
+
+- **Doom-style game demo sample** (`Samples/Components/DoomGame/`) — full
+  demo built in UITKX: types, maps, game loop, hooks, styles, and a
+  `DoomGameScreen` / `DoomHUD` / `DoomMainMenu` component split. Editor
+  window: `ReactiveUITK/Demos/Doom Game`.
+- **Pure UI Toolkit comparison harness** — `PureUIToolkitStressTestBootstrap`
+  + editor window for measuring native UIToolkit alongside the UITKX stress
+  test under identical conditions.
+- **`ScrollView` `contentContainer` typed-path styling** — `contentContainer`
+  prop now applies on both `ApplyTypedFull` and `ApplyTypedDiff` paths
+  (previously only the untyped slot path applied it).
+- **Typed Props for editor field types** — `BoundsField`, `BoundsIntField`,
+  `ColorField`, `DoubleField`, `DropdownField`, `EnumField`, `EnumFlagsField`,
+  `FloatField`, `Foldout`, `GroupBox`, `Hash128Field`, `HelpBox`, `Image`,
+  `IntegerField`, `LongField`, `MinMaxSlider`, `MultiColumnListView`,
+  `MultiColumnTreeView`, `ObjectField`, `ProgressBar`, `PropertyInspector`,
+  `RadioButton`/`RadioButtonGroup`, `RectField`/`RectIntField`,
+  `RepeatButton`, `Scroller`, `Slider`/`SliderInt`, `Tab`/`TabView`,
+  `TemplateContainer`, `TextElement`, `TextField`, `ToggleButtonGroup`,
+  `Toggle`, `Toolbar`, `TreeView`, `UnsignedIntegerField`/`UnsignedLongField`,
+  `Vector2Field`/`Vector2IntField`/`Vector3Field`/`Vector3IntField`/`Vector4Field`,
+  `IMGUIContainer`. All wired through `TypedPropsApplier` with full diff
+  support.
+
+### Changed
+
+- **Source generator diagnostic IDs unified with live analyzer.** Seven
+  diagnostics now use the analyzer's canonical IDs so the same logical issue
+  surfaces with the same code in both the Unity Console (source generator) and
+  the VS Code Problems pane (live analyzer):
+
+  | Concept | Old (source-gen) | New (aligned) |
+  |---|---|---|
+  | `@component` name ≠ filename | `UITKX0006` | `UITKX0103` |
+  | Unknown attribute on element | `UITKX0002` | `UITKX0109` |
+  | Element inside loop missing `key` | `UITKX0009` | `UITKX0106` |
+  | Duplicate sibling key | `UITKX0010` | `UITKX0104` |
+  | Multiple root elements | `UITKX0017` | `UITKX0108` |
+  | Asset path not found | `UITKX0022` | `UITKX0120` |
+  | Asset type mismatch | `UITKX0023` | `UITKX0121` |
+
+  Diagnostic text and severity are unchanged. Migrate any explicit ID
+  references (e.g. CI grep rules) to the new codes.
+- **Initial `CreateRoot` render is now synchronous.** The first render +
+  commit phase runs to completion before `CreateRoot` returns, so the host
+  container never appears empty for one frame between `Clear()` and the
+  first commit. Mirrors React 18's `createRoot().render()` behaviour:
+  initial mount is always synchronous; time-slicing is reserved for
+  subsequent state-driven updates. Passive effects are still scheduled
+  asynchronously.
+
+### Removed
+
+- **Dead `FiberNode.ContextProviderId` field.** The field had no production
+  reads — it was only assigned in `CloneForReuse` and ignored by every
+  consumer. Removing it slightly reduces the per-fiber memory footprint.
+- **`VirtualNode` object pooling fully reverted.** VNode references can
+  appear inside opaque `IProps` payloads (e.g. `Route.Element` and any
+  slot-like prop), so pool returns produced dangling pointers and
+  cross-wired component trees. VNodes are now plain GC heap objects.
+
+### Fixed
+
+- **Cross-wired Style / BaseProps "disco" bug.** A pooled `Style` or
+  `BaseProps` instance could be scheduled for return twice in the same
+  flush window — once during render-phase bailout and again from the
+  commit-phase update — causing it to be pushed into the pool twice and
+  then re-rented to two different fibers, which then mutated each other's
+  styles. Fixed by adding an idempotent `_isPendingReturn` guard on both
+  pools and by removing the render-phase pool-return entirely (the leak
+  is bounded — the unused instance is collected when the owning component
+  re-renders).
+- **`<ErrorBoundary>` stuck on its fallback after `resetKey` change.**
+  `CloneFromCurrent` was copying `ErrorBoundaryResetKey` from the previous
+  fiber, so the clone always equalled the current and the change was never
+  observed. The reset key is now refreshed from the new VNode and marked
+  consumed against the alternate inside `UpdateErrorBoundary`.
+- **`<Portal target={x}>` ignored target-prop changes.** When a portal's
+  `target` prop pointed at a new container between renders, the bailout
+  clone kept the previous `PortalTarget` / `HostElement`. Both now refresh
+  from the new VNode.
+- **Universal deletion tracking in `BeginWork`.** Function components
+  (`ReconcileSingleChild`, null-return deletion) and fragments call into
+  the reconciliation path directly, bypassing the wrapper that set
+  `_hasDeletions`. Tracking now lives at the single universal `BeginWork`
+  exit, covering every code path.
+- **Diagnostic-test IDs realigned with renumbered codes.** The
+  `UITKX0009_ForeachMissingKey` / `UITKX0010_DuplicateSiblingKey` /
+  `UITKX0010_NotFiredForUniqueKeys` source-generator tests asserted the
+  pre-renumber IDs and silently failed; now assert the canonical
+  `UITKX0106` / `UITKX0104` codes.
+- **Stray VS Code extension activation logging.** The extension previously
+  logged `chatHistory` / `globalState.keys()` on every activation — leftover
+  scaffolding from an unrelated experiment. Removed.
+- **`RS2008` build warning in the language server.** Suppressed the
+  "enable analyzer release tracking" warning, which targets analyzer NuGet
+  packages, not the LSP server EXE.
+- **Galaga sample dead code.** Removed unused `int beamH` local in
+  `GameScreen.uitkx`.
+
 ## [0.4.9] - 2026-04-18
 
 ### Added

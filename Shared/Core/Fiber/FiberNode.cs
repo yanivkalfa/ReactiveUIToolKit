@@ -84,7 +84,6 @@ namespace ReactiveUITK.Core.Fiber
 
         // ==== Context ====
         internal HostContext.ContextFrameHandle ContextFrame;
-        public int ContextProviderId;
         public Dictionary<string, object> ProvidedContext;
 
         // ==== Refs ====

@@ -166,7 +166,6 @@ namespace ReactiveUITK.Core.Fiber
 
                 // === Context ===
                 clone.ContextFrame = current.ContextFrame;
-                clone.ContextProviderId = current.ContextProviderId;
                 clone.ProvidedContext = current.ProvidedContext;
 
                 // === Error boundary ===

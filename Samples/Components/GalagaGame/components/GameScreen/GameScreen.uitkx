@@ -32,7 +32,7 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
 
   return (
     <VisualElement style={GameScreenStyles.Container}>
-      <HUD spriteSheet={spriteSheet} score={state.Score} lives={state.Lives} wave={state.Wave} />
+      <HUD score={state.Score} lives={state.Lives} />
       <VisualElement style={GameScreenStyles.TopBar}>
         <Button
           text="Quit"
@@ -50,12 +50,14 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
         @if (state.Phase == GamePhase.WaveIntro) {
           return (
             <VisualElement style={GameScreenStyles.Overlay}>
-              <Label text={$"WAVE {state.Wave}"} style={GameScreenStyles.WaveText} />
+              <Label
+                text={$"WAVE {state.Wave}"}
+                style={GameScreenStyles.WaveText}
+              />
               <Label text="GET READY!" style={GameScreenStyles.ReadyText} />
             </VisualElement>
           );
         }
-
         @foreach (var enemy in state.Enemies) {
           if (enemy.Phase == EnemyPhase.Dead || enemy.Phase == EnemyPhase.Waiting || enemy.EnterDelay > 0) {
             return (<VisualElement key={$"e-{enemy.Id}"} />);
@@ -74,6 +76,7 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
           } else {
             (eFrame, esx, esy) = GetFormationSprite(enemy.Type, enemy.Health, enemy.AnimFrame);
           }
+
           return (
             <VisualElement
               key={$"e-{enemy.Id}"}
@@ -81,27 +84,26 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
             />
           );
         }
-
         @foreach (var enemy in state.Enemies) {
           if (!enemy.HasCapturedShip || enemy.Phase == EnemyPhase.Dead) {
             return (<VisualElement key={$"cap-{enemy.Id}"} />);
           }
+
           return (
             <VisualElement
               key={$"cap-{enemy.Id}"}
               style={MakeSpriteStyle(spriteSheet, PlayerShipRed,
-                enemy.X, enemy.Y - ENTITY_SIZE, 1f, 1f)}
+              enemy.X, enemy.Y - ENTITY_SIZE, 1f, 1f)}
             />
           );
         }
-
         @if (beamCmd != null) {
           var cmd = beamCmd.Value;
           var beamFrame = TractorBeam[cmd.TractorBeamFrame % 3];
           int beamW = beamFrame.W * SPRITE_SCALE;
-          int beamH = beamFrame.H * SPRITE_SCALE;
           float beamX = cmd.X + ENTITY_SIZE * 0.5f - beamW * 0.5f;
           float beamY = cmd.Y + ENTITY_SIZE;
+
           return (
             <VisualElement
               key="tractor-beam"
@@ -109,10 +111,10 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
             />
           );
         }
-
         @foreach (var exp in state.Explosions) {
           var expFrames = exp.IsPlayer ? PlayerExplosion : EnemyExplosion;
           int fi = Mathf.Clamp(exp.Frame, 0, expFrames.Length - 1);
+
           return (
             <VisualElement
               key={$"x-{exp.Id}"}
@@ -120,46 +122,46 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
             />
           );
         }
-
         @foreach (var bullet in state.Bullets) {
           if (!bullet.Active) {
             return (<VisualElement key={$"b-{bullet.Id}"} />);
           }
           var bulletFrame = bullet.Owner == BulletOwner.Player ? MissileUp : MissileDown;
+
           return (
             <VisualElement
               key={$"b-{bullet.Id}"}
               style={MakeSpriteStyle(spriteSheet, bulletFrame,
-                bullet.X - ENTITY_SIZE * 0.5f, bullet.Y - ENTITY_SIZE * 0.5f, 1f, 1f)}
+              bullet.X - ENTITY_SIZE * 0.5f, bullet.Y - ENTITY_SIZE * 0.5f, 1f, 1f)}
             />
           );
         }
-
         @if (state.Player.Alive) {
           return (
             <VisualElement
               key="player"
               style={MakeSpriteStyle(spriteSheet, PlayerShip,
-                state.Player.X, state.Player.Y, 1f, 1f)}
+              state.Player.X, state.Player.Y, 1f, 1f)}
             />
           );
         }
-
         @if (state.Player.DualShip && state.Player.Alive) {
           return (
             <VisualElement
               key="dual-ship"
               style={MakeSpriteStyle(spriteSheet, PlayerShip,
-                state.Player.DualShipX, state.Player.Y, 1f, 1f)}
+              state.Player.DualShipX, state.Player.Y, 1f, 1f)}
             />
           );
         }
-
         @if (state.Phase == GamePhase.GameOver) {
           return (
             <VisualElement style={GameScreenStyles.Overlay}>
               <Label text="GAME OVER" style={GameScreenStyles.GameOverText} />
-              <Label text={$"FINAL SCORE: {state.Score}"} style={GameScreenStyles.ScoreText} />
+              <Label
+                text={$"FINAL SCORE: {state.Score}"}
+                style={GameScreenStyles.ScoreText}
+              />
               <Button
                 text="Try Again"
                 onClick={_ => restart()}
@@ -173,12 +175,14 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
             </VisualElement>
           );
         }
-
         @if (state.Phase == GamePhase.Victory) {
           return (
             <VisualElement style={GameScreenStyles.Overlay}>
               <Label text="VICTORY!" style={GameScreenStyles.VictoryText} />
-              <Label text={$"FINAL SCORE: {state.Score}"} style={GameScreenStyles.ScoreText} />
+              <Label
+                text={$"FINAL SCORE: {state.Score}"}
+                style={GameScreenStyles.ScoreText}
+              />
               <Button
                 text="Play Again"
                 onClick={_ => restart()}
@@ -192,7 +196,6 @@ component GameScreen(int restartVersion = 0, Action? onQuit = null) {
             </VisualElement>
           );
         }
-
         @if (state.Phase == GamePhase.WaveCleared) {
           return (
             <VisualElement style={GameScreenStyles.Overlay}>

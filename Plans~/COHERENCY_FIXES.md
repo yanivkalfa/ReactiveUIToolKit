@@ -1,6 +1,6 @@
 # COHERENCY_FIXES — Audit Follow-up Action Plan
 
-> **Status:** Proposed
+> **Status:** Partially executed (see Execution Record below)
 > **Created:** April 27, 2026
 > **Origin:** Cleanup pass after the April 26 disco-bug + ErrorBoundary-loop fixes.
 >   See chat history for the original audit findings.
@@ -10,6 +10,28 @@ the result of deeper research into each, and the recommended approach. The
 items are ordered from highest to lowest user-facing impact.
 
 Throughout: file references use workspace-relative paths.
+
+---
+
+## Execution Record (April 27, 2026 pass)
+
+| # | Status | Notes |
+|---|---|---|
+| 1 | ✅ **DONE** | 7 source-gen IDs renumbered; tests + pipeline comment + migration guide updated; CHANGELOG entry added under `[Unreleased]`. SourceGen tests: 111/111 pass. LSP-server tests: 57/57 pass. |
+| 2A | ⚠️ **DEFERRED — original diagnosis was wrong** | After re-reading [AstFormatter.cs:55-91](ide-extensions~/language-lib/Formatter/AstFormatter.cs#L55-L91): the formatter is **already designed to fail-safe** — it explicitly returns `source` unchanged on parse errors with the documented contract "the formatter can never corrupt a file." Roslyn-pass exceptions are also already caught at lines 2057/2094/2360 with `/* best-effort */`. So the "FormattingHandler swallows exceptions silently" framing was incorrect. The user's specific scenario (cannot format file with `__UitkxRef__` semantic error) needs **live reproduction** to determine which of: (a) parse-error short-circuit kicks in, (b) `formatted == text` no-op (file already canonical), (c) some other code path. Cannot safely modify without that repro. **Recommendation:** open a dedicated investigation issue and capture the exact LSP Trace output during a failed save before changing anything. |
+| 2B | ⚠️ **DEFERRED — TD-S1, multi-day workstream** | Touches the IDE virtual-document shape that intellisense, hover, completion, classification, and analyzer all depend on. Already documented as a known issue in [TECH_DEBT_SAMPLES_AND_RUNTIME.md](Plans~/TECH_DEBT_SAMPLES_AND_RUNTIME.md#L62-L77). Not low-risk. |
+| 2C | ✅ **DONE** | Unused `int beamH` deleted from [GameScreen.uitkx:102](Samples/Components/GalagaGame/components/GameScreen/GameScreen.uitkx). MarioGame HUD audit not yet run — see follow-up below. |
+| 3 | ✅ **DONE** | `ContextProviderId` field removed from [FiberNode.cs](Shared/Core/Fiber/FiberNode.cs) and the one copy in [FiberFactory.cs](Shared/Core/Fiber/FiberFactory.cs). All tests pass. |
+| 4 | ⚠️ **PARTIAL — only the truly safe sub-fix applied** | Applied: `old.Cancel()` → `await old.CancelAsync()` at [RoslynHost.cs:778](ide-extensions~/lsp-server/Roslyn/RoslynHost.cs). **Deferred:** the rest of the async refactor. Reasoning: [HoverHandler.cs:316](ide-extensions~/lsp-server/HoverHandler.cs#L316) explicitly comments *"Use synchronous GetAwaiter().GetResult() — HoverHandler.Handle is synchronous"* — this is a deliberate design decision, not an oversight. The LSP server runs as a console EXE with no `SynchronizationContext`, so there is no actual deadlock risk; the warnings are pure future-proofing. Converting `MapRoslynLocation`, `CollectRoslynReferences`, `GetLatestDiagnostics`, and the 3 hover sites to async is a real refactor that touches public signatures and ~10 test files, with the only concrete benefit being silencing pure-hygiene warnings. Not appropriate for a "do the safe items" pass. |
+| 5 | ✅ **DONE** | `<NoWarn>$(NoWarn);RS2008</NoWarn>` added to [UitkxLanguageServer.csproj](ide-extensions~/lsp-server/UitkxLanguageServer.csproj). Build verified clean (0 warnings). |
+| 6 | ✅ **DONE** | `chatHistory` / `globalState.keys()` debug block removed from [extension.ts](ide-extensions~/vscode/src/extension.ts). Server-resolution logs and `[Formatting]` traces preserved (genuine diagnostics). |
+
+### Outstanding follow-ups for a future pass
+
+1. **MarioGame HUD prop-mismatch audit** — verify whether MarioGame's `<HUD .../>` call site passes only the `score` and `lives` props its signature declares, or whether it also passes extras that the source generator silently drops.
+2. **#2A — investigate user's actual failed-save scenario** — capture the LSP Trace output ("UITKX LSP Trace" channel in VS Code) the moment a save no-ops on a broken file. That output will identify exactly which branch the formatter hits.
+3. **#2B — TD-S1 virtual-doc Ref<T> unification** — schedule as a dedicated workstream with an IDE-wide regression test pass.
+4. **#4 — full LSP async refactor** — only worth doing if the LSP server is ever embedded into an in-process VS host (where a SyncContext would create real deadlock risk). Otherwise the existing pragma + design comment in HoverHandler is correct.
 
 ---
 
